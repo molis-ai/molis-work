@@ -226,6 +226,13 @@ export interface AgentFrozenStart {
   /** Host-frozen context selection policy, absent when not wired for this runtime. */
   compaction?: { prompt_id: string; version: number; above_tokens: number };
   /**
+   * The window this Run was packed against (the model's own, capped by the runtime), and whether the provider's input
+   * count already includes cached prompt tokens. Absent on runs started before it was recorded.
+   */
+  model_context?: { window_tokens: number; prompt_includes_cache: boolean };
+  /** Present when this Run started from the Host's digest of earlier rounds instead of their verbatim history. */
+  history?: "digest";
+  /**
    * Exactly the prompts this Run was frozen with, layer included.
    *
    * The layer travels so a surface can show *who* said each part — product,
@@ -295,6 +302,12 @@ export interface AgentStartRequest {
    * one that round was frozen with; a person's inserted and skipped steps carry over because the graph does.
    */
   continue_step_board_of?: string;
+  /**
+   * How earlier rounds of the session reach this one. Absent or `session` carries every earlier round verbatim, tool
+   * output included. `digest` starts without that raw history: the task itself carries the caller's digest of earlier
+   * rounds, which is how a long session keeps working once its history no longer fits the model's window.
+   */
+  history?: "session" | "digest";
   /** Selected child roots; the Host must independently verify every directory grant. */
   subagent_workspaces?: AgentSubagentWorkspace[];
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
@@ -370,6 +383,8 @@ export interface AgentToolActivity {
   /** Bounded execution evidence, shown only when the user expands the activity. */
   output?: string;
   output_truncated?: boolean;
+  /** On a display copy only: lines of output left out because the surface never shows them. */
+  output_hidden_lines?: number;
   /** Last observation time; null when absent from the original replay. */
   at: string | null;
   /** Position of the original call; a result updates it without moving it. */
@@ -396,6 +411,11 @@ export interface AgentRunUsage {
   coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
   /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
   unavailable_reason?: string;
+  /**
+   * How much of the model's window the latest main call used: its whole prompt as the provider counted it (cached
+   * parts included). Absent until a call is recorded; compaction calls never count.
+   */
+  context?: { tokens: number; coverage: AgentUsageCoverage };
 }
 
 export interface AgentCommandOutputRef {

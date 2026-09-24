@@ -34,9 +34,20 @@ export interface ContinuationInput {
 const shell = (command: string, args: readonly string[]) => [command, ...args].join(" ");
 const clip = (text: string, size: number) => text.length > size ? text.slice(0, size) + "…" : text;
 
-/** The user's own task, even when the round being continued was itself a continuation. */
+/** A round that started from the digest of earlier rounds carries it ahead of its own request. */
+export const HISTORY_DIGEST_MARKER = "【前面的对话摘要】";
+export const HISTORY_DIGEST_TASK_HEAD = "\n\n【本轮任务】\n";
+
+/** A digest round's own request, without the digest it carried. */
+export function digestTask(text: string): string {
+  if (!text.startsWith(HISTORY_DIGEST_MARKER)) return text;
+  const at = text.indexOf(HISTORY_DIGEST_TASK_HEAD);
+  return at < 0 ? text : text.slice(at + HISTORY_DIGEST_TASK_HEAD.length);
+}
+
+/** The user's own task, even when the round being continued was itself a continuation or carried a digest. */
 export function originalTask(run: AgentRunView): string {
-  const first = run.turns.find(turn => turn.kind === "user")?.text ?? "";
+  const first = digestTask(run.turns.find(turn => turn.kind === "user")?.text ?? "");
   if (!first.startsWith(CONTINUATION_MARKER)) return first;
   const start = first.indexOf(ORIGINAL_HEAD), end = first.indexOf(FACTS_HEAD);
   return start < 0 || end < start ? first : first.slice(start + ORIGINAL_HEAD.length, end);

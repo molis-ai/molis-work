@@ -9,7 +9,9 @@ import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
 import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_THRESHOLD_PX } from "./reading.js";
-import { CONTINUATION_MARKER } from "./continuation.js";
+import { CONTINUATION_MARKER, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, digestTask } from "./continuation.js";
+import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
+import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
 import { createCodingTimeline } from "./timeline.js";
@@ -29,6 +31,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const onContentAppended = ${onContentAppended.toString()};
   const onReaderScrolled = ${onReaderScrolled.toString()};
   const CONTINUATION_MARKER = ${JSON.stringify(CONTINUATION_MARKER)};
+  const SESSION_WINDOW = ${SESSION_WINDOW}, SESSION_PAGE = ${SESSION_PAGE};
+  const HISTORY_DIGEST_MARKER = ${JSON.stringify(HISTORY_DIGEST_MARKER)}, HISTORY_DIGEST_TASK_HEAD = ${JSON.stringify(HISTORY_DIGEST_TASK_HEAD)};
+  const ownTask = ${digestTask.toString()};
   const READER_INTENT_MS = ${READER_INTENT_MS};
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
@@ -67,12 +72,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({q,api,host,status});
   const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent(),prepareRework:reason=>plans.prepareStepRework(reason)});
   let planEntries=[],subagentGroups=[];
+  // A long session is read as a window: the latest rounds in full, earlier ones as summaries until scrolled back to.
+  let earlierRuns=[],earlierFingerprint='',olderViews=new Map(),olderPlanEntries=[],olderSubagents=[],windowRuns=[],allRuns=[],pageLoading=false;
+  const resetWindow=()=>{earlierRuns=[];earlierFingerprint='';olderViews=new Map();olderPlanEntries=[];olderSubagents=[];windowRuns=[];allRuns=[];pageLoading=false;};
   const subagentCards = (${CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),timeline,
     showReviews:(container,refs,sid)=>host.showReviews?.(container,refs,sid),sessionId:()=>runtimeSessionId,
     parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
     openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
+  const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent()});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
-  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({directory,current:()=>current,status,navigate:async(id,target)=>{
+  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({directory,current:()=>current,status,ownTask,navigate:async(id,target)=>{
     const record=state.sessions.find(item=>item.session_id===id);if(!record)throw new Error('原会话暂不可读，请刷新后重试。');
     host.openItem('coding',id,record.title);await openCodingItem(id);if(current!==id)return;
     host.revealTask?.();
@@ -430,11 +439,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   const renderCommands = (runs) => {
     const region=q('[data-coding-commands]');
-    const refs=runs.flatMap((run,index)=>(run.command_outputs || []).map(ref=>({ref,number:index+1,target:run.activity.find(item=>item.call_id===ref.call_id)?.target || ''})));
+    // A summarized round names its command targets itself; a loaded one is read from its activity.
+    const refs=runs.flatMap((run,index)=>(run.command_outputs || []).map(({target,...ref})=>({ref,number:index+1,target:target ?? run.activity?.find(item=>item.call_id===ref.call_id)?.target ?? ''})));
     region.hidden=!refs.length;
+    const shown=new Set([...region.children].map(node=>node.dataset.command));
     for(const {ref,number,target} of refs) {
       const key=JSON.stringify(ref);
-      if([...region.children].some(node=>node.dataset.command===key)) continue;
+      if(shown.has(key)) continue;shown.add(key);
       const detail=document.createElement('details');detail.className='coding-command';detail.dataset.command=key;
       // The row names the command itself; its exit state is read from the durable receipt when opened.
       const summary=document.createElement('summary'),line=document.createElement('code'),state=document.createElement('span'),round=document.createElement('span');
@@ -627,15 +638,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(document.activeElement?.matches?.('input,textarea,select,[contenteditable=""],[contenteditable=true]') || document.querySelector('dialog[open]'))return;
     approve.focus({preventScroll:true});
   };
-  const renderRuns = (runs) => {
+  // runs: the rounds to (re)draw, a contiguous stretch. all: the whole session in order, where rounds that are not
+  // loaded are summaries. Numbering and "latest" are always read against the whole session.
+  const renderRuns = (runs, all=runs) => {
     // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it.
     const follow = !reportRun && onContentAppended({position:position(),pinned}).follow;
-    if(runs.length)q('[data-coding-welcome]')?.remove();
+    if(all.length)q('[data-coding-welcome]')?.remove();
     else if(!q('[data-coding-welcome]')) {turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));const name=root.dataset.codingWorkspaceName;if(name)turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=name;});}
     turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
     for (const run of runs) {
       let block=[...turns.children].find(node=>node.dataset.run===run.ref.run_id);
-      if(!block) { block=document.createElement('section'); block.dataset.run=run.ref.run_id; turns.append(block); }
+      if(!block) { block=document.createElement('section'); block.dataset.run=run.ref.run_id; block.dataset.runIndex=String(all.indexOf(run)); turns.insertBefore(block,[...turns.querySelectorAll(':scope > [data-run]')].find(node=>Number(node.dataset.runIndex)>all.indexOf(run)) || null); }
       renderQuestions(block,run);
       const entries=[
         ...run.turns.filter(turn=>turn.kind!=='system').map((value,index)=>({kind:'turn',value,sequence:value.sequence ?? index})),
@@ -658,8 +671,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           const renderKey=turn.text+'|'+(turn.steer?.state || '')+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
             if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;}
+            // A round that started from the digest of earlier rounds shows the person's own request; the digest it carried
+            // stays one click away, with the plain statement that tool output was not carried.
+            const digestAt=turn.kind==='user' && turn.text.startsWith(HISTORY_DIGEST_MARKER) ? turn.text.indexOf(HISTORY_DIGEST_TASK_HEAD) : -1;
+            if(digestAt>=0){
+              const digest=turn.text.slice(HISTORY_DIGEST_MARKER.length,digestAt),own=turn.text.slice(digestAt+HISTORY_DIGEST_TASK_HEAD.length),count=(digest.match(/前 (\\d+) 轮/)||[])[1]||'';
+              node.classList.add('has-digest');node.replaceChildren();
+              const details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre'),text=document.createElement('div');
+              details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-history"></use></svg>';summary.append(document.createTextNode('带入了前 '+count+' 轮的摘要 · 工具输出原文没有带入'));
+              body.textContent=digest;details.append(summary,body);
+              text.className='coding-turn-own';text.textContent=own.startsWith(CONTINUATION_MARKER)?'从断点继续 · '+own.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim():own;
+              node.append(details,text);
+            }
             // A continuation the Host composed reads as one line; the facts it handed the model stay one click away.
-            if(turn.kind==='user' && turn.text.startsWith(CONTINUATION_MARKER)){
+            else if(turn.kind==='user' && turn.text.startsWith(CONTINUATION_MARKER)){
               const body=node.innerHTML,line=turn.text.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim();
               node.classList.add('is-continuation');node.innerHTML='';
               const details=document.createElement('details'),summary=document.createElement('summary'),facts=document.createElement('div');
@@ -679,7 +704,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           const activities=entry.values,key=activities[0].call_id;
           let detail=[...block.querySelectorAll('[data-coding-activity]')].find(node=>node.dataset.codingActivity===key);
           if(!detail) { detail=document.createElement('details'); detail.className='coding-activity'; detail.dataset.codingActivity=key; }
-          timeline.renderGroup(detail,activities,run,entry===groups.findLast(group=>group.kind==='activity') && run===runs.at(-1));
+          timeline.renderGroup(detail,activities,run,entry===groups.findLast(group=>group.kind==='activity') && run===all.at(-1));
           ordered.push(detail);
         } else {
           const question=entry.value,key=JSON.stringify([run.ref.run_id,question.pending_id,question.pending_revision]);
@@ -690,15 +715,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // The running plan sits right under the task it came from, kept in place by the same ordering as every entry.
       // A graph continued by a later round is shown once, on the round now working on it.
       const planEntry=planEntries.find(entry=>entry.run_id===run.ref.run_id),boardId=planEntry?.board?.board_id;
-      const laterOnSameGraph=boardId && runs.slice(runs.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.board_id===boardId);
+      const laterOnSameGraph=boardId && all.slice(all.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.board_id===boardId);
       if(laterOnSameGraph)block.querySelector(':scope > .coding-plan-progress')?.remove();
-      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===runs.at(-1) && !terminal(run.phase));
+      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase));
       if(planCard){const at=ordered.findIndex(node=>node.dataset?.kind==='user');ordered.splice(at+1,0,planCard);}
       // Children appear right after the step that sent them.
       const children=subagentCards.render(run,subagentGroups.find(group=>group.run_id===run.ref.run_id));
       if(children){const at=ordered.map(node=>Boolean(node.classList?.contains('coding-activity') && node.querySelector('[data-kind="dispatch-subagent"]'))).lastIndexOf(true);ordered.splice(at>=0?at+1:ordered.length,0,children);}
       // While the model is still writing its latest reply, a caret marks the end of that text — and only that text.
-      const writing=run===runs.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
+      const writing=run===all.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
       ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
       for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
@@ -710,19 +735,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       // The pending decision sits where the work stopped. The Host renders it and owns the decision.
       let inline=block.querySelector(':scope > [data-coding-inline-review]');
-      if(run===runs.at(-1) && run.phase==='awaiting-review') {
+      if(run===all.at(-1) && run.phase==='awaiting-review') {
         if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
         const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void Promise.resolve(host.showReviews?.(inline,[run.ref],runtimeSessionId)).then(()=>offerApproval(inline));
       } else inline?.remove();
-      timeline.renderFooter(block,run,runs.indexOf(run),run===runs.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy));
+      timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy));
     }
-    renderCommands(runs);
+    renderCommands(all);
     // One row per finished round: its changes and its report, newest first.
-    const ended=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase)),outcomeList=q('[data-coding-outcome-list]');
+    const ended=all.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase)),outcomeList=q('[data-coding-outcome-list]');
     q('[data-coding-outcomes]').hidden=!ended.length;
     const outcomeIcon=(name)=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),use=document.createElementNS('http://www.w3.org/2000/svg','use');svg.setAttribute('aria-hidden','true');use.setAttribute('href','#icon-'+name);svg.append(use);return svg;};
+    const rows=new Map([...outcomeList.children].map(node=>[node.dataset.codingOutcome,node]));
     for(const run of ended) {
-      let row=[...outcomeList.children].find(node=>node.dataset.codingOutcome===run.ref.run_id);
+      let row=rows.get(run.ref.run_id);
       if(!row) {
         row=document.createElement('div');row.className='coding-outcome';row.dataset.codingOutcome=run.ref.run_id;
         const name=document.createElement('span'),phase=document.createElement('span'),change=document.createElement('button'),report=document.createElement('button');
@@ -731,10 +757,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         report.type='button';report.className='mw-btn mw-btn--ghost';report.dataset.codingReportOpen=run.ref.run_id;report.append(outcomeIcon('file'),'报告');
         row.append(name,phase,change,report);outcomeList.prepend(row);
       }
-      row.querySelector('.coding-outcome-name').textContent='第 '+(runs.indexOf(run)+1)+' 轮';
+      row.querySelector('.coding-outcome-name').textContent='第 '+(all.indexOf(run)+1)+' 轮';
       const phase=row.querySelector('.coding-outcome-phase');phase.textContent=phases[run.phase] || run.phase;phase.dataset.tone=run.phase==='completed'?'done':run.phase==='failed'?'failed':'idle';
     }
-    lastRun=runs.at(-1)||null;
+    lastRun=all.at(-1)||null;
     const result=q('[data-coding-result]');
     if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status('');} }
     if(lastRun) {
@@ -751,10 +777,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(f.compaction) values.push(['上下文整理','自动 · 估计超过 '+f.compaction.above_tokens+' tokens 时选择较早原文 · v'+f.compaction.version]);
       if(!lastRun.usage.compaction && lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
       const phaseLabel=phases[lastRun.phase]||lastRun.phase,tone=lastRun.phase==='completed'?'done':lastRun.phase==='failed'?'failed':terminal(lastRun.phase)?'idle':'live';
-      const key=JSON.stringify([runs.length,phaseLabel,values,unused]);
+      const key=JSON.stringify([all.length,phaseLabel,values,unused]);
       if(result.dataset.content!==key) {
         const head=document.createElement('header'),title=document.createElement('h3'),phase=document.createElement('span'),round=document.createElement('span'),dl=document.createElement('dl');
-        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+runs.length+' 轮';head.append(title,phase,round);
+        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+all.length+' 轮';head.append(title,phase,round);
         values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;if(label==='工作范围'||label==='本轮独立目录')dd.className='is-path';dl.append(dt,dd);});
         result.replaceChildren(head,dl);
         if(unused.length){const note=document.createElement('p');note.className='coding-facts-unused';note.textContent='本轮未使用：'+unused.join('、');result.append(note);}
@@ -811,12 +837,52 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(current===id && generation===ticket){checkpointKey='';q('[data-coding-checkpoints-status]').textContent='检查点暂不可读：'+error.message;}
     } finally {if(generation===ticket){checkpointLoading=false;controls();}}
   };
+  // Earlier rounds come back a page at a time as the reader scrolls up; what they were reading stays where it was.
+  const loadEarlier=async()=>{
+    const start=allRuns.findIndex(run=>!run.light);
+    if(pageLoading || !current || start<=0)return;
+    const id=current,ticket=generation;pageLoading=true;renderEarlier();
+    try{
+      const page=await api('/sessions/'+encodeURIComponent(id)+'/runs?before='+start+'&limit='+SESSION_PAGE);
+      if(current!==id || ticket!==generation)return;
+      page.runs.forEach(run=>olderViews.set(run.ref.run_id,run));olderPlanEntries.push(...(page.taskboard_plans || []));olderSubagents.push(...(page.subagents || []));
+      allRuns=allRuns.map(run=>run.light && olderViews.get(run.ref.run_id) || run);
+      planEntries=[...olderPlanEntries,...planEntries.filter(entry=>!olderPlanEntries.includes(entry))];subagentGroups=[...olderSubagents,...subagentGroups.filter(group=>!olderSubagents.includes(group))];
+      // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; the round being read stays put.
+      const pending=page.runs.map(run=>olderViews.get(run.ref.run_id)).reverse();
+      while(pending.length){
+        if(current!==id || ticket!==generation)return;
+        const anchor=[...turns.querySelectorAll(':scope > [data-run]')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top),before=anchor?.getBoundingClientRect().top;
+        renderRuns(pending.splice(0,2).reverse(),allRuns);
+        if(anchor)turns.scrollTop+=anchor.getBoundingClientRect().top-before;
+        if(pending.length)await new Promise(resolve=>requestAnimationFrame(resolve));
+      }
+    }catch(error){if(current===id)status(error.message,true);}
+    finally{pageLoading=false;if(current===id)renderEarlier();}
+  };
+  const earlierWatch=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))void loadEarlier();},{root:turns,rootMargin:'900px 0px 0px 0px'});
+  const renderEarlier=()=>{
+    const hidden=allRuns.findIndex(run=>!run.light);
+    let bar=turns.querySelector(':scope > [data-coding-earlier]');
+    if(hidden<=0){if(bar){earlierWatch.unobserve(bar);bar.remove();}return;}
+    if(!bar){bar=document.createElement('button');bar.type='button';bar.className='coding-earlier';bar.dataset.codingEarlier='';bar.addEventListener('click',()=>void loadEarlier());earlierWatch.observe(bar);}
+    if(turns.firstElementChild!==bar)turns.prepend(bar);
+    bar.disabled=pageLoading;bar.textContent=pageLoading?'正在读取更早的轮次…':'显示更早的 '+hidden+' 轮';
+  };
   const readCurrent = async (fresh=false) => {
     if(!current || loading && !fresh) return;
     const id=current, ticket=generation; loading=true;
     try {
-      const data=await api('/sessions/'+encodeURIComponent(id));
+      const read=(known)=>api('/sessions/'+encodeURIComponent(id)+'?window='+SESSION_WINDOW+(earlierFingerprint?'&earlier='+earlierFingerprint:'')+(known.length?'&known='+known.join(','):''));
+      let data=await read(fresh?[]:windowRuns.map(run=>run.fingerprint).filter(Boolean));
       if(current!==id || ticket!==generation) return;
+      // An unchanged round keeps the very view already drawn, so nothing about it is redrawn either.
+      data.runs=data.runs.map(run=>run.unchanged ? windowRuns.find(held=>held.fingerprint===run.fingerprint) || run : run);
+      if(data.runs.some(run=>run.unchanged)){data=await read([]);if(current!==id || ticket!==generation) return;}
+      if(data.earlier){earlierRuns=data.earlier;earlierFingerprint=data.earlier_fingerprint;}
+      // A round that leaves the window keeps its full view: it is already drawn and settled.
+      for(const run of windowRuns) if(!data.runs.some(next=>next.ref.run_id===run.ref.run_id)) olderViews.set(run.ref.run_id,run);
+      windowRuns=data.runs;allRuns=[...earlierRuns.map(summary=>olderViews.get(summary.ref.run_id) || summary),...data.runs];
       recovery=Boolean(data.recovery_required);checkpointBusy=Boolean(data.checkpoint_busy);
       q('[data-coding-recovery]').hidden=!recovery;
       const resultsLabel=recovery || checkpointBusy || data.runs.some(run=>run.phase==='awaiting-review')?'结果 · 待审查':'结果与审查';
@@ -845,13 +911,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
       if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      runtimeSessionId=data.session.runtime_session_id;planEntries=data.taskboard_plans || [];subagentGroups=data.subagents || [];renderRuns(data.runs);
-      plans.update(id,data.plan ?? null,data.runs);
+      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();usageMeter.render(data,lastRun);
+      plans.update(id,data.plan ?? null,allRuns);
       subagents.update(id,data.subagents ?? []);
-      taskboard.update(id,data);
+      taskboard.update(id,{...data,runs:allRuns});
       stepReports.sync(id);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
-      void host.showReviews?.(q('[data-coding-host-reviews]'), [...data.runs.map(run=>run.ref), ...(data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : []))], data.session.runtime_session_id);
+      // The results panel lists this session's reviews by session, not by naming every round: open items always, and the
+      // latest settled history with the rest one click away. It is only read while the panel is open.
+      if(root.dataset.codingResults==='true')void host.showReviews?.(q('[data-coding-host-reviews]'), (data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : [])), data.session.runtime_session_id, undefined, data.session.runtime_session_id ? {runSession:data.session.runtime_session_id,limit:30} : undefined);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);
       if(fresh || checkpointKey!==nextCheckpointKey){checkpointKey=nextCheckpointKey;void readCheckpoints();}
       if(data.error) status(data.error,true);
@@ -871,7 +939,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
-    current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    resetWindow();current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;
@@ -897,7 +965,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const untouched = async() => {
     for(const session of state.sessions.filter(item=>item.state==='idle' && item.title==='新编码会话' && !item.goal_id)) {
       if(localDraft(session.session_id)) continue;
-      try{const data=await api('/sessions/'+encodeURIComponent(session.session_id));if(!data.runs.length && !(data.draft || '').trim() && !data.character && !(data.materials || []).length)return session;}catch{}
+      try{const data=await api('/sessions/'+encodeURIComponent(session.session_id)+'?window=1');if(!data.runs.length && !(data.draft || '').trim() && !data.character && !(data.materials || []).length)return session;}catch{}
     }
     return null;
   };
@@ -985,7 +1053,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-context-toggle]')){const context=q('[data-coding-context]');context.hidden=!context.hidden;target.setAttribute('aria-expanded',String(!context.hidden));}
       if(target.matches('[data-coding-workspace-open]')) { q('[data-coding-workspace-dialog]').showModal(); }
       if(target.matches('[data-coding-workspace-close]')) q('[data-coding-workspace-dialog]').close();
-      if(target.matches('[data-coding-results-open]')) {root.dataset.codingResults=root.dataset.codingResults==='true'?'false':'true';if(root.dataset.codingResults==='true')q('[data-coding-results-close]').focus({preventScroll:true});}
+      if(target.matches('[data-coding-results-open]')) {root.dataset.codingResults=root.dataset.codingResults==='true'?'false':'true';if(root.dataset.codingResults==='true'){q('[data-coding-results-close]').focus({preventScroll:true});void readCurrent();}}
       if(target.matches('[data-coding-results-close]')) {root.dataset.codingResults='false';q('[data-coding-results-open]').focus({preventScroll:true});}
       if(target.matches('[data-coding-directory-back]')) {root.dataset.codingDetail='false';(directory.querySelector('[aria-current=true]') || directory.querySelector('[data-coding-new]'))?.focus({preventScroll:true});}
       if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){const intent=q('[data-coding-intent]'),wanted=[...intent.options].find(option=>option.value===target.dataset.codingPromptIntent && !option.disabled);if(wanted){intent.value=wanted.value;intent.dispatchEvent(new Event('change',{bubbles:true}));}input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(input.value.length,input.value.length);}

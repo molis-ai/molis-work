@@ -75,6 +75,8 @@ export interface PrologueModelConfiguration {
   model: string;
   /** Opaque credential reference. The adapter never sees the secret itself. */
   credential_ref: string;
+  /** The model's configured context window. Absent means unknown; the runtime default then applies. */
+  context_tokens?: number;
   /**
    * Prompt cache mode for this Run. Absent is `off`, and `off` must behave
    * exactly as if caching did not exist — no field is sent at all.
@@ -128,6 +130,8 @@ export interface PrologueStartInput {
   mcp_sources?: readonly AgentMcpSourceRef[];
   /** Read-only work never asks to write; the Host decides this, not the model. */
   mode: "plan" | "build";
+  /** `digest`: the task carries earlier rounds; do not replay the session's verbatim history. */
+  history?: "digest";
 }
 
 /** Host observation times only; the SDK ledger owns content and execution state. */
@@ -138,6 +142,8 @@ export interface PrologueRunTiming {
 }
 
 export interface PrologueRuntimePort {
+  /** The window the runtime packs against when a model states none; a configured window is capped by it. */
+  defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
   amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number): Promise<NonNullable<AgentRunView["step_board"]>>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
@@ -424,6 +430,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (role.compaction && !this.#runtime.compaction) throw new PrologueAdapterError("agent.capability_unavailable", "上下文整理尚未接通");
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
+    state.prompt_includes_cache = model.protocol.startsWith("openai");
     const frozen = {
       ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       ...(role.character ? { character: structuredClone(role.character) } : {}),
@@ -450,6 +457,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       })),
       ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
       ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),
+      ...(request.history === "digest" ? { history: "digest" as const } : {}),
+      ...(this.#runtime.defaultContextWindowTokens ? { model_context: {
+        window_tokens: Math.min(model.context_tokens ?? this.#runtime.defaultContextWindowTokens, this.#runtime.defaultContextWindowTokens),
+        prompt_includes_cache: model.protocol.startsWith("openai"),
+      } } : {}),
       budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
       directory: request.directory,
     };
@@ -475,6 +487,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       mcp_tools: request.mcp_tools ?? [],
       mcp_sources: request.mcp_sources ?? [],
       mode,
+      ...(request.history === "digest" ? { history: "digest" as const } : {}),
     });
 
     const ref: AgentRunRef = {
@@ -741,6 +754,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(restored.recovery ? { recovery: restored.recovery } : {}) };
     for (const saved of restored.runs) {
       const state = emptyPrologueStreamState();
+      state.prompt_includes_cache = saved.frozen.model_context?.prompt_includes_cache ?? false;
       state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
       let firstPrompt = true;
       let endedAt: string | null = null;

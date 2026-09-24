@@ -84,6 +84,8 @@ export interface PrologueStreamState {
   compaction_receipts: Map<string, PrologueUsageReceipt>;
   compaction_unaccounted: number;
   usage_preview: PrologueUsageReceipt | undefined;
+  /** OpenAI-style providers count cached prompt tokens inside input; Anthropic-style report them beside it. */
+  prompt_includes_cache?: boolean;
   stop_reason?: string;
   /** Approvals the Run is stopped on. The bridge mirrors these to the Host queue. */
   awaiting_approval: PrologueApprovalWaiting[];
@@ -166,7 +168,15 @@ function updateUsage(state: PrologueStreamState): void {
   const cost = aggregate(receipts.map(r => ({ source: r.cost.currency === "USD" ? r.cost.source : "unknown", value: r.cost.amount })));
   const unknown = [input, output].some(item => ["unknown", "partial", "partial-estimated"].includes(item.coverage));
   const estimated = [input, output].some(item => item.coverage.includes("estimated"));
+  // The window in use is the latest main call's whole prompt; compaction calls size a different request.
+  const latest = state.usage_preview ?? [...state.usage_receipts.values()].at(-1);
+  const prompt = latest ? [latest.input, ...(state.prompt_includes_cache ? [] : [latest.cacheRead, latest.cacheWrite])] : [];
+  const context = prompt.length && prompt[0]!.source !== "unknown" && prompt[0]!.tokens !== undefined ? {
+    tokens: prompt.reduce((sum, count) => sum + (count.source === "unknown" || count.tokens === undefined ? 0 : count.tokens), 0),
+    coverage: (prompt.every(count => count.source === "reported") ? "reported" : prompt.some(count => count.source === "unknown") ? "partial" : "estimated") as AgentUsageCoverage,
+  } : undefined;
   state.usage = {
+    ...(context ? { context } : {}),
     ...(compaction ? { compaction } : {}),
     tokens: {
       input: input.value ?? 0, output: output.value ?? 0,

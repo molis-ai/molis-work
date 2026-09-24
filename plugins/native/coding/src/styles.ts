@@ -65,6 +65,15 @@ export const CODING_STYLES = `
 [data-coding-goal-dialog] [data-coding-goal-list] .mw-dir-row.is-selected::before { content:none; }
 .coding-workspace svg { width:12px; height:12px; margin-right:4px; }
 .coding-turns { overflow-anchor:none; overscroll-behavior:contain; }
+/* Earlier rounds of a long session load as the reader scrolls up; the control is also a button for keyboard and screen readers. */
+.coding-earlier { display:block; margin:4px auto 20px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
+.coding-earlier:hover:not(:disabled) { color:var(--ink); border-color:color-mix(in srgb,var(--ink) 30%,var(--line)); }
+.coding-earlier:disabled { cursor:progress; }
+.coding-digest { margin:0 0 8px; font-size:12px; color:var(--muted); }
+.coding-digest > summary { display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+.coding-digest > summary svg { width:14px; height:14px; }
+.coding-digest > pre { max-height:18rem; overflow:auto; margin:6px 0 0; padding:10px 12px; border-radius:8px; background:color-mix(in srgb,var(--ink) 4%,var(--paper)); white-space:pre-wrap; font:12px/1.6 inherit; }
+.coding-turn-own { white-space:pre-wrap; }
 .coding-start .mw-empty { padding:24px 0; }
 .coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-composer,
 .coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-status { display:none; }
@@ -130,6 +139,32 @@ export const CODING_STYLES = `
 .coding-composer-bar { display:flex; flex-wrap:wrap; align-items:center; gap:2px 4px; min-width:0; padding:2px 2px 0 2px; }
 .coding-composer-leading { display:flex; flex:1; flex-wrap:wrap; align-items:center; gap:2px; min-width:0; }
 .coding-composer-sep { width:1px; height:16px; margin:0 4px; background:var(--line); flex:none; }
+/* Context and usage: a ring and a percentage beside send; the panel opens above the composer. */
+.coding-meter { position:relative; flex:none; }
+.coding-meter-toggle { display:inline-flex; align-items:center; gap:5px; height:28px; min-height:28px; padding:0 8px; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.coding-meter-ring { width:16px; height:16px; transform:rotate(-90deg); flex:none; }
+.coding-meter-ring circle { fill:none; stroke-width:2.5; }
+.coding-meter-ring circle:first-child { stroke:var(--line); }
+.coding-meter-ring circle:last-child { stroke:var(--muted); stroke-linecap:round; stroke-dasharray:0 51; transition:stroke-dasharray .3s ease; }
+.coding-meter[data-tone=notice] .coding-meter-ring circle:last-child { stroke:var(--amber); }
+.coding-meter[data-tone=attention] .coding-meter-toggle { color:var(--amber); }
+.coding-meter[data-tone=attention] .coding-meter-ring circle:last-child { stroke:var(--amber); }
+.coding-meter-panel { position:absolute; right:0; bottom:calc(100% + 8px); z-index:30; width:min(340px,calc(100vw - 32px)); max-height:min(70vh,520px); overflow:auto; display:grid; gap:14px; padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); box-shadow:0 12px 32px color-mix(in srgb,var(--ink) 14%,transparent); font-size:13px; }
+.coding-meter-panel section { display:grid; gap:6px; }
+.coding-meter-panel h3 { margin:0; font-size:12px; font-weight:600; color:var(--muted); }
+.coding-meter-panel p { margin:0; }
+.coding-meter-figure { font-variant-numeric:tabular-nums; }
+.coding-meter-note { font-size:12px; color:var(--muted); }
+.coding-meter-bar { height:6px; border-radius:999px; background:color-mix(in srgb,var(--ink) 8%,transparent); overflow:hidden; }
+.coding-meter-bar > span { display:block; height:100%; border-radius:inherit; background:var(--muted); }
+.coding-meter-bar[data-tone=notice] > span, .coding-meter-bar[data-tone=attention] > span { background:var(--amber); }
+.coding-meter-panel dl { display:grid; grid-template-columns:auto 1fr; gap:4px 12px; margin:0; font-variant-numeric:tabular-nums; }
+.coding-meter-panel dt { color:var(--muted); }
+.coding-meter-panel dd { margin:0; text-align:right; }
+.coding-meter-panel .mw-btn { justify-self:start; }
+.coding-meter-budget { display:flex; align-items:center; gap:6px; }
+.coding-meter-budget .mw-input { width:7rem; }
+@media (max-width:640px) { .coding-meter-panel { position:fixed; left:16px; right:16px; bottom:96px; width:auto; } }
 .coding-composer-context { display:flex; align-items:center; gap:0; min-width:0; }
 .coding-composer-context [data-slot=button-label] { display:none; }
 .coding-composer-context .mw-btn { position:relative; width:28px; min-width:28px; padding:0; color:var(--muted); }

@@ -14,11 +14,13 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
     const response=await fetch(host.route(path),body ? {method:'POST',headers:host.headers(),body:JSON.stringify(body)} : {});
     const data=await response.json(); if(!response.ok) throw new Error(data.error || '审查暂不可用');return data;
   };
-  const show=async(container,refs,sessionId,workspaceId) => {
+  // scope.runSession lists every run of one runtime session; scope.limit keeps open items plus that much settled history.
+  const show=async(container,refs,sessionId,workspaceId,scope) => {
     if(!container) return;
     let state=mounts.get(container);
     if(!state) {
-      state={key:'',ticket:0,refs:[]}; mounts.set(container,state);
+      state={key:'',ticket:0,refs:[],more:0}; mounts.set(container,state);
+      container.addEventListener('click',event=>{if(!event.target.closest('[data-review-more]'))return;state.more+=50;void show(container,state.refs,state.sessionId,state.workspaceId,state.scope);});
       container.addEventListener('input',event=>{
         if(event.target.matches('[data-agent-review-feedback]')){
           const row=event.target.closest('[data-agent-review-item]');saveFeedback(row.dataset.agentReviewItem,event.target.value);syncActions(row);return;
@@ -50,7 +52,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
             if(!data.view.receipt.effect_uncertain) {
               recoveryDrafts.delete(review_id);
               await host.onDecision?.({...scope,receipt:data.view.receipt,error:null});
-              await show(container,state.refs,state.sessionId,state.workspaceId);
+              await show(container,state.refs,state.sessionId,state.workspaceId,state.scope);
             } else {
               holder.innerHTML=data.html;
               const draft=recoveryDrafts.get(review_id);
@@ -83,15 +85,16 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
           let note=row.querySelector('[data-review-error]');
           if(!note){note=document.createElement('p');note.dataset.reviewError='';note.className='agent-review-error';note.setAttribute('role','alert');row.append(note);}
           note.textContent=error.message;
-        } finally {busy.delete(review_id);syncActions(row);await host.onDecision?.({...scope,receipt,error:decisionError});void show(container,state.refs,state.sessionId,state.workspaceId);}
+        } finally {busy.delete(review_id);syncActions(row);await host.onDecision?.({...scope,receipt,error:decisionError});void show(container,state.refs,state.sessionId,state.workspaceId,state.scope);}
       });
     }
-    const key=JSON.stringify([refs,sessionId,workspaceId]); const ticket=++state.ticket;
-    if(state.key!==key){container.replaceChildren();delete container.dataset.reviewHtml;state.key=key;}
-    state.refs=refs;state.sessionId=sessionId;state.workspaceId=workspaceId;
-    if(!refs.length && !sessionId && !workspaceId) {container.hidden=true;return;}
+    const key=JSON.stringify([refs,sessionId,workspaceId,scope?.runSession || null]); const ticket=++state.ticket;
+    if(state.key!==key){container.replaceChildren();delete container.dataset.reviewHtml;state.key=key;state.more=0;}
+    state.refs=refs;state.sessionId=sessionId;state.workspaceId=workspaceId;state.scope=scope;
+    if(!refs.length && !sessionId && !workspaceId && !scope?.runSession) {container.hidden=true;return;}
     try {
       const query=new URLSearchParams();if(sessionId)query.set('session_id',sessionId);if(workspaceId)query.set('workspace_id',workspaceId);refs.forEach(ref=>query.append('run_id',ref.run_id));
+      if(scope?.runSession)query.set('run_session_id',scope.runSession);if(scope?.limit)query.set('limit',String(scope.limit+state.more));
       const data=await read('/api/agent/reviews?'+query);
       if(ticket!==state.ticket || key!==state.key) return;
       container.hidden=data.reviews.length===0;
@@ -115,6 +118,10 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(anchorId && scroller){const next=[...container.querySelectorAll('[data-agent-review-item]')].find(row=>row.dataset.agentReviewItem===anchorId);if(next)scroller.scrollTop+=next.getBoundingClientRect().top-anchorTop;}
       }
       container.querySelectorAll('[data-agent-review-item]').forEach(syncActions);
+      // Older settled history is one click away rather than resent on every refresh.
+      let more=container.querySelector(':scope > [data-review-more]');
+      if(data.omitted>0){if(!more){more=document.createElement('button');more.type='button';more.className='mw-btn mw-btn--ghost';more.dataset.reviewMore='';}container.append(more);more.textContent='显示更早的 '+data.omitted+' 条审查记录';}
+      else more?.remove();
     } catch(error) {
       if(ticket!==state.ticket) return;
       container.hidden=false;

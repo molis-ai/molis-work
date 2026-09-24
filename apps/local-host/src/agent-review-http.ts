@@ -59,8 +59,16 @@ export async function handleAgentReviewHttp(
     const runIds = url.searchParams.getAll("run_id");
     const sessionId = url.searchParams.get("session_id");
     const workspaceId = url.searchParams.get("workspace_id");
-    const rows = ports.agentHost.reviews.list(ports.boardId, status)
-      .filter(review => runIds.length === 0 && !sessionId && !workspaceId || review.run && runIds.includes(review.run.run_id)
+    // Every run of one runtime session, without naming each: a long session's history is not a list of ids.
+    const runSessionId = url.searchParams.get("run_session_id");
+    const limitParam = url.searchParams.get("limit"), limit = limitParam === null ? undefined : Number(limitParam);
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)) {
+      sendLocalWebJson(response, 400, { error: "审查记录数量必须为 1–1000" });
+      return true;
+    }
+    const matched = ports.agentHost.reviews.list(ports.boardId, status)
+      .filter(review => runIds.length === 0 && !sessionId && !workspaceId && !runSessionId || review.run && runIds.includes(review.run.run_id)
+        || runSessionId && review.run?.session_id === runSessionId
         || sessionId && review.operation?.session_id === sessionId || workspaceId && review.operation?.workspace_id === workspaceId)
       .map((review) => ({
         request: review,
@@ -69,11 +77,16 @@ export async function handleAgentReviewHttp(
         // until the Runtime returns a real result.
         receipt: ports.agentHost.reviews.receipt(review.review_id) ?? undefined,
       }));
+    // With a limit, whatever still needs a person or a result is always kept; settled history keeps its latest entries.
+    const open = (row: typeof matched[number]) => !row.receipt || row.receipt.status === "pending" || row.receipt.status === "approved" && !row.receipt.effect_settled && !row.receipt.effect_error;
+    const settled = matched.filter(row => !open(row));
+    const kept = limit === undefined ? null : new Set(settled.sort((a, b) => b.request.requested_at.localeCompare(a.request.requested_at)).slice(0, limit));
+    const rows = kept ? matched.filter(row => open(row) || kept.has(row)) : matched;
     const html = renderAgentReviewSurface({ rows, primitives: {
       escape: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!),
       icon, formatDate: value => new Date(value).toLocaleString("zh-CN"),
     } });
-    sendLocalWebJson(response, 200, { reviews: rows, html });
+    sendLocalWebJson(response, 200, { reviews: rows, html, total: matched.length, omitted: matched.length - rows.length });
     return true;
   }
 

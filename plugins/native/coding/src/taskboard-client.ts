@@ -1,6 +1,6 @@
 /** A navigation projection of the same Plan, Run and child verdicts as the workbench. */
 export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
-  const {directory,current,navigate,status}=ports,region=directory.querySelector('[data-coding-taskboard]');
+  const {directory,current,navigate,status,ownTask}=ports,region=directory.querySelector('[data-coding-taskboard]');
   const choice=region.querySelector('[data-coding-taskboard-session]'),tree=region.querySelector('[data-coding-taskboard-tree]'),notice=region.querySelector('[data-coding-taskboard-status]');
   let owner='',data=null,key='',optionsKey='',loadError='';
   const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
@@ -32,7 +32,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(region.hidden)return;
     if(!data){tree.replaceChildren();notice.textContent=loadError|| (owner?'正在读取原任务…':'选择会话后查看计划与实际执行。');return;}
     notice.textContent=loadError||data.error||'计划、执行与结果评价分别显示；点击节点进入原任务。';
-    const runs=data.runs.map(run=>({id:run.ref.run_id,phase:run.phase,role:run.frozen.role_id,task:run.turns.find(turn=>turn.kind==='user'&&!turn.steer)?.text||''}));
+    const runs=data.runs.map(run=>({id:run.ref.run_id,phase:run.phase,role:run.frozen.role_id,task:run.task ?? ownTask(run.turns.find(turn=>turn.kind==='user'&&!turn.steer)?.text||'')}));
     const groups=(data.subagents||[]).map(group=>({...group,children:group.children.map(child=>({subagent_id:child.subagent_id,role_name:child.role_name,role_id:child.role_id,task:child.task,state:child.state,verdict:child.verdict,error:child.error}))}));
     const next=JSON.stringify([owner,data.plan,data.taskboard_plans,runs,groups,data.recovery_required,data.checkpoint_busy]);if(next===key)return;
     const opened=new Set([...tree.querySelectorAll('details[open]')].map(node=>node.dataset.boardBranch));

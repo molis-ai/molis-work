@@ -15,6 +15,8 @@ import { codingReportPreview, codingReportReference, createCodingExecutionReport
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation } from "./continuation.js";
+import { codingHistoryDigest, nextHistoryMode } from "./history-digest.js";
+import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, savedCharacterSkills, characterSkillSelection, type CodingCharacterPorts } from "./characters.js";
@@ -152,6 +154,25 @@ function sessionState(run: AgentRunView): CodingSessionState {
 export function codingRoutes(context: PluginStartContext, ports?: CodingExecutionPorts): PluginRouteBinding[] {
   const boardId = context.board_id ?? "";
   const busy = new Set<string>();
+  const summaries = summaryCache();
+  const savedBudget = (sessionId: string): { tokens: number } | null => {
+    const saved = context.services?.storage?.get(`budget:${sessionId}`);
+    return typeof saved === "string" ? JSON.parse(saved) as { tokens: number } : null;
+  };
+  /** Children of the rounds that coordinate them, with the person's saved verdicts. */
+  const subagentGroups = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[]) => {
+    const groups = [];
+    for (const run of runs.filter(run => ["coordinator", "writers"].includes(run.frozen.role_id))) {
+      try {
+        const children = await api.invoke(agent.listSubagents, [session, run.ref]);
+        groups.push({ run_id: run.ref.run_id, children: children.map(child => {
+          const saved = context.services!.storage!.get(`subagent-verdict:${sessionId}:${run.ref.run_id}:${child.subagent_id}`);
+          return { ...child, integration_available: run.frozen.role_id === "writers" && Boolean(run.frozen.subagent_workspaces?.some(workspace => workspace.directory.canonical_path === child.workspace_path)), verdict: typeof saved === "string" ? JSON.parse(saved) : null };
+        }) });
+      } catch (error) { groups.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : "子任务状态不可读取" }); }
+    }
+    return groups;
+  };
   const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => ({
     route_id,
     async handle(request) {
@@ -533,21 +554,26 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
-        const runs = await Promise.all(snapshot.runs.map((run) => api!.invoke(agent.readRun, [session, run])));
-        const subagents = [];
-        for (const run of runs.filter(run => ["coordinator", "writers"].includes(run.frozen.role_id))) {
-          try {
-            const children = await api!.invoke(agent.listSubagents, [session, run.ref]);
-            subagents.push({ run_id: run.ref.run_id, children: children.map(child => {
-              const saved = context.services!.storage!.get(`subagent-verdict:${record.session_id}:${run.ref.run_id}:${child.subagent_id}`);
-              return { ...child, integration_available: run.frozen.role_id === "writers" && Boolean(run.frozen.subagent_workspaces?.some(workspace => workspace.directory.canonical_path === child.workspace_path)), verdict: typeof saved === "string" ? JSON.parse(saved) : null };
-            }) });
-          } catch (error) { subagents.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : "子任务状态不可读取" }); }
-        }
+        // With a window, a refresh costs the same however long the session is: the latest rounds in full, the earlier
+        // ones as summaries that are only resent when they changed. Without one, every round is read, as before.
+        const size = request.query?.window === undefined ? undefined : Number(request.query.window);
+        if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw new Error("一次读取的轮次必须为 1–50");
+        const offset = size === undefined ? 0 : Math.max(0, snapshot.runs.length - size);
+        const runs = await Promise.all(snapshot.runs.slice(offset).map((run) => api!.invoke(agent.readRun, [session, run])));
+        // A round the page already holds unchanged travels as its fingerprint alone.
+        const known = new Set(String(request.query?.known ?? "").split(",").filter(Boolean));
+        const shown = size === undefined ? runs : runs.map(run => { const display = codingRunForDisplay(run); return known.has(display.fingerprint) ? { ref: display.ref, fingerprint: display.fingerprint, unchanged: true } : display; });
+        const earlier = offset ? await summaries.read(session.session_id, snapshot.runs.slice(0, offset), ref => api!.invoke(agent.readRun, [session, ref])) : [];
+        const earlierFingerprint = summariesFingerprint(earlier);
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+          run_count: snapshot.runs.length, runs_offset: offset,
+          ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
+          usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)]),
+          next_history: nextHistoryMode(last, compactRequested), compact_requested: compactRequested, budget: savedBudget(record.session_id),
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
@@ -558,6 +584,28 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
       }
+    }),
+    // Scrolling back reads earlier rounds a page at a time, with what the timeline shows beside them.
+    route("coding.read-runs", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) return { runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);
+      if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("读取范围无效");
+      const offset = Math.max(0, before - limit);
+      const runs = await Promise.all(snapshot.runs.slice(offset, before).map(ref => api!.invoke(agent.readRun, [session, ref])));
+      return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
+    }),
+    // Like /compact: the next round starts from the digest of earlier rounds instead of replaying them verbatim.
+    route("coding.compact-next", async (request, _api, execution) => {
+      const record = selected(request, execution);
+      const on = bodyOf(request).on;
+      if (typeof on !== "boolean") throw new Error("请说明是否在下一轮整理上下文");
+      if (on && !record.runtime_session_id) throw new Error("这个会话还没有执行过，没有可整理的上下文");
+      if (on) context.services!.storage!.set(`compact-next:${record.session_id}`, "1");
+      else context.services!.storage!.delete(`compact-next:${record.session_id}`);
+      return { compact_requested: on };
     }),
     route("coding.recovery", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -654,6 +702,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         if (typeof body.draft !== "string" || body.draft.length > 100_000) throw new Error("草稿格式无效或超过长度限制");
         context.services!.storage!.set(`draft:${record.session_id}`, body.draft);
       }
+      // The person's budget for this session: reaching it is reported, never enforced (the person's choice).
+      if (body.budget !== undefined) {
+        const tokens = (body.budget as { tokens?: unknown } | null)?.tokens;
+        if (body.budget === null || tokens === null) context.services!.storage!.delete(`budget:${record.session_id}`);
+        else if (typeof tokens !== "number" || !Number.isSafeInteger(tokens) || tokens < 1_000 || tokens > 10_000_000_000) throw new Error("预算须为 1000 到 100 亿之间的 token 数");
+        else context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify({ tokens }));
+      }
       const title = body.title === undefined ? undefined : text(body.title, "会话名称");
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
       return { session: title === undefined ? record : execution.sessions.rename(boardId, record.session_id, title, new Date().toISOString()) };
@@ -724,16 +779,30 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
           : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
-        const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+        // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
+        // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
+        let earlier: AgentRunView[] | undefined;
+        const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
+        let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
+        const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? codingHistoryDigest(await earlierRuns(), task) : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
           ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
           ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
+          ...(mode === "digest" ? { history: "digest" as const } : {}),
           budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
           model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+        let run;
+        try { run = await start(history); }
+        catch (error) {
+          if (history !== "session" || !record.runtime_session_id || (error as { code?: string }).code !== "CONTEXT_BUDGET_EXCEEDED") throw error;
+          history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
+          run = await start("digest");
+        }
+        if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
         // A session named by default takes its name from the first task, the way a person would label it.
         if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
-        return { run };
+        return { run, history, ...(historyReason ? { history_reason: historyReason } : {}) };
       } finally { busy.delete(record.session_id); }
     }),
     route("coding.control-run", async (request, api, execution) => {

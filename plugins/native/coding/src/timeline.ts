@@ -17,6 +17,8 @@ export interface TimelineActivity {
   state: string;
   output?: string;
   output_truncated?: boolean;
+  /** Lines the Host left out of a display copy of the output; the timeline never shows them either. */
+  output_hidden_lines?: number;
 }
 export interface TimelineRun {
   ref: { run_id: string };
@@ -87,7 +89,8 @@ export function createCodingTimeline() {
     const what = item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
     const output = (item.output ?? "").trim();
     const shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
-    const body = shown ? `<pre class="coding-tool-output">${escape(shown.text)}${shown.hidden ? `\n… 另有 ${shown.hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
+    const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
+    const body = shown ? `<pre class="coding-tool-output">${escape(shown.text)}${hidden ? `\n… 另有 ${hidden} 行` : ""}${item.output_truncated ? "\n（输出已截断）" : ""}</pre>` : "";
     const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${statusMark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return body
       ? `<details class="coding-tool" data-tone="${result.tone}" data-kind="${escape(item.name)}" data-tool="${escape(item.call_id)}"><summary>${head}</summary>${body}</details>`
@@ -123,7 +126,7 @@ export function createCodingTimeline() {
       detail.addEventListener("toggle", () => { if (detail.dataset.rendering !== "true") opened.set(key, detail.open); });
     }
     const summary = summaryText(items, ended, waiting);
-    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length])]);
+    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0])]);
     if (detail.dataset.signature !== signature) {
       detail.dataset.signature = signature;
       detail.dataset.rendering = "true";

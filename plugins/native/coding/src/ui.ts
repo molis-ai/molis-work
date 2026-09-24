@@ -272,6 +272,10 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
                 <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select>
                 <button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="当前这一步做完后暂停，可随时恢复" hidden>暂停</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="停止这一轮（Esc）" aria-keyshortcuts="Escape" hidden>停止</button>
               </div>
+              <div class="coding-meter" data-coding-meter hidden>
+                <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="上下文与用量"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>上下文</span></button>
+                <div class="coding-meter-panel" id="coding-meter-panel" data-coding-meter-panel role="region" aria-label="上下文与用量" hidden></div>
+              </div>
               <button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
             </div>
           </div>

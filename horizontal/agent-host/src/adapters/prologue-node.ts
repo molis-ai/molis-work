@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import { BUILT_IN_ADAPTERS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
+import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
+/** Start refusals the runtime raises before it creates a run: validation and context packing. */
+const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD"]);
 import path from "node:path";
 
 import {
@@ -437,6 +439,7 @@ export async function createPrologueNodeAdapter(
     }) };
   };
   const port: PrologueRuntimePort = {
+    defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
     amendStepBoard: (run, amendment, expectedVersion) => stepBoards.amend(run, amendment, expectedVersion),
     recovery: {
@@ -535,7 +538,8 @@ export async function createPrologueNodeAdapter(
         if (terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))) reasons.push("SDK 有执行记录缺少宿主启动索引，需要核对对应关系");
         const runs: PrologueRestoredSession["runs"] = [];
         for (const attempt of index.attempts) {
-          if (!attempt.run_id) { reasons.push("一次启动没有完整保存执行引用，不能判断是否发生过操作"); continue; }
+          // A start the runtime refused while packing its context never created a run; only an unexplained gap is unknown.
+          if (!attempt.run_id) { if (!attempt.refused) reasons.push("一次启动没有完整保存执行引用，不能判断是否发生过操作"); continue; }
           const ref = terminal.find(ref => ref.id === attempt.run_id);
           const pendingQuestions = !ref ? (await runtime.effects.pendings.readByOrigin({ session: id, run: attempt.run_id })).filter(pending => pending.state !== "settled" && ["text", "questionnaire"].includes(pending.kind)) : [];
           if (!ref) reasons.push("中断轮次仅有已保存的过程，结束状态与操作仍需核对，不会自动重复执行");
@@ -645,7 +649,8 @@ export async function createPrologueNodeAdapter(
       const started = await runtime.startAgentRun({
         session,
         rootRef: root.ref,
-        history: "session",
+        // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
+        ...(input.history === "digest" ? {} : { history: "session" as const }),
         ...(childRoles.size ? { subagents: {
           ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true } : {}),
           onStarted: async observed => {
@@ -691,8 +696,12 @@ export async function createPrologueNodeAdapter(
             });
           },
         } } : {}),
+        // Packed against the model's own window when it states a smaller one than the runtime default.
+        ...(input.compaction || input.provenance.frozen.model_context ? { context: {
+          ...(input.compaction ? { compactAboveTokens: input.compaction.above_tokens } : {}),
+          ...(input.provenance.frozen.model_context ? { windowTokens: input.provenance.frozen.model_context.window_tokens } : {}),
+        } } : {}),
         ...(input.compaction ? {
-          context: { compactAboveTokens: input.compaction.above_tokens },
           compactor: createPrologueCompactor({ runtime, prompt: input.compaction.prompt, connection: {
             protocol: input.model.protocol, endpoint: input.model.endpoint, model: input.model.model, credentialRef,
             ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off" ? {} : { promptCache: input.model.prompt_cache }),
@@ -719,6 +728,12 @@ export async function createPrologueNodeAdapter(
           characterRef: character.ref,
           ...(textResources.length ? { mount: { textResources } } : {}),
         },
+      }).catch(async (error: unknown) => {
+        // Refused while the context was still being packed: the runtime creates the run only after that, so nothing
+        // ran and the attempt is a settled refusal rather than an unknown outcome that would block the session.
+        const code = (error as { code?: string }).code;
+        if (code && REFUSED_BEFORE_RUN.has(code)) await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+        throw error;
       });
       runRoots.set(started.run.ref.id, root.ref);
       try { await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.run_id = started.run.ref.id; }); }
@@ -819,7 +834,7 @@ interface SessionIndex {
   title: string;
   owner: PrologueRestoredSession["owner"];
   /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
-  attempts: Array<PrologueStartInput["provenance"] & { step_board?: ExactRef<"task-board">; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
+  attempts: Array<PrologueStartInput["provenance"] & { refused?: { code: string; at: string }; step_board?: ExactRef<"task-board">; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> & { requested_at?: string; expires_at?: string | null }>;
 }

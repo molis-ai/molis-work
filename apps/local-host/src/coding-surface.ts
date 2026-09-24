@@ -20,6 +20,7 @@ import {
   renderPendingQuestionCard,
   renderCodingReport,
   codingNetChange,
+  HISTORY_DIGEST_MARKER,
   type CodingUiModel,
   type CodingExecutionPorts,
 } from "@molis-ai/molis-work-plugin-coding";
@@ -310,7 +311,8 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   if (body?.runs) for (const run of body.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
-    for (const turn of run.turns) Object.assign(turn, { html: renderFeedRichText(turn.text) });
+    // A digest round's opening is drawn by the page from its text; rendering it as well would double what travels.
+    for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, { html: renderFeedRichText(turn.text) });
     for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
       questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
         text: value => value, formatDate: value => value },

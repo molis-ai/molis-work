@@ -122,6 +122,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
   await click(`[data-tab-id="${secondTab.id}"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
+  await click(`${coding} [data-coding-new]`);
+  await waitFor(`document.querySelectorAll('${coding} [data-coding-session]').length === 3 && document.querySelector('${coding} [data-coding-task]').value === ''`);
+  const untouched = await evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`);
+  await click(`${coding} [data-coding-new]`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-new]').disabled`);
+  assert.equal(await evaluate(`document.querySelectorAll('${coding} [data-coding-session]').length`), 3, "an untouched new session is reused instead of piling up");
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`), untouched);
   assert.deepEqual(await evaluate(`(()=>{const h=document.querySelector('${coding} .coding-dialogue-head'),title=h.querySelector('[data-coding-title]');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`), boardFrame, 'real Coding heading matches the component board, not just its class names');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('${coding} [data-coding-tools]')).display`), 'none', 'empty results do not consume a permanent column');
   await click(`${coding} [data-coding-results-open]`);
@@ -138,7 +145,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-send]').disabled`), true, "no model cannot execute a run");
   const sessionsResponse = await fetch(`${prefix}/api/plugins/io.molis.work.coding/state`);
   const sessionState = await sessionsResponse.json();
-  assert.equal(sessionState.sessions.length, 2, "opening and restoring never creates extra sessions");
+  assert.equal(sessionState.sessions.length, 3, "two drafted sessions plus one reused untouched session: opening and restoring never creates extra sessions");
   for (const row of sessionState.sessions) {
     const detail = await (await fetch(`${prefix}/api/plugins/io.molis.work.coding/sessions/${row.session_id}`)).json();
     assert.equal(detail.runs.length, 0, "opening and typing do not launch a model");

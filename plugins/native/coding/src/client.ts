@@ -857,7 +857,21 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true));
     else void flushDraft().catch(error=>status(error.message,true));
   });
-  const create = async() => { const result=await api('/sessions','POST',{title:'新编码会话'}); await refreshState(); host.openItem('coding',result.session.session_id,result.session.title); await select(result.session.session_id); input.focus(); };
+  // A new session is only worth keeping once something is written in it: an untouched empty one is reused
+  // instead of piling up. Anything with a draft, a Goal or a past run is left alone.
+  const untouched = async() => {
+    for(const session of state.sessions.filter(item=>item.state==='idle' && item.title==='新编码会话' && !item.goal_id)) {
+      if(localDraft(session.session_id)) continue;
+      try{const data=await api('/sessions/'+encodeURIComponent(session.session_id));if(!data.runs.length && !(data.draft || '').trim() && !data.character && !(data.materials || []).length)return session;}catch{}
+    }
+    return null;
+  };
+  const create = async() => {
+    const reuse=await untouched();
+    const session=reuse || (await api('/sessions','POST',{title:'新编码会话'})).session;
+    if(!reuse)await refreshState();
+    host.openItem('coding',session.session_id,session.title);await select(session.session_id);input.focus();
+  };
   let creatingCharacterSession=false;
   window.addEventListener('molis-work:character-coding',event=>{
     if(creatingCharacterSession)return;

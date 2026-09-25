@@ -134,6 +134,7 @@ export { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGIS
 export type { BuiltinPluginEntry, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export {
   isDecidable,
+  leakedMarkup,
   renderAgentReviewSurface,
   renderAgentReviewRecovery,
   reviewPhase,

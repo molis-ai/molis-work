@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   isDecidable,
+  leakedMarkup,
   renderAgentReviewSurface,
   reviewPhase,
   type AgentReviewPrimitives,
@@ -204,4 +205,10 @@ test("only an in-boundary command offers 'allow for this session', and a rule's 
   ruled.request.kind = "command";
   ruled.request.document = inside.request.document;
   assert.match(renderAgentReviewSurface({ rows: [ruled], primitives: p }), /按本会话规则批准 · alice 设定于/);
+});
+
+test("命令里混有像工具调用标记的文本时，审查卡提醒一句；正常命令不提醒", () => {
+  assert.equal(leakedMarkup(`node -e 'console.log(1);</argml:arbgt></item>'`), true, "the MiniMax leak seen in a real round");
+  assert.equal(leakedMarkup("run </invoke> now"), true);
+  for (const clean of ["npm test", "node --version", "git log --oneline -3", "echo 'a < b > c'", "grep -n '<div' src/a.html"]) assert.equal(leakedMarkup(clean), false, clean);
 });

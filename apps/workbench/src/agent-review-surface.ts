@@ -64,6 +64,7 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-fields dd { white-space:pre-wrap; max-height:220px; overflow:auto; }
 .agent-review-target { color:var(--ink); }
 .agent-review-meta { color:var(--muted); margin:4px 0 0; }
+.agent-review-warning { margin:6px 0 0; padding:6px 10px; border-radius:6px; color:var(--text); background:color-mix(in srgb,var(--amber,#b7791f) 14%,transparent); font-size:13px; }
 .agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
 .agent-review-prompt { color:var(--muted); user-select:none; }
 .agent-review-file { display:flex; flex-wrap:wrap; align-items:baseline; gap:6px; margin:0; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); }
@@ -212,6 +213,14 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   </article>`;
 }
 
+/**
+ * Text that looks like a model's own tool-call markup, leaked into a command (seen with MiniMax: "</argml:arbgt></item>").
+ * Only a hint for the person deciding; the command is shown and decided exactly as proposed.
+ */
+export function leakedMarkup(text: string): boolean {
+  return /<\/?(?:[a-z]+:)?(?:arg[a-z_]*|item|invoke|parameter|tool_call|tool_use|function_calls?|antml[a-z_:]*)\b[^>]*>/i.test(text);
+}
+
 function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPrimitives): string {
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
@@ -281,6 +290,7 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
     case "command":
       return `<div class="agent-review-doc" data-agent-review-kind="command">
         <pre class="agent-review-command"><span class="agent-review-prompt" aria-hidden="true">$</span> ${p.escape([document.command, ...document.args].map(shellWord).join(" "))}</pre>
+        ${leakedMarkup([document.command, ...document.args].join(" ")) ? `<p class="agent-review-warning" role="note">${p.escape("命令里混有像工具调用标记的文本（例如 </arg…>、<item>），多半是模型输出出错；这样的命令通常无法正常运行，建议拒绝并说明。")}</p>` : ""}
         <p class="agent-review-meta">${p.escape(`在 ${document.cwd === "." ? "工作区根目录" : document.cwd} 运行 · ${document.escalate === undefined ? "执行范围未提供" : document.escalate ? "请求在沙箱外执行" : "在宿主执行边界内"}`)}</p>
         <details class="agent-review-bounds" data-review-detail="bounds"><summary>${p.escape("执行边界")}</summary><dl>
           ${document.workspace_path ? `<dt>${p.escape("所属工作区")}</dt><dd>${p.escape(document.workspace_path)}</dd>` : ""}

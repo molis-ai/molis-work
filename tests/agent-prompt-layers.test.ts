@@ -67,6 +67,9 @@ test("Coding 自己的声明是合法的，且 base 那一段独立成层", () =
   // search only looks inside files; every role can also look at directories, and is told the difference.
   assert.ok(codingAgentManifest.roles.every((role) => role.host_tools?.includes("list")), "every Coding role can list a directory");
   assert.match(base!.body, /search 只在文件内容里找文字/);
+  // Reading through commands costs a review each; rewriting through commands skips the diff preview.
+  assert.match(base!.body, /不要用 cat、sed -n、grep、wc 这类命令代替/);
+  assert.match(base!.body, /改文件只用 edit 或 write/);
 });
 
 function hostFor(projectPrompts?: readonly AgentPromptText[]) {

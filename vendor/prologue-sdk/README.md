@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-search-scope.tgz`。在单文件搜索之上，**搜索在大仓库里也能搜全，没搜全时如实说**。原来一次搜索最多走 1024 个文件，Molis 自己的仓库有 4000 多个可搜文件，搜到一半就停，还答成「(no matches)」——用 Coding 开发 Molis 时，模型在 60 轮里搜了 73 次，多次断定"这段样式不在这个仓库里"，最终用完轮次。现在上界提到 20000 个文件；到了文件数或条数上界时，搜索结果带 `truncated`，工具输出写明"没搜全，缩小路径再搜，别据此断定不存在"。Tauri 原生 Host 同步修正。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-search-large.tgz`。在大仓库搜全之上，**搜索不再悄悄跳过大于 64KB 的文件**：原来搜索和整份读取共用 64KB 上限，超过的文件在搜索里直接跳过——Molis 的 76KB 样式文件里明明有 `.coding-tool-state[data-tone=failed]`，模型却一再断定"这个类没有样式"。现在搜索单个文件可读到 2MB，更大的仍跳过但计入"没搜全"；整份读取的 64KB 上限不变（仍提示按行窗读）。Tauri 原生 Host 同步修正。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[search-large.patch](search-large.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`4a40774bf8f6fb111e12da40b83304f1253ea4fcb4b7ca1975d1c8c2da4ac123`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/search-large.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-search-large.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；新增定向（80KB 以上的文件照样搜到），搜索相关 29 项与 Rust Host 测试通过。全量结果见 Coding spec。未发布 npm，未替换正式安装版。
+
+## 上一依赖：大仓库搜全
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-search-scope.tgz`。在单文件搜索之上，**搜索在大仓库里也能搜全，没搜全时如实说**。原来一次搜索最多走 1024 个文件，Molis 自己的仓库有 4000 多个可搜文件，搜到一半就停，还答成「(no matches)」——用 Coding 开发 Molis 时，模型在 60 轮里搜了 73 次，多次断定"这段样式不在这个仓库里"，最终用完轮次。现在上界提到 20000 个文件；到了文件数或条数上界时，搜索结果带 `truncated`，工具输出写明"没搜全，缩小路径再搜，别据此断定不存在"。Tauri 原生 Host 同步修正。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

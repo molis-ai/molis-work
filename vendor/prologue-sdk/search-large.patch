@@ -1,0 +1,1171 @@
+diff --git a/crates/prologue-host-tauri/src/lib.rs b/crates/prologue-host-tauri/src/lib.rs
+index c5b7ac1d..9a19be19 100644
+--- a/crates/prologue-host-tauri/src/lib.rs
++++ b/crates/prologue-host-tauri/src/lib.rs
+@@ -11,7 +11,7 @@ pub mod testing {
+     pub use crate::dispatch::{close, inspect, open, settle, DispatchPermit, DispatchProof};
+     pub use crate::storage::Storage;
+     /// 读取侧也要有行为证据：**摘要是这里算的**，命令层只是转发。
+-    pub use crate::workspace::{authorize, read_text, WorkspaceFile, WorkspaceGrant};
++    pub use crate::workspace::{authorize, read_text, search, WorkspaceFile, WorkspaceGrant};
+     pub use crate::lease::{Lease, LeaseRecord, LeaseStore};
+ }
+ 
+diff --git a/crates/prologue-host-tauri/src/network_guard.rs b/crates/prologue-host-tauri/src/network_guard.rs
+index b8a68f03..87f7aa3c 100644
+--- a/crates/prologue-host-tauri/src/network_guard.rs
++++ b/crates/prologue-host-tauri/src/network_guard.rs
+@@ -48,8 +48,11 @@ fn denied(message: &'static str) -> HostError {
+ fn is_loopback_host(host: &str) -> bool {
+     host == "localhost"
+         || host == "::1"
++        || host == "[::1]"
+         || host.ends_with(".localhost")
+-        || host.starts_with("127.")
++        || host
++            .parse::<std::net::Ipv4Addr>()
++            .is_ok_and(|ip| ip.is_loopback())
+ }
+ 
+ /// 不该让请求打到的地址段。挡的是「用一个能过闸的名字把流量引到内网」，
+@@ -81,7 +84,9 @@ fn is_private_host(host: &str) -> bool {
+     if lower.starts_with("fc") || lower.starts_with("fd") {
+         return true;
+     }
+-    if lower.starts_with("fe8") || lower.starts_with("fe9") || lower.starts_with("fea")
++    if lower.starts_with("fe8")
++        || lower.starts_with("fe9")
++        || lower.starts_with("fea")
+         || lower.starts_with("feb")
+     {
+         return true;
+@@ -147,3 +152,46 @@ pub fn check_redirect(
+     }
+     Ok(next)
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn explicit_loopback_does_not_allow_hostname_lookalikes() {
++        let allowance = NetworkAllowance {
++            model: true,
++            loopback: true,
++            ..Default::default()
++        };
++        for url in [
++            "http://localhost:11434/v1",
++            "http://model.localhost/v1",
++            "http://127.0.0.1/v1",
++            "http://127.2.3.4/v1",
++            "http://[::1]/v1",
++        ] {
++            assert!(check_target(url, &allowance).is_ok(), "{url}");
++            assert!(
++                check_target(
++                    url,
++                    &NetworkAllowance {
++                        model: true,
++                        ..Default::default()
++                    }
++                )
++                .is_err(),
++                "{url}"
++            );
++        }
++        for url in [
++            "http://localhost.example.com/v1",
++            "http://127.example.com/v1",
++            "http://127.0.0.1.example.com/v1",
++            "http://localhost@api.example.com/v1",
++            "http://192.168.0.1/v1",
++        ] {
++            assert!(check_target(url, &allowance).is_err(), "{url}");
++        }
++    }
++}
+diff --git a/crates/prologue-host-tauri/src/workspace.rs b/crates/prologue-host-tauri/src/workspace.rs
+index 1ff0626e..bddb8db8 100644
+--- a/crates/prologue-host-tauri/src/workspace.rs
++++ b/crates/prologue-host-tauri/src/workspace.rs
+@@ -13,8 +13,11 @@ const PROTECTED_SEGMENTS: [&str; 3] = [".git", "node_modules", ".prologue"];
+ 
+ const MAX_LIST: usize = 256;
+ const MAX_SEARCH: usize = 50;
+-const MAX_WALK: usize = 1024;
++// A search walks at most this many files. 1024 stopped halfway through a mid-sized repository and still said "no matches".
++const MAX_WALK: usize = 20_000;
+ const MAX_READ: usize = 64 * 1024;
++// Files a search reads, separately from a whole read: over 64 KiB used to be skipped silently.
++const MAX_SEARCH_FILE: usize = 2 * 1024 * 1024;
+ const EXCERPT: usize = 200;
+ 
+ /// 只信句柄，不信路径。`O_NOFOLLOW` 让最后一段是符号链接时直接失败，
+@@ -103,6 +106,8 @@ pub struct WorkspaceMatch {
+ #[derive(Serialize)]
+ pub struct WorkspaceSearch {
+     pub matches: Vec<WorkspaceMatch>,
++    /// The search stopped before covering everything (file or match limit): "no matches" then does not mean absent.
++    pub truncated: bool,
+ }
+ 
+ #[derive(Serialize)]
+@@ -205,16 +210,27 @@ pub fn search(
+     }
+     let root = root_path(&root_ref, roots)?;
+     let start = resolve_path(&root, &path)?;
++    // A path may name one file as well as a directory: listing a file as a directory fails, and that used to read as
++    // "no matches". A path that does not exist is reported as such, never as an empty search.
++    let is_file = match fs::metadata(&start) {
++        Ok(meta) => meta.is_file(),
++        Err(_) => return Err(HostError::new("ROOT_NOT_FOUND", "Path was not found.")),
++    };
+     let mut matches = Vec::new();
+-    walk(&root, &start, 0, &mut |file| {
++    let mut skipped_large = 0usize;
++    let mut visit = |file: &Path| {
+         if matches.len() >= MAX_SEARCH {
+             return false;
+         }
+-        let bytes = match read_whole_file(file, MAX_READ) {
++        if fs::metadata(file).map(|meta| meta.len() as usize > MAX_SEARCH_FILE).unwrap_or(false) {
++            skipped_large += 1;
++            return true;
++        }
++        let bytes = match read_whole_file(file, MAX_SEARCH_FILE) {
+             Ok(value) => value,
+             Err(_) => return true,
+         };
+-        if bytes.contains(&0) || bytes.len() > MAX_READ {
++        if bytes.contains(&0) {
+             return true;
+         }
+         let text = String::from_utf8_lossy(&bytes);
+@@ -238,8 +254,15 @@ pub fn search(
+             }
+         }
+         true
+-    });
+-    Ok(WorkspaceSearch { matches })
++    };
++    let mut walked = 0;
++    if is_file {
++        visit(&start);
++    } else {
++        walked = walk(&root, &start, 0, &mut visit);
++    }
++    let truncated = matches.len() >= MAX_SEARCH || walked >= MAX_WALK || skipped_large > 0;
++    Ok(WorkspaceSearch { matches, truncated })
+ }
+ 
+ /// 一份内容的 SHA-256 十六进制。**读取和写入回执共用这一个**——
+diff --git a/crates/prologue-host-tauri/tests/workspace_search.rs b/crates/prologue-host-tauri/tests/workspace_search.rs
+new file mode 100644
+index 00000000..9d03c7c2
+--- /dev/null
++++ b/crates/prologue-host-tauri/tests/workspace_search.rs
+@@ -0,0 +1,34 @@
++//! 搜索路径可以是单个文件；不存在的路径如实报错，不答成「没找到」。
++
++use std::collections::HashMap;
++use std::fs;
++use std::sync::Mutex;
++
++use prologue_host_tauri::testing::{authorize, search};
++
++#[test]
++fn a_file_path_searches_that_file_and_a_missing_path_is_an_error() {
++    let dir = std::env::temp_dir().join(format!("prologue-rs-search-{}", uuid::Uuid::new_v4()));
++    fs::create_dir_all(dir.join("src")).expect("temp dir");
++    fs::write(dir.join("src/streaks.ts"), "export function currentStreak() {\n  return 0;\n}\n").expect("file");
++    fs::write(dir.join("src/other.ts"), "return 0;\n").expect("file");
++    let roots = Mutex::new(HashMap::new());
++    let grant = authorize(dir.to_string_lossy().into_owned(), &roots).expect("authorize");
++
++    let one = search(grant.root_ref.clone(), "return 0".into(), "src/streaks.ts".into(), &roots).expect("search a file");
++    assert_eq!(one.matches.len(), 1);
++    assert_eq!(one.matches[0].path, "src/streaks.ts");
++    assert_eq!(one.matches[0].line, 2);
++
++    let all = search(grant.root_ref.clone(), "return 0".into(), "src".into(), &roots).expect("search a directory");
++    assert_eq!(all.matches.len(), 2);
++    assert!(!all.truncated, "a small tree is searched completely");
++
++    // A file over the whole-read limit is still searched.
++    fs::write(dir.join("src/big.css"), format!("{}\n.coding-tool-state {{ color: red; }}\n", "x".repeat(80 * 1024))).expect("big file");
++    let big = search(grant.root_ref.clone(), "coding-tool-state".into(), "src".into(), &roots).expect("search a big file");
++    assert_eq!(big.matches.len(), 1);
++    assert_eq!(big.matches[0].path, "src/big.css");
++    assert!(search(grant.root_ref, "return 0".into(), "src/gone.ts".into(), &roots).is_err());
++    fs::remove_dir_all(&dir).ok();
++}
+diff --git a/docs/product/requirements/engines/agent/loop.md b/docs/product/requirements/engines/agent/loop.md
+index aebbf7de..ff853719 100644
+--- a/docs/product/requirements/engines/agent/loop.md
++++ b/docs/product/requirements/engines/agent/loop.md
+@@ -63,7 +63,9 @@
+ 
+ ## 空回合重采样
+ 
+-**没往前走就再来一次，而且不扣轮次。** 一个字没说、或者被上限截在半句，都算没往前走。扣它等于让一次网络抖动吃掉用户的预算。截断那一种续写时明说「从断的地方接着，别重复已经写过的」。
++**没往前走就再来一次，而且不扣轮次。** 一个字没说，算没往前走——包括还没写出正文就撞上输出上限（思考把上限用完了），这时告诉它少想一点、把回答写出来。扣它等于让一次网络抖动吃掉用户的预算。
++
++**被上限截在半句，但写出了新正文：接着写，直到写完。** 截下来的那段先进历史，再明说「从断的地方接着，别重复已经写过的」——不放进历史，模型不知道断在哪，只能从头再写，多半又断在同一处。几段正文在对话里本来就连成一条回答；护栏和记忆提炼看的是整段。续写不扣轮次，同样两边都退，并留下一条 `model-response-repair`（`output-truncated`）。续写有自己的上界；到了还在被截断，或者重采样用完仍一个字没写出来，就以 `MODEL_OUTPUT_TRUNCATED` **失败**——半截或空的回答不能当成完成交出去。
+ 
+ 「不扣轮次」得**两边都不扣**：循环那个计数退了、账那边不退的话，重采样照样吃掉轮次预算，只是吃得更隐蔽。
+ 
+diff --git a/docs/slices/model-loopback.md b/docs/slices/model-loopback.md
+new file mode 100644
+index 00000000..b0690bb8
+--- /dev/null
++++ b/docs/slices/model-loopback.md
+@@ -0,0 +1,13 @@
++# 模型回环端点一致性
++
++消费结果：Molis Cognia 已配置的本机 HTTP 模型可经原 Prologue Session/Run/Node Host 完成整理和取消；模型目录与 Run 不再给出相互矛盾的端点判断。基于消费包对应的 a7e785b8 修复，保留其后的当前工作区不受影响。
++
++范围：Model 的目录及启动输入共用端点形状校验，HTTPS 或 HTTP 回环；Host 提供同一回环主机判断，精确识别 localhost、其子域、127/8 IPv4 和 ::1，拒绝看似回环的公网域名。登记不是授权。Session 继续只拥有 Run 生命周期；真正发出仍经过原 Host 网络许可、DNS、重定向和凭据来源检查，不新增执行链、槽或状态。
++
++合同依据：[Model](../../packages/sdk/src/model/README.md)、[Session](../../packages/sdk/src/session/README.md)、[Host](../../packages/sdk/src/host/README.md)，需求为模型目录、Run 与 Host 网络放行。允许修改上述模块中的端点校验、对应测试/合同和消费包。默认禁止网络、回环需显式授权、凭据来源约束是硬边界；协议和 Host 仍通过既有槽替换；App 传 endpoint 和 network.model/loopback；用户模型设置及文案归消费 App。
++
++不合法 URL、非回环 HTTP 在登记/启动前失败；合法回环缺少网络授权由 Host 拒绝，零请求。正常完成和取消保留原终态与回放，不自动重试；不改恢复语义。
++
++同一回环识别修正同步到 crates/prologue-host-tauri/src/network_guard.rs，保持两个 Host 的判据一致；使用 Rust 标准 IPv4 解析而非 127 前缀匹配，识别 URL 的 [::1] 主机形式。补充 cargo test --manifest-path crates/Cargo.toml -p prologue-host-tauri --lib network_guard 验证真实原生目标检查函数。npm 包只包含 Node/Tauri JS SDK，Rust 源修正随可重建补丁保存，不声称已替换原生安装版。
++
++验证：pnpm exec vitest run packages/sdk/test/model-loopback.live.test.ts packages/sdk/test/model-catalog-audit.test.ts packages/sdk/test/host-network.test.ts packages/sdk/test/host-network.live.test.ts；pnpm build；pnpm exec tsc -p tsconfig.typecheck.json。真实受控 HTTP Provider 经公开 Runtime/Session 入口验证请求、结果、权限拒绝和取消；再用重打包 SDK 验证 Molis 实际动作和浏览器路径。测试响应不代表商业模型质量。
+diff --git a/packages/sdk/src/agent/core/loop.ts b/packages/sdk/src/agent/core/loop.ts
+index 3d32de17..e553b616 100644
+--- a/packages/sdk/src/agent/core/loop.ts
++++ b/packages/sdk/src/agent/core/loop.ts
+@@ -371,6 +371,15 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+   let toolNameRepaired = false;
+   let resamples = 0;
+   const MAX_RESAMPLES = 2;
++  /**
++   * 截断续写。回答被输出上限截在半句时**接着写，直到写完**：写出来的那段留在历史里，模型看得见自己
++   * 写到了哪；每次续写都必须写出新正文，否则按重采样计。续写也有上界，到了还没写完就如实失败——
++   * 半截回答不能当成完成交出去。
++   */
++  let continuations = 0;
++  const MAX_CONTINUATIONS = 8;
++  /** 这一段回答里之前几次续写已经说出的正文。收工时和最后一段拼成完整回答再过护栏。 */
++  let continuedText = "";
+   /**
+    * 因为溢出压过几次。
+    *
+@@ -1214,16 +1223,53 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         pending = [...lifted];
+       }
+     }
++    if (pending.length > 0) {
++      // 续写走到了工具调用：前面几段已在历史里，下一段回答重新计。
++      continuedText = "";
++      continuations = 0;
++    }
+     if (pending.length < 1) {
++      const truncated = lastStop === "max-tokens";
++      if (truncated && turnText.trim().length > 0) {
++        /*
++         * 被上限截在半句，但写出了新正文：**接着写**。
++         *
++         * 截下来的那段先进历史，再说「从断的地方接着」——不放进去的话模型根本不知道断在哪，
++         * 只能从头再写一遍，而那一遍多半又被截在同一个地方。续写不扣轮次（两边都退），
++         * 界面上几段正文本来就连成一条回答。
++         */
++        if (continuations >= MAX_CONTINUATIONS) {
++          done({
++            type: "failed",
++            error: createPrologueError(
++              "MODEL_OUTPUT_TRUNCATED",
++              `The answer was still cut off at the output limit after ${MAX_CONTINUATIONS} continuations.`,
++            ),
++          });
++          return;
++        }
++        continuations += 1;
++        turn -= 1;
++        budget.turnResampled();
++        continuedText += turnText;
++        history.push({ kind: "text", role: "assistant", text: turnText, source: "assistant" });
++        history.push(
++          runtimePromptRecord(
++            "Your last message was cut off at the output limit. Continue from exactly where it stopped; do not repeat what you already wrote.",
++            "runtime:truncated",
++          ),
++        );
++        input.run.emit({ type: "model-response-repair", reason: "output-truncated" });
++        continue;
++      }
+       /*
+-       * 这一轮没往前走：一个字没说，或者被上限截在半句。
++       * 这一轮没往前走：一个字没说——没开口，或者还没写正文就撞上了上限（思考把上限用完了）。
+        *
+        * **重采样，而且不扣轮次**——这一轮什么也没产出，扣它等于让
+        * 一次网络抖动吃掉用户的预算。重试本身有上界，否则「不扣轮次」
+        * 就成了一个不会停的循环。
+        */
+-      const stalled =
+-        turnText.trim().length < 1 ? "empty" : lastStop === "max-tokens" ? "truncated" : undefined;
++      const stalled = turnText.trim().length < 1 ? (truncated ? "truncated" : "empty") : undefined;
+       if (stalled !== undefined && resamples < MAX_RESAMPLES) {
+         resamples += 1;
+         // **两边都退。** 只退循环那个计数的话，重采样照样吃掉轮次预算，
+@@ -1233,13 +1279,26 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         history.push(
+           runtimePromptRecord(
+             stalled === "truncated"
+-              ? "Your last message was cut off at the output limit. Continue from exactly where it stopped; do not repeat what you already wrote."
++              ? "Your last message reached the output limit before any answer text was written. Keep your reasoning shorter and write the answer."
+               : "That turn produced nothing. Either call a tool to make progress, or answer the question.",
+             stalled === "truncated" ? "runtime:truncated" : "runtime:empty",
+           ),
+         );
+         continue;
+       }
++      if (stalled === "truncated") {
++        // 重采样用完仍然一个字没写出来：**失败，不是完成**。空回答当完成，人会以为拿到了答案。
++        done({
++          type: "failed",
++          error: createPrologueError(
++            "MODEL_OUTPUT_TRUNCATED",
++            "The output limit was reached before any answer text was written.",
++          ),
++        });
++        return;
++      }
++      // 护栏和记忆看的是整段回答；历史里前几段已经放过，只补最后这段。
++      const answerText = continuedText + turnText;
+       if (input.guards.guardrails.length > 0) {
+         /*
+          * **输出护栏在终态前跑。**
+@@ -1250,7 +1309,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         const verdict = await runGuardrails({
+           rails: input.guards.guardrails,
+           stage: "output",
+-          text: turnText,
++          text: answerText,
+           onError: input.guards.guardrailOnError,
+           isCancelled: input.run.isCancelled,
+         });
+@@ -1306,7 +1365,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+        */
+       try {
+         // 空话不成候选，那一条在提炼那一侧判——**这里不重复一遍**。
+-        input.work.extractMemory?.({ text: turnText });
++        input.work.extractMemory?.({ text: answerText });
+       } catch {
+         // **提炼失败不影响这一次的收场。** 它是附加物，不是主体。
+       }
+diff --git a/packages/sdk/src/composition/core/system-tools.ts b/packages/sdk/src/composition/core/system-tools.ts
+index 11201b1e..17197842 100644
+--- a/packages/sdk/src/composition/core/system-tools.ts
++++ b/packages/sdk/src/composition/core/system-tools.ts
+@@ -682,9 +682,14 @@ export function createSystemToolRunner(input: {
+           path: typeof args.path === "string" ? args.path : ".",
+         });
+         const visible = found.matches.filter((m) => input.ignore.isVisible(m.path));
+-        return visible.length < 1
+-          ? "(no matches)"
+-          : visible.map((m) => `${m.path}:${m.line}:${m.text}`).join("\n");
++        // 没搜全时说清楚：「没找到」不等于「不存在」，缩小 path 再搜。
++        if (visible.length < 1) {
++          return found.truncated
++            ? "(no matches in the files searched so far — the search stopped before covering everything under this path; search a narrower path, e.g. a subdirectory, before concluding it is absent)"
++            : "(no matches)";
++        }
++        const lines = visible.map((m) => `${m.path}:${m.line}:${m.text}`).join("\n");
++        return found.truncated ? `${lines}\n(more matches may exist: the search stopped early; search a narrower path to see the rest)` : lines;
+       }
+       case "read": {
+         const path = text(args.path, "path");
+diff --git a/packages/sdk/src/host/README.md b/packages/sdk/src/host/README.md
+index a577eaf9..d42ead7c 100644
+--- a/packages/sdk/src/host/README.md
++++ b/packages/sdk/src/host/README.md
+@@ -14,6 +14,8 @@ JS 与原生 Host 之间的合同和窄桥：握手、只写凭证、网络放
+ 
+ 不定义 Session/Run 状态，不拥有产品交互。不拥有授权根上的读、补丁、命令状态机——那些见 `workspace/`。JS 侧不做权限判定——判定在原生 Host。
+ 
++Model 预检可使用 Host 的纯回环主机判断窄口，但不能因此获得网络许可。实际回环 HTTP 仍需显式 model/loopback 放行；127 前缀域名不是回环 IP。见 [回环端点合同](../../../../docs/slices/model-loopback.md)。
++
+ ## 可配与可换
+ 
+ - **槽（可换执行逻辑）：** `host`——原生能力：存储、网络、命令、时钟、沙箱。**现役唯一真的能换的槽。**
+diff --git a/packages/sdk/src/host/core/contract.ts b/packages/sdk/src/host/core/contract.ts
+index 030d2153..e1338f16 100644
+--- a/packages/sdk/src/host/core/contract.ts
++++ b/packages/sdk/src/host/core/contract.ts
+@@ -698,7 +698,7 @@ export interface WorkspaceReadPort {
+     readonly rootRef: ExactRef<"authorized-root">;
+     readonly query: string;
+     readonly path: string;
+-  }): Promise<{ readonly matches: readonly WorkspaceMatch[] }>;
++  }): Promise<{ readonly matches: readonly WorkspaceMatch[]; readonly truncated?: boolean }>;
+   readFile(input: {
+     readonly rootRef: ExactRef<"authorized-root">;
+     readonly path: string;
+@@ -815,7 +815,7 @@ export interface PrologueHost {
+     readonly rootRef: ExactRef<"authorized-root">;
+     readonly query: string;
+     readonly path: string;
+-  }): Promise<{ readonly matches: readonly WorkspaceMatch[] }>;
++  }): Promise<{ readonly matches: readonly WorkspaceMatch[]; readonly truncated?: boolean }>;
+   /**
+    * 读一个文件。**摘要和正文出自同一次读取**。
+    *
+diff --git a/packages/sdk/src/host/core/index.ts b/packages/sdk/src/host/core/index.ts
+index 14995ad8..dd28b723 100644
+--- a/packages/sdk/src/host/core/index.ts
++++ b/packages/sdk/src/host/core/index.ts
+@@ -67,6 +67,7 @@ export {
+   DENY_ALL,
+   CHANNELS_NEEDING_CREDENTIAL,
+   isChannelAllowed,
++  isLoopbackHost,
+   MAX_REDIRECTS,
+   type CheckedTarget,
+   type NetworkAllowance,
+diff --git a/packages/sdk/src/host/core/network-guard.ts b/packages/sdk/src/host/core/network-guard.ts
+index 3e8b6696..a6d872a9 100644
+--- a/packages/sdk/src/host/core/network-guard.ts
++++ b/packages/sdk/src/host/core/network-guard.ts
+@@ -48,13 +48,14 @@ export function isChannelAllowed(allowance: NetworkAllowance, channel: NetworkCh
+   return allowance[channel] === true;
+ }
+ 
+-function isLoopbackHost(host: string): boolean {
++/** Pure target classification; this never grants network permission. */
++export function isLoopbackHost(host: string): boolean {
+   return (
+     host === "localhost" ||
+     host === "::1" ||
+     host === "[::1]" ||
+     host.endsWith(".localhost") ||
+-    /^127\./.test(host)
++    /^127(?:\.(?:\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])){3}$/.test(host)
+   );
+ }
+ 
+diff --git a/packages/sdk/src/host/plugin/node-mutation.ts b/packages/sdk/src/host/plugin/node-mutation.ts
+index 0fcc70bc..fcfc3b5b 100644
+--- a/packages/sdk/src/host/plugin/node-mutation.ts
++++ b/packages/sdk/src/host/plugin/node-mutation.ts
+@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
+ import {
+   closeSync,
+   constants as fsConstants,
++  fchmodSync,
+   readdirSync,
+   writeFileSync,
+   existsSync,
+@@ -656,14 +657,24 @@ export class NodeMutation {
+     return existsSync(absolute) ? readFileSync(absolute, "utf8") : undefined;
+   }
+ 
+-  /** 临时文件 + fsync + 原子改名。写一半不会让原文变坏。 */
++  /**
++   * 临时文件 + fsync + 原子改名。写一半不会让原文变坏。
++   * 改已有文件时沿用它原来的权限（可执行的脚本改完仍可执行）；新文件按普通文件的默认权限（0666 减去 umask）。
++   */
+   private write(absolute: string, text: string): number {
+     mkdirSync(dirname(absolute), { recursive: true });
+     const temp = `${absolute}.${randomBytes(6).toString("hex")}.tmp`;
+     const bytes = Buffer.from(text, "utf8");
++    let mode: number | undefined;
++    try {
++      mode = statSync(absolute).mode & 0o7777;
++    } catch {
++      mode = undefined;
++    }
+     try {
+-      const handle = openSync(temp, "wx", 0o600);
++      const handle = openSync(temp, "wx", mode ?? 0o666);
+       try {
++        if (mode !== undefined) fchmodSync(handle, mode);
+         writeSync(handle, bytes);
+         fsyncSync(handle);
+       } finally {
+diff --git a/packages/sdk/src/host/plugin/node-workspace.ts b/packages/sdk/src/host/plugin/node-workspace.ts
+index 3db3108f..f9368664 100644
+--- a/packages/sdk/src/host/plugin/node-workspace.ts
++++ b/packages/sdk/src/host/plugin/node-workspace.ts
+@@ -21,8 +21,12 @@ import type { WorkspaceEntry, WorkspaceGrant, WorkspaceMatch } from "../core/con
+ 
+ const MAX_LIST = 256;
+ const MAX_SEARCH = 50;
+-const MAX_WALK = 1024;
++// 一次搜索最多走过的文件数。原来 1024：中等仓库（几千个文件）搜到一半就停，还答成「没找到」。
++const MAX_WALK = 20_000;
+ const MAX_READ = 64 * 1024;
++// 搜索读的单个文件上限，和整份读取（MAX_READ）分开：原来超过 64KB 的文件在搜索里被悄悄跳过，
++// 76KB 的样式文件里明明有，却答「没找到」。更大的文件仍跳过，并计入「没搜全」。
++const MAX_SEARCH_FILE = 2 * 1024 * 1024;
+ const EXCERPT = 200;
+ 
+ export class NodeWorkspace {
+@@ -90,21 +94,37 @@ export class NodeWorkspace {
+     rootRef: ExactRef<"authorized-root">,
+     query: string,
+     path: string,
+-  ): { matches: WorkspaceMatch[] } {
++  ): { matches: WorkspaceMatch[]; truncated: boolean } {
+     if (query.length < 1) {
+       throw createPrologueError("RUNTIME_OPTIONS_INVALID", "query is required.");
+     }
+     const root = this.rootPath(rootRef);
+     const start = this.resolvePath(root, path);
+     const matches: WorkspaceMatch[] = [];
+-    this.walk(root, start, 0, (file) => {
++    // 路径可以是目录，也可以是单个文件：把文件当目录去列举会拿到 ENOTDIR，原来被吞掉后答成「没找到」，
++    // 模型据此断定文件里没有这段代码。路径不存在时如实报错，不答「没找到」。
++    let kind: "file" | "dir";
++    try {
++      const stat = statSync(start);
++      kind = stat.isFile() ? "file" : "dir";
++    } catch {
++      throw createPrologueError("ROOT_NOT_FOUND", "Path was not found.");
++    }
++    let skippedLarge = 0;
++    const visitFile = (file: string): boolean => {
+       if (matches.length >= MAX_SEARCH) {
+         return false;
+       }
+       let text: string;
+       try {
+-        const buf = readWholeFile(file);
+-        if (buf.includes(0) || buf.byteLength > MAX_READ) {
++        let buf: Buffer;
++        try {
++          buf = readWholeFile(file, MAX_SEARCH_FILE);
++        } catch (error) {
++          if ((error as { code?: string } | undefined)?.code === "WORKSPACE_TOO_LARGE") skippedLarge += 1;
++          return true;
++        }
++        if (buf.includes(0)) {
+           return true;
+         }
+         text = buf.toString("utf8");
+@@ -128,8 +148,15 @@ export class NodeWorkspace {
+         }
+       }
+       return true;
+-    });
+-    return { matches };
++    };
++    // 没走完（文件数到上界）或结果条数到上界，都如实说「没搜全」，不让「没找到」被读成「不存在」。
++    let walked = 0;
++    if (kind === "file") {
++      visitFile(start);
++    } else {
++      walked = this.walk(root, start, 0, visitFile);
++    }
++    return { matches, truncated: matches.length >= MAX_SEARCH || walked >= MAX_WALK || skippedLarge > 0 };
+   }
+ 
+   read(
+@@ -380,7 +407,7 @@ function inside(root: string, target: string): boolean {
+  * 只信句柄，不信路径。`O_NOFOLLOW` 让最后一段是符号链接时直接失败，
+  * `fstat` 在同一个句柄上判类型和大小——不再有第二次按路径解析。
+  */
+-function readWholeFile(target: string): Buffer {
++function readWholeFile(target: string, max: number = MAX_READ): Buffer {
+   let handle: number;
+   try {
+     handle = openSync(target, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+@@ -403,7 +430,7 @@ function readWholeFile(target: string): Buffer {
+     if (!stat.isFile()) {
+       throw createPrologueError("WORKSPACE_READ_FAILED", "Only regular files can be read.");
+     }
+-    if (stat.size > MAX_READ) {
++    if (stat.size > max) {
+       /*
+        * **换行窗或按字节读，不是这份文件坏了。**
+        *
+@@ -411,7 +438,7 @@ function readWholeFile(target: string): Buffer {
+        */
+       throw createPrologueError(
+         "WORKSPACE_TOO_LARGE",
+-        `That file is ${stat.size} bytes, over the ${MAX_READ}-byte limit for one whole read; ` +
++        `That file is ${stat.size} bytes, over the ${max}-byte limit for one whole read; ` +
+           "read a line window or a byte range instead.",
+       );
+     }
+diff --git a/packages/sdk/src/kernel/core/error.ts b/packages/sdk/src/kernel/core/error.ts
+index baf61a66..03af6af6 100644
+--- a/packages/sdk/src/kernel/core/error.ts
++++ b/packages/sdk/src/kernel/core/error.ts
+@@ -26,6 +26,12 @@ export type PrologueErrorCode =
+    * 手里其实是一段空的。
+    */
+   | "MODEL_REFUSED"
++  /**
++   * 回答一直撞输出上限：续写到上界仍没写完，或者还没写出正文就用完了上限。
++   *
++   * **是失败，不是成功**——半截回答当成完成，人会以为拿到了完整的答案。
++   */
++  | "MODEL_OUTPUT_TRUNCATED"
+   | "MODEL_STRUCTURED_INVALID"
+   /** 这份 schema 用了这个构建核不动的关键字。**当场失败**，不是「先跑起来，核不动的那几条就算过」。 */
+   | "MODEL_STRUCTURED_UNSUPPORTED"
+@@ -418,6 +424,7 @@ const CODES: ReadonlySet<string> = new Set([
+   "MODEL_PURPOSE_AMBIGUOUS",
+   "MODEL_NOT_FOUND",
+   "MODEL_REFUSED",
++  "MODEL_OUTPUT_TRUNCATED",
+   "MODEL_STRUCTURED_INVALID",
+   "MODEL_STRUCTURED_UNSUPPORTED",
+   "MODEL_HTTP_ERROR",
+diff --git a/packages/sdk/src/model/README.md b/packages/sdk/src/model/README.md
+index 1f50d853..c2fd8099 100644
+--- a/packages/sdk/src/model/README.md
++++ b/packages/sdk/src/model/README.md
+@@ -12,6 +12,8 @@
+ 
+ 不持有密钥（Host 在最后边界注入），不拥有 Run 状态，不做协议探测或失败换格式。
+ 
++目录登记和 Run 启动使用相同的端点形状合同：HTTPS 或本机回环 HTTP。Host 的回环主机判断经模块窄口复用，登记通过不授予网络权限；真实调用仍由 Host 逐跳检查。见 [回环端点合同](../../../../docs/slices/model-loopback.md)。
++
+ 公开协议缝使用的 `ToolSpec`、`WireMessage` 与 `ProtocolAdapter` 一同经模块 API 和 SDK 根入口提供类型；消费者无需深导入才能声明规范工具和消息。它们是已有协议合同的命名类型，不是原始 Provider 帧读取入口。
+ 
+ ## 可配与可换
+diff --git a/packages/sdk/src/model/core/adapter.ts b/packages/sdk/src/model/core/adapter.ts
+index 4142b949..1f574e29 100644
+--- a/packages/sdk/src/model/core/adapter.ts
++++ b/packages/sdk/src/model/core/adapter.ts
+@@ -1,4 +1,5 @@
+ import { createPrologueError } from "../../kernel/core/index.js";
++import { isLoopbackHost } from "../../host/core/index.js";
+ import { assertStructuredSupported, type StructuredRequest } from "./structured.js";
+ import type {
+   ModelAuthScheme,
+@@ -12,6 +13,17 @@ import type {
+   WireMessage,
+ } from "./types.js";
+ 
++/** Input shape only. Host separately enforces channel, loopback and target permissions. */
++export function assertModelEndpoint(endpoint: unknown): asserts endpoint is string {
++  if (typeof endpoint === "string") {
++    try {
++      const url = new URL(endpoint);
++      if (url.protocol === "https:" || url.protocol === "http:" && isLoopbackHost(url.hostname)) return;
++    } catch { /* Report a stable error without echoing the target. */ }
++  }
++  throw createPrologueError("RUNTIME_OPTIONS_INVALID", "A model endpoint must be an https URL or a loopback http URL; network permission is checked separately.");
++}
++
+ /**
+  * 一次调用可以拧的旋钮。
+  *
+diff --git a/packages/sdk/src/model/core/catalog.ts b/packages/sdk/src/model/core/catalog.ts
+index a8437436..3fd339af 100644
+--- a/packages/sdk/src/model/core/catalog.ts
++++ b/packages/sdk/src/model/core/catalog.ts
+@@ -1,5 +1,6 @@
+ import { createPrologueError, mintRef, type ExactRef } from "../../kernel/core/index.js";
+ import type { ModelProtocol } from "./types.js";
++import { assertModelEndpoint } from "./adapter.js";
+ 
+ /**
+  * 一条模型登记。**能干什么要明说**——「支持结构化输出」这类东西
+@@ -14,7 +15,7 @@ export interface ModelCapabilities {
+ export interface ModelEntryInput {
+   readonly name: string;
+   readonly protocol: ModelProtocol;
+-  /** 完整的 HTTPS URL。本机回环要在出网放行里显式打开。 */
++  /** HTTPS 或本机回环 HTTP URL。回环仍要在 Host 出网放行里显式打开。 */
+   readonly endpoint: string;
+   /** Provider 侧的 model 标识。 */
+   readonly model: string;
+@@ -209,12 +210,7 @@ export function createModelCatalog(
+       if (input.name.length < 1 || input.model.length < 1) {
+         throw createPrologueError("RUNTIME_OPTIONS_INVALID", "A model entry needs a name and a model id.");
+       }
+-      if (!/^https:\/\//.test(input.endpoint) && !/^http:\/\/(localhost|127\.)/.test(input.endpoint)) {
+-        throw createPrologueError(
+-          "RUNTIME_OPTIONS_INVALID",
+-          "A model endpoint must be an https URL (or explicit loopback).",
+-        );
+-      }
++      assertModelEndpoint(input.endpoint);
+       const entry: ModelEntry = { ...input, ref: mintRef("model", newId()) };
+       entries.set(entry.ref.id, entry);
+       return entry;
+diff --git a/packages/sdk/src/model/core/index.ts b/packages/sdk/src/model/core/index.ts
+index c72cbcc8..8595e602 100644
+--- a/packages/sdk/src/model/core/index.ts
++++ b/packages/sdk/src/model/core/index.ts
+@@ -15,6 +15,7 @@ export type {
+ export {
+   ALL_KNOBS,
+   assertParamsSupported,
++  assertModelEndpoint,
+   createAdapterRegistry,
+   MAX_REQUEST_BYTES,
+   prepareWire,
+diff --git a/packages/sdk/src/model/core/types.ts b/packages/sdk/src/model/core/types.ts
+index 93244e6b..bcbc49a8 100644
+--- a/packages/sdk/src/model/core/types.ts
++++ b/packages/sdk/src/model/core/types.ts
+@@ -352,7 +352,7 @@ export type ModelEvent =
+    */
+   | Readonly<{ type: "agent-control"; state: "running" | "pausing" | "paused" }>
+   /** 整批工具未执行，已请求模型纠正；不代表纠正成功，不含原始工具名或参数。 */
+-  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" }>
++  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }>
+   /** Explicit recovery of an interrupted Run, never a reconstructed tool transcript. */
+   | Readonly<{ type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix";
+       questions?: readonly { ref: ExactRef<"pending">; kind: string; prompt: string }[];
+diff --git a/packages/sdk/src/session/README.md b/packages/sdk/src/session/README.md
+index 8e742ca2..30b5f085 100644
+--- a/packages/sdk/src/session/README.md
++++ b/packages/sdk/src/session/README.md
+@@ -12,6 +12,8 @@
+ 
+ 不发模型请求、不执行工具。Agent 和 Function 请求开始/继续/取消，但不能自己另记一份终态。
+ 
++Run 启动将端点形状交给 Model 的同一预检窄口，避免与目录登记不一致；预检不替代 Host 网络授权。见 [回环端点合同](../../../../docs/slices/model-loopback.md)。
++
+ 原问题等待、持久答案、独立Run输入事件与取消/重启的现役消费合同见 [AskUser](../../../../docs/slices/ask-user.md)。该合同不把UI或第二套等待状态搬入模块。
+ 
+ ## 可配与可换
+diff --git a/packages/sdk/src/session/core/run.ts b/packages/sdk/src/session/core/run.ts
+index f5b7a470..eaf0e597 100644
+--- a/packages/sdk/src/session/core/run.ts
++++ b/packages/sdk/src/session/core/run.ts
+@@ -10,6 +10,7 @@ import { visibleUnderPrivacy } from "./metadata.js";
+ import type { BoundAttachments } from "../../resource/core/index.js";
+ import {
+   assertParamsSupported,
++  assertModelEndpoint,
+   decidePromptCache,
+   estimateTokens,
+   mergeUsageSnapshot,
+@@ -83,9 +84,7 @@ export function assertRunStartable(input: {
+   for (const binding of input.start.attachments ?? []) {
+     input.assertBindable(binding);
+   }
+-  if (typeof input.start.endpoint !== "string" || !/^https:\/\//.test(input.start.endpoint)) {
+-    throw createPrologueError("RUNTIME_OPTIONS_INVALID", "endpoint must be an https URL.");
+-  }
++  assertModelEndpoint(input.start.endpoint);
+   if (typeof input.start.model !== "string" || input.start.model.length < 1) {
+     throw createPrologueError("RUNTIME_OPTIONS_INVALID", "model is required.");
+   }
+diff --git a/packages/sdk/src/tool/core/invoke.ts b/packages/sdk/src/tool/core/invoke.ts
+index afa0b2b9..32ad5f66 100644
+--- a/packages/sdk/src/tool/core/invoke.ts
++++ b/packages/sdk/src/tool/core/invoke.ts
+@@ -193,6 +193,9 @@ const NO_OPINION: PolicyDecision = Object.freeze({
+   why: "The owner of this side effect decides; no rule here names this tool.",
+ });
+ 
++/** One storage segment, short enough to sit after the parent run's key. */
++const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$/;
++
+ function requiredNames(parameters: Readonly<Record<string, unknown>>): readonly string[] {
+   const required = (parameters as { required?: unknown }).required;
+   return Array.isArray(required) ? required.filter((name): name is string => typeof name === "string") : [];
+@@ -296,6 +299,18 @@ export function createToolInvoker(input: {
+         );
+       }
+     }
++    /*
++     * **幂等键会成为存储地址的一段。** 不合法的键若放过去，要等到落盘才被拒——那时人已经批准了这次
++     * 调用，得到的却是一次失败。在进审查之前就拒，模型当场改一个键重来。
++     */
++    const key = args.idempotencyKey;
++    const properties = (registration.parameters as { properties?: Record<string, unknown> }).properties;
++    if (typeof key === "string" && properties !== undefined && "idempotencyKey" in properties && !IDEMPOTENCY_KEY.test(key)) {
++      throw createPrologueError(
++        "TOOL_ARGUMENTS_INVALID",
++        `The "${registration.name}" tool needs an idempotencyKey of 1–48 letters, digits, dots, dashes or underscores, starting with a letter or digit.`,
++      );
++    }
+     const allowed = allowedNames(registration.parameters);
+     if (allowed !== undefined) {
+       const extra = Object.keys(args).filter((name) => !allowed.includes(name));
+diff --git a/packages/sdk/src/tool/core/system.ts b/packages/sdk/src/tool/core/system.ts
+index 8ba1b112..3b5a7366 100644
+--- a/packages/sdk/src/tool/core/system.ts
++++ b/packages/sdk/src/tool/core/system.ts
+@@ -178,7 +178,7 @@ const BLUEPRINTS: readonly Blueprint[] = [
+       type: "object",
+       properties: {
+         query: { type: "string", description: "Substring to find." },
+-        path: { type: "string", description: "Optional relative directory to search in." },
++        path: { type: "string", description: "Optional relative directory or single file to search in." },
+       },
+       required: ["query"],
+       additionalProperties: false,
+@@ -342,7 +342,10 @@ const BLUEPRINTS: readonly Blueprint[] = [
+             "Exactly which tools the subagent may use. An empty list means none; " +
+             "omitting it does not inherit this run's tools.",
+         },
+-        idempotencyKey: { type: "string", description: "Same key and same request dispatches once." },
++        idempotencyKey: {
++          type: "string",
++          description: "Same key and same request dispatches once. 1–48 letters, digits, dots, dashes or underscores.",
++        },
+         character: {
+           type: "string",
+           description:
+@@ -552,7 +555,7 @@ const BLUEPRINTS: readonly Blueprint[] = [
+           enum: ["notice", "request", "reply", "handoff", "status", "cancel-request", "inject"],
+         },
+         body: { type: "string", description: "Bounded text. No secrets, no absolute paths." },
+-        idempotencyKey: { type: "string" },
++        idempotencyKey: { type: "string", description: "1–48 letters, digits, dots, dashes or underscores." },
+       },
+       required: ["to", "kind", "body", "idempotencyKey"],
+       additionalProperties: false,
+@@ -595,7 +598,7 @@ const BLUEPRINTS: readonly Blueprint[] = [
+       properties: {
+         session: { type: "string" },
+         text: { type: "string" },
+-        idempotencyKey: { type: "string" },
++        idempotencyKey: { type: "string", description: "1–48 letters, digits, dots, dashes or underscores." },
+       },
+       required: ["session", "text", "idempotencyKey"],
+       additionalProperties: false,
+diff --git a/packages/sdk/src/workspace/core/root.ts b/packages/sdk/src/workspace/core/root.ts
+index 2dc31092..294ede26 100644
+--- a/packages/sdk/src/workspace/core/root.ts
++++ b/packages/sdk/src/workspace/core/root.ts
+@@ -69,7 +69,8 @@ export interface WorkspaceReader {
+      * 灾难性回溯的模式会被拒——见 `assertPatternIsSafe`。
+      */
+     readonly regex?: boolean;
+-  }): Promise<{ readonly matches: readonly WorkspaceMatch[] }>;
++    /** `truncated`：没有搜全（走到文件数或条数上界）。没找到时据此说明，而不是说不存在。 */
++  }): Promise<{ readonly matches: readonly WorkspaceMatch[]; readonly truncated?: boolean }>;
+   /**
+    * 在授权根里**按名字**找路径。受忽略规则约束。
+    *
+@@ -440,7 +441,7 @@ export function createWorkspace(input: {
+           }
+           if (regex !== true) {
+             const found = await input.host.searchFiles({ rootRef: ref, query, path: at(path) });
+-            return { matches: found.matches.filter((one) => ignore.isVisible(rel(one.path))) };
++            return { matches: found.matches.filter((one) => ignore.isVisible(rel(one.path))), ...(found.truncated ? { truncated: true } : {}) };
+           }
+           /*
+            * **正则这一档自己扫。**
+@@ -453,8 +454,18 @@ export function createWorkspace(input: {
+            */
+           const pattern = new RegExp(query, "s");
+           const candidates = await this.find({ glob: "**", ...(path === undefined ? {} : { path }) });
++          const files = [...candidates.paths];
++          // 路径指的是单个文件时，find 只会列目录、找不到候选：这份文件本身就是唯一候选。
++          if (path !== undefined && files.length === 0 && ignore.isVisible(rel(path))) {
++            try {
++              await input.host.readFile({ rootRef: ref, path: at(path) });
++              files.push(rel(path));
++            } catch {
++              // 不是可读的文件（目录、不存在、二进制）：照旧没有候选。
++            }
++          }
+           const matches: WorkspaceMatch[] = [];
+-          for (const where of candidates.paths.slice(0, MAX_SEARCH_FILES)) {
++          for (const where of files.slice(0, MAX_SEARCH_FILES)) {
+             if (matches.length >= MAX_SEARCH_MATCHES) {
+               break;
+             }
+@@ -482,7 +493,8 @@ export function createWorkspace(input: {
+               }
+             }
+           }
+-          return { matches };
++          const truncated = candidates.truncated || files.length > MAX_SEARCH_FILES || matches.length >= MAX_SEARCH_MATCHES;
++          return { matches, ...(truncated ? { truncated: true } : {}) };
+         },
+ 
+         async find({ glob, path }) {
+diff --git a/packages/sdk/test/agent-native-continuation.test.ts b/packages/sdk/test/agent-native-continuation.test.ts
+index f7cb38ec..98e67a47 100644
+--- a/packages/sdk/test/agent-native-continuation.test.ts
++++ b/packages/sdk/test/agent-native-continuation.test.ts
+@@ -676,3 +676,52 @@ describe("同 Run 原生响应续接", () => {
+     await started.runtime.shutdown();
+   });
+ });
++
++describe("回答被输出上限截断时接着写", () => {
++  const cut = (text: string) => nativeToolFrames({ text, tools: [], stopReason: "max_tokens" });
++  const end = (text: string) => nativeToolFrames({ text, tools: [], stopReason: "end_turn" });
++  const thoughtOut = () => nativeToolFrames({ thinkingParts: [THINK_A], signatureParts: [SIG_A], tools: [], stopReason: "max_tokens" });
++  const written = (seen: readonly ModelEvent[]) =>
++    seen.filter((one) => one.type === "text-delta").map((one) => (one as { text: string }).text).join("");
++  const code = (event: ModelEvent) => (event as { error?: { code?: string } }).error?.code;
++
++  it("截下来的那段留在历史里，续写到写完为止，几段连成一条完整回答", async () => {
++    const probe: MemoryHostPrepareProbe = {};
++    const started = await boot({ probe, turns: [{ frames: cut("第一段，") }, { frames: cut("第二段，") }, { frames: end("写完了。") }] });
++    expect((await started.wait()).type).toBe("completed");
++    expect(written(started.seen)).toBe("第一段，第二段，写完了。");
++    const [, second, third] = probe.bodies ?? [];
++    expect(second).toContain("第一段，");
++    expect(second).toContain("cut off at the output limit");
++    expect(third).toContain("第一段，");
++    expect(third).toContain("第二段，");
++    expect(started.seen.filter((one) => one.type === "model-response-repair" && one.reason === "output-truncated")).toHaveLength(2);
++    await started.runtime.shutdown();
++  });
++
++  it("续写到上界还在被截断：如实失败，不把半截当成完成", async () => {
++    const probe: MemoryHostPrepareProbe = {};
++    const started = await boot({ probe, turns: Array.from({ length: 9 }, (_, index) => ({ frames: cut(`第${index + 1}段，`) })) });
++    const terminal = await started.wait();
++    expect(terminal.type).toBe("failed");
++    expect(code(terminal)).toBe("MODEL_OUTPUT_TRUNCATED");
++    expect(probe.bodies).toHaveLength(9);
++    await started.runtime.shutdown();
++  });
++
++  it("思考用完上限、还没写正文：让它少想一点再答；一直如此就失败，不交空回答", async () => {
++    const recovered: MemoryHostPrepareProbe = {};
++    const once = await boot({ probe: recovered, params: { thinking: "adaptive" }, turns: [{ frames: thoughtOut() }, { frames: end("答案。") }] });
++    expect((await once.wait()).type).toBe("completed");
++    expect(written(once.seen)).toBe("答案。");
++    expect(recovered.bodies?.[1]).toContain("Keep your reasoning shorter");
++    await once.runtime.shutdown();
++
++    const probe: MemoryHostPrepareProbe = {};
++    const started = await boot({ probe, params: { thinking: "adaptive" }, turns: [{ frames: thoughtOut() }, { frames: thoughtOut() }, { frames: thoughtOut() }] });
++    const terminal = await started.wait();
++    expect(terminal.type).toBe("failed");
++    expect(code(terminal)).toBe("MODEL_OUTPUT_TRUNCATED");
++    await started.runtime.shutdown();
++  });
++});
+diff --git a/packages/sdk/test/model-loopback.live.test.ts b/packages/sdk/test/model-loopback.live.test.ts
+new file mode 100644
+index 00000000..605655f2
+--- /dev/null
++++ b/packages/sdk/test/model-loopback.live.test.ts
+@@ -0,0 +1,112 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { createServer } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { createRuntime, type NetworkAllowance, type Run } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++import { createMemoryHost } from "../src/testing/api/index.js";
++import { checkNetworkTarget } from "../src/host/core/index.js";
++
++const app = { appId: "prologue.loopback", appVersion: "0.1.0" };
++const definition = { name: "Local", protocol: "openai-compatible", model: "local-model", purposes: [], capabilities: { tools: false, structuredOutput: false, promptCache: false } } as const;
++
++function terminal(run: Run): Promise<void> {
++  if (["completed", "failed", "cancelled"].includes(run.state)) return Promise.resolve();
++  return new Promise(resolve => {
++    const stop = run.subscribe(event => {
++      if (["completed", "failed", "cancelled"].includes(event.type)) { stop(); resolve(); }
++    });
++  });
++}
++async function ready(host: Parameters<typeof createRuntime>[0]["host"], network: NetworkAllowance = {}) {
++  const runtime = await createRuntime({ app, host, network });
++  const credential = await runtime.credentials.write({ label: "fixture", secret: { plaintext: new TextEncoder().encode("loopback-fixture-key") } });
++  const session = await runtime.sessions.create();
++  const start = (endpoint: string) => session.startRun({ protocol: definition.protocol, model: definition.model, endpoint, credentialRef: credential.ref, messages: [{ role: "user", text: "local evidence" }] });
++  return { runtime, session, start };
++}
++
++it("catalog and Run reject malformed or non-loopback plaintext endpoints before execution", async () => {
++  const { runtime, session, start } = await ready(createMemoryHost(), { model: true, loopback: true });
++  try {
++    for (const endpoint of ["", "https://", "not-a-url", "file:///tmp/model", "http://api.example.com/v1", "http://localhost.example.com/v1", "http://127.example.com/v1", "http://127.0.0.1.example.com/v1", "http://localhost@api.example.com/v1", "http://192.168.0.1/v1"]) {
++      expect(() => runtime.models.register({ ...definition, endpoint })).toThrow(expect.objectContaining({ code: "RUNTIME_OPTIONS_INVALID" }));
++      await expect(start(endpoint)).rejects.toMatchObject({ code: "RUNTIME_OPTIONS_INVALID" });
++      expect(() => checkNetworkTarget(endpoint, { model: true, loopback: true })).toThrow(expect.objectContaining({ code: "NETWORK_TARGET_DENIED" }));
++    }
++    expect(runtime.models.list()).toHaveLength(0);
++    expect(await session.terminalRuns()).toHaveLength(0);
++  } finally { await runtime.shutdown(); }
++});
++
++it("catalog and Run share normalized local endpoint shapes; registration cannot enable the model channel", async () => {
++  const { runtime, session, start } = await ready(createMemoryHost());
++  try {
++    for (const endpoint of ["http://localhost:11434/v1", "http://model.localhost:11434/v1", "http://127.0.0.1/v1", "http://127.2.3.4/v1", "http://[::1]/v1", "http://[0:0:0:0:0:0:0:1]/v1", "https://api.example.com/v1"]) {
++      const entry = runtime.models.register({ ...definition, endpoint });
++      expect(runtime.models.resolve({ ref: entry.ref }).endpoint).toBe(endpoint);
++      const run = await start(endpoint);
++      await terminal(run);
++      expect(run.state).toBe("failed");
++      expect(await session.replay(run.ref)).toContainEqual(expect.objectContaining({ type: "failed", error: expect.objectContaining({ code: "MODEL_NETWORK_FAILED", safeMessage: expect.stringContaining('"model" channel was never allowed') }) }));
++    }
++  } finally { await runtime.shutdown(); }
++});
++
++for (const address of ["127.0.0.1", "::1"]) it(`public Session uses a real HTTP model on ${address}, with cancellation and local replay`, async () => {
++  const storageRoot = mkdtempSync(join(tmpdir(), "prologue-loopback-"));
++  let requests = 0, hold = false;
++  const entered = Promise.withResolvers<void>();
++  const bodies: string[] = [], keys: (string | string[] | undefined)[] = [];
++  const server = createServer(async (request, response) => {
++    let body = ""; for await (const chunk of request) body += chunk;
++    requests++; bodies.push(body); keys.push(request.headers.authorization);
++    if (hold) { entered.resolve(); return; }
++    response.writeHead(200, { "content-type": "text/event-stream" });
++    response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: "local result" }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
++  });
++  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, address, resolve); });
++  const bound = server.address(); if (!bound || typeof bound === "string") throw new Error("No server address");
++  const endpoint = `http://${address === "::1" ? "[::1]" : address}:${bound.port}/v1/chat/completions`;
++  const { runtime, session, start } = await ready(createNodeHost({ storageRoot }), { model: true, loopback: true });
++  try {
++    runtime.models.register({ ...definition, endpoint });
++    const run = await start(endpoint); await terminal(run);
++    expect(run.state).toBe("completed"); expect(requests).toBe(1);
++    expect(keys).toEqual(["Bearer loopback-fixture-key"]);
++    expect(JSON.parse(bodies[0]!)).toMatchObject({ model: "local-model", messages: [{ role: "user", content: "local evidence" }] });
++    expect(await session.replay(run.ref)).toContainEqual(expect.objectContaining({ type: "text-delta", text: "local result" }));
++    expect(requests).toBe(1);
++    hold = true;
++    const cancelled = await start(endpoint); await entered.promise;
++    await cancelled.cancel(); await terminal(cancelled);
++    expect(cancelled.state).toBe("cancelled"); expect(requests).toBe(2);
++    expect(JSON.stringify(await session.replay(cancelled.ref))).not.toContain("loopback-fixture-key");
++  } finally {
++    await runtime.shutdown(); server.closeAllConnections();
++    await new Promise<void>(resolve => server.close(() => resolve()));
++    rmSync(storageRoot, { recursive: true, force: true });
++  }
++}, 15_000);
++
++it("real Node Host requires explicit loopback and model grants even for a registered model", async () => {
++  let requests = 0;
++  const server = createServer((_request, response) => { requests++; response.end("unexpected"); });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const bound = server.address(); if (!bound || typeof bound === "string") throw new Error("No server address");
++  const endpoint = `http://127.0.0.1:${bound.port}/v1/chat/completions`;
++  try {
++    for (const [network, reason] of [[{}, /model.*channel was never allowed/], [{ model: true }, /explicitly enabled loopback/], [{ loopback: true }, /model.*channel was never allowed/]] as const) {
++      const storageRoot = mkdtempSync(join(tmpdir(), "prologue-loopback-denied-"));
++      const { runtime, session, start } = await ready(createNodeHost({ storageRoot }), network);
++      try {
++        runtime.models.register({ ...definition, endpoint });
++        const run = await start(endpoint); await terminal(run);
++        expect(run.state).toBe("failed");
++        expect(await session.replay(run.ref)).toContainEqual(expect.objectContaining({ type: "failed", error: expect.objectContaining({ code: "MODEL_NETWORK_FAILED", safeMessage: expect.stringMatching(reason) }) }));
++        expect(requests).toBe(0);
++      } finally { await runtime.shutdown(); rmSync(storageRoot, { recursive: true, force: true }); }
++    }
++  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
++});
+diff --git a/packages/sdk/test/subagent-depth.test.ts b/packages/sdk/test/subagent-depth.test.ts
+index a8917349..6b8ef8e0 100644
+--- a/packages/sdk/test/subagent-depth.test.ts
++++ b/packages/sdk/test/subagent-depth.test.ts
+@@ -576,6 +576,28 @@ describe("真实运行中的并发、同键重试和失败后的新键", () => {
+     expect(runtime.subagents.list()[0]?.key).toContain("ok-second");
+     await runtime.shutdown();
+   });
++
++  it("不能做存储地址的派出键当场被拒，不等审查或落盘，换个合法键就能派", async () => {
++    const { host } = routedHost({
++      scripts: {
++        parent: [
++          dispatch({ instruction: "bad-key", idempotencyKey: "写 README/第二份", tools: [] }),
++          dispatch({ instruction: "good-key", idempotencyKey: "readme-2", tools: [] }),
++          says("parent-done"),
++        ],
++        "good-key": [says("child-done")],
++      },
++    });
++    const runtime = await bootRuntime({ host, maxDepth: 1, maxConcurrent: 2 });
++    const { events, toolResults } = await runParent({ runtime, task: "go", parentKey: "key-root", toolNames: ["dispatch-subagent"] });
++    expect(events.at(-1)?.type).toBe("completed");
++    expect(toolResults[0]).toContain("TOOL_ARGUMENTS_INVALID");
++    expect(toolResults[0]).toContain("1–48 letters, digits, dots, dashes or underscores");
++    expect(toolResults.some((one) => one.includes("STORAGE_KEY_INVALID"))).toBe(false);
++    expect(runtime.subagents.list()).toHaveLength(1);
++    expect(runtime.subagents.list()[0]?.key).toContain("readme-2");
++    await runtime.shutdown();
++  });
+ });
+ 
+ describe("模型侧父任务归属", () => {
+diff --git a/packages/sdk/test/workspace-find-search.live.test.ts b/packages/sdk/test/workspace-find-search.live.test.ts
+index cbb7ff0b..9bccfe53 100644
+--- a/packages/sdk/test/workspace-find-search.live.test.ts
++++ b/packages/sdk/test/workspace-find-search.live.test.ts
+@@ -135,6 +135,37 @@ describe("内容正则检索", () => {
+     expect(found.matches.every((one) => one.line > 0)).toBe(true);
+   });
+ 
++  it("路径可以是单个文件：只在这份文件里找；路径不存在时报错，不答成「没找到」", async () => {
++    const read = await reader();
++    const literal = await read.search({ query: "const port", path: "src/index.ts" });
++    expect(literal.matches).toEqual([{ path: "src/index.ts", line: 2, text: "const port = 3000;" }]);
++    const pattern = await read.search({ query: "port\\s*=\\s*\\d+", regex: true, path: "src/index.ts" });
++    expect(pattern.matches.map((one) => `${one.path}:${one.line}`)).toEqual(["src/index.ts:2"]);
++    await expect(read.search({ query: "const port", path: "src/gone.ts" })).rejects.toMatchObject({ code: "ROOT_NOT_FOUND" });
++  });
++
++  it("大仓库里走过一千多个文件也照样找到；到了条数上界就说没搜全，不假装找全了", async () => {
++    const at = mkdtempSync(join(tmpdir(), "search-large-"));
++    for (let dir = 0; dir < 30; dir += 1) {
++      mkdirSync(join(at, `a${String(dir).padStart(2, "0")}`));
++      for (let file = 0; file < 50; file += 1) writeFileSync(join(at, `a${String(dir).padStart(2, "0")}`, `f${file}.txt`), `filler ${dir}-${file}\n`);
++    }
++    mkdirSync(join(at, "zz"));
++    writeFileSync(join(at, "zz", "target.ts"), "export const needle = 1;\n");
++    const runtime = await createRuntime({ app: { appId: "prologue.harness", appVersion: "0.1.0" }, host: createNodeHost(), preset: "local-agent", network: { model: true }, posture: { sandbox: "workspace-write" } });
++    const grant = await runtime.workspace.authorize({ path: at });
++    const read = runtime.workspace.reader(grant.ref, createIgnoreRules({ ignored: DEFAULT_MODULE_CONFIG.context.ignored }));
++    const deep = await read.search({ query: "needle" });
++    expect(deep.matches.map((one) => one.path)).toEqual(["zz/target.ts"]);
++    expect(deep.truncated ?? false).toBe(false);
++    const many = await read.search({ query: "filler" });
++    expect(many.truncated).toBe(true);
++    // A file over the whole-read limit is still searched: 76 KB of styles is where the rule lives.
++    writeFileSync(join(at, "zz", "styles.ts"), `${"/* padding */\n".repeat(6000)}.coding-tool-state[data-tone=failed] { color: red; }\n`);
++    const big = await read.search({ query: "coding-tool-state", path: "zz" });
++    expect(big.matches.map((one) => one.path)).toEqual(["zz/styles.ts"]);
++  });
++
+   it("不给 `regex` 就是字面量——元字符不当正则", async () => {
+     const read = await reader();
+     // 字面量档下这串谁也匹配不上。
+diff --git a/packages/sdk/test/workspace-mutate.live.test.ts b/packages/sdk/test/workspace-mutate.live.test.ts
+index ef1bfb0a..43fce751 100644
+--- a/packages/sdk/test/workspace-mutate.live.test.ts
++++ b/packages/sdk/test/workspace-mutate.live.test.ts
+@@ -1,6 +1,6 @@
+ import { createNodeHost } from "../src/node.js";
+ import { createHash } from "node:crypto";
+-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
++import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { afterEach, beforeEach, describe, expect, it } from "vitest";
+@@ -216,6 +216,24 @@ describe("真实 Host 上的补丁", () => {
+     await runtime.shutdown();
+   });
+ 
++  it("改文件不改它的权限：可执行的脚本改完、回退后仍可执行；新文件是普通权限", async () => {
++    const { runtime, root, now } = await ready();
++    const mutator = runtime.createMutator({ rootRef: root.ref, mode: "build" });
++    const script = join(project, "run.sh");
++    writeFileSync(script, "#!/bin/sh\necho 1\n");
++    chmodSync(script, 0o755);
++    const edited = await mutator.applyPatch(await mutator.preparePatch({ path: "run.sh", nextText: "#!/bin/sh\necho 2\n" }), now);
++    expect(readFileSync(script, "utf8")).toBe("#!/bin/sh\necho 2\n");
++    expect(statSync(script).mode & 0o777).toBe(0o755);
++    await mutator.rewind(edited.checkpointId, now);
++    expect(readFileSync(script, "utf8")).toBe("#!/bin/sh\necho 1\n");
++    expect(statSync(script).mode & 0o777).toBe(0o755);
++    await mutator.applyPatch(await mutator.preparePatch({ path: "fresh.ts", nextText: "export {};\n" }), now);
++    const umask = process.umask();
++    expect(statSync(join(project, "fresh.ts")).mode & 0o777).toBe(0o666 & ~umask);
++    await runtime.shutdown();
++  });
++
+   it("按检查点回退能把内容还原", async () => {
+     const { runtime, root, now } = await ready();
+     const mutator = runtime.createMutator({ rootRef: root.ref, mode: "build" });

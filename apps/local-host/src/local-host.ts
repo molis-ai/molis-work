@@ -444,12 +444,14 @@ export class LocalHost<Runtime> {
     // A Plugin action may await another declared Host capability. Queueing it behind itself deadlocks.
     const parent = this.executionScope.getStore();
     if (parent?.active && parent.entry === entry) return run();
-    // Registered concurrent actions own their short transactions, and a wait only observes (following a live round):
-    // held in line it would keep every later operation of the project waiting until it answers. Both run beside the
-    // queue; withRuntime keeps close waiting. The registry still refuses a caller claiming "wait" for another operation.
+    // Registered concurrent actions own their short transactions, a wait only observes (following a live round), and a
+    // capability registered as concurrent touches no project state (a model draft): held in line, each would keep every
+    // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
+    // waiting. The registry still refuses a caller claiming "wait" for another operation, and concurrency is read from
+    // the registered descriptor, never from the caller's.
     const registered = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
       && d.version === capability.version && d.action_provider?.project_id === capability.action_provider?.project_id)[0];
-    if (capability.operation === "wait" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
+    if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
     const operation = entry.operationTail.then(run);
     entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;

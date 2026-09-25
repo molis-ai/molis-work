@@ -41,9 +41,11 @@ export const CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const usage=section('本会话用量'),list=el('dl'),row=(key,value)=>list.append(el('dt','',key),el('dd','',value));
       row('轮次',n(total.rounds));row('输入',n(total.tokens.input)+' tokens');row('输出',n(total.tokens.output)+' tokens');
       if(total.tokens.cached_input!==undefined)row('缓存读取',n(total.tokens.cached_input)+' tokens');
+      if(total.digests)row('其中整理摘要',total.digests.calls+' 次 · '+n(total.digests.tokens.input+total.digests.tokens.output)+' tokens');
       row('费用',total.cost_usd!==undefined?'$'+total.cost_usd.toFixed(4):'未知：服务方没有返回价格');
       usage.append(list);
       if(total.uncertain_rounds)usage.append(el('p','coding-meter-note',total.uncertain_rounds+' 轮的用量不完整或含估算，合计只算已知部分。'));
+      if(total.digests && total.cost_usd!==undefined)usage.append(el('p','coding-meter-note','整理摘要的调用没有价格，费用只含各轮。'));
       const limit=section('预算'),form=el('form','coding-meter-budget'),input=el('input','mw-input'),save=el('button','mw-btn mw-btn--secondary','保存');
       input.type='number';input.min='0.1';input.step='any';input.inputMode='decimal';input.placeholder='不设';input.value=budget?String(budget.tokens/1e4):'';input.setAttribute('aria-label','本会话预算，单位万 tokens');save.type='submit';
       form.append(input,el('span','','万 tokens'),save);

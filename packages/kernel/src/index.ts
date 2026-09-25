@@ -54,6 +54,7 @@ function normalizedDescriptor<Input, Output>(
     version: definition.version,
     operation: definition.operation,
     ...(definition.host_only ? { host_only: true } : {}),
+    ...(definition.scheduling === "concurrent" ? { scheduling: "concurrent" as const } : {}),
     ...(definition.action ? { action: structuredClone(definition.action) } : {}),
     ...(definition.action_provider ? { action_provider: structuredClone(definition.action_provider) } : {}),
   };

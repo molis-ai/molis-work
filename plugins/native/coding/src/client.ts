@@ -10,6 +10,7 @@ import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
 import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_THRESHOLD_PX } from "./reading.js";
 import { CONTINUATION_MARKER, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, MENTIONS_MARKER, digestTask } from "./continuation.js";
+import { MODEL_DIGEST_HEAD } from "./history-digest.js";
 import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
@@ -35,7 +36,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const onReaderScrolled = ${onReaderScrolled.toString()};
   const CONTINUATION_MARKER = ${JSON.stringify(CONTINUATION_MARKER)};
   const SESSION_WINDOW = ${SESSION_WINDOW}, SESSION_PAGE = ${SESSION_PAGE};
-  const HISTORY_DIGEST_MARKER = ${JSON.stringify(HISTORY_DIGEST_MARKER)}, HISTORY_DIGEST_TASK_HEAD = ${JSON.stringify(HISTORY_DIGEST_TASK_HEAD)}, MENTIONS_MARKER = ${JSON.stringify(MENTIONS_MARKER)};
+  const HISTORY_DIGEST_MARKER = ${JSON.stringify(HISTORY_DIGEST_MARKER)}, HISTORY_DIGEST_TASK_HEAD = ${JSON.stringify(HISTORY_DIGEST_TASK_HEAD)}, MODEL_DIGEST_HEAD = ${JSON.stringify(MODEL_DIGEST_HEAD)}, MENTIONS_MARKER = ${JSON.stringify(MENTIONS_MARKER)};
   const digestTask = ${digestTask.toString()};
   const ownTask = (text) => { const own = digestTask(text), at = own.indexOf(MENTIONS_MARKER); return at < 0 ? own : own.slice(0, at); };
   const READER_INTENT_MS = ${READER_INTENT_MS};
@@ -756,7 +757,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               const digest=turn.text.slice(HISTORY_DIGEST_MARKER.length,digestAt),own=turn.text.slice(digestAt+HISTORY_DIGEST_TASK_HEAD.length),count=(digest.match(/前 (\\d+) 轮/)||[])[1]||'';
               node.classList.add('has-digest');node.replaceChildren();
               const details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre'),text=document.createElement('div');
-              details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-history"></use></svg>';summary.append(document.createTextNode('带入了前 '+count+' 轮的摘要 · 工具输出原文没有带入'));
+              details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-history"></use></svg>';summary.append(document.createTextNode('带入了前 '+count+' 轮的摘要（'+(digest.includes(MODEL_DIGEST_HEAD)?'模型整理':'宿主按记录整理')+'）· 工具输出原文没有带入'));
               body.textContent=digest;details.append(summary,body);
               text.className='coding-turn-own';text.textContent=own.startsWith(CONTINUATION_MARKER)?'从断点继续 · '+own.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim():own;
               node.append(details,text);
@@ -1360,7 +1361,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // One way to start a round, shared by the composer and by continuing from a breakpoint.
   const startRound = async (id,task,intent,modelValue,selection,extra={}) => {
     const [provider_id,model_id]=JSON.parse(modelValue);
-    await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{...extra,task,intent,provider_id,model_id,workspace_id:selection.workspace_id,methods:selection.methods,mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
+    // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
+    if(id===current && lastData?.next_history?.history==='digest')status('正在请模型把前面的对话整理成摘要，写好后开始这一轮…');
+    const started=await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{...extra,task,intent,provider_id,model_id,workspace_id:selection.workspace_id,methods:selection.methods,mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
+    const digest=started?.digest;
+    if(digest && id===current)status(digest.source==='model'?'前面的对话已由模型整理成摘要带入'+(digest.usage?'（用了 '+(digest.usage.input+digest.usage.output).toLocaleString()+' tokens）':'')+'，展开这一轮开头的摘要可以看全文。'
+      :'模型没能写出摘要（'+digest.problem+'），这一轮带入的是宿主按执行记录整理的摘要。',digest.source!=='model');
   };
   const currentSelection = (id) => ({workspace_id:workspaceId,methods:structuredClone(methodSelections.get(id) || []),mcp_tools:structuredClone(mcpSelections.get(id) || []),mcp_sources:structuredClone(mcpSourceSelections.get(id) || []),materials:structuredClone(materialSelections.get(id) || []),character:structuredClone(characterSelections.get(id) ?? null),writer_assignments:[]});
   // Continue an unfinished round: the Host states what already happened, the composer draft stays untouched.

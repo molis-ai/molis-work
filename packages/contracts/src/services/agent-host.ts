@@ -954,12 +954,14 @@ export const agentHostCapabilities = {
    */
   /**
    * One short text from the model — a commit message, say — with no tools, no conversation and nothing recorded as a
-   * round. It is a model call and costs what one costs; the usage comes back so the page can say so.
+   * round. It is a model call and costs what one costs; the usage comes back so the page can say so. It writes nothing
+   * of the project's, so a draft that takes a minute runs beside the project's other operations instead of ahead of them.
    */
   draftText: {
     capability_id: "agent.draft-text.v1",
     version: 1,
     operation: "command",
+    scheduling: "concurrent",
   } as HostCapabilityDefinition<AgentDraftTextRequest, AgentDraftTextResult>,
   waitRun: {
     capability_id: "agent.run.wait.v1",

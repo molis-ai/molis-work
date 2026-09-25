@@ -16,7 +16,7 @@ import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/mol
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation } from "./continuation.js";
 import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
-import { codingHistoryDigest, nextHistoryMode } from "./history-digest.js";
+import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
 import { CodingCooperationStore, DELEGATION_STATE_LABEL, type CodingDelegation } from "./cooperation.js";
 import { attachMentions, readWorkspaceFileCapability, workspaceFileIndex } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
@@ -177,6 +177,11 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   const savedBudget = (sessionId: string): { tokens: number } | null => {
     const saved = context.services?.storage?.get(`budget:${sessionId}`);
     return typeof saved === "string" ? JSON.parse(saved) as { tokens: number } : null;
+  };
+  /** What the model calls that wrote this session's digests used: the session's cost, though not a round of it. */
+  const savedDigestUsage = (sessionId: string): { calls: number; tokens: { input: number; output: number } } | null => {
+    const saved = context.services?.storage?.get(`digest-usage:${sessionId}`);
+    return typeof saved === "string" ? JSON.parse(saved) as { calls: number; tokens: { input: number; output: number } } : null;
   };
   /** Children of the rounds that coordinate them, with the person's saved verdicts. */
   const subagentGroups = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, sessionId: string, session: { runtime_id: string; session_id: string }, runs: readonly AgentRunView[]) => {
@@ -602,7 +607,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
-          usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)]),
+          usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(record.session_id)),
           next_history: nextHistoryMode(last, compactRequested), compact_requested: compactRequested, budget: savedBudget(record.session_id),
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
@@ -961,7 +966,26 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         let earlier: AgentRunView[] | undefined;
         const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
         let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
-        const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? codingHistoryDigest(await earlierRuns(), task) : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+        // The digest is written by the round's own model from the rounds' records, building on the one the latest digest
+        // round carried; the call runs beside the project's other operations. If it cannot be written, the Host's own
+        // record-based digest carries the round and the page says why. Either way it is written once per round.
+        let digest: { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string } | undefined;
+        const digestFor = async () => digest ??= await (async () => {
+          const runs = await earlierRuns();
+          try {
+            const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", instructions: HISTORY_SUMMARY_INSTRUCTIONS,
+              material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
+            if (draft.usage) {
+              const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
+              context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
+                tokens: { input: spent.tokens.input + draft.usage.input, output: spent.tokens.output + draft.usage.output } }));
+            }
+            return { text: summaryDigest(runs, draft.text, task), source: "model" as const, ...(draft.usage ? { usage: draft.usage } : {}) };
+          } catch (error) {
+            return { text: codingHistoryDigest(runs, task), source: "records" as const, problem: error instanceof Error ? error.message : "模型没有写出摘要" };
+          }
+        })();
+        const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
           ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
           ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
           ...(mode === "digest" ? { history: "digest" as const } : {}),
@@ -988,7 +1012,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         // A session named by default takes its name from the first task, the way a person would label it.
         if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
-        return { run, history, ...(historyReason ? { history_reason: historyReason } : {}) };
+        return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
+          ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
       } finally { busy.delete(record.session_id); }
     }),
     // The model drafts a commit message from the rounds that changed files; the person edits it and commits under review.

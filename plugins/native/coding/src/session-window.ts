@@ -74,9 +74,11 @@ export interface CodingSessionUsage {
   cost_usd?: number;
   /** Rounds whose usage is partly unknown or estimated. */
   uncertain_rounds: number;
+  /** Model calls that wrote the session's digests: counted in the tokens above, not as rounds. */
+  digests?: { calls: number; tokens: { input: number; output: number } };
 }
 
-export function codingSessionUsage(usages: readonly AgentRunUsage[]): CodingSessionUsage {
+export function codingSessionUsage(usages: readonly AgentRunUsage[], digests?: CodingSessionUsage["digests"] | null): CodingSessionUsage {
   let input = 0, output = 0, cached: number | undefined, cost: number | undefined, uncertain = 0;
   for (const usage of usages) {
     input += usage.tokens.input; output += usage.tokens.output;
@@ -84,7 +86,9 @@ export function codingSessionUsage(usages: readonly AgentRunUsage[]): CodingSess
     if (usage.cost_usd !== undefined) cost = (cost ?? 0) + usage.cost_usd;
     if (usage.unavailable_reason) uncertain++;
   }
-  return { rounds: usages.length, tokens: { input, output, ...(cached === undefined ? {} : { cached_input: cached }) }, ...(cost === undefined ? {} : { cost_usd: cost }), uncertain_rounds: uncertain };
+  if (digests?.calls) { input += digests.tokens.input; output += digests.tokens.output; }
+  return { rounds: usages.length, tokens: { input, output, ...(cached === undefined ? {} : { cached_input: cached }) }, ...(cost === undefined ? {} : { cost_usd: cost }), uncertain_rounds: uncertain,
+    ...(digests?.calls ? { digests } : {}) };
 }
 
 /** The lines of tool output the timeline shows; the rest is counted, not sent. */

@@ -102,6 +102,33 @@ test("a held wait runs beside the project's queue: a later read or command is no
   await host.close();
 });
 
+test("a capability registered as concurrent (a model draft) runs beside the queue; a caller cannot claim it for a queued command", async () => {
+  const draft = { capability_id: "test.draft", version: 1, operation: "command", scheduling: "concurrent" } as HostCapabilityDefinition<void, string>;
+  const slow = { capability_id: "test.slow", version: 1, operation: "command" } as HostCapabilityDefinition<void, string>;
+  const bump = { capability_id: "test.bump", version: 1, operation: "command" } as HostCapabilityDefinition<void, number>;
+  const host = new LocalHost<{ value: number }>({ instanceId: "draft-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  host.register(draft, async () => { await held; return "draft"; });
+  host.register(slow, async () => { await held; return "slow"; });
+  host.register(bump, runtime => ++runtime.value);
+  const client = host.client({ project_id: "p", board_id: "p", storage_key: "memory:p" });
+  const drafting = client.invoke(draft, undefined);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(await client.invoke(bump, undefined), 1, "a command sent while a draft is being written runs at once");
+  const slowing = client.invoke({ ...slow, scheduling: "concurrent" } as HostCapabilityDefinition<void, string>, undefined);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  let bumped = false;
+  const after = client.invoke(bump, undefined).then(value => { bumped = true; return value; });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(bumped, false, "claiming concurrency for a queued command keeps it in line");
+  release();
+  assert.equal(await drafting, "draft");
+  assert.equal(await slowing, "slow");
+  assert.equal(await after, 2);
+  await host.close();
+});
+
 test("a capability call copies only the descriptor it needs: the registry grows with every project's actions", async t => {
   const host = new LocalHost<{ value: number }>({ instanceId: "lookup-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
   for (let index = 0; index < 200; index++) host.register({ capability_id: `test.other.${index}`, version: 1, operation: "query" } as HostCapabilityDefinition<void, number>, () => index);

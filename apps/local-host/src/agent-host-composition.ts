@@ -18,6 +18,8 @@ import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host
 import type { ModelProviderStore } from "./model-provider-store.js";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { prepareGitOperation } from "./git-operations.js";
+import { draftText } from "./model-draft.js";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { prepareGitIndex } from "./workspace-git-index.js";
@@ -140,6 +142,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
         try { await saveDetail(`${project.board_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
       } });
     return { review_id: request.review_id };
+  });
+  // A short draft from the model (a commit message): its own throwaway runtime, no tools, no review queue.
+  const unregisterDraft = options.localHost.registerCapability(agentHostCapabilities.draftText, async (project, input) => {
+    if (!options.prologue) throw new Error("模型执行方尚未接通，不能起草");
+    const { reviewQueue: _queue, storageRoot: _root, ...prologue } = options.prologue;
+    return draftText(prologue, path.join(options.homeDirectory ?? resolveConfiguredHome(), "agent-drafts"), project.board_id, input);
   });
   const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
     await initialize();
@@ -268,6 +276,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     unregister();
     unregisterGit();
     unregisterGitOperation();
+    unregisterDraft();
     unregisterGitOperations();
     unregisterGitResults();
     unregisterWriters();

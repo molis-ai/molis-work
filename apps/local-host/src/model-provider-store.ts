@@ -5,9 +5,11 @@ import type {
   ModelProviderRecord,
   ModelPromptCacheMode,
   ModelRecord,
+  ModelThinkingMode,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import {
   inspectPromptCacheChoice,
+  inspectThinkingChoice,
   providerHealth,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 
@@ -65,6 +67,7 @@ export function createModelProviderTables(db: ModelProviderSqlite): void {
       ON model_providers(enabled, display_name);
   `);
   addPromptCacheColumn(db);
+  addThinkingColumn(db);
 }
 
 /**
@@ -81,6 +84,13 @@ export function addPromptCacheColumn(db: ModelProviderSqlite): void {
   db.exec("ALTER TABLE model_providers ADD COLUMN prompt_cache TEXT NOT NULL DEFAULT 'off'");
 }
 
+/** Add `thinking` to a table that predates it. Existing rows read as `off`, so nothing starts thinking unasked. */
+export function addThinkingColumn(db: ModelProviderSqlite): void {
+  const columns = db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name?: unknown }>;
+  if (columns.some((column) => String(column.name) === "thinking")) return;
+  db.exec("ALTER TABLE model_providers ADD COLUMN thinking TEXT NOT NULL DEFAULT 'off'");
+}
+
 /** The reference a provider's key is stored under. Derived, never user supplied. */
 export function modelCredentialRef(providerId: string): string {
   return `model-provider:${providerId}`;
@@ -88,6 +98,7 @@ export function modelCredentialRef(providerId: string): string {
 
 const API_FORMATS: readonly ModelApiFormat[] = ["anthropic-messages", "openai-chat-completions"];
 const PROMPT_CACHE_MODES: readonly ModelPromptCacheMode[] = ["off", "best-effort", "required"];
+const THINKING_MODES: readonly ModelThinkingMode[] = ["off", "adaptive"];
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 
 type Row = Record<string, unknown>;
@@ -116,6 +127,7 @@ function mapProvider(row: Row): ModelProviderRecord {
     prompt_cache: PROMPT_CACHE_MODES.includes(row.prompt_cache as ModelPromptCacheMode)
       ? row.prompt_cache as ModelPromptCacheMode
       : "off",
+    thinking: THINKING_MODES.includes(row.thinking as ModelThinkingMode) ? row.thinking as ModelThinkingMode : "off",
     models,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -160,6 +172,7 @@ export class ModelProviderStore {
     api_format: ModelApiFormat;
     enabled?: boolean;
     prompt_cache?: ModelPromptCacheMode;
+    thinking?: ModelThinkingMode;
     models?: readonly ModelRecord[];
   }): ModelProviderRecord {
     if (!PROVIDER_ID.test(input.provider_id)) {
@@ -196,6 +209,10 @@ export class ModelProviderStore {
     if (cacheProblem !== null) {
       throw new ModelProviderError("model-provider.invalid", cacheProblem);
     }
+    const thinking = input.thinking ?? existing?.thinking ?? "off";
+    if (!THINKING_MODES.includes(thinking)) throw new ModelProviderError("model-provider.invalid", `不认识的思考档：${thinking}`);
+    const thinkingProblem = inspectThinkingChoice({ api_format: input.api_format, thinking });
+    if (thinkingProblem !== null) throw new ModelProviderError("model-provider.invalid", thinkingProblem);
     const record: ModelProviderRecord = {
       provider_id: input.provider_id,
       display_name: input.display_name.trim() === "" ? input.provider_id : input.display_name.trim(),
@@ -204,25 +221,27 @@ export class ModelProviderStore {
       credential_ref: modelCredentialRef(input.provider_id),
       enabled: input.enabled ?? existing?.enabled ?? true,
       prompt_cache: promptCache,
+      thinking,
       models: [...(input.models ?? existing?.models ?? [])],
       created_at: existing?.created_at ?? at,
       updated_at: at,
     };
     this.#db.prepare(`
       INSERT INTO model_providers
-        (provider_id, display_name, base_url, api_format, credential_ref, enabled, prompt_cache, models_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (provider_id, display_name, base_url, api_format, credential_ref, enabled, prompt_cache, thinking, models_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(provider_id) DO UPDATE SET
         display_name = excluded.display_name,
         base_url = excluded.base_url,
         api_format = excluded.api_format,
         enabled = excluded.enabled,
         prompt_cache = excluded.prompt_cache,
+        thinking = excluded.thinking,
         models_json = excluded.models_json,
         updated_at = excluded.updated_at
     `).run(
       record.provider_id, record.display_name, record.base_url, record.api_format,
-      record.credential_ref, record.enabled ? 1 : 0, record.prompt_cache,
+      record.credential_ref, record.enabled ? 1 : 0, record.prompt_cache, record.thinking,
       JSON.stringify(record.models), record.created_at, record.updated_at,
     );
     return record;

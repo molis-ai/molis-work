@@ -82,6 +82,8 @@ export interface PrologueModelConfiguration {
    * exactly as if caching did not exist — no field is sent at all.
    */
   prompt_cache?: "off" | "best-effort" | "required";
+  /** The model thinks before answering. Absent means off, and no thinking field is sent. */
+  thinking?: "adaptive";
 }
 
 export interface PrologueAdapterPorts {
@@ -458,6 +460,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
       ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
+      ...(model.thinking ? { thinking: model.thinking } : {}),
       ...(this.#runtime.defaultContextWindowTokens ? { model_context: {
         window_tokens: Math.min(model.context_tokens ?? this.#runtime.defaultContextWindowTokens, this.#runtime.defaultContextWindowTokens),
         prompt_includes_cache: model.protocol.startsWith("openai"),

@@ -1125,13 +1125,21 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const points=answer.split('\\n').map(line=>line.replace(/^[#>*\\-\\s\\d.、]+/,'').replace(/[*\x60]/g,'').trim()).filter(line=>line.length>4).slice(0,5);
         const files=[...new Set(run.activity.filter(item=>['edit','write'].includes(item.name) && item.state==='completed' && item.target).map(item=>item.target))];
         const title=asked.length>72?asked.slice(0,70)+'…':asked;
-        const draft=[title,'',...points.map(point=>'- '+point),'','改动文件：',...files.map(file=>'- '+file)].join('\\n').trim();
+        let draft=[title,'',...points.map(point=>'- '+point),'','改动文件：',...files.map(file=>'- '+file)].join('\\n').trim(),note,failed=false;
+        // The model drafts from every recent round that changed files (a call that costs a little); the rule draft above stays as the fallback.
+        const id=current;target.disabled=true;status('正在请模型起草提交说明…');
+        try{const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
+          const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run.ref.run_id)+'/commit-draft','POST',{provider_id,model_id});
+          draft=result.message;note='提交说明由模型根据第 '+result.rounds.join('、')+' 轮的改动起草'+(result.usage?'（用了 '+(result.usage.input+result.usage.output).toLocaleString()+' tokens）':'')+'，已放进 Git 面板：先暂存这些文件，读一遍说明再提交，每一步都经过宿主审查。';}
+        catch(error){failed=true;note='模型起草没有成功（'+error.message+'），已放入按规则拼出的草稿：先暂存这些文件，改好说明再提交。';}
+        finally{target.disabled=false;}
+        if(id!==current)return;
         // The Git view works on the workspace chosen for Files; point it at the round's own directory first.
         const own=(state.workspaces || []).find(item=>item.canonical_path===run.frozen.directory?.canonical_path)?.workspace_id || workspaceId;
         try{sessionStorage.setItem('molis-commit-draft:'+own,draft);}catch{}
         try{await fetch((document.body.dataset.routePrefix || '')+'/api/plugins/io.molis.work.workspace/select',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:own})});}catch{}
         directory.querySelector('[data-coding-face=files]')?.click();
-        status('提交说明已放进 Git 面板：先暂存这些文件，确认说明后再提交，每一步都经过宿主审查。');
+        status(note,failed);
       }
       if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();

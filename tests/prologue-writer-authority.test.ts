@@ -100,7 +100,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
   try {
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
     const manifest = structuredClone(codingAgentManifest), role = manifest.roles.find(role => role.role_id === "coordinator")!;
-    role.subagent_workspaces = "required"; role.host_tools = ["read-file", "dispatch-subagent", "await-subagents"];
+    role.subagent_workspaces = "required"; role.execution = "read-only"; role.host_tools = ["read-file", "dispatch-subagent", "await-subagents"];
     manifest.subagents!.roles = [{ role_id: "coding-writer", version: 3, name: "独立写入", execution: decision === "command" ? "workspace-write" : "text-edit", host_tools: ["read-file", "write", ...(decision === "command" ? ["run-command"] : [])] }];
     const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Parent" });

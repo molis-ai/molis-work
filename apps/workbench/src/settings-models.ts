@@ -6,6 +6,7 @@ import type {
   ModelProviderStatus,
   ModelPromptCacheMode,
   ModelRecord,
+  ModelThinkingMode,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { promptCacheIsClientControlled } from "@molis-ai/molis-work-contracts/modules/model-providers";
 
@@ -132,6 +133,7 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
     </div>
 
     ${renderPromptCacheField(provider, p)}
+    ${renderThinkingField(provider, p)}
 
     ${renderCredentialField(provider, hasCredential, p, health?.status === "credential-unavailable")}
     ${health?.status === "credential-unavailable" ? `<p role="alert">${p.escape(p.L(health.detail))}</p>` : ""}
@@ -165,6 +167,26 @@ function renderPromptCacheField(
       <label for="model-prompt-cache">${p.L("提示缓存")}</label>
       <select class="mw-select" id="model-prompt-cache" data-model-prompt-cache="${p.escape(provider.provider_id)}">${options}</select>
       <p class="model-field-note">${p.escape(note)}</p>
+    </div>`;
+}
+
+/**
+ * Whether the model thinks before answering. It costs more tokens and time, so it is off until the user turns it on.
+ * A format with no thinking field shows why instead of an option that could never be saved.
+ */
+function renderThinkingField(provider: ModelProviderRecord, p: ModelSettingsPrimitives): string {
+  const current: ModelThinkingMode = provider.thinking ?? "off";
+  if (provider.api_format !== "anthropic-messages") return `<div class="model-field">
+      <label for="model-thinking">${p.L("思考")}</label>
+      <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}" disabled><option value="off" selected>${p.escape(p.L("关闭"))}</option></select>
+      <p class="model-field-note">${p.escape(p.L("这个格式没有思考档可以打开。"))}</p>
+    </div>`;
+  const options = ([["off", "关闭"], ["adaptive", "开启（由模型决定想多少）"]] as const)
+    .map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${p.escape(p.L(label))}</option>`).join("");
+  return `<div class="model-field">
+      <label for="model-thinking">${p.L("思考")}</label>
+      <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}">${options}</select>
+      <p class="model-field-note">${p.escape(p.L("开启后模型先思考再回答，用量和等待时间都会增加；思考过程会显示在每一轮里。"))}</p>
     </div>`;
 }
 

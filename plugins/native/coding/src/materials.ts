@@ -11,7 +11,7 @@ import { codingChangeSetPreview } from "./changeset.js";
  * A file change as unified-diff text: the stored diff when there is one, otherwise derived from the original review's
  * before and after text, with three lines of context around each change.
  */
-function fileDiff(file: { diff: string; review?: { before_text: string | null; after_text: string } }): string {
+export function fileDiff(file: { diff: string; review?: { before_text: string | null; after_text: string } }): string {
   if (file.diff.trim() || !file.review) return file.diff;
   const ops = compareTexts(file.review.before_text ?? "", file.review.after_text).ops, keep = new Set<number>();
   ops.forEach((op, index) => { if (op.kind !== "equal") for (let near = Math.max(0, index - 3); near <= Math.min(ops.length - 1, index + 3); near++) keep.add(near); });

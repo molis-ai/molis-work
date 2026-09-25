@@ -79,6 +79,7 @@ export function prologueModelConfiguration(
     ...(selection.provider.prompt_cache === undefined || selection.provider.prompt_cache === "off"
       ? {}
       : { prompt_cache: selection.provider.prompt_cache }),
+    ...(selection.provider.thinking === "adaptive" ? { thinking: "adaptive" as const } : {}),
   };
 }
 

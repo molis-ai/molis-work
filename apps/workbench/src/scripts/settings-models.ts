@@ -71,6 +71,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
               api_format: root.querySelector('[data-model-api-format]').value,
               enabled: root.querySelector('[data-model-provider-enabled]').checked,
               prompt_cache: root.querySelector('[data-model-prompt-cache]').value,
+              thinking: root.querySelector('[data-model-thinking]')?.value || 'off',
               models: [...root.querySelectorAll('[data-model-rows] [data-model-row]')].map((row) => ({
                 ...JSON.parse(row.dataset.modelRecord || '{}'), model_id: row.querySelector('[data-model-id]').value.trim(),
                 enabled: row.querySelector('[data-model-enabled]').checked,

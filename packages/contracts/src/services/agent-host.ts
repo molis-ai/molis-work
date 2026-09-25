@@ -232,6 +232,8 @@ export interface AgentFrozenStart {
   model_context?: { window_tokens: number; prompt_includes_cache: boolean };
   /** Present when this Run started from the Host's digest of earlier rounds instead of their verbatim history. */
   history?: "digest";
+  /** Present when the model was asked to think before answering (the provider's setting when the Run started). */
+  thinking?: "adaptive";
   /**
    * Exactly the prompts this Run was frozen with, layer included.
    *
@@ -858,6 +860,19 @@ export interface AgentHostApi {
  * before the call lands. That keeps the Manifest a complete account of what a
  * Plugin can reach, and keeps start authority in one place.
  */
+/** What to draft: the purpose in a few words, how to write it, and the material it is drawn from. */
+export interface AgentDraftTextRequest {
+  purpose: string;
+  instructions: string;
+  material: string;
+  model_selection?: { provider_id: string; model_id: string };
+}
+export interface AgentDraftTextResult {
+  text: string;
+  /** Tokens the call used, when the provider reported them. */
+  usage: { input: number; output: number } | null;
+}
+
 export const agentHostCapabilities = {
   /** Which Runtimes exist and what each one really supports. */
   listRuntimes: {
@@ -936,6 +951,15 @@ export const agentHostCapabilities = {
    * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s).
    * How a surface follows a live round as it happens instead of rereading it on a timer; nothing is replayed.
    */
+  /**
+   * One short text from the model — a commit message, say — with no tools, no conversation and nothing recorded as a
+   * round. It is a model call and costs what one costs; the usage comes back so the page can say so.
+   */
+  draftText: {
+    capability_id: "agent.draft-text.v1",
+    version: 1,
+    operation: "command",
+  } as HostCapabilityDefinition<AgentDraftTextRequest, AgentDraftTextResult>,
   waitRun: {
     capability_id: "agent.run.wait.v1",
     version: 1,

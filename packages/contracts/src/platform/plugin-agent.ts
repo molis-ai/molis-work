@@ -297,7 +297,10 @@ export function inspectAgentDeclaration(
           problems.push(`子 Agent 角色 ${child.role_id} 引用了未登记的父角色 ${parent}`);
         }
       }
-      if (child.execution === "workspace-write") {
+      // A child that can write files works only in its own directory. One that only runs commands (each a Host review)
+      // may work in the main workspace, as a reviewer running the checks does.
+      const writesFiles = child.host_tools === undefined || child.host_tools.some((tool) => tool === "write" || tool === "edit-file");
+      if (child.execution === "workspace-write" && writesFiles) {
         const parents = child.parent_role_ids ?? subagents.parent_role_ids ?? [];
         const allOwnWorkspaces = parents.length > 0
           && parents.every((parent) => workspaceParents.has(parent));

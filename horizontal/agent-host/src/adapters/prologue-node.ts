@@ -92,6 +92,10 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 // methods and recovery context. The SDK default is for one instruction file;
 // it must not silently cut a valid 20,000-character published Character.
 const MAX_COMPOSED_INSTRUCTION_CHARS = 64_000;
+/** Turns a subagent may take when its dispatch does not say; the user set it to 20. */
+export const SUBAGENT_DEFAULT_TURNS = 20;
+/** Turns a round started without a budget may take: the SDK's own default, unchanged. */
+const ROUND_DEFAULT_TURNS = 8;
 
 /**
  * Build the Prologue Runtime on the Node host.
@@ -111,7 +115,8 @@ export async function createPrologueNodeAdapter(
     app: options.app,
     host,
     preset: "local-agent",
-    config: { tool: { deferToolSchemasBeyond: 20, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS } },
+    // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
+    config: { agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
@@ -589,8 +594,8 @@ export async function createPrologueNodeAdapter(
       }
       const childRoles = new Map<string, NonNullable<PrologueStartInput["subagents"]>[number]>();
       for (const role of input.subagents ?? []) {
-        const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(childRoots.length && role.execution === "workspace-write" ? ["run-command"] : [])];
-        if (!childRoots.length && role.execution !== "read-only" || role.host_tools.some(tool => !allowed.includes(tool) || !childRoots.length && !input.character.tools.includes(tool))) throw new Error("子角色超出本轮允许的工具与目录");
+        const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(role.execution === "workspace-write" ? ["run-command"] : [])];
+        if (!childRoots.length && role.execution === "text-edit" || role.host_tools.some(tool => !allowed.includes(tool) || !childRoots.length && !input.character.tools.includes(tool))) throw new Error("子角色超出本轮允许的工具与目录");
         const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
         const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
           ...(ref ? { instructionsRef: ref } : {}), tools: role.host_tools.map(prologueToolName) });
@@ -599,7 +604,7 @@ export async function createPrologueNodeAdapter(
       }
       const childScope = childRoots.length
         ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
-        : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录且只读。";
+        : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录，都不能修改文件；开放了运行命令的子角色可以运行检查命令，每条都经用户审查。";
       const childInstructions = childRoles.size ? childScope + "可分派的固定子角色：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n必须选择上述精确 character，并显式提供该角色列出的完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务只能使用所选角色的工具，不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
       const plan = input.provenance.frozen.execution_plan;
       const continued = input.provenance.frozen.continues_step_board_of;
@@ -655,10 +660,12 @@ export async function createPrologueNodeAdapter(
           ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true } : {}),
           onStarted: async observed => {
             verifySubagentStart(runtime, childRoles, childRoots)(observed);
-            if (!childRoots.length) return;
             const registered = runtime.subagents.list().find(child => child.run.id === observed.run.ref.id && child.session.id === observed.childSession.ref.id)!;
             const role = childRoles.get(exactCharacterKey(registered.character!))!;
-            const granted = childRoots.find(root => root.id === observed.workspace!.id)!;
+            // A child with operations to review is tracked by the Host: one in its own directory, or one in the main
+            // workspace that may run commands. A read-only child in the main workspace has nothing to review.
+            if (!childRoots.length && role.execution !== "workspace-write") return;
+            const granted = childRoots.length ? childRoots.find(root => root.id === observed.workspace!.id)! : { rootRef: root.ref, path: input.root_path };
             const childRun = { session_id: observed.childSession.ref.id, run_id: observed.run.ref.id };
             await saveIndex({ schema: 1, ref: observed.childSession.ref, title: role.name, owner: index.owner,
               parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
@@ -718,9 +725,12 @@ export async function createPrologueNodeAdapter(
           ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off"
             ? {}
             : { promptCache: input.model.prompt_cache }),
+          // Absent when off: the request carries no thinking field at all.
+          ...(input.model.thinking ? { params: { thinking: input.model.thinking } } : {}),
         },
         agent: {
-          ...(input.provenance.frozen.budget?.max_turns === undefined ? {} : { budget: { maxTurns: input.provenance.frozen.budget.max_turns } }),
+          // A round started without a budget keeps the turns it always had; only subagents use the raised default.
+          budget: { maxTurns: input.provenance.frozen.budget?.max_turns ?? ROUND_DEFAULT_TURNS },
           idempotencyKey: `molis-work-${input.session_id}-${randomUUID()}`,
           mode: input.mode,
           toolNames: runTools,

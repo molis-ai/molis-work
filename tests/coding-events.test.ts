@@ -111,7 +111,9 @@ test("只读协调可共享目录，并行写入仍要求子代理各自独立�
   const { codingAgentManifest } = await import("@molis-ai/molis-work-plugin-coding");
   for (const roleId of ["coordinator", "writers"]) {
     const role = codingAgentManifest.roles.find((entry) => entry.role_id === roleId);
-    assert.equal(role?.execution, "read-only", `${roleId} 自己不该能改文件`);
+    // The coordinator may run commands (each reviewed) so its reviewer can run checks; neither parent holds a tool that writes files.
+    assert.equal(role?.execution, roleId === "writers" ? "read-only" : "workspace-write");
+    assert.equal(role?.host_tools?.some((tool) => tool === "write" || tool === "edit-file"), false, `${roleId} 自己不该能改文件`);
     assert.equal(role?.subagent_workspaces, roleId === "writers" ? "required" : undefined,
       `${roleId} 的目录要求必须与子代理的写入权限一致`);
   }

@@ -15,6 +15,7 @@ import { codingReportPreview, codingReportReference, createCodingExecutionReport
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation } from "./continuation.js";
+import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { codingHistoryDigest, nextHistoryMode } from "./history-digest.js";
 import { CodingCooperationStore, DELEGATION_STATE_LABEL, type CodingDelegation } from "./cooperation.js";
 import { attachMentions, readWorkspaceFileCapability, workspaceFileIndex } from "./mentions.js";
@@ -958,6 +959,29 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
         return { run, history, ...(historyReason ? { history_reason: historyReason } : {}) };
       } finally { busy.delete(record.session_id); }
+    }),
+    // The model drafts a commit message from the rounds that changed files; the person edits it and commits under review.
+    route("coding.commit-draft", async (request, api, execution) => {
+      const record = selected(request, execution), runId = text(request.params.runId, "执行引用"), body = bodyOf(request);
+      if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const at = snapshot.runs.findIndex(run => run.run_id === runId);
+      if (at < 0) throw new Error("这轮执行不属于当前会话");
+      const rounds: Array<{ number: number; run: AgentRunView; change: ReturnType<typeof createCodingChangeSet> }> = [];
+      for (let index = at; index >= 0 && rounds.length < COMMIT_DRAFT_ROUNDS; index--) {
+        const ref = snapshot.runs[index]!, run = await api!.invoke(agent.readRun, [session, ref]);
+        if (!isTerminalAgentPhase(run.phase)) continue;
+        let change: ReturnType<typeof createCodingChangeSet>;
+        try { change = createCodingChangeSet(record.session_id, run, await api!.invoke(agent.readRunReviews, [session, ref])); } catch { continue; }
+        if (change.files.some(file => file.review?.execution === "applied")) rounds.unshift({ number: index + 1, run, change });
+      }
+      if (!rounds.length) throw new Error("这一轮之前没有已落盘的改动可以起草");
+      const plan = execution.sessions.plan(boardId, record.session_id);
+      const selection = typeof body.provider_id === "string" && typeof body.model_id === "string" ? { provider_id: body.provider_id, model_id: body.model_id } : undefined;
+      const draft = await api!.invoke(agent.draftText, { purpose: "起草 git 提交说明", instructions: COMMIT_DRAFT_INSTRUCTIONS,
+        material: commitDraftMaterial({ ...(plan?.confirmed ? { planTitle: plan.content.title } : {}), rounds }), ...(selection ? { model_selection: selection } : {}) });
+      return { message: commitMessageFrom(draft.text), usage: draft.usage, rounds: rounds.map(round => round.number) };
     }),
     route("coding.control-run", async (request, api, execution) => {
       const record = selected(request, execution);

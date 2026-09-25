@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord, ModelThinkingMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
@@ -32,6 +32,7 @@ export async function handleModelSettingsHttp(
         || !["anthropic-messages", "openai-chat-completions"].includes(String(body.api_format))
         || typeof body.enabled !== "boolean" || !Array.isArray(body.models)
         || !["off", "best-effort", "required"].includes(String(body.prompt_cache))
+        || (body.thinking !== undefined && !["off", "adaptive"].includes(String(body.thinking)))
         || (body.api_key !== undefined && typeof body.api_key !== "string")) throw new Error("供应商配置格式无效");
       const models: ModelRecord[] = body.models.map((entry: unknown) => {
         if (!entry || typeof entry !== "object" || !("model_id" in entry) || typeof entry.model_id !== "string"
@@ -50,6 +51,7 @@ export async function handleModelSettingsHttp(
           provider_id: providerId, display_name: body.display_name as string, base_url: body.base_url as string,
           api_format: body.api_format as ModelApiFormat, enabled: body.enabled as boolean,
           prompt_cache: body.prompt_cache as ModelPromptCacheMode, models,
+          ...(body.thinking === undefined ? {} : { thinking: body.thinking as ModelThinkingMode }),
         });
         if (typeof body.api_key === "string" && body.api_key.trim()) catalog.models.setCredential(providerId, body.api_key);
         return { provider, health: catalog.models.health().find((entry) => entry.provider_id === providerId) };

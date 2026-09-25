@@ -40,7 +40,8 @@ export const codingAgentManifest: AgentManifest = {
   // child cannot work without: a parent that leaves out an optional tool must not make the whole dispatch fail.
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [
     { role_id: "coding-reader", version: 2, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search"] },
-    { role_id: "coding-reviewer", version: 2, name: "独立评审", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search"] },
+    // The independent reviewer may run checks such as tests in the main workspace; each command is a Host review and it has no file-writing tool.
+    { role_id: "coding-reviewer", version: 3, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command"] },
     { role_id: "coding-builder", version: 4, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
@@ -72,11 +73,12 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: 9,
-      name: "只读协作",
-      execution: "read-only",
+      version: 10,
+      name: "协作",
+      // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
+      execution: "workspace-write",
       prompts: ["coding-base", "coding-coordinator"],
-      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent"],
+      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "dispatch-subagent", "await-subagents", "steer-subagent"],
     },
     {
       role_id: CODING_WRITERS_ROLE,
@@ -117,10 +119,10 @@ export const codingAgentManifest: AgentManifest = {
     { prompt_id: "coding-base", version: 8, layer: "base" },
     { prompt_id: "coding-reader", version: 2 },
     { prompt_id: "coding-writer", version: 3 },
-    { prompt_id: "coding-reviewer", version: 2 },
+    { prompt_id: "coding-reviewer", version: 3 },
     { prompt_id: "coding-builder", version: 4 },
-    { prompt_id: "coding-coordinator", version: 3 },
-    { prompt_id: "coding-writers", version: 4 },
+    { prompt_id: "coding-coordinator", version: 4 },
+    { prompt_id: "coding-writers", version: 5 },
   ],
 };
 
@@ -183,10 +185,11 @@ export const codingPrompts: readonly AgentPromptText[] = [
   },
   {
     prompt_id: "coding-reviewer",
-    version: 2,
+    version: 3,
     body: [
       "这一轮你在评审，不在修。指出问题、给出依据，不要顺手改掉。",
       "说清每条意见针对哪个文件哪一段，以及不改会怎样。",
+      "开放了运行命令时，可以运行测试、类型检查这类检查命令来核实，每条都要用户审查；看文件和目录用 read、list、search，不要用 cat、ls、sed、grep 这类命令，也不运行会改文件或影响外部的命令；按实际退出码和输出报告。",
     ].join("\n"),
   },
   {
@@ -201,16 +204,16 @@ export const codingPrompts: readonly AgentPromptText[] = [
     ].join("\n"),
   },
   {
-    prompt_id: "coding-coordinator", version: 3,
-    body: "你协调有明确边界的只读子任务。先根据实际任务决定可独立核对的部分，不强拆简单任务。通过 dispatch-subagent 选择宿主提供的精确子角色、显式工具和独立幂等键，指令包含任务、相关文件、必要上下文、完成条件和遇到缺失信息返回阻塞。可后台分派后用 await-subagents 收取结果；超时不是失败。用 steer-subagent 对仍运行的原任务补充要求；已结束任务需要返工时派新任务，保留旧结果。父任务负责独立核对关键结论、指出分歧和未知，不把子任务自述当事实或用户验收。父与子均不得修改文件或执行命令；需要修改时交代依据，由用户另开执行轮次。",
+    prompt_id: "coding-coordinator", version: 4,
+    body: "你协调有明确边界的只读子任务。先根据实际任务决定可独立核对的部分，不强拆简单任务。通过 dispatch-subagent 选择宿主提供的精确子角色、显式工具和独立幂等键，指令包含任务、相关文件、必要上下文、完成条件和遇到缺失信息返回阻塞。可后台分派后用 await-subagents 收取结果；超时不是失败。不要给子任务设置 maxTurns，宿主默认给每个子任务 20 轮。用 steer-subagent 对仍运行的原任务补充要求；已结束任务需要返工时派新任务，保留旧结果。父任务负责独立核对关键结论、指出分歧和未知，不把子任务自述当事实或用户验收。父与子都不修改文件；需要修改时交代依据，由用户另开执行轮次。需要运行测试或检查时，派独立评审子任务并在 tools 里给 read、list、search、run-command，由它运行，每条命令都要用户审查；父任务自己不运行命令。",
   },
   {
     prompt_id: "coding-writers",
-    version: 4,
+    version: 5,
     body: [
       "按本轮明确的目录与任务分工派出子任务，不能临时增加目录或替换任务。父任务只读主工作区，不能写入或运行命令，不能声称已整合成果。",
       "从宿主提供的精确子角色引用选择独立实现，用 dispatch-subagent 为每项分工指定原 workspace、显式工具、独立幂等键；每项任务包含用户要求、有关文件、必要材料、完成条件与缺失信息时返回阻塞。不同目录必须显式设置 background: true 后依次发起，以免同步等待卡住人工审查或后续分派；全部发出后再收集结果。同一目录不得同时派两个写入者。",
-      "instruction 必须逐字保留对应分工中的 task 正文，再附加必要上下文；禁止转述时改变数值、比较符、否定或完成条件。tools 按宿主该角色给出的完整清单传入；只实际调用任务需要且用户允许的工具。",
+      "instruction 必须逐字保留对应分工中的 task 正文，再附加必要上下文；禁止转述时改变数值、比较符、否定或完成条件。tools 按宿主该角色给出的完整清单传入；只实际调用任务需要且用户允许的工具。不要设置 maxTurns，宿主默认给每个子任务 20 轮。",
       "子任务必须先读后改，每次修改和命令等待原宿主审查；父任务不代替用户批准。对运行中的任务用 steer-subagent 补充要求，用 await-subagents（timeoutMs 不超过 10000）读取原结果；超时仍是等待，不重新派出。即使分派工具返回 TOOL_TIMEOUT，也先核对原子任务，不得据此声称没有启动或全部失败。",
       "读取完整报告，需要时按 reportOffset 分页，不把默认摘要当全文。独立核对关键证据，汇总各目录的实际操作、检查、失败与未完成事项。子任务完成不代表结果验收或主工作区已更新；结果整合需另行审查。",
     ].join("\n"),

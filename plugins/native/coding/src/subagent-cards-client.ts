@@ -53,7 +53,8 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       // A failed or stopped child is sent again by the parent, never re-run behind its back: a live parent is asked through the
       // supplemental channel; an ended one gets the request in the composer, sent only when the person chooses.
       if(['failed','cancelled'].includes(child.state)){const retry=el('button','mw-btn mw-btn--ghost','重试这个子任务');retry.type='button';retry.addEventListener('click',async()=>{
-        const ask='请重新派出子任务「'+(child.role_name||child.role_id)+'」，沿用原分工'+(child.error?'；上次没有完成的原因：'+child.error:'')+'。原分工：\\n'+(child.task||'');
+        // A dispatch key already used names the same dispatch and returns the stopped result instead of running again.
+        const ask='请重新派出子任务「'+(child.role_name||child.role_id)+'」，沿用原分工，并用一个没用过的 idempotencyKey（原来的标识会被当成同一次派出，直接返回已停止的结果，不会重跑）'+(child.error?'；上次没有完成的原因：'+child.error:'')+'。原分工：\\n'+(child.task||'');
         if(parentLive(run)){retry.disabled=true;const id=current();try{await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:run.ref.run_id,text:ask});status('已请执行中的这一轮重新派出这个子任务。');}catch(error){status(error.message,true);retry.disabled=false;}if(id===current())await refresh();}
         else{prefill(ask);status('重试请求已放进输入框；确认执行方式后发送。');}
       });foot.append(retry);}

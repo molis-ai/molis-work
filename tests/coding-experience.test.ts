@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codeTokens, codeLanguage, mentionedPaths, attachMentions, requestText, MENTIONS_MARKER, codingHistoryDigest } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, codeLanguage, diffRowTokens, mentionedPaths, attachMentions, requestText, MENTIONS_MARKER, codingHistoryDigest } from "@molis-ai/molis-work-plugin-coding";
 
 const kinds = (text: string, language: string) => codeTokens(text, language).filter(([kind]) => kind).map(([kind, value]) => `${kind}:${value}`);
 
@@ -88,4 +88,18 @@ test("@ 提到的文件：裸名字在工作区根目录直接读，读到就附
     assert.deepEqual(reads, ["docs/gone.md"]);
     assert.match(task, /### docs\/gone\.md\n（没有附上：工作区里没有这个文件/);
   }
+});
+
+test("差异按行着色时，跨行的块注释在同一侧连续，注释结束后的代码照常着色", () => {
+  const rows = [
+    { kind: "insert", text: "/**" }, { kind: "insert", text: " * Build a summary; `limit` is optional." }, { kind: "delete", text: "const old = 1;" },
+    { kind: "insert", text: " */" }, { kind: "insert", text: "export function habitSummary() {" }, { kind: "context", text: "}" },
+  ];
+  const painted = diffRowTokens(rows, "ts", codeTokens);
+  assert.deepEqual(painted.map(row => row.map(([, value]) => value).join("")), rows.map(row => row.text), "each row keeps exactly its own text");
+  assert.deepEqual(painted[1].map(([kind]) => kind), ["comment"], "a line inside the comment is all comment, backticks included");
+  assert.ok(painted[2].some(([kind, value]) => kind === "keyword" && value === "const"), "the old side was never inside the comment");
+  assert.deepEqual(painted[3].map(([kind]) => kind), ["comment"]);
+  assert.ok(painted[4].some(([kind, value]) => kind === "keyword" && value === "export"), "code after the closing line is code again");
+  assert.deepEqual(diffRowTokens([{ kind: "insert", text: "# not a comment opener /*" }, { kind: "insert", text: "x = 1" }], "py", codeTokens)[1].some(([kind]) => kind === "comment"), false, "languages without block comments carry nothing");
 });

@@ -72,6 +72,28 @@ export function codeTokens(text: string, language: string): Array<[CodeTokenKind
   return out;
 }
 
+/**
+ * Diff rows coloured in order. A block comment left open at the end of a row carries on into the next row of the
+ * same side (old for deleted rows, new for inserted ones, both for unchanged ones), so a multi-line comment reads as
+ * one comment rather than code after its first line. Takes the tokenizer so the page can carry both as source.
+ */
+export function diffRowTokens(rows: ReadonlyArray<{ text: string; kind: string }>, language: string,
+  tokens: (text: string, language: string) => Array<[CodeTokenKind | null, string]>): Array<Array<[CodeTokenKind | null, string]>> {
+  const blocky = ["js", "ts", "css", "go", "rust", "java", "c"].includes(language), open = { before: false, after: false };
+  return rows.map(row => {
+    const sides = row.kind === "insert" ? ["after"] as const : row.kind === "delete" ? ["before"] as const : ["before", "after"] as const;
+    const carried = blocky && sides.some(side => open[side]);
+    const pieces = tokens(carried ? "/*" + row.text : row.text, language);
+    if (blocky) {
+      const last = pieces[pieces.length - 1];
+      const stillOpen = Boolean(last && last[0] === "comment" && last[1].includes("/*") && !last[1].trimEnd().endsWith("*/"));
+      for (const side of sides) open[side] = stillOpen;
+    }
+    if (carried && pieces[0]) { pieces[0] = [pieces[0][0], pieces[0][1].slice(2)]; if (!pieces[0][1]) pieces.shift(); }
+    return pieces;
+  });
+}
+
 /** The language a fenced block or a file path names, when it names one this colours. */
 export function codeLanguage(hint: string): string {
   const value = hint.toLowerCase().trim();

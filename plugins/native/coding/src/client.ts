@@ -14,7 +14,7 @@ import { MODEL_DIGEST_HEAD } from "./history-digest.js";
 import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
-import { codeLanguage, codeTokens } from "./highlight.js";
+import { codeLanguage, codeTokens, diffRowTokens } from "./highlight.js";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
@@ -510,12 +510,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const named=[...code.classList].find(name=>name.startsWith('language-'))||'',text=code.textContent;
     paintInto(code,text,codeLanguageOf(named) || (/^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? 'json' : /^\s*\$ /.test(text) ? 'sh' : ''));
   };
-  // Diff lines keep their sign; the rest of each line is coloured by the file's language, one line at a time.
-  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows li:not([data-painted]) > code').forEach(code => {
-    const row=code.parentElement;row.dataset.painted='true';
-    const language=codeLanguageOf(code.closest('[data-code-path]').dataset.codePath || '');if(!language)return;
-    const sign=code.querySelector('.diff-sign'),text=[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join(''),holder=document.createElement('span');
-    if(paintInto(holder,text,language))code.replaceChildren(...(sign?[sign]:[]),...holder.childNodes);
+  // Diff lines keep their sign; the rest of each line is coloured by the file's language, in order, so a block comment
+  // spanning lines stays a comment (see diffRowTokens).
+  const diffRowTokens = ${diffRowTokens.toString()};
+  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows').forEach(list => {
+    const codes=[...list.querySelectorAll(':scope > li > code')];if(!codes.some(code=>!code.parentElement.dataset.painted))return;
+    const language=codeLanguageOf(list.closest('[data-code-path]').dataset.codePath || '');
+    const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
+    const painted=language && rows.every(row=>row.text.length<=40000) ? diffRowTokens(rows,language,tokensOf) : null;
+    rows.forEach((row,index)=>{
+      if(row.code.parentElement.dataset.painted)return;row.code.parentElement.dataset.painted='true';
+      if(!painted)return;
+      row.code.replaceChildren(...(row.sign?[row.sign]:[]),...painted[index].map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=document.createElement('span');span.className='tok-'+kind;span.textContent=value;return span;}));
+    });
+    list.querySelectorAll(':scope > li:not([data-painted])').forEach(row=>{row.dataset.painted='true';});
   });
   let paintFrame=0;new MutationObserver(()=>{if(paintFrame)return;paintFrame=requestAnimationFrame(()=>{paintFrame=0;paintDiffs(root);});}).observe(root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre').forEach(pre => {

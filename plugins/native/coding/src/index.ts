@@ -1,7 +1,7 @@
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
 export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";
-export { codeTokens, codeLanguage } from "./highlight.js";
+export { codeTokens, codeLanguage, diffRowTokens } from "./highlight.js";
 export { commitDraftMaterial, commitMessageFrom, COMMIT_DRAFT_INSTRUCTIONS } from "./commit-draft.js";
 export { planTask } from "./plans.js";
 export { mentionedPaths, attachMentions, workspaceFileIndex } from "./mentions.js";

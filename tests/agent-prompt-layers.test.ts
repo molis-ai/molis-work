@@ -64,6 +64,9 @@ test("Coding 自己的声明是合法的，且 base 那一段独立成层", () =
   assert.equal(base?.layer, "base", "产品约束不能被角色的措辞悄悄顶替");
   const roleOnly = codingPrompts.filter((prompt) => prompt.prompt_id !== "coding-base");
   assert.equal(roleOnly.every((prompt) => promptLayerOf(prompt) === "role"), true);
+  // search only looks inside files; every role can also look at directories, and is told the difference.
+  assert.ok(codingAgentManifest.roles.every((role) => role.host_tools?.includes("list")), "every Coding role can list a directory");
+  assert.match(base!.body, /search 只在文件内容里找文字/);
 });
 
 function hostFor(projectPrompts?: readonly AgentPromptText[]) {

@@ -229,7 +229,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         return { call_id: command.call_id, output };
       } catch { return { call_id: command.call_id, output: null }; }
     }));
-    const report = createCodingExecutionReport({ session_id: record.session_id, runtime_id: record.runtime_id, title: record.title, run, commands, steps: codingReportSteps(context, record.session_id, run), ...runGoalContext(context, run) });
+    // The round number keeps two fixed reports of one session apart wherever they are listed.
+    const report = createCodingExecutionReport({ session_id: record.session_id, runtime_id: record.runtime_id, title: `${record.title} · 第 ${snapshot.runs.indexOf(ref) + 1} 轮`, run, commands, steps: codingReportSteps(context, record.session_id, run), ...runGoalContext(context, run) });
     if (!save) return { report, reference: null, saved_at: null };
     // No asynchronous gap between recheck and publish: concurrent clicks share
     // the existing fixed version, even if their evidence reads finished later.
@@ -306,7 +307,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const reference = codingChangeSetReference(record.session_id, runId);
       const result = artifacts.publish({ ...reference, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1,
         content: { kind: "inline", payload: JSON.parse(JSON.stringify(change)) },
-        metadata: { title: record.title + " · 本轮固定变更", session_id: record.session_id, run_id: runId } });
+        metadata: { title: `${record.title} · 第 ${snapshot.runs.indexOf(ref) + 1} 轮固定变更`, session_id: record.session_id, run_id: runId } });
       return { change, reference, saved_at: result.artifact.created_at, output: context.services!.outputs!.reference("changeset") };
     })),
     route("coding.changeset-output", async (request, _api, execution) => {
@@ -466,7 +467,14 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const snapshot = await api!.invoke(agent.readSession, [session]);
         const ref = snapshot.runs.find(run => run.run_id === body.run_id);
         if (!ref) throw new Error("规划轮次不属于当前会话");
-        proposal = planFromRun(record.session_id, await api!.invoke(agent.readRun, [session, ref]));
+        // The planning rounds just before this one, back to the round that started planning, give the plan its task.
+        const earlier: AgentRunView[] = [];
+        for (let at = snapshot.runs.indexOf(ref) - 1; at >= 0; at--) {
+          const view = await api!.invoke(agent.readRun, [session, snapshot.runs[at]!]);
+          if (view.frozen.role_id !== "planner") break;
+          earlier.unshift(view);
+        }
+        proposal = planFromRun(record.session_id, await api!.invoke(agent.readRun, [session, ref]), earlier);
       } else {
         if (!current) throw new Error("请先从规划轮次形成计划");
         proposal = { source: current.source, content: parseCodingPlan(body.content) };

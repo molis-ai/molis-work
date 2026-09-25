@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codingContinuation, originalTask, CONTINUATION_MARKER } from "@molis-ai/molis-work-plugin-coding";
+import { codingContinuation, originalTask, planTask, CONTINUATION_MARKER } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const run = (over: Partial<AgentRunView> & { task?: string } = {}) => ({
@@ -62,4 +62,21 @@ test("服务中断后继续时，说明是中断而不是模型出错", () => {
   const next = codingContinuation({ number: 3, run: run({ phase: "failed", stop_reason: "本轮因中断结束。已核实的操作已保留，可输入新要求继续。" }), reviews: [], commands: [] });
   assert.match(next.task, /第 3 轮没有完成：服务中断，中断前已发生的操作已核对。请从断点继续/);
   assert.doesNotMatch(next.task, /。。/);
+});
+
+test("规划轮次继续时仍只返回计划本身，不在计划后附报告", () => {
+  const next = codingContinuation({ number: 1, run: run({ frozen: { role_id: "planner" } as never, phase: "failed", stop_reason: "本轮因中断结束。" }), reviews: [], commands: [] });
+  assert.equal(next.intent, "plan");
+  assert.match(next.task, /只返回一个计划 JSON 对象，前后不加说明/);
+  assert.doesNotMatch(next.task, /完成后说明这一轮实际做了什么/);
+});
+
+test("计划的原任务是开始规划的那句话；续上的规划轮不算，后来的规划要求作为已体现的补充", () => {
+  const planner = { frozen: { role_id: "planner" } as never };
+  const root = run({ ...planner, task: "让 @ 引用支持无扩展名文件", phase: "failed", stop_reason: "本轮因中断结束。" });
+  const resumed = run({ ...planner, task: codingContinuation({ number: 1, run: root, reviews: [], commands: [] }).task, phase: "completed" });
+  const followUp = run({ ...planner, task: "计划后面多了说明，只返回计划 JSON", phase: "completed" });
+  assert.equal(planTask([root, resumed, followUp]), "让 @ 引用支持无扩展名文件\n\n规划时补充的意见（已体现在确认的计划里）：\n- 计划后面多了说明，只返回计划 JSON");
+  assert.equal(planTask([resumed]), "让 @ 引用支持无扩展名文件", "a resumed round alone still names the user's own task");
+  assert.equal(planTask([root]), "让 @ 引用支持无扩展名文件");
 });

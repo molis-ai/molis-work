@@ -52,6 +52,8 @@ export function nextHistoryMode(latest: AgentRunView | undefined, requested: boo
   if (requested) return { history: "digest", reason: "你要求整理上下文" };
   // The verbatim history only grows, so once a round needed the digest, replaying it can never fit again.
   if (latest.frozen.history === "digest") return { history: "digest", reason: "前面的对话已经整理过" };
+  // Replaying the same history would ask for the same compaction again; the digest does not need one.
+  if (latest.phase === "failed" && /CONTEXT_COMPACTION/.test(latest.stop_reason ?? "")) return { history: "digest", reason: "上一轮整理上下文失败" };
   const window = latest.frozen.model_context?.window_tokens, used = latest.usage.context?.tokens;
   if (window && used !== undefined && used > window * HISTORY_DIGEST_RATIO) return { history: "digest", reason: `上一轮结束时上下文已用 ${Math.round(used / window * 100)}%` };
   return { history: "session" };

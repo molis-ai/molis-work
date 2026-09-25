@@ -79,6 +79,28 @@ async function captureCli(operation: () => Promise<number>): Promise<Record<stri
   return JSON.parse(lines.at(-1) ?? "{}") as Record<string, unknown>;
 }
 
+test("a held wait runs beside the project's queue: a later read or command is not delayed, and a wait cannot be claimed for a command", async () => {
+  const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+  const read = { capability_id: "test.read", version: 1, operation: "query" } as HostCapabilityDefinition<void, number>;
+  const bump = { capability_id: "test.bump", version: 1, operation: "command" } as HostCapabilityDefinition<void, number>;
+  const host = new LocalHost<{ value: number }>({ instanceId: "wait-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  host.register(wait, async () => { await held; return "changed"; });
+  host.register(read, runtime => runtime.value);
+  host.register(bump, runtime => ++runtime.value);
+  const client = host.client({ project_id: "p", board_id: "p", storage_key: "memory:p" });
+  const following = client.invoke(wait, undefined);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(await client.invoke(bump, undefined), 1, "a command sent while a wait is held runs at once");
+  assert.equal(await client.invoke(read, undefined), 1);
+  release();
+  assert.equal(await following, "changed");
+  await assert.rejects(client.invoke({ ...bump, operation: "wait" } as HostCapabilityDefinition<void, number>, undefined),
+    (error: unknown) => error instanceof CapabilityRegistryError && error.code === "kernel.capability_missing");
+  await host.close();
+});
+
 test("CLI snapshot, MCP intent, and Workbench-style client share one writer and recover after restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-local-host-"));
   const databasePath = join(directory, "molis-work.db");

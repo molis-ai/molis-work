@@ -64,6 +64,8 @@ test("何时整理：上一轮结束时上下文过六成，或本人要求；�
   assert.deepEqual(nextHistoryMode(after, false), { history: "digest", reason: "前面的对话已经整理过" }, "a small context after a digest round does not mean the verbatim history fits again");
   const unknown = run(3, { frozen: { role_id: "reader", model_id: "m", text_materials: [] }, usage: { tokens: { input: 0, output: 0 }, context: { tokens: 99_000, coverage: "reported" } } } as never);
   assert.equal(nextHistoryMode(unknown, false).history, "session", "without a recorded window the runtime's own refusal is the fallback");
+  const compactionFailed = run(5, { phase: "failed", stop_reason: "CONTEXT_COMPACTION_INVALID: 原文选择超出记录范围" } as never);
+  assert.deepEqual(nextHistoryMode(compactionFailed, false), { history: "digest", reason: "上一轮整理上下文失败" }, "replaying the same history would ask for the same compaction again");
 });
 
 test("发给页面的轮次：工具输出只带时间线会显示的行，并记下省略的行数；指纹只随内容变", () => {

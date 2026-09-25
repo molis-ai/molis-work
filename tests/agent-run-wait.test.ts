@@ -35,7 +35,17 @@ test("following a live round: answers at once when behind, gathers quick deltas,
   assert.ok(Date.now() - started < 1_000, "it answers when the text changes, not at the timeout");
   assert.equal(listeners.size, 0, "the observer is released after answering");
 
-  const idle = Date.now(), quiet = await wait(next.version, 150);
-  assert.equal(quiet.version, next.version, "nothing changed: the same version comes back at the timeout");
+  // A round waiting on a question comes back resolved, so the question stays answerable in the page.
+  const raw = { pending_id: "q", pending_revision: 1, kind: "questionnaire", prompt: "选哪种？", options: [], allows_free_text: false, answerable: false, unavailable_reason: "正在读取原问题" };
+  const resolved = { ...raw, answerable: true, unavailable_reason: undefined, questions: [{ prompt: "选哪种？", options: ["a", "b"] }] };
+  adapter.read = async () => ({ ...view, phase: "awaiting-input", awaiting_input: [resolved] }) as never;
+  const asking = wait(next.version, 5_000);
+  setTimeout(() => { view = { ...view, phase: "awaiting-input", awaiting_input: [raw] } as never; for (const listener of listeners) listener(view); }, 20);
+  const asked = await asking;
+  assert.equal(asked.view.awaiting_input[0].answerable, true);
+  assert.equal(asked.view.awaiting_input[0].questions.length, 1);
+
+  const idle = Date.now(), quiet = await wait(asked.version, 150);
+  assert.equal(quiet.version, asked.version, "nothing changed: the same version comes back at the timeout");
   assert.ok(Date.now() - idle >= 140);
 });

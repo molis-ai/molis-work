@@ -112,6 +112,9 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
   const steps = run.step_board?.nodes.map((node, index) => `${node.title ? `「${clip(node.title, 80)}」` : `步骤 ${index + 1}`}（${node.id}）：${{ "not-started": "未开始", ready: "可开始", running: "进行中", succeeded: "已回报完成", failed: "已回报失败", cancelled: "已取消", blocked: "受阻" }[node.state]}`) ?? [];
   const planNote = input.plan_unfinished ? "\n\n这一轮沿用同一张任务图继续：先 board-read，从第一个没完成的步骤接着做，已完成的步骤不要重报。把剩下的步骤依次做完——只要还有可以开始的步骤，就不要结束这一轮；全部完成或遇到需要我决定的阻塞时，再说明做了什么。" : "";
 
+  // A planning round's answer is the proposal itself, so it must still end as the planner prompt asks, with no report after it.
+  const closing = run.frozen.role_id === "planner" ? "最后仍按规划要求只返回一个计划 JSON 对象，前后不加说明，已读到的内容写进步骤或 blockers。"
+    : input.plan_unfinished ? "" : "完成后说明这一轮实际做了什么、还剩什么。";
   // Blank lines keep each section its own Markdown list when the turn is rendered.
   const section = (title: string, lines: readonly string[]) => lines.length
     ? `\n\n${title}\n${lines.slice(0, LIMIT).map(line => "- " + line).join("\n")}${lines.length > LIMIT ? `\n- 另有 ${lines.length - LIMIT} 项未列出` : ""}` : "";
@@ -125,6 +128,6 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
 
   return {
     intent,
-    task: `${CONTINUATION_MARKER}第 ${input.number} 轮没有完成：${why}。请从断点继续完成原任务。\n\n${ORIGINAL_HEAD}${task}${FACTS_HEAD}（以此为准，不要凭对话记忆推断）：${facts || "\n\n- 这一轮没有经过审查的写入或命令"}\n\n继续时：先读取相关文件的当前内容核对状态；已写入的内容和已运行的命令不要重复，确需重新验证时说明原因；被拒绝的修改按意见调整后再提出；结果未知的操作先核对再决定。${input.plan_unfinished ? "" : "完成后说明这一轮实际做了什么、还剩什么。"}${planNote}`,
+    task: `${CONTINUATION_MARKER}第 ${input.number} 轮没有完成：${why}。请从断点继续完成原任务。\n\n${ORIGINAL_HEAD}${task}${FACTS_HEAD}（以此为准，不要凭对话记忆推断）：${facts || "\n\n- 这一轮没有经过审查的写入或命令"}\n\n继续时：先读取相关文件的当前内容核对状态；已写入的内容和已运行的命令不要重复，确需重新验证时说明原因；被拒绝的修改按意见调整后再提出；结果未知的操作先核对再决定。${closing}${planNote}`,
   };
 }

@@ -140,7 +140,11 @@ export function registerAgentHostCapabilities<Context>(
       const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000);
       return new Promise<{ version: string; view: AgentRunView }>((resolve, reject) => {
         let latest: AgentRunView | undefined, gather: ReturnType<typeof setTimeout> | undefined, stop: (() => void) | undefined, finished = false;
-        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); resolve({ version: runViewVersion(latest!), view: latest! }); };
+        // The published view only names pending questions; a full read resolves them into something a person can answer.
+        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.();
+          const version = runViewVersion(latest!);
+          if (!latest!.awaiting_input.length) { resolve({ version, view: latest! }); return; }
+          adapter.read(run).then(view => resolve({ version, view }), () => resolve({ version, view: latest! })); };
         const timer = setTimeout(finish, limit);
         try {
           stop = adapter.observe(run, view => { latest = view; if (runViewVersion(view) !== since && !gather) gather = setTimeout(finish, 40); });

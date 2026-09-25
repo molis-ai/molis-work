@@ -580,7 +580,7 @@ export async function createPrologueNodeAdapter(
         textResources.push({ ref, as: "original" });
       }
       const childRoots: PrologueSubagentRoot[] = [];
-      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
+      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
       for (const grant of input.subagent_workspaces ?? []) {
         const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
         if ([input.root_path, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
@@ -589,7 +589,7 @@ export async function createPrologueNodeAdapter(
       }
       const childRoles = new Map<string, NonNullable<PrologueStartInput["subagents"]>[number]>();
       for (const role of input.subagents ?? []) {
-        const allowed = ["read-file", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(childRoots.length && role.execution === "workspace-write" ? ["run-command"] : [])];
+        const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(childRoots.length && role.execution === "workspace-write" ? ["run-command"] : [])];
         if (!childRoots.length && role.execution !== "read-only" || role.host_tools.some(tool => !allowed.includes(tool) || !childRoots.length && !input.character.tools.includes(tool))) throw new Error("子角色超出本轮允许的工具与目录");
         const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
         const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,

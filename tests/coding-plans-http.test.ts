@@ -24,7 +24,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     frozen: { role_id: role, role_version: 1, execution: role === "planner" ? "read-only" : "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: ["read-file"], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true } },
     usage: { tokens: { input: 0, output: 0 } },
   } as unknown as AgentRunView);
-  const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify(content)), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
+  const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify({ ...content, blockers: "无" })), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
   runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
   const host = () => ({ store, homeDirectory: home, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined,
@@ -62,7 +62,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     for (const run_id of ["malformed", "ordinary", "foreign", "ambiguous", "ambiguous-prose", "trailing"]) assert.equal((await request("/plan", "POST", { run_id, expected_revision: 0 })).status, 400);
     assert.equal((await request("/plan", "POST", { run_id: "proposal", expected_revision: 0 }, "other")).status, 400);
     let response = await request("/plan", "POST", { run_id: "proposal", expected_revision: 0, content: { title: "伪造" } });
-    assert.equal(response.status, 200, JSON.stringify(response.body));assert.deepEqual(response.body.plan.content, content);
+    assert.equal(response.status, 200, JSON.stringify(response.body));assert.deepEqual(response.body.plan.content, content, "a blocker written as 无 means none, so the plan can be confirmed");
     assert.equal((await request("/plan", "POST", { run_id: "proposal", expected_revision: 0 })).status, 400);
     assert.equal((await start()).status, 400, "draft is not executable");
     assert.equal((await request("/plan/confirm", "POST", { expected_revision: 0 })).status, 400);
@@ -117,6 +117,10 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const lost=(await request()).body.taskboard_plans.at(-1);
     assert.equal(lost.run_id,"lost-plan");assert.equal(lost.revision,999);assert.equal(lost.plan,null);assert.match(lost.error,/不能替代/);
     assert.equal((await request()).body.taskboard_plans.length,3,"foreign plan references do not expose another session's plan");
+    runs.push(makeRun("labelled","reader","[retained assistant run:3-8qod6]\n结论：边界已核对。"));
+    const labelled=(await request()).body.runs.find((run:any)=>run.ref.run_id==="labelled").turns.find((turn:any)=>turn.kind==="assistant");
+    assert.doesNotMatch(labelled.html,/retained/,"the SDK's compaction label a model copied is not shown to the person");assert.match(labelled.html,/边界已核对/);
+    assert.match(labelled.text,/^\[retained assistant/,"the answer as the model wrote it is kept");
     assert.equal((await request("", "GET", undefined, "other")).body.taskboard_plans.length,0);
     assert.equal(starts[0].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     assert.notEqual(starts[1].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
@@ -133,6 +137,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const acceptedReport = await request("/runs/execute-1/report");
     assert.equal(acceptedReport.status, 200, JSON.stringify(acceptedReport.body));
     assert.match(acceptedReport.body.report.body_markdown, /用户已通过此步骤/);
+    assert.match(acceptedReport.body.report.title, new RegExp(`· 第 ${runs.findIndex(run=>run.ref.run_id==="execute-1")+1} 轮 · 执行报告$`), "reports of one session are told apart by their round");
     assert.equal((await request(stepPath,"POST",evaluation)).status,400,"stale assessment never overwrites the original");
     assert.equal((await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"",expected_revision:1})).status,400);
     response=await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"还需核对负数输入",expected_revision:1});assert.equal(response.status,200,JSON.stringify(response.body));

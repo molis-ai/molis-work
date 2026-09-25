@@ -444,7 +444,7 @@ export class AgentHost implements AgentHostApi {
       subagents = declaration.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)).map(child => {
         const tools = child.host_tools ?? [];
         const childExecution = child.execution ?? "read-only";
-        const allowed = ["read-file", "search", "context-remaining", ...(childWorkspaces && childExecution !== "read-only" ? ["write", "edit-file"] : []), ...(childWorkspaces && childExecution === "workspace-write" ? ["run-command"] : [])];
+        const allowed = ["read-file", "list", "search", "context-remaining", ...(childWorkspaces && childExecution !== "read-only" ? ["write", "edit-file"] : []), ...(childWorkspaces && childExecution === "workspace-write" ? ["run-command"] : [])];
         if (!childWorkspaces && childExecution !== "read-only" || tools.some(tool => !allowed.includes(tool) || !childWorkspaces && !hostTools.includes(tool))) throw new AgentHostError("agent.role_execution_exceeded", "只读子角色请求了当前父任务未开放的工具");
         if (EXECUTION_CAPABILITIES[childExecution].some(capability => adapter.descriptor.capabilities[capability] === "unsupported")) throw new AgentHostError("agent.capability_unavailable", "运行时不能执行声明的子角色操作");
         const prompt = authority.prompts?.find(prompt => prompt.prompt_id === child.role_id && prompt.version === child.version);

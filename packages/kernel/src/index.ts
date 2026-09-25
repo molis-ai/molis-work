@@ -42,8 +42,8 @@ function normalizedDescriptor<Input, Output>(
   if (!capabilityId || !Number.isInteger(definition.version) || definition.version < 1) {
     throw new CapabilityRegistryError("kernel.capability_invalid", "Capability 必须有非空 ID 和正整数版本");
   }
-  if (definition.operation !== "query" && definition.operation !== "command") {
-    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability operation 必须是 query 或 command");
+  if (definition.operation !== "query" && definition.operation !== "command" && definition.operation !== "wait") {
+    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability operation 必须是 query、command 或 wait");
   }
   return {
     capability_id: capabilityId,

@@ -18,7 +18,11 @@ export const platformAppHostContract = {
   ssot: "docs/system/ARCHITECTURE.md",
 } as const satisfies ContractDescriptor;
 
-export type HostCapabilityOperation = "query" | "command";
+/**
+ * `wait` is a read that may hold until something changes, such as following a live round. The Host runs it beside
+ * the project's queued operations rather than in line with them, so a held wait never delays a stop, an answer or a read.
+ */
+export type HostCapabilityOperation = "query" | "command" | "wait";
 
 export interface DesktopPanelRecord {
   panel_id: string;

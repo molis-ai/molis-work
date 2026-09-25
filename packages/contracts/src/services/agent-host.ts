@@ -939,7 +939,7 @@ export const agentHostCapabilities = {
   waitRun: {
     capability_id: "agent.run.wait.v1",
     version: 1,
-    operation: "query",
+    operation: "wait",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
   controlRun: {
     capability_id: "agent.run.control.v1",

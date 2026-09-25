@@ -101,7 +101,9 @@ export class LocalHost<Runtime> {
     input: Input,
   ): Promise<Output> {
     const entry = this.ensureEntry(reference);
-    const operation = entry.operationTail.then(async () => {
+    // A wait only observes; held in line it would keep every later operation of the project waiting until it answers.
+    const turn: Promise<unknown> = capability.operation === "wait" ? entry.runtime : entry.operationTail;
+    const operation = turn.then(async () => {
       const runtime = await entry.runtime;
       let ticket: unknown;
       try { ticket = this.options.observation?.before(runtime, entry.reference, capability, input); } catch { /* auxiliary observer only */ }
@@ -114,7 +116,7 @@ export class LocalHost<Runtime> {
       try { this.options.observation?.after(runtime, ticket, result, false); } catch { /* preserve business result */ }
       return result;
     });
-    entry.operationTail = operation.then(() => undefined, () => undefined);
+    if (capability.operation !== "wait") entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;
   }
 

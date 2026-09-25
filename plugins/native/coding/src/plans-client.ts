@@ -56,7 +56,9 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
   };
   const render=()=>{
     const active=runs.some(run=>!['completed','failed','stopped','cancelled'].includes(run.phase));
-    const planners=runs.filter(run=>run.frozen.role_id==='planner' && run.phase==='completed');
+    // Only answers that read as a plan are offered as proposals; an unreadable one keeps its note in the conversation.
+    const readable=run=>{if(!run.turns)return true;try{parseCodingPlanAnswer((run.turns.filter(turn=>turn.kind==='assistant').at(-1)?.text || '').trim());return true;}catch{return false;}};
+    const planners=runs.filter(run=>run.frozen.role_id==='planner' && run.phase==='completed' && readable(run));
     const key=JSON.stringify([owner,plan,planners.map(run=>run.ref.run_id),runs.map(run=>[run.ref.run_id,run.phase]),busy]);if(key===renderKey)return;renderKey=key;
     region.replaceChildren();region.hidden=!plan && !planners.length;
     region.append(element('h3','计划'));
@@ -70,7 +72,8 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
         region.append(element('p',names[execution.phase] || '正在按此版本执行'));
         region.append(button('查看计划执行',()=>{const block=[...q('[data-coding-turns]').children].find(node=>node.dataset.run===execution.ref.run_id);if(block){block.scrollIntoView({block:'start'});block.tabIndex=-1;block.focus({preventScroll:true});}}));
       }else if(plan.confirmed)region.append(button('按此计划执行',()=>action(()=>execute(plan.revision)),busy || active));
-      else region.append(button('确认此计划版本',()=>action(async id=>{const data=await api(path()+'/confirm','POST',{expected_revision:plan.revision});if(id===current())plan=data.plan;}),busy || Boolean(plan.content.blockers)));
+      else{region.append(button('确认此计划版本',()=>action(async id=>{const data=await api(path()+'/confirm','POST',{expected_revision:plan.revision});if(id===current()){plan=data.plan;status('已确认修订 '+plan.revision+'，可以按此计划执行。');}}),busy || Boolean(plan.content.blockers)));
+        if(plan.content.blockers)region.append(element('p','计划写着尚未解决的阻塞，确认前请先解决，或在「查看并调整计划」里说明并清空。'));}
       region.append(element('p','确认计划不批准修改或命令；执行结束不等于步骤通过。'));
     }
     for(const [index,run] of runs.entries())for(const material of run.frozen.text_materials){

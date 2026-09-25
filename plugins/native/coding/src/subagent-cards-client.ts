@@ -35,6 +35,12 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const reviews=node.querySelector('.coding-child-reviews');
     // The Host's review client shows or hides this box itself; an empty one never takes space.
     if(child.state==='running'&&child.child_run){const now=Date.now();if(now-Number(reviews.dataset.readAt||0)>1500){reviews.dataset.readAt=String(now);void showReviews(reviews,[child.child_run],sessionId());}}else{reviews.hidden=true;reviews.replaceChildren();delete reviews.dataset.readAt;}
+    // What the child changed, at a glance, without unfolding its timeline or opening the integration dialog.
+    const edited=[...new Set((child.activity||[]).filter(item=>['edit','write'].includes(item.name)&&item.state==='completed'&&item.target).map(item=>item.target))];
+    let changed=node.querySelector('.coding-child-changed');
+    if(edited.length){if(!changed){changed=el('p','coding-child-changed');node.querySelector('.coding-child-result').before(changed);}
+      changed.textContent='改动了 '+edited.length+' 个文件：'+edited.slice(0,6).join('、')+(edited.length>6?' 等':'')+(child.integration_available?'（在它自己的目录里，整合前不影响主工作区）':'');}
+    else changed?.remove();
     const result=node.querySelector('.coding-child-result');result.hidden=!child.result;
     if(child.result){const body=result.querySelector('.coding-turn'),html=child.result_html||'';if(body.dataset.source!==child.result){body.dataset.source=child.result;if(html)body.innerHTML=html;else body.textContent=child.result;}}
     // Folded by default with a one-line preview: the parent's summary is where the reading happens.

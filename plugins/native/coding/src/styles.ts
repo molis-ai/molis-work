@@ -727,6 +727,7 @@ dialog.coding-palette::backdrop { background:color-mix(in srgb,var(--ink) 18%,tr
 .coding-child-result > summary { cursor:pointer; font-size:12px; color:var(--muted); width:fit-content; }
 .coding-child-result > .coding-turn { max-width:none; margin:6px 0 0; padding:10px 12px; border-left:2px solid var(--line); font-size:13px; }
 .coding-child-error { margin:6px 0 0 24px; font-size:12px; color:var(--red); }
+.coding-child-changed { margin:6px 0 0 24px; font-size:12px; color:var(--muted); overflow-wrap:anywhere; }
 .coding-child-foot { display:flex; gap:6px; margin:8px 0 0 24px; }
 .coding-child-foot:empty { display:none; }
 .coding-child-foot .mw-btn { height:26px; min-height:26px; padding:0 10px; font-size:12px; border:1px solid var(--line); }

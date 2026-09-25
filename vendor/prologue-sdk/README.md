@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-search-file.tgz`。在保留文件权限之上，**搜索的路径可以是单个文件**：原来 search 把 path 当目录去列举，给的是文件时列举失败被吞掉，答成「(no matches)」——模型据此断定文件里没有这段代码（Coding 实测里一个评审子代理连搜 7 次都是空，最后只能自己数行号）。现在路径是文件就只在这份文件里找（字面量与正则两档都是），路径不存在时报 `ROOT_NOT_FOUND`，不再答成没找到；工具说明改为「目录或单个文件」。Tauri 原生 Host 的同一处一并修正（需原生构建才用得上；Molis 走 Node Host）。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-search-scope.tgz`。在单文件搜索之上，**搜索在大仓库里也能搜全，没搜全时如实说**。原来一次搜索最多走 1024 个文件，Molis 自己的仓库有 4000 多个可搜文件，搜到一半就停，还答成「(no matches)」——用 Coding 开发 Molis 时，模型在 60 轮里搜了 73 次，多次断定"这段样式不在这个仓库里"，最终用完轮次。现在上界提到 20000 个文件；到了文件数或条数上界时，搜索结果带 `truncated`，工具输出写明"没搜全，缩小路径再搜，别据此断定不存在"。Tauri 原生 Host 同步修正。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[search-scope.patch](search-scope.patch)，相对基线的**累计**补丁（含此前全部改动与 Rust Host 修正）。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`11307936c5b68c42460865a407cf4db5c0081a5ac444be674b246b53346a2bb4`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/search-scope.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-search-scope.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；新增定向 1 项（1500 个文件之后的目标照样找到、条数到上界时标出没搜全），搜索与忽略相关 29 项、Rust Host 全部测试通过。全量结果见 Coding spec。未发布 npm，未替换正式安装版。
+
+## 上一依赖：单文件搜索
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-search-file.tgz`。在保留文件权限之上，**搜索的路径可以是单个文件**：原来 search 把 path 当目录去列举，给的是文件时列举失败被吞掉，答成「(no matches)」——模型据此断定文件里没有这段代码（Coding 实测里一个评审子代理连搜 7 次都是空，最后只能自己数行号）。现在路径是文件就只在这份文件里找（字面量与正则两档都是），路径不存在时报 `ROOT_NOT_FOUND`，不再答成没找到；工具说明改为「目录或单个文件」。Tauri 原生 Host 的同一处一并修正（需原生构建才用得上；Molis 走 Node Host）。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

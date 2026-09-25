@@ -7,7 +7,8 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
 
 test("委派与交付：只由对应一方推进，发送即开始，交付可退回再交，收下后成为下一轮材料；结束后的答复只记录；重启后回执不变", async () => {
@@ -19,12 +20,12 @@ test("委派与交付：只由对应一方推进，发送即开始，交付可�
     frozen: { role_id: "builder", role_version: 1, execution: "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: root, realpath_verified: true } },
     turns: [{ turn_id: "u", kind: "user", text: "补测试", at }, { turn_id: "a", kind: "assistant", text: "三个测试已补，全部通过。", at }],
     activity: [], usage: { tokens: { input: 10, output: 5 } }, awaiting_input: [], command_outputs: [] });
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
-      if (definition.capability_id === projectsCapabilities.listWorkspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;
+      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
       if (definition.capability_id === agent.createSession.capability_id) return { runtime_id: "prologue", session_id: "sdk-C" } as Output;
       if (definition.capability_id === agent.startRun.capability_id) { const ref = { session_id: "sdk-C", run_id: `r${runs.size + 1}` }; runs.set(ref.run_id, { ref }); return { ref, frozen: view(ref).frozen } as Output; }

@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -7,7 +8,6 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_BOARD_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createWorkspacePlugin } from "@molis-ai/molis-work-plugin-workspace";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { createDiffPlugin } from "../plugins/native/diff/src/plugin.js";
@@ -19,26 +19,23 @@ async function fixture() {
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
-  const platform = createPluginPlatform({ board_id: DEMO_BOARD_ID, actor_id: "tester", db: store.db,
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID, actor_id: "tester", db: store.db,
     artifacts, ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const contexts = new Map<string, PluginStartContext>();
   const capture = (definition: PluginDefinition): PluginDefinition => ({ ...definition, async start(context) {
     contexts.set(context.plugin_id, context);
     return definition.start(context);
   } });
-  const report = await platform.start([createWorkspacePlugin(), createFilesPlugin(), createGitPlugin(), createDiffPlugin(), createTextStatsPlugin()]
+  const report = await platform.start([createFilesPlugin(), createGitPlugin(), createDiffPlugin(), createTextStatsPlugin()]
     .map(definition => ({ definition: capture(definition) })));
   assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
   const bind = (target: string, targetPort: string, source: string, sourcePort: string) => platform.wiring.bind({
     board_id: DEMO_BOARD_ID, actor_id: "tester", target_plugin_id: `io.molis.work.${target}`, target_port: targetPort,
     source_plugin_id: `io.molis.work.${source}`, source_port: sourcePort, origin: "user",
   });
-  bind("files", "workspace", "workspace", "workspace");
-  bind("git", "workspace", "workspace", "workspace");
-  bind("diff", "git_changeset", "git", "changeset");
+  bind("diff", "git-changeset", "git", "changeset");
   bind("text-stats", "text", "files", "before");
   const outputs = (plugin: string) => contexts.get(`io.molis.work.${plugin}`)!.services!.outputs!;
-  outputs("workspace").publish({ port: "workspace", content: { kind: "inline", payload: { workspace_id: "ws", name: "项目", handle: "ws" } } });
   await platform.wiring.drain();
   const state = async (plugin: string) => {
     const response = await platform.router().dispatch({ method: "GET", pathname: `/api/plugins/io.molis.work.${plugin}/state`, actor_id: "tester", query: {} });

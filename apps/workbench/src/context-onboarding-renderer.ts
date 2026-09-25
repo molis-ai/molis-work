@@ -1,0 +1,10 @@
+import { connectorMark } from "./connector-marks.js";
+import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { CONTROL_CLIENT_SCRIPT } from "./scripts/control.js";
+import { CONTEXT_ONBOARDING_CLIENT } from "./scripts/context-onboarding.js";
+import { CONTEXT_ONBOARDING_STYLES } from "./styles/context-onboarding.js";
+import type { MolisWorkOnboardingRenderOptions, OnboardingRenderPrimitives } from "./onboarding-renderer.js";
+export function renderContextOnboarding(options: MolisWorkOnboardingRenderOptions, p: OnboardingRenderPrimitives): string {
+  const href = (path: string) => options.desktopShell ? p.withDesktopQuery(path) : path;
+  return `<!doctype html><html lang="${p.htmlLang()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${p.controlTokenMeta(options.controlToken ?? "")}<title>${p.L("从已有工作开始")} · Molis Work</title><script>${p.nativeDesktopBootstrapScript}${THEME_BOOTSTRAP_SCRIPT}</script><style>${CONTEXT_ONBOARDING_STYLES}</style></head><body class="cx-page" data-onboarding-mode="${options.mode}"${options.desktopShell ? ' data-native-desktop="true"' : ""}>${p.renderIconSprite()}<header class="cx-top"><a class="cx-brand" href="${href("/")}">${p.icon("brand")}Molis Work</a><div class="cx-top-actions"><button class="cx-button quiet" id="cx-theme" aria-label="${p.L("切换主题")}">${p.L("切换主题")}</button><button class="cx-button quiet" id="cx-exit">${p.L(options.mode === "first_run" ? "稍后再说" : "返回项目")}</button></div></header><div id="cx-app" aria-busy="true"><main class="cx-layout"><aside class="cx-intro"><h1>${p.L("从你正在做的事")}<br>${p.L("开始。")}</h1><p>${p.L("带上文件、网页和工作往来，Molis 帮你整理背景、进展与下一步。")}</p></aside><section class="cx-panel"><div class="cx-reading-head" role="status">${p.L("正在检查可用的来源…")}</div></section></main></div><template id="cx-gmail-icon">${connectorMark("gmail")?.svg ?? ""}</template><dialog id="cx-dialog" class="cx-dialog" aria-labelledby="cx-dialog-title"></dialog><script>${p.clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${CONTEXT_ONBOARDING_CLIENT}</script></body></html>`;
+}

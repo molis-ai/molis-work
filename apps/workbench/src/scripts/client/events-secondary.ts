@@ -23,7 +23,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       if (feedTaskToggle) {
         tabWorkspace?.openPlugin("feed");
         const taskId = feedTaskToggle.dataset.feedTaskToggle || "all";
-        setFeedTask(selectedFeedTask === taskId ? "all" : taskId);
+        setFeedTask(taskId);
         setMobileView("document");
         return;
       }

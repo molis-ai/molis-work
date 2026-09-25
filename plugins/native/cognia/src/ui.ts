@@ -7,16 +7,17 @@ export const cogniaUiContribution: UiContribution<CogniaUiModel> = { descriptor:
 export function renderCogniaWorkbench({ primitives: p }: CogniaUiModel): string {
   const t = (value: string) => p.escape(p.text(value));
   const button = (label: string, action: string, primary = false) => `<button type="button" class="mw-btn mw-btn--${primary ? "primary" : "ghost"}" data-cognia-action="${action}">${t(label)}</button>`;
+  const tool = (label: string, action: string, glyph: Parameters<typeof icon>[0], create = false) => `<button type="button" class="mw-btn mw-btn--ghost${create ? " tree-create" : ""}" data-cognia-action="${action}">${icon(glyph)}<span>${t(label)}</span></button>`;
   return renderPluginStageShell({ surface: "cognia", label: "Cognia", dataset: "cognia", body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree cognia-list" data-cognia="directory">
-      <header class="plugin-stage-chrome cognia-toolbar">${button("导入知识库", "import", true)}${button("添加材料", "add")}${button("新建领域", "domain")}</header>
-      <div class="cognia-filters"><label class="cognia-search">${icon("search")}<input class="mw-input" type="search" data-cognia-search aria-label="${t("搜索资料全文")}" placeholder="${t("搜索资料全文")}"></label><select class="mw-select" data-cognia-domain aria-label="${t("领域")}"><option value="">${t("全部领域")}</option></select><select class="mw-select" data-cognia-source aria-label="${t("来源")}"><option value="">${t("全部来源")}</option></select></div>
-      <div class="cognia-selection">${button("整理选中材料", "synthesize")}<span data-cognia-selected>${t("选择 1–5 份材料")}</span>${button("检索问答", "query")}${button("审阅草稿", "drafts")}</div>
+      <header class="plugin-stage-chrome cognia-toolbar">${tool("导入知识库", "import", "upload", true)}${tool("添加材料", "add", "plus")}${tool("新建领域", "domain", "folder")}</header>
+      <div class="cognia-filters"><label class="cognia-search">${icon("search")}<input class="mw-input" type="search" data-cognia-search aria-label="${t("搜索资料全文")}" placeholder="${t("搜索资料全文")}"></label><select class="mw-select" data-cognia-domain aria-label="${t("领域")}"><option value="">${t("全部领域")}</option></select><select class="mw-select" data-cognia-source aria-label="${t("来源")}"><option value="">${t("全部来源")}</option></select>${button("重命名领域", "rename-domain")}${button("删除领域", "delete-domain")}${button("重命名来源", "rename-source")}${button("删除来源", "delete-source")}</div>
+      <div class="cognia-selection">${tool("整理选中材料", "synthesize", "sparkles")}<span data-cognia-selected>${t("选择 1–5 份材料")}</span><span class="cognia-selection__gap" aria-hidden="true"></span>${tool("检索问答", "query", "message")}${tool("审阅草稿", "drafts", "review")}</div>
       <p class="cognia-model-note" data-cognia-model hidden>${t("尚未配置文字模型，导入、搜索和阅读仍可使用。")}</p>
       <div data-cognia-rows aria-live="polite"><p class="cognia-empty">${t("正在读取资料…")}</p></div>
     </div>
     <section class="plugin-stage-workspace cognia-workspace" data-cognia-workspace hidden>
-      <header class="plugin-stage-detail-bar"><button type="button" class="plugin-stage-back" data-cognia-action="back" aria-label="${t("返回资料列表")}">${icon("arrow")}</button><h1 data-cognia-heading>${t("资料")}</h1>${button("整理为知识", "synthesize-current")}<a class="mw-btn mw-btn--ghost" data-cognia-download>${t("下载原文")}</a></header>
+      <header class="plugin-stage-detail-bar"><button type="button" class="plugin-stage-back" data-cognia-action="back" aria-label="${t("返回资料列表")}">${icon("chevron-right")}</button><h1 data-cognia-heading>${t("资料")}</h1>${button("编辑", "edit-material")}${button("移出列表", "delete-material")}${button("整理为知识", "synthesize-current")}<a class="mw-btn mw-btn--ghost" data-cognia-download>${t("下载原文")}</a></header>
       <div class="cognia-reading" data-cognia-reading></div>
     </section>
     <div class="cognia-notice" role="status" data-cognia-notice hidden><span></span>${button("重试读取", "reload")}</div>

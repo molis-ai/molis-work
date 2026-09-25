@@ -34,6 +34,8 @@ export interface ArtifactDocumentImportPorts {
   readExternal(input: { source: ExternalDocumentSource; url: string }): Promise<ImportedArtifactDocument>;
   readHtml(html: string): { title: string; content: string };
   now?: () => string;
+  /** Trusted Host checks cancellation/revocation again after external reads and before writes. */
+  beforeSave?: () => void | Promise<void>;
 }
 
 /** An explicit import creates a personal snapshot; no scheduler or source write-back. */
@@ -50,6 +52,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   if (Buffer.byteLength(document.content, "utf8") > DOCUMENT_IMPORT_MAX_BYTES) {
     throw new ArtifactImportError(413, "document.too_large", "文档正文超过 2 MB，请拆分后导入");
   }
+  await ports.beforeSave?.();
   // Project-scoped identity: the same source can be independently imported into two projects.
   const artifactId = `document-${digest(JSON.stringify([ports.boardId, document.source, document.source_id]))}`;
   const latest = ports.artifacts.query.latestArtifactVersion(ports.boardId, artifactId);

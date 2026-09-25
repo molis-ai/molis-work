@@ -1,3 +1,4 @@
+import { FUNCTIONS_STYLES } from "./functions/styles.js";
 import { CODING_COMPANION_STYLES } from "./styles/coding-companions.js";
 import { GIT_STYLES } from "@molis-ai/molis-work-plugin-git";
 import { DIFF_STYLES } from "@molis-ai/molis-work-plugin-diff";
@@ -48,6 +49,7 @@ import { PROJECT_SETTINGS_PAGE_STYLES } from "./styles/project-settings-page.js"
 import { SURFACE_LANGUAGE_STYLES } from "./styles/surface-language.js";
 import { TAB_WORKSPACE_STYLES } from "./styles/tab-workspace.js";
 import { pluginWorkbenchSettingsStyles, pluginWorkbenchStyles } from "./plugin-workbench.js";
+import { CAPABILITIES_STYLES } from "./styles/capabilities.js";
 
 /** Coss/texture/primitive/typeface overlay. Appended after page CSS so mw-* wins. */
 const PAGE_CHROME_OVERLAY = `${COSS_CONTROL_STYLES}${SURFACE_LANGUAGE_STYLES}`;
@@ -70,7 +72,7 @@ export function renderMolisWorkProjectIndexStylesheet(): string {
 
 /** Shared settings presentation, reused across project and global settings routes. */
 export function renderMolisWorkSettingsStylesheet(): string {
-  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${pluginWorkbenchSettingsStyles()}${CODING_STYLES}${CHARACTERS_STYLES}`;
+  return `${STYLES}${MORE_STYLES}${RESPONSIVE_STYLES}${SETTINGS_STYLES}${MODEL_SETTINGS_STYLES}${PROJECT_GUIDANCE_SETTINGS_STYLES}${PROJECT_RULES_SETTINGS_STYLES}${PLANNING_SETTINGS_STYLES}${VISUAL_FOUNDATION_STYLES}${PROJECT_INDEX_STYLES}${SETTINGS_IA_NAV_STYLES}${COSS_CONTROL_STYLES}${PROJECT_SETTINGS_PAGE_STYLES}${SURFACE_LANGUAGE_STYLES}${LINEAR_DENSITY_STYLES}${PAGE_PRIMITIVE_TAIL}${TYPEFACE_STYLES}${pluginWorkbenchSettingsStyles()}${CODING_STYLES}${CHARACTERS_STYLES}${PLUGIN_STAGE_STYLES}${FUNCTIONS_STYLES}${CAPABILITIES_STYLES}`;
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */

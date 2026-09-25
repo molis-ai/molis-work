@@ -110,6 +110,11 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     section: ProjectSettingsFoldId,
     desktopShell: boolean,
   ): string {
+    if (section === "workspaces") return `<section class="project-settings-page" data-project-workspaces data-workspace-prefix="${escapeHtml(view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`)}">
+      <header class="settings-page-heading"><h1>${L("工作目录")}</h1><p>${L("关联本机文件夹，并选择 Files 和 Git 浏览的目录。Coding 在每个会话中单独选择执行目录。")}</p></header>
+      <section class="settings-section"><div class="settings-setting-row"><span class="setting-copy"><strong>${L("已关联目录")}</strong><span>${L("浏览选择对当前项目生效。")}</span></span><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-refresh>${L("刷新")}</button></div><div data-project-workspaces-list></div><p data-project-workspaces-status role="status" aria-live="polite"></p></section>
+      <section class="settings-section"><h2>${L("关联新目录")}</h2><form data-project-workspaces-add><div class="settings-setting-row"><label class="setting-copy" for="project-workspace-path"><strong>${L("文件夹路径")}</strong><span>${L("选择本机文件夹或填写绝对路径。")}</span></label><div class="setting-value"><input id="project-workspace-path" name="path" required placeholder="/path/to/project"><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-pick>${L("选择目录")}</button></div></div><div class="settings-setting-row"><span class="setting-copy">${L("关联后可用于当前项目的浏览与 Coding 会话。")}</span><button class="mw-btn mw-btn--primary" type="submit">${L("关联目录")}</button></div><p data-project-workspaces-add-status role="status" aria-live="polite"></p></form></section>
+    </section>`;
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return renderProjectGuidanceDocument(guidance);
     if (section === "rules") return renderProjectPolicyDocument(view);

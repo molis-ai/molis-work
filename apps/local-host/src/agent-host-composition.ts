@@ -11,6 +11,7 @@ import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-w
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
@@ -89,22 +90,28 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   let ready: Promise<void> | undefined;
-  const initialize = () => ready ??= options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
+  let disposed = false;
+  let disposal: Promise<void> | undefined;
+  const initialize = (): Promise<void> => {
+    if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
+    return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
       ...options.prologue,
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); });
+    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); }))
+      .catch(error => { ready = undefined; throw error; });
+  };
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
       register: (definition, handler) => options.localHost.registerCapability(definition, handler),
     },
     {
       agentHost: () => agentHost,
-      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.workspacesFor, options.homeDirectory),
+      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory),
       boardId: (runtime) => runtime.board_id,
     },
   );
-  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input) => {
+  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {
     await initialize();
     if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
     const current = async () => options.workspacesFor ? await options.workspacesFor(project.project_id)
@@ -112,6 +119,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const prepared = await prepareGitIndex(input, current);
     const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
     if (!workspace) throw new Error("工作区已取消授权");
+    await invocation.beforeEffect();
     const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, prepared);
     return { review_id: request.review_id };
@@ -126,7 +134,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const next = { ...await readDetails(), [key]: detail }, temporary = detailsFile + "." + process.pid + ".tmp";
     await writeFile(temporary, JSON.stringify(next)); await rename(temporary, detailsFile);
   };
-  const unregisterGitOperation = options.localHost.registerCapability(prepareGitOperationCapability, async (project, input) => {
+  const unregisterGitOperation = options.localHost.registerCapability(prepareGitOperationCapability, async (project, input, invocation) => {
     await initialize();
     if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("Git 操作标识无效");
@@ -135,6 +143,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const workspace = grants.find(item => item.workspace_id === input.workspace_id && item.realpath_verified);
     if (!workspace) throw new Error("工作区已取消授权");
     const prepared = await prepareGitOperation(workspace, input.revision, input.operation);
+    // The caller's authority is checked again right before the review is created, as for staging.
+    await invocation.beforeEffect();
     const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
       { check: prepared.check, async execute() {
@@ -272,7 +282,9 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id };
   });
 
-  return { agentHost, get ready() { return initialize(); }, async dispose() {
+  return { agentHost, get ready() { return initialize(); }, dispose() {
+    if (disposal) return disposal;
+    disposed = true;
     unregister();
     unregisterGit();
     unregisterGitOperation();
@@ -283,8 +295,10 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     unregisterPrepareWriter();
     unregisterReadIntegration();
     unregisterPrepareIntegration();
-    await ready?.catch(() => undefined);
-    await prologue?.close();
+    return disposal = (async () => {
+      await ready?.catch(() => undefined);
+      await prologue?.close();
+    })();
   } };
 }
 
@@ -300,6 +314,7 @@ async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
   workspaceFor: AgentHostCompositionOptions["workspaceFor"],
+  localHost: MolisWorkLocalHost,
   workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
   homeDirectory?: string,
 ): Promise<AgentStartAuthority> {
@@ -315,7 +330,7 @@ async function startAuthority(
     skills: declared?.skills ?? [],
     method_owner: { board_id: runtime.board_id, plugin_id: pluginId },
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
-    project_prompts: projectPrompts(runtime),
+    project_prompts: await projectPrompts(runtime, localHost),
   };
 }
 
@@ -331,10 +346,11 @@ async function startAuthority(
  * confirmed — and passing that along would turn "this project has said nothing"
  * into an instruction, which is a different claim.
  */
-function projectPrompts(runtime: MolisWorkProjectRuntime): AgentPromptText[] {
+async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
   let view: ProjectGuidanceView;
   try {
-    view = runtime.coordinator.readProjectGuidance(runtime.board_id);
+    view = await localHost.client({ project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path })
+      .invoke(readProjectGuidanceCapability, { board_id: runtime.board_id });
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.
@@ -345,7 +361,7 @@ function projectPrompts(runtime: MolisWorkProjectRuntime): AgentPromptText[] {
     prompt_id: "project-guidance",
     // The version moves with the content, so a frozen Run records which
     // guidance it actually ran with rather than just that some existed.
-    version: view.entries.length,
+    version: view.revisions.length,
     layer: "project",
     body: view.runtime_prompt_prefix,
   }];

@@ -650,109 +650,40 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
         || hostSource.includes("host.register(readGoalContractCapability,")) {
         errors.push(`${relativePath}: retired public Goal Contract capability must stay unregistered and uninvoked`);
       }
-      if (relativePath === "apps/mcp/src/tool-dispatch.ts") {
-        if (!source.includes("client.invoke(readProjectGuidanceCapability,")
-          || !hostSource.includes("host.register(readProjectGuidanceCapability,")) {
-          errors.push(`${relativePath}: remaining Goal reads must invoke the current public guidance query capability`);
-        }
-      } else if (!source.includes("client.invoke(snapshotBoardCapability,")) {
+      if (!source.includes("client.invoke(snapshotBoardCapability,")) {
         errors.push(`${relativePath}: remaining CLI Goal reads must invoke the current public snapshot capability`);
       }
     }
   }
   errors.push(...checkGoalReadOwnerSql(coordinator).map(error => `${coordinatorPath}: ${error}`));
 
-  const appAdapters = [
-    {
-      appPath: "apps/workbench/src/index.ts",
-      callerPath: "apps/local-host/src/web-request.ts",
-      factory: "createWorkbenchGoalsAdapter",
-      capability: "workbench.goals-command-adapter.v1",
-    },
-    {
-      appPath: "apps/mcp/src/index.ts",
-      callerPath: "apps/mcp/src/tool-dispatch.ts",
-      factory: "createMcpGoalsAdapter",
-      capability: "mcp.goals-command-adapter.v1",
-      commandHandlerPath: "apps/mcp/src/goal-commands.ts",
-      commandHandlerFactory: "createMcpGoalToolHandlers",
-      commandDispatch: "goalTools[name](arguments_)",
-    },
-    {
-      appPath: "apps/cli/src/index.ts",
-      callerPath: "apps/cli/src/command-dispatch.ts",
-      factory: "createCliGoalsAdapter",
-      capability: "cli.goals-command-adapter.v1",
-      retiredCommandHandlerPath: "apps/cli/src/goal-commands.ts",
-    },
-  ];
-  for (const { appPath, callerPath, factory, capability, commandHandlerPath, commandHandlerFactory, commandDispatch, retiredCommandHandlerPath } of appAdapters) {
-    const app = read(appPath) + (appPath === "apps/workbench/src/index.ts" ? read("apps/workbench/src/ui-composition.ts") : "");
-    const caller = read(callerPath);
-    if (
-      !app.includes("GoalsApplicationApi")
-      || !app.includes(`function ${factory}`)
-      || !app.includes(`"${capability}"`)
-    ) {
-      errors.push(`${appPath}: GW4 requires a Contract-typed ${factory} public adapter`);
+  // Transport entrypoints consume Host clients / actions. The old pass-through
+  // GoalsApplicationApi factories had no callers and exposed bypass commands.
+  for (const relativePath of ["apps/workbench/src/ui-composition.ts", "apps/mcp/src/index.ts", "apps/cli/src/index.ts"]) {
+    const app = read(relativePath);
+    if (/GoalsApplicationApi|create(?:Workbench|Mcp|Cli)GoalsAdapter/u.test(app)) {
+      errors.push(`${relativePath}: retired direct Goals application adapters must stay removed`);
     }
-    if (
-      app.includes("@molis-ai/molis-work-module-goals")
-      || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(app)
-      || /\b(?:SqliteMolisWorkStore|GoalsRepository|MolisWorkCoordinator)\b/u.test(app)
-    ) {
-      errors.push(`${appPath}: App adapter must not import the Goal implementation, Store, or copied business rules`);
+    if (/molis-work-module-goals|\b(?:SqliteMolisWorkStore|GoalsRepository|MolisWorkCoordinator)\b/u.test(app)) {
+      errors.push(`${relativePath}: App composition must not own Goal business implementations`);
     }
-    if (retiredCommandHandlerPath) {
-      if (fs.existsSync(path.join(repositoryRoot, retiredCommandHandlerPath))) {
-        errors.push(`${retiredCommandHandlerPath}: retired public CLI Goal command handler must stay removed`);
-      }
-      if (
-        caller.includes('from "./goal-commands.js"')
-        || app.includes("createCliGoalCommandHandlers")
-        || !caller.includes("createGoalProposalClients(client)")
-        || !caller.includes("client.invoke(setActiveGoalCapability,")
-        || !caller.includes("client.withScope(")
-        || caller.includes(".withProject(")
-        || caller.includes("coordinator.goals")
-      ) {
-        errors.push(`${callerPath}: CLI Goal writes must use current Host tree/active-goal capabilities; retired goal-commands must stay unimported`);
-      }
-      continue;
+  }
+  for (const app of ["mcp", "cli"]) {
+    const relativePath = `apps/${app}/src/${app === "mcp" ? "tool" : "command"}-dispatch.ts`;
+    const caller = read(relativePath);
+    if (!caller.includes("LocalHostProjectClient") || !caller.includes("client.withScope(")
+      || caller.includes(".withProject(") || caller.includes("coordinator.goals")) {
+      errors.push(`${relativePath}: Goal transport must use the scoped Host Client`);
     }
-    const commandHandler = commandHandlerPath ? read(commandHandlerPath) : null;
-    const hasCommandPath = commandHandler !== null
-      ? app.includes(`export { ${commandHandlerFactory} }`)
-        && caller.includes(`${commandHandlerFactory}(goalsAdapter`)
-        && caller.includes(commandDispatch)
-        && commandHandler.includes(`function ${commandHandlerFactory}`)
-        && commandHandler.includes("GoalsEntryApi")
-        && commandHandler.includes("goals.commands.")
-      : caller.includes("handleGoalsWebHttp({")
-        && caller.includes("commands: goalsAdapter.commands")
-        && read("plugins/native/goals/src/http/index.ts").includes("handleGoalCreateHttp(context)")
-        && read("plugins/native/goals/src/http/create.ts").includes("context.goalEvents.createIntent(");
-    if (
-      !(callerPath === "apps/mcp/src/tool-dispatch.ts"
-        ? caller.includes('from "./goal-commands.js"')
-        : caller.includes(`from "@molis-ai/molis-work-app-${appPath.split("/")[1]}"`))
-      || !(commandHandler !== null
-        ? caller.includes("createGoalsEntryClient(client)")
-          && caller.includes("client.withScope(")
-          && !caller.includes(".withProject(")
-          && !caller.includes("coordinator.goals")
-        : caller.includes(`${factory}(coordinator.goals)`))
-      || !hasCommandPath
-    ) {
-      errors.push(`${callerPath}: Goal writes must enter through the public App commands and its Host Client (or unmigrated Workbench adapter)`);
+    if (fs.existsSync(path.join(repositoryRoot, `apps/${app}/src/goal-commands.ts`))) {
+      errors.push(`apps/${app}/src/goal-commands.ts: retired duplicate Goal command handler must stay removed`);
     }
-    if (commandHandler !== null && (
-      commandHandler.includes("@molis-ai/molis-work-module-goals")
-      || /\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/iu.test(commandHandler)
-      || /\b(?:SqliteMolisWorkStore|GoalsRepository|MolisWorkCoordinator)\b/u.test(commandHandler)
-    )) {
-      errors.push(`${commandHandlerPath}: command handlers must not own Module implementations, Store, or copied business rules`);
-    }
+  }
+  const webGoals = read("apps/local-host/src/web-request.ts");
+  const httpContext = read("plugins/native/goals/src/http/types.ts");
+  if (!webGoals.includes("actions: goalActions") || !httpContext.includes("actions: BoundActionClient")
+    || /\b(?:commands|query|lifecycle|planning):/u.test(httpContext)) {
+    errors.push("Goals HTTP business operations must consume BoundActionClient without direct domain ports");
   }
   // `relations` left the retired list when the workbench redesign brought Goal
   // relation editing back as a product feature. It stays here so it still has to
@@ -770,20 +701,6 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     if (fs.existsSync(path.join(repositoryRoot, nativePath))) {
       errors.push(`${nativePath}: retired old protocol HTTP write adapter must stay removed`);
     }
-  }
-  const appAdapterTestPath = "tests/goals-app-adapters.test.ts";
-  const appAdapterTest = read(appAdapterTestPath);
-  for (const { factory } of appAdapters) {
-    if (!appAdapterTest.includes(factory)) {
-      errors.push(`${appAdapterTestPath}: GW4 compatibility test must exercise ${factory}`);
-    }
-  }
-  if (
-    !appAdapterTest.includes("goal.title_required")
-    || !appAdapterTest.includes("replay.replayed")
-    || !appAdapterTest.includes("assert.equal(adapter.commands, coordinator.goals.commands)")
-  ) {
-    errors.push(`${appAdapterTestPath}: GW4 must pin adapter identity, idempotency, and shared error behavior`);
   }
   const removedFacadeCall = /\bcoordinator(?:ForResume)?\.(?:addProjectGuidance|updateProjectGuidance|createGoal|updateDraftGoal|addRelation|deactivateRelation|setPolicy|addRisk|updateRisk|setRiskState|setGoalArchived|setGoalTrashed|revalidateGoal|evaluateLeafCompletion|effectivePlanningMethods|projectPlanningComposition|saveProjectPlanningMethod|analyzePlanningChange|validatePlanningGraph)\b/u;
   for (const relativePath of [
@@ -1410,7 +1327,7 @@ export function checkGoalTreeApplicationOwnership(coordinator, host, application
   }
   if (host.includes(`coordinator.${method}(`)
       || !host.includes(`coordinator.${port}.${method}(`)) {
-    errors.push(`apps/local-host/src/project-capabilities.ts: ${method} must use the public ${port} application`);
+    errors.push(`apps/local-host/src/goals-actions.ts: ${method} must use the public ${port} application`);
   }
   if (/\b(?:store|repository|coordinator)\s*[.:]|\b(?:SELECT|INSERT INTO|UPDATE|DELETE FROM)\b/u.test(application)) {
     errors.push(`plugins/native/goals: ${method} must compose Module owners without SQL or legacy callbacks`);
@@ -1467,10 +1384,10 @@ export function checkPackageBoundaries(repositoryRoot) {
     "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/project-capabilities.ts",
   ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")));
   const submissionOwnership = checkGoalTreeApplicationOwnership(...[
-    "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/project-capabilities.ts", "plugins/native/goals/src/goal-tree-submission.ts",
+    "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/goals-actions.ts", "plugins/native/goals/src/goal-tree-submission.ts",
   ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")));
   const proposalCheckOwnership = checkGoalTreeApplicationOwnership(...[
-    "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/project-capabilities.ts", "plugins/native/goals/src/goal-tree-check.ts",
+    "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/goals-actions.ts", "plugins/native/goals/src/goal-tree-check.ts",
   ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")), "checkGoalTreeProposal", "goalTreeCheck");
   const errors = [
     ...((() => {
@@ -1486,7 +1403,7 @@ export function checkPackageBoundaries(repositoryRoot) {
     })()).map(message => `[proposal-ui-owner] ${message}`),
     ...proposalCheckOwnership.map(message => `[proposal-check-owner] ${message}`),
     ...checkGoalTreeApplicationOwnership(...[
-      "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/project-capabilities.ts", "plugins/native/goals/src/goal-tree-decision.ts",
+      "apps/local-host/src/goal-project-application.ts", "apps/local-host/src/goals-actions.ts", "plugins/native/goals/src/goal-tree-decision.ts",
     ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")), "decideGoalTreeProposal", "goalTreeDecision")
       .map(message => `[proposal-decision-owner] ${message}`),
     ...[

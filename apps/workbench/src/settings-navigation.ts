@@ -11,13 +11,13 @@ export interface WebProjectNavigation {
 
 export type WebSettingsSection = "appearance" | "models" | "runtimes" | "mcp" | "connectors" | "projects" | "diagnostics";
 type SettingsNavigationActive = string;
-type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "planning";
+type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "rules" | "planning";
 
 
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles" | "link"): string;
+  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles" | "link" | "key" | "network" | "folder" | "code" | "note" | "clipboard" | "image"): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
@@ -27,7 +27,7 @@ function settingsContextHref(
   project: Pick<WebProjectNavigation, "project_id"> | null,
   desktopShell: boolean,
 ): string {
-  const scopedPath = project && path.startsWith("/settings/")
+  const scopedPath = project && (path.startsWith("/settings/") || path.startsWith("/capabilities/"))
     ? path + (path.includes("?") ? "&" : "?") + "project=" + encodeURIComponent(project.project_id)
     : path;
   return desktopShell ? withDesktopQuery(scopedPath) : scopedPath;
@@ -87,12 +87,11 @@ function renderSettingsNavigation(
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
       <div class="settings-nav-group-label">${L("本机")}</div>
-      <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("外观")}</a>
+      <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("界面与语言")}</a>
       <div class="settings-nav-group-label">${L("工具")}</div>
-      <a href="${href("/settings/models")}"${current("models")}>${icon("settings")}${L("模型设置")}</a>
+      <a href="${href("/settings/models")}"${current("models")}>${icon("key")}${L("模型设置")}</a>
       <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
-      <a href="${href("/settings/mcp")}"${current("mcp")}>${icon("settings")}${L("MCP")}</a>
-      <a href="${href("/settings/connectors")}"${current("connectors")}>${icon("link")}${L("Connectors")}</a>
+      <a href="${href(`/capabilities/library${project ? `?project=${encodeURIComponent(project.project_id)}` : ""}`)}">${icon("sparkles")}${L("能力")}</a>
       <div class="settings-nav-group-label">${L("系统")}</div>
       <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${icon("bug")}${L("诊断")}</a>
       ${listPluginSettingsNavItems(enabledPlugins, hiddenPlugins).map((page) => `<a href="${href(`/settings/${page.section_id}`)}"${current(page.section_id)}>${icon(page.icon)}${escapeHtml(L(page.label))}</a>`).join("")}
@@ -114,6 +113,7 @@ function renderProjectSettingsNavigation(
     <div class="settings-project-identity"><strong title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</strong><span>${L("项目设置")}</span></div>
     <div class="settings-nav-body">
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${L("常规")}</a>
+      <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${L("工作目录")}</a>
       <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>
     </div>
   </nav>`;

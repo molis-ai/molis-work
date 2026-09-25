@@ -225,6 +225,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .feed-stage-directory { max-width:none; height:100%; min-height:0; padding:0; }
   body.immersive-workbench .feed-stage-tree { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:stable; padding:8px clamp(16px, 3vw, 40px) 24px; }
   body.immersive-workbench .feed-stage-list { max-width:1104px; margin-inline:auto; }
+  body.immersive-workbench .plugin-stage-shell > .feed-stage-list { max-width:none; margin-inline:0; }
   body.immersive-workbench .feed-stage-toolbar { position:relative; flex:none; min-height:32px; padding:4px 12px; margin:0; gap:8px; border-bottom:1px solid var(--line-strong); background:var(--paper); }
   body.immersive-workbench .feed-stage-heading { margin-right: auto; min-width: 0; }
   body.immersive-workbench .feed-stage-heading h1 { font-size: 13px; line-height: 1.3; font-weight: 400; letter-spacing: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

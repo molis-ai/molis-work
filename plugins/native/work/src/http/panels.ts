@@ -26,7 +26,7 @@ export interface WorkPanelHttpContext {
   withHost<T>(operation: (host: WorkPanelHost) => Promise<T>): Promise<T>;
   readGoal(goalId: string): Pick<GoalRecord, "title" | "decomposition_state"> & { event_work?: boolean; event_facts?: string };
   readLinkedFeedContext(goalId: string, itemId?: string): { source_context: string } | null;
-  projectGuidance(): string;
+  projectGuidance(): string | Promise<string>;
   isRuntimeKind(kind: string): boolean;
   launchSpec(input: { runtime_kind: string; command?: string; args?: string[]; resume_session_id?: string | null }): {
     runtime_kind: string; command: string; args: string[]; title: string;
@@ -75,7 +75,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
             goal_id: goalId,
             title: contract.title,
             source_context: sourceContext,
-            project_guidance_prefix: context.projectGuidance(),
+            project_guidance_prefix: await context.projectGuidance(),
             onboarding: url.searchParams.get("onboarding") === "1",
             event_work: contract.event_work === true,
             current_facts: contract.event_facts,

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>从已有工作开始 · Molis Work</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('molis-onboarding-demo-theme')||'light'}catch{}</script>
+</head>
+<body>
+<!-- THESIS: A single checklist brings real work into a usable context, with select-all and one start.
+OWN-WORLD: Existing Molis Coss neutral paper, graphite actions, Inter/Noto Sans, fine boundaries and Lucide.
+STORY: Select sources, connect only what is missing, watch source-grounded understanding emerge, adopt and continue.
+FIRST VIEWPORT: A quiet 300px introduction beside a 640px working checklist. The select-all header, five source rows, model disclosure and start footer stay together. On narrow screens they form one column.
+FORM: Code-led extension of the user-approved checklist; no new-world seed. Signature: selected sources become reading receipts, then evidence-backed project content without a new questionnaire.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance -->
+  <div id="app"></div>
+  <dialog id="modal"></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/assets/lucide.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

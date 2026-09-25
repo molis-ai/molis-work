@@ -6,8 +6,8 @@ import type {
 
 import { textStatsManifest } from "./manifest.js";
 import { textStatsUiContribution } from "./ui.js";
-import { parseFileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { projectTextStats, waitingStats, unavailableStats } from "./core.js";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-contracts/platform/actions";
+import { textStatsActions, textStatsActionHandlers } from "./actions.js";
 
 export interface TextStatsPluginPorts {
   /** Called with the bound snapshot, or null when the input went away. */
@@ -25,16 +25,8 @@ export function createTextStatsPlugin(ports: TextStatsPluginPorts = {}): PluginD
       return {
         kind: "app",
         views: [textStatsUiContribution],
-        routes: [{ route_id: "text-stats.state", handle: () => {
-          try {
-            const record = context.services?.inputs?.read("text");
-            if (!record) return { status: 200, body: { view: waitingStats() } };
-            if (record.availability !== "available" || record.lifecycle_state !== "active") return { status: 200, body: { view: unavailableStats() } };
-            return { status: 200, body: { view: projectTextStats({ snapshot: parseFileSnapshot(record.payload),
-              source_plugin_id: record.producer_plugin_id, content_version: record.version }) } };
-          }
-          catch { return { status: 200, body: { view: unavailableStats() } }; }
-        } }],
+        actions: textStatsActionHandlers(context),
+        routes: [bindPluginActionRoute(context, textStatsActions.state, () => ({}))],
         onUpstreamReady: (inputs) => {
           const record = inputs.text;
           // An Artifact the Host could not make available is not an input.

@@ -3,10 +3,12 @@ import { rmSync } from "node:fs";
 import test from "node:test";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
-import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 
+// The immutable v35 dump predates the current demo project ID.
+const DEMO_BOARD_ID = "goalboard-v1-demo";
 const TOKEN = "molis-work-history-contract-token-0123456789abcdef";
 
 function listen(server: Server): Promise<string> {
@@ -30,7 +32,7 @@ test("public document timeline is bounded, keeps journal, and does not label sel
   try {
     const page = async (goalId: string, query: Record<string, string>) => {
       const response = await fetch(`${origin}/api/goals/${goalId}/event-timeline?${new URLSearchParams(query)}`);
-      assert.equal(response.status, 200);
+      assert.equal(response.status, 200, await response.clone().text());
       return response.json() as Promise<{ items: Array<{ item_id: string; original_id: string; source: string; actor_id: string; actor_kind: string | null; relation?: { from_id: string; to_id: string; from_title: string; to_title: string; label: string }; status_label: string | null }>; next_cursor: string | null }>;
     };
     const coreBefore = await page("CORE", { limit: "1" });

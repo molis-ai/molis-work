@@ -10,7 +10,10 @@ import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAlchemistProloguePort } from "../apps/local-host/src/alchemist-prologue.js";
-import { handleAlchemistNativePluginHttp, closeAlchemist, createAlchemistSearchPort } from "../apps/local-host/src/alchemist-native-plugin-http.js";
+import { handleAlchemistNativePluginHttp } from "../apps/local-host/src/alchemist-native-plugin-http.js";
+import { createAlchemistSearchPort } from "../apps/local-host/src/alchemist-search.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { createAlchemistSearchTransport } from "../apps/local-host/src/alchemist-search-transport.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "../apps/local-host/src/web-http.js";
 import type { MolisWorkProjectCatalog } from "../apps/local-host/src/project-catalog.js";
@@ -19,7 +22,6 @@ import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import { PrologueAgentAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalSqliteStorage, type SecretStore } from "@molis-ai/molis-work-storage";
 
-const withUnavailableCatalog: LocalWebCatalogRunner = async () => { throw new Error("test must not read real credentials"); };
 const card = { title: "访谈回看", highlight: "找回原话", targetUser: "独立创始人", scenario: "访谈结束后复盘", problem: "判断遗漏了用户原话", mechanism: "把判断关联到原句", valueProposition: "减少错误假设", whyItMayWork: "用户已有访谈记录", assumptions: ["愿意整理访谈"], unknowns: ["是否持续使用"], mvp: { inScope: ["导入一份访谈"], outOfScope: ["自动录音"] } };
 const ai: AlchemistAiPort = {
   async listModels() { return [{ id: "test/model", label: "测试模型", runtimeLabel: "显式测试运行时", costVisibility: "unobservable" }]; },
@@ -29,6 +31,7 @@ const ai: AlchemistAiPort = {
 
 test("studio HTTP keeps project isolation, authorized writes, persisted cards, export and legacy read-only boundary", { timeout: 15_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-http-"));
+  let host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai } });
   const mutations = new Map<string, LocalMutationState>();
   const token = "alchemist-http-test-control-token-0123456789";
   const server = http.createServer(async (request, response) => {
@@ -36,7 +39,10 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     const project = /^\/projects\/([^/]+)/.exec(url.pathname)?.[1] ?? "a";
     url.pathname = url.pathname.replace(/^\/projects\/[^/]+/, "");
-    await handleAlchemistNativePluginHttp(request, response, url, home, { projectId: project, routePrefix: `/projects/${project}`, controlToken: token, withCatalog: withUnavailableCatalog, ai });
+    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), boardId: project, projectId: project });
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ board_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
+    await handleAlchemistNativePluginHttp(request, response, url, { projectId: project, routePrefix: `/projects/${project}`,
+      actions: { invoke: async (definition, input, signal) => await host.actionClient(ref).invoke({ actor_id: "http-user", project_id: project, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -55,7 +61,7 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     assert.equal((await fetch(`${origin}/projects/a/api/alchemist/studio/assets/app.js`)).status, 404);
     const mismatch = await fetch(`${origin}/projects/a/api/alchemist/studio?project_id=b`); assert.equal(mismatch.status, 400);
     const created = await request("a", "/directions", { description: "让创始人用访谈原句复核自己的产品假设" });
-    assert.equal(created.status, 201); const directionId = created.body.direction.id;
+    assert.equal(created.status, 201, JSON.stringify(created.body)); const directionId = created.body.direction.id;
     const started = await request("a", `/directions/${directionId}/explorations`, {});
     assert.equal(started.status, 202);
     let result: any;
@@ -73,18 +79,25 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     assert.equal(exported.status, 200); assert.match(JSON.stringify(exported.body), /访谈回看/); assert.doesNotMatch(JSON.stringify(exported.body), /api_key|secret_alias/);
     const otherExport = await request("b", "/workspace/export?format=json", {}); assert.doesNotMatch(JSON.stringify(otherExport.body), /访谈回看/);
     const oldWrite = await fetch(`${origin}/projects/a/api/alchemist`, { method: "POST", headers: { origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() }, body: "{}" }); assert.equal(oldWrite.status, 410);
-    await closeAlchemist(home);
+    await host.close();
+    host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai } });
     const restored = await request("a", "/bootstrap"); assert.equal(restored.body.ideas.length, 1); assert.equal(restored.body.ideas[0].title, card.title);
   } finally {
-    await closeAlchemist(home);
+    await host.close();
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
   }
 });
 
-test("Alchemist generation crosses packed Prologue SDK with fixed host model and typed prompt, one provider call", { timeout: 30_000 }, async t => {
+test("Alchemist packed Prologue uses the real actor and fixed model, and rejects a result after model configuration changes", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-prologue-"));
   const requests: Array<Record<string, any>> = [];
+  let changeConfiguration = false;
+  const sessionActors: string[] = [];
+  const createSession = PrologueAgentAdapter.prototype.createSession;
+  t.mock.method(PrologueAgentAdapter.prototype, "createSession", function (this: PrologueAgentAdapter, ...args: Parameters<typeof createSession>) {
+    sessionActors.push(args[0].actor_id); return createSession.apply(this, args);
+  });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)));
     const events: string[] = [];
@@ -93,6 +106,7 @@ test("Alchemist generation crosses packed Prologue SDK with fixed host model and
     emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
     emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: '{"reply":"原文可追溯"}' } });
     emit("content_block_stop", { index: 0 }); emit("message_delta", { delta: { stop_reason: "end_turn" }, usage: { output_tokens: 12 } }); emit("message_stop", {});
+    if (changeConfiguration) provider.models[0]!.enabled = false;
     return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
   });
   const provider = { provider_id: "fixture", display_name: "显式测试 Provider", base_url: "https://1.1.1.1", api_format: "anthropic-messages" as const, credential_ref: "test-secret", enabled: true, models: [{ model_id: "model", enabled: true }], created_at: "", updated_at: "" };
@@ -103,11 +117,15 @@ test("Alchemist generation crosses packed Prologue SDK with fixed host model and
   try {
     const port = createAlchemistProloguePort({ homeDirectory: home, projectId: "p", withCatalog, search: ai.search });
     assert.equal((await port.listModels())[0]?.id, "fixture/model");
-    const generated = await port.generate({ operationId: "copilot-1", purpose: "解释当前访谈", systemPrompt: "只讨论提供的原文", userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
+    const generated = await port.generate({ operationId: "copilot-1", actorId: "external-author", purpose: "解释当前访谈", systemPrompt: "只讨论提供的原文", userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
     assert.equal(JSON.parse(generated.text).reply, "原文可追溯"); assert.match(generated.runtimeLabel, /Prologue/); assert.equal(requests.length, 1);
     assert.match(JSON.stringify(requests[0].messages), /不愿每天重新整理/);
     await assert.rejects(port.generate({ operationId: "missing", purpose: "test", systemPrompt: "", userPrompt: "", jsonSchema: {}, modelId: "fixture/missing" }), /没有可用模型/);
     assert.equal(requests.length, 1, "a missing fixed model must not trigger fallback or a paid request");
+    changeConfiguration = true;
+    await assert.rejects(port.generate({ operationId: "changed-config", actorId: "external-author", purpose: "检查配置变更", systemPrompt: "只输出 JSON", userPrompt: "返回一句回复",
+      jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" }), /RUNTIME_CONFIGURATION_CHANGED/);
+    assert.equal(requests.length, 2); assert.deepEqual(sessionActors, ["external-author", "external-author"]);
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
+import { goalsActions } from "../actions.js";
 
 export async function handleGoalCreateHttp(context: GoalsHttpContext): Promise<boolean> {
   if (context.method === "POST" && context.pathname === "/api/goals") {
@@ -38,15 +39,15 @@ export async function handleGoalCreateHttp(context: GoalsHttpContext): Promise<b
       ),
     ];
     try {
-      const created = context.goalEvents.createIntent({
-        board_id: context.options.boardId,
-        goal_id: optionalText("goal_id"),
+      const goalId = optionalText("goal_id"), parentGoalId = optionalText("parent_goal_id");
+      const created = await context.actions.invoke(goalsActions.create, {
+        ...(goalId ? { goal_id: goalId } : {}),
         title: requiredText("title", 120),
         outcome: draftText("outcome"),
         why: draftText("why"),
         business_logic: draftText("business_logic"),
-        priority,
-        parent_goal_id: optionalText("parent_goal_id"),
+        ...(priority !== undefined ? { priority } : {}),
+        ...(parentGoalId ? { parent_goal_id: parentGoalId } : {}),
         dependency_goal_ids: [
           ...new Set(
             (Array.isArray(body.dependency_goal_ids) ? body.dependency_goal_ids : [])
@@ -56,8 +57,6 @@ export async function handleGoalCreateHttp(context: GoalsHttpContext): Promise<b
           ),
         ],
         requirements: acceptanceStatements.map((statement) => ({ statement })),
-        actor_id: "web-user",
-        actor_kind: "user",
         idempotency_key: String(body.idempotency_key ?? context.idempotencyHeader ?? `web-goal-${randomUUID()}`),
         source_kind: "web",
       });

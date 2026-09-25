@@ -3,7 +3,7 @@ import { FeedPluginRouteTable, createFeedRouteHandlers, feedRouteErrorResponse, 
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments, type LocalFeedApplicationOptions } from "./feed-application.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
@@ -21,6 +21,7 @@ export interface FeedNativePluginHttpOptions {
   readonly readWebView: () => MolisWorkWebView;
   readonly invalidateWebView: () => void;
   readonly homeDirectory?: string;
+  readonly feedOptions?: LocalFeedApplicationOptions;
 }
 
 export async function handleFeedNativePluginHttp(
@@ -55,14 +56,14 @@ export async function handleFeedNativePluginHttp(
 }
 
 function createHandlers(options: FeedNativePluginHttpOptions): { handlers: ReturnType<typeof createFeedRouteHandlers>; feed: FeedApplication } {
-  const feed = createLocalFeedApplication(options.store.db, withLocalFeedJudgments(options.homeDirectory));
+  const feed = createLocalFeedApplication(options.store.db, options.feedOptions ?? withLocalFeedJudgments(options.homeDirectory));
   return {
     feed,
     handlers: createFeedRouteHandlers({
       boardId: options.boardId, routePrefix: options.routePrefix,
       feed: () => feed,
-      sources: () => createLocalFeedSourceService(options.store.db, options.boardId, undefined, undefined, options.homeDirectory),
-      connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId, undefined, options.homeDirectory),
+      sources: () => createLocalFeedSourceService(options.store.db, options.boardId, undefined, undefined, options.homeDirectory, options.feedOptions),
+      connectors: () => createLocalFeedConnectorService(options.store.db, options.boardId, undefined, options.homeDirectory, options.feedOptions),
       changed: () => options.invalidateWebView(),
       hydrateItem: (item) => attachFeedItemSuggestions(
         hydrateFeedItemContent(item),

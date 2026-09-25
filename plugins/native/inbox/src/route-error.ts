@@ -3,10 +3,16 @@ import type { InboxPluginRouteResponse } from "./routes.js";
 export function inboxRouteErrorResponse(error: unknown): InboxPluginRouteResponse {
   const code = errorCode(error);
   const message = error instanceof Error ? error.message : String(error);
+  if (code === "actions.forbidden" || code === "actions.plugin_disabled") {
+    return { status: 403, body: { error: message, code } };
+  }
+  if (code === "actions.connection_required") {
+    return { status: 503, body: { error: message, code } };
+  }
   if (code === "inbox_entry_not_found" || code === "attention_entry_not_found") {
     return { status: 404, body: { error: message, code } };
   }
-  if (code === "feed_revision_conflict" || code === "attention_revision_conflict") {
+  if (code === "actions.subject_changed" || code === "actions.binding_changed" || code === "actions.provider_changed" || code === "feed_revision_conflict" || code === "attention_revision_conflict") {
     return { status: 409, body: { error: message, code } };
   }
   return { status: 400, body: { error: message, ...(code ? { code } : {}) } };

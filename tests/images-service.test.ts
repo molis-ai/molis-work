@@ -105,7 +105,7 @@ test("images: concurrency is capped per home across projects, cancellation frees
   assert.equal(resolvers.length, 3);
 });
 
-test("images: a second Host process cannot interrupt a live runner's persisted jobs", async (t) => {
+test("images: a second Host process reads live jobs and closing it does not interrupt their owner", async (t) => {
   const { service, home } = fixture(t, () => new Promise(() => {}));
   const connection = service.saveConnection(connectionInput);
   const job = service.start("project-a", { request_id: "cross-process", connection_id: connection.id, prompt: "狐狸" });
@@ -114,13 +114,42 @@ test("images: a second Host process cannot interrupt a live runner's persisted j
   const script = `import { ImagesService } from ${JSON.stringify(moduleUrl)};
     try {
       const service = new ImagesService({homeDirectory:${JSON.stringify(home)},secrets:{get:()=>null,put:()=>{},delete:()=>{}}});
+      process.stdout.write(service.getJob('project-a', ${JSON.stringify(job.id)}).status);
       await service.close();
-      process.stdout.write('unexpected second runner');
     } catch(error) { process.stdout.write(error.code ?? 'unexpected error'); }`;
   const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
   assert.equal(child.status, 0, child.stderr);
-  assert.equal(child.stdout, "images.already_open");
+  assert.equal(child.stdout, "running");
   assert.equal(service.getJob("project-a", job.id).status, "running");
+});
+
+test("images: legacy running data recovers only after the old exclusive runner closes", async (t) => {
+  const { service, home, secrets } = fixture(t, () => new Promise(() => {}));
+  const connection = service.saveConnection(connectionInput);
+  const job = service.start("project-a", { request_id: "legacy", connection_id: connection.id, prompt: "legacy" });
+  await service.close();
+  const db = new DatabaseSync(join(home, "images", "images.db"));
+  db.prepare("UPDATE jobs SET status = 'running', runner_id = NULL, finished_at = NULL WHERE id = ?").run(job.id);
+  db.exec("ALTER TABLE jobs DROP COLUMN runner_id");
+  db.close();
+  const oldLock = new DatabaseSync(join(home, "images", ".runner-lock.db"));
+  oldLock.exec("BEGIN EXCLUSIVE");
+  try { assert.throws(() => new ImagesService({ homeDirectory: home, secrets }), { code: "images.already_open" }); }
+  finally { oldLock.close(); }
+  const restarted = new ImagesService({ homeDirectory: home, secrets });
+  try {
+    assert.equal(restarted.getJob("project-a", job.id).status, "interrupted");
+    assert.equal(restarted.listConnections()[0]!.id, connection.id);
+    // An old executable must also be excluded while the new runner is alive.
+    const module = new URL("node:sqlite").href;
+    const script = `import { DatabaseSync } from ${JSON.stringify(module)};
+      const lock = new DatabaseSync(${JSON.stringify(join(home, "images", ".runner-lock.db"))});
+      try { lock.exec('BEGIN EXCLUSIVE'); process.stdout.write('unexpected'); }
+      catch (error) { process.stdout.write(String(error.errcode)); }
+      finally { lock.close(); }`;
+    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
+    assert.equal(child.status, 0, child.stderr); assert.equal(child.stdout, "5");
+  } finally { await restarted.close(); }
 });
 
 test("images: a generation captures its model and key when started, even if settings change before fetch", async (t) => {
@@ -212,7 +241,7 @@ test("images: failed store initialization releases the runner even when database
     if (closes === 1) throw new Error("injected constructor cleanup failure");
   });
   assert.throws(() => new ImagesStore(home), /injected constructor cleanup failure/u);
-  assert.equal(closes, 2);
+  assert.equal(closes, 3);
   execMock.mock.restore();
   closeMock.mock.restore();
   const store = new ImagesStore(home);

@@ -7,6 +7,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
   const dialog = workbench.querySelector("[data-schedule-create-dialog]");
   const form = workbench.querySelector("[data-schedule-create-form]");
   const errorEl = workbench.querySelector("[data-schedule-create-error]");
+  let editingTaskId = "";
   const OPEN_KEY = "mw-schedule-open";
   const headers = () => globalThis.molisWorkControlHeaders?.() || { "content-type": "application/json" };
   const expand = (expanded) => {
@@ -77,6 +78,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       });
       list.scrollTop = scrollTop;
       if (openId) select(openId, kind);
+      else collapse();
       return true;
     } catch {
       location.reload();
@@ -96,10 +98,15 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (fields) fields.inert = busy;
     workbench.querySelectorAll("[data-schedule-new], [data-schedule-create-close]").forEach(button => { button.disabled = busy; });
     const submit = form?.querySelector("[type=submit]");
-    if (submit) { submit.disabled = busy; submit.textContent = L(busy ? "正在创建…" : "创建"); }
+    if (submit) { submit.disabled = busy; submit.textContent = L(busy ? "正在保存…" : editingTaskId ? "保存" : "创建"); }
   };
   workbench.querySelector("[data-schedule-new]")?.addEventListener("click", () => {
     if (creating) return;
+    editingTaskId = "";
+    form?.reset();
+    const heading = workbench.querySelector("[data-schedule-form-title]");
+    if (heading) heading.textContent = L("新建定时任务");
+    setCreating(false);
     showError("");
     dialog?.showModal();
     form?.querySelector("[name=title]")?.focus();
@@ -115,7 +122,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     setCreating(true);
     showError("");
     try {
-      const response = await fetch(route("/api/schedule/tasks"), {
+      const response = await fetch(route(editingTaskId ? "/api/schedule/tasks/" + encodeURIComponent(editingTaskId) + "/update" : "/api/schedule/tasks"), {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({
@@ -126,7 +133,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
         }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || L("无法创建定时任务"));
+      if (!response.ok) throw new Error(result.error || L("无法保存定时任务"));
       dialog?.close();
       form?.reset();
       await refreshStage(result.task.task_id, "task");
@@ -146,6 +153,39 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("click", async (event) => {
     if (event.target.closest("[data-schedule-collapse]")) {
       collapse();
+      return;
+    }
+    const edit = event.target.closest("[data-schedule-task-edit]");
+    if (edit) {
+      const detail = edit.closest("[data-schedule-detail]");
+      editingTaskId = edit.dataset.scheduleTaskEdit;
+      form.querySelector("[name=title]").value = detail.querySelector("h1").textContent;
+      form.querySelector("[name=instructions]").value = detail.querySelector("[data-schedule-task-instructions]").value;
+      form.querySelector("[name=time]").value = detail.querySelector("[data-schedule-task-time]").value;
+      form.querySelector("[name=notify_important]").checked = detail.querySelector("[data-schedule-task-notify]").value === "true";
+      const heading = workbench.querySelector("[data-schedule-form-title]");
+      if (heading) heading.textContent = L("编辑定时任务");
+      setCreating(false);
+      showError("");
+      dialog.showModal();
+      return;
+    }
+    const archive = event.target.closest("[data-schedule-task-archive]");
+    if (archive) {
+      if (!confirm(L("归档这条定时任务？归档后不会再自动运行。"))) return;
+      archive.disabled = true;
+      try {
+        const response = await fetch(route("/api/schedule/tasks/" + encodeURIComponent(archive.dataset.scheduleTaskArchive) + "/archive"), {
+          method: "POST", headers: headers(), body: JSON.stringify({}),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || L("无法归档定时任务"));
+        await refreshStage();
+      } catch (error) {
+        const status = archive.closest("[data-schedule-detail]")?.querySelector("[data-schedule-action-status]");
+        if (status) { status.hidden = false; status.textContent = error.message || L("无法归档定时任务"); }
+        archive.disabled = false;
+      }
       return;
     }
     const taskAction = event.target.closest("[data-schedule-task-enabled-action]");

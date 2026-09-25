@@ -44,9 +44,7 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-back { display:inline-flex; align-items:center; gap:8px; min-height:38px; text-decoration:none; }
   .artifact-back svg { width:16px; height:16px; transform:rotate(180deg); }
   .artifact-version-list { display:flex; flex-direction:column; gap:2px; }
-  .artifact-import-entry { display:flex; flex:none; align-items:center; gap:8px; min-height:44px; margin-bottom:12px; padding:8px 10px; color:var(--blue-dark); text-decoration:none; border:1px solid var(--line); border-radius:7px; }
-  .artifact-import-entry svg { width:16px; height:16px; }
-  .artifact-import-entry:hover { background:var(--blue-soft); }
+  .artifact-import-entry { text-decoration:none; }
   .artifact-version-list .mw-dir-row,
   .artifact-version-list .feed-stage-entry { width:100%; }
   .artifact-stage { min-width:0; padding:24px clamp(20px,4vw,56px); background:var(--paper); }

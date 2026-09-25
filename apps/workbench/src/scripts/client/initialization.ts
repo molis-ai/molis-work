@@ -217,7 +217,11 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(activeDesktopSurface, false, false);
     }
     immersiveNavigation?.sync();
-    tabWorkspace?.restore();
+    const directGoalRequested = /^\\/(?:archive\\/|trash\\/)?goals\\/[^\\/]+\\/?$/.test(localPathname());
+    const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
+      performance.getEntriesByType("navigation")[0]?.type,
+    );
+    tabWorkspace?.restore(directGoalRequested && !restoredNavigation ? selected : "");
     const restoredExclusive = tabWorkspace?.state?.()?.exclusive;
     const settingsKind = restoredExclusive === "settings" || restoredExclusive === "project-settings"
       ? restoredExclusive
@@ -230,15 +234,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(settingsDirectory?.getProjectActive?.() || "general");
       else void settingsDirectory?.loadSection?.(settingsDirectory?.getActive?.() || "appearance");
     }
-    const directGoalRequested = /^\\/(?:archive\\/|trash\\/)?goals\\/[^\\/]+\\/?$/.test(localPathname());
-    const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
-      performance.getEntriesByType("navigation")[0]?.type,
-    );
-    if (tabWorkspace) {
-      if (directGoalRequested && selected && !restoredNavigation) {
-        tabWorkspace.openPlugin("goals");
-      }
-    } else if (!directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
+    if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";
       setDesktopDirectory("root", false, false);
       setDesktopWorkSurface("home", false, false);
@@ -313,7 +309,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     immersiveNavigation?.sync();
     frameContainer?.restore();
-    tabWorkspace?.restore();
+    tabWorkspace?.apply();
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
       tabWorkspace.openItem("goals", selected);
     } else if (tabWorkspace && !directGoalRequested && !decisionView && !collectionView) {

@@ -1,3 +1,4 @@
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -40,6 +41,7 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
     await client.invoke(initializeBoardCapability, {
       board_id: boardId, title: "真实命令链", actor_id: "user", idempotency_key: "init",
     });
+    await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:chain");
     const created = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
       title: "跨入口验收", outcome: "命令迁移后仍可完成同一 Goal", idempotency_key: "create",
     }));

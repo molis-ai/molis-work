@@ -28,6 +28,9 @@ export interface DatasetRow {
   readonly cells: Readonly<Record<string, string>>;
 }
 
+export type DatasetColumnInput = Partial<DatasetColumn>;
+export type DatasetRowInput = Partial<DatasetRow>;
+
 export interface DatasetRecord {
   readonly id: string;
   readonly project_id: string;
@@ -41,6 +44,7 @@ export interface DatasetRecord {
   readonly version: number;
   readonly artifact_id: string;
   readonly artifact_version: number;
+  readonly publication_pending?: { readonly version: number; readonly source_version: number };
 }
 
 export interface DatasetVersionRecord {

@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { defineAction } from "./actions.js";
+export { bindPluginActionRoute, bindOwnerPluginAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ActionDefinition, ActionCallContext, ActionHandlerBinding, ActionSceneDefinition, ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
   PluginUiClient, PluginHostServices,
@@ -160,3 +163,5 @@ function normalizeDate(value: string | undefined, fallback: string): string {
 }
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+
+export { defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";

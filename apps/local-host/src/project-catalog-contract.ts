@@ -78,6 +78,8 @@ export function catalogSchemaCompatibilityError(
 
 import type { ProjectRecord as MolisWorkProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 export interface CreateMolisWorkProjectInput {
+  /** Stable Host-owned identity for recoverable creation. */
+  project_id?: string;
   display_name: string;
   actor_id: string;
 }

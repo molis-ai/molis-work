@@ -1,5 +1,5 @@
 import type { ModelSettingsModel } from "./settings-models.js";
-import type { ConnectorAccountState, ConnectorAuthKind, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorAccountState, ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 export interface WebSettingsProject extends WebProjectNavigation {
@@ -24,6 +24,8 @@ export interface WebInstallationDiagnostics {
 
 export interface MolisWorkSettingsView {
   section: WebSettingsSection | string;
+  capabilities?: import("./capabilities.js").CapabilitiesView;
+  functions_settings?: Omit<import("./functions/settings-ui.js").FunctionsSettingsUiModel, "primitives">;
   plugin_settings_html?: string;
   model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
@@ -32,7 +34,9 @@ export interface MolisWorkSettingsView {
   hidden_plugins?: readonly string[];
   runtimes: RuntimeIntegrationDetection[];
   mcp_tools?: readonly McpSettingsToolView[];
+  mcp_access?: import("./mcp-access.js").McpAccessModel;
   connectors?: readonly ConnectorSettingsCardView[];
+  connector_connections?: readonly ConnectorConnectionView[];
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;
@@ -54,8 +58,12 @@ export interface ConnectorSettingsCardView {
   readonly token_placeholder?: string;
   readonly auth_help?: string;
   readonly setup_links?: readonly ConnectorSetupLink[];
+  readonly method_options?: readonly ConnectorMethodOption[];
   github_client_id_configured?: boolean;
   gmail_oauth_configured?: boolean;
+  notion_oauth_configured?: boolean;
+  connection_method?: "oauth" | "token" | "cli" | null;
+  workspace_name?: string | null;
 }
 
 export interface McpSettingsToolView {

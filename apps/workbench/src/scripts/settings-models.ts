@@ -44,12 +44,6 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           locked.forEach((control) => { control.disabled = true; });
         };
         try {
-          if (button.matches('[data-model-key-reveal]')) {
-            const input = root.querySelector('[data-model-api-key]');
-            input.type = input.type === 'password' ? 'text' : 'password';
-            button.setAttribute('aria-pressed', String(input.type === 'text'));
-            return;
-          }
           if (button.matches('[data-model-add]')) {
             root.querySelector('[data-model-rows]').append(root.querySelector('[data-model-row-template]').content.cloneNode(true));
             root.querySelector('[data-model-rows]').querySelectorAll('.model-field-hint').forEach((node) => node.remove());
@@ -64,7 +58,6 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           if (button.matches('[data-model-delete-cancel]')) { root.querySelector('[data-model-delete-confirm]').hidden = true; return; }
           if (button.matches('[data-model-save]')) {
             begin(); status(L('正在保存…'));
-            const key = root.querySelector('[data-model-api-key]');
             await mutate(encodeURIComponent(provider), 'POST', {
               display_name: root.querySelector('[data-model-name]').value,
               base_url: root.querySelector('[data-model-base-url]').value,
@@ -76,9 +69,9 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
                 ...JSON.parse(row.dataset.modelRecord || '{}'), model_id: row.querySelector('[data-model-id]').value.trim(),
                 enabled: row.querySelector('[data-model-enabled]').checked,
               })),
-              ...(key.value.trim() ? { api_key: key.value } : {}),
+              connection_id: root.querySelector('[data-model-connection]')?.value || '',
             });
-            key.value = ''; dirty = false;
+            dirty = false;
             await refresh(query); status(L('已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));
           } else if (button.matches('[data-model-test]')) {
             if (dirty) { status(L('请先保存配置，再测试这个模型。')); return; }

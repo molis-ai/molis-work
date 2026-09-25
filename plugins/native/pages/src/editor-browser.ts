@@ -268,8 +268,12 @@ function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "
   const top = Math.max(0, stage?.top ?? 0);
   const width = Math.min(window.innerWidth, stage?.right ?? window.innerWidth) - left;
   const height = Math.min(window.innerHeight, stage?.bottom ?? window.innerHeight) - top;
-  el.style.maxWidth = Math.max(0, width - 16) + "px";
-  el.style.maxHeight = Math.max(0, height - 16) + "px";
+  // Fit the stage, but never grow past the overlay's own CSS cap (the slash menu stays a compact scroller).
+  el.style.maxWidth = ""; el.style.maxHeight = "";
+  const declared = getComputedStyle(el);
+  const cap = (value: string) => { const px = parseFloat(value); return Number.isFinite(px) ? px : Infinity; };
+  el.style.maxWidth = Math.max(0, Math.min(width - 16, cap(declared.maxWidth))) + "px";
+  el.style.maxHeight = Math.max(0, Math.min(height - 16, cap(declared.maxHeight))) + "px";
   const box = el.getBoundingClientRect();
   const spot = placeFloating(
     { left: anchor.left - left, right: anchor.right - left, top: anchor.top - top, bottom: anchor.bottom - top },
@@ -345,12 +349,12 @@ function blockFor(id: string): Node {
 
 function slashItems(translate: Translate | undefined) {
   return [
-    { id: "paragraph", icon: "rows", group: "basic", label: t(translate, "段落"), hint: t(translate, "正文") },
+    { id: "paragraph", icon: "text", group: "basic", label: t(translate, "段落"), hint: t(translate, "正文") },
     { id: "heading1", icon: "hash", group: "basic", label: t(translate, "标题 1"), hint: "H1" },
     { id: "heading2", icon: "hash", group: "basic", label: t(translate, "标题 2"), hint: "H2" },
     { id: "heading3", icon: "hash", group: "basic", label: t(translate, "标题 3"), hint: "H3" },
     { id: "bullet_list", icon: "rows", group: "basic", label: t(translate, "无序列表"), hint: t(translate, "圆点") },
-    { id: "ordered_list", icon: "list", group: "basic", label: t(translate, "有序列表"), hint: "1." },
+    { id: "ordered_list", icon: "list-ordered", group: "basic", label: t(translate, "有序列表"), hint: "1." },
     { id: "task_list", icon: "check", group: "basic", label: t(translate, "清单"), hint: t(translate, "待办") },
     { id: "callout", icon: "info", group: "basic", label: t(translate, "Callout"), hint: t(translate, "提示块") },
     { id: "blockquote", icon: "message", group: "basic", label: t(translate, "引用"), hint: t(translate, "摘一句") },
@@ -494,12 +498,12 @@ function nudgeTableColumn(view: EditorView, direction: -1 | 1): boolean {
 
 function turnIntoItems(translate: Translate | undefined) {
   return [
-    { id: "paragraph", icon: "rows", label: t(translate, "段落") },
+    { id: "paragraph", icon: "text", label: t(translate, "段落") },
     { id: "heading1", icon: "hash", label: t(translate, "标题 1") },
     { id: "heading2", icon: "hash", label: t(translate, "标题 2") },
     { id: "heading3", icon: "hash", label: t(translate, "标题 3") },
     { id: "bullet_list", icon: "rows", label: t(translate, "无序列表") },
-    { id: "ordered_list", icon: "list", label: t(translate, "有序列表") },
+    { id: "ordered_list", icon: "list-ordered", label: t(translate, "有序列表") },
     { id: "task_list", icon: "check", label: t(translate, "清单") },
     { id: "callout", icon: "info", label: t(translate, "Callout") },
     { id: "blockquote", icon: "message", label: t(translate, "引用") },
@@ -2953,7 +2957,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     { name: "h2", label: t(options.translate, "标题 2"), run: headingCommand(2) },
     { name: "h3", label: t(options.translate, "标题 3"), run: headingCommand(3) },
     { name: "ul", label: t(options.translate, "无序列表"), icon: "rows", gap: true, run: (state, dispatch) => dispatchList(state, dispatch, "bullet_list") },
-    { name: "ol", label: t(options.translate, "有序列表"), icon: "list", run: (state, dispatch) => dispatchList(state, dispatch, "ordered_list") },
+    { name: "ol", label: t(options.translate, "有序列表"), icon: "list-ordered", run: (state, dispatch) => dispatchList(state, dispatch, "ordered_list") },
     { name: "task", label: t(options.translate, "清单"), icon: "check", run: (state, dispatch) => dispatchList(state, dispatch, "task_list") },
     { name: "tone", label: t(options.translate, "颜色"), gap: true, action: "tone" },
     { name: "link", label: t(options.translate, "链接"), icon: "link", action: "link" },

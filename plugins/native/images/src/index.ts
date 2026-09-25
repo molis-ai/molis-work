@@ -12,3 +12,5 @@ export * from "./client.js";
 export * from "./styles.js";
 export * from "./en.js";
 export * from "./routes.js";
+
+export * from "./actions.js";

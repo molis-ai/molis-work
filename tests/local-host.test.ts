@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 
 import { LocalHost, LocalHostError } from "@molis-ai/molis-work-app-local-host";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -115,11 +116,14 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
     goal_id: "shared-entry-goal",
     title: "共享 Host Goal",
     outcome: "三个入口看到同一个结果",
-    actor_id: "shared-user",
-    actor_kind: "user" as const,
+    actor_id: "runtime:shared:session",
+    actor_kind: "runtime" as const,
+    source_kind: "runtime" as const,
     idempotency_key: "shared-goal-command",
   };
-  const mcp = new MolisWorkServer("management", null, null, host);
+  const mcp = new MolisWorkServer("management", { databasePath, boardId, webBaseUrl: "http://127.0.0.1:4173" }, {
+    homeDirectory: directory, runtimeContext: { runtime_id: "shared", stable_work_context_id: "session", host_declares_stable: true },
+  }, host);
   try {
     await captureCli(() => runV1Cli([
       "init",
@@ -136,12 +140,11 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
       /未知 V1 operation: create-goal/,
     );
 
-    const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", {
-      database_path: databasePath,
-      ...intent,
-    })) as { goal: { goal_id: string }; observed_event_cursor: number; replayed: boolean };
-
     const reference = molisWorkHostProjectReference({ databasePath, boardId });
+    await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:shared");
+    const { board_id, actor_id, actor_kind, source_kind, ...businessInput } = intent;
+    const mcpCreated = JSON.parse(await mcp.callTool("molis_work_v1_goal_intent_create", businessInput)) as {
+      goal: { goal_id: string }; observed_event_cursor: number; replayed: boolean };
     const workbenchCreated = await host.client(reference).invoke(createGoalIntentCapability, intent);
     assert.equal(mcpCreated.goal.goal_id, "shared-entry-goal");
     assert.equal(workbenchCreated.replayed, true);

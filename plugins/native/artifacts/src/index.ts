@@ -28,3 +28,5 @@ export const packageDescriptor = {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest } from "./manifest.js";
+export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers } from "./actions.js";
+export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult } from "./actions.js";

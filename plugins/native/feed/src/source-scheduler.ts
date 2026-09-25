@@ -48,7 +48,7 @@ export class FeedSourceScheduler {
         result.completed += 1;
       } catch (error) {
         result.failed += 1;
-        this.recordActionableFault(source, error, at);
+        await this.recordActionableFault(source, error, at);
       } finally {
         this.inFlight.delete(source.source_id);
         service.advanceSchedule(source.source_id, plannedAt, at);
@@ -61,12 +61,13 @@ export class FeedSourceScheduler {
     return this.inFlight.has(sourceId);
   }
 
-  private recordActionableFault(source: FeedSourceRecord, error: unknown, at: Date): void {
+  private async recordActionableFault(source: FeedSourceRecord, error: unknown, at: Date): Promise<void> {
     const publicError = toFeedPublicError(error);
     if (publicError.retryable || !["auth", "configuration", "stale_cursor"].includes(publicError.category)) {
       return;
     }
-    const stored = this.createService().feed.createInboxEntry({
+    const feed = this.createService().feed;
+    const stored = feed.createInboxEntry({
       boardId: this.boardId,
       subjectType: "source_fault",
       subjectId: source.source_id,
@@ -81,8 +82,8 @@ export class FeedSourceScheduler {
       at: at.toISOString(),
     });
     if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      this.createService().feed
-        .setInboxEntryStatus(this.boardId, stored.entry.entry_id, "open", stored.entry.revision);
+      feed.setInboxEntryStatus(this.boardId, stored.entry.entry_id, "open", stored.entry.revision);
     }
+    await feed.flushPendingJudgments();
   }
 }

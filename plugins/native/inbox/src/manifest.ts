@@ -1,5 +1,8 @@
+import { inboxContentActions } from "./content-actions.js";
+import { inboxNextScene } from "./scenes.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { INBOX_UI_CONTRIBUTION_ID } from "./ui.js";
+import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS } from "./actions.js";
 
 export const INBOX_PLUGIN_ID = "io.molis.work.inbox";
 /** What the project database stores for this Plugin. */
@@ -21,15 +24,11 @@ export const inboxManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
-  capabilities: { provides: [], consumes: ["functions.evaluate"] },
+  permissions: [...new Set([...INBOX_ACTION_PERMISSIONS, ...Object.values(inboxContentActions).flatMap(d => d.action.permissions)])].map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
+  actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions)],
+  action_scenes: [inboxNextScene],
+  capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
-  requires: [{
-    capability_id: "functions.evaluate",
-    version: 1,
-    optional: true,
-    reason: "Inbox 下一步可绑一个判断函数，落地时给出建议",
-  }],
   behaviors: [
     { behavior_id: "compose", title: "整理成文稿", effect: "read", subject_kinds: ["inbox_entry"] },
     { behavior_id: "verify", title: "先核查", effect: "read", subject_kinds: ["inbox_entry"] },

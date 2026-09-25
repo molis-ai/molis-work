@@ -1,4 +1,5 @@
 export const JELLY_EN: Record<string, string> = {
+  "原来选择的模型已不可用，选择仍保留。请恢复连接或重新选择模型。": "Your selected model is unavailable. The selection is retained; restore its connection or choose another model.",
   "Jelly 工作区": "Jelly workspace", "日历": "Calendar", "笔记": "Notes", "灵感": "Inspiration", "回顾": "Review",
   "撤销": "Undo", "重做": "Redo", "撤销最近一次修改": "Undo the last change", "更多": "More", "管理分类": "Manage categories",
   "导出工作区": "Export workspace", "导入工作区": "Import workspace", "上一段": "Previous", "下一段": "Next", "今天": "Today", "日历视图": "Calendar view",

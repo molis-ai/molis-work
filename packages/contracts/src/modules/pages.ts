@@ -37,6 +37,8 @@ export interface PagesRecord {
   readonly goal_id: string;
   readonly artifact_id: string;
   readonly artifact_version: number;
+  /** A durable unfinished publish; the immutable content stays with the Pages owner. */
+  readonly publication_pending?: { readonly version: number; readonly source_version: number; readonly goal_id: string };
   readonly created_at: string;
   readonly updated_at: string;
   readonly version: number;

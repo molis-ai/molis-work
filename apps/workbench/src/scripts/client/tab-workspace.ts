@@ -81,7 +81,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const narrow = () => matchMedia("(max-width: 760px)").matches;
   let state = ops.create();
   const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {} };
-  const restore = () => {
+  const restore = (requestedGoalId = "") => {
     if (embedded) {
       state = ops.create();
       const pane = ops.focused(state);
@@ -128,13 +128,27 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle");
       history.replaceState(history.state, "", returnedUrl);
     }
-    rewriteRetiredTaskTabs();
+    // Resolve an explicit Goal link before applying saved tabs; applying the old
+    // active item first can enqueue a stale document read over the requested Goal.
+    if (requestedGoalId) {
+      ops.setExclusive(state, null);
+      ops.openItem(state, "goals", requestedGoalId, titleForItem("goals", requestedGoalId));
+      setDirectory("goals", false, false);
+    }
+    rewriteRetiredTabs();
     apply();
     persist();
   };
-  const rewriteRetiredTaskTabs = () => {
+  const rewriteRetiredTabs = () => {
     for (const pane of state.panes || []) {
+      // Only obsolete view state is removed. Rules live in the system editor;
+      // saved public links are redirected by the Host with their record ID.
+      if (pane.viewPlugin === "functions" || pane.tabs?.some(tab => tab.plugin === "functions" && tab.id === pane.activeTabId)) {
+        pane.viewPlugin = "home";
+        pane.activeTabId = null;
+      }
       pane.tabs = (pane.tabs || []).filter((tab) => {
+        if (tab.plugin === "functions") return false;
         if (tab.plugin !== "task") return true;
         if (tab.kind !== "item" || !tab.goalId) return false;
         tab.plugin = "goals";
@@ -186,7 +200,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       return;
     }
     collapsePluginStage(plugin);
-    if (plugin === "feed") setFeedTask?.("all", false);
+    if (plugin === "feed") setFeedTask?.(topLevelSurface(plugin)?.dataset.selectedSource || "all", false);
   };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
@@ -222,23 +236,22 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.plugin === "feed" && tab.kind === "item" && tab.itemId) selectFeedItem?.(tab.itemId, false, true, false);
     if (tab.plugin === "inbox" && tab.kind === "item" && tab.itemId) selectInboxEntry?.(tab.itemId, false);
     if (tab.plugin === "sessions" && tab.kind === "item" && tab.itemId) {
+      // Select directly: a synthetic row click re-enters openItem through the capture listener and loops apply().
       const surface = topLevelSurface("sessions");
-      const row = document.querySelector('[data-operation-directory="sessions"] [data-record-id="' + CSS.escape(tab.itemId) + '"]');
-      if (row && !row.classList.contains("is-selected")) row.click();
-      else {
-        surface?.setAttribute("data-expanded", "true");
-        const workspace = surface?.querySelector("[data-session-stage-workspace]");
-        if (workspace) workspace.hidden = false;
-        surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => {
-          detail.hidden = detail.dataset.detailId !== tab.itemId;
-        });
-        document.querySelectorAll('[data-operation-directory="sessions"] [data-operation-row]').forEach((row) => {
-          const active = row.dataset.recordId === tab.itemId;
-          row.classList.toggle("is-selected", active);
-          row.setAttribute("aria-selected", String(active));
-        });
-        surface?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();
-      }
+      surface?.setAttribute("data-expanded", "true");
+      const workspace = surface?.querySelector("[data-session-stage-workspace]");
+      if (workspace) workspace.hidden = false;
+      surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => {
+        detail.hidden = detail.dataset.detailId !== tab.itemId;
+      });
+      document.querySelectorAll('[data-operation-directory="sessions"] [data-operation-row]').forEach((row) => {
+        const active = row.dataset.recordId === tab.itemId;
+        row.classList.toggle("is-selected", active);
+        row.setAttribute("aria-selected", String(active));
+        const button = row.matches("[data-operation-select]") ? row : row.querySelector("[data-operation-select]");
+        if (button) button.tabIndex = active ? 0 : -1;
+      });
+      surface?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();
     }
   };
   const mount = (pane, node) => {

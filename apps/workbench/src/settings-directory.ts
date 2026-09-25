@@ -12,11 +12,9 @@ export interface SettingsDirectoryPrimitives {
 }
 
 const SETTINGS_SECTIONS = [
-  { id: "appearance", label: "外观", icon: "sun" },
-  { id: "models", label: "模型设置", icon: "settings" },
+  { id: "appearance", label: "界面与语言", icon: "sun" },
+  { id: "models", label: "模型设置", icon: "key" },
   { id: "runtimes", label: "AI 与执行工具", icon: "terminal" },
-  { id: "mcp", label: "MCP", icon: "settings" },
-  { id: "connectors", label: "Connectors", icon: "link" },
   { id: "diagnostics", label: "诊断", icon: "bug" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
 
@@ -33,6 +31,7 @@ function globalSettingsSections(enabled?: readonly string[], hidden?: readonly s
 
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
+  { id: "workspaces", label: "工作目录", icon: "folder" },
   { id: "guidance", label: "项目说明", icon: "book" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
 
@@ -43,6 +42,7 @@ function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
 export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
   return `<footer class="personal-sidebar-footer">
+    <a class="immersive-plugin-link plugin-rail-item" href="__SYSTEM_CAPABILITIES__" aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link plugin-rail-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
     <button class="personal-account" type="button" data-account-link aria-label="${L("账号管理")}" title="${L("账号管理")}">
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>

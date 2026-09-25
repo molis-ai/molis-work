@@ -36,7 +36,8 @@ export const LINGGUANG_EN: Record<string, string> = {
   "收起": "Collapse",
   "Inbox": "Inbox",
   "Goal": "Goal",
-  "Functions": "Functions",
+  "判断规则": "Rules",
+  "本地记录": "Local record",
   "分发候选": "Send-on candidates",
   "先记下还没想清楚的想法，再决定留下或丢掉。": "Capture a thought before it has a place, then keep or discard it.",
 };

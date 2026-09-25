@@ -65,7 +65,7 @@ test('approved inspiration design supports real preview, publication and mobile 
  await page.command('Page.navigate',{url:origin+'/plugin-builder'});await page.command('Page.bringToFront');
  await page.wait("document.querySelector('[data-pb-starter=inspiration]')");
  await page.click('[data-pb-starter=inspiration]');
- await page.wait("document.querySelectorAll('.pb-record').length===4 && document.querySelector('[data-pb-status]')?.textContent==='界面与功能已接通'");
+ await page.wait("document.querySelectorAll('.pb-record').length===4 && document.querySelector('[data-pb-status]')?.textContent.startsWith('界面与功能已接通')");
  assert.equal(await page.evaluate("document.querySelector('[data-pb-action=publish]').disabled"),false,'ready starter can publish immediately without an unrelated interaction');
  await page.wait("performance.getEntriesByType('resource').some(e=>e.name.includes('/assets/inspiration-atlas.png')&&e.responseEnd>0&&e.decodedBodySize>0)");
  assert.equal(await page.evaluate("document.querySelectorAll('.pb-cover[role=img]').length"),4);
@@ -96,7 +96,7 @@ test('approved inspiration design supports real preview, publication and mobile 
   assert.ok(Math.abs(outline.selection[edge]-expected)<=1,`settled selection ${edge} must sit 5px outside the card: expected ${expected}, got ${outline.selection[edge]}`);
  }
  t.diagnostic('Settled card selection: '+JSON.stringify(outline));
- assert.equal(await page.evaluate("document.querySelector('[data-pb-part=cards]').classList.contains('selected')"),true,'the selected logical card component remains highlighted while its record is placed');
+ assert.equal(await page.evaluate("document.querySelector('[data-pb-part=collection]').classList.contains('selected')"),true,'the selected logical card component remains highlighted while its record is placed');
  await desktopComposition();
  assert.match(await page.evaluate<string>("document.querySelector('[data-pb-status]').textContent"),/示例装配回放.*不调用模型/);
  await page.screenshot(join(screenshots,'building.png'));

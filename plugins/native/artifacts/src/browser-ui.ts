@@ -34,7 +34,7 @@ export interface ArtifactBrowserUiModel {
 
 function directory({ view, routePrefix, primitives: p }: ArtifactBrowserUiModel): string {
   // An explicit target keeps the Workbench's exact-version fragment navigation from intercepting this full page.
-  const importLink = `<a class="artifact-import-entry" href="${p.escape(routePrefix + "/artifacts/import")}" target="_self">${icon("plus")}${p.text("导入文档")}</a>`;
+  const importLink = `<header class="plugin-stage-chrome artifact-stage-chrome"><a class="mw-btn mw-btn--ghost tree-create artifact-import-entry" href="${p.escape(routePrefix + "/artifacts/import")}" target="_self">${icon("plus")}<span>${p.text("导入文档")}</span></a></header>`;
   if (!view.versions.length) return `${importLink}<p class="artifact-empty mw-empty">${p.text("还没有 Artifact")}</p>`;
   const groups = new Map<string, Array<(typeof view.versions)[number]>>();
   for (const artifact of view.versions) {

@@ -1,0 +1,26 @@
+---
+version: 1
+slug: "capabilities"
+primary_target: "apps/workbench/src/capabilities.ts"
+related_targets: ["apps/workbench/src/styles/capabilities.ts", "apps/workbench/src/settings-renderer.ts", "apps/workbench/src/settings-directory.ts", "apps/workbench/src/mcp-access.ts", "apps/workbench/src/scripts/mcp-access.ts"]
+---
+
+Mode: Operate. System-level service beside Character and global settings, independent of installing Functions or selecting a project. Scope: `/capabilities/library|rules|connections|access|history`.
+
+Inherit the incumbent Calm Desktop tokens and system typography. Fixed category navigation and a capability list/detail reader; narrow screens open the detail with an explicit return to the list. Search and project/type scope live in the URL. No new brand, decorative metrics, or parallel settings store.
+
+Primary task: find a capability, inspect its actual requirements and availability, then inspect compatible consumer scenes and saved uses. Connections and external access reuse existing configuration owners. History currently covers saved judgments only, with this limitation visible.
+
+Evidence: `.impeccable/review/action-service/preview-{desktop,mobile}.png` preceded Host integration. `live-{library,connections,access,history}-{desktop,mobile}.png` show production routes over isolated real Host/SQLite state. Browser operations covered system-island entry (mobile drawer first), search/empty state, missing reference, registered scene/binding, connection detail, persisted MCP toggle, and actual scene-generated history. No remote model, user credentials or real account authorization was used. User acceptance remains unverified.
+
+The rule editor now belongs to this surface, with list/create/edit/trial/publish and explicit return to the list. Missing rule references show visible feedback. TypeSafe account selection belongs inside its connection detail, so the connection directory keeps a single page heading. Existing Functions tabs are retired as view state; the original rule data stays intact and old links redirect with their stable IDs.
+
+The built `/capabilities/access` flow keeps this Calm Desktop / Operate settings world. Choose a known or custom client identity and Home/global or project scope, then select “View capabilities.” Authorization is shared by that client's sessions, with each project and Home configured independently. Changing the client, custom identity, or project hides the previously loaded results and shows a pending-scope notice until the selected scope is loaded; the action handler also rejects writes while scope is pending.
+
+Rows come from the production capability registry and persisted grants, without a UI provider whitelist or production mock data. Each row leads with its title, purpose, provider, version, kind, and current access state. Search matches name, purpose, source, or capability identity; filters show all, granted, or attention-needed entries. Permission and exact capability/provider identity details expand in place. Grants and revocations target the selected client and scope plus the exact capability/version/provider. Default-open system queries remain individually revocable. Unknown or missing saved grants remain visible for inspection and revocation rather than disappearing with their provider.
+
+Access states distinguish ungranted, granted, revoked, unavailable, reauthorization required, missing capability, and default-open. Stale permissions require explicit updated authorization. Saving disables controls; success reloads the authoritative state, preserves open disclosures, and restores focus. An uncertain save result asks the user to refresh and confirm, without painting an assumed success. The separate collapsed “Legacy tools (global switches)” section explicitly says its switches affect all clients, retain legacy permission rules, and are not governed by the client grants above.
+
+The access list uses flat divided rows, subdued metadata, and existing semantic status colors. On narrow screens, scope fields stack and row actions sit below the copy; controls retain touch targets, and long identifiers wrap within the disclosure. Access evidence is in `.impeccable/review/action-service/mcp-access/`: `access-1440-light.png`, `access-1440-dark.png`, `access-390-light.png`, `access-390-dark.png`, `access-390-detail-dark.png`, and `access-390-pending-scope-dark.png`. `tests/mcp-access-browser.test.ts` passed against real Chrome and the production stdio MCP server through the official SDK (`/tmp/mcp-access-browser.log`); 28 service regressions passed (`/tmp/mcp-access-service-final.log`). The design detector returned no findings (`/tmp/mcp-access-design-detector.json`). The review's original P1 scope mismatch was fixed; its SHIP verdict applies only to this access UI slice. User acceptance remains unverified.
+
+Remaining product work: editable generic scene bindings replacing old purpose choices; legacy MCP authorization migration and all-capability lifecycle/history coverage; object links and human-readable history; full external MCP import. The new-action authorization flow above is built, but it does not complete the legacy migration or the whole capability-service goal. These are completion requirements in `specs/action-architecture/spec.md`, not dropped scope.

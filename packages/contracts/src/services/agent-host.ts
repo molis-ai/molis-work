@@ -707,13 +707,14 @@ export interface AgentMcpServerInput {
   executable?: string;
   argv?: string[];
   endpoint?: string;
-  auth?: { kind: "none" | "keep-existing" | "replace-secret"; secret?: string };
+  auth?: { kind: "none" | "keep-existing" | "replace-secret" | "connection"; secret?: string; connection_id?: string };
 }
 export interface AgentMcpServerView {
   id: string; version: number; label: string; enabled: boolean;
   transport: "stdio" | "http"; timeout_ms: number;
   directory?: AgentWorkingDirectory; executable?: string; argv?: string[]; endpoint?: string;
   credential: "none" | "present";
+  auth_connection_id?: string;
   health: "connected" | "disconnected" | "unavailable" | "not-reattached";
   busy?: string; error?: string;
   tools: Array<AgentMcpToolRef & { description: string }>;

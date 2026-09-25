@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -18,9 +19,11 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
   const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, board_id: DEMO_BOARD_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text: n ? "new\r\n" : "old\r\n", after_text: n ? "latest <script>\n" : "new\r\n" } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: applied, effect_error: null } }));
-  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
     execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
-      reads++; if (!readable) throw new Error("runtime unavailable");
+      // Files also refreshes project browsing settings before dispatch; count only Agent reads.
+      if ([agent.readSession.capability_id, agent.readRun.capability_id, agent.readRunReviews.capability_id].includes(definition.capability_id)) reads++;
+      if (!readable) throw new Error("runtime unavailable");
       if (definition.capability_id === agent.readSession.capability_id) return { runs: (args as any[])[0].session_id === "sdk" ? [ref] : [] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
       if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;

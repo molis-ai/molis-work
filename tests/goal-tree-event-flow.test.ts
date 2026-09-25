@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DEMO_BOARD_ID, GoalProjectApplication, LocalProjectDatabase, buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, LocalProjectDatabase, buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { buildDecisionGroups, hostEventDecisionAuthority, pendingDecisionCount } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 
@@ -135,17 +135,17 @@ test("original v35 pending Candidate, self-review and open Risks stay history wi
   const store = new LocalProjectDatabase(fixture.path);
   try {
     const app = new GoalProjectApplication(store);
-    const before = store.snapshot(DEMO_BOARD_ID);
+    const before = store.snapshot("goalboard-v1-demo");
     assert.equal(before.candidates.find((item) => item.candidate_id === "candidate-b0050ab4-1d01-4556-ac3d-fa0053f69ce2")?.state, "pending");
     assert.equal(before.review_obligations.find((item) => item.obligation_id === "obligation-efabfe3f-c602-454e-8f3b-13d48ec76a68")?.state, "pending");
     assert.equal(before.risks.find((item) => item.risk_id === "RISK-FIRST-RESTART")?.description, "用户接入 Runtime 后没有新开会话，误以为安装失败");
     for (const goal of before.goals) {
-      assert.equal(app.goalEvents.readState(DEMO_BOARD_ID, goal.goal_id).pending_decisions.length, 0);
+      assert.equal(app.goalEvents.readState("goalboard-v1-demo", goal.goal_id).pending_decisions.length, 0);
     }
-    const view = buildMolisWorkWebView(store, app, { databasePath: fixture.path, boardId: DEMO_BOARD_ID, demo: true });
+    const view = buildMolisWorkWebView(store, app, { databasePath: fixture.path, boardId: "goalboard-v1-demo", demo: true });
     assert.equal(pendingDecisionCount(view), 0);
     assert.deepEqual(buildDecisionGroups(view), []);
-    assert.deepEqual(store.snapshot(DEMO_BOARD_ID), before);
+    assert.deepEqual(store.snapshot("goalboard-v1-demo"), before);
   } finally {
     store.close();
     rmSync(fixture.directory, { recursive: true, force: true });

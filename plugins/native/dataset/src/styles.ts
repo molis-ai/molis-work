@@ -17,10 +17,12 @@ export const DATASET_STYLES = `
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .dataset-stage-chrome { pointer-events: auto; }
   [data-dataset=workbench] { --plugin-tint: var(--plugin-dataset); }
+  [data-dataset-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
   .dataset-workspace {
     display: flex; flex-direction: column; gap: 16px;
     flex: 1; min-height: 0; max-width: 72rem; padding: 8px 20px 28px; overflow: auto;
   }
+  .dataset-workspace > * { flex-shrink: 0; }
   .dataset-identity {
     display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 12px 16px; max-width: 52rem;
   }
@@ -37,7 +39,7 @@ export const DATASET_STYLES = `
   .dataset-toolbar .mw-select, .dataset-toolbar .mw-select-picker { width: 88px; flex: none; }
   .dataset-toolbar .mw-btn, .dataset-prompt .mw-btn, .dataset-panel .mw-btn { flex: none; width: auto; }
   .dataset-prompt { align-items: flex-end; max-width: 36rem; }
-  .dataset-prompt .dataset-field { flex: 1; min-width: 0; }
+  .dataset-prompt .dataset-field { flex: 1 1 14rem; min-width: min(100%, 14rem); }
   .dataset-table-wrap {
     width: max-content; max-width: 100%; overflow: auto;
     padding: 10px; border-radius: 10px;
@@ -53,7 +55,7 @@ export const DATASET_STYLES = `
   .dataset-table-wrap .mw-table { width: auto; min-width: 0; table-layout: fixed; }
   .dataset-table-wrap .mw-table th,
   .dataset-table-wrap .mw-table td {
-    width: 240px; max-width: 280px; padding: 4px 6px; vertical-align: middle;
+    width: 240px; min-width: 240px; max-width: 280px; padding: 4px 6px; vertical-align: middle;
     border: 1px solid var(--line);
   }
   .dataset-table-wrap .mw-table thead th {
@@ -71,7 +73,7 @@ export const DATASET_STYLES = `
   .dataset-table-wrap td .mw-input[type="number"]::-webkit-inner-spin-button { appearance: none; margin: 0; }
   .dataset-table-wrap td .mw-input[type="number"] { appearance: textfield; }
   .dataset-table-wrap .mw-table th:last-child,
-  .dataset-table-wrap .mw-table td:last-child { width: 36px; max-width: 36px; padding-left: 2px; }
+  .dataset-table-wrap .mw-table td:last-child { width: 36px; min-width: 36px; max-width: 36px; padding-left: 2px; }
   .dataset-col-head {
     display: grid; grid-template-columns: minmax(0, 1fr) 72px auto;
     gap: 4px; align-items: center;
@@ -79,7 +81,11 @@ export const DATASET_STYLES = `
   .dataset-col-type, .dataset-col-head .mw-select-picker { width: 72px; min-width: 72px; font-size: 12px; }
   .dataset-col-head .mw-select-picker__trigger { font-size: 12px; }
   .dataset-panel { border: 0; padding: 0; max-width: 36rem; }
-  .dataset-panel > summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  .dataset-panel > summary { display: inline-flex; align-items: center; gap: 6px; list-style: none; cursor: pointer; font-size: 12px; color: var(--muted); }
+  .dataset-panel > summary::-webkit-details-marker, .dataset-panel > summary::marker { display: none; }
+  .dataset-panel > summary:hover { color: var(--ink); }
+  .dataset-panel > summary svg { width: 12px; height: 12px; transition: transform 140ms cubic-bezier(.16, 1, .3, 1); }
+  .dataset-panel:not([open]) > summary svg { transform: rotate(-90deg); }
   .dataset-panel[open] > summary { margin-bottom: 8px; }
   .dataset-panel .mw-textarea { margin-bottom: 8px; min-height: 72px; resize: vertical; }
   .dataset-panel .mw-btn { flex: none; width: auto; }
@@ -95,7 +101,7 @@ export const DATASET_STYLES = `
   .plugin-stage-detail-bar [data-dataset-editor-status].mw-status {
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;
   }
-  .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
+  .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }

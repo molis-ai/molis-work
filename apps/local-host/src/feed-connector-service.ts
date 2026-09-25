@@ -7,7 +7,7 @@ import { authRefFor, bindConnectorToken, connectorCredentialStatus, unbindConnec
 import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
 import { completeGmailOAuthFlow, defaultGmailRedirectUri, gmailOAuthConfigured, startGmailOAuthFlow, storeGmailOAuthClient } from "./gmail-oauth.js";
 import { pollGithubDeviceFlow, startGithubDeviceFlow, storeGithubClientId } from "./github-oauth.js";
-import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
+import { createLocalFeedApplication, withLocalFeedJudgments, type LocalFeedApplicationOptions } from "./feed-application.js";
 import { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 import type { OfficialProviderFactory } from "./official-integrations.js";
 
@@ -16,8 +16,9 @@ export function createLocalFeedConnectorService(
   boardId: string,
   providerFactory?: OfficialProviderFactory,
   homeDirectory?: string,
+  feedOptions?: LocalFeedApplicationOptions,
 ): FeedConnectorService {
-  const feed = createLocalFeedApplication(db, withLocalFeedJudgments(homeDirectory));
+  const feed = createLocalFeedApplication(db, feedOptions ?? withLocalFeedJudgments(homeDirectory));
   return new FeedConnectorService(feed, boardId, {
     credentialRef: authRefFor,
     credentialStatus: connectorCredentialStatus,

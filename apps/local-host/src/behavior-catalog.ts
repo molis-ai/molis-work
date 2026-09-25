@@ -25,16 +25,21 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
 import { CATALOG_CONNECTORS, catalogIntegrationManifest } from "@molis-ai/molis-work-integration-catalog";
-import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
-import { functionsManifest } from "@molis-ai/molis-work-plugin-functions";
-import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
-import { datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
-import { formManifest } from "@molis-ai/molis-work-plugin-form";
-import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
-import { pptManifest } from "@molis-ai/molis-work-plugin-ppt";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { connectorCredentialStatus } from "./connector-credentials.js";
+import { LEGACY_FUNCTIONS_MCP } from "./mcp-functions-tools.js";
 
 export const SYSTEM_BEHAVIORS: readonly RegisteredBehavior[] = [
+  // Existing rule choices can reference these public names. Contracts remain
+  // owned by the system action, even while legacy authoring is being migrated.
+  ...LEGACY_FUNCTIONS_MCP.map(({ name, action }): RegisteredBehavior => ({
+    behavior_id: name,
+    plugin_id: "system.functions",
+    title: action.action.title,
+    effect: action.operation === "query" ? "read" : "write",
+    subject_kinds: action.action.subject_kinds,
+    source: "mcp",
+  })),
   {
     behavior_id: HOME_CONTINUE_BEHAVIOR_ID,
     plugin_id: "system",
@@ -117,15 +122,9 @@ export const SYSTEM_BEHAVIORS: readonly RegisteredBehavior[] = [
   },
 ];
 
-const NATIVE_BEHAVIOR_MANIFESTS = [
-  functionsManifest,
-  pagesManifest,
-  feedManifest,
-  inboxManifest,
-  formManifest,
-  datasetManifest,
-  pptManifest,
-];
+// Share the builtin registry with MCP registration; new declared tools must not
+// disappear from Functions because a second hand-maintained list was missed.
+const NATIVE_BEHAVIOR_MANIFESTS = BUILTIN_PLUGIN_CATALOG.map((entry) => entry.manifest);
 
 export function nativeBehaviorManifests() {
   return NATIVE_BEHAVIOR_MANIFESTS;
@@ -144,7 +143,7 @@ export function liveBehaviorManifests() {
 }
 
 export function assembleHostBehaviorCatalog(
-  manifests: readonly { plugin_id: string; name?: string; mcp_exports?: typeof functionsManifest.mcp_exports; behaviors?: typeof feedManifest.behaviors | typeof githubIntegrationManifest.behaviors }[] = NATIVE_BEHAVIOR_MANIFESTS,
+  manifests: readonly { plugin_id: string; name?: string; mcp_exports?: PluginManifest["mcp_exports"]; behaviors?: PluginManifest["behaviors"] }[] = NATIVE_BEHAVIOR_MANIFESTS,
 ): RegisteredBehavior[] {
   return assembleRegisteredBehaviors(manifests, SYSTEM_BEHAVIORS);
 }

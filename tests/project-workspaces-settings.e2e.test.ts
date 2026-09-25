@@ -1,0 +1,76 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+
+test("project settings associate and switch real folders; Files/Git follow, Coding stays independent", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded");
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, homeDirectory, evaluate, click, waitFor, reloadPage } = browser;
+  const prefix = `/projects/${projectId}`;
+  for (const name of ["alpha", "beta"]) {
+    const directory = join(homeDirectory, name); await mkdir(directory);
+    execFileSync("git", ["init", "-b", "main"], { cwd: directory, stdio: "ignore" });
+    await writeFile(join(directory, `${name}.txt`), `${name} content`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
+  assert.equal(await evaluate("!!document.querySelector('[data-plugin-strip] [data-plugin-id=workspace]')"), false);
+  t.diagnostic('open project settings');
+  await click('.navigator-project-settings');
+  await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+  await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
+  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  const missing = join(homeDirectory, 'alpha');
+  await command('Network.enable', {}, sessionId);
+  await command('Network.setBlockedURLs', { urls: [origin + prefix + '/api/workspaces'] }, sessionId);
+  await evaluate(`document.querySelector('[data-project-workspaces-add] [name=path]').value=${JSON.stringify(missing)}`);
+  await click('[data-project-workspaces-add] [type=submit]');
+  await waitFor("!!document.querySelector('[data-project-workspaces-add-status]').textContent && !document.querySelector('[data-project-workspaces-add] [type=submit]').disabled");
+  assert.equal(await evaluate("document.querySelector('[data-project-workspaces-add] [name=path]').value"), missing);
+  assert.equal(await evaluate("document.querySelectorAll('[data-browse-workspace]').length"), 0);
+  await command('Network.setBlockedURLs', { urls: [] }, sessionId);
+  for (const name of ["alpha", "beta"]) {
+    t.diagnostic("associate " + name);
+    assert.equal(await evaluate("document.querySelector('[data-project-workspaces]').dataset.bound"), "1");
+    await evaluate(`document.querySelector('[data-project-workspaces-add] [name=path]').value=${JSON.stringify(join(homeDirectory, name))}`);
+    await click('[data-project-workspaces-add] [type=submit]');
+    await waitFor(`document.querySelector('[data-project-workspaces-list]').textContent.includes(${JSON.stringify(name)}) && !document.querySelector('[data-project-workspaces-add] [type=submit]').disabled`);
+  }
+  t.diagnostic("select browsing folder");
+  const ids = await evaluate<string[]>("Array.from(document.querySelectorAll('[data-browse-workspace]')).map(x=>x.dataset.browseWorkspace)");
+  assert.equal(ids.length, 2);
+  await click(`[data-browse-workspace="${ids[0]}"]`);
+  await waitFor(`document.querySelector('[data-browse-workspace="${ids[0]}"]')?.getAttribute('aria-pressed') === 'true'`);
+  const api = (path: string, body?: unknown, method = "POST") => evaluate<any>(`(async()=>{const response=await fetch(${JSON.stringify(prefix + path)},${body === undefined ? '{}' : `{method:${JSON.stringify(method)},headers:molisWorkControlHeaders(),body:JSON.stringify(${JSON.stringify(body)})}`});return {status:response.status,body:await response.json()};})()`);
+  t.diagnostic("create coding session");
+  const session = await api('/api/plugins/io.molis.work.coding/sessions', { title: '独立目录' });
+  assert.equal(session.status, 200);
+  const sessionPath = '/api/plugins/io.molis.work.coding/sessions/' + session.body.session.session_id;
+  assert.equal((await api(sessionPath, { configuration: { intent: 'discuss', workspace_id: ids[0], provider_id: '', model_id: '' } }, 'PATCH')).status, 200);
+  await click(`[data-browse-workspace="${ids[1]}"]`);
+  await waitFor(`document.querySelector('[data-browse-workspace="${ids[1]}"]')?.getAttribute('aria-pressed') === 'true'`);
+  assert.equal((await api(sessionPath)).body.configuration.workspace_id, ids[0]);
+  assert.deepEqual((await api('/api/plugins/io.molis.work.coding/state')).body.workspaces.map((w: any) => w.workspace_id).sort(), [...ids].sort());
+  t.diagnostic('open files');
+  await click('[data-plugin-strip] [data-plugin-id=files]');
+  await waitFor("document.querySelector('[data-companion=files] [data-files-tree]')?.textContent.includes('beta.txt')");
+  await click('[data-companion=files] [data-file-path*="beta.txt"]');
+  await waitFor("document.querySelector('[data-companion=files] [data-files-text]')?.value === 'beta content'");
+  t.diagnostic('open git');
+  await click('[data-plugin-strip] [data-plugin-id=git]');
+  await waitFor("document.querySelector('[data-companion=git]')?.textContent.includes('beta.txt')");
+  t.diagnostic('standalone settings');
+  await navigate(() => command('Page.navigate', { url: origin + prefix + '/settings/workspaces' }, sessionId));
+  await waitFor(`document.querySelector('[data-browse-workspace="${ids[1]}"]')?.getAttribute('aria-pressed') === 'true'`);
+  await reloadPage();
+  await waitFor(`document.querySelector('[data-browse-workspace="${ids[1]}"]')?.getAttribute('aria-pressed') === 'true'`);
+  const desktop = await command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, sessionId);
+  await writeFile('/tmp/molis-project-settings-desktop.png', Buffer.from(desktop.data, 'base64'));
+  await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+  const mobile = await command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, sessionId);
+  await writeFile('/tmp/molis-project-settings-mobile.png', Buffer.from(mobile.data, 'base64'));
+});

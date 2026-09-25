@@ -294,6 +294,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-intent]').disabled = Boolean(active || sending);
     q('[data-coding-model]').disabled = Boolean(active || sending);
     q('[data-coding-rename]').hidden = !current;
+    q('[data-coding-archive]').hidden = !current;
     q('[data-coding-goal-open]').disabled = !current || sending;
     q('[data-coding-material-open]').disabled = !current || sending;
     const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
@@ -1218,6 +1219,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         catch(error) { status(error.message,true); } finally { controls(); }
       }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
+      if(target.matches('[data-coding-archive]') && current) {
+        if(!confirm('归档这条 Coding 会话？它会从活动列表移出，执行记录和固定成果仍会保留。'))return;
+        target.disabled=true;
+        const id=current;
+        try {
+          await api('/sessions/'+encodeURIComponent(id),'PATCH',{archive:true});
+          generation++;current='';lastRun=null;root.dataset.codingDetail='false';
+          await refreshState();status('会话已归档。');
+        } finally {target.disabled=false;}
+      }
       if(target.matches('[data-coding-rename]') && current) {
         const title=q('[data-coding-title]'); if(title.querySelector('input')) return;
         const field=document.createElement('input');field.className='mw-input';field.value=title.textContent;field.setAttribute('aria-label','会话名称');title.replaceChildren(field);field.focus();field.select();

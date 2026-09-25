@@ -62,6 +62,22 @@ async function createIdea(runtime: LocalRuntime) {
   return { direction, receipt, exploration, ideaId: kept.idea.id };
 }
 
+test("Alchemist: 方向可编辑、归档和恢复，关联想法保持可读", async () => {
+  await withRuntime(async (runtime) => {
+    const { direction, ideaId } = await createIdea(runtime);
+    const updated = await api(runtime, `/directions/${direction.id}`, "PATCH", { title: "新方向", description: "让独立创始人按访谈场景整理证据与判断" });
+    assert.equal(updated.direction.title, "新方向");
+    await api(runtime, `/directions/${direction.id}/status`, "PATCH", { status: "archived" });
+    const bootstrap = await api(runtime, "/bootstrap");
+    assert.equal(bootstrap.directions.find((item: { id: string }) => item.id === direction.id)?.status, "archived");
+    assert.ok(bootstrap.ideas.some((item: { id: string }) => item.id === ideaId));
+    const refused = await runtime.app.request(`http://localhost/api/v1/directions/${direction.id}/explorations`, { method: "POST" });
+    assert.equal(refused.status, 409);
+    await api(runtime, `/directions/${direction.id}/status`, "PATCH", { status: "active" });
+    assert.equal((await api(runtime, "/bootstrap")).directions.find((item: { id: string }) => item.id === direction.id)?.status, "active");
+  });
+});
+
 test("Alchemist: host settings contain no secret surface; generation uses selected opaque model and active Taste", async () => {
   await withRuntime(async (runtime, host) => {
     const settings = await api(runtime, "/settings/runtime");

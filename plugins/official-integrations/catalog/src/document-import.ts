@@ -191,13 +191,14 @@ async function notionDocument(id: string, token: string, reader: Reader) {
 
 async function feishuDocument(source: "feishu" | "lark", reference: ReturnType<typeof documentReference>, token: string, reader: Reader) {
   const separator = token.indexOf(":");
-  if (separator < 1 || !token.slice(separator + 1).trim()) fail("needs_auth", "请在设置中以 app_id:app_secret 格式连接该数据源的自建应用。");
+  const cli = source === "feishu" && token === "lark-cli";
+  if (!cli && (separator < 1 || !token.slice(separator + 1).trim())) fail("needs_auth", "请在设置中以 app_id:app_secret 格式连接该数据源的自建应用。");
   const origin = source === "feishu" ? "https://open.feishu.cn" : "https://open.larksuite.com";
-  const auth = await reader.json(`${origin}/open-apis/auth/v3/tenant_access_token/internal`, {
+  const auth = cli ? null : await reader.json(`${origin}/open-apis/auth/v3/tenant_access_token/internal`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ app_id: token.slice(0, separator).trim(), app_secret: token.slice(separator + 1).trim() }),
   });
-  const accessToken = string(auth.tenant_access_token);
+  const accessToken = cli ? token : string(auth?.tenant_access_token);
   if (!accessToken) fail("needs_auth", "应用凭据无法换取访问令牌，请检查所选数据源和应用凭据。");
   const headers = { Authorization: `Bearer ${accessToken}` };
   let id = reference.id;

@@ -69,8 +69,8 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const details = model.entries.map((entry) => renderInboxDetail(entry, false, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
-      <div class="inbox-compose-toolbar"><button class="mw-btn mw-btn--secondary" type="button" data-inbox-compose-open="">${p.icon("file")}${p.text("整理材料到 Pages")}</button>
-      ${model.judgment ? `<details class="inbox-next-config"><summary>${p.text("下一步建议")}</summary><p>${p.escape(model.judgment.name || p.text("尚未绑定规则"))}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${p.text("在 Functions 配置")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.function_key && active.length ? "" : " disabled"}>${p.text("更新前 20 条待处理建议")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}</div>
+      <header class="plugin-stage-chrome inbox-compose-toolbar"><button class="mw-btn mw-btn--ghost tree-create" type="button" data-inbox-compose-open="">${p.icon("note")}<span>${p.text("整理材料到 Pages")}</span></button></header>
+      ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${p.text("下一步建议")}</summary><p>${p.escape(model.judgment.name || p.text("尚未绑定规则"))}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${p.text("在 Functions 配置")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.function_key && active.length ? "" : " disabled"}>${p.text("更新前 20 条待处理建议")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
       ${renderInboxFold("active", p.text("待处理"), "alert", active, p)}
       ${renderInboxFold("history", p.text("历史"), "check", history, p)}
     </div>
@@ -80,11 +80,11 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
     </div>
     <dialog class="inbox-compose-dialog" data-inbox-compose>
       <form data-inbox-compose-form>
-        <header><h2>${p.text("整理材料到 Pages")}</h2><button class="mw-btn mw-btn--ghost" type="button" data-inbox-compose-close aria-label="${p.text("关闭")}">×</button></header>
+        <header><h2>${p.text("整理材料到 Pages")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-inbox-compose-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
         <p>${p.text("选择 Inbox 中的原始材料，补充要求，生成后在 Pages 继续编辑。")}</p>
         <fieldset data-inbox-compose-materials><legend>${p.text("使用的材料")}</legend></fieldset>
-        <label>${p.text("文稿标题")}<input name="title" required maxlength="80" autocomplete="off"></label>
-        <label>${p.text("处理要求")}<textarea name="instructions" required maxlength="4000" rows="4" placeholder="${p.text("例如：整理为 AI 产品观察，区分事实、推断和待验证问题，并保留来源。")}"></textarea></label>
+        <label>${p.text("文稿标题")}<input class="mw-input" name="title" required maxlength="80" autocomplete="off"></label>
+        <label>${p.text("处理要求")}<textarea class="mw-textarea" name="instructions" required maxlength="4000" rows="4" placeholder="${p.text("例如：整理为 AI 产品观察，区分事实、推断和待验证问题，并保留来源。")}"></textarea></label>
         <p role="status" data-inbox-compose-status></p>
         <footer><button class="mw-btn mw-btn--secondary" type="button" data-inbox-compose-close>${p.text("稍后继续")}</button><button class="mw-btn mw-btn--primary" type="submit" data-inbox-compose-submit>${p.text("生成文稿")}</button></footer>
         <section data-inbox-compose-results aria-label="${p.text("处理记录")}"></section>

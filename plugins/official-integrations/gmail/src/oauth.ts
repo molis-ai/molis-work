@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { AUTH_ENDPOINT, TOKEN_ENDPOINT, DEFAULT_SCOPES, GMAIL_CLIENT_SECRET_REF, type GmailOAuthPorts, type GmailOAuthStart, type GmailOAuthComplete, type OAuthFetch } from "./oauth-types.js";
+import { AUTH_ENDPOINT, TOKEN_ENDPOINT, DEFAULT_SCOPES, GMAIL_CLIENT_SECRET_REF, GMAIL_OAUTH_PENDING_REF, type GmailOAuthPorts, type GmailOAuthStart, type GmailOAuthComplete, type OAuthFetch } from "./oauth-types.js";
 import type { GmailTokenRefs } from "./provider.js";
 import { createGmailOAuthConfiguration } from "./oauth-configuration.js";
 import { createGmailPendingSessions } from "./oauth-pending.js";
@@ -118,6 +118,8 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
      * account's material out of the shared legacy slot.
      */
     resolveRefs?: (email: string | undefined) => GmailTokenRefs | undefined;
+    /** New Home connections keep their own refs and do not replace the old shared account. */
+    mirrorLegacy?: boolean;
   }): Promise<GmailOAuthComplete> {
     // Canonical gate: exact state, TTL, loopback redirect, session-bound identity.
     const exchange = validatePendingGmailOAuthSession({
@@ -188,7 +190,7 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
       expiresIn: json.expires_in,
       nowMs: opts.nowMs,
       refs: scopedRefs,
-      mirrorLegacy: true,
+      mirrorLegacy: opts.mirrorLegacy !== false,
     });
     const authRef = scopedRefs?.access ?? ports.legacyAuthRef;
     const hasRefreshToken = Boolean(
@@ -210,7 +212,13 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
     }
   }
 
-  return { ...configuration, validatePendingGmailOAuthSession, resolveUsableGmailAccessToken: tokens.resolveUsableGmailAccessToken, startGmailOAuthFlow, completeGmailOAuthFlow, gmailAccessBound };
+  function cancelGmailOAuthFlow(state: string): void {
+    // Clear only this attempt, including the compatibility slot if it matches.
+    const raw = ports.secrets().get(GMAIL_OAUTH_PENDING_REF);
+    if (raw) { try { if (JSON.parse(raw).state === state) clearPending(); } catch { /* unrelated malformed legacy state */ } }
+    clearPendingByState(state);
+  }
+  return { ...configuration, cancelGmailOAuthFlow, validatePendingGmailOAuthSession, resolveUsableGmailAccessToken: tokens.resolveUsableGmailAccessToken, startGmailOAuthFlow, completeGmailOAuthFlow, gmailAccessBound };
 }
 
 /**

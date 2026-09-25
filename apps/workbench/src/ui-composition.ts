@@ -4,7 +4,6 @@ import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from
 import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
-import type { GoalsApplicationApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
@@ -33,13 +32,6 @@ import {
   type ShelfUiSurface,
   type ShelfSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
-import {
-  FUNCTIONS_UI_CONTRIBUTION_ID,
-  FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID,
-  type FunctionsUiModel,
-  type FunctionsUiSurface,
-  type FunctionsSettingsUiModel,
-} from "@molis-ai/molis-work-plugin-functions";
 import {
   PAGES_UI_CONTRIBUTION_ID,
   type PagesUiModel,
@@ -70,6 +62,11 @@ import {
   type AlchemistUiModel,
   type AlchemistUiSurface,
 } from "@molis-ai/molis-work-plugin-alchemist";
+import {
+  WORKFLOWS_UI_CONTRIBUTION_ID,
+  type WorkflowsUiModel,
+  type WorkflowsUiSurface,
+} from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
@@ -89,7 +86,6 @@ import { createGoalsStatusWorkbenchRenderer } from "./goals-status-ui.js";
 import { createGoalsTreeWorkbenchRenderer } from "./goals-tree-ui.js";
 import { createWorkSessionRenderer } from "./work-ui.js";
 
-export type WorkbenchGoalsAdapter = GoalsApplicationApi;
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
 import { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
 
@@ -109,10 +105,6 @@ const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = 
   workbench: WORKBENCH_UI_SLOTS.main,
 };
 
-const FUNCTIONS_SURFACE_SLOTS: Readonly<Record<FunctionsUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
 
 const PAGES_SURFACE_SLOTS: Readonly<Record<PagesUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
@@ -144,6 +136,11 @@ const ALCHEMIST_SURFACE_SLOTS: Readonly<Record<AlchemistUiSurface, UiSlotDescrip
   workbench: WORKBENCH_UI_SLOTS.main,
 };
 
+const WORKFLOWS_SURFACE_SLOTS: Readonly<Record<WorkflowsUiSurface, UiSlotDescriptor>> = {
+  directory: WORKBENCH_UI_SLOTS.directory,
+  workbench: WORKBENCH_UI_SLOTS.main,
+};
+
 const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
@@ -155,18 +152,6 @@ const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
   "frame-block": WORKBENCH_UI_SLOTS.main,
 };
 
-
-/** Bind Workbench routes to the public Goals Contract without copying Module rules. */
-export function createWorkbenchGoalsAdapter(
-  goals: GoalsApplicationApi,
-): WorkbenchGoalsAdapter {
-  return {
-    impacts: goals.impacts,
-    commands: goals.commands,
-    lifecycle: goals.lifecycle,
-    planning: goals.planning,
-  };
-}
 
 /** Shared Workbench composition root. Product renderers never import a Plugin implementation directly. */
 export function createWorkbenchUiHost(): UiHost {
@@ -282,19 +267,6 @@ export function renderShelfContribution(
   }).html;
 }
 
-export function renderFunctionsContribution(
-  surface: FunctionsUiSurface,
-  model: FunctionsUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: FUNCTIONS_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: FUNCTIONS_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
 
 export function renderPagesContribution(
   surface: PagesUiSurface,
@@ -366,6 +338,20 @@ export function renderAlchemistContribution(
   }).html;
 }
 
+export function renderWorkflowsContribution(
+  surface: WorkflowsUiSurface,
+  model: WorkflowsUiModel,
+): string {
+  return workbenchUiHost.mount({
+    slot: WORKFLOWS_SURFACE_SLOTS[surface],
+    contribution: {
+      contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID,
+      surface,
+      model,
+    },
+  }).html;
+}
+
 export function renderLingguangContribution(
   surface: LingguangUiSurface,
   model: LingguangUiModel,
@@ -398,9 +384,6 @@ export function renderShelfSettingsContribution(model: ShelfSettingsUiModel): st
   return renderPluginSettingsContribution(SHELF_SETTINGS_UI_CONTRIBUTION_ID, model);
 }
 
-export function renderFunctionsSettingsContribution(model: FunctionsSettingsUiModel): string {
-  return renderPluginSettingsContribution(FUNCTIONS_SETTINGS_UI_CONTRIBUTION_ID, model);
-}
 
 export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();

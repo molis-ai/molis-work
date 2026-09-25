@@ -28,7 +28,6 @@ export function createTabWorkspaceOps(titles) {
     schedule: "Schedule",
     feed: "Feed",
     shelf: "Shelf",
-    functions: "Functions",
     characters: "Characters",
     experiments: "实验",
     images: "图片",
@@ -38,6 +37,7 @@ export function createTabWorkspaceOps(titles) {
     ppt: "PPT",
     lingguang: "灵光",
     alchemist: "炼金术士",
+    workflows: "工作流程",
     artifacts: "Artifacts",
   }[plugin] || plugin);
   const pluginOfSurface = (surface) => surface === "goal" ? "goals" : surface === "sources" ? "feed" : surface;

@@ -1,3 +1,5 @@
+import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.ts";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -7,7 +9,7 @@ import test from "node:test";
 import { createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
 import { readFunctionScenesView, withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
-import { createFunctionsMcpAdapter } from "../apps/local-host/src/mcp-functions-tools.ts";
+import { callLegacyFunctionsMcp } from "../apps/local-host/src/mcp-functions-tools.ts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // All Keychain calls resolve to this test executable. PATH contains no system
@@ -130,30 +132,39 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
     const file = join(home, "feed", "secrets.json");
     const sealed = JSON.parse(readFileSync(file, "utf8"));
     sealed.entries[FUNCTIONS_CREDENTIAL_REF] = sealed.entries.fixture;
+    sealed.entries["model:text:api_key"] = sealed.entries.fixture;
     writeFileSync(file, JSON.stringify(sealed));
     const before = readFileSync(file);
     const setup = { env: { TYPESAFE_API_KEY: "synthetic-env-credential" }, provider: {
       async evaluate() { return { primitive: "choice" as const, choice: "yes", noul: null, score: null,
         legend: null, probabilities: { yes: 1 }, confidence: 1, model: "fixture" }; },
     } };
+    assert.deepEqual(calls(), [], "fixture has not used Keychain");
     const live = await withFunctionsServiceAsync(home, async (service) => {
       const draft = service.createChoice({ name: "无需凭据浏览的函数", function_key: "lazy_keychain" });
       service.updateDraft(draft.id, { instructions: "Choose yes", criteria: [{ key: "yes", description: "yes" }, { key: "no", description: "no" }] });
       await service.preview(draft.id, "publish fixture");
       return service.publish(draft.id);
     }, setup);
+    assert.deepEqual(calls(), [], "environment-authenticated preview must not use Keychain");
     assert.equal(withFunctionsService(home, service => service.listPublished()).some(row => row.function_key === live.function_key), true);
+    assert.deepEqual(calls(), [], "listing published rules must not use Keychain");
     assert.ok(readFunctionScenesView(home, "fixture-board").home_dock_functions);
     assert.deepEqual(calls(), [], "construction and environment credentials never unlock the unrelated Keychain");
 
     const adapterUrl = new URL("../apps/local-host/src/mcp-functions-tools.ts", import.meta.url).href;
-    const script = `import { createFunctionsMcpAdapter } from ${JSON.stringify(adapterUrl)};
-      const adapter = createFunctionsMcpAdapter({requireHost: () => ({homeDirectory:${JSON.stringify(home)},
-        runtimeContext:{runtime_id:'codex',stable_work_context_id:'fixture',host_declares_stable:true}}),env:{}});
-      const context = {runtimeSessionId:null,runtimeSessionIdSource:null};
-      const listed = JSON.parse(await adapter.handle({tool_id:'list',arguments:{}},context));
-      const described = JSON.parse(await adapter.handle({tool_id:'describe',arguments:{function_key:'lazy_keychain'}},context));
-      console.log(JSON.stringify({listed:listed.functions.some(row=>row.function_key==='lazy_keychain'),name:described.function.name}));`;
+    const hostUrl = new URL("../apps/local-host/src/project-host.ts", import.meta.url).href;
+    const script = `import { callLegacyFunctionsMcp } from ${JSON.stringify(adapterUrl)};
+      import { MolisWorkLocalHost } from ${JSON.stringify(hostUrl)};
+      import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
+      const host = new MolisWorkLocalHost({homeDirectory:${JSON.stringify(home)},functions:{env:{}}});
+      const actions = bindActionClient(host.homeActionClient(),
+        () => ({actor_id:'test',project_id:null,audience:'mcp',permissions:['functions:invoke']}));
+      const listed = JSON.parse(await callLegacyFunctionsMcp(actions, 'molis_work_v1_functions_list', {}));
+      const described = JSON.parse(await callLegacyFunctionsMcp(actions, 'molis_work_v1_functions_describe', {function_key:'lazy_keychain'}));
+      console.log(JSON.stringify({listed:listed.functions.some(row=>row.function_key==='lazy_keychain'),name:described.function.name}));
+      await host.close();`;
+
     for (let i = 0; i < 3; i++) {
       const result = execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script],
         { encoding: "utf8", timeout: 20_000, stdio: ["ignore", "pipe", "pipe"] });
@@ -172,18 +183,19 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       }
       assert.deepEqual(calls(), [], "HTTP and all independent MCP reads must leave Keychain untouched");
       let providerCalls = 0;
-      const adapter = createFunctionsMcpAdapter({ requireHost: () => ({ homeDirectory: home,
-        runtimeContext: { runtime_id: "codex", stable_work_context_id: "fixture", host_declares_stable: true } }),
-        env: {}, provider: { async evaluate() { providerCalls++; throw new Error("must not reach provider"); } } });
-      const context = { runtimeSessionId: null, runtimeSessionIdSource: null };
-      for (let i = 0; i < 3; i++) await assert.rejects(() => adapter.handle({ tool_id: "invoke",
-        arguments: { function_key: live.function_key, input: "needs actual credential" } }, context), /Keychain/u);
+      const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
+        env: {}, provider: { async evaluate() { providerCalls++; throw new Error("must not reach provider"); } },
+      } });
+      const actions = bindActionClient(actionHost.homeActionClient(),
+        () => ({ actor_id: "test", project_id: null, audience: "mcp", permissions: ["functions:invoke"] }));
+      for (let i = 0; i < 3; i++) await assert.rejects(() => callLegacyFunctionsMcp(actions, "molis_work_v1_functions_invoke", { function_key: live.function_key, input: "needs actual credential" }), /Keychain/u);
       assert.equal(providerCalls, 0);
       assert.deepEqual(calls(), ["find-generic-password"]);
-      assert.match(await adapter.handle({ tool_id: "describe", arguments: { function_key: live.function_key } }, context), /lazy_keychain/u);
+      assert.match(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_describe", { function_key: live.function_key }), /lazy_keychain/u);
       assert.equal((await fetch(origin + "/api/functions")).status, 200, "local work remains available after authentication fails");
       assert.deepEqual(readFileSync(file), before);
       assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+      await actionHost.close();
     } finally {
       if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
     }

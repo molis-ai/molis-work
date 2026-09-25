@@ -24,7 +24,10 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 | `ui` | 一直在 | register/unregister Manifest 声明过的 contribution |
 | `events` | 声明了 publishes | `publish({ event_type_id, type_version, payload })`。没声明就没有这个 client |
 | `inputs` / `outputs` | 声明了端口 | 输入读绑定和 `selectedGroup`。输出是 `publish`、`invalidate`、`retain`。`scope_key` 由 Host 创建 client 时附上，见 [elements.md](elements.md) |
+| `actions` | 声明了 actions | 调用本插件已注册的公开动作；Host 绑定用户，停用后失效。HTTP 用 `bindPluginActionRoute` 薄转发，不另写业务实现 |
 | `capabilities` | 声明了 consumes | `invoke` 已 grant 的 Capability |
+
+动作处理器的 `ActionCallContext.actor_id` 是可信调用主体，MCP 授权按此客户端身份判断；可选 `actor_kind` 是审计分类。可信兼容适配器可提供 `audit_actor_id` 保留历史会话作者及幂等域，此字段不参与授权，不得从业务 JSON 覆盖。跨进程 Host 只根据固定客户端和可信会话元数据推导审计作者，不接受任意作者 ID。`actor_kind: null` 保留旧内部调用者未记录的分类，不授予用户决策权限。公共输入只声明业务数据，项目、权限及身份从调用上下文取得。Goals 的目录/创建/便笺可通过其 `goalsActions` 引用；模型入口创建默认记录 runtime 来源，旧内部适配器保留原来源与幂等键。
 
 作者不碰 Store、SQL、数据库路径。缺权限、停用的旧上下文、未声明的类型/界面都会被 owner 拒绝。
 
@@ -63,7 +66,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 ## 生命周期
 
-状态：`installed` → `running` / `disabled` / `crashed` / `quarantined` / `uninstalled`。一个插件启动失败只影响自己。卸载不删已形成的 Artifact/Signal。崩溃可在上限内恢复。独立进程沙箱、升级回滚 UI、Server entry 还不是已上线承诺。
+状态：`installed` → `running` / `disabled` / `crashed` / `quarantined` / `uninstalled`。一个插件启动失败只影响自己。卸载不删已形成的 Artifact/Signal。崩溃可在上限内恢复。当前项目的插件市场支持 Runtime 插件手动升级：Manifest 用精确的 `upgrade_compatibility` 来源版本声明直接兼容或可迁移；可迁移版本还须实现只读 `validateUpgrade`。常规启动不写入新版本，升级保留 `install_id` 与既有 grant。独立进程沙箱和 Server entry 仍不是已上线承诺。详见[插件版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
 ## 测试
 

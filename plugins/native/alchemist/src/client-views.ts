@@ -1,6 +1,6 @@
 /** Native stage renderers. Values from models and sources are always escaped. */
 export const ALCHEMIST_VIEWS = String.raw`
-  const states={queued:'排队中',running:'进行中',completed:'已完成',partial:'部分完成',failed:'失败',cancelled:'已停止',interrupted:'已中断',not_started:'未开始',candidate:'候选',kept:'已保留',discarded:'已弃牌',exploring:'研究中',build:'去做',hold:'先放着',drop:'不做',active:'启用',disabled:'已停用',supported:'已支持',tentative:'暂定',disputed:'有争议',unknown:'未知'};
+  const states={queued:'排队中',running:'进行中',completed:'已完成',partial:'部分完成',failed:'失败',cancelled:'已停止',interrupted:'已中断',not_started:'未开始',candidate:'候选',kept:'已保留',discarded:'已弃牌',exploring:'研究中',build:'去做',hold:'先放着',drop:'不做',active:'启用',archived:'已归档',disabled:'已停用',supported:'已支持',tentative:'暂定',disputed:'有争议',unknown:'未知'};
   const status=value=>'<span class="alc-state" data-state="'+esc(value)+'">'+tx(states[value]||value)+'</span>';
   const paragraphs=value=>'<p>'+esc(value||'')+'</p>';
   const bullets=values=>'<ul>'+values.map(value=>'<li>'+esc(value)+'</li>').join('')+'</ul>';
@@ -11,9 +11,9 @@ export const ALCHEMIST_VIEWS = String.raw`
   function renderList(){
     const q=$('[data-alc-search]').value.trim().toLowerCase(),match=(...v)=>v.join(' ').toLowerCase().includes(q), el=$('[data-alc-rows]'),scroll=$('[data-alchemist=directory]').scrollTop;
     root.querySelectorAll('[data-alc-collection]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.alcCollection===collection)));
-    $('[data-alc-list-actions]').innerHTML=collection==='pulse'?button('采集市场信号','pulse-start',true)+button('来源设置','sources')+(pulse.latestRun?status(pulse.latestRun.status):''):collection==='decisions'?button('活动记录','activity'):'';
+    $('[data-alc-list-actions]').innerHTML=collection==='pulse'?button('采集市场信号','pulse-start',true)+button('来源设置','sources')+(pulse.latestRun?status(pulse.latestRun.status):''):collection==='decisions'?button('活动记录','activity'):collection==='directions'?button(showArchived?'隐藏已归档':'查看已归档','archived-toggle'):'';
     let html='';
-    if(collection==='directions')html=group('方向',data.directions.filter(d=>match(d.title,d.description)).map(d=>{const run=data.explorations.find(e=>e.directionId===d.id);return row('direction',d.id,d.title,run?.understanding?.summary||d.description,run?.status||'not_started');}));
+    if(collection==='directions')for(const [state,label] of [['active','方向'],...(showArchived?[['archived','已归档']]:[])])html+=group(label,data.directions.filter(d=>d.status===state&&match(d.title,d.description)).map(d=>{const run=data.explorations.find(e=>e.directionId===d.id);return row('direction',d.id,d.title,run?.understanding?.summary||d.description,d.status==='archived'?'archived':run?.status||'not_started');}));
     if(collection==='ideas')for(const [value,label] of [['exploring','研究中'],['build','去做'],['hold','先放着'],['drop','不做']])html+=group(label,data.ideas.filter(i=>i.lifecycle===value&&match(i.title)).map(i=>row('idea',i.id,i.title,'v'+i.currentVersion,i.lifecycle,i.currentVersion)));
     if(collection==='decisions')for(const [value,label] of [['pending','待决策'],['decided','已决策'],['old_version','旧版本']])html+=group(label,decisions.cases.filter(c=>c.status===value&&match(c.title,c.decision?.reason)).map(c=>row('idea',c.ideaId,c.title,c.decision?.reason||c.nextAction,c.decision?.outcome||'exploring',c.ideaVersion)));
     if(collection==='pulse')html=group('研究报告',pulse.reports.filter(b=>match(b.report.title,b.report.summary)).map(b=>row('pulse',b.report.id,b.report.title,new Date(b.report.createdAt).toLocaleDateString(),b.report.status)));
@@ -25,7 +25,7 @@ export const ALCHEMIST_VIEWS = String.raw`
     setTitle(d.title); content.innerHTML=paragraphs(d.description)+(run?'<div class="alc-progress">'+status(run.status)+'<span>'+esc(run.runtimeLabel)+'</span></div>':'')+(run?.errorCode?'<p class="alc-warning">'+tx('这次炼化未完成，方向已保存。检查模型后可重新炼化。')+' '+esc(run.errorCode)+'</p>':'')+(run?.understanding?section('对方向的理解',run.understanding.summary)+section('待验证',run.understanding.unknowns):'')+
       runs.map((r,index)=>'<section><h3>'+tx(index?'此前的候选':'候选想法')+' · '+r.cards.length+'</h3><div class="alc-candidates">'+r.cards.map(c=>'<article class="alc-candidate"><h3>'+esc(c.title)+'</h3>'+status(c.status)+paragraphs(c.highlight)+section('给谁',c.targetUser)+section('机制',c.mechanism)+'<div class="alc-actions">'+button(c.status==='kept'?'查看已保留想法':'查看详情','card',false,'data-id="'+esc(c.id)+'"')+'</div></article>').join('')+'</div></section>').join('');
     if(!runtime.configured)content.insertAdjacentHTML('afterbegin','<div class="alc-warning">'+tx('还没有可用模型。连接模型后再炼化，已写的方向不会丢失。')+' '+modelSettingsLink()+'</div>');
-    footer.innerHTML=button(run?'重新炼化':'开始炼化','explore',true,active(run?.status)?'disabled':'')+button('讨论这个方向','chat');
+    footer.innerHTML=d.status==='archived'?button('恢复方向','restore-direction'):button(run?'重新炼化':'开始炼化','explore',true,active(run?.status)?'disabled':'')+button('编辑方向','edit-direction')+button('归档方向','archive-direction')+button('讨论这个方向','chat');
   }
   function renderBrief(m){
     model=m;setTitle(m.title);context={kind:'idea',label:m.title,ideaId:m.kind==='idea'?m.ideaId:m.cardId,version:m.kind==='idea'?m.version:'draft',panel:'brief'};

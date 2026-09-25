@@ -324,9 +324,9 @@ function openRuntimeDatabase(directory: string, name: string): Database.Database
 test("a rebuilt runtime activates a persisted running plugin and does not revive crashed or quarantined ones", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-runtime-rebuild-"));
   const databasePath = join(directory, "runtime.sqlite");
-  const healthyId = "io.molis.audit.healthy";
-  const crashedId = "io.molis.audit.crashed";
-  const quarantinedId = "io.molis.audit.quarantined";
+  const healthyId = "io.molis.work.audit.healthy";
+  const crashedId = "io.molis.work.audit.crashed";
+  const quarantinedId = "io.molis.work.audit.quarantined";
   let healthyStarts = 0;
   let crashedStarts = 0;
   let quarantinedStarts = 0;
@@ -459,8 +459,8 @@ test("a rebuilt runtime activates a persisted running plugin and does not revive
 
 test("a failed reactivation revokes grants, and a cold stop does not activate or spend recovery", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-runtime-reactivate-"));
-  const failingId = "io.molis.audit.reactivate";
-  const parkedId = "io.molis.audit.parked";
+  const failingId = "io.molis.work.audit.reactivate";
+  const parkedId = "io.molis.work.audit.parked";
   let failingStarts = 0;
   let parkedStarts = 0;
   let parkedStops = 0;
@@ -546,7 +546,7 @@ test("a failed reactivation revokes grants, and a cold stop does not activate or
 });
 
 test("repeated and concurrent start register once, and a stop queued behind start revokes grants", async () => {
-  const pluginId = "io.molis.audit.once";
+  const pluginId = "io.molis.work.audit.once";
   let starts = 0;
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => {
@@ -600,8 +600,8 @@ test("repeated and concurrent start register once, and a stop queued behind star
 });
 
 test("revoke withdraws enablement until enable, including delivery, routes, and inputs", async () => {
-  const producerId = "io.molis.audit.producer";
-  const consumerId = "io.molis.audit.consumer";
+  const producerId = "io.molis.work.audit.producer";
+  const consumerId = "io.molis.work.audit.consumer";
   const eventType = `${producerId}.changed`;
   const boardId = "board-revoke";
   const received: unknown[] = [];
@@ -610,11 +610,12 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
   let routes = 0;
   const producer: PluginDefinition = {
     manifest: probeManifest(producerId, {
-      permissions: [],
+      permissions: [{ permission: "artifact:write", required: true, reason: "发布探针成果" }],
       ports: {
         inputs: [],
         outputs: [{ port: "project", artifact_type_id: "audit.project", schema_version: 1 }],
       },
+      artifacts: { produces: [{ artifact_type_id: "audit.project", schema_version: 1 }], consumes: [] },
       events: {
         publishes: [{ event_type_id: eventType, type_version: 1 }],
         subscribes: [],
@@ -628,16 +629,17 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
   };
   const consumer: PluginDefinition = {
     manifest: probeManifest(consumerId, {
-      permissions: [],
+      permissions: [{ permission: "artifact:read", required: true, reason: "读取探针成果" }],
       ports: {
         inputs: [{ port: "project", artifact_type_id: "audit.project", schema_version: 1 }],
         outputs: [],
       },
+      artifacts: { produces: [], consumes: [{ artifact_type_id: "audit.project", schema_version: 1 }] },
       events: {
         publishes: [],
         subscribes: [{ event_type_id: eventType, type_version: 1, from_plugin_ids: [producerId] }],
       },
-      routes: [{ route_id: "ping", method: "GET", path: "ping" }],
+      routes: [{ route_id: "ping", method: "GET", path: "/ping" }],
     }),
     async start() {
       consumerStarts += 1;
@@ -663,7 +665,8 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
   const runtime = new PluginRuntime();
   const supervisor = new PluginSupervisor(runtime);
   const entries = [{ definition: producer }, { definition: consumer }];
-  await supervisor.start(entries);
+  const started = await supervisor.start(entries);
+  assert.deepEqual(started.running.sort(), [producerId, consumerId].sort(), JSON.stringify(started.failed));
   const before = supervisor.generation(consumerId);
   assert.equal(typeof before, "number");
   await supervisor.restart(consumerId);
@@ -811,7 +814,7 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
 });
 
 test("a start that finishes after revoke does not become the active instance", async () => {
-  const pluginId = "io.molis.audit.late";
+  const pluginId = "io.molis.work.audit.late";
   let starts = 0;
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => {
@@ -867,7 +870,7 @@ test("a start that finishes after revoke does not become the active instance", a
 });
 
 test("ensureStarted that finishes after revoke cannot register an active instance", async () => {
-  const pluginId = "io.molis.audit.lazy";
+  const pluginId = "io.molis.work.audit.lazy";
   let starts = 0;
   let mode: "fail" | "block" | "ok" = "fail";
   let release: () => void = () => {};

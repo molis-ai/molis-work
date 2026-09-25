@@ -1,3 +1,4 @@
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,6 +34,7 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
   const snapshot = () => client.invoke(snapshotBoardCapability, { board_id: boardId });
   try {
     await client.invoke(initializeBoardCapability, { board_id: boardId, title: "Proposal chain", actor_id: "user", idempotency_key: "init" });
+    await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:chain");
     const created = JSON.parse(await runtime.callTool("molis_work_v1_goal_intent_create", {
       goal_id: "draft", title: "整理开发入口", outcome: "提案先保存，用户决定后生效", idempotency_key: "start",
     }));
@@ -100,6 +102,18 @@ test("CLI and MCP share current Goal/Relation proposal decisions across Host res
     const afterDecision = await snapshot();
     assert.ok(afterDecision.goals.find((goal) => goal.goal_id === "child"));
     assert.ok(afterDecision.relations.some((relation) => relation.from_goal_id === "child" && relation.to_goal_id === "draft" && relation.type === "part_of"));
+    const management = new MolisWorkServer("management", null, null, host);
+    try {
+      const replay = JSON.parse(await management.callTool("molis_work_v1_goal_tree_decide", {
+        database_path: databasePath, board_id: boardId, proposal_id: proposed.proposal.proposal_id,
+        authority: { actor_id: "user", actor_kind: "user", authority_source: "management",
+          conversation_ref: "conversation://proposal-chain", message_ref: "message://confirm-child" },
+        decisions: [{ item_id: "child", decision: "confirm" }, { item_id: "child-parent", decision: "confirm" }],
+        reason: "确认创建这个子目标及父子关系", idempotency_key: "decide",
+      }));
+      assert.deepEqual(replay, { ...decided, replayed: true });
+      assert.deepEqual(await snapshot(), afterDecision);
+    } finally { await management.close(); }
     const beforeReplay = await snapshot();
     await runtime.close();
     await host.close();

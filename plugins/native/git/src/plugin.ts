@@ -8,6 +8,7 @@ import type {
 import { gitEventTypes } from "./events.js";
 import { gitManifest } from "./manifest.js";
 import { gitUiContribution } from "./ui.js";
+import { gitActionHandlers } from "./actions.js";
 import { gitRoutes } from "./routes.js";
 
 /**
@@ -50,7 +51,8 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
       return {
         kind: "app",
         views: [gitUiContribution],
-        routes: gitRoutes(context, ready => { repositoryReady = ready; }),
+        routes: gitRoutes(context),
+        actions: gitActionHandlers(context, ready => { repositoryReady = ready; }),
         commandAvailability: (commandId) => {
           if (commandId === "git.open-change") {
             return repositoryReady || ports.ready?.() === true

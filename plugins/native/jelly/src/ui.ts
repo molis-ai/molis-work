@@ -80,7 +80,7 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
     </div>
     <div class="plugin-stage-workspace jelly-detail" data-jelly-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button type="button" class="plugin-stage-back" data-jelly-back aria-label="${t("返回列表")}" title="${t("返回列表")}">${icon("arrow")}</button>
+        <button type="button" class="plugin-stage-back" data-jelly-back aria-label="${t("返回列表")}" title="${t("返回列表")}">${icon("chevron-right")}</button>
         <h1 data-jelly-editor-heading>${t("笔记")}</h1><span class="jelly-save-status" data-jelly-save-status></span>
         ${button("拆成任务", "data-jelly-decompose", "sparkles")}
         ${button("归档", "data-jelly-archive", "archive")}
@@ -111,7 +111,7 @@ export function renderJellyWorkbench(model: JellyUiModel): string {
         <p class="jelly-field-hint">${t("不填时间就是全天事项；结束日期可跨天。")}</p>
         <fieldset class="jelly-field"><legend>${t("分类")}</legend><div class="jelly-choice-row" data-jelly-item-categories></div></fieldset>
         <fieldset class="jelly-field"><legend>${t("优先级")}</legend><div class="jelly-choice-row" data-jelly-priority></div></fieldset>
-        <label class="jelly-check"><input type="checkbox" class="mw-checkbox" data-jelly-field="pinned">${t("置顶")}</label>
+        <label class="jelly-check"><input type="checkbox" class="mw-check" data-jelly-field="pinned">${t("置顶")}</label>
         <fieldset class="jelly-field" data-jelly-recurrence><legend>${t("重复")}</legend><div class="jelly-choice-row" data-jelly-weekdays></div><label class="jelly-field jelly-until">${t("重复截止日期")}${dateField("until")}</label></fieldset>
         <fieldset class="jelly-field" data-jelly-series-scope hidden><legend>${t("修改范围")}</legend><div class="jelly-choice-row" data-jelly-scope-options></div></fieldset>
         <label class="jelly-field">${t("备注")}<textarea class="mw-textarea" rows="3" data-jelly-field="notes"></textarea></label>

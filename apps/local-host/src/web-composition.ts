@@ -25,7 +25,8 @@ export interface LocalWebPlatform {
 }
 
 export function createLocalWebComposition(platform: LocalWebPlatform) {
-  const PAGE_CSP = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
+  // Shared controls draw select chevrons as inline data: SVG; images cannot run script.
+  const PAGE_CSP = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'";
   const { withCatalog, isDesktopShellRequest } = platform;
   const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer);
   const sessionProjectOperationsData = createSessionProjectOperations(platform.runtimeTitle);

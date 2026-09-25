@@ -42,7 +42,6 @@
     ],
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
-      "mcp.goals-command-adapter.v1"
     ]
   }
 }

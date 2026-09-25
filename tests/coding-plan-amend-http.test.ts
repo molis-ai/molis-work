@@ -8,6 +8,7 @@ import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurfac
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
+import { pluginActions } from "./fixtures/plugin-actions.js";
 
 test("plan changes are checked, applied through the Host graph operation, and told to the live round in plain words", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-plan-amend-")), path = join(root, "board.db"); seedDemoBoard(path);
@@ -18,7 +19,7 @@ test("plan changes are checked, applied through the Host graph operation, and to
   const board = { board_id: "b1", version: 4, terminal: false, nodes: [
     { id: "step-1", state: "running", reports: [], title: "读取代码" }, { id: "step-2", state: "not-started", reports: [], title: "实现功能" }] };
   const amendments: unknown[] = [], steers: string[] = []; let steerFails = false;
-  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
     execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       const input = args as any[];
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;

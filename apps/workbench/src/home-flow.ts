@@ -330,6 +330,8 @@ export function createHomeFlow() {
       });
     }
 
+    const sessionStatusLabels = { discovered: "待确认", active: "进行中", closed: "已结束" };
+    const sessionStatusLabel = (status) => sessionStatusLabels[status] ?? status;
     for (const session of input.sessions) {
       const updated = parseInstant(session.updated_at || session.created_at, now);
       const day = civilKey(updated);
@@ -344,11 +346,11 @@ export function createHomeFlow() {
         plugin: "sessions",
         icon: "terminal",
         title: session.title || "Session",
-        lead: session.status,
+        lead: sessionStatusLabel(session.status),
         text: "Session 还在。接着做会打开这条会话。",
         facts: [
           ["来自", "Sessions"],
-          ["状态", session.status],
+          ["状态", sessionStatusLabel(session.status)],
           ["挂在", goal?.title || "未挂 Goal"],
         ],
         act: "continue",

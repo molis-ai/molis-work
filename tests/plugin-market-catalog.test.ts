@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { renderPluginMarket } from "../apps/workbench/src/immersive-shell.ts";
+import { renderPluginMarket, renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/plugin-workbench.ts";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
@@ -20,6 +20,8 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.match(html, /data-market-scope="added"/);
   assert.match(html, /class="plugin-market-list"/);
   assert.match(html, /data-market-add="artifacts"/);
+  assert.match(html, /data-market-runtime-id="io\.molis\.work\.artifacts"/);
+  assert.match(html, /data-market-version hidden/);
   assert.match(html, /#icon-rss/);
   assert.match(html, /#icon-inbox/);
   assert.match(html, /#icon-package/);
@@ -27,6 +29,11 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.doesNotMatch(html, /plugin-market-grid/);
   assert.doesNotMatch(html, /仅看已添加/);
   assert.doesNotMatch(html, /plugin-market-controls/);
+});
+
+test("plugin rail reserves a live update-count marker on the market entry", () => {
+  const html = renderPluginRail({ L: value => value, escapeHtml: String, icon }, [], '<footer class="personal-sidebar-footer"></footer>');
+  assert.match(html, /data-plugin-id="market"[^>]*aria-label="插件市场"[^>]*>[\s\S]*data-market-update-count hidden/);
 });
 
 test("plugin market destination menu factory has no nested template interpolation", () => {
@@ -38,6 +45,8 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /hidePopover/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /marketMembership/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /移除/);
+  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/runtime\/updates/);
+  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/" \+ encodeURIComponent\(pluginId\) \+ "\/upgrade/);
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
   assert.match(script, /grey: "var\(--hue-gray\)"/);

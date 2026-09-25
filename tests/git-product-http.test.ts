@@ -31,7 +31,7 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     await chmod(path.join(directory, "note"), 0o644);
     await start(); const projects: string[] = [];
     for (const display_name of ["Git A", "Git B"]) { const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true }); assert.equal(created.status, 201); projects.push(created.body.project.project_id); await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding" }); }
-    const api = (plugin: string, suffix: string, project = projects[0]) => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
+    const api = (plugin: string, suffix: string, project = projects[0]) => plugin === "workspace" ? `/projects/${project}/api/project-settings/workspaces` : `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
     assert.equal((await request(`/projects/${projects[0]}/api/workspaces`, "POST", { workspace_path: directory, user_confirmed: true })).status, 201);
     const ws = (await request(api("workspace", "/state"))).body.workspaces[0].workspace_id;
     await request(api("workspace", "/select"), "POST", { workspace_id: ws });
@@ -46,7 +46,7 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     assert.equal(staged.body.result.before, "base\n"); assert.equal(staged.body.result.after, "staged\n");
     const fixedPath = (ref: any) => "/state?artifact_id=" + encodeURIComponent(ref.artifact_id) + "&version=" + ref.version;
     const fixed = staged.body.selected.reference, stagedView = await request(api("diff", fixedPath(fixed)));
-    assert.equal(stagedView.status, 200); assert.equal(stagedView.body.view.group, "git-change-set"); assert.match(stagedView.body.html, /staged/);
+    assert.equal(stagedView.status, 200, JSON.stringify(stagedView.body)); assert.equal(stagedView.body.view.group, "git-change-set"); assert.match(stagedView.body.html, /staged/);
     assert.match(stagedView.body.html, /新增执行权限/);
     assert.equal((await request(api("diff", fixedPath(fixed), projects[1]))).status, 400);
     const working = await request(api("git", "/diff"), "POST", { ...input, side: "worktree" });
@@ -98,7 +98,9 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     assert.equal((await decide(approved)).status, 409, "one decision cannot stage twice");
     assert.equal((await request(api("git", "/results"), "POST", { workspace_id: ws, review_id: approved }, false)).status, 403);
     assert.equal((await request(api("git", "/results", projects[1]), "POST", { workspace_id: ws, review_id: approved })).status, 400);
-    const savedResult = await saveResult(approved, { outcome: "failed", summary: "forged", result: { outcome: "denied" } });
+    const forgedResult = await saveResult(approved, { outcome: "failed", summary: "forged", result: { outcome: "denied" } });
+    assert.equal(forgedResult.status, 400, "the unified input contract rejects caller-supplied outcome fields");
+    const savedResult = await saveResult(approved);
     assert.equal(savedResult.status, 200, JSON.stringify(savedResult));
     assert.equal(savedResult.body.result.outcome, "succeeded"); assert.equal(savedResult.body.result.review.review_id, approved);
     assert.deepEqual(savedResult.body.result.review.paths, ["note"]); assert.equal(savedResult.body.result.review.decided_by, "web-user");
@@ -147,6 +149,7 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     assert.equal((await git("show", ":note")).stdout, "base\n");
     assert.equal((await saveResult(approved)).status, 400, "unlinking prevents further result publication");
     const revoked = await request(api("git", "/diff"), "POST", input);
-    assert.equal(revoked.body.result.outcome, "denied");
+    assert.equal(revoked.status, 400);
+    assert.match(revoked.body.error, /项目设置/);
   } finally { if (server!) await close(); await rm(root, { recursive: true, force: true }); }
 });

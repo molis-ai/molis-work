@@ -28,6 +28,8 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 `research_library` 来源由 Host 注入 `syncRepository`，沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
 
+入箱后的下一步判断走 `inboxJudgment` 注入端口，Host 将它接到统一 `inbox.next` 场景。`subscribeInboxCreated` 连接 Attention 的实际创建事件，覆盖直接携带 attention 的导入及来源故障；去重后在业务提交后的 `flushPendingJudgments` 中执行。已回滚或关闭的事项不触发判断。每个应用实例拥有自己的队列，来源、连接器、定时器和工作流须传入绑定可信调用上下文的 `feedOptions`；仅传 Home 路径不产生 Inbox 调用授权。Feed 筛选和首页建议仍是迁移中的旧 JudgmentPort 消费方。
+
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发

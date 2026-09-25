@@ -39,15 +39,15 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
       <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-images="directory">
         <header class="plugin-stage-chrome">
           <button class="mw-btn mw-btn--ghost tree-create" type="button" data-images-new>${icon("plus")}<span>${p.text("新建图片")}</span></button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-images-refresh>${icon("refresh")}<span>${p.text("刷新")}</span></button>
         </header>
-        <div class="images-history-heading"><span>${p.text("生成记录")}</span><button class="mw-btn mw-btn--ghost" type="button" data-images-refresh>${p.text("刷新")}</button></div>
-        <div class="mw-empty" data-images-history-empty><p>${p.text("这里会留下当前项目的图片与生成记录。")}</p></div>
+        <div class="mw-empty" data-images-history-empty><span class="mw-empty__mark">${icon("image")}</span><strong>${p.text("还没有图片")}</strong><p>${p.text("这里会留下当前项目的图片与生成记录。")}</p></div>
         <div data-images-rows></div>
         <p class="images-note" role="status" data-images-list-note hidden></p>
       </div>
       <div class="plugin-stage-workspace" data-images-workspace hidden>
         <header class="plugin-stage-detail-bar">
-          <button class="plugin-stage-back" type="button" data-images-back aria-label="${p.text("返回生成记录")}" title="${p.text("返回生成记录")}">${icon("arrow")}</button>
+          <button class="plugin-stage-back" type="button" data-images-back aria-label="${p.text("返回生成记录")}" title="${p.text("返回生成记录")}">${icon("chevron-right")}</button>
           <h1 data-images-title>${p.text("新建图片")}</h1>
           <button class="mw-btn mw-btn--ghost" type="button" data-images-refresh>${p.text("刷新")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" data-images-connections>${p.text("管理服务")}</button>
@@ -56,6 +56,7 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
           <form class="images-compose" data-images-compose>
             <div class="images-intro"><h2>${p.text("把想法变成图片")}</h2><p>${p.text("选择生图服务，写下画面、风格和细节。")}</p></div>
             <div class="images-connection-empty" data-images-connection-empty hidden><p>${p.text("先连接一个生图服务。密钥加密保存在这台电脑，配置可跨项目使用。")}</p><button class="mw-btn mw-btn--secondary" type="button" data-images-connections>${p.text("连接生图服务")}</button></div>
+            <p class="images-note is-error" data-images-service-unavailable role="status" hidden></p>
             <div data-images-connected hidden>
               <label class="images-field-label">${p.text("生图服务与模型")}</label>
               <details class="images-service-menu" data-images-service-menu>
@@ -92,7 +93,7 @@ export function renderImagesWorkbench({ primitives: p }: ImagesUiModel): string 
               <div class="images-field"><span>${p.text("API 协议")}</span><div class="images-protocols" role="group" aria-label="${p.text("API 协议")}"><button class="mw-btn mw-btn--secondary" type="button" data-images-format="openai-images" aria-pressed="true">OpenAI Images</button><button class="mw-btn mw-btn--secondary" type="button" data-images-format="gemini" aria-pressed="false">Gemini generateContent</button></div></div>
               <label class="images-field"><span>${p.text("API 基址")}</span><input class="mw-input" name="base_url" data-images-connection-url type="url" required autocomplete="off" placeholder="https://api.openai.com/v1"></label>
               <label class="images-field"><span>${p.text("模型名称")}</span><input class="mw-input" name="model" data-images-connection-model required maxlength="200" autocomplete="off"></label>
-              <label class="images-field"><span>API Key</span><input class="mw-input" name="api_key" data-images-connection-key type="password" autocomplete="new-password" spellcheck="false" placeholder="${p.text("输入密钥；本地无鉴权服务可留空")}"><small data-images-key-help>${p.text("密钥只写入本机加密存储，不会出现在历史记录中。")}</small></label>
+              <label class="images-field"><span>${p.text("账号连接")}</span><select class="mw-select" data-images-connection-auth><option value="">${p.text("本机无鉴权服务")}</option></select><small data-images-key-help>${p.text("API Key 在 Connectors 统一管理。")}</small></label><a href="/settings/connectors?connector=image-api">${p.text("在 Connectors 管理图像 API Key")}</a>
             </fieldset>
           </div>
           <footer class="images-dialog-footer"><p class="images-note" role="status" data-images-connection-note hidden></p><div class="images-actions"><button class="mw-btn mw-btn--ghost" type="button" data-images-add-connection>${p.text("添加另一服务")}</button><button class="mw-btn mw-btn--primary" type="submit" data-images-save-connection>${p.text("保存服务")}</button></div></footer>

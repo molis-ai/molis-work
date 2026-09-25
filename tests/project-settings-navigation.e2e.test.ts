@@ -56,7 +56,7 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/general?desktop=1" }, sessionId));
   await waitFor("document.body.classList.contains('project-preferences-page') && !!document.querySelector('[data-project-rename]')");
   assert.equal(await evaluate("!!document.querySelector('.project-name-form[data-project-rename]')"), true);
-  assert.equal(await evaluate("document.querySelector('.project-settings-navigation a[href*=rules]') != null"), true);
+  assert.equal(await evaluate("document.querySelector('.project-settings-navigation a[href*=workspaces]') != null"), true);
   assert.equal(await evaluate("document.querySelector('[data-settings-fold=guidance]')"), null);
   await click('[data-project-rename] input');
   await evaluate("document.querySelector('[data-project-rename] input').select()");

@@ -70,7 +70,8 @@ export const GOAL_CANVAS_STYLES = `
   .goal-work-planning-toggle[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); }
   .goal-work-planning-pane,
   .goal-work-rules-pane { display: none; min-width: 0; min-height: 0; overflow: auto; padding: 64px 40px 48px; background: var(--page); }
-  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { overflow: hidden; padding: 52px 0 0; }
+  /* The Goal chrome wraps to two rows beside the planning directory (16px inset + 60px), so the pane starts below it. */
+  .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane { overflow: hidden; padding: 84px 0 0; }
   .goal-canvas-shell[data-goal-planning="open"] .goal-work-planning-pane,
   .goal-canvas-shell[data-goal-rules="open"] .goal-work-rules-pane { display: block; position: absolute; inset: 0; z-index: 4; }
   .goal-canvas-shell:is([data-goal-planning="open"], [data-goal-rules="open"]) [data-goal-stage-chrome] { visibility: visible; }
@@ -89,7 +90,7 @@ export const GOAL_CANVAS_STYLES = `
   html[data-resolved-theme="dark"] .goal-work-rules-pane .project-rules-document { display: block; height: auto; overflow: visible; background: transparent; }
   .goal-work-rules-pane.settings-stage :is(.mw-input, .mw-select, .mw-textarea) { width: 240px; min-height: var(--control-h, 28px); padding: 0 10px; border: 1px solid var(--control-input); border-radius: var(--radius-control, 8px); background-color: var(--paper); color: var(--ink); box-shadow: none; font-size: 13px; appearance: none; }
   .goal-work-rules-pane.settings-stage .mw-textarea { width: 100%; min-height: 72px; height: auto; padding: 8px 10px; resize: vertical; }
-  .goal-work-rules-pane.settings-stage .mw-select { padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px; }
+  .goal-work-rules-pane.settings-stage .mw-select { padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394949c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; background-size: 14px 14px; }
   .goal-work-rules-pane.settings-stage .setting-number .mw-input { width: 90px; }
   .goal-work-rules-pane .settings-setting-row > .mw-select-picker { width: 240px; flex: none; margin-left: auto; }
   .goal-work-rules-pane .settings-setting-row > .mw-select-picker > .mw-select-picker__trigger { width: 100%; }
@@ -136,7 +137,7 @@ export const GOAL_CANVAS_STYLES = `
     overflow: visible;
   }
   .goal-stage-list .tree-entry:hover { background: var(--nav-hover); }
-  .goal-stage-list .tree-entry.is-selected { background: var(--nav-active); }
+  .goal-stage-list .tree-entry.is-selected { background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, transparent); }
   body.immersive-workbench .goal-stage-list .tree-leading {
     display: flex;
     align-items: center;
@@ -177,7 +178,7 @@ export const GOAL_CANVAS_STYLES = `
     background: color-mix(in srgb, var(--muted) 14%, var(--paper));
     box-shadow: inset 0 0 0 1px var(--line);
   }
-  .goal-stage-list .tree-created { min-width: 7ch; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .goal-stage-list .tree-created { min-width: 6em; color: var(--muted); font-size: 11px; text-align: right; font-weight: 400; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .goal-stage-list .tree-created.is-empty { visibility: hidden; }
   body.immersive-workbench .goal-stage-list .tree-node {
     display: flex;
@@ -457,6 +458,12 @@ export const GOAL_CANVAS_STYLES = `
   .goal-info-body svg { width: 14px; height: 14px; flex: none; }
   .goal-info-actions .goal-more > div { top: auto; bottom: calc(100% + 4px); right: 0; }
   .goal-info-requirements:hover, .goal-info-attention:hover { color: var(--blue); }
+  /* One text edge down the Goal aside: summary, body, link actions, timeline heading and day labels. */
+  body.immersive-workbench .goal-canvas-shell .goal-info-popover > summary { padding-inline: 14px 10px; }
+  body.immersive-workbench .goal-canvas-shell .goal-info-body .mw-btn--link { padding-inline: 0; }
+  body.immersive-workbench .goal-canvas-shell .goal-event-document .stream-toolbar { padding-inline: 12px 10px; }
+  body.immersive-workbench .goal-canvas-shell .goal-event-document .day-label { margin-inline: 4px; }
+  body.immersive-workbench .goal-canvas-shell .goal-event-document .timeline-entry { padding-inline: 4px; }
   .timeline-compose { position: relative; }
   .timeline-compose > summary { display: flex; align-items: center; gap: 4px; min-height: 32px; padding: 5px 8px; list-style: none; border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--ink); }
   .timeline-compose > summary:hover, .timeline-compose[open] > summary { background: var(--rail); }

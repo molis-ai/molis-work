@@ -7,7 +7,7 @@ import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/
 import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-test("Planning browser copies a template, recovers failed saves and adopts an independent project version", { timeout: 60_000 }, async t => {
+for (const width of [1440, 390]) test(`Planning ${width}px copies a template, recovers failed saves and adopts an independent project version`, { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { origin, projectId, store, before, command, sessionId, evaluate, waitFor, click, reloadPage, navigate } = browser;
@@ -21,7 +21,7 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   const template = original.methods.find(x => x.method_id === id)!;
   assert.equal(template.scope, "built_in");
   await command("Network.enable", {}, sessionId);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 1100, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/settings/planning" }, sessionId));
   await command("Page.bringToFront", {}, sessionId);
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
@@ -57,6 +57,8 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
   const saved = (await read(globalApi)).methods.find(x => x.method_id === id)!;
   assert.equal(saved.scope, "personal");
+  assert.deepEqual(saved.event_types, template.event_types);
+  assert.deepEqual(saved.default_requirements, template.default_requirements);
   assert.equal(saved.version, 1);
   assert.equal(saved.name, values.name);
   assert.equal(saved.instructions, values.instructions);
@@ -96,16 +98,23 @@ test("Planning browser copies a template, recovers failed saves and adopts an in
   assert.equal(adopted.version, 1);
   assert.equal(adopted.instructions, saved.instructions);
   assert.equal(adopted.name, saved.name);
+  assert.ok(saved.event_types.length > 0);
+  assert.ok(saved.default_requirements.length > 0);
+  assert.deepEqual(adopted.event_types, saved.event_types);
+  assert.deepEqual(adopted.default_requirements, saved.default_requirements);
   assert.equal((await read(projectApi)).methods.filter(x => x.method_id === id).length, 1);
-  await navigate(() => click('.planning-composition-row[href="' + prefix + '/settings/planning/' + id + '"]'));
+  await click('.planning-composition-row[data-planning-detail-path="' + prefix + '/settings/planning/' + id + '"]');
+  await waitFor(dom('[data-planning-split="detail"] .planning-detail'));
   await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
-  await navigate(() => click(".planning-detail-header .mw-btn--primary"));
+  await click("[data-planning-detail] .planning-detail-header .mw-btn--primary");
   await waitFor("document.readyState === 'complete' && " + dom("[data-planning-edit-form]"));
   await click('[name="enabled"]');
   await navigate(() => click(submit));
   await waitFor("document.readyState === 'complete' && " + dom(".planning-detail"));
   const disabled = (await read(projectApi)).methods.find(x => x.method_id === id)!;
   assert.equal(disabled.enabled, false);
+  assert.deepEqual(disabled.event_types, saved.event_types);
+  assert.deepEqual(disabled.default_requirements, saved.default_requirements);
   assert.equal(disabled.version, 2);
   assert.deepEqual((await read(globalApi)).methods.find(x => x.method_id === id), saved);
   await navigate(() => click(".planning-back"));

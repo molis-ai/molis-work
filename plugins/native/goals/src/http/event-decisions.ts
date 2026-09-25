@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { hostEventDecisionAuthority } from "../goal-event-application.js";
+import { goalsActions } from "../actions.js";
 import type { GoalsHttpContext } from "./types.js";
 
 export async function handleGoalEventDecisionHttp(context: GoalsHttpContext): Promise<boolean> {
@@ -27,11 +27,9 @@ export async function handleGoalEventDecisionHttp(context: GoalsHttpContext): Pr
   const goalId = decodeURIComponent(match[1]);
   const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? `web-event-decision-${randomUUID()}`);
   try {
-    const result = context.goalEvents.recordTrustedDecision({
-      board_id: context.options.boardId,
+    const result = await context.actions.invoke(goalsActions.decide, {
       goal_id: goalId,
       idempotency_key: idempotencyKey,
-      authority: hostEventDecisionAuthority("web", context.options.boardId, "web-user", idempotencyKey),
       request_id: typeof body.request_id === "string" ? body.request_id : undefined,
       selected_option_id: typeof body.selected_option_id === "string" ? body.selected_option_id : undefined,
       conclusion,

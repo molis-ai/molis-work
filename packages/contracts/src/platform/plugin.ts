@@ -33,7 +33,7 @@ import type {
   PluginMcpHandlerBinding,
 } from "./plugin-mcp.js";
 
-export { parsePluginManifest, PluginManifestError, canonicalPluginId } from "./plugin-manifest.js";
+export { parsePluginManifest, PluginManifestError, canonicalPluginId, comparePluginVersions } from "./plugin-manifest.js";
 export type { PluginArtifactClient, PluginArtifactPublishInput } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 export * from "./plugin-events.js";
@@ -41,6 +41,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./plugin-mcp.js";
 export * from "./plugin-behaviors.js";
+export * from "./actions.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
 export interface PluginPrivateStorage {
@@ -63,13 +64,18 @@ export interface PluginUiClient {
 
 /** Narrow, grant-checked access to Capabilities the Manifest declared as consumed. */
 export interface PluginCapabilityClient {
+  /** Inspect a declared dependency without invoking it. Actual calls still validate their input and authority. */
+  availability(capability: import("./actions.js").ActionReference): import("./actions.js").ActionAvailability;
   invoke<Input, Output>(
     capability: HostCapabilityDefinition<Input, Output>,
     input: Input,
+    options?: import("./app-host.js").HostCapabilityCallOptions,
   ): Promise<Output>;
 }
 
 export interface PluginHostServices {
+  /** Host-bound entry to this Plugin's declared public actions; no arbitrary capability access. */
+  readonly actions?: import("./actions.js").BoundActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
   readonly artifacts: PluginArtifactClient;
@@ -130,6 +136,14 @@ export interface PluginRequirementDeclaration {
   reason: string;
 }
 
+/** Exact installed versions this release can safely continue from or migrate from. */
+export interface PluginUpgradeCompatibilityDeclaration {
+  /** The new implementation can use the old installation and its existing grants without migration. */
+  compatible_from_versions?: string[];
+  /** Manual upgrade is supported only with a plugin-provided private-data validation hook. */
+  migratable_from_versions?: string[];
+}
+
 export type PluginRouteMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /**
@@ -169,6 +183,8 @@ export interface PluginManifest {
   };
   ui: {
     contributions: string[];
+    /** v2: Plugin IDs whose embedded surfaces this UI uses. Enables discovery, never grants authority. */
+    embedded_plugins?: string[];
     /** v2: where each contribution is placed. Absent means the Host places nothing. */
     views?: UiViewDeclaration[];
     /** v2: commands offered to the command menu and content actions. */
@@ -184,6 +200,8 @@ export interface PluginManifest {
   requires?: PluginRequirementDeclaration[];
   /** v2: roles, prompts, skills and subagents for an Agent-backed Plugin. */
   agent?: AgentManifest;
+  /** Exact old installation versions this release can upgrade from. */
+  upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /**
    * Tools this Plugin contributes to the Host's unified MCP catalog.
    * Public names and enablement stay with the Host; `agent.mcp` is the
@@ -196,6 +214,10 @@ export interface PluginManifest {
   function_scenes?: import("./plugin-behaviors.js").PluginFunctionSceneDeclaration[];
   /** Object kinds this Plugin can project into a judgment input. */
   judgment_subjects?: import("./plugin-behaviors.js").PluginJudgmentSubjectDeclaration[];
+  /** Complete, callable capabilities registered with the system action service. */
+  actions?: readonly import("./actions.js").ActionDefinition[];
+  /** Actual judgment consumption points, automatically discovered by configuration UIs. */
+  action_scenes?: readonly import("./actions.js").ActionSceneDefinition[];
 }
 
 export interface PluginInstanceRecord {
@@ -221,6 +243,8 @@ export interface PluginIntegrationContribution {
   kind: "integration";
   connector_driver: ConnectorDriver;
   signal_adapter: RawEventAdapter;
+  actions?: readonly import("./actions.js").ActionHandlerBinding[];
+  action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
 }
 
 /** Each variant's `kind` must stay a declared UI command input kind. */
@@ -263,6 +287,8 @@ export interface PluginRouteBinding {
  */
 export interface PluginAppContribution {
   kind: "app";
+  actions?: readonly import("./actions.js").ActionHandlerBinding[];
+  action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */
   views?: readonly UiContribution[];
   /** Handlers for the routes the Manifest declares. */
@@ -293,17 +319,28 @@ export type PluginContribution = PluginIntegrationContribution | PluginAppContri
 export interface PluginStartContext {
   install_id: string;
   plugin_id: string;
+  /** Executing implementation version; a compatible implementation may be newer than the persisted install. */
   version: string;
   deployment: PluginDeployment;
   grants: readonly string[];
   /** Project scope this activation belongs to. Absent for project-less reference runs. */
   board_id?: string;
+  /** Trusted local owner for HTTP entrypoint binding; never read from business arguments. */
+  readonly actor_id?: string;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */
   input_group?: string;
   /** Available when running through the application Host, not a bare reference executor. */
   readonly services?: PluginHostServices;
   requireGrant(permission: string): void;
 }
+
+/** Restricted context for reading existing private data during upgrade preflight. */
+export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
+  /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
+  readonly services?: Omit<Partial<PluginHostServices>, "storage"> & {
+    readonly storage?: Pick<PluginPrivateStorage, "get">;
+  };
+};
 
 export interface PluginDefinition {
   manifest: PluginManifest;
@@ -316,6 +353,8 @@ export interface PluginDefinition {
   start(context: PluginStartContext): Promise<PluginContribution>;
   stop?(context: PluginStartContext): Promise<void>;
   health?(context: PluginStartContext): Promise<{ ok: boolean; message: string }>;
+  /** Read the existing private data before a declared non-compatible manual upgrade. Must not mutate it. */
+  validateUpgrade?(input: { from: PluginInstanceRecord; context: PluginUpgradeContext }): void | Promise<void>;
 }
 
 export interface PluginExecutorHandle {
@@ -325,6 +364,11 @@ export interface PluginExecutorHandle {
 export interface PluginExecutor {
   start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
   stop(definition: PluginDefinition, context: PluginStartContext): Promise<void>;
+  /** Supplies only the target Manifest's declared private storage for preflight. */
+  validateUpgrade?(definition: PluginDefinition, context: PluginUpgradeContext, from: PluginInstanceRecord): Promise<void>;
+  /** Host snapshot hooks keep persisted private data intact if candidate startup fails. */
+  capturePrivateData?(installId: string): Promise<unknown> | unknown;
+  restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
 }
 
 export interface PluginRuntimeRepository {
@@ -335,7 +379,7 @@ export interface PluginRuntimeRepository {
 
 export interface PluginLifecycleReceipt {
   receipt_id: string;
-  operation: "install" | "grant" | "start" | "stop" | "crash" | "recover" | "uninstall";
+  operation: "install" | "grant" | "start" | "upgrade" | "stop" | "crash" | "recover" | "uninstall";
   install: PluginInstanceRecord;
   at: string;
   replayed: boolean;
@@ -348,15 +392,16 @@ export interface PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
-    /** Host-authorized replacement of an inactive version; identity and private data remain. */
-    replace_version?: boolean;
   }): PluginLifecycleReceipt;
+  /** Explicit, user-triggered replacement after version, grant and private-data preflight. */
+  upgrade(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
   start(installId: string): Promise<PluginLifecycleReceipt>;
   /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
   stop(installId: string): Promise<PluginLifecycleReceipt>;
   reportCrash(installId: string, errorCode?: string): Promise<PluginLifecycleReceipt>;
-  recover(installId: string): Promise<PluginLifecycleReceipt>;
+  /** Quarantine release requires an explicit Host action; ordinary recovery never releases it. */
+  recover(installId: string, options?: { release_quarantine?: boolean }): Promise<PluginLifecycleReceipt>;
   uninstall(installId: string, options?: { retain_private_data?: boolean }): Promise<PluginLifecycleReceipt>;
   get(installId: string): PluginInstanceRecord;
   list(): PluginInstanceRecord[];

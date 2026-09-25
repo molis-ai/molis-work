@@ -1,3 +1,4 @@
+import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
@@ -741,7 +742,7 @@ test("工作台客户端保存不重挂内核", () => {
 test("Pages：新建、改标题和正文、重开还在", async () => {
   await withHome(async (home) => {
     const store = openPagesStore(home);
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(store));
+    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
     const created = await routes.handle({ method: "POST", pathname: "/api/pages", query: projectQuery(), body: projectBody({ title: "周记" }) });
     const document = (created?.body as { document: { id: string; project_id: string; title: string; body: { type: string } } }).document;
     assert.equal(document.project_id, PROJECT);
@@ -779,12 +780,12 @@ test("文档按项目隔离，缺项目拒绝，跨项目找不到", async () =>
     assert.deepEqual(store.list(PROJECT).map((item) => item.title), ["项目甲"]);
     assert.deepEqual(store.list(OTHER).map((item) => item.title), ["项目乙"]);
     assert.throws(() => store.get(pageA.id, OTHER));
-    await assert.rejects(() => new PagesPluginRouteTable(createPagesRouteHandlers(store)).handle({
+    await assert.rejects(() => new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT))).handle({
       method: "GET",
       pathname: "/api/pages",
-      query: new URLSearchParams(),
+      query: new URLSearchParams({ project_id: OTHER }),
       body: {},
-    }));
+    }), { code: "actions.scope_mismatch" });
     store.close();
   });
 });
@@ -5207,7 +5208,7 @@ test("WI3 块进 schema，十份模板都能被内核吃进去", () => {
 test("HTTP 能从模板新建、改收藏，搜和文件夹入口挂在工作台", async () => {
   await withHome(async (home) => {
     const store = openPagesStore(home);
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(store));
+    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
     const templates = await routes.handle({ method: "GET", pathname: "/api/pages/templates", query: projectQuery(), body: {} });
     assert.equal((templates?.body as { templates: Array<{ id: string }> }).templates.length, 10);
     const created = await routes.handle({
@@ -5298,10 +5299,8 @@ test("备注、评论、提及和卡能进 schema，抽取会写出任务卡和�
   assert.ok(JSON.stringify(extracted.body).includes("task_card"));
 });
 
-test("AI 无模型标明未接模型，Promote 经端口发出 Artifact，也能只挂 Goal", async () => {
-  const stub = await runPagesAi({ command: "summarize", text: "第一句。第二句。" });
-  assert.equal(stub.stub, true);
-  assert.match(stub.text, /未接模型/);
+test("AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发出 Artifact", async () => {
+  await assert.rejects(runPagesAi({ command: "summarize", text: "第一句。第二句。" }), { code: "actions.connection_required" });
   await withHome(async (home) => {
     const store = openPagesStore(home);
     const created = store.create({
@@ -5317,12 +5316,13 @@ test("AI 无模型标明未接模型，Promote 经端口发出 Artifact，也能
       },
     });
     const published: Array<{ page_id: string; version: number; goal_id: string }> = [];
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(store, {
+    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT, {
+      completeText: async () => "先写目标，再写范围。",
       publishArtifact: (input) => {
         published.push({ page_id: input.page_id, version: input.version, goal_id: input.goal_id });
         return { artifact_id: "pages-" + input.page_id, version: input.version };
       },
-    }));
+    })));
     const linked = await routes.handle({
       method: "POST",
       pathname: `/api/pages/${created.id}`,
@@ -5370,20 +5370,21 @@ test("AI 无模型标明未接模型，Promote 经端口发出 Artifact，也能
       query: projectQuery(),
       body: projectBody({ command: "outline", text: "先写目标再写范围" }),
     });
-    assert.equal((ai?.body as { stub: boolean }).stub, true);
+    assert.equal((ai?.body as { stub: boolean }).stub, false);
+    assert.equal((ai?.body as { text: string }).text, "先写目标，再写范围。");
     store.close();
   });
   await withHome(async (home) => {
     const store = openPagesStore(home);
     const page = store.create({ project_id: PROJECT, title: "只挂" });
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(store));
-    const missing = await routes.handle({
+    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
+    await assert.rejects(routes.handle({
       method: "POST",
       pathname: `/api/pages/${page.id}/promote`,
       query: projectQuery(),
       body: projectBody({ goal_id: "GOAL-ONLY" }),
-    });
-    assert.equal(missing?.status, 409);
+    }), { code: "pages.unavailable" });
+
     assert.notEqual(store.get(page.id, PROJECT).goal_id, "GOAL-ONLY");
     store.close();
   });

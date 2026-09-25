@@ -33,6 +33,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ board_id: "other", title: "Other", actor_id: "web-user", idempotency_key: "other" }));
   await createGoal("foreign", "other");
   const server = createServer((request, response) => { void host.withProject(ref, async ({ store, coordinator }) => handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
+    actions: { registry: host.actionRegistry(ref), client: host.syncActionClient(ref), project_id: ref.project_id },
     store, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: id => coordinator.goalQueries.getGoal(DEMO_BOARD_ID, id)?.title,
     capabilities: host.client(ref), execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     escapeHtml: value => String(value), translate: value => value,

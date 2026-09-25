@@ -183,9 +183,10 @@ export class ModelProviderStore {
     }
     let endpoint: URL;
     try { endpoint = new URL(input.base_url); }
-    catch { throw new ModelProviderError("model-provider.invalid", "Base URL 必须是完整的 HTTPS 地址"); }
-    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash || endpoint.search) {
-      throw new ModelProviderError("model-provider.invalid", "Base URL 必须使用 HTTPS，不能包含密码、查询参数或片段");
+    catch { throw new ModelProviderError("model-provider.invalid", "Base URL 必须是完整地址"); }
+    const localHttp = endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
+    if ((!localHttp && endpoint.protocol !== "https:") || endpoint.username || endpoint.password || endpoint.hash || endpoint.search) {
+      throw new ModelProviderError("model-provider.invalid", "Base URL 必须使用 HTTPS 或本机 HTTP，不能包含密码、查询参数或片段");
     }
     if (input.models !== undefined && (input.models.length > 200 || input.models.some((model) =>
       typeof model.model_id !== "string" || !model.model_id.trim() || model.model_id.length > 200
@@ -218,7 +219,7 @@ export class ModelProviderStore {
       display_name: input.display_name.trim() === "" ? input.provider_id : input.display_name.trim(),
       base_url: input.base_url.trim().replace(/\/+$/u, ""),
       api_format: input.api_format,
-      credential_ref: modelCredentialRef(input.provider_id),
+      credential_ref: existing?.credential_ref ?? modelCredentialRef(input.provider_id),
       enabled: input.enabled ?? existing?.enabled ?? true,
       prompt_cache: promptCache,
       thinking,
@@ -258,7 +259,7 @@ export class ModelProviderStore {
     const existing = this.get(providerId);
     if (existing === null) return false;
     // If secret deletion fails, retain the visible row so the user can retry.
-    this.#secrets.delete(existing.credential_ref);
+    if (existing.credential_ref === modelCredentialRef(providerId)) this.#secrets.delete(existing.credential_ref);
     this.#db.prepare("DELETE FROM model_providers WHERE provider_id = ?").run(providerId);
     return true;
   }
@@ -271,7 +272,17 @@ export class ModelProviderStore {
     if (plaintext.trim() === "") {
       throw new ModelProviderError("model-provider.invalid", "API Key 不能是空的");
     }
+    if (existing.credential_ref !== modelCredentialRef(providerId)) throw new ModelProviderError("model-provider.invalid", "请在 Connectors 中更换所选连接的密钥");
     this.#secrets.put(existing.credential_ref, plaintext.trim());
+  }
+
+  selectConnection(providerId: string, credentialRef: string): void {
+    if (!this.get(providerId)) throw new ModelProviderError("model-provider.unknown", `找不到供应商：${providerId}`);
+    if (!/^(?:connector-connection:|model-provider:)/u.test(credentialRef) || !this.#secrets.get(credentialRef)?.trim()) {
+      throw new ModelProviderError("model-provider.invalid", "所选连接不可用");
+    }
+    this.#db.prepare("UPDATE model_providers SET credential_ref = ?, updated_at = ? WHERE provider_id = ?")
+      .run(credentialRef, this.#now().toISOString(), providerId);
   }
 
   /** Whether a key is really stored. Asked of the secret store, never cached on the row. */

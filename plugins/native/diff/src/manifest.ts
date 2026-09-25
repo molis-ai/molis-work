@@ -6,6 +6,7 @@ import {
   FILE_SNAPSHOT_SCHEMA_VERSION,
   FILE_SNAPSHOT_TYPE,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_ACTIONS } from "./actions.js";
 import { DIFF_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export const DIFF_PLUGIN_ID = "io.molis.work.diff";
@@ -15,7 +16,7 @@ export const DIFF_PROJECT_PLUGIN_ID = "diff";
 export const DIFF_BEFORE_INPUT_PORT = "before";
 export const DIFF_AFTER_INPUT_PORT = "after";
 export const DIFF_CHANGESET_INPUT_PORT = "changeset";
-export const DIFF_GIT_INPUT_PORT = "git_changeset";
+export const DIFF_GIT_INPUT_PORT = "git-changeset";
 
 export const DIFF_SNAPSHOTS_GROUP = "snapshots";
 export const DIFF_CHANGESET_GROUP = "change-set";
@@ -36,15 +37,17 @@ export const diffManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: DIFF_PLUGIN_ID,
-  version: "1.3.0",
+  version: "1.4.0",
   name: "Diff",
   kind: "app",
+  upgrade_compatibility: { compatible_from_versions: ["1.3.0", "1.3.1"] },
   publisher: { publisher_id: "molis", signature: "official-diff-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "artifact:read", required: true, reason: "读取要对比的快照与变更" },
   ],
   capabilities: { provides: [], consumes: [] },
+  actions: DIFF_ACTIONS,
   artifacts: {
     produces: [],
     consumes: [

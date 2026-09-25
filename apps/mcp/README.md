@@ -54,3 +54,5 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-dv1`, `goal-reorg-dv2`, `goal-reorg-gw4`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+连接工具的附带内容与公开动作共享精确授权：`context_resolve/bind/create_and_bind` 接受 Catalog 连接后，以同一客户端调用 `goals.guidance.read`、`goals.list`，必要时调用 `goals.directory.read` 恢复目录窗口外的焦点。生产 launcher 使用常驻服务通道，不能回退到本地 typed Host 读取。说明或恢复目录不可读时仍返回真实连接，对应内容为 null 并附 `project_guidance_error`/`resume_error`；不伪报空项目、不自动重新绑定。客户端或项目在等待期间改变则拒绝旧摘要。

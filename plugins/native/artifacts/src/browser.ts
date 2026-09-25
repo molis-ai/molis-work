@@ -35,7 +35,8 @@ export function readArtifactSelection(
   return {
     selected,
     requested: reference,
-    compatibility: selected ? query.consumptionCompatibility(boardId, selected, supportedTypes) : null,
+    compatibility: selected ? query.consumptionCompatibility(boardId,
+      { artifact_id: selected.artifact_id, version: selected.version }, supportedTypes) : null,
   };
 }
 

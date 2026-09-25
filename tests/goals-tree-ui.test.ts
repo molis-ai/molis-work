@@ -119,7 +119,7 @@ test("tree contribution retains nesting, sibling order, selected row, progress, 
   assert.match(html, /class="tree-leading"/);
   assert.equal((html.match(/class="tree-avatar is-unknown"/g) ?? []).length, 7);
   assert.equal((html.match(/<time class="tree-created"/g) ?? []).length, 7);
-  assert.match(html, />Sep 5</);
+  assert.match(html, />9月5日</);
   assert.doesNotMatch(html, /class="tree-ref"/);
   assert.doesNotMatch(html, /tree-progress is-empty/);
   assert.ok(html.indexOf('data-goal-id="ready"') < html.indexOf('data-goal-id="blocked"'));
@@ -236,6 +236,6 @@ test("list rows show created date and creator avatar instead of Goal id", () => 
   assert.match(html, /<span class="tree-copy"><span class="tree-title-line">/);
   assert.match(html, /class="tree-created-meta"/);
   assert.match(html, /aria-label="创建人 demo-user"/);
-  assert.match(html, /<time class="tree-created" datetime="2026-09-05"[^>]*>Sep 5<\/time>/);
+  assert.match(html, /<time class="tree-created" datetime="2026-09-05"[^>]*>9月5日<\/time>/);
   assert.doesNotMatch(html, /class="tree-ref"|Goal 编号/);
 });

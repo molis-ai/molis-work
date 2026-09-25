@@ -1,6 +1,6 @@
 # Starting Molis Work Web from a Runtime
 
-Use this reference only when the user explicitly asks to start or open the Molis Work page/Web UI, or accepts a separate visualization offer. Service management is independent of Goal work; never use these commands to read or modify Goals, project bindings, reports, agreements or decisions.
+Use this reference when the user explicitly asks to start or open Molis Work, accepts a separate visualization offer, or MCP reports actions.service_unavailable. For that error, start with the read-only status check; it does not authorize installing a persistent service or changing its configuration. Service management is independent of business writes; never use these commands to read or modify Goals, project bindings, reports, agreements or decisions.
 
 ## 1. Inspect before acting
 
@@ -14,7 +14,7 @@ If the launcher does not exist, say Molis Work itself is not installed or is inc
 
 ## 2. Interpret the user's opening intent once
 
-This route is only for opening the Molis Work page or Web UI. “使用 Molis Work 继续这个项目”, “推进这个 Goal”, “连接项目”, and “打开这个 Goal” are Goal work, not Web startup requests; use the Runtime MCP flow without inspecting or starting Web.
+“使用 Molis Work 继续这个项目”, “推进这个 Goal”, “连接项目”, and “打开这个 Goal” normally use the Runtime MCP flow without opening a page. Forwarded actions need the same Home's system service. Inspect status if MCP explicitly reports it unavailable; explain the returned state and use the startup authorization rules below. Do not start a second Host, change Home, or install login persistence as an implicit fallback.
 
 After the read-only status check, preserve the user's actual choice:
 

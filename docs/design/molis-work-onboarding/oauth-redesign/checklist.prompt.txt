@@ -1,0 +1,14 @@
+Use case: ui-mockup.
+Create one polished high-fidelity desktop onboarding interface screenshot for Molis Work, Chinese UI, landscape 1440 by 1000 proportions, screen only without laptop/frame/perspective. The supplied image is a reference for the incumbent Molis visual identity and broad two-column structure; improve its craft and connection affordances while preserving the single-checklist product direction.
+This is a working application, calm precise editorial typography and dense useful content, not a marketing website. Neutral light gray canvas #f3f4f5, white paper surfaces, graphite #222326 buttons, fine #e2e4e7 dividers, sparing muted indigo and green. Inter plus Noto Sans SC, crisp readable Chinese. No gradients, decorative artwork, glass, oversized rounding, KPI cards, artificial dashboard, bright accents.
+Header: small outlined boxes mark with "Molis Work" at left, small "首次使用" and "稍后再说" at right.
+Main center around x190 to1250 and y170 to820, asymmetrical two columns. Left width310: title exactly "从你正在做的事\n开始。" large 36px bold with thoughtful line break. Below: "带上文件、网页和工作往来，Molis 帮你整理背景、进展与下一步。" in 14px muted. A quiet vertical three-step trail below: "带入内容", "整理脉络", "开始工作", first active. Small lower note with shield icon: "只读取你选择的范围。"
+Right width660: one unified white checklist surface with 12px corner radius, thin border. Header "想带入哪些内容？" and right checkbox "全选". Five horizontal rows with consistent checkbox, genuine familiar provider icon, title, secondary scope, trailing action. Four selected, browser not selected.
+Row1: "本地文档", secondary "文档 / 秋季发布", green "已选择", trailing small chevron.
+Row2: "项目资料", secondary "Projects / 官网改版", green "已选择", trailing small chevron.
+Row3: "浏览器内容", secondary "选择网页或导入书签", trailing text "添加".
+Row4 Gmail icon: "Gmail", secondary "邮件 · 最近 30 天", trailing outlined compact button "连接 Google" with external-arrow icon. Status "待连接". No credential inputs.
+Row5 Feishu icon: "飞书", secondary "工作会话 · 最近 30 天", green subtle status "已连接", trailing small chevron. Example account details are design placeholders only.
+Small add row "＋ 添加其他来源" as quiet action within checklist after sources.
+Footer in same surface: left "已选 4 个来源", small text "连接账号后自动继续，无需重新选择" then one graphite primary button "开始整理" with arrow, and secondary "空白开始". Below panel subtle clear consent sentence "仅整理本次选中的内容，可随时调整范围。"
+All controls usable at realistic desktop scale, plentiful yet functional spacing, refined alignment, clear task hierarchy. Preserve authentic provider icon colors only. No fake third-party login form, no browser OAuth modal inside the app. The connection action opens the real provider externally in the real implementation. Render a single coherent first screen, no multiple-screen montage or annotations. Exact readable Chinese text.

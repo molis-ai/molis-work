@@ -40,6 +40,7 @@ export const FEED_NATIVE_PLUGIN_ROUTES = [
   route("feed.workbench", "GET", /^\/api\/feed\/workbench$/u),
   route("feed.out-rules.list", "GET", /^\/api\/feed\/out-rules$/u),
   route("feed.out-rules.evaluate", "POST", /^\/api\/feed\/out-rules\/evaluate$/u),
+  route("feed.out-rules.preview", "POST", /^\/api\/feed\/out-rules\/preview$/u),
   route("feed.out-rules.create", "POST", /^\/api\/feed\/out-rules$/u),
   route("feed.out-rules.update", "PATCH", /^\/api\/feed\/out-rules\/([^/]+)$/u, ["rule_id"]),
   route("feed.out-rules.delete", "DELETE", /^\/api\/feed\/out-rules\/([^/]+)$/u, ["rule_id"]),

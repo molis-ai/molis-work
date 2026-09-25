@@ -168,15 +168,38 @@ export function assertContributionMatchesManifest(
   contribution: PluginContribution,
 ): void {
   assertKind(manifest, contribution);
-  if (contribution.kind !== "app") return;
-  const problems = [
+  const problems = assertActions(manifest, contribution);
+  if (contribution.kind === "app") problems.push(
     ...assertViews(manifest, contribution),
     ...assertRoutes(manifest, contribution),
     ...assertMcp(manifest, contribution),
     ...assertBehaviors(manifest, contribution),
     ...assertHandlers(manifest, contribution),
-  ];
+  );
   if (problems.length > 0) {
     throw new PluginContributionError("plugin_contribution_unredeemed", problems.join("；"));
   }
+}
+
+function assertActions(manifest: PluginManifest, contribution: PluginContribution): string[] {
+  const problems: string[] = [];
+  const expectedActions = new Set((manifest.actions ?? []).map(d => `${d.capability_id}@${d.version}`));
+  const actions = new Set<string>();
+  for (const h of contribution.actions ?? []) {
+    const key = `${h.capability_id}@${h.version}`;
+    if (!expectedActions.has(key) || actions.has(key) || typeof h.handle !== "function") problems.push(`能力 ${key} 未声明、重复或缺少处理器`);
+    actions.add(key);
+  }
+  for (const key of expectedActions) if (!actions.has(key)) problems.push(`声明的能力 ${key} 没有兑现`);
+  const expectedScenes = new Set((manifest.action_scenes ?? []).map(d => `${d.scene_id}@${d.version}`));
+  const scenes = new Set<string>();
+  for (const h of contribution.action_scenes ?? []) {
+    const key = `${h.scene_id}@${h.version}`;
+    if (!expectedScenes.has(key) || scenes.has(key) || [h.bindings, h.bind, h.consume].some(f => typeof f !== "function")) {
+      problems.push(`消费场景 ${key} 未声明、重复或缺少绑定/消费实现`);
+    }
+    scenes.add(key);
+  }
+  for (const key of expectedScenes) if (!scenes.has(key)) problems.push(`声明的消费场景 ${key} 没有兑现`);
+  return problems;
 }

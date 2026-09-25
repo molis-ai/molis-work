@@ -10,8 +10,8 @@ import test from "node:test";
 import { WebSocket } from "ws";
 
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "../packages/design-system/src/styles/micro-interactions.ts";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../plugins/native/functions/src/client.ts";
-import { renderFunctionsWorkbench } from "../plugins/native/functions/src/ui.ts";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
+import { renderFunctionsWorkbench } from "../apps/workbench/src/functions/ui.ts";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")
@@ -35,17 +35,17 @@ var records = {
 window.__posts = [];
 window.__delay = null;
 window.__handle = async (method, path, body) => {
-  if (method === "GET" && path === "/api/plugins/functions/catalog") return { status: 200, body: { catalog: { subjects: [], destinations: [], behaviors: [] } } };
-  if (method === "GET" && path === "/api/plugins/functions") return { status: 200, body: { functions: Object.values(records) } };
-  const one = path.match(/^\\/api\\/plugins\\/functions\\/([^/]+)$/);
+  if (method === "GET" && path === "/api/functions/catalog") return { status: 200, body: { catalog: { subjects: [], destinations: [], behaviors: [] } } };
+  if (method === "GET" && path === "/api/functions") return { status: 200, body: { functions: Object.values(records) } };
+  const one = path.match(/^\\/api\\/functions\\/([^/]+)$/);
   if (method === "GET" && one && records[decodeURIComponent(one[1])]) return { status: 200, body: { function: records[decodeURIComponent(one[1])] } };
-  if (method === "POST" && path === "/api/plugins/functions") {
+  if (method === "POST" && path === "/api/functions") {
     window.__posts.push({ path, body });
     const created = { id: "fn-created-" + window.__posts.length, name: body.primitive, function_key: body.primitive + window.__posts.length, instructions: "", status: "draft", primitive: body.primitive, criteria: body.primitive === "score" ? ["低", "高"] : body.primitive === "noul" ? { true_description: "", false_description: "" } : [{ key: "yes", description: "" }, { key: "no", description: "" }], updated_at: "t-created", scene_id: null, subject_kinds: [], scene_map: {}, samples: [], last_preview: null };
     records[created.id] = created;
     return { status: 200, body: { function: created } };
   }
-  const preview = path.match(/^\\/api\\/plugins\\/functions\\/([^/]+)\\/preview$/);
+  const preview = path.match(/^\\/api\\/functions\\/([^/]+)\\/preview$/);
   if (method === "POST" && preview) {
     const id = decodeURIComponent(preview[1]);
     window.__posts.push({ path, body });
@@ -279,14 +279,23 @@ test("failed function saves keep the typed fields and shortcut submit uses the f
   assert.equal(stillLocal.posts.at(-1).updated_at, revision);
   assert.equal(stillLocal.posts.at(-1).instructions, "我还留着的说明");
 
-  const beforeRace = stillLocal.posts.length;
+  // Navigation must retain a conflicting draft until the user resolves it.
+  await evaluate("window.__clickRow('fn-2')");
+  await sleep(400);
+  assert.equal((await read()).name, "我的新名称");
+  assert.match((await read()).note, /草稿已被更新/);
+
+  // Start the independent in-flight-save scenario with fresh fixture data.
+  await command("Page.reload", {}, sessionId);
+  await waitFor("window.__booted === true && window.__posts.length === 0 && document.querySelector('[data-function-id=\"fn-1\"]')");
+  const beforeRace = (await read()).posts.length;
   await evaluate("window.__armDelay()");
   await evaluate("window.__clickRow('fn-1')");
   await evaluate("window.__type('name', 'A草稿')");
   await sleep(700);
   const racing = await read();
   assert.ok(racing.posts.length > beforeRace);
-  assert.equal(await evaluate("window.__clickRow('fn-2')"), "另一条");
+  assert.equal(await evaluate("window.__clickRow('fn-2')"), "A草稿");
   await evaluate("window.__release()");
   await sleep(400);
   const switched = await read();

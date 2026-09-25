@@ -132,31 +132,33 @@ specs/molis-work-architecture-reorganization/spec.md
 ```text
 molis-work-mcp
   apps/desktop/launchers/mcp/server.ts     进程入口
-  apps/local-host/src/mcp-server.ts        装配、冻结目录、按 catalog entry 分发
-  apps/local-host/src/mcp-catalog.ts       平台 schema + 插件 mcp_exports → 一份目录
+  apps/local-host/src/mcp-server.ts        装配、实时发现、按 catalog entry 分发
+  apps/local-host/src/mcp-catalog.ts       动作目录 + 尚待迁移的旧平台/插件名称
   apps/local-host/src/mcp-settings-store.ts  {home}/config/mcp-tools.json
   apps/local-host/src/mcp-authority.ts     list/call 同闸
-  apps/local-host/src/mcp-native-plugins.ts Native 插件适配表（新产品加一条）
+  apps/local-host/src/action-gateway.ts    公共动作及判断别名 → 常驻 Web Host
+  apps/local-host/src/mcp-native-plugins.ts 尚待收敛的历史 Native 插件适配表
   apps/mcp                                 平台 schema、协议、连接工具、项目工具分发
   plugins/*/src/mcp.ts 或 contribution.mcp 只认 tool_id
 ```
 
-`initialize` 时冻结启用集合。改设置只影响之后的新连接，不发 `tools/list_changed`。
+每次 `tools/list` 和 `tools/call` 读取当前目录及授权；已连接的客户端也会看到变化，调用时再次校验。当前不主动发送 `tools/list_changed`。正式 launcher 有明确 Runtime Home 时，从同一 Home 的常驻服务取得公共动作；服务离线保留上下文工具，业务调用不会退回本地执行或自动重试。
 
 `tools/call` 按目录条目的 `source` 分发：
 
 | source | 走到 |
 | --- | --- |
-| `plugin` | `mcp-native-plugins` 按 `plugin_id` 找 adapter，传入 `{ tool_id, arguments }` |
+| `action` | 同一 ActionClient；正式 stdio 通过本机通道进入常驻 Host 的注册表和执行队列 |
+| `system` | 判断函数旧名称薄映射到同一动作、同一授权和同一 ActionClient |
+| `plugin` | 历史参数/结果适配器，内部也调用授权 ActionClient；正式 stdio 使用常驻 Host |
 | `platform` 且是连接工具 | `apps/mcp` 的 runtime-context handlers |
 | 其余 `platform` | Host 注入身份后 `dispatchMcpProjectTool` |
 
 ### 改哪里
 
-- **新 native 插件对外贡献**：插件 Manifest `mcp_exports` + 按 `tool_id` 的 handler + `mcp-native-plugins.ts` 加一条，`default_enabled` 默认 `false`。个人 store 且按项目分区的，adapter 从绑定连接取 `project_id`，不要改 `apps/mcp/src/tool-catalog.ts`，不要在 `mcp-server.ts` 点名公开工具名。
-- **新平台工具**（连接 / Goals / 事件）：schema 和分发仍在 `apps/mcp`。
-- **开关与设置页**：偏好在 `mcp-settings-store.ts`；HTTP 在 `web-mcp-settings.ts`；页面在 Workbench 全局设置，不进插件 `settings-page`。
-- **运行时托管 app 插件**：`contribution.mcp` 已校验兑现；生产分发还没接到 Plugin Runtime，接上之前不要给 Coding 填 `mcp_exports`。
+- **新增业务能力**：由插件声明动作合同和处理器，经过 SDK/Runtime 注册到同一目录；声明 MCP audience 后由公共动作适配器导出。无需增加 Native 适配表、MCP 总表或公开名称分支。账号和个人成果仍须遵守实际 owner 合同，不能用模型参数注入可信身份。
+- **历史工具**：旧连接 / Goals / 事件仍在 `apps/mcp`。六组 Native 兼容名称已共用动作授权和转发，历史表只保留参数/结果适配，不再计算权限或打开业务 Store。兼容声明的 required_actions 覆盖其完整调用范围，开关不代替授权；新插件无需加入此表。
+- **授权与设置页**：偏好及精确客户端动作授权在 `mcp-settings-store.ts`；管理入口在系统“能力 → 对外接入”。旧名称开关保留兼容含义，不能绕过对应动作授权。判断 invoke 旧名称也须授权 `functions.invoke`，旧规则、版本和历史保持。
 
 `agent.mcp` 是插件内 Agent 调外部 MCP，方向相反，不要复用。
 

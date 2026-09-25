@@ -1,6 +1,8 @@
+import { rejectSessionReportIndex } from "./fixtures/session-secondary-failure.js";
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -33,6 +35,7 @@ test("Runtime event tools create, configure, report and reopen without Claim or 
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "事件闭环", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -240,6 +243,7 @@ test("event report stays persisted when secondary Session indexing fails", async
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "事件活动", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     const registry = await openWorkSessionRegistry({ homeDirectory });
     let sessionId: string;
     try {
@@ -263,17 +267,15 @@ test("event report stays persisted when secondary Session indexing fails", async
     await mcp.callTool("molis_work_v1_event_configure", {
       goal_id, expected_version: 0, idempotency_key: "cfg-activity", types: [localType()],
     });
-    const obstructedHome = join(directory, "not-a-directory");
-    writeFileSync(obstructedHome, "secondary registry failure");
-    mcp.runtimeContextHost!.homeDirectory = obstructedHome;
+    const restoreSessionIndex = rejectSessionReportIndex(homeDirectory);
     const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", {
       goal_id, idempotency_key: "report-activity",
       events: [{ type_id: "story-delivery", type_version: 1, title: "已记录", fields: { piece: "洞穴" } }],
     })) as ReportGoalEventsResult;
     assert.equal(reported.events[0]?.payload.piece, "洞穴");
+    restoreSessionIndex();
     const listed = JSON.parse(await mcp.callTool("molis_work_v1_event_list", { goal_id }));
     assert.equal(listed.events.filter((item: { kind: string }) => item.kind === "report").length, 1);
-    mcp.runtimeContextHost!.homeDirectory = homeDirectory;
     const inspect = await openWorkSessionRegistry({ homeDirectory });
     try {
       assert.equal(inspect.events(sessionId).filter((event) => event.source_id === "molis_work_v1_event_report:report-activity").length, 0);
@@ -294,6 +296,7 @@ test("missing stable Session identity rejects event writes with no Goal or event
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "身份拒绝", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     const reference = molisWorkHostProjectReference({
       databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id,
     });
@@ -351,6 +354,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
   let store: LocalProjectDatabase | undefined;
   try {
     const project = await catalog.createProject({ display_name: "创建来源", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -386,7 +390,7 @@ test("Runtime MCP create persists runtime source, complete cursor and rejects ca
     for (const field of ["definition_state", "decomposition_state", "fulfillment_state"]) {
       assert.equal(Object.hasOwn(created.goal, field), false);
     }
-    const finalCursor = Number(store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE board_id=?").get(board_id)?.n);
+    const finalCursor = Number((store.db.prepare("SELECT MAX(seq) AS n FROM events WHERE board_id=?").get(board_id) as { n: number }).n);
     assert.equal(created.observed_event_cursor, finalCursor);
     assert.deepEqual(state.requirements.map((item) => item.statement), ["包含真实付款金额"]);
     assert.equal(store.snapshot(board_id).relations.filter((relation) => relation.from_goal_id === created.goal.goal_id).length, 2);
@@ -451,6 +455,7 @@ test("no-config note and combined report progress persist; implicit focus, illeg
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "笔记继续", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     mcp = new MolisWorkServer("runtime", {
       databasePath: project.database_path, boardId: project.board_id,
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",

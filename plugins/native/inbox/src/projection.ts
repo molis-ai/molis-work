@@ -82,6 +82,11 @@ export function inboxKindLabel(
   return reason === "manual" ? text("Inbox · 手工加入") : text("Inbox · 来源规则");
 }
 
+/** A workflow hands content over as a manual entry; say so instead of claiming the person added it. */
+function fromWorkflow(entry: AttentionEntryRecord): boolean {
+  return entry.reason === "manual" && entry.detail.added_by === "workflow";
+}
+
 export type InboxEntryProjectionRecord = AttentionEntryRecord & {
   next_judgment?: JudgmentRecord | null;
   suggested_behavior_ids?: readonly string[];
@@ -103,12 +108,14 @@ export function buildInboxUiEntries(
         subject_id: entry.subject_id,
         reason: entry.reason,
         status: entry.status,
-        kind_label: inboxKindLabel(entry.subject_type, entry.reason, text),
+        kind_label: fromWorkflow(entry) ? text("Inbox · 工作流程") : inboxKindLabel(entry.subject_type, entry.reason, text),
         source_label: subject.source_label,
         title: subject.title,
         reason_label: entry.reason === "source_rule" && typeof entry.detail.rule_name === "string"
           ? text(entry.detail.needs_review ? "规则「{rule}」需要人工复核" : "规则「{rule}」筛选进入", { rule: entry.detail.rule_name })
-          : inboxReasonLabel(entry.reason, text),
+          : fromWorkflow(entry)
+            ? text("工作流程交过来")
+            : inboxReasonLabel(entry.reason, text),
         relation_label: subject.source_label,
         next_action: nextAction(entry, text),
         status_label: inboxStatusLabel(entry.status, text),

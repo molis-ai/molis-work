@@ -6,7 +6,6 @@ import type {
 
 import { workspaceEventTypes } from "./events.js";
 import { workspaceManifest } from "./manifest.js";
-import { workspaceUiContribution } from "./ui.js";
 import { workspaceRoutes } from "./routes.js";
 
 export interface WorkspacePluginPorts {
@@ -30,20 +29,9 @@ export function createWorkspacePlugin(ports: WorkspacePluginPorts = {}): PluginD
       }
       return {
         kind: "app",
-        views: [workspaceUiContribution],
+        views: [],
         routes: workspaceRoutes(context),
-        commandAvailability: (commandId) => {
-          if (commandId !== "workspace.reveal") {
-            return { available: false, reason: `未知命令：${commandId}` };
-          }
-          return ports.currentWorkspaceId?.() === undefined || ports.currentWorkspaceId?.() === null
-            ? { available: false, reason: "这个项目还没有绑定工作目录" }
-            : { available: true };
-        },
-        executeCommand: (_commandId, _input) => ({
-          ref: { view_id: "source", object_id: ports.currentWorkspaceId?.() ?? "workspace" },
-          title: "工作目录",
-        }),
+
       };
     },
     async stop(context: PluginStartContext): Promise<void> {

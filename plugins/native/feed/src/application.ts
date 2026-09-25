@@ -7,7 +7,6 @@ import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention
 import {
   FEED_CAPTURE_SCENE_ID,
   HOME_DOCK_SCENE_ID,
-  INBOX_NEXT_SCENE_ID,
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
@@ -22,9 +21,11 @@ import {
 /** Product operations over module facts; connection and lifecycle are supplied by the host. */
 export class FeedApplication {
   private pendingFeedJudgments: FeedItemRecord[] = [];
-  private pendingInboxJudgments: InboxEntryRecord[] = [];
+  private readonly pendingInboxJudgments = new Map<string, { board_id: string; entry_id: string }>();
 
-  constructor(private readonly ports: FeedApplicationPorts) {}
+  constructor(private readonly ports: FeedApplicationPorts) {
+    ports.subscribeInboxCreated(entry => this.pendingInboxJudgments.set(JSON.stringify([entry.board_id, entry.entry_id]), entry));
+  }
 
   snapshot(boardId: string): FeedSnapshot {
     const sources = this.ports.sources.query.list(boardId).map((source) => this.compatibleSource(source));
@@ -173,7 +174,6 @@ export class FeedApplication {
       at: input.at,
     }));
     const entry = toLegacyAttentionEntry(result.entry);
-    if (result.created) this.pendingInboxJudgments.push(entry);
     return { entry, created: result.created };
   }
 
@@ -187,7 +187,6 @@ export class FeedApplication {
       () => this.ports.attention.commands.ensureFeedItem(boardId, itemId, reason, detail),
     );
     const entry = toLegacyAttentionEntry(result.entry);
-    if (result.created) this.pendingInboxJudgments.push(entry);
     return { entry, created: result.created };
   }
 
@@ -309,42 +308,23 @@ export class FeedApplication {
     return { evaluated: items.length };
   }
 
-  async evaluateInboxEntries(boardId: string, entryIds: readonly string[]): Promise<{ judgments: JudgmentRecord[] }> {
-    const port = this.ports.judgments;
-    const binding = port?.sceneBinding(INBOX_NEXT_SCENE_ID, boardId);
-    if (!port || !binding) throw new FeedStoreError("feed_invalid_transition", "请先在 Functions 发布规则并用在 Inbox");
-    if (!entryIds.length || entryIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条待处理事项");
-    // Resolve the entire selection before calling the provider, including project ownership.
-    const entries = [...new Set(entryIds)].map(id => this.getInboxEntry(boardId, id));
-    if (entries.some(entry => entry.status !== "open" && entry.status !== "in_progress")) {
-      throw new FeedStoreError("feed_invalid_transition", "已完成或已忽略的事项请先重新打开");
+  recordInboxJudgmentEvent(boardId: string, judgment: JudgmentRecord): void {
+    if (judgment.subject.kind !== "inbox_entry" || judgment.subject.board_id !== boardId) {
+      throw new FeedStoreError("feed_invalid_transition", "判断结果与当前 Inbox 项目不符");
     }
-    const judgments: JudgmentRecord[] = [];
-    for (const entry of entries) {
-      const subject = entry.subject_type === "feed_item" ? this.getFeedItem(boardId, entry.subject_id) : null;
-      const input = [entry.reason, subject?.title, subject?.summary, subject?.body, JSON.stringify(entry.detail)].filter(Boolean).join("\n");
-      const judgment = await port.judge({ function_key: binding.function_key, input,
-        subject: { kind: "inbox_entry", id: entry.entry_id, board_id: boardId }, scene_id: INBOX_NEXT_SCENE_ID,
-        offered_behavior_ids: this.ports.offeredBehaviorsForScene?.(INBOX_NEXT_SCENE_ID, ["inbox_entry"]) ?? this.ports.offered_behavior_ids ?? [] });
-      judgments.push(judgment);
-      this.ports.appendEvent(boardId, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
-        { judgment_id: judgment.judgment_id }, judgment.created_at);
-    }
-    return { judgments };
+    this.getInboxEntry(boardId, judgment.subject.id);
+    this.ports.appendEvent(boardId, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
+      { judgment_id: judgment.judgment_id }, judgment.created_at);
   }
 
   async flushPendingJudgments(): Promise<void> {
     const judgments = this.ports.judgments;
-    if (!judgments) {
-      this.pendingFeedJudgments = [];
-      this.pendingInboxJudgments = [];
-      return;
-    }
     const offered = this.ports.offered_behavior_ids ?? [];
     const sceneOffered = (sceneId: string, subjects: readonly string[]) =>
       this.ports.offeredBehaviorsForScene?.(sceneId, subjects) ?? offered;
     const feedItems = this.pendingFeedJudgments.splice(0);
     for (const item of feedItems) {
+      if (!judgments) continue;
       const rules = (this.ports.outRules?.list(item.board_id) ?? []).filter((rule) =>
         Boolean(rule.function_key) && feedOutRuleMatches(rule, item),
       );
@@ -381,14 +361,18 @@ export class FeedApplication {
         board_id: item.board_id,
       }, input, sceneOffered(HOME_DOCK_SCENE_ID, ["feed_item"]));
     }
-    for (const entry of this.pendingInboxJudgments.splice(0)) {
+    const inboxEvents = [...this.pendingInboxJudgments.values()];
+    this.pendingInboxJudgments.clear();
+    for (const event of inboxEvents) {
+      // Module events can occur inside a transaction that is later rolled back.
+      let entry: InboxEntryRecord;
+      try { entry = this.getInboxEntry(event.board_id, event.entry_id); }
+      catch (error) { if (error instanceof FeedStoreError && error.code === "inbox_entry_not_found") continue; throw error; }
+      if (entry.status !== "open" && entry.status !== "in_progress") continue;
+      await this.ports.inboxJudgment?.(entry);
+      if (!judgments) continue;
       const subject = entry.subject_type === "feed_item" ? this.getFeedItem(entry.board_id, entry.subject_id) : null;
       const input = [entry.reason, subject?.title, subject?.summary, subject?.body, JSON.stringify(entry.detail)].filter(Boolean).join("\n");
-      await this.judgeScene(judgments, INBOX_NEXT_SCENE_ID, entry.board_id, {
-        kind: "inbox_entry",
-        id: entry.entry_id,
-        board_id: entry.board_id,
-      }, input, sceneOffered(INBOX_NEXT_SCENE_ID, ["inbox_entry"]));
       await this.judgeScene(judgments, HOME_DOCK_SCENE_ID, entry.board_id, {
         kind: "inbox_entry",
         id: entry.entry_id,
@@ -540,7 +524,6 @@ export class FeedApplication {
         reason: "artifact_out_failed",
         detail: { rule_ids: ruleIds, error_codes: errorCodes },
       }));
-      this.pendingInboxJudgments.push(toLegacyAttentionEntry(entry));
       if (entry.status === "done" || entry.status === "dismissed") {
         this.setInboxEntryStatus(item.board_id, entry.entry_id, "open");
       }

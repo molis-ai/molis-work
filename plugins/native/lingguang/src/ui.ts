@@ -73,7 +73,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
     </div>
     <div class="plugin-stage-workspace" data-lingguang-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-lingguang-back aria-label="${p.text("返回灵光列表")}" title="${p.text("返回灵光列表")}">${icon("arrow")}</button>
+        <button class="plugin-stage-back" type="button" data-lingguang-back aria-label="${p.text("返回灵光列表")}" title="${p.text("返回灵光列表")}">${icon("chevron-right")}</button>
         <h1 data-lingguang-editor-title>${p.text("灵光")}</h1>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard-current>${p.text("丢掉")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("分发")}</button>
@@ -108,7 +108,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <ul class="lingguang-dispatch-candidates">
           <li>${p.text("Inbox")}</li>
           <li>${p.text("Goal")}</li>
-          <li>${p.text("Functions")}</li>
+          <li>${p.text("判断规则")}</li>
         </ul>
         <div class="creative-confirm-actions">
           <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>

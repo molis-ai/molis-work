@@ -1,11 +1,25 @@
 import { createHash, randomUUID } from "node:crypto";
+import { comparePluginVersions, parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, type ActionAvailability, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { assertContributionMatchesManifest, PluginContributionError } from "./contribution.js";
+import { pluginManifestDigest } from "./identity.js";
 
 export { SqlitePluginPrivateStorage, PluginPrivateStorageError } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
 export { SqlitePluginRuntimeRepository } from "./repository.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
+export {
+  createPluginRuntimeReleaseArtifact,
+  MemoryPluginRuntimeReleaseArtifactRepository,
+  SqlitePluginRuntimeReleaseArtifactRepository,
+} from "./release-artifacts.js";
+export type {
+  PluginRuntimeReleaseArtifact,
+  PluginRuntimeReleaseArtifactDatabase,
+  PluginRuntimeReleaseArtifactRepository,
+} from "./release-artifacts.js";
+export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
 export { assertContributionMatchesManifest, PluginContributionError, viewContributionId } from "./contribution.js";
 export { resolvePluginActivation } from "./resolution.js";
@@ -33,6 +47,7 @@ export type { PluginWiringDatabase } from "./wiring-repository.js";
 export { PluginSupervisor } from "./supervisor.js";
 export type {
   PluginSupervisorEntry,
+  PluginUpgradeCandidate,
   PluginSupervisorReport,
   PluginSupervisorState,
   PluginSupervisorStatus,
@@ -58,6 +73,8 @@ import type {
   PluginRuntimeApi,
   PluginRuntimeRepository,
   PluginStartContext,
+  PluginUpgradeContext,
+  ActionRegistryPort,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const packageDescriptor = {
@@ -83,7 +100,11 @@ export class PluginRuntimeError extends Error {
       | "plugin_executor_failed"
       | "plugin_contribution_kind_invalid"
       | "plugin_contribution_unredeemed"
-      | "plugin_quarantined",
+      | "plugin_quarantined"
+      | "plugin_upgrade_required"
+      | "plugin_upgrade_validation_missing"
+      | "plugin_upgrade_validation_failed"
+      | "plugin_upgrade_rollback_failed",
     message: string,
   ) {
     super(message);
@@ -129,11 +150,13 @@ export class PluginRuntime implements PluginRuntimeApi {
   private readonly operations = new Map<string, Promise<void>>();
   /** Concurrent `start` calls share one attempt and therefore one registration. */
   private readonly starting = new Map<string, Promise<PluginLifecycleReceipt>>();
+  private readonly actionDisposers = new Map<string, () => void>();
 
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
-    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number } = {},
+    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number;
+      actions?: { registry: ActionRegistryPort; project_id?: string } } = {},
   ) {}
 
   register(definition: PluginDefinition): void {
@@ -151,30 +174,61 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
-    /** Host-authorized replacement of an inactive version; identity and private data remain. */
-    replace_version?: boolean;
   }): PluginLifecycleReceipt {
-    this.register(input.definition);
     const manifest = input.definition.manifest;
+    validateManifest(manifest);
     const entrypoint = manifest.entrypoints.find((candidate) => candidate.deployment === input.deployment);
     if (!entrypoint) {
       throw new PluginRuntimeError("plugin_entrypoint_missing", "Plugin 没有当前部署环境的 entrypoint");
     }
-    const grants = normalizeGrants(manifest, input.grants ?? []);
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
-    const digest = manifestDigest(manifest);
-    const replacing = Boolean(current && current.version !== manifest.version && input.replace_version === true);
-    if (replacing && (this.contexts.has(installId) || this.contributions.has(installId))) {
-      throw new PluginRuntimeError("plugin_state_invalid", "请先停止当前 Plugin，再更换版本");
-    }
-    if (current && current.manifest_digest !== digest && !replacing) {
+    const digest = pluginManifestDigest(manifest);
+    if (current && current.version === manifest.version && current.manifest_digest !== digest) {
+      const compatibleSameVersion = current.state !== "uninstalled"
+        && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
+      if (compatibleSameVersion) {
+        if (current.deployment !== input.deployment) {
+          throw new PluginRuntimeError("plugin_state_invalid", "已有安装不能通过启动改变部署环境");
+        }
+        const grants = normalizeGrants(manifest, input.grants ?? current.grants);
+        if (!sameStrings(current.grants, grants)) {
+          throw new PluginRuntimeError("plugin_state_invalid", "兼容启动会保留现有 grant；权限变更必须通过单独授权操作");
+        }
+        assertRequiredGrants(manifest, current.grants);
+        // The changed Manifest may supply the running code only when its exact
+        // same-version compatibility declaration allows the existing install.
+        // Keep the stored digest untouched; this is not a version upgrade.
+        this.definitions.set(definitionKey(current), input.definition);
+        return this.receipt("install", current, true);
+      }
       throw new PluginRuntimeError(
         "plugin_definition_conflict",
         "同一 Plugin ID、Version 和签名不能对应不同 Manifest；请递增版本",
       );
     }
-    if (current && current.state !== "uninstalled" && !replacing) {
+    this.register(input.definition);
+    if (current && current.version !== manifest.version && current.state !== "uninstalled") {
+      if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {
+        throw new PluginRuntimeError("plugin_upgrade_required", "有新版本可用；请在插件市场确认升级后再启用");
+      }
+      const grants = normalizeGrants(manifest, input.grants ?? current.grants);
+      if (!sameStrings(current.grants, grants)) {
+        throw new PluginRuntimeError("plugin_state_invalid", "兼容启动会保留现有 grant；权限变更必须通过单独授权操作");
+      }
+      assertRequiredGrants(manifest, current.grants);
+      // A process that still has the exact old definition can keep using it. A
+      // fresh process can bind the newer implementation only because the target
+      // Manifest explicitly promises compatibility with this installed version.
+      const oldKey = definitionKey(current);
+      if (!this.definitions.has(oldKey)) this.definitions.set(oldKey, input.definition);
+      if (current.deployment !== input.deployment) {
+        throw new PluginRuntimeError("plugin_state_invalid", "已有安装不能通过启动改变部署环境");
+      }
+      return this.receipt("install", current, true);
+    }
+    const grants = normalizeGrants(manifest, input.grants ?? []);
+    if (current && current.state !== "uninstalled") {
       if (
         current.version === manifest.version
         && current.deployment === input.deployment
@@ -184,8 +238,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
       throw new PluginRuntimeError(
         "plugin_state_invalid",
-        "已有安装不能通过重复 install 静默改变版本、部署环境或 grant",
+        "已有安装不能通过重复 install 静默改变部署环境或 grant",
       );
+    }
+    if (current && current.manifest_digest !== digest) {
+      throw new PluginRuntimeError("plugin_upgrade_required", "已有安装需要在插件市场明确升级");
     }
     const now = this.now();
     const record: PluginInstanceRecord = {
@@ -208,6 +265,125 @@ export class PluginRuntime implements PluginRuntimeApi {
     };
     this.repository.save(record);
     return this.receipt("install", record, false);
+  }
+
+  /** Replace one installed version after an explicit Host action and preflight. */
+  async upgrade(input: {
+    install_id: string;
+    definition: PluginDefinition;
+    deployment?: PluginDeployment;
+  }): Promise<PluginLifecycleReceipt> {
+    return this.runLocked(input.install_id, async () => {
+      const target = input.definition.manifest;
+      validateManifest(target);
+      const current = this.requireInstall(input.install_id);
+      if (current.state === "uninstalled" || current.state === "quarantined") {
+        throw new PluginRuntimeError("plugin_state_invalid", `Plugin 当前状态 ${current.state} 不允许升级`);
+      }
+      if (current.plugin_id !== target.plugin_id || current.publisher_signature !== target.publisher.signature) {
+        throw new PluginRuntimeError("plugin_definition_conflict", "升级目标必须属于同一插件和发布者签名");
+      }
+      if (current.version === target.version && current.manifest_digest !== pluginManifestDigest(target)) {
+        throw new PluginRuntimeError("plugin_definition_conflict", "同一版本的 Manifest 指纹不同，不能升级");
+      }
+      if (comparePluginVersions(target.version, current.version) <= 0) {
+        throw new PluginRuntimeError("plugin_upgrade_required", "升级目标必须高于当前安装版本");
+      }
+      const compatibility = target.upgrade_compatibility;
+      const compatible = (compatibility?.compatible_from_versions ?? []).includes(current.version);
+      const migratable = (compatibility?.migratable_from_versions ?? []).includes(current.version);
+      if (!compatible && !migratable) {
+        throw new PluginRuntimeError("plugin_upgrade_required", "目标 Manifest 未声明支持从当前安装版本升级");
+      }
+      const declaredPermissions = new Set(target.permissions.map(permission => permission.permission));
+      if (current.grants.some(permission => !declaredPermissions.has(permission))) {
+        throw new PluginRuntimeError("plugin_grant_denied", "升级会丢失已有授权，目标 Manifest 未保留全部 grant");
+      }
+      assertRequiredGrants(target, current.grants);
+      const deployment = input.deployment ?? current.deployment;
+      const entrypoint = target.entrypoints.find(candidate => candidate.deployment === deployment);
+      if (!entrypoint) throw new PluginRuntimeError("plugin_entrypoint_missing", "Plugin 没有当前部署环境的 entrypoint");
+      if (migratable && !input.definition.validateUpgrade) {
+        throw new PluginRuntimeError("plugin_upgrade_validation_missing", "此升级需要插件提供旧私有数据校验");
+      }
+
+      if (current.state === "running") await this.stopOnce(input.install_id);
+      const stopped = this.requireInstall(input.install_id);
+      const oldDefinition = this.definitions.get(definitionKey(stopped));
+      let privateDataSnapshot: unknown;
+      let hasPrivateDataSnapshot = false;
+      try {
+        if (this.executor.capturePrivateData && this.executor.restorePrivateData) {
+          privateDataSnapshot = await this.executor.capturePrivateData(input.install_id);
+          hasPrivateDataSnapshot = privateDataSnapshot !== undefined;
+        }
+        if (input.definition.validateUpgrade) {
+          const grants = Object.freeze([...stopped.grants]);
+          const context: PluginUpgradeContext = Object.freeze({
+            install_id: stopped.install_id,
+            plugin_id: stopped.plugin_id,
+            version: target.version,
+            deployment,
+            grants,
+            requireGrant(permission) {
+              if (!grants.includes(permission)) throw new PluginRuntimeError("plugin_grant_denied", `Plugin 没有 ${permission} grant`);
+            },
+          });
+          try {
+            if (this.executor.validateUpgrade) await this.executor.validateUpgrade(input.definition, context, stopped);
+            else await input.definition.validateUpgrade({ from: cloneRecord(stopped), context });
+          } catch (error) {
+            throw new PluginRuntimeError("plugin_upgrade_validation_failed", `旧私有数据校验失败：${safeErrorMessage(error)}`);
+          }
+        }
+
+        this.register(input.definition);
+
+        const upgraded: PluginInstanceRecord = {
+          ...stopped,
+          version: target.version,
+          publisher_id: target.publisher.publisher_id,
+          publisher_signature: target.publisher.signature,
+          manifest_digest: pluginManifestDigest(target),
+          deployment,
+          selected_entrypoint: entrypoint.entrypoint,
+          state: "installed",
+          recovery_count: 0,
+          last_error_code: null,
+          updated_at: this.now(),
+          uninstalled_at: null,
+        };
+        this.repository.save(upgraded);
+        const receipt = await this.startOnce(input.install_id);
+        return { ...receipt, operation: "upgrade", replayed: false };
+      } catch (error) {
+        const failed = this.repository.get(input.install_id);
+        let dataRollbackError: unknown;
+        if (hasPrivateDataSnapshot) {
+          try { await this.executor.restorePrivateData!(input.install_id, privateDataSnapshot); }
+          catch (restoreError) { dataRollbackError = restoreError; }
+        }
+        const rollback: PluginInstanceRecord = {
+          ...stopped,
+          state: dataRollbackError ? "disabled" : stopped.state,
+          last_error_code: dataRollbackError ? "plugin_upgrade_rollback_failed" : safeErrorCode(error),
+          updated_at: this.now(),
+        };
+        this.repository.save(rollback);
+        if (oldDefinition && !dataRollbackError) {
+          // Restore the pre-upgrade implementation after a failed candidate
+          // start. Its stable install id keeps access to the same private data.
+          try { await this.startOnce(input.install_id); } catch { /* the original upgrade error remains authoritative */ }
+        }
+        if (failed?.version === target.version && oldDefinition !== input.definition) {
+          this.definitions.delete(definitionKey(target));
+        }
+        if (dataRollbackError) {
+          throw new PluginRuntimeError("plugin_upgrade_rollback_failed", `升级失败且私有数据回滚失败，旧插件已停止：${safeErrorMessage(dataRollbackError)}`);
+        }
+        throw error;
+      }
+    });
   }
 
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt {
@@ -247,8 +423,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.runLocked(installId, () => this.reportCrashOnce(installId, errorCode));
   }
 
-  recover(installId: string): Promise<PluginLifecycleReceipt> {
-    return this.runLocked(installId, () => this.recoverOnce(installId));
+  recover(installId: string, options: { release_quarantine?: boolean } = {}): Promise<PluginLifecycleReceipt> {
+    return this.runLocked(installId, () => this.recoverOnce(installId, options.release_quarantine === true));
   }
 
   /**
@@ -268,7 +444,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const definition = this.requireDefinition(current);
     assertRequiredGrants(definition.manifest, current.grants);
     try {
-      const handle = await this.executor.start(definition, this.activateContext(current));
+      const handle = await this.executor.start(definition, this.activateContext(current, definition));
       await this.redeem(definition, current, handle.contribution);
       const updated = {
         ...current,
@@ -372,13 +548,13 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.receipt("crash", updated, false);
   }
 
-  private async recoverOnce(installId: string): Promise<PluginLifecycleReceipt> {
+  private async recoverOnce(installId: string, releaseQuarantine = false): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
-    if (current.state !== "crashed") {
-      throw new PluginRuntimeError("plugin_state_invalid", "只有 crashed Plugin 可以恢复");
+    if (current.state !== (releaseQuarantine ? "quarantined" : "crashed")) {
+      throw new PluginRuntimeError("plugin_state_invalid", releaseQuarantine ? "只有 quarantined Plugin 可以显式解除隔离" : "只有 crashed Plugin 可以恢复");
     }
     const maxAttempts = this.options.maxRecoveryAttempts ?? 3;
-    if (current.recovery_count >= maxAttempts) {
+    if (!releaseQuarantine && current.recovery_count >= maxAttempts) {
       const quarantined = {
         ...current,
         state: "quarantined" as const,
@@ -391,12 +567,12 @@ export class PluginRuntime implements PluginRuntimeApi {
     assertRequiredGrants(definition.manifest, current.grants);
     const recoveryCount = current.recovery_count + 1;
     try {
-      const handle = await this.executor.start(definition, this.activateContext(current));
+      const handle = await this.executor.start(definition, this.activateContext(current, definition));
       await this.redeem(definition, current, handle.contribution);
       const updated = {
         ...current,
         state: "running" as const,
-        recovery_count: recoveryCount,
+        recovery_count: releaseQuarantine ? 0 : recoveryCount,
         last_error_code: null,
         updated_at: this.now(),
       };
@@ -406,7 +582,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     } catch (error) {
       this.revokeContext(installId);
       this.contributions.delete(installId);
-      const quarantined = recoveryCount >= maxAttempts;
+      const quarantined = releaseQuarantine || recoveryCount >= maxAttempts;
       const updated = {
         ...current,
         state: quarantined ? "quarantined" as const : "crashed" as const,
@@ -482,6 +658,35 @@ export class PluginRuntime implements PluginRuntimeApi {
   ): Promise<void> {
     try {
       assertContributionMatchesManifest(definition.manifest, contribution);
+      const manifest = definition.manifest;
+      if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
+        const actions = this.options.actions;
+        if (!actions) throw new PluginContributionError("plugin_contribution_unredeemed", "宿主未提供系统动作注册服务");
+        const grantAvailability = (permissions: readonly string[], own?: (context: ActionCallContext) => ActionAvailability) =>
+          (context: ActionCallContext): ActionAvailability => {
+            const grants = this.repository.get(record.install_id)?.grants ?? [];
+            if (permissions.some(p => !grants.includes(p))) return { available: false, code: "actions.plugin_permission", reason: "插件缺少能力所需授权" };
+            return own?.(context) ?? { available: true };
+          };
+        this.actionDisposers.set(record.install_id, actions.registry.registerProvider({
+          provider: { provider_id: record.install_id, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
+            ...(actions.project_id ? { project_id: actions.project_id } : {}) },
+          definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => ({ ...h,
+            availability: grantAvailability(manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!.action.permissions, h.availability) })),
+          scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => ({ ...h,
+            availability: grantAvailability(manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!.permissions, h.availability) })),
+          availability: () => {
+            const current = this.repository.get(record.install_id);
+            if (!current || current.state !== "running" || !this.contexts.has(record.install_id)) {
+              return { available: false, code: "actions.plugin_unavailable", reason: "插件未运行或已停用" };
+            }
+            if (manifest.permissions.some(p => p.required && !current.grants.includes(p.permission))) {
+              return { available: false, code: "actions.plugin_permission", reason: "插件所需授权已撤销" };
+            }
+            return { available: true };
+          },
+        }));
+      }
     } catch (error) {
       const live = this.liveContext(record.install_id);
       try {
@@ -489,8 +694,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       } catch {
         // The Plugin already failed its contract; lifecycle state stays authoritative.
       }
-      if (error instanceof PluginContributionError) {
-        throw new PluginRuntimeError(error.code, error.message);
+      if (error instanceof PluginContributionError || error instanceof ActionError) {
+        throw new PluginRuntimeError("plugin_contribution_unredeemed", error.message);
       }
       throw error;
     }
@@ -536,18 +741,22 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   private revokeContext(installId: string): void {
+    this.actionDisposers.get(installId)?.();
+    this.actionDisposers.delete(installId);
     this.contexts.get(installId)?.revoke();
     this.contexts.delete(installId);
   }
 
-  private activateContext(record: PluginInstanceRecord): PluginStartContext {
+  private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
     let active = true;
     const grants = Object.freeze([...record.grants]);
     const context: PluginStartContext = {
       install_id: record.install_id,
       plugin_id: record.plugin_id,
-      version: record.version,
+      // Services authenticate the executing implementation; the persisted
+      // install version stays unchanged until an explicit upgrade.
+      version: definition.manifest.version,
       deployment: record.deployment,
       grants,
       requireGrant(permission) {
@@ -591,6 +800,15 @@ function validateManifest(manifest: PluginManifest): void {
   ) {
     throw new PluginRuntimeError("plugin_manifest_invalid", "Plugin Manifest 身份、签名或 Host API 不合法");
   }
+  try {
+    parsePluginManifest(manifest);
+  } catch (error) {
+    throw new PluginRuntimeError("plugin_manifest_invalid", error instanceof Error ? error.message : "Plugin Manifest 不合法");
+  }
+}
+
+function safeErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message.trim() ? error.message : "数据无法读取";
 }
 
 function normalizeGrants(manifest: PluginManifest, requested: string[]): string[] {
@@ -623,19 +841,6 @@ function definitionKey(manifest: PluginManifest | PluginInstanceRecord): string 
     ? manifest.publisher.signature
     : manifest.publisher_signature;
   return `${manifest.plugin_id}\u0000${manifest.version}\u0000${signature}`;
-}
-
-function manifestDigest(manifest: PluginManifest): string {
-  return createHash("sha256").update(canonicalJson(manifest)).digest("hex");
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
 }
 
 function normalizeErrorCode(value: string): string {

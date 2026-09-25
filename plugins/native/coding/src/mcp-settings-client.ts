@@ -3,16 +3,17 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
   const bind=scope=>{
     const root=scope.querySelector('[data-coding-mcp-settings]');if(!root)return;if(bindings.has(root)){bindings.get(root)();return;}
     const q=selector=>root.querySelector(selector),form=q('[data-mcp-config]'),field=name=>form.elements.namedItem(name);
-    const prefix=root.dataset.prefix+'api/plugins/io.molis.work.coding';let servers=[],workspaces=[],editing=null;
+    const prefix=root.dataset.prefix+'api/plugins/io.molis.work.coding';let servers=[],workspaces=[],authConnections=[],editing=null;
     const pending=new Map(),status=text=>{q('[data-mcp-status]').textContent=text;};
     const api=async(path,body)=>{const response=await fetch(prefix+path,{method:body?'POST':'GET',cache:'no-store',...(body?{headers:molisWorkControlHeaders(),body:JSON.stringify(body)}:{})});const result=await response.json();if(!response.ok)throw new Error(result.error || 'MCP 操作失败');return result;};
     const transport=()=>{q('[data-mcp-stdio]').hidden=field('transport').value!=='stdio';q('[data-mcp-http]').hidden=field('transport').value!=='http';};
-    const reset=()=>{editing=null;form.reset();field('secret').value='';q('[data-mcp-form-title]').textContent='添加 MCP 服务';transport();};
+    const reset=()=>{editing=null;form.reset();q('[data-mcp-form-title]').textContent='添加 MCP 服务';transport();};
     const edit=server=>{
       editing={id:server.id,version:server.version};q('[data-mcp-form-title]').textContent='编辑 '+server.label;
       field('label').value=server.label;field('transport').value=server.transport;field('enabled').checked=server.enabled;field('timeout').value=server.timeout_ms;
       field('executable').value=server.executable || '';field('argv').value=JSON.stringify(server.argv || []);field('endpoint').value=server.endpoint || '';
-      field('auth').value=server.credential==='present'?'keep-existing':'none';field('secret').value='';
+      field('auth').value=server.auth_connection_id?'connection':server.credential==='present'?'keep-existing':'none';
+      field('auth_connection_id').value=server.auth_connection_id||'';
       field('workspace').value=workspaces.find(item=>item.canonical_path===server.directory?.canonical_path)?.workspace_id || '';
       transport();field('label').focus();
     };
@@ -40,6 +41,8 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
     };
     const refresh=async()=>{
       const result=await api('/state');servers=result.mcp || [];workspaces=result.workspaces;
+      const authResponse=await fetch('/api/settings/connectors/connections?service_id=mcp-bearer',{cache:'no-store'});
+      if(authResponse.ok){const data=await authResponse.json();authConnections=data.connections||[];const auth=field('auth_connection_id'),current=auth.value;auth.innerHTML='<option value="">选择连接</option>'+authConnections.filter(item=>item.state==='connected').map(item=>'<option value="'+item.connection_id+'">'+item.display_name.replaceAll('&','&amp;').replaceAll('<','&lt;')+'</option>').join('');auth.value=current;}
       const select=field('workspace'),key=JSON.stringify(workspaces),previous=select.value;
       if(select.dataset.options!==key){select.replaceChildren(...workspaces.map(item=>{const option=document.createElement('option');option.value=item.workspace_id;option.textContent=item.canonical_path;return option;}));select.dataset.options=key;if(workspaces.some(item=>item.workspace_id===previous))select.value=previous;}
       render();
@@ -55,7 +58,7 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
       try{
         const body={...(editing?{id:editing.id}:{}),expected_version:editing?.version ?? 0,label:field('label').value,transport:field('transport').value,enabled:field('enabled').checked,timeout_ms:Number(field('timeout').value)};
         if(body.transport==='stdio'){body.workspace_id=field('workspace').value;body.executable=field('executable').value;try{body.argv=JSON.parse(field('argv').value);}catch{throw new Error('参数必须填写 JSON 数组，例如 ["server.mjs"]');}}
-        else{body.endpoint=field('endpoint').value;body.auth={kind:field('auth').value,...(field('auth').value==='replace-secret'?{secret:field('secret').value}:{})};}
+        else{body.endpoint=field('endpoint').value;body.auth={kind:field('auth').value,...(field('auth').value==='connection'?{connection_id:field('auth_connection_id').value}:{})};}
         await api('/mcp',body);reset();await refresh();status('MCP 配置已保存，尚未连接；展开服务可连接。');
       }catch(error){status(error.message);}finally{submit.disabled=false;}
     });

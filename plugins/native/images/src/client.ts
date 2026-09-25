@@ -17,10 +17,10 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const connectionName = $('[data-images-connection-name]');
   const connectionUrl = $('[data-images-connection-url]');
   const connectionModel = $('[data-images-connection-model]');
-  const connectionKey = $('[data-images-connection-key]');
+  const connectionAuth = $('[data-images-connection-auth]');
   const serviceMenu = $('[data-images-service-menu]');
-  let context = projectId(), connections = [], jobs = [], connectionId = '', selectedId = '';
-  let editingId = '', editingFormat = 'openai-images', pending = null;
+  let context = projectId(), connections = [], authConnections = [], jobs = [], connectionId = '', selectedId = '';
+  let editingId = '', editingFormat = 'openai-images', editingAuth = '', pending = null;
   let submitting = false, saving = false, cancelling = false, listSeq = 0, loadSeq = 0;
   let timer = 0, listSignature = '', resultSignature = '';
   const statuses = {
@@ -81,33 +81,38 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
   const syncGenerate = () => {
-    generate.disabled = submitting || !context || !selectedConnection() || !prompt.value.trim();
+    generate.disabled = submitting || !context || !selectedConnection() || selectedConnection().available === false || !prompt.value.trim();
     generate.textContent = submitting ? L('正在提交…') : L('生成图片');
     $('[data-images-project-note]').hidden = Boolean(context);
   };
   const syncParameters = () => {
     const connection = selectedConnection();
-    $('[data-images-connected]').hidden = !connection;
+    $('[data-images-connected]').hidden = !connectionId && !connections.length;
     $('[data-images-connection-empty]').hidden = connections.length > 0;
-    $('[data-images-service-label]').textContent = connection ? connection.name + ' · ' + connection.model : '';
+    $('[data-images-service-label]').textContent = connection ? connection.name + ' · ' + connection.model : L('所选生图服务不可用，请重新选择');
+    const unavailable = $('[data-images-service-unavailable]');
+    unavailable.hidden = !connectionId || Boolean(connection && connection.available !== false);
+    unavailable.textContent = connection?.unavailable_reason || L('所选生图服务不可用，请重新选择');
     $('[data-images-size-field]').hidden = !connection || connection.api_format !== 'openai-images';
     $('[data-images-ratio-field]').hidden = !connection || connection.api_format !== 'gemini';
     $('[data-images-service-options]').querySelectorAll('[data-images-use-connection]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesUseConnection === connectionId)));
     syncGenerate();
   };
   const paintConnections = () => {
-    if (!connections.some(item => item.id === connectionId)) connectionId = connections[0]?.id || '';
+    if (!connectionId) connectionId = connections[0]?.id || '';
     const options = $('[data-images-service-options]');
     options.replaceChildren(...connections.map(connection => {
       const node = button('', 'data-images-use-connection', connection.id);
       node.className = 'images-service-option';
-      node.append(text('span', connection.name), text('small', connection.model));
+      node.append(text('span', connection.name), text('small', connection.model + (connection.available === false ? ' · ' + L('连接不可用') : '')));
       return node;
     }));
     $('[data-images-saved-connections]').replaceChildren(...connections.map(connection => {
+      const row = text('div', '', 'images-saved-connection');
       const node = button(connection.name, 'data-images-edit-connection', connection.id, 'secondary');
       node.setAttribute('aria-pressed', String(editingId === connection.id));
-      return node;
+      row.append(node, button(L('删除'), 'data-images-delete-connection', connection.id));
+      return row;
     }));
     syncParameters();
   };
@@ -155,6 +160,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     resultSignature = signature; result.replaceChildren();
     const heading = text('div', '', 'images-result-heading');
     heading.append(text('h2', statuses[job.status] || job.status), button(L('使用这个提示词'), 'data-images-reuse', job.id, 'secondary'));
+    if (job.status !== 'running') heading.append(button(L('删除记录'), 'data-images-delete-job', job.id));
     result.append(heading, text('p', job.connection_name + ' · ' + job.model + ' · ' + dateLabel(job.created_at), 'images-result-meta'));
     if (job.status !== 'succeeded') {
       const panel = text('div', '', 'images-status-panel'); panel.dataset.status = job.status;
@@ -232,16 +238,25 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const seq = ++loadSeq;
     const payload = await request('GET', '/connections');
     if (seq !== loadSeq || !root.isConnected) return;
-    connections = Array.isArray(payload.connections) ? payload.connections : []; paintConnections();
+    connections = Array.isArray(payload.connections) ? payload.connections : [];
+    authConnections = Array.isArray(payload.auth_connections) ? payload.auth_connections : [];
+    paintConnections(); syncConnectionEditor();
   };
   const syncConnectionEditor = () => {
     root.querySelectorAll('[data-images-format]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesFormat === editingFormat)));
     root.querySelectorAll('[data-images-edit-connection]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesEditConnection === editingId)));
     const existing = connections.find(item => item.id === editingId);
     const changedDestination = existing && (existing.api_format !== editingFormat || existing.base_url !== connectionUrl.value.trim());
-    $('[data-images-key-help]').textContent = changedDestination ? L('修改 API 基址或协议后，请重新填写密钥。')
-      : existing?.has_key ? L('已保存密钥。留空保留现有密钥。')
-      : L('密钥只写入本机加密存储，不会出现在历史记录中。');
+    const choices = authConnections.filter(item=>item.state==='connected' || item.connection_id===editingAuth);
+    connectionAuth.replaceChildren(new Option(L(existing?.auth_connection_id ? '保留当前连接' : '本机无鉴权服务'), ''), ...choices.map(item=>new Option(item.display_name+(item.state==='connected' ? '' : ' · '+L('连接不可用')), item.connection_id)));
+    if (editingAuth && !choices.some(item=>item.connection_id===editingAuth)) {
+      const missing = new Option(L('所选连接已失效'), editingAuth); connectionAuth.add(missing);
+    }
+    connectionAuth.value = editingAuth;
+    const unavailable = editingAuth && !authConnections.some(item=>item.connection_id===editingAuth && item.state==='connected');
+    $('[data-images-key-help]').textContent = unavailable ? L('所选连接已失效，请重新连接或选择其他账号。') : changedDestination ? L('修改 API 基址或协议后，请重新选择账号连接。')
+      : existing?.has_key ? L('账号连接已保存；密钥在 Connectors 中管理。')
+      : L('密钥在 Connectors 中管理。');
     $('[data-images-connection-heading]').textContent = editingId ? L('编辑服务') : L('添加服务');
   };
   const usePreset = (preset) => {
@@ -249,13 +264,14 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     connectionName.value = preset === 'gemini' ? 'Gemini' : preset === 'openai' ? 'OpenAI' : '';
     connectionUrl.value = preset === 'gemini' ? 'https://generativelanguage.googleapis.com/v1beta' : preset === 'openai' ? 'https://api.openai.com/v1' : '';
     connectionModel.value = preset === 'gemini' ? 'gemini-3.1-flash-image' : preset === 'openai' ? 'gpt-image-1.5' : '';
-    connectionKey.value = ''; syncConnectionEditor();
+    syncConnectionEditor();
   };
   const editConnection = (id) => {
     const connection = connections.find(item => item.id === id); editingId = connection?.id || '';
+    editingAuth = connection?.auth_connection_id || '';
     if (connection) {
       editingFormat = connection.api_format; connectionName.value = connection.name;
-      connectionUrl.value = connection.base_url; connectionModel.value = connection.model; connectionKey.value = '';
+      connectionUrl.value = connection.base_url; connectionModel.value = connection.model;
       syncConnectionEditor();
     } else usePreset('openai');
     say('', false, '[data-images-connection-note]');
@@ -265,14 +281,14 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const syncSaving = () => {
     $('[data-images-connection-fields]').disabled = saving;
-    dialog.querySelectorAll('[data-images-edit-connection], [data-images-add-connection], [data-images-dialog-close], [data-images-save-connection]').forEach(node => node.disabled = saving);
+    dialog.querySelectorAll('[data-images-edit-connection], [data-images-delete-connection], [data-images-add-connection], [data-images-dialog-close], [data-images-save-connection]').forEach(node => node.disabled = saving);
     $('[data-images-save-connection]').textContent = saving ? L('正在保存…') : L('保存服务');
   };
   connectionForm.addEventListener('submit', async event => {
     event.preventDefault(); if (saving || !connectionForm.reportValidity()) return;
     const input = {
       ...(editingId ? { id: editingId } : {}), name: connectionName.value.trim(), api_format: editingFormat,
-      base_url: connectionUrl.value.trim(), model: connectionModel.value.trim(), api_key: connectionKey.value,
+      base_url: connectionUrl.value.trim(), model: connectionModel.value.trim(), auth_connection_id: connectionAuth.value,
     };
     saving = true; syncSaving(); say('', false, '[data-images-connection-note]');
     try {
@@ -280,19 +296,20 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       loadSeq += 1;
       const index = connections.findIndex(item => item.id === payload.connection.id);
       if (index >= 0) connections[index] = payload.connection; else connections.push(payload.connection);
-      connectionId = payload.connection.id; editingId = connectionId; connectionKey.value = '';
-      paintConnections(); saveDraft(); dialog.close(); say(L('服务已保存。可以开始生成图片。'));
+      connectionId = payload.connection.id; editingId = connectionId;
+      paintConnections(); saveDraft(); dialog.close(); say(L(payload.connection.available === false ? '服务已保存，请先完成账号连接。' : '服务已保存。可以开始生成图片。'));
     } catch (error) {
       say(error.message || L('保存服务失败'), true, '[data-images-connection-note]');
-    } finally { input.api_key = ''; saving = false; syncSaving(); }
+    } finally { saving = false; syncSaving(); }
   });
   dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
-  dialog.addEventListener('close', () => { connectionKey.value = ''; });
+  dialog.addEventListener('close', () => {});
   connectionUrl.addEventListener('input', syncConnectionEditor);
+  connectionAuth.addEventListener('change', () => { editingAuth = connectionAuth.value; syncConnectionEditor(); });
   compose.addEventListener('input', () => { saveDraft(); syncGenerate(); });
   compose.addEventListener('submit', async event => {
     event.preventDefault(); ensureContext();
-    if (submitting || !context || !selectedConnection() || !compose.reportValidity()) return;
+    if (submitting || !context || !selectedConnection() || selectedConnection().available === false || !compose.reportValidity()) return;
     const currentContext = context;
     const connection = selectedConnection();
     const body = { connection_id: connection.id, prompt: prompt.value.trim() };
@@ -323,6 +340,19 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (target.dataset.imagesFormat) { if (!saving) { editingFormat = target.dataset.imagesFormat; syncConnectionEditor(); } return; }
       if (target.hasAttribute('data-images-add-connection')) { if (!saving) editConnection(''); return; }
       if (target.dataset.imagesEditConnection) { if (!saving) editConnection(target.dataset.imagesEditConnection); return; }
+      if (target.dataset.imagesDeleteConnection) {
+        const id = target.dataset.imagesDeleteConnection;
+        if (!confirm(L('删除这个生图服务？已有生成记录会保留。'))) return;
+        target.disabled = true;
+        try {
+          await request('DELETE', '/connections/' + encodeURIComponent(id));
+          connections = connections.filter(item => item.id !== id);
+          if (editingId === id) editConnection('');
+          paintConnections(); saveDraft();
+          say(L('服务已删除。'), false, '[data-images-connection-note]');
+        } finally { target.disabled = false; }
+        return;
+      }
       if (target.dataset.imagesUseConnection) {
         connectionId = target.dataset.imagesUseConnection; serviceMenu.open = false; syncParameters(); saveDraft(); return;
       }
@@ -332,6 +362,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (target.hasAttribute('data-images-refresh')) {
         target.disabled = true;
+        say('');
         try { await Promise.all([loadConnections(), loadJobs()]); } finally { target.disabled = false; }
         return;
       }
@@ -343,8 +374,21 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (target.dataset.imagesReuse) {
         const job = jobs.find(item => item.id === target.dataset.imagesReuse); if (!job) return;
         prompt.value = job.prompt; size.value = job.size || ''; ratio.value = job.aspect_ratio || '';
-        if (connections.some(item => item.id === job.connection_id)) connectionId = job.connection_id;
+        connectionId = job.connection_id;
         pending = null; syncParameters(); say(''); showCompose(true); return;
+      }
+      if (target.dataset.imagesDeleteJob) {
+        const id = target.dataset.imagesDeleteJob, currentContext = context;
+        if (!confirm(L('删除这次生成记录和图片文件？'))) return;
+        target.disabled = true;
+        try {
+          await request('DELETE', '/jobs/' + encodeURIComponent(id));
+          if (currentContext !== projectId()) return;
+          jobs = jobs.filter(item => item.id !== id);
+          if (selectedId === id) showCompose();
+          paintList(); saveDraft(); schedulePoll();
+        } finally { target.disabled = false; }
+        return;
       }
       if (target.dataset.imagesCancel && !cancelling) {
         const currentContext = context, id = target.dataset.imagesCancel;

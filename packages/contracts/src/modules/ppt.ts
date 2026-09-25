@@ -21,6 +21,8 @@ export interface PptSlide {
   readonly order: number;
 }
 
+export type PptSlideInput = Partial<PptSlide>;
+
 export interface PptRecord {
   readonly id: string;
   readonly project_id: string;
@@ -35,4 +37,5 @@ export interface PptRecord {
   readonly version: number;
   readonly artifact_id: string;
   readonly artifact_version: number;
+  readonly publication_pending?: { readonly version: number; readonly source_version: number };
 }

@@ -364,7 +364,7 @@ export const PAGES_STYLES = `
   }
   .pages-more-menu [data-pages-delete] { color: var(--red); }
   [data-pages-star-editor].is-on, .pages-star.is-on { color: var(--amber, var(--ink)); }
-  .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
+  .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   .pages-search-empty { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
   .pages-chrome-icon { width: 28px; min-width: 28px; height: 28px; padding: 0; display: grid; place-items: center; }
   .pages-chrome-icon svg { width: 14px; height: 14px; }

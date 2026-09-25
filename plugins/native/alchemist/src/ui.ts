@@ -14,7 +14,7 @@ export function renderAlchemistWorkbench({primitives:p}:AlchemistUiModel):string
   const btn=(name:string,action:string,primary=false)=>`<button type="button" class="mw-btn mw-btn--${primary?'primary':'ghost'}" data-alc-action="${action}">${t(name)}</button>`;
   return renderPluginStageShell({surface:"alchemist",label:"炼金术士",dataset:"alchemist",body:`
     <div class="plugin-stage-list feed-stage-list feed-stage-tree alc-list" data-alchemist="directory">
-      <header class="plugin-stage-chrome">${btn("新建方向","new",true)}${btn("研究偏好","settings")}</header>
+      <header class="plugin-stage-chrome"><button type="button" class="mw-btn mw-btn--ghost tree-create" data-alc-action="new">${icon("plus")}<span>${t("新建方向")}</span></button><button type="button" class="mw-btn mw-btn--ghost" data-alc-action="settings">${icon("tune")}<span>${t("研究偏好")}</span></button></header>
       <nav class="alc-collections" aria-label="${t('炼金术集合')}">${[['directions','方向'],['ideas','已保留'],['pulse','市场脉搏'],['decisions','决策']].map(([id,label])=>`<button type="button" class="mw-btn mw-btn--ghost" data-alc-collection="${id}" aria-pressed="${id==='directions'}">${t(label!)}</button>`).join('')}</nav>
       <label class="alc-search">${icon('search')}<input class="mw-input" type="search" data-alc-search placeholder="${t('搜索当前集合')}" aria-label="${t('搜索当前集合')}"></label>
       <div data-alc-list-actions class="alc-list-actions"></div>

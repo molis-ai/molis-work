@@ -7,6 +7,58 @@ import type {LocalProjectDatabase} from '../project-database.js';
 import {InteractionJournal} from './journal.js';
 import {resultReasons} from './reasons.js';
 import type {Fact,Condition,EventState} from './contract.js';
+import { goalsActions, goalTreeCapabilities } from '@molis-ai/molis-work-plugin-goals';
+import type { ActionCallContext } from '@molis-ai/molis-work-contracts/platform/actions';
+
+const GOAL_ACTION_EVENTS = new Map([
+ [goalsActions.create.capability_id, 'create-intent'],
+ [goalsActions.list.capability_id, 'list-goals'],
+ [goalsActions.note.capability_id, 'note'],
+ [goalsActions.configure.capability_id, 'configure'],
+ [goalsActions.report.capability_id, 'report'],
+ [goalsActions.progress.capability_id, 'progress'],
+ [goalsActions.concern.capability_id, 'concern'],
+ [goalsActions.requestDecision.capability_id, 'decision-request'],
+ [goalsActions.citeDecision.capability_id, 'cite-decision'],
+ [goalsActions.decide.capability_id, 'decide'],
+ [goalsActions.agree.capability_id, 'agree'],
+ [goalsActions.close.capability_id, 'close'],
+ [goalsActions.resume.capability_id, 'resume'],
+ [goalsActions.state.capability_id, 'read-state'],
+ [goalsActions.directoryItem.capability_id, 'list-goals'],
+ [goalsActions.events.capability_id, 'list'],
+ [goalsActions.latestEvents.capability_id, 'list-latest'],
+ [goalsActions.timeline.capability_id, 'timeline'],
+ [goalsActions.event.capability_id, 'read'],
+ [goalsActions.history.capability_id, 'timeline'],
+ [goalsActions.historyItem.capability_id, 'read'],
+]);
+
+const GOAL_TREE_ACTIONS = new Map<string, HostCapabilityDescriptor>([
+ [goalsActions.treeSubmit.capability_id, goalTreeCapabilities.submitGoalTreeProposal],
+ [goalsActions.treeRead.capability_id, goalTreeCapabilities.listGoalTreeProposals],
+ [goalsActions.treeCheck.capability_id, goalTreeCapabilities.checkGoalTreeProposal],
+ [goalsActions.treeDecide.capability_id, goalTreeCapabilities.decideGoalTreeProposal],
+]);
+
+/** Translate wire-independent actions into the existing consented observation contract. */
+export function goalActionObservation(capability: HostCapabilityDescriptor, input: unknown, boardId: string,
+ caller: Pick<ActionCallContext, 'actor_id' | 'audit_actor_id' | 'actor_kind' | 'audience'>) {
+ const tree = GOAL_TREE_ACTIONS.get(capability.capability_id);
+ if (tree && capability.version === 1) return { capability: tree,
+  input: [{ ...obj(input), board_id: boardId, ...(capability.capability_id === goalsActions.treeDecide.capability_id
+   ? { authority: { actor_id: caller.actor_id, actor_kind: caller.actor_kind } }
+   : { actor_id: caller.audit_actor_id ?? caller.actor_id }) }] };
+ const suffix = GOAL_ACTION_EVENTS.get(capability.capability_id);
+ if (!suffix || capability.version !== 1) return null;
+ const actorId = caller.audit_actor_id ?? caller.actor_id;
+ const actorKind = caller.actor_kind === undefined ? (caller.audience === 'user' ? 'user' : 'runtime') : caller.actor_kind;
+ return { capability: { capability_id: `io.molis.work.goals.events.${suffix}`, version: 1, operation: capability.operation },
+  // Legacy decide inputs held the author under authority; keep persisted request-key comparisons compatible.
+  input: { ...obj(input), board_id: boardId, ...(suffix === 'decide'
+   ? { authority: { actor_id: actorId, actor_kind: actorKind } }
+   : { actor_id: actorId, actor_kind: actorKind }) } };
+}
 
 export const EVENT_METHODS = {
  createIntent:'create-intent',listGoals:'list-goals',readState:'read-state',configure:'configure',report:'report',

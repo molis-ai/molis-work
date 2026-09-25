@@ -6,7 +6,7 @@ Use this reference for project selection, binding, switching, connection errors,
 
 | State | Action |
 | --- | --- |
-| bound | Reuse the returned connection and restored Goal focus. Ordinary Goal calls omit board and actor fields. |
+| bound | Reuse the returned connection and any authorized Goal focus. Ordinary Goal calls omit board and actor fields. |
 | suggested or unbound | Follow an already explicit user project selection if exactly one returned existing project matches. Otherwise show project names and ask which to use or whether to create a named project. |
 | missing_stable_context | Explain that the Host has not supplied a stable conversation context. Do not invent a Session ID or guess a project from a directory. |
 
@@ -60,3 +60,5 @@ Goal trash preserves the original ID, facts and relationship history. It differs
 - Use the exact Goal and the user's explicit instruction to trash or restore it. If the requested effect is ambiguous, clarify it; do not repeat a clear instruction.
 
 Read the result literally: blocked means no transition; trashed is recoverable; restored keeps relations with unavailable endpoints inactive and identifies pending_relation_ids. already_trashed and already_active report existing state. After restoring, goal_state describes current work. Never force historical active work closed or invent a per-Goal permanent deletion route.
+
+Project binding does not grant access to project content. Connection responses read project guidance and recovery goals through the client’s explicit action grants. If `project_guidance_error` or `resume_error` is present, the corresponding content is null, not empty or absent from the project. Preserve a valid bound connection; do not bind again to repair content access. For authorization errors, explain the exact missing access and direct the user to system capabilities → external access. For `actions.service_unavailable`, restore the existing Home service before retrying the read. Never fall back to another project, Home, or local database. A focus outside the first directory page additionally requires `goals.directory.read`.

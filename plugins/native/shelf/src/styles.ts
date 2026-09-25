@@ -72,7 +72,7 @@ export const SHELF_STYLES = `
     position: absolute; inset: 0; flex: none;
     display: flex; flex-direction: column;
     min-height: 0; overflow: hidden;
-    padding: 12px 10px 16px; background: var(--paper);
+    padding: 16px 20px; background: var(--paper);
   }
   body.immersive-workbench [data-work-surface="shelf"].plugin-stage-shell {
     padding: 0; background: var(--paper);

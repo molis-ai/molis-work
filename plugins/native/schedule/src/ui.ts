@@ -65,7 +65,7 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="schedule" data-work-surface-label="Schedule" hidden data-schedule-workbench data-schedule-stage-shell data-expanded="false">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-schedule-list>
       <header class="plugin-stage-chrome schedule-stage-chrome">
-        <button class="mw-btn mw-btn--secondary" type="button" data-schedule-new>${p.text("新建定时任务")}</button>
+        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-schedule-new>${p.icon("plus")}<span>${p.text("新建定时任务")}</span></button>
       </header>
       ${listBody}
     </div>
@@ -81,7 +81,7 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
 function renderCreateDialog(p: ScheduleUiPrimitives): string {
   return `<dialog class="mw-dialog mw-dialog--form" data-schedule-create-dialog aria-labelledby="schedule-create-title">
     <form class="mw-form mw-dialog__shell" data-schedule-create-form>
-      <header class="mw-form__header"><div><h2 id="schedule-create-title">${p.text("新建定时任务")}</h2><p>${p.text("到点后会在这条任务自己的对话里跑一轮，不会进现有 Coding 会话。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-schedule-create-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
+      <header class="mw-form__header"><div><h2 id="schedule-create-title" data-schedule-form-title>${p.text("新建定时任务")}</h2><p>${p.text("到点后会在这条任务自己的对话里跑一轮，不会进现有 Coding 会话。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-schedule-create-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
       <div class="mw-form__body">
         <label class="mw-field"><span class="mw-field__label">${p.text("标题")}</span><input class="mw-input" name="title" required maxlength="80" autocomplete="off" placeholder="${p.text("例如：每天早上汇总未读")}"></label>
         <label class="mw-field"><span class="mw-field__label">${p.text("说明")}</span><textarea class="mw-textarea" name="instructions" rows="6" required maxlength="8000" placeholder="${p.text("到点后 Agent 会读这段说明，然后在这条对话里回复。")}"></textarea><small class="mw-field__hint">${p.text("默认只读。要改文件会进现有审核队列。")}</small></label>
@@ -123,7 +123,8 @@ function renderTaskDetail(task: ScheduleConversationTaskView, p: ScheduleUiPrimi
     return `<article class="schedule-turn schedule-turn--${p.escape(turn.kind)}"><header><small>${p.escape(who)}</small>${important}<time>${p.escape(p.formatDate(turn.created_at))}</time></header><p>${p.escape(turn.text)}</p></article>`;
   }).join("");
   return `<article class="feed-detail inbox-reference-detail schedule-task-detail" data-schedule-detail="${p.escape(task.task_id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("返回定时任务列表")}" title="${p.text("返回定时任务列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.text("每天 {time}", { time: task.clock_label })}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-schedule-detail-status>${p.escape(status)}</span></div>${toggle}</header>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("返回定时任务列表")}" title="${p.text("返回定时任务列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.text("每天 {time}", { time: task.clock_label })}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-schedule-detail-status>${p.escape(status)}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${p.text("编辑")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${p.text("归档")}</button></header>
+    <textarea data-schedule-task-instructions hidden>${p.escape(task.instructions)}</textarea><input data-schedule-task-time type="hidden" value="${p.escape(task.clock_label)}"><input data-schedule-task-notify type="hidden" value="${task.notify_important ? "true" : "false"}">
     <header class="feed-detail-header"><h1>${p.escape(task.title)}</h1><p>${p.text("下次")} ${p.escape(next)}</p></header>
     <div class="schedule-thread" data-schedule-thread>${turns}</div>
     <p class="feed-action-status" data-schedule-action-status role="status" hidden></p>

@@ -32,6 +32,9 @@ export const CHARACTERS_STYLES = `
   .characters-editor legend, .characters-editor h2 { font-size: 13px; font-weight: 400; color: var(--ink); margin: 0 0 8px; }
   .characters-editor .characters-check { flex-direction: row; align-items: center; }
   .characters-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .characters-actions [data-character-delete] { color: var(--red); }
+  .characters-actions [data-character-delete]:hover { color: var(--red); background: color-mix(in srgb, var(--red) 8%, transparent); }
+  .plugin-stage-list > .characters-hint { margin: 0 0 6px; padding-inline: 12px; }
   [data-character-reload] { align-self: flex-start; }
   .characters-hint, .characters-editor small { color: var(--muted); font-size: 12px; line-height: 1.6; }
   [data-character-list] > button { width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; white-space: normal; }

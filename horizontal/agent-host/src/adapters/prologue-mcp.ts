@@ -6,7 +6,7 @@ const KIND = "molis-mcp";
 /** Each configuration has a distinct SDK connection identity; old calls cannot target a replacement. */
 export const mcpConnectionId = (ref: AgentMcpSourceRef) => ref.configuration_version === undefined ? ref.server : `${ref.server}@${ref.configuration_version}`;
 interface Saved extends Omit<AgentMcpServerInput, "auth" | "expected_version">, AgentSkillOwner {
-  id: string; credential_ref?: ExactRef<"credential">; removed?: boolean;
+  id: string; credential_ref?: ExactRef<"credential">; auth_connection_id?: string; removed?: boolean;
 }
 const sameOwner = (a: AgentSkillOwner, b: AgentSkillOwner) => a.board_id === b.board_id && a.plugin_id === b.plugin_id;
 function text(value: unknown, label: string, max = 4096) {
@@ -21,7 +21,10 @@ function endpoint(value: unknown) {
 }
 
 /** Configuration belongs to the project; connection, tools and effects belong to SDK. */
-export function createPrologueMcpLibrary(runtime: Runtime): AgentMcpLibrary {
+export function createPrologueMcpLibrary(runtime: Runtime, options: {
+  resolveConnection?: (connectionId: string, endpoint: string) => string | null | Promise<string | null>;
+  credentialRefFor?: (ref: string) => Promise<ExactRef<"credential">>;
+} = {}): AgentMcpLibrary {
   const busy = new Map<string, { action: string; abort: AbortController }>();
   const errors = new Map<string, string>();
   const connection = (id: string) => runtime.mcp.list().find(item => item.id === id);
@@ -35,7 +38,9 @@ export function createPrologueMcpLibrary(runtime: Runtime): AgentMcpLibrary {
     const tools = conn?.health === "connected" ? runtime.mcp.snapshotOf(conn.ref).tools.map(tool => ({ server: saved.id, tool: tool.name, version: tool.shapeFingerprint, configuration_version: version, description: tool.description })) : [];
     return { id: saved.id, version, label: saved.label, enabled: saved.enabled, transport: saved.transport, timeout_ms: saved.timeout_ms,
       ...(saved.transport === "stdio" ? { directory: saved.directory, executable: saved.executable, argv: saved.argv } : { endpoint: saved.endpoint }),
-      credential: saved.credential_ref ? "present" : "none", health: conn?.health ?? "disconnected", tools, resources: conn?.health === "connected" ? [...runtime.mcp.snapshotOf(conn.ref).resources] : [],
+      credential: saved.credential_ref || saved.auth_connection_id ? "present" : "none",
+      ...(saved.auth_connection_id ? { auth_connection_id: saved.auth_connection_id } : {}),
+      health: conn?.health ?? "disconnected", tools, resources: conn?.health === "connected" ? [...runtime.mcp.snapshotOf(conn.ref).resources] : [],
       ...(busy.has(saved.id) ? { busy: busy.get(saved.id)!.action } : {}), ...(errors.has(saved.id) ? { error: errors.get(saved.id)! } : {}) };
   };
   const close = async (id: string) => {
@@ -77,14 +82,20 @@ export function createPrologueMcpLibrary(runtime: Runtime): AgentMcpLibrary {
           saved = { ...base, transport: "stdio", directory: { ...input.directory }, executable: text(input.executable, "可执行文件"), argv: [...input.argv] };
         } else if (input.transport === "http") {
           const address = endpoint(input.endpoint);let credential_ref: ExactRef<"credential"> | undefined;
+          let auth_connection_id: string | undefined;
           if (input.auth?.kind === "keep-existing") {
-            if (previous?.saved.endpoint !== address || !previous.saved.credential_ref) throw new Error("地址变化或没有旧凭据，请重新输入认证信息");
+            if (previous?.saved.endpoint !== address || (!previous.saved.credential_ref && !previous.saved.auth_connection_id)) throw new Error("地址变化或没有旧凭据，请重新输入认证信息");
             credential_ref = previous.saved.credential_ref;
+            auth_connection_id = previous.saved.auth_connection_id;
           } else if (input.auth?.kind === "replace-secret") {
             const secret = text(input.auth.secret, "认证信息", 16384);
             credential_ref = (await runtime.credentials.write({ label: `mcp:${id}`, secret: { plaintext: new TextEncoder().encode(secret) } })).ref;
+          } else if (input.auth?.kind === "connection") {
+            auth_connection_id = text(input.auth.connection_id, "账号连接", 128);
+            if (!options.resolveConnection || !await options.resolveConnection(auth_connection_id, address)) throw new Error("所选 MCP 连接不可用");
           } else if (input.auth?.kind !== "none") throw new Error("请明确选择认证方式");
-          saved = { ...base, transport: "http", endpoint: address, ...(credential_ref ? { credential_ref } : {}) };
+          saved = { ...base, transport: "http", endpoint: address,
+            ...(credential_ref ? { credential_ref } : {}), ...(auth_connection_id ? { auth_connection_id } : {}) };
         } else throw new Error("不支持这个 MCP 传输方式");
         // Changing configuration first closes the old transport; a failed save never implies it is still connected.
         await close(id);
@@ -105,7 +116,15 @@ export function createPrologueMcpLibrary(runtime: Runtime): AgentMcpLibrary {
           if (saved.transport === "stdio") {
             const root = await runtime.workspace.authorize({ path: saved.directory!.canonical_path });
             await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref, executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms, envAllowlist: [] } });
-          } else await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(saved.credential_ref ? { credentialRef: saved.credential_ref } : {}) } });
+          } else {
+            let credentialRef = saved.credential_ref;
+            if (saved.auth_connection_id) {
+              const hostRef = await options.resolveConnection?.(saved.auth_connection_id, saved.endpoint!);
+              if (!hostRef || !options.credentialRefFor) throw new Error("所选 MCP 连接不可用，请在 Connectors 中重新授权");
+              credentialRef = await options.credentialRefFor(hostRef);
+            }
+            await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } });
+          }
           if (abort.signal.aborted) { await close(id);throw new Error("连接已取消"); }
           runtime.adoptMcpTools(conn.ref);
         } else if (action === "disconnect") await close(id);

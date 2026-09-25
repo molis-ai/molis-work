@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { createHttpTypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
+import { typeSafeCredential } from "./typesafe-connection.js";
 import type { ExecutionPort, Participant } from "@molis-ai/molis-work-plugin-experiments";
 import { JsonWorker } from "./experiments-process.js";
 import { runGrok } from "./experiments-grok.js";
@@ -16,12 +17,12 @@ export function experimentDefaults(): Participant[] {
     {id:"grok",name:"Grok 4.6 · xhigh",kind:"grok",model:"grok-4.6",effort:"xhigh",executable:join(homedir(),".grok/bin/grok")},
   ];
 }
-export function jevCredential(): string { return process.env.TYPESAFE_API_KEY?.trim() || createFileSecretStore().get(FUNCTIONS_CREDENTIAL_REF)?.trim() || ""; }
-export function experimentConnectionStatus(participants: Participant[]) {
-  return participants.map(p => ({id:p.id,configured:p.kind === "jev" ? !!jevCredential() : !!p.executable && existsSync(p.executable) && (p.kind !== "laya" || !!p.checkpoint && existsSync(join(p.checkpoint,"model.safetensors"))),
-    note:p.kind === "jev" ? "复用 Functions 的 TypeSafe 凭据；连通性以实际执行为准" : p.kind === "grok" ? "本地 CLI；执行前检查上下文隔离" : "本地路径检查；依赖、上下文长度以实际执行为准"}));
+export function jevCredential(home?: string): string { return process.env.TYPESAFE_API_KEY?.trim() || (home ? typeSafeCredential(home,"experiments") : createFileSecretStore().get(FUNCTIONS_CREDENTIAL_REF)?.trim()) || ""; }
+export function experimentConnectionStatus(participants: Participant[], home?: string) {
+  return participants.map(p => ({id:p.id,configured:p.kind === "jev" ? !!jevCredential(home) : !!p.executable && existsSync(p.executable) && (p.kind !== "laya" || !!p.checkpoint && existsSync(join(p.checkpoint,"model.safetensors"))),
+    note:p.kind === "jev" ? "使用实验中选择的 TypeSafe 连接；连通性以实际执行为准" : p.kind === "grok" ? "本地 CLI；执行前检查上下文隔离" : "本地路径检查；依赖、上下文长度以实际执行为准"}));
 }
-export function createExperimentExecutor(): ExecutionPort {
+export function createExperimentExecutor(home?: string): ExecutionPort {
   const workers = new Map<string,JsonWorker>();
   const script = resolve(fileURLToPath(new URL("../tooling/experiments/laya-worker.py",import.meta.url)));
   return {
@@ -35,7 +36,7 @@ export function createExperimentExecutor(): ExecutionPort {
         const answer = await worker.request(request,signal);
         return {...answer,model:`laya-multilingual@${p.revision}`};
       }
-      const key = jevCredential(); if (!key) throw new Error("Jev 未配置：请在实验模型设置中保存 TypeSafe API Key");
+      const key = jevCredential(home); if (!key) throw new Error("Jev 未配置：请在 Connectors 中添加 TypeSafe 连接并在实验中选择");
       const answer = await createHttpTypeSafeProvider().evaluate(key, {
         id:p.id, function_key:"decision", name:p.name, primitive:"choice", status:"draft", version:null,
         model:p.model, instructions:request.task.instructions, criteria:request.task.criteria,

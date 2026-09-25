@@ -3,6 +3,8 @@ import type { ModelApiFormat, ModelPromptCacheMode, ModelRecord, ModelThinkingMo
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { testConfiguredModel } from "./model-provider-test.js";
+import { withConnectorConnections } from "./connector-connection-store.js";
+import { listConnectorConnectionViews } from "./web-connector-connections.js";
 
 /** Global settings reuse the catalog's configuration and Host-owned secret store. */
 export async function handleModelSettingsHttp(
@@ -33,7 +35,8 @@ export async function handleModelSettingsHttp(
         || typeof body.enabled !== "boolean" || !Array.isArray(body.models)
         || !["off", "best-effort", "required"].includes(String(body.prompt_cache))
         || (body.thinking !== undefined && !["off", "adaptive"].includes(String(body.thinking)))
-        || (body.api_key !== undefined && typeof body.api_key !== "string")) throw new Error("供应商配置格式无效");
+        || (body.connection_id !== undefined && typeof body.connection_id !== "string")
+        || body.api_key !== undefined) throw new Error("供应商配置格式无效；密钥请在 Connectors 中管理");
       const models: ModelRecord[] = body.models.map((entry: unknown) => {
         if (!entry || typeof entry !== "object" || !("model_id" in entry) || typeof entry.model_id !== "string"
           || !("enabled" in entry) || typeof entry.enabled !== "boolean") throw new Error("模型配置格式无效");
@@ -47,14 +50,33 @@ export async function handleModelSettingsHttp(
         };
       });
       const result = await withCatalog({ homeDirectory }, (catalog) => {
+        if (homeDirectory) {
+          const known = listConnectorConnectionViews(homeDirectory, "model-api");
+          const selectedId = typeof body.connection_id === "string" && body.connection_id.trim()
+            ? body.connection_id.trim()
+            : known.find((entry) => withConnectorConnections(homeDirectory, (store) =>
+              store.require(entry.connection_id).credential_ref === catalog.models.get(providerId)?.credential_ref))?.connection_id;
+          if (selectedId) withConnectorConnections(homeDirectory, (store) => {
+            const connection = store.require(selectedId, "model-api");
+            if (typeof body.connection_id === "string" && body.connection_id.trim()
+              && store.state(connection) !== "connected") throw new Error("所选连接不可用");
+            store.assertTarget(selectedId, "model-api", body.base_url as string);
+          });
+        }
         const provider = catalog.models.upsert({
           provider_id: providerId, display_name: body.display_name as string, base_url: body.base_url as string,
           api_format: body.api_format as ModelApiFormat, enabled: body.enabled as boolean,
           prompt_cache: body.prompt_cache as ModelPromptCacheMode, models,
           ...(body.thinking === undefined ? {} : { thinking: body.thinking as ModelThinkingMode }),
         });
-        if (typeof body.api_key === "string" && body.api_key.trim()) catalog.models.setCredential(providerId, body.api_key);
-        return { provider, health: catalog.models.health().find((entry) => entry.provider_id === providerId) };
+        if (typeof body.connection_id === "string" && body.connection_id) {
+          if (!homeDirectory) throw new Error("本机连接库不可用");
+          const connection = withConnectorConnections(homeDirectory, (store) => store.require(body.connection_id as string, "model-api"));
+          if (!connection.credential_ref || connection.disconnected_at) throw new Error("所选连接不可用");
+          catalog.models.selectConnection(providerId, connection.credential_ref);
+        }
+        return { provider: catalog.models.get(providerId) ?? provider,
+          health: catalog.models.health().find((entry) => entry.provider_id === providerId) };
       });
       sendLocalWebJson(response, 200, result);
     } else if (request.method === "DELETE" && providerId && !match[2]) {

@@ -1,3 +1,13 @@
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+
+function registeredFunctionActions(service: import("@molis-ai/molis-work-module-functions").FunctionsService) {
+  const actions = new ActionService();
+  actions.registerProvider(functionsActionProvider({ read: run => run(service), run: run => run(service), credentialAvailable: () => service.settingsStatus().has_credential }));
+  return bindActionClient(actions, () => ({ actor_id: "test", project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] }));
+}
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,24 +31,20 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
-  FunctionsPluginRouteTable,
-  createFunctionsRouteHandlers,
   createFunctionsService,
-  functionsRouteErrorResponse,
-  FUNCTIONS_CLIENT_FACTORY_SCRIPT,
-  functionsSettingsUiContribution,
-  functionsUiContribution,
   hashChoiceConfig,
   hashFunctionConfig,
   openFunctionsStore,
   readChoiceAnswer,
-  renderFunctionsSettings,
-  renderFunctionsWorkbench,
   type FunctionsSecretPort,
   type TypeSafeProvider,
-} from "@molis-ai/molis-work-plugin-functions";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { WORKBENCH_UI_SLOTS } from "../apps/workbench/src/ui-composition.ts";
+} from "@molis-ai/molis-work-module-functions";
+import { FunctionsHttpRouteTable } from "../apps/local-host/src/functions-http/routes.ts";
+import { createFunctionsRouteHandlers } from "../apps/local-host/src/functions-http/route-handlers.ts";
+import { functionsRouteErrorResponse } from "../apps/local-host/src/functions-http/route-error.ts";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
+import { renderFunctionsWorkbench } from "../apps/workbench/src/functions/ui.ts";
+import { renderFunctionsSettings } from "../apps/workbench/src/functions/settings-ui.ts";
 
 const primitives = {
   escape: (value: unknown) => String(value ?? "")
@@ -314,7 +320,9 @@ test("TYPESAFE_API_KEY wins over the stored secret and settings JSON never inclu
     assert.equal("api_key" in status, false);
     const html = renderFunctionsSettings({ settings: status, primitives });
     assert.match(html, /data-functions-settings/);
-    assert.match(html, /disabled/);
+    assert.match(html, /data-functions-connection/);
+    assert.match(html, /管理 TypeSafe 连接/);
+    assert.doesNotMatch(html, /<input[^>]*api[_-]?key/i);
     assert.doesNotMatch(html, /sk-env|sk-stored/);
   });
 });
@@ -326,7 +334,7 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
       secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
       provider: fixtureProvider({ choice: null }),
     });
-    const routes = new FunctionsPluginRouteTable(createFunctionsRouteHandlers(service));
+    const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: registeredFunctionActions(service) }));
     const created = await routes.handle({ method: "POST", pathname: "/api/functions", query: new URLSearchParams(), body: { name: "复核" } });
     assert.equal(created?.status, 200);
     const id = (created?.body as { function: { id: string } }).function.id;
@@ -355,14 +363,7 @@ test("route table lists, previews, publishes, and maps missing functions to 404"
     assert.equal((published?.body as { function: { status: string } }).function.status, "published");
     const missing = functionsRouteErrorResponse(new FunctionsError("functions.not_found", "函数不存在"));
     assert.equal(missing.status, 404);
-    const settings = await routes.handle({
-      method: "GET",
-      pathname: "/api/functions/settings",
-      query: new URLSearchParams(),
-      body: {},
-    });
-    assert.deepEqual(settings?.body, { has_credential: true, source: "ui" });
-    assert.equal(JSON.stringify(settings?.body).includes("sk-test"), false);
+
   });
 });
 
@@ -385,7 +386,7 @@ test("choice options follow destination context unless keys are custom", () => {
 
 test("Functions client clears leftover preview text when switching records and hides Noul section chrome", () => {
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /const switching = selected\?\.id !== record\.id/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/functions\/catalog/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions\/catalog/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-destination/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-source/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /agent\.mcp/);
@@ -413,18 +414,10 @@ test("Functions client clears leftover preview text when switching records and h
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
 });
 
-test("Functions workbench and settings contributions mount on the declared slots", () => {
-  const host = new UiHost();
-  host.register(functionsUiContribution);
-  host.register(functionsSettingsUiContribution);
-  const stage = host.mount({
-    slot: WORKBENCH_UI_SLOTS.main,
-    contribution: {
-      contribution_id: functionsUiContribution.descriptor.contribution_id,
-      surface: "workbench",
-      model: { functions: [], primitives },
-    },
-  }).html;
+test("system judgment editor and connection settings render without plugin contributions", () => {
+  const stage = renderFunctionsWorkbench({ functions: [], primitives });
+  assert.match(stage, /functions-system-editor/);
+  assert.doesNotMatch(stage, /desktop-work-surface|data-plugin-surface/);
   assert.match(stage, /data-functions="workbench"/);
   assert.match(stage, /data-functions-new/);
   assert.match(stage, /plugin-stage-list feed-stage-list feed-stage-tree" data-functions="directory"/);
@@ -446,8 +439,11 @@ test("Functions workbench and settings contributions mount on the declared slots
   assert.match(stage, /data-functions-col="use"/);
   assert.match(stage, /data-functions-map/);
   assert.match(stage, /data-functions-criteria-head/);
-  assert.match(stage, /先不落地/);
-  assert.match(stage, /对到现场按钮/);
+  assert.match(stage, /独立使用/);
+  assert.match(stage, /结果对应的页面动作/);
+  assert.match(stage, /data-functions-step="look" aria-current="step"/);
+  assert.match(stage, /data-functions-save-status/);
+  assert.match(stage, /data-functions-palette-search/);
   assert.match(stage, /data-functions-create-dialog/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /还没有判断/);
   assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /mw-empty__mark[\s\S]*#icon-zap/);
@@ -461,24 +457,17 @@ test("Functions workbench and settings contributions mount on the declared slots
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /molis_work_v1_functions_invoke/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /functions-define/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /发布给 Agent 调用/);
-  const settings = host.mount({
-    slot: WORKBENCH_UI_SLOTS.settings,
-    contribution: {
-      contribution_id: functionsSettingsUiContribution.descriptor.contribution_id,
-      surface: "settings",
-      model: { settings: { has_credential: false, source: "none" }, primitives },
-    },
-  }).html;
+  const settings = renderFunctionsSettings({ settings: { has_credential: false, source: "none" }, primitives });
   assert.match(settings, /data-functions-settings/);
   assert.doesNotMatch(settings, /Gmail|Inbox|AI 与执行工具/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /data-settings-section="functions"/);
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /data-settings-section="functions"/);
   const directory = renderSettingsDirectorySection({
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),
     icon: () => "",
     htmlLang: () => "zh-CN",
   });
-  assert.match(directory, /data-settings-section="functions"/);
+  assert.doesNotMatch(directory, /data-settings-section="functions"/);
 });
 
 test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions off the model-provider page", async (t) => {
@@ -515,25 +504,37 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   });
   const page = await (await fetch(`${origin}/settings/functions`)).text();
   assert.match(page, /data-functions-settings/);
-  assert.match(page, /href="\/settings\/functions"/);
-  assert.doesNotMatch(page, /sk-|TYPESAFE_API_KEY=sk/);
+  assert.match(page, /data-connector-detail="typesafe"[\s\S]*data-functions-settings/);
+  assert.doesNotMatch(page, /sk-live-secret|sk-test|TYPESAFE_API_KEY=sk/);
   const headers = () => ({
     origin,
     "content-type": "application/json",
     "x-molis-work-control-token": token,
     "x-molis-work-idempotency-key": `functions-${Date.now()}-${Math.random().toString(36).slice(2)}`,
   });
-  const saved = await fetch(`${origin}/api/functions/settings`, {
+  const direct = await fetch(`${origin}/api/functions/settings`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ api_key: "sk-live-secret" }),
+  });
+  assert.equal(direct.status, 400);
+  const connectorCreated = await fetch(`${origin}/api/settings/connectors/connections`, {
+    method: "POST", headers: headers(),
+    body: JSON.stringify({ service_id: "typesafe", display_name: "TypeSafe 测试账号", token: "sk-live-secret" }),
+  });
+  assert.equal(connectorCreated.status, 201);
+  const createdBody = await connectorCreated.json() as { connection: { connection_id: string } };
+  const saved = await fetch(`${origin}/api/functions/settings`, {
+    method: "POST", headers: headers(),
+    body: JSON.stringify({ connection_id: createdBody.connection.connection_id }),
   });
   assert.equal(saved.status, 200);
   const body = await saved.json() as { has_credential: boolean; source: string; api_key?: string };
   assert.deepEqual(body, { has_credential: true, source: "ui" });
   assert.equal(body.api_key, undefined);
-  resetSecretStoreCache();
-  assert.equal(createFileSecretStore().get(FUNCTIONS_CREDENTIAL_REF), "sk-live-secret");
+  assert.equal(JSON.stringify(body).includes("sk-live-secret"), false);
+  assert.doesNotMatch(await (await fetch(`${origin}/capabilities/connections`)).text(), /sk-live-secret/);
+  assert.deepEqual(await (await fetch(`${origin}/api/functions/settings`)).json(), { has_credential: true, source: "ui" });
   const listed = await (await fetch(`${origin}/api/functions`)).json() as { functions: Array<{ function_key: string; scene_id: string | null }> };
   assert.deepEqual(
     listed.functions.map((row) => row.function_key).sort(),
@@ -578,7 +579,7 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.equal(record.status, "draft");
   const runtimes = await (await fetch(`${origin}/settings/runtimes`)).text();
   assert.match(runtimes, /data-settings-section="runtimes"/);
-  assert.match(runtimes, /href="\/settings\/functions"/);
+  assert.match(runtimes, /href="\/capabilities\/library/);
   const runtimesContent = runtimes.match(/<div class="settings-content">([\s\S]*?)<\/div>\s*<\/main>/)?.[1] ?? "";
   assert.notEqual(runtimesContent, "");
   assert.doesNotMatch(runtimesContent, /data-functions-settings|class="functions-settings-document"|TypeSafe API Key/);
@@ -613,7 +614,7 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
     },
   });
   assert.match(settingsHtml, /data-functions-settings/);
-  assert.match(settingsHtml, /href="\/settings\/functions"/);
+  assert.match(settingsHtml, /href="\/capabilities\/connections/);
 });
 
 test("config hash changes across primitives with the same instructions", () => {
@@ -745,7 +746,7 @@ test("HTTP invoke by key and MCP list hide drafts", async () => {
     });
     await service.preview(live.id, "input");
     service.publish(live.id);
-    const routes = new FunctionsPluginRouteTable(createFunctionsRouteHandlers(service));
+    const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: registeredFunctionActions(service) }));
     const listed = await routes.handle({
       method: "GET",
       pathname: "/api/functions/published",
@@ -764,34 +765,27 @@ test("HTTP invoke by key and MCP list hide drafts", async () => {
     });
     assert.equal(invoked?.status, 200);
     assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
-    const { createFunctionsMcpAdapter } = await import("../apps/local-host/src/mcp-functions-tools.ts");
-    const adapter = createFunctionsMcpAdapter({
-      requireHost: () => ({
-        homeDirectory: home,
-        runtimeContext: { runtime_id: "codex", stable_work_context_id: "fn", host_declares_stable: true },
-      }),
-      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }),
-      provider: fixtureProvider({ choice: "no" }),
-      env: {},
-    });
-    const listedMcp = JSON.parse(await adapter.handle({ tool_id: "list", arguments: {} }, { runtimeSessionId: null, runtimeSessionIdSource: null })) as {
+    const { callLegacyFunctionsMcp } = await import("../apps/local-host/src/mcp-functions-tools.ts");
+    const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
+      secrets: memorySecrets({ [FUNCTIONS_CREDENTIAL_REF]: "sk-test" }), provider: fixtureProvider({ choice: "no" }), env: {},
+    } });
+    const actions = bindActionClient(actionHost.homeActionClient(), () => ({
+      actor_id: "test-mcp", project_id: null, audience: "mcp", permissions: ["functions:invoke", "functions:manage"],
+    }));
+    const listedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_list", {})) as {
       functions: Array<{ function_key: string }>;
     };
     assert.ok(listedMcp.functions.some((item) => item.function_key === live.function_key));
     assert.equal(listedMcp.functions.some((item) => item.function_key === draft.function_key), false);
     await assert.rejects(
-      () => adapter.handle({ tool_id: "describe", arguments: { function_key: draft.function_key } }, { runtimeSessionId: null, runtimeSessionIdSource: null }),
+      () => callLegacyFunctionsMcp(actions, "molis_work_v1_functions_describe", { function_key: draft.function_key }),
       /函数不存在/,
     );
-    const invokedMcp = JSON.parse(await adapter.handle({
-      tool_id: "invoke",
-      arguments: {
-        function_key: live.function_key,
-        input: "MCP 调用",
-      },
-    }, { runtimeSessionId: null, runtimeSessionIdSource: null })) as { status: string; data: { choice: string } };
+    const invokedMcp = JSON.parse(await callLegacyFunctionsMcp(actions, "molis_work_v1_functions_invoke", {
+      function_key: live.function_key, input: "MCP test",
+    })) as { status: string; data: { choice: string } };
     assert.equal(invokedMcp.status, "ok");
     assert.equal(invokedMcp.data.choice, "no");
+    await actionHost.close();
   });
 });
-

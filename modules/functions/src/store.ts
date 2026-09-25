@@ -1,3 +1,4 @@
+import type { ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, ensureSqliteColumn } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -259,10 +260,10 @@ export class FunctionsStore {
   bindScene(sceneId: string, functionKey: string, boardId: string | null, ref: string | null = null): FunctionSceneBinding {
     const at = new Date().toISOString();
     this.db.prepare(`
-      INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(scene_id, board_id, ref) DO UPDATE SET function_key = excluded.function_key, updated_at = excluded.updated_at
-    `).run(sceneId, boardId ?? "", ref ?? "", functionKey, at);
+      INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, updated_at, binding_revision)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(scene_id, board_id, ref) DO UPDATE SET function_key = excluded.function_key, updated_at = excluded.updated_at, action_binding_json = NULL, binding_revision = excluded.binding_revision
+    `).run(sceneId, boardId ?? "", ref ?? "", functionKey, at, crypto.randomUUID());
     return { scene_id: sceneId, board_id: boardId, ref, function_key: functionKey };
   }
 
@@ -274,7 +275,7 @@ export class FunctionsStore {
 
   getSceneBinding(sceneId: string, boardId: string | null, ref: string | null = null): FunctionSceneBinding | null {
     const row = this.db.prepare(
-      "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE scene_id = ? AND board_id = ? AND ref = ?",
+      "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key != '' AND (action_binding_json IS NULL OR json_extract(action_binding_json, '$.enabled') = 1) AND scene_id = ? AND board_id = ? AND ref = ?",
     ).get(sceneId, boardId ?? "", ref ?? "") as { scene_id: string; board_id: string; ref: string; function_key: string } | undefined;
     if (!row) return null;
     return mapBinding(row);
@@ -283,12 +284,38 @@ export class FunctionsStore {
   listSceneBindings(functionKey?: string): FunctionSceneBinding[] {
     const rows = functionKey
       ? this.db.prepare(
-        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key = ? ORDER BY scene_id, board_id, ref",
+        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key = ? AND (action_binding_json IS NULL OR json_extract(action_binding_json, '$.enabled') = 1) ORDER BY scene_id, board_id, ref",
       ).all(functionKey) as Array<{ scene_id: string; board_id: string; ref: string; function_key: string }>
       : this.db.prepare(
-        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings ORDER BY scene_id, board_id, ref",
+        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key != '' AND (action_binding_json IS NULL OR json_extract(action_binding_json, '$.enabled') = 1) ORDER BY scene_id, board_id, ref",
       ).all() as Array<{ scene_id: string; board_id: string; ref: string; function_key: string }>;
     return rows.map(mapBinding);
+  }
+
+  sceneBindingRevision(sceneId: string, boardId: string): string | undefined {
+    return (this.db.prepare("SELECT COALESCE(NULLIF(binding_revision, ''), updated_at) AS revision FROM function_scene_bindings WHERE scene_id = ? AND board_id = ? AND ref = ''")
+      .get(sceneId, boardId) as { revision: string } | undefined)?.revision;
+  }
+
+  getActionSceneBinding(sceneId: string, boardId: string, ref = ""): ActionSceneBinding | null {
+    const row = this.db.prepare("SELECT action_binding_json, binding_revision FROM function_scene_bindings WHERE scene_id = ? AND board_id = ? AND ref = ?")
+      .get(sceneId, boardId, ref) as { action_binding_json: string | null; binding_revision: string } | undefined;
+    if (!row?.action_binding_json) return null;
+    const binding = JSON.parse(row.action_binding_json) as ActionSceneBinding;
+    return { ...binding, revision: row.binding_revision || binding.revision };
+  }
+
+  setActionSceneBinding(boardId: string, binding: ActionSceneBinding, legacyKey = ""): ActionSceneBinding {
+    const reference: ActionSceneBinding = { binding_id: binding.binding_id, scene_id: binding.scene_id, scene_version: binding.scene_version,
+      project_id: binding.project_id, function: { capability_id: binding.function.capability_id, version: binding.function.version },
+      enabled: binding.enabled, title: binding.title, ...(binding.href ? { href: binding.href } : {}) };
+    const revision = crypto.randomUUID();
+    const saved = { ...reference, revision };
+    this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, action_binding_json, updated_at, binding_revision)
+      VALUES (?, ?, '', ?, ?, ?, ?) ON CONFLICT(scene_id, board_id, ref) DO UPDATE SET
+      function_key=excluded.function_key, action_binding_json=excluded.action_binding_json, updated_at=excluded.updated_at, binding_revision=excluded.binding_revision`)
+      .run(binding.scene_id, boardId, legacyKey, JSON.stringify(reference), new Date().toISOString(), revision);
+    return saved;
   }
 
   recordJudgment(input: {
@@ -421,6 +448,8 @@ export function openFunctionsStore(homeDirectory: string): FunctionsStore {
     );
   `);
   migrateSceneBindingRef(db);
+  ensureSqliteColumn(db, "function_scene_bindings", "action_binding_json", "TEXT");
+  ensureSqliteColumn(db, "function_scene_bindings", "binding_revision", "TEXT NOT NULL DEFAULT ''");
   seedBuiltinFunctions(db);
   return new FunctionsStore(db);
 }

@@ -1,11 +1,13 @@
 import type { IncomingMessage } from "node:http";
 import { documentTitle, htmlToMarkdown } from "@molis-ai/molis-work-module-shelf";
-import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
+import { ExternalDocumentImportError, readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import {
   ArtifactImportError, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ExternalDocumentSource,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { connectorCredentialStatus, resolveConnectorToken } from "./connector-credentials.js";
+import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
+import { resolveUsableNotionToken } from "./notion-oauth.js";
 
 const CONNECTOR_IDS: Record<ExternalDocumentSource, string> = {
   notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive",
@@ -24,10 +26,17 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
     },
     async readExternal(document) {
       let token: string | null;
-      try { token = resolveConnectorToken(CONNECTOR_IDS[document.source]); }
+      try { token = document.source === "notion" ? await resolveUsableNotionToken() : resolveConnectorToken(CONNECTOR_IDS[document.source]); }
       catch { throw new ArtifactImportError(422, "document.credentials_unavailable", "无法读取连接器凭据，请在连接器设置中重新连接"); }
       if (!token) throw new ArtifactImportError(422, "document.connection_required", "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
-      return readExternalDocument(document, { token });
+      const fetch = document.source === "feishu" && token === feishuCliMarker() ? feishuCliFetch : undefined;
+      try { return await readExternalDocument(document, { token, fetch }); }
+      catch (error) {
+        if (document.source !== "notion" || !(error instanceof ExternalDocumentImportError) || error.code !== "needs_auth") throw error;
+        const renewed = await resolveUsableNotionToken(true);
+        if (!renewed) throw error;
+        return readExternalDocument(document, { token: renewed });
+      }
     },
   });
 }

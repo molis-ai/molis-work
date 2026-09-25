@@ -8,7 +8,7 @@ function conflict(): never { throw new BuilderError("revision_conflict", "记录
 function empty(field: Field): RecordValue {
   return field.type === "number" ? 0 : field.type === "boolean" ? false : field.type === "tags" ? [] : "";
 }
-function validateValues(input: unknown, design: Design): Record<string, RecordValue> {
+export function validateValues(input: unknown, design: Design): Record<string, RecordValue> {
   if (!input || typeof input !== "object" || Array.isArray(input)) fail("记录必须是字段和值组成的对象");
   const values = input as Record<string, unknown>, result: Record<string, RecordValue> = {};
   const allowed = new Set(design.fields.map(field => field.id));
@@ -59,6 +59,9 @@ function derive(row: RecordRow, design: Design, behavior: Behavior): RecordRow {
     if (expr.op === "if") return evaluate(expr.condition) ? evaluate(expr.then) : evaluate(expr.else);
     const left = evaluate(expr.left), right = evaluate(expr.right);
     if (expr.op === "concat") return String(left) + String(right);
+    if (expr.op === "and") return left === true && right === true;
+    if (expr.op === "or") return left === true || right === true;
+    if (expr.op === "contains") return Array.isArray(left) ? left.includes(String(right)) : String(left).includes(String(right));
     if (expr.op === "equal") return Array.isArray(left) && Array.isArray(right) ? left.length === right.length && left.every((value, index) => value === right[index]) : left === right;
     if (typeof left !== "number" || typeof right !== "number") return fail("参与运算的值必须为数字");
     if (expr.op === "gt") return left > right;
@@ -112,6 +115,14 @@ function csvValue(cell: string, field: Field): unknown {
   return cell;
 }
 
+/** Read-only check that every stored record still derives under a design, for upgrade preflight. */
+export function validateStoredRecords(storage: Pick<PluginPrivateStorage, "get">, namespace: string, design: Design, behavior: Behavior): number {
+  const parsed = parseDesign(design), rules = parseBehavior(behavior, parsed);
+  const raw = storage.get(`plugin-builder:records:${namespace}`);
+  const rows = raw === null ? [] : JSON.parse(raw) as RecordRow[];
+  for (const row of rows) derive(row, parsed, rules);
+  return rows.length;
+}
 export class RecordStore {
   private readonly key: string;
   private readonly design: Design;
@@ -190,7 +201,7 @@ export class RecordStore {
   summary(): { count: number; totals: Record<string, number> } {
     const rows = this.list(), totals: Record<string, number> = {};
     for (const [id, type] of calculationTypes(this.design.fields, this.behavior.calculations)) {
-      if (type === "number") totals[id] = rows.reduce((total, row) => total + (row.values[id] as number), 0);
+      if (type === "number" && (!this.design.totals || this.design.totals.includes(id))) totals[id] = rows.reduce((total, row) => total + (row.values[id] as number), 0);
     }
     return { count: rows.length, totals };
   }

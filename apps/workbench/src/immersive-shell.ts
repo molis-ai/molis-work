@@ -29,6 +29,7 @@ function pluginLink(
   { L, icon }: ImmersiveShellPrimitives,
   plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon },
   extraClass = "",
+  suffix = "",
 ): string {
   const directory = DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? "" : ` data-directory-open="${plugin.id}"`;
   const feedPreset = plugin.id === "feed" ? ' data-feed-preset="feed"' : "";
@@ -36,7 +37,7 @@ function pluginLink(
     ? ` aria-label="${plugin.label}"`
     : ` aria-label="${L("切换到插件")}：${plugin.label}"`;
   const className = extraClass ? `immersive-plugin-link ${extraClass}` : "immersive-plugin-link";
-  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria}>${icon(plugin.glyph)}<span>${plugin.label}</span></button>`;
+  return `<button class="${className}" type="button" data-plugin-id="${plugin.id}"${directory} data-work-surface-open="${plugin.surface}"${feedPreset}${aria}>${icon(plugin.glyph)}<span>${plugin.label}</span>${suffix}</button>`;
 }
 
 function currentListPlugin(directory: string): string {
@@ -77,7 +78,8 @@ export function renderPluginRail(
   const metaButtons = meta.map(plugin => pluginLink(primitives, plugin, "plugin-rail-item")).join("");
   const rule = metaButtons ? `<span class="plugin-rail-rule" aria-hidden="true"></span>` : "";
   const plugins = work.map(plugin => pluginLink(primitives, plugin, "plugin-rail-item")).join("");
-  const market = pluginLink(primitives, { id: "market", surface: "market", label: L("插件市场"), glyph: "grid" }, "plugin-rail-item");
+  const market = pluginLink(primitives, { id: "market", surface: "market", label: L("插件市场"), glyph: "grid" }, "plugin-rail-item",
+    `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   const identityButtons = identity.map(plugin => pluginLink(primitives, plugin, "plugin-rail-item")).join("");
   const opening = '<footer class="personal-sidebar-footer">';
   const footer = accountFooter.includes(opening)
@@ -179,7 +181,7 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
 }
 
 export function renderPluginMarket({ L, icon }: ImmersiveShellPrimitives): string {
-  const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p></div><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+  const rows = pluginMarketCards().map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p><small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

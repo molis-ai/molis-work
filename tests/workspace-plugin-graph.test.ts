@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -20,21 +21,9 @@ import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
-import { WORKSPACE_PLUGIN_ID, createWorkspacePlugin } from "@molis-ai/molis-work-plugin-workspace";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 
-/**
- * The five Plugins as one graph on the real platform.
- *
- * Each of them is tested on its own elsewhere. What this file asks is the thing
- * no unit test can: that Workspace, Files, Diff, Git and Text stats actually
- * start together, that their declared ports can be bound, and that a value
- * published at the head of the graph arrives at the far end.
- */
-
-interface Publisher {
-  publish(input: unknown): unknown;
-  invalidate?(input: unknown): unknown;
-}
+/** Artifact companions run independently of the retired Workspace plugin. */
 
 /** Wrap a definition so the test can reach the services the Host handed it. */
 function capturing(
@@ -50,22 +39,22 @@ function capturing(
   };
 }
 
-function project(directory: string) {
+function project(directory: string, capabilities?: Parameters<typeof createPluginPlatform>[0]["capabilities"]) {
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const platform = createPluginPlatform({
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
     board_id: DEMO_BOARD_ID,
     actor_id: "tester",
     db: store.db,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event) }),
     ui: new UiHost(),
+    ...(capabilities ? { capabilities } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   return { store, platform };
 }
 
-const WORKSPACE_REF = { workspace_id: "ws-1", name: "示例项目", handle: "ws-1" };
 
 function snapshot(text: string) {
   return { workspace: { workspace_id: "ws-1", name: "示例项目" }, path: ["a.ts"], text };
@@ -76,7 +65,6 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
   try {
     const { store, platform } = project(directory);
     const report = await platform.start([
-      { definition: createWorkspacePlugin({ currentWorkspaceId: () => "ws-1" }) },
       { definition: createFilesPlugin({ readable: () => true }) },
       { definition: createDiffPlugin() },
       { definition: createGitPlugin({ ready: () => true }) },
@@ -85,7 +73,7 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
     ]);
     assert.deepEqual(report.failed, []);
     assert.deepEqual(report.blocked, []);
-    assert.equal(report.running.includes(WORKSPACE_PLUGIN_ID), true);
+    assert.equal(report.running.includes("io.molis.work.workspace"), false);
     assert.equal(report.running.includes(FILES_PLUGIN_ID), true);
     assert.equal(report.running.includes(DIFF_PLUGIN_ID), true);
     assert.equal(report.running.includes(GIT_PLUGIN_ID), true);
@@ -96,78 +84,42 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
   }
 });
 
-test("工作目录从图的源头流到 Files 和 Git", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "workspace-graph-"));
+test("Files reads browsing settings without a Workspace binding and rejects the retired input", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "workspace-settings-graph-"));
+  let selected = { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
+  const { store, platform } = project(directory, {
+    availability: definition => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id && definition.version === 1
+      ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only browsing settings" },
+    async invoke<Input, Output>(definition: { capability_id: string }, _input: Input): Promise<Output> {
+    assert.equal(definition.capability_id, projectSettingsCapabilities.browsingWorkspace.capability_id);
+    return selected as Output;
+  } });
   try {
-    const { store, platform } = project(directory);
-    let workspaceServices: { outputs: Publisher } | undefined;
-    const filesSaw: boolean[] = [];
-    const gitSaw: string[] = [];
-
-    await platform.start([
-      {
-        definition: capturing(
-          createWorkspacePlugin({ currentWorkspaceId: () => "ws-1" }),
-          (context) => {
-            workspaceServices = context.services as { outputs: Publisher };
-          },
-        ),
-      },
-      {
-        definition: createFilesPlugin({
-          readable: () => true,
-          onWorkspaceChanged: (available) => { filesSaw.push(available); },
-        }),
-      },
-      {
-        definition: createGitPlugin({
-          ready: () => true,
-          onWorkingTreeChanged: (reason) => { gitSaw.push(reason); },
-        }),
-      },
-    ]);
-
-    for (const target of [
-      { plugin: FILES_PLUGIN_ID, port: "workspace" },
-      { plugin: GIT_PLUGIN_ID, port: "workspace" },
-    ]) {
-      platform.wiring.bind({
-        board_id: DEMO_BOARD_ID,
-        target_plugin_id: target.plugin,
-        target_port: target.port,
-        source_plugin_id: WORKSPACE_PLUGIN_ID,
-        source_port: "workspace",
-        origin: "user",
-        actor_id: "tester",
-      });
-    }
-
-    workspaceServices!.outputs.publish({
-      port: "workspace",
-      content: { kind: "inline", payload: WORKSPACE_REF },
-    });
-    await platform.wiring.drain();
-
-    assert.deepEqual(filesSaw, [true], "Files 应当收到一次“有工作目录了”");
-    assert.deepEqual(gitSaw, ["upstream"], "Git 也绑在同一个源头上");
-    store.close();
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
+    const report = await platform.start([{ definition: createFilesPlugin() }]);
+    assert.deepEqual(report.failed, []);
+    const read = () => platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query: {} });
+    const first = await read();
+    assert.equal(first?.status, 200);
+    assert.equal((first!.body as any).workspace.workspace_id, "one");
+    selected = { ...selected, workspace_id: "two", canonical_path: "/two" };
+    assert.equal(((await read())!.body as any).workspace.workspace_id, "two");
+    assert.throws(() => platform.wiring.bind({ board_id: DEMO_BOARD_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
+      target_port: "workspace", source_plugin_id: "io.molis.work.workspace", source_port: "workspace", origin: "user" }));
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("Files 捕获的快照到得了 Text stats，数出来的是那一份", async () => {
   const directory = mkdtempSync(join(tmpdir(), "workspace-graph-"));
   try {
     const { store, platform } = project(directory);
-    let filesServices: { outputs: Publisher } | undefined;
+    let filesServices: PluginStartContext["services"];
     const counted: Array<{ content: unknown; content_version: number } | null> = [];
 
     await platform.start([
       {
         definition: capturing(
           createFilesPlugin({ readable: () => true }),
-          (context) => { filesServices = context.services as { outputs: Publisher }; },
+          (context) => { filesServices = context.services; },
         ),
       },
       { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }) },
@@ -183,7 +135,7 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
       actor_id: "tester",
     });
 
-    filesServices!.outputs.publish({
+    filesServices!.outputs!.publish({
       port: "before",
       content: { kind: "inline", payload: snapshot("中文") },
     });
@@ -204,7 +156,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
   try {
     await platform.start([
       { definition: capturing(createCodingPlugin(), context => { coding = context; }) },
-      { definition: createShelfPlugin() }, { definition: createWorkspacePlugin() },
+      { definition: createShelfPlugin() },
       { definition: createFilesPlugin() }, { definition: createGitPlugin() },
       { definition: createTextStatsPlugin() }, { definition: createDiffPlugin() },
     ]);
@@ -213,7 +165,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
     const saved = coding!.services!.artifacts.publish({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
       content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
         review: { review_id: "review", before_text: "original\r\n", after_text: "fixed\n", decision: "approved", execution: "applied" } }] } } });
-    coding!.services!.outputs.select({ port: "changeset", reference: { artifact_id: saved.artifact.artifact_id, version: 1 }, expected_reference: null });
+    coding!.services!.outputs!.select({ port: "changeset", reference: { artifact_id: saved.artifact.artifact_id, version: 1 }, expected_reference: null });
     await platform.wiring.drain();
     platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, "change-set");
     await platform.wiring.drain();
@@ -229,7 +181,6 @@ test("端口声明里的类型两两对得上，连线才可能是合法的", ()
   const outputs = new Map<string, { type: string; version: number }>();
   const manifests = [
     createShelfPlugin().manifest,
-    createWorkspacePlugin().manifest,
     createFilesPlugin().manifest,
     createDiffPlugin().manifest,
     createGitPlugin().manifest,
@@ -260,7 +211,6 @@ test("端口声明里的类型两两对得上，连线才可能是合法的", ()
 
 test("每个插件声明的视图都有对应的 contribution", () => {
   for (const definition of [
-    createWorkspacePlugin(),
     createFilesPlugin(),
     createDiffPlugin(),
     createGitPlugin(),

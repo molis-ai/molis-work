@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { WebSocket } from "ws";
 import type { PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 
 const design = {
   id: "inventory-table", title: "库存小账本", description: "记录每件商品的数量、单价和库存价值。", journey: ["添加商品与数量", "比较库存价值", "导出 CSV 交接"], acceptance: ["库存价值等于数量乘单价", "刷新后记录仍在"],
@@ -35,7 +35,7 @@ export class BrowserFixtureRuntime implements PluginCapabilityPort {
   constructor(private readonly directory: string) {}
   async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
     const input = args as unknown as unknown[];
-    if (definition.capability_id === projectsCapabilities.listWorkspaces.capability_id) return [{ workspace_id: "browser-workspace", display_name: "浏览器验证工作区", canonical_path: this.directory, realpath_verified: true }] as Output;
+    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "browser-workspace", display_name: "浏览器验证工作区", canonical_path: this.directory, realpath_verified: true }] as Output;
     if (definition.capability_id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue" }] as Output;
     if (definition.capability_id === agent.createSession.capability_id) { assert.equal(input[0], "prologue"); return { runtime_id: "prologue", session_id: `browser-session-${++this.sessions}` } as Output; }
     if (definition.capability_id === agent.startRun.capability_id) {

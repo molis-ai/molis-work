@@ -102,7 +102,6 @@ export const packageDescriptor = {
     "workbench.shell.v1",
     "workbench.ui-slots.v1",
     "workbench.feed-composition.v1",
-    "workbench.goals-command-adapter.v1",
     "workbench.work-composition.v1", "workbench.goals-policy-composition.v1", "workbench.goals-safety-composition.v1", "workbench.goals-relation-composition.v1", "workbench.goals-tree-composition.v1", "workbench.goals-momentum-composition.v1", "workbench.goals-document-composition.v1", "workbench.goals-context-composition.v1", "workbench.goals-planning-composition.v1", "workbench.goals-status-composition.v1", "workbench.goals-factors-composition.v1", "workbench.goals-dialogs-composition.v1", "workbench.goals-document-routes.v1",
   ],
 } as const;
@@ -118,6 +117,8 @@ export { createWorkbenchProjectDirectoryRenderer, type ProjectDirectoryPrimitive
 export { createWorkbenchHumanReviewRenderer, type HumanReviewPrimitives } from "./human-review-renderer.js";
 export type { WebSettingsProject, WebInstallationDiagnostics, MolisWorkSettingsView } from "./settings-view.js";
 export { createWorkbenchSettingsRenderer, type SettingsRenderPrimitives } from "./settings-renderer.js";
+export type { CapabilitiesView, CapabilitySection } from "./capabilities.js";
+export { renderMcpAccess, renderMcpAccessRows, mcpAccessEntryKey, type McpAccessModel, type McpAccessEntry } from "./mcp-access.js";
 export type { MolisWorkWebView } from "./page-view.js";
 export * from "./i18n.js";
 export * from "./ui-composition.js";
@@ -129,7 +130,7 @@ export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRen
 export { renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
-export { BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries } from "./plugin-catalog.js";
+export { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries } from "./plugin-catalog.js";
 export type { BuiltinPluginEntry, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export {
   isDecidable,

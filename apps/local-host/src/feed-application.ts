@@ -43,6 +43,7 @@ import { hostOfferedBehaviorsForScene, liveHostAllowedBehaviorIds } from "./beha
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
   judgments?: JudgmentPort;
+  inboxJudgment?: FeedApplicationPorts["inboxJudgment"];
   offered_behavior_ids?: readonly string[];
   offeredBehaviorsForScene?: (sceneId: string, subjects: readonly string[]) => readonly string[];
 }
@@ -70,6 +71,7 @@ export function createLocalFeedApplication(
   migrateListenerHost(db);
   const goals = createGoalReadServices(db).query;
   let feedItems!: FeedModule;
+  let inboxCreated: (entry: { board_id: string; entry_id: string }) => void = () => {};
   const attention = new AttentionModule(db, {
     exists: (projectId, subjectType, subjectId) => {
       if (subjectType === "feed_item") return feedItems.query.exists(projectId, subjectId);
@@ -85,15 +87,10 @@ export function createLocalFeedApplication(
       return goals.getGoal(projectId, subjectId) !== null;
     },
   }, {
-    eventSink: (event) => appendEvent(
-      event.project_id,
-      "inbox_entry",
-      event.entry_id,
-      event.type,
-      event.reason,
-      event.payload,
-      event.at,
-    ),
+    eventSink: (event) => {
+      appendEvent(event.project_id, "inbox_entry", event.entry_id, event.type, event.reason, event.payload, event.at);
+      if (event.type === "inbox_entry.created") inboxCreated({ board_id: event.project_id, entry_id: event.entry_id });
+    },
   });
   feedItems = new FeedModule(db, attention, {
     ledger: createContextLedger(db, { authorize: (access) => access.scope.kind === "personal" && access.actor_id === "module:feed" }),
@@ -129,12 +126,14 @@ export function createLocalFeedApplication(
   });
   return new FeedApplication({
     sources, feed: feedItems, attention, receipts, appendEvent,
+    subscribeInboxCreated: listener => { inboxCreated = listener; },
     outRules: new FeedOutRuleStore(db),
     artifacts: options.artifacts ?? {
       registerVersion: (input) => artifactsModule.commands.registerVersion(input),
       latestVersion: (boardId, artifactId) => artifactsModule.query.latestArtifactVersion(boardId, artifactId),
     },
     judgments: options.judgments,
+    inboxJudgment: options.inboxJudgment,
     offered_behavior_ids: options.offered_behavior_ids,
     offeredBehaviorsForScene: options.offeredBehaviorsForScene ?? hostOfferedBehaviorsForScene,
     transaction: (operation) => db.transaction(operation).immediate(),

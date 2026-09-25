@@ -104,29 +104,35 @@ export async function catalogWhoami(input: {
 export function createCatalogProvider(opts: {
   connectorId: string;
   token?: string;
-  resolveToken?: () => string | null | undefined;
+  resolveToken?: (forceRefresh?: boolean) => string | null | undefined | Promise<string | null | undefined>;
   fetchImpl?: CatalogFetch;
   now?: () => Date;
 }): IntegrationProviderPort {
   const spec = getCatalogSpec(opts.connectorId);
-  const resolveToken = () => opts.token ?? opts.resolveToken?.() ?? undefined;
+  const resolveToken = async (forceRefresh = false) => opts.token ?? await opts.resolveToken?.(forceRefresh) ?? undefined;
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);
   const now = opts.now ?? (() => new Date());
+
+  async function withLiveContext<T>(run: (ctx: CatalogAuthContext, http: CatalogHttp) => Promise<T>): Promise<T> {
+    const token = await resolveToken();
+    if (!token) throw new CatalogLiveError("needs_auth", undefined, `${spec.title} 未绑定凭据`);
+    if (!fetchImpl) throw new CatalogLiveError("provider", undefined, `${spec.title} fetch unavailable`);
+    const http = createCatalogHttp(fetchImpl, now);
+    try {
+      return await run(await resolveContext(spec, token, http), http);
+    } catch (error) {
+      if (spec.id !== "notion" || !opts.resolveToken || !(error instanceof CatalogLiveError) || error.kind !== "needs_auth") throw error;
+      const renewed = await resolveToken(true);
+      if (!renewed) throw error;
+      return run(await resolveContext(spec, renewed, http), http);
+    }
+  }
 
   return {
     type: spec.id,
     async health() {
-      const token = resolveToken();
-      if (!token) {
-        return { ok: false, status: "disconnected", message: `${spec.title} 未绑定凭据`, action: `在设置中绑定 ${spec.token_label}` };
-      }
-      if (!fetchImpl) {
-        return { ok: true, status: "connected", message: "Token present but fetch unavailable" };
-      }
       try {
-        const http = createCatalogHttp(fetchImpl, now);
-        const ctx = await resolveContext(spec, token, http);
-        const login = await readIdentity(spec, ctx, http);
+        const login = await withLiveContext((ctx, http) => readIdentity(spec, ctx, http));
         return { ok: true, status: "connected", message: `${spec.title} live as ${login}` };
       } catch (error) {
         const failure = classify(error);
@@ -139,23 +145,16 @@ export function createCatalogProvider(opts: {
       }
     },
     async sync({ cursor }) {
-      const token = resolveToken();
-      if (!token) {
-        return liveFailure("needs_auth", `${spec.title} 未绑定凭据`, { action: `在设置中绑定 ${spec.token_label}` });
-      }
-      if (!fetchImpl) {
-        return liveFailure("provider", `${spec.title} fetch unavailable`, { action: "检查本机网络能力后重试" });
-      }
       const previous = catalogCursor(cursor, spec.id);
       const syncAt = now();
       if (previous && Date.parse(previous.next_poll_at) > syncAt.getTime()) {
         return { ok: true, mode: "live", items: [], cursor: previous };
       }
       try {
-        const http = createCatalogHttp(fetchImpl, now);
-        const ctx = await resolveContext(spec, token, http);
-        const login = await readIdentity(spec, ctx, http);
-        const items = await readFeed(spec, ctx, http);
+        const { login, items } = await withLiveContext(async (ctx, http) => ({
+          login: await readIdentity(spec, ctx, http),
+          items: await readFeed(spec, ctx, http),
+        }));
         return {
           ok: true,
           mode: "live",

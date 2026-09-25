@@ -71,6 +71,12 @@ export interface HostCapabilityDescriptor {
   capability_id: string;
   version: number;
   operation: HostCapabilityOperation;
+  /** Legacy adapter for authenticated Host composition only; a plugin's consumes declaration cannot grant access. */
+  readonly host_only?: boolean;
+  /** Optional transport-neutral metadata for discoverable system actions. */
+  readonly action?: import("./actions.js").ActionMetadata;
+  /** Injected by the registration owner, not supplied by tool callers. */
+  readonly action_provider?: import("./actions.js").ActionProvider;
 }
 
 /**
@@ -108,14 +114,28 @@ export interface LocalHostStatus {
   capabilities: HostCapabilityDescriptor[];
 }
 
+/** In-process authority callbacks are separate from serializable business inputs. */
+export interface HostCapabilityCallOptions {
+  before_effect?: () => void | Promise<void>;
+  /** SDK-enforced restriction, not caller authority; plugins cannot remove it through invocation options. */
+  consumer?: "plugin";
+}
+export interface HostCapabilityInvocation {
+  /** Recheck original authority and live project policy immediately before a side effect. */
+  beforeEffect(): Promise<void>;
+}
+
 export interface LocalHostProjectClient {
   readonly host_instance_id: string;
   readonly project: LocalHostProjectReference;
+  /** Synchronous registry/readiness facts only; never opens a runtime or grants invocation. */
+  availability(capability: import("./actions.js").ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">): import("./actions.js").ActionAvailability;
   /** Open before adapting the request and retain resources through response composition; exposes no Runtime. */
   withScope<Result>(operation: (client: LocalHostProjectClient) => Result | Promise<Result>): Promise<Result>;
   invoke<Input, Output>(
     capability: HostCapabilityDefinition<Input, Output>,
     input: Input,
+    options?: HostCapabilityCallOptions,
   ): Promise<Output>;
 }
 

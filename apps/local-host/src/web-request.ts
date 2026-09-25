@@ -1,5 +1,31 @@
+import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
+import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
+import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
+import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
+import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
+import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
+import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
+import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
+import { FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
+import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
+import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
+import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
+import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
+import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
+import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
+import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
+import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
+import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
+import { handleFunctionsHttp } from "./functions-http.js";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
+import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
+import { projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleBuilderHttp } from "./plugin-builder-surface.js";
-import { observedWebGoalEvents } from './casebook/web-observer.js';
+import { observedWebGoalsActions } from './casebook/web-observer.js';
+import { bindGoalsWebActions } from "./goals-actions.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
@@ -9,8 +35,8 @@ import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
 import { L } from "./web-locale.js";
 import fs from "node:fs";
-import { handleGoalsWebHttp } from "@molis-ai/molis-work-plugin-goals";
-import { PERSONAL_PLUGIN_IDS, createWorkbenchGoalsAdapter, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
@@ -24,17 +50,12 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 import { handleInformationAssistantHttp } from "./assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { shelfProjectMaterials } from "./shelf-native-plugin-http.js";
-import {
-  registerDatasetArtifactVersion,
-  registerFormArtifactVersion,
-  registerPptArtifactVersion,
-} from "./creative-artifacts.js";
-import { registerPagesArtifactVersion } from "./pages-artifact.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { resolveWebRequest } from "./web-routing.js";
@@ -42,14 +63,6 @@ import { handleLocalCatalogWebRequest } from "./web-catalog.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
-
-// Embedded readers use their declared plugin routes without requiring separate
-// navigation entries. Keep this closure limited to the surfaces they consume.
-const embeddedCodingCompanions: Readonly<Record<string, readonly string[]>> = {
-  coding: ["workspace", "files", "git", "diff", "text-stats"],
-  files: ["workspace", "diff", "text-stats"],
-  git: ["workspace", "diff"],
-};
 
 export async function handleMolisWorkWebRequest(
   request: IncomingMessage,
@@ -72,8 +85,20 @@ export async function handleMolisWorkWebRequest(
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
   const resolved = await resolveWebRequest(serverOptions, url.pathname, composition.withCatalog);
+  if (request.method === "GET" && resolved.kind !== "project_not_found"
+    && (resolved.kind === "board" ? resolved.pathname === "/" : url.pathname === "/")
+    && (url.searchParams.get("openPlugin") === "functions" || url.searchParams.get("panePlugin") === "functions")) {
+    const next = new URL("/capabilities/rules", url.origin);
+    if (resolved.kind === "board" && resolved.options.project) next.searchParams.set("project", resolved.options.project.project_id);
+    const rule = url.searchParams.get("openItem") ?? url.searchParams.get("paneItem");
+    if (rule) next.searchParams.set("rule", rule);
+    if (url.searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1");
+    response.writeHead(302, { location: next.pathname + next.search, "cache-control": "no-store" });
+    response.end();
+    return;
+  }
   if (resolved.kind === "catalog_index") {
-    await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, feedSchedulers, localHost, resolved.projects, composition, {
+    await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, resolved.projects, composition, {
       isPanelAlive: (panelId) => ptyHost.alive(panelId),
       releaseProject: async (databasePath) => {
         feedSchedulers.delete(databasePath);
@@ -105,8 +130,30 @@ export async function handleMolisWorkWebRequest(
       });
       await localHost.withProject(hostReference, async (runtime) => {
         const { store, coordinator } = runtime;
-        const goalEvents = observedWebGoalEvents(runtime, hostReference);
-        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn"> = {
+        const feedOptions = {
+          ...withLocalFeedJudgments(serverOptions.homeDirectory),
+          inboxJudgment: createInboxJudgmentTrigger({ scenes: localHost.sceneClient(hostReference), boardId: hostReference.board_id,
+            context: () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user",
+              permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
+        };
+        const goalActions = observedWebGoalsActions(runtime, hostReference,
+          bindGoalsWebActions(localHost.actionClient(hostReference), hostReference));
+        if (url.pathname === "/api/project-settings/workspaces" && options.project && ["GET", "POST"].includes(request.method ?? "")) {
+          const workspaces = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+            catalog => catalog.listWorkspaceDirectory(options.project!.project_id).map(projectWorkspaceRef));
+          const settings = new ProjectBrowsingSettings(store.db);
+          try {
+            if (request.method === "POST") {
+              const body = await readBody(request);
+              settings.select(options.boardId, body.workspace_id, workspaces);
+            }
+            sendJson(response, 200, { workspaces, selected: settings.read(options.boardId, workspaces)?.workspace_id ?? null });
+          } catch (error) { sendJson(response, 403, { error: error instanceof Error ? error.message : String(error) }); }
+          return;
+        }
+
+        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn"> = {
+          actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id },
           characterSpawn: request => ptyHost.spawn(request),
           characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
           homeDirectory: serverOptions.homeDirectory,
@@ -125,23 +172,28 @@ export async function handleMolisWorkWebRequest(
           routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
           actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
           escapeHtml: (value) => String(value), translate: (value) => value }, controlToken)) return;
-        const codingPluginRoute = /^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf|characters)\//.exec(url.pathname);
-        if (codingPluginRoute) {
-          const plugin = codingPluginRoute[1]!;
-          const enabled = PERSONAL_PLUGIN_IDS.some(personal => personal === plugin) || (options.project && await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-            (catalog) => catalog.listProjectPlugins(options.project!.project_id).some(enabledPlugin =>
-              enabledPlugin === plugin || embeddedCodingCompanions[enabledPlugin]?.includes(plugin))));
-          if (!enabled) { sendJson(response, 404, { error: `这个项目未启用 ${plugin === "text-stats" ? "Text Stats" : plugin[0]!.toUpperCase() + plugin.slice(1)}` }); return; }
+        const runtimePluginRoute = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\//u.exec(url.pathname);
+        const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates";
+        const runtimeEntry = runtimePluginRoute
+          ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === runtimePluginRoute[1]) : undefined;
+        if (runtimeUpdatesRoute || (runtimePluginRoute && (!runtimeEntry || runtimeEntry.manifest.kind === "app" || runtimeEntry.manifest.routes?.length))) {
+          // Bundled installations retain project policy. Other plugins are
+          // admitted by this project's Runtime and its actual lifecycle grants.
+          const enabled = runtimeUpdatesRoute
+            ? Boolean(options.project)
+            : runtimeEntry?.personal || (options.project && (!runtimeEntry || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+                catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
+          if (!enabled) { sendJson(response, 404, { error: "这个项目未启用该插件" }); return; }
           if (await handleCodingPluginHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
             routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
             actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
             escapeHtml: (value) => String(value), translate: (value) => value })) return;
         }
         if (!feedSchedulers.has(options.databasePath)) {
-        const feed = createLocalFeedApplication(store.db, withLocalFeedJudgments(serverOptions.homeDirectory));
+        const feed = createLocalFeedApplication(store.db, feedOptions);
         feed.recoverInterruptedSourceRuns(options.boardId);
-        createLocalFeedConnectorService(store.db, options.boardId, undefined, serverOptions.homeDirectory).ensureSources();
-        const scheduler = createLocalFeedSourceScheduler(store.db, options.boardId, undefined, undefined, serverOptions.homeDirectory);
+        createLocalFeedConnectorService(store.db, options.boardId, undefined, serverOptions.homeDirectory, feedOptions).ensureSources();
+        const scheduler = createLocalFeedSourceScheduler(store.db, options.boardId, undefined, undefined, serverOptions.homeDirectory, feedOptions);
         const schedule = scheduleServiceFor(store.db);
         bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
           agentHost,
@@ -157,7 +209,6 @@ export async function handleMolisWorkWebRequest(
           if (result.completed || result.failed) webViewCache.delete(options.databasePath);
         }).catch(() => undefined);
       }
-      const goalsAdapter = createWorkbenchGoalsAdapter(coordinator.goals);
       const readWebView = (): MolisWorkWebView =>
         cachedMolisWorkWebView(webViewCache, store, coordinator, options);
       {
@@ -199,8 +250,8 @@ export async function handleMolisWorkWebRequest(
                 : null,
             };
           })) return;
-        if (goalsReadHttp.settings(request, response, url, options.boardId, readWebView, coordinator, controlToken)) return;
-        if (await planningHttp.project(request, response, url, serverOptions.homeDirectory, options.boardId, controlToken, readWebView, goalsAdapter.planning)) return;
+        if (await goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions)) return;
+        if (await planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient()))) return;
         if (request.method === "GET" && url.pathname === "/health") {
           sendJson(response, 200, {
             status: "ok",
@@ -223,7 +274,8 @@ export async function handleMolisWorkWebRequest(
           sendJson(response, 200, { observed_event_cursor: store.eventCursor(options.boardId) });
           return;
         }
-        if (goalsReadHttp.fragments(request, response, url, options.boardId, store, coordinator, readWebView)) return;
+        if (await goalsReadHttp.fragments(request, response, url, readWebView, goalActions,
+          bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })))) return;
         // The Host's review queue. Deciding sits under /api/, so the local
         // control guard already required same-origin, the token and a one-time
         // key before anything here runs.
@@ -243,32 +295,75 @@ export async function handleMolisWorkWebRequest(
           sendJson(response, 200, readWebView());
           return;
         }
-        if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(
+        if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({
+            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: ["functions:invoke", "functions:manage"],
+          })),
+        })) return;
+        if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, {
+          projectId: hostReference.project_id,
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
+            audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })),
+        })) return;
+        if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, {
+          projectId: hostReference.project_id,
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
+            audience: "user", permissions: PAGES_ACTION_PERMISSIONS })),
+        })) return;
+        if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, (_input, transport) => ({
+          projectId: hostReference.project_id,
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
+            audience: "user", permissions: DATASET_ACTION_PERMISSIONS, ...transport })),
+        }))) return;
+        if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, (_input, transport) => ({
+          projectId: hostReference.project_id,
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
+            audience: "user", permissions: FORM_ACTION_PERMISSIONS, ...transport })),
+        }))) return;
+        if (serverOptions.homeDirectory && await handleImagesNativePluginHttp(request, response, url, (_input) => ({
+          projectId: hostReference.project_id,
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
+            audience: "user", permissions: IMAGES_ACTION_PERMISSIONS })),
+        }))) return;
+        if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, (_input, transport) => ({
+          projectId: hostReference.project_id,
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
+            audience: "user", permissions: PPT_ACTION_PERMISSIONS, ...transport })),
+        }))) return;
+        if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
+    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
+  if (serverOptions.homeDirectory && await handleCogniaNativePluginHttp(request, response, url, transport =>
+    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
+  if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(
           request,
           response,
           url,
           serverOptions.homeDirectory,
           {
             projectId: options.project?.project_id ?? "",
-            publishArtifact: registerPagesArtifactVersion(coordinator, options.boardId, options.project?.project_id ?? options.boardId),
-            publishFormArtifact: registerFormArtifactVersion(coordinator, options.boardId),
-            publishDatasetArtifact: registerDatasetArtifactVersion(coordinator, options.boardId),
-            publishPptArtifact: registerPptArtifactVersion(coordinator, options.boardId),
-            boundProjectId: options.project?.project_id ?? options.boardId,
-            cognia: { withCatalog: composition.withCatalog },
-            alchemist: { projectId: options.project?.project_id ?? options.boardId, routePrefix: options.routePrefix ?? "", controlToken, withCatalog: composition.withCatalog },
+            alchemist: { projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
+              actions: { invoke: async (definition, input, signal) => await localHost.actionClient(hostReference).invoke({ actor_id: "web-user", project_id: hostReference.project_id,
+                audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } },
             projectMaterials: shelfProjectMaterials(coordinator.artifacts, options.boardId, "web-user", options.project?.display_name ?? options.boardId),
           },
         )) return;
         if (url.pathname.startsWith("/api/assistant/") && await handleInformationAssistantHttp(request, response, url, {
+          homeDirectory: serverOptions.homeDirectory,
           projectId: options.boardId, feed: createLocalFeedApplication(store.db),
         })) return;
-        if (await handleInboxNativePluginHttp(request, response, url, {
-          boardId: options.boardId,
-          store,
-          invalidateWebView: () => webViewCache.delete(options.databasePath),
-          reconcileGoalDecisions: () => coordinator.goalDecisionAttention.reconcile(options.boardId),
+        if (serverOptions.homeDirectory && await handleWorkflowsNativePluginHttp(request, response, url, {
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({
+            actor_id: "web-user", project_id: hostReference.project_id, audience: "workflow", permissions: NATIVE_CONTENT_PERMISSIONS,
+          })),
+          projectId: options.project?.project_id ?? options.boardId,
           homeDirectory: serverOptions.homeDirectory,
+          invalidateWebView: () => webViewCache.delete(options.databasePath),
+        })) return;
+        if (await handleInboxNativePluginHttp(request, response, url, {
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({
+            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS],
+          })),
+          invalidateWebView: () => webViewCache.delete(options.databasePath),
           renderer: workbenchRenderer,
           readWebView,
         })) return;
@@ -285,6 +380,7 @@ export async function handleMolisWorkWebRequest(
           readWebView,
         })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
+          feedOptions,
           renderer: workbenchRenderer,
           boardId: options.boardId,
           routePrefix: options.routePrefix,
@@ -300,10 +396,7 @@ export async function handleMolisWorkWebRequest(
             sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
             return;
           }
-          const directory = goalEvents.listGoals({
-            board_id: options.boardId,
-            limit: 100,
-          });
+          const directory = await goalActions.invoke(goalsActions.list, { limit: 100 });
           sendJson(response, 200, buildCapsuleSnapshot(readWebView(), directory.goals));
           return;
         }
@@ -318,29 +411,28 @@ export async function handleMolisWorkWebRequest(
             options.boardId,
             ptyHost,
             webUrl,
+            goalActions,
           );
           if (handled) return;
         }
-        if (handleLocalProjectReferenceHttp(request, response, url, options, coordinator.evidenceVerification.query)) return;
+        if (await handleLocalProjectReferenceHttp(request, response, url,
+          bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })))) return;
         if (await handleGoalsWebHttp({
           method: request.method, pathname: url.pathname, search: url.searchParams,
           readBody: () => readBody(request), respond: (status, body) => sendJson(response, status, body),
           options, idempotencyHeader: requestHeader(request, "x-molis-work-idempotency-key"),
-          snapshot: () => store.snapshot(options.boardId), changed: () => { webViewCache.delete(options.databasePath); },
-          commands: goalsAdapter.commands, lifecycle: goalsAdapter.lifecycle,
-          query: coordinator.goalQueries,
-          setActiveGoal: (...args) => coordinator.setActiveGoal(...args),
-          goalTreeWebInput: coordinator.goalTreeWebInput, goalTreeDecision: coordinator.goalTreeDecision,
-          goalEvents,
-          journalEvents: () => store.readEventsDescending(options.boardId),
+          changed: () => { webViewCache.delete(options.databasePath); },
+          actions: goalActions,
         })) return;
         if (await handleArtifactNativePluginHttp(request, response, url.pathname, {
           boardId: options.boardId, routePrefix: options.routePrefix ?? "",
           projectTitle: options.project?.display_name ?? "Molis Work",
-          query: coordinator.artifacts.query, commands: coordinator.artifacts.commands, controlToken,
+          actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id,
+            audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })), controlToken,
           desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
         })) return;
-        if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, sessionResources, controlToken, coordinator, store, codingServices)) return;
+        if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, sessionResources, controlToken, goalActions,
+          bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })), coordinator, store, codingServices)) return;
         sendJson(response, 404, { error: L("页面或接口不存在") });
       }
       });

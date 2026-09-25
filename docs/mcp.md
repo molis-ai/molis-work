@@ -50,7 +50,15 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 回收站 | `goal_trash`、`goal_trash_list`、`goal_restore` |
 | 判断函数 | `functions_list`、`functions_describe`、`functions_invoke` |
 
-对外只有 `molis-work-mcp`。平台工具（连接 / Goals / 事件）的 schema 留在本包；插件用 Manifest `mcp_exports` 登记本地 `tool_id`、说明、输入 schema 和读或写。Host 盖正式名 `molis_work_v1_<plugin>_<tool>`，再按全局开关（`~/.molis-work/config/mcp-tools.json`）、audience、项目启用和 grant 合成清单。Functions 三项默认开；Pages / Forms / Dataset / PPT 已登记、默认关，且要已绑项目。关了的方法不出现在 `tools/list`，点名 `tools/call` 也会拒绝。开关在用户设置「MCP」页，与「AI 与执行工具」分开；已打开的连接不会因改开关热刷新。`agent.mcp` 是插件里的 Agent 能不能去调外部 MCP，不是对外贡献。
+对外只有 `molis-work-mcp`。新动作从系统同一能力注册表导出；在「能力 → 对外接入」选择客户端和全局/项目范围后，可按名称或来源搜索、查看所需权限并逐项授权或撤销。授权准确绑定能力版本、提供方及用户接受的权限，同一客户端所有会话共用，项目之间不继承。能力升级、权限变化或来源移除时保留旧记录，并显示需要重新授权或失效；已删除项目的授权仍可撤销。默认开放的无额外权限系统查询也可按客户端撤销。
+
+新动作在发现及实际执行时检查最新授权，撤销后原连接的下一次调用也会被拒绝；客户端自己的工具列表可能需要刷新。保存响应未确认时，先用页面的「刷新确认状态」核对结果。配置仍保存在 `~/.molis-work/config/mcp-tools.json`，无需手改权限字段。
+
+同页「旧版工具（全局开关）」控制兼容名称是否开放，不授予动作权限。Functions、Pages、Forms、Dataset、PPT、Cognia、Jelly 的旧名称已依赖对应的动作授权；Goals 的 `goal_intent_create`、`goal_list`、`event_note` 分别依赖 `goals.create`、`goals.list`、`goals.note`，状态和事件读取的 `goal_state`、`event_list`、`event_read` 分别依赖 `goals.state.read`、`goals.events.list`、`goals.events.read`。这六项均要求当前项目连接。正式 MCP 进程把这些调用送到同一 Home 的常驻系统服务；无需打开管理页面，但服务必须运行。其余平台/Goals 事件及决定工具仍在迁移，不能把已迁移入口当作全部 MCP 授权完成。`agent.mcp` 是插件 Agent 调用外部 MCP 的另一方向。
+
+九项工作操作 `event_configure/report/progress/concern/decision_request/cite_decision/agree/close/resume`、四项规划及三项长期说明已迁入对应动作，现共 22 个 Goals 兼容名称使用精确授权。完整动作清单见 [Goals 插件](../plugins/native/goals/README.md)。用户决定已通过受保护的 Web/管理入口转入 `goals.decisions.record`，它不向普通 MCP 导出，也不能凭普通写权限获得用户批准权。Home 个人规划管理、树和其他平台入口仍在迁移。
+
+Goals 的这 22 个兼容名称只接受业务字段，管理模式也不能通过它们指定任意数据库或作者；管理调用先使用受信连接并配置同一精确动作授权。旧写入口由宿主会话信息生成原 Runtime 审计作者，旧记录仍可用原 idempotency key 重试。新公共动作保留其客户端作者语义：重试时保留原工具及会话上下文，不跨身份重放同一个请求。
 
 插件作者怎么登记、Host 改哪里，见 [Plugin 开发 · 对外 MCP](platform/PLUGIN-DEVELOPMENT.md#对外-mcp) 和 [CLI 与开发 · 对外 MCP](cli-and-development.md#对外-mcp)。
 
@@ -65,3 +73,5 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 旧Claim/select/Run/Evidence/Review、draft dialogue、Contract/Candidate/Dependency/Rewire写工具，以及Available/Ready/Contract/Explain工作入口已退役；旧名字无法通过管理入口继续执行。历史记录仍可阅读，日常工作只使用当前事件路径。
 
 服务不可用时报告失败，不切换数据库、改 URL 或使用 CLI 兜底。`mcp.context_refresh_required` 仅要求只读 resolve：返回 bound 后用原 idempotency_key 原样重试；未绑定则按项目选择流程处理。旧 reader 的版本错误与连接缓存刷新不同，按返回诊断恢复。完整协议见 [Runtime Skill](../skills/goal-advance/SKILL.md)。
+
+项目规划新增标准动作 `goals.planning.read/save/apply/impact/graph.check`。旧 `planning_methods` 保留轻量目录、按 ID 读取和 catalog_id 展示，但授权与业务读取使用同一动作。保存和采用保留原确认字段及版本递增规则，没有幂等回执，客户端不得在结果不明时盲目重试。

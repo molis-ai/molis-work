@@ -200,3 +200,32 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
     assert.match(String((response.body as { error: string }).error), /任务自己的开关/);
   }
 });
+
+test("对话任务编辑会重新排期；归档后不在列表且不会再唤醒", async () => {
+  const db = new Database(":memory:");
+  const wakeupIndex = new PluginWakeupIndex();
+  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
+  const now = () => new Date("2026-09-20T00:50:00.000Z");
+  const schedule = createScheduleService(db, { wakeupIndex, now });
+  const ports = createScheduleRouteHandlerPorts({ db, schedule, now });
+  const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ ...ports, changed() {} }));
+  const call = (pathname: string, body: Record<string, unknown>) => routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body });
+  const created = await call("/api/schedule/tasks", { title: "旧任务", instructions: "读旧说明", time: "09:00" });
+  const id = (created?.body as { task: { task_id: string } }).task.task_id;
+  const updated = await call(`/api/schedule/tasks/${id}/update`, { title: "新任务", instructions: "读新说明", time: "18:30", notify_important: false });
+  const task = (updated?.body as { task: { title: string; instructions: string; clock_label: string; notify_important: boolean; job_id: string } }).task;
+  assert.equal(task.title, "新任务");
+  assert.equal(task.instructions, "读新说明");
+  assert.equal(task.clock_label, "18:30");
+  assert.equal(task.notify_important, false);
+  assert.equal(schedule.get(task.job_id)?.title, "新任务");
+  assert.equal(schedule.get(task.job_id)?.next_due_at, nextDailyLocalDue(18, 30, now()).toISOString());
+  assert.equal((await call(`/api/schedule/tasks/${id}/archive`, {}))?.status, 200);
+  assert.equal(schedule.get(task.job_id), null);
+  assert.equal(ports.listTasks().length, 0);
+  assert.equal(getScheduleConversationTask(db, id)?.archived, true);
+  let runs = 0;
+  assert.deepEqual(await handleScheduleTaskWakeup(db, id, { run: async () => { runs++; return { text: "不应运行", important: false }; } }, now), { detail: "任务已停" });
+  assert.equal(runs, 0);
+  db.close();
+});

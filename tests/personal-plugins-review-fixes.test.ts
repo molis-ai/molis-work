@@ -1,3 +1,13 @@
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { handlePagesNativePluginHttp } from "../apps/local-host/src/pages-native-plugin-http.js";
+import type { PagesPublishArtifactPort } from "@molis-ai/molis-work-plugin-pages";
+import { pagesTestPorts } from "./fixtures/pages-actions.js";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { handleFunctionsHttp } from "../apps/local-host/src/functions-http.ts";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
@@ -15,9 +25,9 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import {
   DEMO_BOARD_ID,
-  GoalProjectApplication,
-  LocalProjectDatabase,
 } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "../apps/local-host/src/goal-project-application.js";
+import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
 import { MolisWorkV1Error as ContractsError } from "@molis-ai/molis-work-contracts/platform/errors";
 import { mcpPublicToolName, parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -29,7 +39,7 @@ import {
   datasetManifest,
 } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT, formManifest } from "@molis-ai/molis-work-plugin-form";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT, functionsManifest } from "@molis-ai/molis-work-plugin-functions";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
@@ -50,6 +60,9 @@ import { RuntimeIntegrationService } from "../apps/local-host/src/installer/runt
 import { MolisWorkWebServiceManager } from "../apps/local-host/src/installer/web-service.ts";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/src/plugin-workbench.ts";
+import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/src/project-plugins.js";
+import { pluginActions } from "./fixtures/plugin-actions.js";
+import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -64,11 +77,15 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 async function listenDispatcher(
   home: string,
-  ports: Parameters<typeof handlePersonalNativePluginHttp>[4] = {},
+  ports: Parameters<typeof handlePersonalNativePluginHttp>[4] & Parameters<typeof pagesTestPorts>[2] & { publishArtifact?: PagesPublishArtifactPort } = {},
 ): Promise<{ origin: string; close(): Promise<void> }> {
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
+  const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "test", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] }));
+  const pagesStore = openPagesStore(home);
+  const pagesPorts = pagesTestPorts(pagesStore, "project-alpha", ports);
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    void handlePersonalNativePluginHttp(request, response, url, home, ports).then((handled) => {
+    void handleFunctionsHttp(request, response, url, home, { actions }).then(handled => handled || handlePagesNativePluginHttp(request, response, url, pagesPorts)).then(handled => handled || handlePersonalNativePluginHttp(request, response, url, home, ports)).then((handled) => {
       if (!handled && !response.headersSent) {
         response.writeHead(404);
         response.end();
@@ -85,12 +102,12 @@ async function listenDispatcher(
   if (!address || typeof address === "string") throw new Error("dispatcher 没有端口");
   return {
     origin: `http://127.0.0.1:${address.port}`,
-    close: () => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())),
+    close: async () => { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); await host.close(); pagesStore.close(); },
   };
 }
 
 test("purge 名单覆盖全部个人 home 库", () => {
-  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["images", "pages", "form", "dataset", "ppt", "lingguang", "jelly", "cognia", "alchemist", "functions"]);
+  assert.deepEqual([...PERSONAL_HOME_SQLITE_STORES], ["images", "pages", "form", "dataset", "ppt", "lingguang", "jelly", "cognia", "alchemist", "workflows", "functions", "connectors", "context-onboarding"]);
 });
 
 test("uninstall --purge 会把已有的个人库目录列入删除并真正删掉", async () => {
@@ -138,10 +155,10 @@ test("uninstall --purge 会把已有的个人库目录列入删除并真正删�
   });
 });
 
-test("打开 Schedule 时目录面是 schedule，不是 Goals", () => {
+test("Schedule、Sources 和 Coding 都有自己的目录面", () => {
   assert.equal(OWN_DIRECTORY_SURFACES.includes("schedule"), true);
   assert.equal(OWN_DIRECTORY_SURFACES.includes("sources"), true);
-  assert.equal(OWN_DIRECTORY_SURFACES.includes("coding"), false);
+  assert.equal(OWN_DIRECTORY_SURFACES.includes("coding"), true);
 });
 
 test("灵光在岛上，不在侧栏轨；Manifest 声明 island 槽", () => {
@@ -160,7 +177,6 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
     datasetManifest,
     pptManifest,
     lingguangManifest,
-    functionsManifest,
   ]) {
     parsePluginManifest(manifest);
     assert.ok(manifest.permissions.some((item) => item.permission === "storage:private"), manifest.plugin_id);
@@ -179,7 +195,7 @@ test("客户端走 /api/plugins/<id>/，Host 改写到现有短路径", () => {
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/dataset/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/ppt/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/lingguang/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/functions/);
+  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 
 test("/api/plugins/functions 与 /api/functions 打到同一 handler", async () => {
@@ -242,7 +258,7 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
         actor_id: "web-user",
         idempotency_key: "review-fixes-board",
       });
-      const publishArtifact = registerPagesArtifactVersion(coordinator, DEMO_BOARD_ID);
+      const publishArtifact = registerPagesArtifactVersion(coordinator, DEMO_BOARD_ID, "project-alpha");
       const projectDispatcher = await listenDispatcher(home, { publishArtifact });
       try {
         const created = await fetch(`${projectDispatcher.origin}/api/plugins/pages?project_id=project-alpha`, {
@@ -272,14 +288,14 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
 
       const pages = openPagesStore(home);
       try {
-        const created = JSON.parse(runPagesMcpTool(pages, {
+        const created = JSON.parse(await runPagesMcpTool(pagesTestPorts(pages, "project-alpha").actions, {
           tool_id: "create",
           arguments: { title: "MCP 文档", goal_id: "CORE" },
-        }, "project-alpha")) as { document: { id: string } };
-        const promoted = JSON.parse(runPagesMcpTool(pages, {
+        })) as { document: { id: string } };
+        const promoted = JSON.parse(await runPagesMcpTool(pagesTestPorts(pages, "project-alpha", { publishArtifact }).actions, {
           tool_id: "promote",
           arguments: { id: created.document.id, goal_id: "CORE" },
-        }, "project-alpha", { publishArtifact })) as {
+        })) as {
           artifact: { artifact_id: string; version: number };
           document: { artifact_id: string };
         };
@@ -378,8 +394,8 @@ test("PPT 用色板，没有系统 color input", () => {
 });
 
 test("Host 文本补全口暂无模型；注入后 Pages AI 不再走 stub", async () => {
-  assert.equal(hostCompleteText(), undefined);
   await withHome(async (home) => {
+    assert.equal(hostCompleteText({ homeDirectory: home, env: {} }), undefined);
     const dispatcher = await listenDispatcher(home, { completeText: async () => "host-outline" });
     try {
       const created = await fetch(`${dispatcher.origin}/api/plugins/pages?project_id=project-alpha`, {
@@ -409,11 +425,10 @@ test("Host 不再从插件包进口 openFunctionsStore；错误类型来自 cont
   assert.equal(error instanceof GoalsError, true);
   const files = [
     "apps/local-host/src/functions-host.ts",
-    "apps/local-host/src/functions-native-plugin-http.ts",
+    "apps/local-host/src/functions-http.ts",
     "apps/local-host/src/mcp-functions-tools.ts",
     "apps/local-host/src/web-catalog.ts",
     "apps/local-host/src/mcp-native-plugins.ts",
-    "apps/local-host/src/mcp-store-plugin-adapter.ts",
     "apps/local-host/src/web-view.ts",
     "apps/local-host/src/mcp-server.ts",
     "apps/local-host/src/mcp-authority.ts",
@@ -471,29 +486,44 @@ test("HTTP 带着过期 updated_at 保存草稿会 409", async () => {
   });
 });
 
-test("Workbench 装配表覆盖 catalog 里有 summary 或 personal 的插件", () => {
-  const shipped = BUILTIN_PLUGIN_CATALOG
-    .filter((entry) => entry.personal === true || Boolean(entry.summary))
-    .map((entry) => entry.project_plugin_id)
-    .sort();
-  const packed = [...new Set(BUILTIN_PLUGIN_WORKBENCH.map((pack) => pack.project_plugin_id))].sort();
-  assert.deepEqual(packed, shipped);
+test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", async () => {
+  await withHome(async home => {
+    const databasePath = join(home, "board.db");
+    seedDemoBoard(databasePath);
+    const store = new LocalProjectDatabase(databasePath);
+    try {
+      const { platform } = await ensureProjectPlugins({ store, boardId: DEMO_BOARD_ID,
+        actorId: "web-user", homeDirectory: home, goalTitle: () => undefined, actions: pluginActions(store, DEMO_BOARD_ID) });
+      assert.ok(platform, "Runtime 必须实际启动，不能仅将 app 插件从检查中排除");
+      const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.summary));
+      const packed = new Set(BUILTIN_PLUGIN_WORKBENCH.map(pack => pack.project_plugin_id));
+      for (const entry of shipped) {
+        if (packed.has(entry.project_plugin_id)) continue;
+        assert.equal(entry.manifest.kind, "app", `${entry.project_plugin_id} 缺少静态装配`);
+        assert.equal(platform.supervisor.state(entry.manifest.plugin_id)?.status, "running", entry.project_plugin_id);
+        const contribution = platform.supervisor.contribution(entry.manifest.plugin_id);
+        assert.equal(contribution?.kind, "app");
+        if (contribution?.kind !== "app") throw new Error(`${entry.project_plugin_id} 未返回 app 贡献`);
+        for (const view of entry.manifest.ui.views ?? []) {
+          assert.ok(contribution.views?.some(actual => actual.descriptor.contribution_id === view.contribution_id),
+            `${entry.project_plugin_id} 缺少声明的页面 ${view.view_id}`);
+        }
+      }
+      for (const id of packed) assert.ok(shipped.some(entry => entry.project_plugin_id === id), `${id} 是孤立的静态装配`);
+    } finally {
+      await releaseProjectPlugins(store, DEMO_BOARD_ID);
+      store.close();
+    }
+  });
 });
 
 test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
   await withHome(async (home) => {
-    const databasePath = join(home, "project.db");
-    const project = new LocalProjectDatabase(databasePath);
-    try {
-      new GoalProjectApplication(project).initializeBoard({
-        board_id: DEMO_BOARD_ID,
-        title: "MCP Promote",
-        actor_id: "web-user",
-        idempotency_key: "review-fixes-mcp-promote",
-      });
-    } finally {
-      project.close();
-    }
+    const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "MCP Promote", actor_id: "user" }));
+    const databasePath = project.database_path;
+    const host = new MolisWorkLocalHost({ homeDirectory: home });
+    const caller = { actor_id: "runtime:codex", project_id: project.project_id, audience: "mcp" as const, permissions: [] };
+    const views = await host.inspectActions(caller, molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath }));
     await mkdir(join(home, "config"), { recursive: true });
     const createName = mcpPublicToolName(PAGES_PROJECT_PLUGIN_ID, "create");
     const promoteName = mcpPublicToolName(PAGES_PROJECT_PLUGIN_ID, "promote");
@@ -501,16 +531,20 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
       version: 1,
       overrides: { [createName]: true, [promoteName]: true },
     }));
+    for (const id of ["pages.create", "pages.promote"]) {
+      const view = views.find(view => view.capability_id === id)!;
+      await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));
+    }
     const server = new MolisWorkServer("runtime", {
       databasePath,
-      boardId: DEMO_BOARD_ID,
-      projectId: "project-alpha",
+      boardId: project.board_id,
+      projectId: project.project_id,
       webBaseUrl: "http://127.0.0.1:4173",
     }, {
       homeDirectory: home,
       runtimeContext: { runtime_id: "codex", stable_work_context_id: "pages-promote", host_declares_stable: true },
       webBaseUrl: "http://127.0.0.1:4173",
-    });
+    }, host);
     try {
       await server.handleMessage({
         jsonrpc: "2.0",
@@ -538,7 +572,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
       const verify = new LocalProjectDatabase(databasePath);
       try {
         const coordinator = new GoalProjectApplication(verify);
-        assert.ok(coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, {
+        assert.ok(coordinator.artifacts.query.getArtifactVersion(project.board_id, {
           artifact_id: body.artifact.artifact_id,
           version: 1,
         }));
@@ -547,7 +581,7 @@ test("绑定项目的 MCP promote 走 Host Artifact 口", async () => {
       }
     } finally {
       await server.close();
+      await host.close();
     }
   });
 });
-

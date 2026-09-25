@@ -15,7 +15,7 @@ export const {
   defaultGmailRedirectUri, assertLoopbackGmailRedirectUri,
   publicGmailCallbackUri, assertAllowedGmailRedirectUri,
   resolveGmailClientId, resolveGmailClientSecret, storeGmailOAuthClient,
-  gmailOAuthConfigured, validatePendingGmailOAuthSession,
+  gmailOAuthConfigured, cancelGmailOAuthFlow, validatePendingGmailOAuthSession,
   resolveUsableGmailAccessToken, startGmailOAuthFlow,
   completeGmailOAuthFlow, gmailAccessBound,
 } = gmailOAuth;

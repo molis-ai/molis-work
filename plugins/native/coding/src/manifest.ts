@@ -3,7 +3,7 @@ import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/
 import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
@@ -37,9 +37,10 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.30.0",
+  version: "1.32.0",
   name: "Coding",
   kind: "app",
+  upgrade_compatibility: { compatible_from_versions: ["1.31.0", "1.30.0"] },
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -58,7 +59,7 @@ export const codingManifest: PluginManifest = {
       ...Object.values(goalContextCapabilities).map((entry) => entry.capability_id),
       ...Object.values(goalProgressCapabilities).map((entry) => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
-      projectsCapabilities.listWorkspaces.capability_id,
+      projectSettingsCapabilities.workspaces.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],
@@ -145,6 +146,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.control-run", method: "POST", path: "/sessions/:sessionId/control" },
   ],
   ui: {
+    embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     /**
      * Entries the command menu and content actions offer.

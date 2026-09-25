@@ -96,6 +96,16 @@ function section(id: string, title: string, body: string): string {
   return `<section class="mw-catalog__section" id="${id}" data-primitive="${id}"><h2>${title}</h2>${body}</section>`;
 }
 
+/** Section index derived from the rendered sections, so a new section cannot be left out of it. */
+function catalogIndex(sections: string): string {
+  const entries = [...sections.matchAll(/<section class="mw-catalog__section" id="([^"]+)"[^>]*><h2>([^<]+)<\/h2>/g)];
+  const links = entries.map(([, id, title]) => {
+    const short = title.split(" / ")[0];
+    return `<a href="#${id}" title="${title}">${short}</a>`;
+  }).join("");
+  return `<nav class="mw-catalog__index" data-catalog-index aria-label="控件目录" style="grid-row: 1 / span ${entries.length}">${links}</nav>`;
+}
+
 function mark(id: string, body: string): string {
   return `<div data-primitive="${id}">${body}</div>`;
 }
@@ -218,10 +228,16 @@ export function renderPrimitiveCatalog(): string {
     body: "启动一条新的工作会话，或关联已有的 Runtime 会话。",
     action: renderButton({ label: "新建 Session", icon: "plus", variant: "primary" }),
   });
+  const emptyStarts = renderEmpty({
+    icon: "note",
+    title: "还没有文档",
+    body: "先建一篇，在纸面上写；也可以从模板或已有文件开始。",
+    action: `<div class="mw-empty__actions">${renderButton({ label: "从模板新建", icon: "library", variant: "ghost" })}${renderButton({ label: "导入已有文档", icon: "upload", variant: "ghost" })}</div>`,
+  });
 
   const sheet = renderSheet({
     labelledBy: "catalog-sheet-title",
-    title: "新建目标",
+    title: "新建 Goal",
     description: "贴工作区右缘。取消不写入。",
     body: input,
     footer: `${secondary}${primary}`,
@@ -426,7 +442,7 @@ export function renderPrimitiveCatalog(): string {
     panel: "<p>第一次打开这条任务时，人会先扫目录里哪一条是当前的，再落到纸面上的流水。</p><p>栏留在灰色里，正文自己发亮。页眉和正文靠间距分开，不要再画一条线把它们切成两块。</p>",
   }))}</div>`;
 
-  return `<div class="mw-catalog">
+  const sections = `
     ${paletteSection()}
     ${typefaceSection()}
     ${iconSection()}
@@ -470,7 +486,8 @@ export function renderPrimitiveCatalog(): string {
     ${section("badge", "Badge / Alert / Empty", `<div class="mw-catalog__specimens">
       ${mark("badge", specimen("状态标", badges))}
       ${mark("alert", specimen("提示", alerts))}
-      ${mark("empty", specimen("空态", empty))}
+      ${mark("empty", specimen("空态 · 一个首要动作", empty))}
+      ${specimen("空态 · 几个起点", emptyStarts)}
     </div>`)}
     ${section("feedback", "Toast / Spinner / Skeleton / Progress / Kbd / Avatar", `<div class="mw-catalog__specimens">
       ${mark("toast", specimen("短反馈", renderToast({ message: "已保存" })))}
@@ -505,7 +522,7 @@ export function renderPrimitiveCatalog(): string {
     })))}${mark("toolbar", specimen("工具条", renderToolbar({ body: primary + ghost })))}${mark("toggle", specimen("开关按钮", renderToggle({ label: "钉住", pressed: true })))}${mark("toggle-group", specimen("分段", renderToggleGroup({
       label: "视图",
       items: [{ value: "list", label: "列表", current: true }, { value: "board", label: "看板" }, { value: "canvas", label: "画布" }],
-    })))}${mark("collapsible", specimen("折叠", renderCollapsible({ summary: "补充说明与验收条件", body: "<p>可稍后补。</p>" })))}${mark("combobox", specimen("组合框", renderCombobox({
+    })))}${mark("collapsible", specimen("折叠", renderCollapsible({ summary: "补充说明与验收条件", body: "<p>可稍后补。</p>" })))}${specimen("披露 · 设置区里的次要内容", `<details class="mw-disclosure"><summary>调整选项与高级设置</summary><p class="mw-catalog__hint">系统三角隐藏，12px 折角向右，展开后转向下。</p></details>`)}${mark("combobox", specimen("组合框", renderCombobox({
       placeholder: "选择 Goal",
       items: `<button type="button" role="option">产品主链</button>`,
     })))}${mark("accordion", specimen("手风琴", renderAccordion({
@@ -533,9 +550,27 @@ export function renderPrimitiveCatalog(): string {
     })))}${mark("table", specimen("表格", renderTable({
       head: ["Goal", "状态", "下一步"],
       rows: [["统一控件语言", "进行中", "收口旧 class"], ["Home 月历", "可用", "接 Calendar"]],
-    })))}</div>`)}
+    })))}</div>`)}`;
+  return `<div class="mw-catalog">
+    ${catalogIndex(sections)}
+    ${sections}
   </div>
   <script>
+    (() => {
+      const scroller = document.querySelector(".mw-catalog");
+      const links = new Map([...document.querySelectorAll("[data-catalog-index] a")].map((link) => [link.getAttribute("href").slice(1), link]));
+      if (!scroller || !links.size || !("IntersectionObserver" in window)) return;
+      const mark = (id) => links.forEach((link, key) => {
+        if (key === id) link.setAttribute("aria-current", "true");
+        else link.removeAttribute("aria-current");
+      });
+      const observer = new IntersectionObserver((entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (visible) mark(visible.target.id);
+      }, { root: scroller, rootMargin: "0px 0px -72% 0px" });
+      document.querySelectorAll(".mw-catalog__section[id]").forEach((section) => observer.observe(section));
+      mark(links.keys().next().value);
+    })();
     document.querySelectorAll("[data-catalog-open]").forEach((button) => {
       button.addEventListener("click", () => {
         const kind = button.getAttribute("data-catalog-open");

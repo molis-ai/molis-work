@@ -19,6 +19,8 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
+  FeedPluginRouteTable,
+  createFeedRouteHandlers,
   feedCaptureArtifactId,
 } from "@molis-ai/molis-work-plugin-feed";
 import {
@@ -400,11 +402,9 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
 
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
-  const addSelect = page.match(/<select data-feed-add-out-rule-function-key>[\s\S]*?<\/select>/)?.[0] ?? "";
-  assert.match(page, /不用判断/);
-  assert.match(addSelect, /value="system_admit_inbox"/);
-  assert.doesNotMatch(addSelect, /system_pick_home_dock/);
-  assert.doesNotMatch(addSelect, /system_pick_inbox_next/);
+  assert.match(page, /data-feed-rule-instructions/);
+  assert.match(page, /value="system_admit_inbox"/);
+  assert.doesNotMatch(page, /data-feed-add-out-rule-function-key/);
 
   const unpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
     method: "POST",
@@ -486,4 +486,36 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
     }
     return fetch(input, { ...init, headers });
   }
+});
+
+
+test("Feed rule preview matches recent source messages without writes or backfill", async () => {
+  const data = harness();
+  try {
+    const another = createLocalFeedSourceService(data.store.db, DEMO_BOARD_ID).register({ kind: "web_query", query: "another source" }).source;
+    for (let index = 0; index < 7; index++) data.feed.ingestItem({
+      source: data.source, externalId: `preview-${index}`, title: index === 6 ? "LAUNCH now" : `Message ${index}`,
+      summary: index === 5 ? "launch in summary" : "summary",
+      body: index === 4 ? "launch in body" : "body", tags: index === 3 ? ["launch"] : [],
+      occurredAt: `2026-09-${String(index + 10).padStart(2, "0")}T00:00:00.000Z`, attention: false,
+    });
+    data.feed.ingestItem({ source: another, externalId: "foreign", title: "launch from another source", summary: "foreign", occurredAt: "2026-09-30T00:00:00.000Z", attention: false });
+    const unused = (): never => { throw new Error("preview called a mutating or unrelated port"); };
+    const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
+      boardId: DEMO_BOARD_ID, routePrefix: "", feed: () => data.feed, sources: unused, connectors: unused,
+      changed: unused, hydrateItem: unused, hydrateSnapshot: unused, sourceCatalog: () => [], renderWorkbench: unused, renderDetail: unused, promote: unused,
+    }));
+    const writesBefore = data.store.db.prepare("SELECT total_changes() AS n").get();
+    const before = data.feed.snapshot(DEMO_BOARD_ID);
+    const request = { method: "POST" as const, pathname: "/api/feed/out-rules/preview", query: new URLSearchParams(), body: { source_id: data.source.source_id, contains: "launch" } };
+    const response = await routes.handle(request);
+    assert.equal(response?.status, 200);
+    const samples = (response?.body as { samples: { title: string; matched: boolean; input: string }[] }).samples;
+    assert.deepEqual(samples.map(item => [item.title, item.matched]), [["LAUNCH now", true], ["Message 5", true], ["Message 4", true], ["Message 3", true], ["Message 2", false]]);
+    assert.equal(samples[0]?.input, "LAUNCH now\nsummary\nbody");
+    assert.deepEqual(data.feed.snapshot(DEMO_BOARD_ID), before);
+    assert.deepEqual(data.store.db.prepare("SELECT total_changes() AS n").get(), writesBefore);
+    await assert.rejects(() => routes.handle({ ...request, body: { source_id: "source-from-another-project", contains: "launch" } }), /请选择当前项目的来源/);
+    await assert.rejects(() => routes.handle({ ...request, body: { source_id: data.source.source_id, contains: "x".repeat(201) } }), /不能超过/);
+  } finally { close(data); }
 });

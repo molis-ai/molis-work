@@ -5,7 +5,9 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error, handleGoalEventDecisionHttp, hostEventDecisionAuthority, GOALS_ACTIONS, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { bindGoalsWebActions } from "../apps/local-host/src/goals-actions.js";
 import type { GoalEventTypeDefinitionInput } from "@molis-ai/molis-work-contracts/modules/goals";
 
 const BOARD = "board-state";
@@ -624,6 +626,18 @@ test("parent needs its own integration result; old completion and ancestor auto-
 test("protected Web user entry records a decision; Host-injected identity is required", async () => {
   const data = fixture();
   try {
+    const actions = new ActionService();
+    actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: "project" },
+      definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, boardId: BOARD,
+        readGoal: goalId => data.app.goalQueries.getGoal(BOARD, goalId), history: {
+        snapshot: () => data.store.snapshot(BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
+      }, planning: { planning: data.app.goals.planning, baseMethods: () => [] }, guidance: { commands: data.app.goals.commands, read: boardId => data.app.goalQueries.readProjectGuidance(boardId) },
+      lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => data.store.eventCursor(BOARD) },
+      configuration: { commands: data.app.goals.commands, query: data.store.goalsQuery, eventCursor: () => data.store.eventCursor(BOARD) },
+      tree: { submitGoalTreeProposal: input => data.app.goalTreeSubmission.submitGoalTreeProposal(input),
+        listGoalTreeProposals: input => data.app.goalTree.listGoalTreeProposals(input),
+        checkGoalTreeProposal: input => data.app.goalTreeCheck.checkGoalTreeProposal(input),
+        decideGoalTreeProposal: input => data.app.goalTreeDecision.decideGoalTreeProposal(input) } }) });
     const created = data.app.goalEvents.createIntent({
       board_id: BOARD, title: "Web 决定", outcome: "用户验收", actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "intent-web",
     });
@@ -647,18 +661,8 @@ test("protected Web user entry records a decision; Host-injected identity is req
       },
       options: { boardId: BOARD, routePrefix: "" },
       idempotencyHeader: undefined,
-      snapshot: () => {
-        throw new Error("unused");
-      },
+      actions: bindGoalsWebActions(actions, { project_id: "project", board_id: BOARD, storage_key: "fixture" }),
       changed: () => undefined,
-      commands: data.app.goals.commands,
-      lifecycle: data.app.goals.lifecycle,
-      query: data.app.goalQueries,
-      setActiveGoal: (...args) => data.app.goals.commands.setActiveGoal(...args),
-      goalTreeWebInput: data.app.goalTreeWebInput,
-      goalTreeDecision: data.app.goalTreeDecision,
-      goalEvents: data.app.goalEvents,
-      journalEvents: () => [],
     });
     assert.equal(handled, true);
     assert.equal(status, 200);

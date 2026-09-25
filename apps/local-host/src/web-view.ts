@@ -1,5 +1,5 @@
-import { attachEventDocument, buildGoalsDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalsActions, buildGoalsDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication, FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -134,6 +134,7 @@ export function cachedMolisWorkWebView(
     route_prefix: options.routePrefix ?? "",
     schedule: scheduleViewFingerprint(store.db),
     functions: functionsViewFingerprint(options.homeDirectory),
+    planning_methods: coordinator.goals.planning.effectiveMethods(options.boardId).map(method => [method.method_id, method.scope, method.version]),
     home_directory: options.homeDirectory ?? "",
   });
   const cached = cache.get(options.databasePath);
@@ -150,23 +151,14 @@ export function cachedMolisWorkWebView(
   return view;
 }
 
-export function withSelectedEventDocument(
+export async function withSelectedEventDocument(
   view: MolisWorkWebView,
-  boardId: string,
   goalId: string | undefined,
-  goalEvents: Parameters<typeof attachEventDocument>[2],
-  planningMethods: readonly PlanningMethodPack[] = [],
-): MolisWorkWebView {
-  if (!goalId) return view;
-  const methods = planningMethods.length ? planningMethods : view.snapshot.planning_method_packs ?? [];
+  actions: BoundActionClient,
+): Promise<MolisWorkWebView> {
+  if (!goalId || ![...view.goals, ...view.archived_goals, ...view.trashed_goals].some(item => item.goal.goal_id === goalId)) return view;
+  const eventDocument = await actions.invoke(goalsActions.document, { goal_id: goalId });
   const decorate = (item: MolisWorkWebView["goals"][number]) =>
-    item.goal.goal_id === goalId
-      ? attachEventDocument(item, boardId, goalEvents, view.snapshot, methods, view.events ?? [])
-      : item;
-  return {
-    ...view,
-    goals: view.goals.map(decorate),
-    archived_goals: view.archived_goals.map(decorate),
-    trashed_goals: view.trashed_goals.map(decorate),
-  };
+    item.goal.goal_id === goalId ? { ...item, event_document: eventDocument } : item;
+  return { ...view, goals: view.goals.map(decorate), archived_goals: view.archived_goals.map(decorate), trashed_goals: view.trashed_goals.map(decorate) };
 }

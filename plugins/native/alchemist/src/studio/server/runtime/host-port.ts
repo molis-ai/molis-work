@@ -10,6 +10,8 @@ export interface AlchemistAiPort {
     userPrompt: string;
     jsonSchema: Record<string, unknown>;
     modelId?: string;
+    /** Supplied by the Studio caller/job context, never by business input. */
+    actorId?: string;
     signal?: AbortSignal;
   }): Promise<{ text: string; runtimeLabel: string; usage?: { inputTokens?: number; outputTokens?: number } }>;
   search(input: { query: string; lens?: "market_space" | "build_cost"; signal?: AbortSignal }): Promise<readonly { url: string; title: string; excerpt: string }[]>;

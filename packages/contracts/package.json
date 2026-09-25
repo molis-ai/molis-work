@@ -205,6 +205,14 @@
     "./modules/jelly": {
       "types": "./dist/modules/jelly.d.ts",
       "import": "./dist/modules/jelly.js"
+    },
+    "./platform/actions": {
+      "types": "./dist/platform/actions.d.ts",
+      "import": "./dist/platform/actions.js"
+    },
+    "./modules/workspace-action-schemas": {
+      "types": "./dist/modules/workspace-action-schemas.d.ts",
+      "import": "./dist/modules/workspace-action-schemas.js"
     }
   },
   "files": [

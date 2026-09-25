@@ -93,7 +93,8 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-hero__stats i[data-k="org"] { background: var(--dot-org); }
   .immersive-home .home-hero__stats b { font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
-  .immersive-home .home-tl { flex: 1; min-height: 0; overflow: auto; max-width: 40rem; padding: 0 16px 18px; border-top: 1px solid var(--line); }
+  .immersive-home .home-tl { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 18px; border-top: 1px solid var(--line); }
+  .immersive-home :is(.home-tl__head, .home-tl__rows) { max-width: calc(40rem - 32px); }
   .immersive-home .home-tl__head {
     display: flex; align-items: center; gap: 7px;
     padding: 15px 8px 9px; color: var(--faint); font-size: 12px;

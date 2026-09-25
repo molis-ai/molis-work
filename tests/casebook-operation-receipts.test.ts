@@ -7,14 +7,14 @@ import {createServer} from 'node:http';
 import {once} from 'node:events';
 import {execFileSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
-import {handleCasebookHttp} from '../apps/local-host/src/casebook/http.js';
+import {handleCasebookHttp} from '../apps/local-host/dist/casebook/http.js';
 import {MolisWorkCasebookClient} from '../apps/local-host/src/casebook/client.js';
 import {createCasebookUserActionSigner,createCasebookUserActionVerifier} from '../apps/local-host/src/casebook/user-action.js';
 import {randomBytes} from 'node:crypto';
 import {configureGoalEventsCapability,setGoalEventAgreementCapability} from '@molis-ai/molis-work-plugin-goals';
-import {createMolisWorkLocalHost,molisWorkHostProjectReference} from '../apps/local-host/src/project-host.js';
+import {createMolisWorkLocalHost,molisWorkHostProjectReference} from '@molis-ai/molis-work-app-local-host';
 import {MolisWorkCasebookIntegration} from '../apps/local-host/src/casebook/integration.js';
-import {initializeBoardCapability,createGoalIntentCapability,readGoalEventStateCapability,submitGoalEventClosureCapability,goalTreeCapabilities,requestGoalDecisionCapability,recordGoalUserDecisionCapability,hostEventDecisionAuthority} from '@molis-ai/molis-work-plugin-goals';
+import {goalsActions,initializeBoardCapability,createGoalIntentCapability,readGoalEventStateCapability,submitGoalEventClosureCapability,goalTreeCapabilities,requestGoalDecisionCapability,recordGoalUserDecisionCapability,hostEventDecisionAuthority} from '@molis-ai/molis-work-plugin-goals';
 const purpose='casebook.operation-receipts.v1' as any;
 test('101 unmet requirements preserve the closure result with explicitly truncated reasons',async t=>{
  const f=await fixture(t);await f.auth('join');await f.create('many');
@@ -87,7 +87,7 @@ test('actual API refusal, decision scope/options, proposal attempt and replay pr
  await f.create('g');const batch=await f.read();
  const close=batch.receipts.find((r:any)=>r.capability.endsWith('.close')&&r.phase==='result');assert.equal(close.saved.recorded,true);assert.equal(close.saved.completion_applied,false);assert.ok(close.guidance.reasons.length);
  const d=batch.receipts.find((r:any)=>r.capability.endsWith('.decision-request')&&r.phase==='result');assert.equal(d.guidance.decision_options.length,decision.decision_request.options.length);assert.ok(d.decision.scope.action_ref);
- const proposal=batch.receipts.filter((r:any)=>r.capability.endsWith('submit-goal-tree-proposal'));assert.equal(proposal.length,2);assert.equal(proposal[1].outcome,'threw');assert.equal(proposal[1].guidance.reasons[0].code,'goal_tree_proposal.items_required');
+ const proposal=batch.receipts.filter((r:any)=>r.capability.endsWith('submit-goal-tree-proposal'));assert.equal(proposal.length,2);assert.equal(proposal[1].outcome,'threw');assert.equal(proposal[1].guidance.reasons[0].code,'actions.input_invalid');
  assert.equal(batch.receipts.at(-1).replayed,true);assert.equal(JSON.stringify(batch).includes('机密'),false);
  await f.host.closeProject(f.ref);await f.host.restoreExistingProject(f.ref);assert.deepEqual((await f.read()).receipts,batch.receipts);
 });
@@ -110,4 +110,38 @@ test('stored decision comparison belongs to its commitment version; proposal suc
  const submitted=await f.client.invoke(goalTreeCapabilities.submitGoalTreeProposal,[{board_id:'board',actor_id:'u',idempotency_key:'proposal',summary:'机密',items:[{item_id:'new',kind:'goal',operation:'create',payload:{title:'机密子目标',outcome:'结果',goal_id:'child'},source_refs:['runtime'],reason:'需要',confidence:0.9}]}]);
  const confirmed=await f.client.invoke(goalTreeCapabilities.decideGoalTreeProposal,[{board_id:'board',proposal_id:submitted.proposal.proposal_id,authority:{...hostEventDecisionAuthority('web','board','u','proposal-authority'),whole_confirmation_prompted:true},confirm_all_pending:true,reason:'同意',idempotency_key:'confirm'}]);
  const after=await f.read(),last=after.receipts.at(-1);assert.ok(last.saved.proposal_ref);assert.equal(last.saved.proposal_version,confirmed.proposal.version);assert.equal(last.saved.proposal_state,confirmed.proposal.state);assert.equal(last.saved.applied_item_refs.length,1);assert.equal(JSON.stringify(after).includes('机密'),false);
+});
+
+test('canonical MCP tree actions retain receipt identity and record one result per invocation',async t=>{
+ const f=await fixture(t);await f.auth('join');
+ const caller={actor_id:'runtime:client',audit_actor_id:'runtime:client:session',runtime_session_id:'session',audience:'mcp' as const,project_id:f.ref.project_id,permissions:['goals:read','goals:write']};
+ const actions=f.host.actionClient(f.ref);
+ const input={summary:'机密结构',idempotency_key:'tree-shared',items:[{item_id:'tree-child',kind:'goal' as const,operation:'create' as const,payload:{goal_id:'tree-child',title:'机密子目标'},source_refs:['private-source'],reason:'真实提案',confidence:1}]};
+ const submitted=await actions.invoke(caller,goalsActions.treeSubmit,input) as {proposal:{proposal_id:string}};
+ await f.client.invoke(goalTreeCapabilities.submitGoalTreeProposal,[{...input,board_id:'board',actor_id:caller.audit_actor_id,submitted_session_id:'session'}]);
+ const batch=await f.read(),rows=batch.receipts.filter((r:any)=>r.capability===goalTreeCapabilities.submitGoalTreeProposal.capability_id);
+ assert.equal(rows.length,4);assert.equal(rows[1].saved.proposal_state,'pending');assert.equal(rows[3].replayed,true);
+ assert.equal(rows[0].request_key,rows[2].request_key);assert.equal(rows[1].saved.proposal_ref,rows[3].saved.proposal_ref);
+ await actions.invoke(caller,goalsActions.treeRead,{proposal_id:submitted.proposal.proposal_id});
+ const after=await f.read();assert.equal(after.receipts.length,6);assert.equal(after.receipts.at(-1).phase,'result');
+ assert.equal(after.coverage.unpersisted_failures,0);assert.equal(after.coverage.incomplete_operations,0);
+ assert.equal(JSON.stringify(after).includes('机密'),false);assert.equal(JSON.stringify(after).includes('private-source'),false);
+});
+
+test('real Web tree approval preserves its observation channel without duplicate receipts',async t=>{
+ const {createMolisWorkWebServer}=await import('../apps/desktop/launchers/web/server.js');
+ const f=await fixture(t);await f.auth('join');
+ const submitted=await f.client.invoke(goalTreeCapabilities.submitGoalTreeProposal,[{board_id:'board',actor_id:'planner',idempotency_key:'web-tree',summary:'机密提案',items:[{item_id:'child-web',kind:'goal',operation:'create',payload:{goal_id:'child-web',title:'机密子目标'},source_refs:['private'],reason:'用户待决定',confidence:1}]}]);
+ const controlToken=randomBytes(32).toString('hex');
+ const server=createMolisWorkWebServer({databasePath:f.ref.storage_key,boardId:'board',homeDirectory:join(f.ref.storage_key,'..','home'),localHost:f.host,controlToken});
+ server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise<void>(r=>server.close(()=>r())));
+ const address=server.address();assert.ok(address&&typeof address!=='string');const origin=`http://127.0.0.1:${address.port}`;
+ const request=()=>fetch(origin+'/api/goal-tree-proposals/'+submitted.proposal.proposal_id+'/decision',{method:'POST',headers:{origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':randomBytes(16).toString('hex')},body:JSON.stringify({confirm_all_pending:true,reason:'明确批准',idempotency_key:'web-approval'})});
+ const result=await request();assert.equal(result.status,200,await result.clone().text());
+ const saved=await f.read();assert.equal(saved.receipts.length,4);const receipt=saved.receipts.at(-1);
+ assert.equal(receipt.channel,'web.goal-events.v1');assert.equal(receipt.capability,goalTreeCapabilities.decideGoalTreeProposal.capability_id);
+ assert.equal(receipt.saved.proposal_state,'approved');assert.equal(receipt.saved.applied_item_refs.length,1);
+ assert.equal((await (await request()).json() as {replayed:boolean}).replayed,true);
+ const replay=await f.read();assert.equal(replay.receipts.length,6);assert.equal(replay.receipts.at(-1).replayed,true);
+ assert.equal(replay.coverage.unpersisted_failures,0);assert.equal(JSON.stringify(replay).includes('机密'),false);
 });

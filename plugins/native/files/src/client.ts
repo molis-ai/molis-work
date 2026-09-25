@@ -3,7 +3,7 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const scope=host.root || document;
   const directory=scope.querySelector('[data-files-browser]'), result=scope.querySelector('[data-files-results]');
   if(!directory || !result)return null;
-  const q=selector=>result.querySelector(selector), choice=directory.querySelector('[data-files-workspace]'), tree=directory.querySelector('[data-files-tree]');
+  const q=selector=>result.querySelector(selector), tree=directory.querySelector('[data-files-tree]');
   const notice=message=>{directory.querySelector('[data-files-status]').textContent=message;};
   let opener=null,selectedPath=null;
   const refresh=directory.querySelector('[data-files-refresh]'),reload=q('[data-files-reload]');
@@ -54,10 +54,9 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(value.result.truncated){const hint=document.createElement('p');hint.textContent='目录较大，仅显示前 1000 个可访问条目';container.append(hint);}
   }
   async function choose(id){
-    const ticket=++generation;workspace=id;clear();tree.replaceChildren();notice(id?'正在读取目录…':'请选择工作区');choice.disabled=true;
+    const ticket=++generation;workspace=id;clear();tree.replaceChildren();notice(id?'正在读取目录…':'请选择工作区');
     try{
       if(!id)return;
-      await host.request('workspace','/select','POST',{workspace_id:id});
       if(ticket!==generation)return;
       host.onWorkspaceSelected?.(id);
       await list([],tree,ticket);
@@ -67,21 +66,17 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(state.position?.workspace_id===id)await openFile(state.position.path);
       await companions(ticket);
     }catch(error){if(ticket===generation){clear();tree.replaceChildren();notice(error.message);}}
-    finally{if(ticket===generation)choice.disabled=false;}
+
   }
   async function load(){
     if(refresh.disabled)return;refresh.disabled=true;refresh.toggleAttribute('data-loading',true);refresh.querySelector('.mw-spinner').hidden=false;tree.setAttribute('aria-busy','true');
     notice('正在读取工作区…');
     try{
-      const state=await host.request('workspace','/state');choice.replaceChildren();
-      const blank=document.createElement('option');blank.value='';blank.textContent='选择已授权工作区';choice.append(blank);
-      for(const item of state.workspaces){const option=document.createElement('option');option.value=item.workspace_id;option.textContent=item.name+(item.available?'':'（不可用）');option.disabled=!item.available;choice.append(option);}
-      choice.value=state.selected || '';loaded=true;await choose(choice.value);
-      if(!state.workspaces.length)notice('项目还没有工作目录。请先关联这台电脑上的目录。');
-    }catch(error){notice(error.message);}
+      const state=await request('/state');loaded=true;await choose(state.workspace?.workspace_id || '');
+
+    }catch(error){workspace="";clear();tree.replaceChildren();notice(error.message);}
     finally{refresh.disabled=false;refresh.removeAttribute('data-loading');refresh.querySelector('.mw-spinner').hidden=true;tree.setAttribute('aria-busy','false');}
   }
-  choice.addEventListener('change',()=>void choose(choice.value));
   reload.addEventListener('click',()=>{if(selectedPath)void openFile(selectedPath);});
   refresh.addEventListener('click',()=>void load());
   for(const name of ['select','keyup','mouseup'])text.addEventListener(name,controls);

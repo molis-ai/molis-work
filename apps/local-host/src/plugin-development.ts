@@ -9,7 +9,7 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
 }): Promise<PluginDevelopmentResult> {
   if (input.allow_unsigned_development !== true) throw new Error("需要明确授权运行未签名本地开发代码");
   const definition = await loadDevelopmentPlugin(input.directory);
-  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor(options));
+  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor(options), { actions: options.actions });
   const installed = runtime.install({ definition, deployment: "local", grants: input.grants, retain_private_data: true });
   const id = installed.install.install_id;
   let result: Omit<PluginDevelopmentResult, "installation">;

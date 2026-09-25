@@ -602,11 +602,11 @@ test("Feed source Web API manages local sources and encrypted connector bindings
     };
     const page = await (await fetch(origin)).text();
     assert.match(page, /data-feed-sources-dialog/);
-    assert.match(page, /id="feed-source-dialog-title">添加任务/);
+    assert.match(page, /id="feed-source-dialog-title">添加来源/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
     assert.match(page, /首次同步和增量同步都会执行同一范围；不做完整邮箱回填。/);
     assert.match(page, /打开 Connectors/);
-    assert.match(page, /Gmail 账号在全局设置 · Connectors 管理/);
+    assert.match(page, /在 Connectors 授权 Gmail 后，当前项目的 Feed 会按邮箱关联来源。/);
     assert.doesNotMatch(page, /data-feed-connector-token/);
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 

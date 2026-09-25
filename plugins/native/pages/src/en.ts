@@ -1,4 +1,6 @@
 export const PAGES_EN: Record<string, string> = {
+  "保存中": "Saving",
+  "文档已改变，请重新生成": "The document changed. Generate again.",
   "此转换无法保留块中的内容": "This conversion cannot preserve the block contents",
   "文档正文": "Document body",
   "请输入有效链接，例如 https://example.com": "Enter a valid link, such as https://example.com",
@@ -52,6 +54,9 @@ export const PAGES_EN: Record<string, string> = {
   "存成 Artifact": "Save as Artifact",
   "再存一版": "Save another version",
   "已存成 Artifact": "Saved as an Artifact",
+  "继续保存上次成果": "Resume previous save",
+  "上次成果保存尚未完成。继续保存会恢复当时的快照，当前编辑内容可在之后另存一版。": "The previous save is unfinished. Resume it to save that snapshot; your current edits can be saved as another version afterwards.",
+  "已恢复上次成果；当前编辑内容已保留，需要时可再存一版。": "Previous save recovered. Your current edits are preserved and can be saved as another version.",
   "块备注": "Block note",
   "评论": "Comment",
   "写作": "Write",

@@ -238,7 +238,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         canvasView: ui?.canvasView,
       });
       filterTree("");
-      if (feedDirectory) {
+      if (feedDirectory || feedWorkbench) {
         const deepLinkedDecisionEntry = decisionFeedEntryFromHash();
         activeFeedPreset = "feed";
         const persistedPresets = ui?.feedPresets && typeof ui.feedPresets === "object"

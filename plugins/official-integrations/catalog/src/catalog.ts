@@ -303,8 +303,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     token_placeholder: "cli_…:app_secret",
     auth_help: "企业自建应用，格式 app_id:app_secret。导入正文需文档只读权限，并将文档共享给应用；知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
     permission_host: "open.feishu.cn",
-    parseToken: (raw) => splitParts(raw, ":", 2, ["app_id", "app_secret"]),
+    parseToken: (raw) => raw === "lark-cli" ? tokenContext(raw) : splitParts(raw, ":", 2, ["app_id", "app_secret"]),
     async prepare(ctx, http) {
+      if (ctx.accessToken === "lark-cli") return ctx;
       const result = await http.json(post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
         app_id: ctx.extra.app_id,
         app_secret: ctx.extra.app_secret,
@@ -314,11 +315,15 @@ const CATALOG: CatalogConnectorDraft[] = [
       return { ...ctx, accessToken: token };
     },
     identity: {
-      request: (ctx) => post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
+      request: (ctx) => ctx.accessToken === "lark-cli"
+        ? get("https://open.feishu.cn/open-apis/authen/v1/user_info", bearer(ctx))
+        : post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
         app_id: ctx.extra.app_id,
         app_secret: ctx.extra.app_secret,
       }),
-      read: (json, ctx) => text(asRecord(json)?.tenant_access_token) ? (text(ctx.extra.app_id) || "飞书") : "",
+      read: (json, ctx) => ctx.accessToken === "lark-cli"
+        ? text(nestedText(asRecord(json), ["data", "name"]), nestedText(asRecord(json), ["data", "open_id"])) || "飞书"
+        : text(asRecord(json)?.tenant_access_token) ? (text(ctx.extra.app_id) || "飞书") : "",
     },
     feed: {
       request: (ctx) => get("https://open.feishu.cn/open-apis/im/v1/chats?page_size=20", bearer(ctx)),
@@ -430,8 +435,8 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("bitbucket", "Bitbucket", "code", "仓库与 PR。", "Feed 拉仓库与 PR", {
     token_label: "Bitbucket 令牌",
-    token_placeholder: "username:app-password 或 Bearer",
-    auth_help: "App password 用 username:password；OAuth 直接贴 access token。",
+    token_placeholder: "email:api-token 或 OAuth 访问令牌",
+    auth_help: "Bitbucket App Password 已停用。API Token 用 Atlassian 邮箱:api-token；OAuth 用户访问令牌可直接粘贴。",
     permission_host: "api.bitbucket.org",
     parseToken: parseBitbucketToken,
     identity: {
@@ -717,7 +722,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("loom", "Loom", "work", "录像与评论。", "Feed 拉录像与评论", {
+  spec("loom", "Loom", "work", "录像与评论；仅已有企业或合作方 API 凭据可连接。", "Feed 拉录像与评论", {
     token_label: "Loom 访问令牌",
     token_placeholder: "…",
     auth_help: "Atlassian 官方目前不提供开放 PAT。只有企业/合作方发给你的 Loom API token 才能连；identity 打 GET https://api.loom.com/v1/users/me。没有这类令牌时是 live 失败，不是占位。",
@@ -821,9 +826,9 @@ const CATALOG: CatalogConnectorDraft[] = [
     },
   }),
   spec("hubspot", "HubSpot", "crm", "CRM 与营销。", "Feed 拉 CRM 与营销", {
-    token_label: "HubSpot Private App Token",
-    token_placeholder: "pat-na1-…",
-    auth_help: "HubSpot private app access token，需要 crm.objects.contacts.read。",
+    token_label: "HubSpot Service Key / 既有 Private App Token",
+    token_placeholder: "Service Key 或 pat-na1-…",
+    auth_help: "新建连接建议用 HubSpot Service Key，赋予 crm.objects.contacts.read；已有 Private App Token 仍可使用。",
     permission_host: "api.hubapi.com",
     identity: {
       request: (ctx) => get("https://api.hubapi.com/integrations/v1/me", bearer(ctx)),

@@ -1,3 +1,4 @@
+import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,14 +58,14 @@ test("Host 路由里的项目与 query/body 不一致时，发布在写入前失
       body: JSON.stringify({ project_id: second.project_id }),
     });
     const mismatchBody = await mismatched.json() as { code?: string; error?: string };
-    assert.equal(mismatched.status, 400);
-    assert.equal(mismatchBody.code, "pages.invalid");
+    assert.equal(mismatched.status, 403);
+    assert.equal(mismatchBody.code, "actions.scope_mismatch");
     const split = await fetch(`${server.origin}/projects/${first.project_id}/api/plugins/pages/${page.id}/promote?project_id=${first.project_id}`, {
       method: "POST",
       headers: headers(server.origin, "pages-promote-split"),
       body: JSON.stringify({ project_id: second.project_id }),
     });
-    assert.equal(split.status, 400);
+    assert.equal(split.status, 403);
 
     const pages = openPagesStore(home);
     try {
@@ -129,17 +130,15 @@ test("合法旧库映射按目录项目发布到原来的 board，不会把 boar
       idempotency_key: "pages-legacy-board",
     });
     const created = pages.create({ project_id: "catalog-project", title: "旧映射" });
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pages, {
-      boundProjectId: "catalog-project",
+    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(pages, "catalog-project", {
       publishArtifact: registerPagesArtifactVersion(coordinator, "legacy-board", "catalog-project"),
-    }));
-    const rejected = await routes.handle({
+    })));
+    await assert.rejects(routes.handle({
       method: "POST",
       pathname: `/api/pages/${created.id}/promote`,
       query: new URLSearchParams({ project_id: "other-project" }),
       body: { project_id: "other-project" },
-    });
-    assert.equal(rejected?.status, 400);
+    }), { code: "actions.scope_mismatch" });
     assert.equal(pages.get(created.id, "catalog-project").artifact_version, 0);
     assert.equal(coordinator.artifacts.query.getArtifactVersion("legacy-board", {
       artifact_id: `pages-${created.id}`,

@@ -204,7 +204,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       const rows = [...(inboxList?.querySelectorAll('[data-inbox-row][data-inbox-subject-type="feed_item"]') || [])];
       rows.forEach(row => {
         const label = document.createElement("label"); const input = document.createElement("input");
-        input.type = "checkbox"; input.name = "entry_id"; input.value = row.dataset.inboxEntryId;
+        label.className = "mw-check-row"; input.className = "mw-check"; input.type = "checkbox"; input.name = "entry_id"; input.value = row.dataset.inboxEntryId;
         input.checked = composeDraft.entry_ids.includes(input.value); input.disabled = composeBusy;
         const title = document.createElement("span"); title.textContent = row.querySelector("strong")?.textContent || input.value;
         label.append(input, title); materials.append(label);
@@ -218,7 +218,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       void refreshComposeResults().catch(error => { composeForm.querySelector("[data-inbox-compose-status]").textContent = error.message; });
     };
     document.addEventListener("click", async event => {
-      if (event.target.closest?.("[data-inbox-functions]")) { tabWorkspace?.openPlugin("functions"); return; }
+      if (event.target.closest?.("[data-inbox-functions]")) { location.href = "/capabilities/rules?project=" + encodeURIComponent(document.body.dataset.projectId || "") + (new URL(location.href).searchParams.get("desktop") === "1" ? "&desktop=1" : ""); return; }
       const evaluate = event.target.closest?.("[data-inbox-evaluate]");
       if (evaluate) {
         event.preventDefault(); evaluate.disabled = true;

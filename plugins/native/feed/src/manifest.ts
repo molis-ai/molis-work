@@ -1,3 +1,4 @@
+import { feedContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -21,8 +22,9 @@ export const feedManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-feed-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: [...new Set(Object.values(feedContentActions).flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 交接内容" })),
   capabilities: { provides: [], consumes: ["functions.evaluate"] },
+  actions: Object.values(feedContentActions),
   artifacts: { produces: [], consumes: [] },
   requires: [{
     capability_id: "functions.evaluate",

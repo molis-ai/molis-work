@@ -1,4 +1,6 @@
+export * from "./personal-planning-actions.js";
 export * from "./decision-view.js";
+export * from "./actions.js";
 export * from "./decision-groups.js";
 export * from "./decision-results.js";
 export * from "./decision-results-ui.js";
@@ -58,7 +60,7 @@ export * from "./document-ui-model.js";
 export * from "./document-ui.js";
 export { GOALS_EVENT_DOCUMENT_STYLES } from "./event-document-styles.js";
 export { GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT } from "./event-document-client.js";
-export { createGoalEventDocumentView, attachEventDocument, eventDirectoryPresentation, listGoalDocumentHistory, findHistoryIndexItem } from "./event-document-model.js";
+export { createGoalEventDocumentView, eventDirectoryPresentation, listGoalDocumentHistory, findHistoryIndexItem } from "./event-document-model.js";
 export { mergeGoalHistoryItems, pageHistoryItems, mapLegacyHistoryItems, mapJournalHistoryItems, isNewWorkJournalType, mixedPageIsStable } from "./event-history-map.js";
 export { renderHistoryItemBody, renderWorkEventBody, formatEventTime } from "./event-history-body.js";
 export * from "./context-ui-model.js";
@@ -104,7 +106,6 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { GoalTreeDecisionNormalizer, type NormalizedGoalTreeProposalDecision } from "./goal-tree-decision-inputs.js";
 export { GoalTreeDecisionFollowup } from "./goal-tree-decision-followup.js";
 export { GoalTreeDecisionApplication } from "./goal-tree-decision.js";
-export { GoalTreeWebDecisionInput } from "./goal-tree-web-decision-input.js";
 export { explainGoalDecision, type HumanDecisionKind, type DecisionCopy } from "./decision-copy.js";
 export { createGoalsDecisionPresentation, type GoalsDecisionPresentationPrimitives, type DecisionEventKind } from "./decision-common-ui.js";
 

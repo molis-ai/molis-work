@@ -9,8 +9,11 @@ import {
   composeAgentHost,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { initializeBoardCapability, goalsEntryCapabilities } from "@molis-ai/molis-work-plugin-goals";
+import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 /** 产品装配真的构造了 Agent Host，插件经 Capability 够得到它。 */
 
@@ -38,6 +41,58 @@ async function close(item: Awaited<ReturnType<typeof fixture>>) {
   await item.localHost.close();
   await rm(item.directory, { recursive: true, force: true });
 }
+
+test("Agent Host loads current guidance through actions and freezes each real revision", async () => {
+  const directory = await realpath(await mkdtemp(join(tmpdir(), "agent-guidance-")));
+  let denied = false, reads = 0;
+  const localHost = new MolisWorkLocalHost({ completeText: null, actionAvailability: (_caller, action) => {
+    if (action.capability_id === "goals.guidance.read") {
+      reads++;
+      if (denied) return { available: false, code: "actions.plugin_disabled", reason: "说明不可用" };
+    }
+    return { available: true };
+  } });
+  const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), boardId: "board", projectId: "project" });
+  const composition = composeAgentHost({ localHost, cliRuntimes: [], workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }) });
+  const captured: AgentStartRequest[] = [];
+  composition.agentHost.register({
+    descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported" } },
+    async health() { return { ok: true, status: "ready", message: "ready" }; },
+    async createSession() { throw new Error("Not used by this read fixture"); },
+    async read() { throw new Error("Not used by this read fixture"); },
+    observe() { throw new Error("Not used by this read fixture"); },
+    async control() { throw new Error("Not used by this read fixture"); },
+    async readCommandOutput() { throw new Error("Not used by this read fixture"); },
+    async readSession(session) { return { session, owner: { board_id: "board", plugin_id: CODING, install_id: "coding" }, title: "Read", runs: [], latest_run: null }; },
+    async start(request) {
+      captured.push(request); const role = request.role!;
+      return { ref: { run_id: `r${captured.length}`, session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,
+        model_id: "probe", prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: promptLayerOf(prompt) })),
+        host_tools: [...role.host_tools], skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: request.directory } };
+    },
+  });
+  const client = localHost.client(reference);
+  try {
+    await client.invoke(initializeBoardCapability, { board_id: "board", title: "Guidance", actor_id: "user", idempotency_key: "init" });
+    const added = await client.invoke(goalsEntryCapabilities.commands.addProjectGuidance, [{ board_id: "board", actor_id: "user", kind: "constraint",
+      content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" }]);
+    const request: AgentStartRequest = { board_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },
+      task: "读取项目", role_id: "reader", directory: { canonical_path: directory, realpath_verified: true } };
+    await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
+    const first = captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
+    assert.match(first.body, /保留源文件/); assert.equal(first.version, 1);
+    await client.invoke(goalsEntryCapabilities.commands.updateProjectGuidance, [{ board_id: "board", actor_id: "user", guidance_id: added.entry.guidance_id,
+      action: "edit", kind: "constraint", content: "保留源文件和备份。", reason: "补充边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "edit" }]);
+    await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
+    const second = captured[1]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!;
+    assert.match(second.body, /保留源文件和备份/); assert.equal(second.version, 2);
+    assert.doesNotMatch(first.body, /和备份/, "the previous run retains its original prompt");
+    denied = true;
+    await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
+    assert.equal(captured[2]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false);
+    assert.ok(reads >= 3, "each start consults the real guidance action policy");
+  } finally { await composition.dispose(); await localHost.close(); await rm(directory, { recursive: true, force: true }); }
+});
 
 test("装配之后，运行时列表经 Capability 就能拿到", async () => {
   const item = await fixture(null);
@@ -83,7 +138,7 @@ test("项目没绑定工作区时，起跑被目录那道闸拦住", async () =>
   try {
     await assert.rejects(
       () => item.client.invoke(agentHostCapabilities.startRun, ["claude-code", {
-        plugin_id: CODING,
+        plugin_id: CODING, board_id: "board-a", install_id: "coding", actor_id: "user",
         session: { session_id: "s", runtime_id: "claude-code" },
         task: "看看代码",
         role_id: "reader",
@@ -104,7 +159,7 @@ test("插件不能拿一个宿主没授权的目录起跑", async () => {
   try {
     await assert.rejects(
       () => item.client.invoke(agentHostCapabilities.startRun, ["claude-code", {
-        plugin_id: CODING,
+        plugin_id: CODING, board_id: "board-a", install_id: "coding", actor_id: "user",
         session: { session_id: "s", runtime_id: "claude-code" },
         task: "看看代码",
         role_id: "reader",

@@ -2,6 +2,8 @@
 
 Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
 
+显式 `storageRoot` 的 Node 适配器持有 SQLite 独占锁，直到 SDK 正常关闭或进程退出，防止另一执行器把活动审阅误判为重启遗留。获取失败报告 `agent.storage_busy`，不读取恢复记录。该锁保护当前单执行方假设；跨进程调用转发仍由 LocalHost 接通，不能用多个 runtime 直接共享这个目录。
+
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
 ## 它拥有什么

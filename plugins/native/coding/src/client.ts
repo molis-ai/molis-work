@@ -221,6 +221,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-intent]').disabled = Boolean(active || sending);
     q('[data-coding-model]').disabled = Boolean(active || sending);
     q('[data-coding-rename]').hidden = !current;
+    q('[data-coding-archive]').hidden = !current;
     q('[data-coding-goal-open]').disabled = !current || sending;
     q('[data-coding-material-open]').disabled = !current || sending;
     const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
@@ -266,7 +267,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const visibleIds=new Set(visible.map(session=>session.session_id));
     for(const [id,row] of directoryRows) if(!visibleIds.has(id)) {row.remove();directoryRows.delete(id);}
     list.querySelector('.mw-empty')?.remove();
-    if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);if(!needle && selectedFilter==='all'){const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--primary';button.dataset.codingNew='';button.textContent='新建编码会话';empty.append(button);}list.append(empty); return; }
+    if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);list.append(empty); return; }
     const labels = { idle:'尚未执行', running:'执行中', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', done:'本轮结束' };
     for (const session of visible) {
       let row=directoryRows.get(session.session_id);
@@ -893,6 +894,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if(target.matches('[data-coding-latest]')) { pinned=true;turns.scrollTop=turns.scrollHeight;target.hidden=true; }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
+      if(target.matches('[data-coding-archive]') && current) {
+        if(!confirm('归档这条 Coding 会话？它会从活动列表移出，执行记录和固定成果仍会保留。'))return;
+        target.disabled=true;
+        const id=current;
+        try {
+          await api('/sessions/'+encodeURIComponent(id),'PATCH',{archive:true});
+          generation++;current='';lastRun=null;root.dataset.codingDetail='false';
+          await refreshState();status('会话已归档。');
+        } finally {target.disabled=false;}
+      }
       if(target.matches('[data-coding-rename]') && current) {
         const title=q('[data-coding-title]'); if(title.querySelector('input')) return;
         const field=document.createElement('input');field.className='mw-input';field.value=title.textContent;field.setAttribute('aria-label','会话名称');title.replaceChildren(field);field.focus();field.select();

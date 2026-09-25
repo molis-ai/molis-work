@@ -142,8 +142,9 @@ function renderGroup(
   </section>`;
 }
 
-function renderEmpty(p: CodingUiPrimitives): string {
-  return `<div class="mw-empty" data-coding-empty>${p.icon("code")}<strong>从一个具体问题开始</strong><p>新建会话，讨论代码、整理计划或审查改动。</p><button class="mw-btn mw-btn--primary" type="button" data-coding-new>新建编码会话</button></div>`;
+// Matches the client's directory empty state; the add row below and the stage own the create action.
+function renderEmpty(_p: CodingUiPrimitives): string {
+  return `<div class="mw-empty" data-coding-empty><p>还没有编码会话</p></div>`;
 }
 
 export function renderCodingWorkbench(model: CodingUiModel): string {
@@ -252,7 +253,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
           ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
-          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}<small data-coding-goal-label></small></div>
+          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}${renderButton({label:"归档会话",variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
           <div class="coding-composer-shell">
             <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
             <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…" disabled></textarea>
@@ -428,8 +429,8 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
           </div>
           <div data-mcp-http class="mw-form-stack" hidden>
             <label class="mw-field">服务地址<input class="mw-input" name="endpoint" aria-label="MCP 地址" placeholder="https://example.com/mcp"></label>
-            <label class="mw-field">认证<select class="mw-select" name="auth" aria-label="MCP 认证"><option value="none">无认证</option><option value="keep-existing">保留原凭据</option><option value="replace-secret">使用新 Bearer 凭据</option></select></label>
-            <label class="mw-field">新凭据<input class="mw-input" type="password" name="secret" autocomplete="off" aria-label="MCP 新凭据"></label>
+            <label class="mw-field">认证<select class="mw-select" name="auth" aria-label="MCP 认证"><option value="none">无认证</option><option value="connection">选择 Connector 连接</option><option value="keep-existing">保留原凭据</option></select></label>
+            <label class="mw-field">账号连接<select class="mw-select" name="auth_connection_id" aria-label="MCP 账号连接"><option value="">选择连接</option></select></label><a href="/settings/connectors?connector=mcp-bearer">在 Connectors 管理 Bearer 凭据</a>
           </div>
           <label class="mw-field">请求超时（毫秒）<input class="mw-input" type="number" name="timeout" value="30000" min="1000" max="600000" aria-label="MCP 超时"></label>
           <label class="mw-check-row"><input class="mw-check" type="checkbox" name="enabled" checked>启用此配置</label>

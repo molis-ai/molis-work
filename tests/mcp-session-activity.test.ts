@@ -1,6 +1,8 @@
+import { rejectSessionReportIndex } from "./fixtures/session-secondary-failure.js";
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -44,6 +46,7 @@ test("successful MCP writes update only their Session and survive a secondary Re
   let mcp: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "Session 活动", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     catalog.bindRuntimeContext({
       context: {
         runtime_id: "codex",
@@ -100,16 +103,14 @@ test("successful MCP writes update only their Session and survive a secondary Re
       goal_id, idempotency_key: "report-repair",
       events: [{ type_id: "delivery", type_version: 1, title: "主记录已经保存", fields: { result: "索引失败时工作不能丢" } }],
     };
-    const obstructedHome = join(directory, "not-a-directory");
-    writeFileSync(obstructedHome, "Test the secondary Session storage failure, not the project database.");
-    mcp.runtimeContextHost!.homeDirectory = obstructedHome;
+    const restoreSessionIndex = rejectSessionReportIndex(homeDirectory);
     const reported = JSON.parse(await mcp.callTool("molis_work_v1_event_report", reportInput));
     assert.equal(reported.replayed, false);
     assert.equal(reported.events.length, 1);
-    mcp.runtimeContextHost!.homeDirectory = homeDirectory;
+    restoreSessionIndex();
     const context = JSON.parse(await mcp.callTool("molis_work_v1_context_resolve", {}));
     assert.equal(context.session_registry.status, "unavailable");
-    assert.match(context.session_registry.message, /ENOTDIR|EEXIST|not a directory/i);
+    assert.match(context.session_registry.message, /injected Session report index failure/);
     const afterFailure = await openWorkSessionRegistry({ homeDirectory });
     try {
       assert.equal(afterFailure.get(sessionId).current_goal_id, goal_id);

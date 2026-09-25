@@ -84,7 +84,7 @@ export function renderDatePicker(options: {
     })}${renderButton({
       variant: "ghost",
       size: "icon",
-      icon: "clock",
+      icon: "calendar",
       iconOnly: true,
       label: "打开日历",
       attrs: { "data-date-picker-open": true },

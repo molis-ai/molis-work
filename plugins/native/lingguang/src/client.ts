@@ -1,4 +1,4 @@
-/** Lingguang workbench client: capture, list, edit, discard, local brainstorm. */
+/** Lingguang workbench client: capture, list, edit, discard, contextual conversation. */
 export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
   const workbench = document.querySelector("[data-lingguang=workbench]");
@@ -27,6 +27,8 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   let conversation = null;
   let saveTimer = 0;
   let listSeq = 0;
+  let saveQueue = Promise.resolve();
+  let sending = false;
   const keepListScroll = (paint) => {
     const top = list?.scrollTop || 0;
     paint();
@@ -47,21 +49,14 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     return node;
   };
 
-  const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const headers = () => typeof molisWorkControlHeaders === "function"
     ? molisWorkControlHeaders()
     : { "content-type": "application/json" };
-  const withProject = (path) => {
-    const id = projectId();
-    if (!id) throw new Error(L("缺少项目"));
-    return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
-  };
   const request = async (method, path, body) => {
-    const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
-    const response = await fetch(withProject(path), {
+    const response = await fetch(host.route(path), {
       method,
       headers: headers(),
-      body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
+      body: body === undefined || method === "GET" ? undefined : JSON.stringify(body),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || L("灵光请求失败"));
@@ -193,15 +188,26 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     patchPreview(record);
   };
   const save = async () => {
-    if (!selected) return null;
-    const payload = await request("POST", "/api/plugins/lingguang/" + encodeURIComponent(selected.id), {
-      title: titleInput.value,
-      body: bodyInput.value,
+    clearTimeout(saveTimer);
+    if (!selected || conversation) return null;
+    const record = selected;
+    const title = titleInput.value;
+    const body = bodyInput.value;
+    const pending = saveQueue.then(async () => {
+      const current = records.find((item) => item.id === record.id) || record;
+      if (current.title === title && current.body === body) return current;
+      const payload = await request("POST", "/api/plugins/lingguang/" + encodeURIComponent(record.id), {
+        title, body, expected_updated_at: current.updated_at,
+      });
+      remember(payload.spark);
+      if (selected?.id === record.id) {
+        if (titleInput.value === title && document.activeElement !== titleInput) titleInput.value = payload.spark.title;
+        if (bodyInput.value === body && document.activeElement !== bodyInput) bodyInput.value = payload.spark.body || "";
+      }
+      return payload.spark;
     });
-    remember(payload.spark);
-    if (document.activeElement !== titleInput) titleInput.value = payload.spark.title;
-    if (document.activeElement !== bodyInput) bodyInput.value = payload.spark.body || "";
-    return payload.spark;
+    saveQueue = pending.catch(() => {});
+    return pending;
   };
   const queueSave = () => {
     clearTimeout(saveTimer);
@@ -236,7 +242,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       const card = document.createElement("article");
       card.className = "lingguang-message";
       const head = document.createElement("strong");
-      head.textContent = message.role === "stub" ? L("灵光") : L("记下");
+      head.textContent = message.role === "assistant" ? L("灵光") : message.role === "stub" ? L("本地记录") : L("记下");
       const body = document.createElement("p");
       body.textContent = message.body;
       card.append(head, body);
@@ -258,7 +264,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const openBrainstorm = async () => {
     const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
-    await save().catch(() => {});
+    await save();
     const payload = await request("POST", "/api/plugins/lingguang/conversations", { spark_ids: ids });
     conversation = payload.conversation;
     workbench.setAttribute("data-expanded", "true");
@@ -296,6 +302,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("click", async (event) => {
     try {
       if (event.target.closest("[data-lingguang-capture]")) {
+        await save();
         const payload = await request("POST", "/api/plugins/lingguang", {});
         selectedIds = new Set([payload.spark.id]);
         await loadList();
@@ -326,7 +333,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-lingguang-back]")) {
-        await save().catch((error) => showNote(error.message, true));
+        await save();
         closeWorkspace();
         await loadList();
         return;
@@ -342,7 +349,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
           syncSelectionBar();
           return;
         }
-        if (selected && selected.id !== id) await save().catch((error) => showNote(error.message, true));
+        if (selected && selected.id !== id) await save();
         const record = records.find((item) => item.id === id);
         if (!record) return;
         selectedIds = new Set([id]);
@@ -358,17 +365,25 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!conversation) return;
+    if (!conversation || sending) return;
+    const conversationId = conversation.id;
+    const body = chatInput.value;
+    sending = true;
+    const submit = chatForm.querySelector('[type="submit"]');
+    if (submit) submit.disabled = true;
+    showNote("", false);
     try {
-      const payload = await request("POST", "/api/plugins/lingguang/conversations/" + encodeURIComponent(conversation.id) + "/messages", {
-        body: chatInput.value,
-      });
+      const payload = await request("POST", "/api/plugins/lingguang/conversations/" + encodeURIComponent(conversationId) + "/messages", { body });
+      if (conversation?.id !== conversationId) return;
       conversation = payload.conversation;
       renderContext(payload.sparks || []);
       renderMessages(payload.messages || []);
-      chatInput.value = "";
+      if (chatInput.value === body) chatInput.value = "";
     } catch (error) {
-      showNote(error.message || L("灵光请求失败"), true);
+      if (conversation?.id === conversationId) showNote(error.message || L("灵光请求失败"), true);
+    } finally {
+      sending = false;
+      if (submit) submit.disabled = false;
     }
   });
   chatForm.addEventListener("keydown", (event) => {
@@ -377,6 +392,25 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       chatForm.requestSubmit();
     }
   });
-  void loadList().catch((error) => showNote(error.message, true));
+  // A tab or a workflow step can ask for one spark; it opens as soon as the list knows it.
+  const paneParams = new URLSearchParams(location.search);
+  let wantedId = paneParams.get("panePlugin") === "lingguang" ? paneParams.get("paneItem") : null;
+  const openWanted = async () => {
+    const record = wantedId && records.find((item) => item.id === wantedId);
+    if (!record) return;
+    wantedId = null;
+    if (selected?.id === record.id) return;
+    if (selected) await save();
+    selectedIds = new Set([record.id]);
+    fillEditor(record);
+    renderList();
+  };
+  workbench.addEventListener("molis-work:select-item", (event) => {
+    wantedId = event.detail?.itemId || null;
+    if (!wantedId) return;
+    if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
+    else void loadList().then(openWanted).catch((error) => showNote(error.message, true));
+  });
+  void loadList().then(openWanted).catch((error) => showNote(error.message, true));
 }
 `;

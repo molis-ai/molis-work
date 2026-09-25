@@ -14,7 +14,7 @@ test("settings serve complete category pages; the project gear opens them in the
     const html = await response.text();
     assert.match(html, /<body class="settings-page project-preferences-page"/);
     assert.ok(html.includes(content));
-    assert.doesNotMatch(html, /data-tab-workspace|data-plugin-strip|data-project-settings-page-root/);
+    assert.doesNotMatch(html.replace(/<script[\s\S]*?<\/script>/g, ""), /data-tab-workspace|data-plugin-strip|data-project-settings-page-root/);
   }
   const embed = await (await fetch(origin + prefix + "/settings/rules?embed=1")).text();
   assert.match(embed, /data-policy-form/);
@@ -95,7 +95,7 @@ test("settings serve complete category pages; the project gear opens them in the
   assert.ok(workbenchColumn.pane > 900, "desktop settings pane is wide enough to show centering, got " + workbenchColumn.pane);
   assert.ok(workbenchColumn.width <= 762, "settings column stays at most 760px, got " + workbenchColumn.width);
   assert.ok(Math.abs(workbenchColumn.offset) <= 24, "workbench settings column is centered, offset " + workbenchColumn.offset);
-  for (const [category, selector] of [["guidance", "[data-guidance-form]"], ["rules", "[data-policy-form]"], ["planning", "[data-planning-search]"]]) {
+  for (const [category, selector] of [["workspaces", "[data-project-workspaces-add]"], ["guidance", "[data-guidance-form]"], ["general", "[data-project-rename]"]]) {
     await click(`[data-directory-panel=project-settings] [data-settings-section="${category}"]`);
     await waitFor(`!!document.querySelector('[data-work-surface=project-settings] ${selector}')`);
     assert.equal(await evaluate("location.pathname.includes('/settings')"), false);

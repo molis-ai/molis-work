@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -25,6 +26,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     } });
     async function author(name: string, options: { read?: boolean; schema?: number; actor?: string } = {}) {
       let client!: PluginArtifactClient;
+      let dispose = () => {};
       const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
         permissions: [...base.manifest.permissions,
           { permission: "artifact:write", required: false, reason: "Publish notes" },
@@ -32,10 +34,11 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
         artifacts: { produces: [{ artifact_type_id: "example.note", schema_version: 1 }],
           consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
-        client = createPluginArtifactClient({ api, context, manifest, board_id: DEMO_BOARD_ID,
+        const hosted = createPluginArtifactClient({ api, context, manifest, actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID,
           actor_id: options.actor ?? "author" });
+        client = hosted.client; dispose = hosted.dispose;
         return base.start(context);
-      } };
+      }, stop() { dispose(); } };
       const installed = runtime.install({ definition, deployment: "local", grants: [
         "network:github.com", "secret:github", "artifact:write", ...(options.read === false ? [] : ["artifact:read"]),
       ] });
@@ -54,6 +57,15 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     assert.equal(first.artifact.producer_plugin_id, "io.molis.work.example.producer");
     assert.equal(first.artifact.scope, "personal");
     assert.deepEqual(consumer.client.read({ artifact_id: value.artifact_id, version: 1 }), first.artifact);
+    const actions = pluginActions(store, DEMO_BOARD_ID);
+    const caller = { actor_id: "author", project_id: DEMO_BOARD_ID, audience: "plugin" as const,
+      plugin_install_id: consumer.installId, permissions: ["artifact:read", "artifact:write"] };
+    const read = actions.registry.discover(caller).find(action => action.provider.provider_id === `sdk.artifacts.${consumer.installId}` && action.operation === "query")!;
+    assert.ok(read, "the SDK operation must exist in the same Kernel directory");
+    assert.deepEqual(await actions.client.invoke(caller, { ...read, provider_id: read.provider.provider_id }, { artifact_id: value.artifact_id, version: 1 }), first.artifact);
+    assert.deepEqual(actions.registry.discover({ ...caller, audience: "mcp" }), [], "producer-bound SDK calls are not public MCP tools");
+    await assert.rejects(actions.client.invoke({ ...caller, plugin_install_id: producer.installId }, read, { artifact_id: value.artifact_id, version: 1 }));
+    await assert.rejects(actions.client.invoke(caller, read, { artifact_id: value.artifact_id, version: 1, actor_id: "forged" }));
     assert.equal(producer.client.publish(value).replayed, true);
     producer.client.publish({ ...value, version: 2, content: { kind: "inline", payload: { title: "Second" } } });
     assert.deepEqual(consumer.client.read({ artifact_id: value.artifact_id, version: 1 })!.payload, value.content.payload);
@@ -69,6 +81,9 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
       "recovery must not restore authority to stale pre-crash clients");
 
     const noRead = await author("denied", { read: false });
+    const denied = actions.registry.discover({ ...caller, plugin_install_id: noRead.installId })
+      .find(action => action.provider.provider_id === `sdk.artifacts.${noRead.installId}` && action.operation === "query");
+    assert.equal(denied?.availability.available, false, "directory reflects the actual Runtime grant");
     const wrongSchema = await author("wrong-schema", { schema: 2 });
     const otherUser = await author("other-user", { actor: "other" });
     const before = store.snapshot(DEMO_BOARD_ID);

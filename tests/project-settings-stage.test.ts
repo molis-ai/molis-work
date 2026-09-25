@@ -16,9 +16,10 @@ import {
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
 
-test("project settings workbench paths stay on the four category pages", () => {
+test("project settings workbench paths include workspace settings and existing category pages", () => {
   assert.equal(projectSettingsPageFromPath("/settings"), "general");
   assert.equal(projectSettingsPageFromPath("/settings/general"), "general");
+  assert.equal(projectSettingsPageFromPath("/settings/workspaces"), "workspaces");
   assert.equal(projectSettingsPageFromPath("/settings/guidance"), "guidance");
   assert.equal(projectSettingsPageFromPath("/settings/rules"), "rules");
   assert.equal(projectSettingsPageFromPath("/settings/planning"), "planning");
@@ -64,7 +65,7 @@ test("user settings left nav is grouped single-line categories", () => {
     diagnostics,
   });
   assert.match(html, /class="settings-navigation settings-navigation--codex"/);
-  assert.match(html, />外观</);
+  assert.match(html, />界面与语言</);
   assert.match(html, />AI 与执行工具</);
   assert.doesNotMatch(html, />规划方法</);
   assert.match(html, />诊断</);

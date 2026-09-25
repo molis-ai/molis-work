@@ -1,6 +1,23 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。包含下方步骤回报修复，并让一次实际上下文整理后按新增内容达到原阈值再软触发；窗口硬检查和 Provider 明确溢出仍优先。保护内容持续超过软阈值不会逐工具往返重复整理，未缩短的整理也等待新增量；不放宽原文选择校验或丢弃历史。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-loopback-model.tgz`。修复模型目录允许本机 HTTP、Run 启动却仅接受 HTTPS 的不一致；Cognia 的实际动作与界面现可使用本机模型。Host 默认拒绝、显式 model/loopback 授权、凭据和重定向检查不变。回环判断同步精确识别 IPv4 与 IPv6，拒绝 `127.` 开头的公网域名冒充回环。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-action-loopback`（detached worktree）。没有修改原 `/Users/yijunwang/code/prologue` checkout。
+- 未提交源码修改：[model-loopback.patch](model-loopback.patch)。包含实现、模块合同、定向测试及 Rust Host 的一致性修复。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`5eb410ce861d12c987f45515fc605acc59dc8ee558fcd1786b792d6eaae3e3ae`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/model-loopback.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-loopback-model.tgz`。包只带 SDK 构建产物；Rust 源修正保留于补丁，需原生 Host 构建才能用于 Tauri 安装版。Molis 当前验证的生产调用链使用 Node Host。
+
+核对全部 500 个 dist 文件在源码构建、tarball、Molis 实际安装中逐字节相同；源码补丁可在修复工作树反向检查通过。SDK 网络/模型 53 项、结构/打包/运行/原有整理/MCP wire 71 项与 Rust 回环目标测试通过；SDK 构建、类型通过。Molis Cognia 业务/标准 MCP/真实 HTTP 与 HTTPS 17 项、浏览器 4 项、相邻 Character/Prologue/首次使用 66 项通过，相关包构建、根与 SDK 类型、Workbench 注册边界通过。详情见 `specs/action-architecture/migration.md`。
+
+这些是受控 Provider 的真实 I/O 和产品路径证据，不代表商业模型质量、全仓所有测试或用户本人验收。未发布 npm，未替换正式安装版。此前包保留用于追溯和回退。
+
+## 上一依赖：按新增上下文触发整理
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。包含下方步骤回报修复，并让一次实际上下文整理后按新增内容达到原阈值再软触发；窗口硬检查和 Provider 明确溢出仍优先。保护内容持续超过软阈值不会逐工具往返重复整理，未缩短的整理也等待新增量；不放宽原文选择校验或丢弃历史。
 
 - 来源分支：`codex/molis-coding-receipts`
 - 对应源码提交：`a7e785b8c76149961d25b2f918aeec55554d8420`（已推送）

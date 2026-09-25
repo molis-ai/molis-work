@@ -4,9 +4,9 @@ export const ALCHEMIST_STYLES = `
 .alc-list { padding-top:58px; }
 .alc-collections { display:flex; flex-wrap:wrap; gap:2px; margin:0 0 14px; }
 .alc-collections [aria-pressed=true],.alc-tabs [aria-pressed=true] { background:var(--nav-active); color:var(--ink); }
-.alc-search { display:flex; align-items:center; gap:8px; margin:0 4px 12px; color:var(--muted); }
-.alc-search svg { width:14px; height:14px; flex:none; }
-.alc-search input { width:100%; min-width:0; }
+.alc-search { position:relative; display:flex; align-items:center; max-width:420px; margin:0 4px 12px; color:var(--muted); }
+.alc-search svg { position:absolute; left:10px; width:14px; height:14px; flex:none; pointer-events:none; }
+.alc-search input { width:100%; min-width:0; padding-left:30px; }
 .alc-list-actions { display:flex; align-items:center; gap:8px; margin:0 4px 8px; flex-wrap:wrap; }
 .alc-row { width:100%; text-align:left; display:flex; align-items:center; gap:12px; min-height:58px; padding:10px 8px; border:0; border-radius:6px; background:transparent; color:var(--ink); cursor:pointer; }
 .alc-row:hover { background:var(--nav-hover); }

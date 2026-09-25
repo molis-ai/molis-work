@@ -179,6 +179,7 @@ export interface FunctionDescribe extends FunctionSummary {
 }
 
 export interface FunctionInvokeResult {
+  readonly suggested_behavior_ids?: readonly string[];
   readonly status: FunctionsOutcome;
   readonly function_key: string;
   readonly version: number;

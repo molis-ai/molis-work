@@ -9,6 +9,9 @@ export interface ImageConnection {
   base_url: string;
   model: string;
   has_key: boolean;
+  available?: boolean;
+  unavailable_reason?: string;
+  auth_connection_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -20,6 +23,7 @@ export interface ImageConnectionInput {
   model: string;
   /** Write-only. Omission or empty keeps the existing credential. */
   api_key?: string;
+  auth_connection_id?: string;
 }
 export interface ImageGenerateInput {
   request_id: string;

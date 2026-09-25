@@ -16,7 +16,7 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const formError=text=>{const el=$('[data-alc-form-error]');el.hidden=!text;el.textContent=text||'';};
   const active=status=>['queued','running'].includes(status);
   let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},memory={taste:[],playbook:[]};
-  let collection='directions',current=null,model=null,research=null,decision=null,pulseBundle=null,context={kind:'surface',label:L('方向'),surface:'ideas'},target=null,selection=null,sideMode='',onSubmit=null,formBusy=false,returnFocus=null,seq=0,loadSeq=0,loaded=false,pollTimer,detailSignature='',lastRow=null;
+  let collection='directions',showArchived=false,current=null,model=null,research=null,decision=null,pulseBundle=null,context={kind:'surface',label:L('方向'),surface:'ideas'},target=null,selection=null,sideMode='',onSubmit=null,formBusy=false,returnFocus=null,seq=0,loadSeq=0,loaded=false,pollTimer,detailSignature='',lastRow=null;
   const persistenceKey='molis-work:alchemist:'+host.projectId()+':'+(new URLSearchParams(location.search).get('workbenchPane')||'main');
   const persist=()=>{try{localStorage.setItem(persistenceKey,JSON.stringify({collection,current}));}catch{}};
   const sameCurrent=v=>JSON.stringify(v)===JSON.stringify(current);

@@ -41,7 +41,6 @@ import {
   openFunctionsStore,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
-import { createFunctionsService as createPluginFunctionsService } from "@molis-ai/molis-work-plugin-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { assembleHostBehaviorCatalog, hostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
@@ -385,10 +384,10 @@ test("illegal Choice keys are dropped; missing key or failure keeps empty sugges
   });
 });
 
-test("plugin UI path can still publish via the thinned plugin entry", async () => {
+test("system module can publish using the existing rule store", async () => {
   await withHome(async (home) => {
     const store = openFunctionsStore(home);
-    const service = createPluginFunctionsService({
+    const service = createFunctionsService({
       store,
       secrets: memorySecrets(),
       env: { TYPESAFE_API_KEY: "sk-test" },
@@ -455,7 +454,7 @@ test("authoring catalog exposes event destinations, MCP tools, and plugin action
   assert.equal(byId[mcpPublicToolName("form", "create")]?.source, "mcp");
   assert.equal(byId[mcpPublicToolName("form", "create")]?.effect, "write");
   assert.equal(byId[mcpPublicToolName("form", "create")]?.title, "Forms · create");
-  assert.match(byId[mcpPublicToolName("form", "create")]?.hint ?? "", /新建一份草稿问卷/);
+  assert.equal(byId[mcpPublicToolName("form", "create")]?.hint, "创建当前项目的草稿问卷");
   assert.ok(dest["agent.mcp"]?.behavior_ids.includes(INVOKE));
 });
 
@@ -867,7 +866,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.match(page, /"home_dock":null/);
   assert.match(page, /"home_dock_functions"/);
   const homeClient = await readFile(join(ROOT, "..", "apps/workbench/src/scripts/client/project-home.ts"), "utf8");
-  const functionsClient = await readFile(join(ROOT, "..", "plugins/native/functions/src/client.ts"), "utf8");
+  const functionsClient = await readFile(join(ROOT, "..", "apps/workbench/src/functions/client.ts"), "utf8");
   assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
   assert.match(functionsClient, /\/api\/home\/dock-judgment/);
   assert.match(functionsClient, /\/api\/inbox\/judgment/);
@@ -934,6 +933,7 @@ test("app plugins must redeem declared behavior handlers", () => {
     ...feedManifest,
     kind: "app" as const,
     plugin_id: "io.molis.work.demo-dock",
+    actions: [],
     ui: { contributions: [], views: [] },
     behaviors: [{ behavior_id: "pin", title: "挂到 Goal", effect: "write" as const, subject_kinds: ["inbox_entry"] }],
     mcp_exports: [],
@@ -953,4 +953,22 @@ test("app plugins must redeem declared behavior handlers", () => {
 
 test("FunctionsError still surfaces from the Module", () => {
   assert.equal(new FunctionsError("functions.invalid", "x").code, "functions.invalid");
+});
+
+
+test("Functions includes every builtin declared capability, including Jelly and Cognia", async () => {
+  const { BUILTIN_PLUGIN_CATALOG } = await import("../apps/workbench/src/plugin-catalog.ts");
+  const { assembleRegisteredBehaviors } = await import("@molis-ai/molis-work-contracts/platform/plugin");
+  const expected = assembleRegisteredBehaviors(BUILTIN_PLUGIN_CATALOG.map((entry) => entry.manifest));
+  const actual = hostFunctionAuthoringCatalog();
+  for (const behavior of expected) {
+    const found = actual.behaviors.find((row) => row.behavior_id === behavior.behavior_id);
+    assert.ok(found, `Missing capability: ${behavior.behavior_id}`);
+    assert.equal(found.effect, behavior.effect);
+    if (behavior.source === "mcp") assert.equal(found.source, "mcp");
+  }
+  assert.ok(actual.behaviors.some((row) => row.plugin_title === "Jelly" && row.source === "mcp"));
+  assert.ok(actual.behaviors.some((row) => row.plugin_title === "Cognia" && row.source === "mcp"));
+  const inbox = actual.destinations.find((row) => row.destination_id === INBOX_NEXT_SCENE_ID)!;
+  assert.ok(inbox.behavior_ids.every((id) => actual.behaviors.find((row) => row.behavior_id === id)?.source !== "mcp"));
 });

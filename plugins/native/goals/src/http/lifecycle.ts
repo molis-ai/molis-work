@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
+import { goalsActions } from "../actions.js";
 
 export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promise<boolean> {
   const activeGoalMatch = context.pathname.match(/^\/api\/goals\/([^/]+)\/active$/);
@@ -12,14 +13,8 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
       return true;
     }
     try {
-      const result = context.setActiveGoal(
-        context.options.boardId,
-        { goal_id: goalId, reason },
-        {
-          actor_id: "web-user",
-          idempotency_key: String(body.idempotency_key ?? `web-active-goal-${randomUUID()}`),
-        },
-      );
+      const result = await context.actions.invoke(goalsActions.active, { goal_id: goalId, reason,
+        idempotency_key: String(body.idempotency_key ?? `web-active-goal-${randomUUID()}`) });
       context.respond( 200, result);
     } catch (error) {
       context.respond( 400, {
@@ -37,21 +32,15 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
     }
     const goalId = decodeURIComponent(goalArchiveMatch[1]);
     try {
-      const result = context.lifecycle.setArchived(
-        context.options.boardId,
-        {
+      const result = await context.actions.invoke(goalsActions.archive, {
           goal_id: goalId,
           archived: body.archived,
           reason: String(
             body.reason ??
               (body.archived ? "用户从 Molis Work 归档已完成 Goal" : "用户从 Molis Work 恢复归档 Goal"),
           ),
-        },
-        {
-          actor_id: "web-user",
           idempotency_key: String(body.idempotency_key ?? `web-archive-${randomUUID()}`),
-        },
-      );
+      });
       context.respond( 200, result);
     } catch (error) {
       context.respond( 400, {
@@ -73,18 +62,13 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
     }
     const goalId = decodeURIComponent(goalTrashMatch[1]);
     try {
-      const result = context.lifecycle.setTrashed(
-        context.options.boardId,
-        {
+      const result = await context.actions.invoke(goalsActions.trash, {
           goal_id: goalId,
           trashed: body.trashed,
           reason: String(body.reason ?? "").trim(),
-        },
-        {
-          actor_id: "web-user",
+          user_confirmed: true,
           idempotency_key: String(body.idempotency_key ?? `web-trash-${randomUUID()}`),
-        },
-      );
+      });
       context.respond( 200, result);
     } catch (error) {
       context.respond( 400, {

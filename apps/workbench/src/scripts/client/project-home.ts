@@ -73,7 +73,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   };
   const dotsHTML = (list) => list.length
     ? list.slice(0, 4).map((event) => '<i data-k="' + event.kind + '"></i>').join("") + (list.length > 4 ? '<u></u>' : "")
-    : "<u></u>";
+    : "";
   const closeTalk = () => {
     const pop = $("[data-home-talk]");
     pop?.classList.remove("is-on");

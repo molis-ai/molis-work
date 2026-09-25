@@ -1,5 +1,6 @@
+import { GIT_ACTIONS } from "./action-definitions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
   CODING_FILE_CHANGED_EVENT,
@@ -9,8 +10,6 @@ import {
   GIT_FILE_CHANGED_EVENT,
   GIT_RESULT_SCHEMA_VERSION,
   GIT_RESULT_TYPE,
-  WORKSPACE_REF_SCHEMA_VERSION,
-  WORKSPACE_REF_TYPE,
   readWorkspaceGitCapability,
   prepareGitIndexCapability,
   readGitResultsCapability,
@@ -24,7 +23,7 @@ export const CODING_PLUGIN_ID = "io.molis.work.coding";
 export const GIT_PROJECT_PLUGIN_ID = "git";
 
 export const GIT_WORKSPACE_INPUT_PORT = "workspace";
-export const GIT_RUN_CHANGESET_INPUT_PORT = "run_changeset";
+export const GIT_RUN_CHANGESET_INPUT_PORT = "run-changeset";
 export const GIT_CHANGESET_OUTPUT_PORT = "changeset";
 export const GIT_RESULT_OUTPUT_PORT = "result";
 
@@ -44,9 +43,10 @@ export const gitManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: GIT_PLUGIN_ID,
-  version: "1.3.0",
+  version: "1.6.0",
   name: "Git",
   kind: "app",
+  upgrade_compatibility: { compatible_from_versions: ["1.5.0", "1.4.0", "1.3.0"] },
   publisher: { publisher_id: "molis", signature: "official-git-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -56,8 +56,9 @@ export const gitManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectsCapabilities.readWorkspace.capability_id, readWorkspaceGitCapability.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id],
+    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, readWorkspaceGitCapability.capability_id, prepareGitIndexCapability.capability_id, readGitResultsCapability.capability_id],
   },
+  actions: GIT_ACTIONS,
   artifacts: {
     produces: [
       { artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: DIFF_CHANGESET_SCHEMA_VERSION },
@@ -65,24 +66,11 @@ export const gitManifest: PluginManifest = {
     ],
     consumes: [
       { artifact_type_id: GIT_RESULT_TYPE, schema_version: GIT_RESULT_SCHEMA_VERSION },
-      { artifact_type_id: WORKSPACE_REF_TYPE, schema_version: WORKSPACE_REF_SCHEMA_VERSION },
       { artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
     ],
   },
   ports: {
-    inputs: [
-      {
-        port: GIT_WORKSPACE_INPUT_PORT,
-        artifact_type_id: WORKSPACE_REF_TYPE,
-        schema_version: WORKSPACE_REF_SCHEMA_VERSION,
-      },
-      {
-        port: GIT_RUN_CHANGESET_INPUT_PORT,
-        artifact_type_id: CODING_CHANGESET_TYPE,
-        schema_version: 1,
-        optional: true,
-      },
-    ],
+    inputs: [{ port: GIT_RUN_CHANGESET_INPUT_PORT, artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1, optional: true }],
     outputs: [
       {
         port: GIT_CHANGESET_OUTPUT_PORT,
@@ -119,6 +107,7 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.prepare-index", method: "POST", path: "/prepare-index" },
   ],
   ui: {
+    embedded_plugins: ["io.molis.work.diff"],
     contributions: [GIT_UI_CONTRIBUTION_ID],
     commands: [
       {
@@ -148,7 +137,7 @@ export const gitManifest: PluginManifest = {
   },
 };
 
-/** The binding the Host creates by default, named rather than imported. */
+/** @deprecated Historical binding only. Read projectSettingsCapabilities.browsingWorkspace. */
 export const GIT_WORKSPACE_SOURCE = {
   source_plugin_id: "io.molis.work.workspace",
   source_port: "workspace",

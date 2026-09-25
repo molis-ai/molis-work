@@ -27,10 +27,10 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
   const projects = new Map<string, { id: string; directory: string; workspace: string }>();
   const surfaces = ["coding", "workspace", "files", "git", "diff", "text-stats"];
   const cases: Array<[string, string[]]> = [
-    ["none", []], ["workspace", ["workspace"]],
-    ["files", ["workspace", "files", "diff", "text-stats"]],
-    ["git", ["workspace", "git", "diff"]], ["diff", ["diff"]],
-    ["text-stats", ["workspace", "files", "diff", "text-stats"]], ["coding", surfaces],
+    ["none", []],
+    ["files", ["files", "diff", "text-stats"]],
+    ["git", ["git", "diff"]], ["diff", ["diff"]],
+    ["text-stats", ["files", "diff", "text-stats"]], ["coding", surfaces.filter(id => id !== "workspace")],
   ];
   try {
     for (const [plugin, allowed] of cases) {
@@ -45,10 +45,7 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       await writeFile(path.join(directory, "note.txt"), "中文🙂\nfirst\n");
       assert.equal((await request(`/projects/${id}/api/workspaces`, "POST", { workspace_path: directory, user_confirmed: true })).status, 201);
       let workspace = "";
-      if (allowed.includes("workspace")) {
-        workspace = (await request(api(id, "workspace"))).body.workspaces[0].workspace_id;
-        assert.equal((await request(api(id, "workspace", "/select"), "POST", { workspace_id: workspace })).status, 200);
-      }
+      workspace = (await request(`/projects/${id}/api/project-settings/workspaces`)).body.workspaces[0].workspace_id;
       projects.set(plugin, { id, directory, workspace });
       for (const target of surfaces) {
         const result = await request(api(id, target));
@@ -58,9 +55,9 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       assert.equal(session.status, plugin === "coding" ? 200 : 404, "companion access must never imply Coding execution access");
     }
 
-    const files = projects.get("files")!, other = projects.get("text-stats")!;
-    assert.equal((await request(api(files.id, "workspace", "/select"), "POST", { workspace_id: files.workspace }, false)).status, 403);
-    assert.equal((await request(api(other.id, "workspace", "/select"), "POST", { workspace_id: files.workspace })).status, 403);
+    const files = projects.get("files")!, other = projects.get("coding")!;
+    assert.equal((await request(`/projects/${files.id}/api/project-settings/workspaces`, "POST", { workspace_id: files.workspace }, false)).status, 403);
+    assert.equal((await request(`/projects/${other.id}/api/project-settings/workspaces`, "POST", { workspace_id: files.workspace })).status, 403);
     assert.equal((await request(api(other.id, "files", "/open"), "POST", { workspace_id: files.workspace, path: ["note.txt"] })).status, 400);
     const open = () => request(api(files.id, "files", "/open"), "POST", { workspace_id: files.workspace, path: ["note.txt"] });
     const first = await open(); assert.equal(first.status, 200); assert.equal(first.body.result.text, "中文🙂\nfirst\n");

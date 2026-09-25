@@ -7,8 +7,8 @@ import type {
 
 import { filesManifest } from "./manifest.js";
 import { filesUiContribution } from "./ui.js";
+import { filesActionHandlers } from "./actions.js";
 import { filesRoutes } from "./routes.js";
-import { parseWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 /**
  * Files as Plugin Runtime starts it.
@@ -23,7 +23,7 @@ export interface FilesPluginPorts {
   currentPath?(): readonly string[] | null;
   /** Whether the Host can list and read under the bound workspace right now. */
   readable?(): boolean;
-  /** Called when upstream inputs arrive or go away, so the Host can reload. */
+  /** Notifies the Host after subscribed filesystem events so it can reload. */
   onWorkspaceChanged?(available: boolean): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
@@ -44,12 +44,11 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
       for (const permission of filesManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
-      const storage = context.grants.includes("storage:private") ? context.services?.storage : undefined;
-      let selectedWorkspace = storage?.get("last-workspace") ?? null;
       return {
         kind: "app",
         views: [filesUiContribution],
         routes: filesRoutes(context),
+        actions: filesActionHandlers(context),
         commandAvailability: (commandId) => {
           if (commandId !== "files.open-file") {
             return { available: false, reason: `未知命令：${commandId}` };
@@ -63,20 +62,6 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
           const objectId = objectIdFor(input, ports);
           if (objectId === null) throw new Error("没有可打开的文件");
           return { ref: { view_id: "tree", object_id: objectId }, title: objectId };
-        },
-        onUpstreamReady: async (inputs) => {
-          const selected = inputs.workspace?.availability === "available" ? parseWorkspaceRef(inputs.workspace.payload).workspace_id : null;
-          if (selected !== selectedWorkspace) {
-            selectedWorkspace = selected;
-            if (selected) storage?.set("last-workspace", selected);
-            for (const port of ["files", "before", "after", "selection"]) context.services?.outputs?.invalidate(port, "工作目录已切换，请在当前目录重新固定快照");
-          }
-          await ports.onWorkspaceChanged?.(true);
-        },
-        onUpstreamUnavailable: async () => {
-          // The tree is emptied rather than left showing the old workspace: a
-          // stale listing invites the user to open a file that is no longer there.
-          await ports.onWorkspaceChanged?.(false);
         },
         onEvent: async () => {
           // Coding wrote, or Git moved the working tree. Either way what is on

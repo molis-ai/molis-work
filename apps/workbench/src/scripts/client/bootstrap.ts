@@ -103,6 +103,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       }
     };
     const setFeedSourceFeedback = (message, error = false) => {
+      if (message && feedSourcesDialog?.hidden) showToast(message);
       if (feedSourceError) feedSourceError.hidden = !error;
       if (feedSourceProgress) feedSourceProgress.hidden = error || !message;
       if (error && feedSourceError) feedSourceError.textContent = message;

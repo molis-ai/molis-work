@@ -8,13 +8,13 @@ export function emptyJellyWorkspace(): JellyWorkspace {
 }
 export function makeJellyItem(input: Partial<JellyItem>, now: string): JellyItem {
   const start = jellyDate(input.start_date);
-  return { id: input.id ?? randomUUID(), title: typeof input.title === "string" ? input.title.trim() : "", kind: "task", category_id: input.category_id ?? JELLY_UNCATEGORIZED_ID, priority: input.pinned ? "P0" : input.priority ?? "none", pinned: input.pinned ?? false, start_date: start, end_date: input.end_date ?? start, start_time: input.start_time ?? null, end_time: input.end_time ?? null, completed_at: input.completed_at ?? null, completion_description: input.completion_description ?? "", notes: input.notes ?? "", untimed_rank: input.untimed_rank ?? 0, created_at: now, updated_at: now, time_zone: input.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone };
+  return { id: input.id ?? randomUUID(), title: typeof input.title === "string" ? input.title.trim() : "", kind: input.kind ?? "task", category_id: input.category_id ?? JELLY_UNCATEGORIZED_ID, priority: input.pinned ? "P0" : input.priority ?? "none", pinned: input.pinned ?? false, start_date: start, end_date: input.end_date ?? start, start_time: input.start_time ?? null, end_time: input.end_time ?? null, completed_at: input.completed_at ?? null, completion_description: input.completion_description ?? "", notes: input.notes ?? "", untimed_rank: input.untimed_rank ?? 0, created_at: now, updated_at: now, time_zone: input.time_zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone };
 }
 function record(value: unknown, label: string): Record<string, unknown> { jellyAssert(value && typeof value === "object" && !Array.isArray(value), `${label} 无效`); return value as Record<string, unknown>; }
 function identifier(value: unknown): string { jellyAssert(typeof value === "string" && value.length > 0, "ID 无效"); return value; }
 function ids(value: unknown): string[] { jellyAssert(Array.isArray(value) && value.every(id => typeof id === "string") && new Set(value).size === value.length, "ID 列表重复或无效"); return value as string[]; }
 function bool(value: unknown): boolean { jellyAssert(typeof value === "boolean", "完成状态无效"); return value; }
-const mutableFields = ["title", "category_id", "priority", "pinned", "start_date", "end_date", "start_time", "end_time", "completion_description", "notes", "untimed_rank"] as const;
+const mutableFields = ["title", "kind", "category_id", "priority", "pinned", "start_date", "end_date", "start_time", "end_time", "completion_description", "notes", "untimed_rank"] as const;
 function patchItem<T extends JellyItem>(item: T, raw: Record<string, unknown>, now: string): T {
   const next = { ...item };
   for (const key of mutableFields) if (Object.hasOwn(raw, key)) Object.assign(next, { [key]: raw[key] });

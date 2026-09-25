@@ -1,7 +1,7 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
-export type ProjectSettingsFoldId = "general" | "guidance" | "rules" | "planning";
+export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "rules" | "planning";
 
 export interface ProjectSettingsFoldProject {
   project_id: string;

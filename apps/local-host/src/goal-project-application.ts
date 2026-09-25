@@ -26,7 +26,6 @@ import {
   GoalTreeMaterializationApplication,
   GoalTreeCheckApplication,
   GoalTreeDecisionApplication,
-  GoalTreeWebDecisionInput,
   GoalTreeDecisionFollowup,
   GoalTreeDecisionNormalizer,
   GoalEventApplication,
@@ -77,14 +76,13 @@ export class GoalProjectApplication {
   readonly goalTreeDecisionInputs: GoalTreeDecisionNormalizer;
   readonly goalTreeCheck: GoalTreeCheckApplication;
   readonly goalTreeDecision: GoalTreeDecisionApplication;
-  readonly goalTreeWebInput: GoalTreeWebDecisionInput;
   readonly goalTreeDecisionFollowup: GoalTreeDecisionFollowup;
   readonly goalDecisionAttention: GoalDecisionAttentionSync;
 
   constructor(
     readonly store: LocalProjectDatabase,
     private readonly clock: () => Date = () => new Date(),
-    private readonly personalPlanningMethodPacks: readonly PlanningMethodPack[] = [],
+    private readonly personalPlanningMethodPacks: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]) = [],
   ) {
     const artifactsModule = new ArtifactsModule({
       db: this.store.db as unknown as ArtifactsSqliteDatabase,
@@ -225,7 +223,6 @@ export class GoalProjectApplication {
       isDomainError: (error): error is MolisWorkV1Error => error instanceof MolisWorkV1Error,
       attention: this.goalDecisionAttention,
     });
-    this.goalTreeWebInput = new GoalTreeWebDecisionInput();
     this.goalTreeCheck = new GoalTreeCheckApplication({
       goals: { query: this.goalsModule.query, planning: this.goals.planning }, governance: this.governance,
       query: this.goalTree, materialization: this.goalTreeMaterialization, clock: this.clock,

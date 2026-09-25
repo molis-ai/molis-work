@@ -86,6 +86,9 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       box.querySelectorAll("[data-connectors-back]").forEach((button) => {
         button.addEventListener("click", () => showDetail(""));
       });
+      box.querySelector("[data-connectors-add]")?.addEventListener("click", () => {
+        box.querySelector("[data-connectors-catalog]")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
       box.addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
         if (list && list.hidden) {
@@ -98,17 +101,70 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           event.preventDefault();
           const kind = form.dataset.connectorAuth;
           const input = form.querySelector('[data-connector-token="' + kind + '"]');
+          const panel = form.closest("[data-connector-detail]");
+          const name = panel?.querySelector("[data-connector-new-name]")?.value?.trim() || panel?.querySelector("h2")?.textContent?.trim() || kind;
           const submit = form.querySelector('button[type="submit"]');
           setError("");
           busy(submit, true);
           try {
-            await mutate("/api/settings/connectors/" + encodeURIComponent(kind) + "/token", "POST", { token: input?.value || "" });
+            await mutate("/api/settings/connectors/connections", "POST", {
+              service_id: kind, display_name: name, token: input?.value || "",
+            });
             showToast(L("已连接"));
             await reload(kind);
           } catch (error) {
             setError(error.message || L("无法保存连接"));
             busy(submit, false);
           }
+        });
+      });
+      box.querySelectorAll("[data-connection-replace]").forEach((form) => {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const id = form.dataset.connectionReplace;
+          const service = form.closest("[data-connection-row]")?.dataset.connectionService;
+          const button = form.querySelector('button[type="submit"]');
+          setError(""); busy(button, true);
+          try {
+            await mutate("/api/settings/connectors/connections/" + encodeURIComponent(id), "PATCH", { token: form.querySelector("input")?.value || "" });
+            showToast(L("已保存")); await reload(service);
+          } catch (error) { setError(error.message || L("无法保存连接")); busy(button, false); }
+        });
+      });
+      box.querySelectorAll("[data-connection-rename]").forEach((form) => {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const id = form.dataset.connectionRename;
+          const service = form.closest("[data-connection-row]")?.dataset.connectionService;
+          const button = form.querySelector('button[type="submit"]');
+          setError(""); busy(button, true);
+          try {
+            await mutate("/api/settings/connectors/connections/" + encodeURIComponent(id), "PATCH", { display_name: form.querySelector("input")?.value || "" });
+            showToast(L("已保存")); await reload(service);
+          } catch (error) { setError(error.message || L("无法保存连接")); busy(button, false); }
+        });
+      });
+      box.querySelectorAll("[data-connection-disconnect]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const service = button.closest("[data-connection-row]")?.dataset.connectionService;
+          setError(""); busy(button, true);
+          try {
+            await mutate("/api/settings/connectors/connections/" + encodeURIComponent(button.dataset.connectionDisconnect), "DELETE");
+            showToast(L("已断开")); await reload(service);
+          } catch (error) { setError(error.message || L("无法断开连接")); busy(button, false); }
+        });
+      });
+      box.querySelectorAll("[data-connection-reauthorize]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const panel = button.closest("[data-connector-detail]");
+          const service = panel?.dataset.connectorDetail;
+          if (service === "github") {
+            const start = panel?.querySelector("[data-connector-github-device-start]");
+            if (start) { start.dataset.connectionId = button.dataset.connectionReauthorize; start.click(); }
+            return;
+          }
+          const start = panel?.querySelector(service === "gmail" ? "[data-connector-gmail-oauth-start]" : "[data-connector-notion-oauth-start]");
+          if (start) { start.dataset.connectionId = button.dataset.connectionReauthorize; start.click(); }
         });
       });
       box.querySelectorAll("[data-connector-unbind]").forEach((button) => {
@@ -159,6 +215,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           if (deviceStatus) {
             deviceStatus.hidden = false;
             deviceStatus.dataset.deviceCode = started.device_code || "";
+            deviceStatus.dataset.connectionId = button.dataset.connectionId || "";
             deviceStatus.textContent = L("打开 {uri} 并输入 {code}", { uri: started.verification_uri, code: started.user_code });
           }
           if (poll) poll.hidden = false;
@@ -177,6 +234,9 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           const result = await mutate("/api/settings/connectors/github/device/poll", "POST", {
             device_code: deviceStatus?.dataset.deviceCode || "",
             client_id: clientId,
+            manage_connection: true,
+            display_name: panel?.querySelector("[data-connector-new-name]")?.value?.trim() || "",
+            ...(deviceStatus?.dataset.connectionId ? { connection_id: deviceStatus.dataset.connectionId } : {}),
           });
           if (result.status === "authorized") {
             showToast(L("已连接"));
@@ -190,10 +250,11 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           busy(button, false);
         }
       });
-      box.querySelector("[data-connector-gmail-oauth-start]")?.addEventListener("click", async (event) => {
+      box.querySelectorAll("[data-connector-gmail-oauth-start]").forEach((startButton) => startButton.addEventListener("click", async (event) => {
         const button = event.currentTarget;
-        const clientId = box.querySelector("[data-connector-gmail-client-id]")?.value || "";
-        const clientSecret = box.querySelector("[data-connector-gmail-client-secret]")?.value || "";
+        const panel = button.closest("[data-connector-detail]");
+        const clientId = panel?.querySelector("[data-connector-gmail-client-id]")?.value || "";
+        const clientSecret = panel?.querySelector("[data-connector-gmail-client-secret]")?.value || "";
         busy(button, true);
         setError("");
         try {
@@ -203,20 +264,92 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
               client_secret: clientSecret,
             });
           }
-          const project = new URLSearchParams(location.search).get("project");
-          const callback = project
-            ? "/projects/" + encodeURIComponent(project) + "/api/feed/connectors/gmail/oauth/callback"
-            : "/api/feed/connectors/gmail/oauth/callback";
+          const callback = "/api/feed/connectors/gmail/oauth/callback";
           const started = await mutate("/api/settings/connectors/gmail/oauth/start", "POST", {
             client_id: clientId,
             client_secret: clientSecret,
             redirect_uri: location.origin + callback,
+            manage_connection: true,
+            display_name: panel?.querySelector("[data-connector-new-name]")?.value?.trim() || "",
+            ...(button.dataset.connectionId ? { connection_id: button.dataset.connectionId } : {}),
           });
           location.assign(started.authorizationUrl);
         } catch (error) {
           setError(error.message || L("Gmail 授权启动失败"));
           busy(button, false);
         }
+      }));
+      box.querySelectorAll("[data-connector-notion-oauth-start]").forEach((startButton) => startButton.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        const panel = button.closest("[data-connector-detail]");
+        busy(button, true);
+        setError("");
+        try {
+          const started = await mutate("/api/settings/connectors/notion/oauth/start", "POST", {
+            client_id: panel?.querySelector("[data-connector-notion-client-id]")?.value || "",
+            client_secret: panel?.querySelector("[data-connector-notion-client-secret]")?.value || "",
+            manage_connection: true,
+            display_name: panel?.querySelector("[data-connector-new-name]")?.value?.trim() || "",
+            ...(button.dataset.connectionId ? { connection_id: button.dataset.connectionId } : {}),
+          });
+          location.assign(started.authorizationUrl);
+        } catch (error) {
+          setError(error.message || L("Notion 授权启动失败"));
+          busy(button, false);
+        }
+      }));
+      const feishuStatus = box.querySelector("[data-connector-feishu-status]");
+      box.querySelectorAll("[data-gmail-redirect-uri]").forEach((node) => { node.textContent = location.origin + "/api/feed/connectors/gmail/oauth/callback"; });
+      box.querySelectorAll("[data-notion-redirect-uri]").forEach((node) => {
+        const callback = new URL("/api/settings/connectors/notion/oauth/callback", location.origin);
+        callback.hostname = "localhost";
+        node.textContent = callback.toString();
+      });
+      if (feishuStatus) fetch("/api/settings/connectors/feishu/cli/status")
+        .then((response) => response.json())
+        .then((status) => { if (feishuStatus && !feishuStatus.firstChild) feishuStatus.textContent = status.authorized ? L("飞书 CLI 已授权，可以检查并连接") : status.problem || ""; })
+        .catch(() => {});
+      const showFeishuLink = (url, text) => {
+        if (!feishuStatus) return;
+        feishuStatus.replaceChildren();
+        const link = document.createElement("a");
+        link.href = url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = text;
+        feishuStatus.append(link);
+      };
+      box.querySelector("[data-connector-feishu-setup]")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        busy(button, true);
+        setError("");
+        try {
+          const started = await mutate("/api/settings/connectors/feishu/cli/setup", "POST");
+          showFeishuLink(started.authorizationUrl, L("打开飞书 CLI 应用配置页"));
+        } catch (error) { setError(error.message || L("无法配置飞书 CLI")); }
+        finally { busy(button, false); }
+      });
+      box.querySelector("[data-connector-feishu-login]")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        busy(button, true);
+        setError("");
+        try {
+          const started = await mutate("/api/settings/connectors/feishu/cli/login", "POST");
+          showFeishuLink(started.authorizationUrl, L("打开飞书授权页面，完成后返回检查"));
+        } catch (error) { setError(error.message || L("无法开始飞书授权")); }
+        finally { busy(button, false); }
+      });
+      box.querySelector("[data-connector-feishu-check]")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget;
+        busy(button, true);
+        setError("");
+        try {
+          const status = await fetch("/api/settings/connectors/feishu/cli/status").then((response) => response.json());
+          if (!status.authorized) throw new Error(status.problem || L("飞书 CLI 尚未授权"));
+          await mutate("/api/settings/connectors/feishu/cli/use", "POST");
+          showToast(L("已连接"));
+          await reload("feishu");
+        } catch (error) { setError(error.message || L("无法检查飞书授权")); busy(button, false); }
       });
       const params = new URLSearchParams(location.search);
       const connected = params.get("connected");

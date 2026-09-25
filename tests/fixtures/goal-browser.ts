@@ -1,4 +1,4 @@
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { WebSocket } from "ws";
-import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, seedDemoBoard, MolisWorkLocalHost, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { projectActionAvailability } from "../../apps/local-host/dist/project-action-availability.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import Database from "better-sqlite3";
@@ -16,7 +17,7 @@ import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/serve
 
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed = seedDemoBoard) {
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed = seedDemoBoard, completion?: HostCompleteText | null) {
   const chrome = [process.env.MOLIS_WORK_TEST_CHROME, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
     .find((path): path is string => Boolean(path && existsSync(path)));
@@ -61,6 +62,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     }
   } else seed(databasePath);
   const store = new LocalProjectDatabase(databasePath);
+  const localHost = completion === undefined ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion,
+    ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   let child: ChildProcess | undefined;
   let socket: WebSocket | undefined;
   let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
@@ -71,11 +74,15 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       child.kill("SIGTERM");
       await closed;
     }
-    if (server?.listening) await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
+    if (server?.listening) {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => server!.close((error) => error ? reject(error) : resolve()));
+    }
     store.close();
+    await localHost?.close();
     await rm(directory, { recursive: true, force: true });
   });
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, boardId: DEMO_BOARD_ID }), homeDirectory: directory,
+  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, boardId: DEMO_BOARD_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: "goals-risk-test-control-token-0123456789" });
   child = spawn(chrome, ["--headless=new", "--disable-gpu", "--disable-background-networking",
     "--disable-component-update", "--disable-extensions", "--no-first-run", "--no-default-browser-check",
@@ -137,9 +144,12 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
   }
   async function click(selector: string): Promise<void> {
-    const point = await evaluate<{ x: number; y: number }>(`(async () => { const element = document.querySelector(${JSON.stringify(selector)});
+    const point = await evaluate<{ x: number; y: number }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)}); element.scrollIntoView({block:'nearest',behavior:'instant'});
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // A completed request may repaint the list during the two layout frames.
+      element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) throw new Error('Click target disappeared: ' + ${JSON.stringify(selector)});
       const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) throw new Error('Hidden click target: ' + ${JSON.stringify(selector)});
       const hit = document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
       if (!element.contains(hit)) throw new Error('Click target ' + ${JSON.stringify(selector)} + ' is covered by ' + hit?.outerHTML.slice(0, 400));
@@ -182,5 +192,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     })()`);
     await waitFor("document.querySelector('[data-goal-canvas-shell]') && !document.querySelector('[data-goal-canvas-shell]').hidden && document.querySelector('[data-goal-stage-chrome] [data-open-create]')?.getBoundingClientRect().width > 0");
   }
-  return { store, origin, before, sessionId, command, evaluate, waitFor, click, openGoalFrame, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, databasePath, origin, before, sessionId, command, evaluate, waitFor, click, openGoalFrame, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

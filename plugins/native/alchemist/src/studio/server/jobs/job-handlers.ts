@@ -33,6 +33,7 @@ const discoveryInputSchema = z
     directionId: z.string().min(1),
     directionTitle: z.string().min(1),
     directionDescription: z.string().min(1),
+    actorId: z.string().min(1).optional(),
   })
   .strict();
 
@@ -104,23 +105,23 @@ async function handleBrainstormJob(
     parsedInput = discoveryInputSchema.parse(job.input);
     if ((job.checkpoint as { stage?: string } | undefined)?.stage === "generating") throw new Error("AI_CALL_INTERRUPTED");
     if (control.isCancelled()) return;
-    dependencies.explorations.markRunning(parsedInput.explorationRunId, dependencies.clock.now());
+    control.commit(() => dependencies.explorations.markRunning(parsedInput!.explorationRunId, dependencies.clock.now()));
     const checkpoint = job.checkpoint
       ? checkpointSchema.parse(job.checkpoint)
       : await generateCheckpoint(job, parsedInput, control, dependencies);
     if (control.isCancelled()) return;
-    dependencies.explorations.saveResult(
-      parsedInput.explorationRunId,
+    control.commit(() => dependencies.explorations.saveResult(
+      parsedInput!.explorationRunId,
       checkpoint.understanding as DirectionUnderstanding,
       checkpoint.cards as IdeaCard[],
       dependencies.clock.now(),
       checkpoint.runtimeLabel,
-    );
+    ));
   } catch (error) {
     if (control.isCancelled()) return;
     const code = error instanceof ZodError ? "AI_OUTPUT_INVALID" : classifyError(error);
     if (parsedInput) {
-      dependencies.explorations.saveFailure(parsedInput.explorationRunId, code, dependencies.clock.now());
+      control.commit(() => dependencies.explorations.saveFailure(parsedInput!.explorationRunId, code, dependencies.clock.now()));
     }
     throw new JobExecutionError(code);
   }

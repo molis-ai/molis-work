@@ -14,7 +14,7 @@ import { RESEARCH_LENS_JOB, type ResearchLensJobInput } from "../services/start-
 import { JobExecutionError, type JobHandler, type JobHandlerControl } from "./local-worker.js";
 import type { PersistedJob } from "./sqlite-job-runner.js";
 
-const inputSchema = z.object({ lensRunId: z.string().min(1), planId: z.string().min(1) }).strict();
+const inputSchema = z.object({ lensRunId: z.string().min(1), planId: z.string().min(1), actorId: z.string().min(1).optional() }).strict();
 const checkpointSchema = z.discriminatedUnion("stage", [
   z.object({ stage: z.literal("planning_complete") }).strict(),
   z.object({ stage: z.literal("collecting_complete"), evidence: z.array(evidenceSchema) }).strict(),
@@ -70,18 +70,18 @@ async function handleLensJob(
     // Retain the marker and fail visibly; a fresh user-approved plan is required.
     if ((job.checkpoint as { stage?: string } | undefined)?.stage === "call_dispatched") throw new Error("RESEARCH_CALL_INTERRUPTED");
     if (plan.budget.kind !== "calls" || !Number.isInteger(plan.budget.limit) || plan.budget.limit < 1) throw new Error("RESEARCH_BUDGET_INVALID");
-    dependencies.repository.updateRun(run.id, {
+    control.commit(() => dependencies.repository.updateRun(run.id, {
       status: "running",
       stage: run.stage,
       now: dependencies.clock.now(),
-    });
+    }));
     let checkpoint = job.checkpoint
       ? (checkpointSchema.parse(job.checkpoint) as LensExecutionCheckpoint)
       : undefined;
     if (!checkpoint) {
       checkpoint = { stage: "planning_complete" };
       saveStage(control, checkpoint, "planning");
-      dependencies.repository.updateRun(run.id, { stage: "collecting", now: dependencies.clock.now() });
+      control.commit(() => dependencies.repository.updateRun(run.id, { stage: "collecting", now: dependencies.clock.now() }));
     }
     if (checkpoint.stage === "planning_complete") {
       beginCall(control, "collecting", 1, plan.budget.limit, checkpoint);
@@ -89,7 +89,7 @@ async function handleLensJob(
       if (control.isCancelled()) return;
       checkpoint = { stage: "collecting_complete", evidence };
       saveStage(control, checkpoint, "collecting");
-      dependencies.repository.updateRun(run.id, { stage: "cross_checking", now: dependencies.clock.now() });
+      control.commit(() => dependencies.repository.updateRun(run.id, { stage: "cross_checking", now: dependencies.clock.now() }));
     }
     if (checkpoint.stage === "collecting_complete") {
       if (plan.budget.limit === 1) {
@@ -110,10 +110,10 @@ async function handleLensJob(
         if (control.isCancelled()) return;
         checkpoint = { stage: "cross_checking_complete", evidence: checkpoint.evidence, claims };
         saveStage(control, checkpoint, "cross_checking");
-        dependencies.repository.updateRun(run.id, {
+        control.commit(() => dependencies.repository.updateRun(run.id, {
           stage: "synthesizing",
           now: dependencies.clock.now(),
-        });
+        }));
       }
     }
     if (checkpoint.stage === "cross_checking_complete") {
@@ -139,10 +139,11 @@ async function handleLensJob(
     }
     if (checkpoint.stage === "ready_to_persist") {
       if (control.isCancelled()) return;
-      dependencies.repository.saveReport({
-        report: lensReportSchema.parse(checkpoint.report),
-        evidence: checkpoint.evidence.map((item) => evidenceSchema.parse(item)),
-      });
+      const result = checkpoint;
+      control.commit(() => dependencies.repository.saveReport({
+        report: lensReportSchema.parse(result.report),
+        evidence: result.evidence.map((item) => evidenceSchema.parse(item)),
+      }));
     }
   } catch (error) {
     if (control.isCancelled()) return;
@@ -150,11 +151,11 @@ async function handleLensJob(
     if (input) {
       const current = dependencies.repository.getRun(input.lensRunId);
       if (current) {
-        dependencies.repository.updateRun(current.id, {
+        control.commit(() => dependencies.repository.updateRun(current.id, {
           status: "failed",
           errorCode: code,
           now: dependencies.clock.now(),
-        });
+        }));
       }
     }
     throw new JobExecutionError(code);

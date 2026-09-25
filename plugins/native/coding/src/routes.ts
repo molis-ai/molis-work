@@ -5,7 +5,7 @@ import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
 import { CODING_REPORT_TYPE } from "./artifacts.js";
@@ -321,7 +321,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api!.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
       return { sessions, methods, mcp, models: await execution.models(),
         workspace: await api!.invoke(projectsCapabilities.readWorkspace, []),
-        workspaces: await api!.invoke(projectsCapabilities.listWorkspaces, []),
+        workspaces: await api!.invoke(projectSettingsCapabilities.workspaces, []),
         runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
           roles: await api!.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
         }))),
@@ -332,7 +332,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
-        const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
         const workspace = workspaces.find(item=>item.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw new Error("请选择当前项目已授权的 MCP 工作区");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
@@ -347,7 +347,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }),
     route("coding.discover-methods", async (request, api) => {
       const body = bodyOf(request);
-      const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw new Error("请先选择这个项目已授权的工作区");
       return { candidates: await api!.invoke(agent.discoverSkills, ["prologue", context.plugin_id,
@@ -555,9 +555,22 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (!run) throw new Error("这轮执行不属于当前会话");
       return api!.invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "命令引用") }]);
     }),
-    route("coding.update-session", async (request, _api, execution) => {
+    route("coding.update-session", async (request, api, execution) => {
       const record = selected(request, execution);
       const body = bodyOf(request);
+      if (body.archive === true) {
+        if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
+        if (record.runtime_session_id) {
+          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+          const snapshot = await api!.invoke(agent.readSession, [session]);
+          if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
+            throw Object.assign(new Error("请先完成或停止当前执行，再归档会话"), { code: "agent.session_busy" });
+          }
+        }
+        if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
+        return { session: execution.sessions.archive(boardId, record.session_id, new Date().toISOString()) };
+      }
+      if (record.archived) throw new Error("会话已归档，不能再修改");
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
@@ -585,6 +598,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }),
     route("coding.start-run", async (request, api, execution) => {
       const record = selected(request, execution);
+      if (record.archived) throw new Error("会话已归档，不能再运行");
       if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
       busy.add(record.session_id);
       try {
@@ -604,7 +618,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         }
         const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
         if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
-        const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
         const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
         const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };

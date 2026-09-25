@@ -8,6 +8,10 @@ import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
+import { createCapabilitiesRenderer } from "./capabilities.js";
+import { renderMcpAccess } from "./mcp-access.js";
+import { renderFunctionsWorkbench } from "./functions/ui.js";
+import { FUNCTIONS_SYSTEM_CLIENT_SCRIPT } from "./functions/bootstrap.js";
 export interface SettingsRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
@@ -67,7 +71,7 @@ function renderRuntimeSettings(view: MolisWorkSettingsView): string {
   </section>`;
 }
 
-function renderMcpSettings(view: MolisWorkSettingsView): string {
+function renderMcpSettings(view: MolisWorkSettingsView, desktopShell: boolean): string {
   const tools = view.mcp_tools ?? [];
   const groups = new Map<string, { title: string; tools: McpSettingsToolView[] }>();
   for (const tool of tools) {
@@ -83,8 +87,9 @@ function renderMcpSettings(view: MolisWorkSettingsView): string {
     return `<section class="settings-section" data-mcp-group="${escapeHtml(id)}" aria-label="${escapeHtml(group.title)}"><h2>${escapeHtml(L(group.title))}</h2>${rows}</section>`;
   }).join("");
   return `<section class="settings-document" aria-labelledby="settings-title" data-mcp-settings>
-    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("MCP")}</h1>${renderHint({ id: "settings-hint-mcp", label: L("如何生效"), text: L("这里打开的方法会出现在 molis-work-mcp 的工具清单里。关掉后新连接看不见，点名调用也会被拒绝。已经打开的 Runtime 连接不会立刻刷新。") })}</div><p>${L("选择哪些 MCP 方法对外可用。这与接入 Cursor 或其他 Runtime 不是同一件事。")}</p></header>
-    ${sections || `<div class="settings-empty"><strong>${L("还没有可开关的方法")}</strong></div>`}
+    <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L(view.capabilities ? "对外接入" : "MCP")}</h1>${renderHint({ id: "settings-hint-mcp", label: L("如何生效"), text: L("授权决定客户端可以发现和调用的能力。撤销后再次调用会被拒绝；客户端可能需要刷新自己的工具列表。") })}</div><p>${L("选择客户端，决定它可以读取什么、执行哪些操作。")}</p><p><a href="${settingsContextHref("/settings/runtimes", view.context_project ?? null, desktopShell)}">${L("连接外部 AI 工具")}</a></p></header>
+    ${view.mcp_access ? renderMcpAccess(view.mcp_access, view.projects, desktopShell, primitives) : ""}
+    <details class="mcp-legacy-tools"${view.mcp_access ? "" : " open"}><summary>${L("旧版工具（全局开关）")}</summary><p>${L("这些开关影响所有客户端。插件和判断工具还须取得上方对应动作的授权；旧平台工具继续沿用原权限规则。")}</p>${sections || `<div class="settings-empty"><strong>${L("还没有可开关的方法")}</strong></div>`}</details>
     <p class="settings-form-error" data-mcp-settings-error role="alert" hidden></p>
   </section>`;
 }
@@ -201,8 +206,9 @@ function renderDiagnosticsSettings(view: MolisWorkSettingsView): string {
 }
 
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
+  const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
   const pluginPage = findPluginSettingsNavItem(view.section);
-  const title = view.section === "appearance"
+  const title = capabilities ? L("能力") : view.section === "appearance"
     ? L("界面与语言")
     : view.section === "models" ? L("模型设置")
     : view.section === "runtimes"
@@ -221,7 +227,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
   const returnHref = desktopShell ? withDesktopQuery(rawReturnHref) : rawReturnHref;
   const projectManager = view.section === "projects";
-  const content = (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
+  const content = (view.capabilities?.rules ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: L } }) : view.capabilities?.section === "library" ? capabilities!.library() : view.capabilities?.section === "history" ? capabilities!.history() : undefined) || (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
     ...view.model_settings, primitives: { L, escape: escapeHtml, icon: modelIcon },
   }) : view.plugin_settings_html)
     || (view.section === "appearance"
@@ -229,7 +235,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       : view.section === "runtimes"
         ? renderRuntimeSettings(view)
         : view.section === "mcp"
-          ? renderMcpSettings(view)
+          ? renderMcpSettings(view, desktopShell)
           : view.section === "connectors"
             ? renderConnectorsSettings(view, { L, escapeHtml, icon })
           : view.section === "projects"
@@ -240,16 +246,16 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${title} · ${L("Molis Work 设置")}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
-<body class="settings-page project-preferences-page global-preferences-page" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
+<body class="settings-page project-preferences-page global-preferences-page${capabilities ? " capabilities-page" : ""}" data-settings-section="${view.section}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   ${renderIconSprite()}
-  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L("关闭全局设置")}">${icon("x")}</a></header>
+  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? L("能力") : projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L(capabilities ? "关闭能力服务" : "关闭全局设置")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
-    ${projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.enabled_plugins, view.hidden_plugins)}
+    ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.enabled_plugins, view.hidden_plugins))}
     <div class="settings-content">${content}</div>
   </main>
   ${renderRuntimePlanDialog({ L, icon })}
   <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
 }
 

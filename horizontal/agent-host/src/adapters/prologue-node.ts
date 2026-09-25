@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { BUILT_IN_ADAPTERS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 import path from "node:path";
+import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 
 import {
   PrologueAgentAdapter,
@@ -84,6 +85,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    * reference that resolves to nothing.
    */
   resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
+  resolveMcpConnection?: (connectionId: string, endpoint: string) => string | null | Promise<string | null>;
 }
 
 // This resource combines base/role/Character/project instructions, selected
@@ -101,6 +103,20 @@ const MAX_COMPOSED_INSTRUCTION_CHARS = 64_000;
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { gitReviews?: PrologueGitReviewPort; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+  const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
+  try {
+    const adapter = await initializePrologueNodeAdapter(options);
+    const close = adapter.close.bind(adapter);
+    let closing: Promise<void> | undefined;
+    adapter.close = () => closing ??= (async () => {
+      await close();
+      release();
+    })();
+    return adapter;
+  } catch (error) { release(); throw error; }
+}
+
+async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions) {
   const host = createNodeHost({
     ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
     resolveHost: resolveModelHostname,
@@ -118,7 +134,10 @@ export async function createPrologueNodeAdapter(
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
-  const mcpLibrary = createPrologueMcpLibrary(runtime);
+  const mcpLibrary = createPrologueMcpLibrary(runtime, {
+    resolveConnection: options.resolveMcpConnection,
+    credentialRefFor: (ref) => credentials.prologueRefFor(ref),
+  });
   const registeredMethods = new Map<string, Skill>();
   const sessions = new Map<string, ExactRef<"session">>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();

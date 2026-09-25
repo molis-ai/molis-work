@@ -220,8 +220,8 @@ test("空 paths 表示“动得太多列不过来”，仍然是合法事件", (
 });
 
 test("Run 变更集是可选输入：没有 Coding 的项目里 Git 照样起得来", () => {
-  const runPort = gitManifest.ports?.inputs.find((port) => port.port === "run_changeset");
+  const runPort = gitManifest.ports?.inputs.find((port) => port.port === "run-changeset");
   assert.equal(runPort?.optional, true);
   const workspacePort = gitManifest.ports?.inputs.find((port) => port.port === "workspace");
-  assert.equal(workspacePort?.optional, undefined, "工作目录是必需的");
+  assert.equal(workspacePort, undefined, "工作目录从当前项目设置读取，不使用输入端口");
 });

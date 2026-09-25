@@ -1,3 +1,5 @@
+import { PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS } from "./actions.js";
+import { pagesContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -15,10 +17,12 @@ export const pagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    ...PAGES_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: false, reason: "读写交接内容" })),
     { permission: "storage:private", required: true, reason: "本机文档库" },
     { permission: "artifact:write", required: true, reason: "把文档发成 Artifact" },
   ],
   capabilities: { provides: [], consumes: [] },
+  actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
   artifacts: {
     produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION }],
     consumes: [],

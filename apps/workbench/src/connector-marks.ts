@@ -15,9 +15,9 @@ export function connectorIconSurface(connectorId: string): ConnectorIconSurface 
 }
 
 export function connectorMark(connectorId: string): { svg: string; on: "light" | "dark"; pad: boolean } | undefined {
-  const svg = connectorIconSvg(connectorId);
+  const svg = connectorIconSvg(connectorId === "lark" ? "feishu" : connectorId);
   if (!svg) return undefined;
   return { svg, ...connectorIconSurface(connectorId) };
 }
 
-export const CONNECTOR_MARKS = CONNECTOR_ICON_SVG;
+export const CONNECTOR_MARKS = { ...CONNECTOR_ICON_SVG, lark: CONNECTOR_ICON_SVG.feishu };

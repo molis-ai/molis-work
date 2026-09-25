@@ -25,7 +25,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@molis-ai/molis-work-contracts": "workspace:*"
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
   },
   "molis-work": {
     "path": "packages/kernel",

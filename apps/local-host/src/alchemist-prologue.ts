@@ -3,15 +3,16 @@ import path from "node:path";
 import { createPrologueNodeAdapter, prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
 
 /** Business results are validated by Alchemist; Prologue owns the model run and credentials. */
 export function createAlchemistProloguePort(options: {
-  homeDirectory: string; projectId: string; withCatalog: LocalWebCatalogRunner;
+  homeDirectory: string; projectId: string; withCatalog?: LocalWebCatalogRunner;
   search: AlchemistAiPort["search"];
 }): AlchemistAiPort {
   return {
     async listModels() {
-      return options.withCatalog({ homeDirectory: options.homeDirectory }, ({ models }) => {
+      if (options.withCatalog) return options.withCatalog({ homeDirectory: options.homeDirectory }, ({ models }) => {
         const ready = new Set(models.health().filter(item => item.status === "ready").map(item => item.provider_id));
         return models.list().filter(provider => ready.has(provider.provider_id)).flatMap(provider => provider.models.filter(model => model.enabled).map(model => ({
           id: encodeURIComponent(provider.provider_id) + "/" + encodeURIComponent(model.model_id),
@@ -19,14 +20,32 @@ export function createAlchemistProloguePort(options: {
           runtimeLabel: "Prologue", costVisibility: "unobservable" as const,
         })));
       });
+      const opened = openConfiguredModels(options.homeDirectory);
+      if (!opened) return [];
+      try {
+        return opened.store.list().flatMap(provider => provider.models.flatMap(model => {
+          if (!selectConfiguredTextModel(options.homeDirectory, opened.store, { provider_id: provider.provider_id, model_id: model.model_id })) return [];
+          return [{ id: encodeURIComponent(provider.provider_id) + "/" + encodeURIComponent(model.model_id), label: `${provider.display_name} · ${model.display_name ?? model.model_id}`,
+            runtimeLabel: "Prologue", costVisibility: "unobservable" as const }];
+        }));
+      } finally { opened.storage.close(); }
     },
     search: options.search,
     async generate(input) {
       input.signal?.throwIfAborted();
       const parts = input.modelId?.split("/");
       if (parts && parts.length !== 2) throw new Error("所选模型已不可用，请到模型设置重新选择。");
-      const selection = await options.withCatalog({ homeDirectory: options.homeDirectory }, ({ models }) => models.resolveConfiguration(parts
-        ? { provider_id: decodeURIComponent(parts[0]!), model_id: decodeURIComponent(parts[1]!) } : undefined));
+      const selected = parts ? { provider_id: decodeURIComponent(parts[0]!), model_id: decodeURIComponent(parts[1]!) } : undefined;
+      const resolve = async () => {
+        if (options.withCatalog) return options.withCatalog({ homeDirectory: options.homeDirectory }, ({ models }) => models.resolveConfiguration(selected));
+        const opened = openConfiguredModels(options.homeDirectory);
+        if (!opened) return null;
+        try {
+          const current = selectConfiguredTextModel(options.homeDirectory, opened.store, selected);
+          return current ? opened.store.resolveConfiguration({ provider_id: current.provider.provider_id, model_id: current.model.model_id }) : null;
+        } finally { opened.storage.close(); }
+      };
+      const selection = structuredClone(await resolve());
       input.signal?.throwIfAborted();
       if (!selection) throw new Error("没有可用模型，请先在 Molis Work 的模型设置中启用模型并配置凭据。");
       const directory = path.join(options.homeDirectory, "alchemist", "projects", encodeURIComponent(options.projectId).replaceAll(".", "%2E"), "runtime");
@@ -41,11 +60,13 @@ export function createAlchemistProloguePort(options: {
           resolveCredential: ref => { input.signal?.throwIfAborted(); return ref === selection.provider.credential_ref ? selection.api_key : null; },
         });
         input.signal?.throwIfAborted();
-        const session = await adapter.createSession({ board_id: options.projectId, plugin_id: "alchemist", install_id: "alchemist", actor_id: "web-user",
+        const session = await adapter.createSession({ board_id: options.projectId, plugin_id: "alchemist", install_id: "alchemist", actor_id: input.actorId ?? "actor-local",
           directory: { canonical_path: directory, realpath_verified: true }, title: input.purpose });
         input.signal?.throwIfAborted();
         const active = adapter;
-        const handle = await active.start({ board_id: options.projectId, plugin_id: "alchemist", install_id: "alchemist", actor_id: "web-user", session,
+        if (JSON.stringify(await resolve()) !== JSON.stringify(selection)) throw new Error("RUNTIME_CONFIGURATION_CHANGED");
+        input.signal?.throwIfAborted();
+        const handle = await active.start({ board_id: options.projectId, plugin_id: "alchemist", install_id: "alchemist", actor_id: input.actorId ?? "actor-local", session,
           role_id: "alchemist-research", directory: { canonical_path: directory, realpath_verified: true },
           role: { role_id: "alchemist-research", version: 1, execution: "read-only", prompts: [{ prompt_id: "alchemist-operation", version: 1, layer: "base", body: input.systemPrompt }], host_tools: [] },
           text_materials: Array.from({ length: Math.max(1, Math.ceil(input.userPrompt.length / 16_000)) }, (_, index) => ({
@@ -79,6 +100,8 @@ export function createAlchemistProloguePort(options: {
         if (final.phase !== "completed") throw new Error(final.stop_reason ?? "AI 调用未完成，请重试。");
         const text = final.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n").trim();
         if (!text) throw new Error("AI 返回空内容，请重试。");
+        if (JSON.stringify(await resolve()) !== JSON.stringify(selection)) throw new Error("RUNTIME_CONFIGURATION_CHANGED");
+        input.signal?.throwIfAborted();
         return { text, runtimeLabel: `Prologue · ${selection.provider.display_name} · ${selection.model.model_id}`, ...(final.usage ? { usage: { inputTokens: final.usage.tokens.input, outputTokens: final.usage.tokens.output } } : {}) };
       } catch (error) {
         throw new Error((error instanceof Error ? error.message : "Prologue 调用失败").replaceAll(selection.api_key, "[凭据已隐藏]"));

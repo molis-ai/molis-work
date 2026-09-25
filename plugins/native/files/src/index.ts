@@ -103,3 +103,5 @@ export {
 export { createFilesPlugin, type FilesPluginPorts } from "./plugin.js";
 export { FILES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { FILES_STYLES } from "./styles.js";
+
+export { filesActions, FILES_ACTIONS } from "./actions.js";

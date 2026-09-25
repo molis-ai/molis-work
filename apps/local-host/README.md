@@ -8,6 +8,10 @@
 
 createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；GoalProjectApplication 组合跨 Module 用例。Web 工厂在入口统一解析显式 Home、MOLIS_WORK_HOME 和默认目录。
 
+Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git 后台服务，由 LocalHost 持有，同一 Host 只装配一次。正式 stdio launcher 有明确 Runtime Home 时，通过 `LocalActionGatewayClient` 将公共动作发现和调用转发到常驻 Web Host，不再装配另一个 Agent 执行器；页面无需打开。嵌入者关闭借用 Host 的传输后，仍须在整个 Host 不再使用时 `await host.close()`。能力注册不会启动 SDK、CLI 或请求模型，实际操作才初始化执行器。独立嵌入者仍受原存储目录的独占锁保护，避免相互误恢复。
+
+通道使用 Runtime 的 `webBaseUrl`（默认 `http://127.0.0.1:4173`）和同一 Home 已有控制凭据，只接受数字 loopback HTTP，拒绝重定向；常驻服务校验 Home/实例、从原目录解析项目，并使用原逐客户端动作授权。项目/主体更换或 MCP 关闭会取消旧请求，连接丢失不自动重试或退回本地执行。服务离线时只列出上下文工具，其余调用返回 `actions.service_unavailable`。判断函数以及 Form、Dataset、PPT、Pages、Cognia、Jelly 的旧名称也已转发并共用动作授权，旧开关不自行授予调用权。插件兼容声明列出完整的 required_actions，全部引用可用后才显示旧工具；原参数和结果适配仍归插件。旧平台工具仍有进程内路径，Files/Git 的跨调用者成果归属也未完成。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。
@@ -15,20 +19,21 @@ createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项�
 | 文件 | 用途 |
 | --- | --- |
 | [src/project-host.ts](src/project-host.ts) | 项目运行实例装配 |
+| [src/system-agent-service.ts](src/system-agent-service.ts) | Host 拥有的 Agent/Git 装配与原模型、连接引用 |
 | [src/local-host.ts](src/local-host.ts) | Host Client 与调用生命周期 |
 | [src/project-capabilities.ts](src/project-capabilities.ts) | 能力绑定 |
 | [src/web-server.ts](src/web-server.ts) | Web 请求与 Home 装配 |
-| [src/mcp-server.ts](src/mcp-server.ts) | 唯一对外 MCP 进程装配；按目录条目分发 |
+| [src/mcp-server.ts](src/mcp-server.ts) | 对外 MCP 装配；公共动作转发、上下文及历史入口 |
+| [src/action-gateway.ts](src/action-gateway.ts)、[src/action-gateway-http.ts](src/action-gateway-http.ts) | 常驻 Host 的通用动作通道，复用原授权与执行核心 |
 | [src/mcp-catalog.ts](src/mcp-catalog.ts) | 平台 schema + 插件 `mcp_exports` 合成目录 |
-| [src/mcp-native-plugins.ts](src/mcp-native-plugins.ts) | Native 插件 MCP 适配表；新产品加一条 |
-| [src/mcp-store-plugin-adapter.ts](src/mcp-store-plugin-adapter.ts) | Pages / Forms / Dataset / PPT：打开本机 store，注入绑定项目 |
+| [src/mcp-native-plugins.ts](src/mcp-native-plugins.ts) | 尚待收敛的历史 Native MCP 兼容适配；新插件使用动作声明 |
 | [src/goal-project-application.ts](src/goal-project-application.ts) | 跨 Module 应用组合 |
 
 可对照现有调用方 [apps/desktop/src/web-host.ts](../desktop/src/web-host.ts) 阅读装配方式。
 
 ## 接入与边界
 
-本包负责连接、事务装配、文件与 HTTP/进程 IO，不复制 Module 的业务规则。withScope 保持响应组合期间的资源存活，内部 invoke 仍进入正常队列。当前 Host Client 是进程内实现，不代表已有独立守护进程协议。对外 MCP 由本包装配：目录合成、闸门、native 适配表见 [CLI 与开发 · 对外 MCP](../../docs/cli-and-development.md#对外-mcp)。
+本包负责连接、事务装配、文件与 HTTP/进程 IO，不复制 Module 的业务规则。withScope 保持响应组合期间的资源存活，内部 invoke 仍进入正常队列。typed Host Client 仍是进程内实现；公共 ActionClient 另有复用现有常驻 Web Host 的本机转发通道。对外 MCP 由本包装配：目录合成、闸门、native 适配表见 [CLI 与开发 · 对外 MCP](../../docs/cli-and-development.md#对外-mcp)。
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 

@@ -24,6 +24,7 @@ export interface CodingSessionRecord {
   session_id: string;
   title: string;
   state: CodingSessionState;
+  archived: boolean;
   /** Null when the user did not attach a Goal. Attaching one is optional by design. */
   goal_id: string | null;
   runtime_id: string;
@@ -56,6 +57,7 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
       session_id TEXT NOT NULL,
       title TEXT NOT NULL,
       state TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
       goal_id TEXT,
       runtime_id TEXT NOT NULL,
       runtime_session_id TEXT,
@@ -74,6 +76,8 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
       FOREIGN KEY (board_id, session_id) REFERENCES coding_sessions(board_id, session_id) ON DELETE CASCADE
     );
   `);
+  const columns = db.prepare("PRAGMA table_info(coding_sessions)").all() as Array<{ name: string }>;
+  if (!columns.some(column => column.name === "archived")) db.exec("ALTER TABLE coding_sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))");
 }
 
 type Row = Record<string, unknown>;
@@ -84,6 +88,7 @@ function mapSession(row: Row): CodingSessionRecord {
     session_id: String(row.session_id),
     title: String(row.title),
     state: String(row.state) as CodingSessionState,
+    archived: Number(row.archived) === 1,
     goal_id: row.goal_id === null || row.goal_id === undefined ? null : String(row.goal_id),
     runtime_id: String(row.runtime_id),
     runtime_session_id: row.runtime_session_id === null || row.runtime_session_id === undefined
@@ -158,7 +163,7 @@ export class CodingSessionStore {
   /** Newest first, which is the order the directory shows. */
   list(boardId: string): CodingSessionRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM coding_sessions WHERE board_id = ? ORDER BY updated_at DESC, session_id",
+      "SELECT * FROM coding_sessions WHERE board_id = ? AND archived = 0 ORDER BY updated_at DESC, session_id",
     ).all(boardId) as Row[]).map(mapSession);
   }
 
@@ -174,6 +179,14 @@ export class CodingSessionStore {
     this.get(boardId, sessionId);
     this.db.prepare("UPDATE coding_sessions SET title = ?, updated_at = ? WHERE board_id = ? AND session_id = ?")
       .run(title, at, boardId, sessionId);
+    return this.get(boardId, sessionId);
+  }
+
+  archive(boardId: string, sessionId: string, at: string): CodingSessionRecord {
+    const record = this.get(boardId, sessionId);
+    if (record.archived) throw new CodingStoreError("coding.session_unknown", "会话已归档");
+    this.db.prepare("UPDATE coding_sessions SET archived = 1, updated_at = ? WHERE board_id = ? AND session_id = ?")
+      .run(at, boardId, sessionId);
     return this.get(boardId, sessionId);
   }
 

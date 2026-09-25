@@ -123,6 +123,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
   await command("Page.navigate", { url: origin + "/goals/V1" }, sessionId);
   await command("Page.bringToFront", {}, sessionId);
   await waitFor("document.readyState === 'complete' && document.querySelector('[data-goal-event-document]')");
+  if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
   const evidenceItem = await evaluate<string>(`(() => {
     const items = [...document.querySelectorAll("[data-timeline-item]")];
     const hit = items.find((item) => String(item.dataset.timelineItem || "").includes("evidence") || item.textContent.includes(${JSON.stringify(reference)}));

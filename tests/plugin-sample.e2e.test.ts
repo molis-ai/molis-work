@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -112,7 +113,7 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     const privateOwner = new SqlitePluginPrivateStorage(privateDb);
     const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store!.appendEvent(event) });
     const ui = new UiHost();
-    const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ board_id: DEMO_BOARD_ID, actor_id: "developer",
+    const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID, actor_id: "developer",
       artifacts, ui, privateStorageFor: (context, manifest) => privateOwner.forPlugin(context, manifest) }));
     const installed = runtime.install({ definition, deployment: "local" });
     const installId = installed.install.install_id;

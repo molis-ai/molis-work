@@ -92,6 +92,11 @@ test("v2 Manifest keeps author declarations for ports, events, views, routes and
   assert.deepEqual(parsePluginManifest(input), input);
 });
 
+test("malformed action permissions fail as manifest errors instead of escaping validation", () => {
+  rejects(m => { m.actions = [{ capability_id: "test.read", version: 1, action: { permissions: 42 } }]; }, "不完整");
+  rejects(m => { m.action_scenes = [{ scene_id: "test.received", version: 1, permissions: 42 }]; }, "不完整");
+});
+
 test("v1 Manifest cannot silently carry v2 declarations", () => {
   const v1 = {
     schema_version: 1,
@@ -336,4 +341,16 @@ test("v1 Manifest cannot carry mcp_exports", () => {
       && error.code === "plugin_declaration_invalid"
       && error.message.includes("mcp_exports"),
   );
+});
+
+
+test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or self links", () => {
+  const input = v2Manifest();
+  const ui = input.ui as Record<string, unknown>;
+  ui.embedded_plugins = ["io.molis.work.example.reader"];
+  assert.deepEqual(parsePluginManifest(input).ui.embedded_plugins, ["io.molis.work.example.reader"]);
+  for (const invalid of [[PLUGIN_ID], ["io.molis.work.example.reader", "io.molis.work.example.reader"], [" padded"], "io.molis.work.example.reader", [null]]) {
+    ui.embedded_plugins = invalid;
+    assert.throws(() => parsePluginManifest(input), PluginManifestError);
+  }
 });

@@ -1,9 +1,10 @@
+import { MCP_ACCESS_CLIENT_SCRIPT } from "./mcp-access.js";
 import { CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { MODEL_SETTINGS_CLIENT_SCRIPT } from "./settings-models.js";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./project-settings.js";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "./settings-web-service.js";
 import { SHELF_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
-import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-functions";
+import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../functions/settings-client.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
 
 export const RUNTIME_PLAN_CLIENT_SCRIPT = `
@@ -174,7 +175,7 @@ export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE
     });
     globalThis.molisWorkBindProjectIdentity?.(document);
   })();
-` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + `
+` + SHELF_SETTINGS_CLIENT_SCRIPT + CODING_SETTINGS_CLIENT_SCRIPT + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + `
   (() => {
     const root = document.querySelector("[data-mcp-settings]");
     if (!root) return;

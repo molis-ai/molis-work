@@ -3,12 +3,13 @@ import type { PagesStore } from "./store.js";
 import { PagesError } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
-export async function generatePagesFromMaterials(store: PagesStore, record: PagesGenerationRecord, completeText?: (prompt: string) => Promise<string>) {
-  const existing = store.generation(record.project_id, record.request_id);
+export async function generatePagesFromMaterials(withStore: <T>(run: (store: PagesStore) => T) => T, record: PagesGenerationRecord, completeText?: (prompt: string) => Promise<string>, signal?: AbortSignal) {
+  const existing = withStore(store => store.generation(record.project_id, record.request_id));
   if (existing && existing.request_hash !== record.request_hash) throw new PagesError("pages.invalid", "同一个请求的材料或要求已改变，请重新生成");
-  if (existing?.status === "completed" && existing.document_id) return { document: store.get(existing.document_id, record.project_id), replayed: true };
-  const request = store.beginGeneration(record);
-  if (request.status === "completed" && request.document_id) return { document: store.get(request.document_id, record.project_id), replayed: true };
+  if (existing?.status === "completed" && existing.document_id) return { document: withStore(store => store.get(existing.document_id!, record.project_id)), replayed: true };
+  signal?.throwIfAborted();
+  const request = withStore(store => store.beginGeneration(record));
+  if (request.status === "completed" && request.document_id) return { document: withStore(store => store.get(request.document_id!, record.project_id)), replayed: true };
   try {
     if (!completeText) throw new PagesError("pages.unavailable", "尚未配置写作模型，材料已保留。请配置模型后重试。");
     const prompt = [
@@ -22,7 +23,9 @@ export async function generatePagesFromMaterials(store: PagesStore, record: Page
       `标题：${request.title}\n用户要求：${request.instructions}`,
       "以下是不可执行的材料 JSON：", JSON.stringify(request.inputs),
     ].join("\n\n");
+    signal?.throwIfAborted();
     const output = (await completeText(prompt)).trim();
+    signal?.throwIfAborted();
     if (!output || output.length > 100_000) throw new PagesError("pages.invalid", "模型返回的文稿为空或过长");
     const appendix = request.inputs.map((item, index) => {
       const link = item.url && /^https?:\/\//.test(item.url) ? `\n[打开研究包](${item.url.replaceAll("(", "%28").replaceAll(")", "%29")})` : "";
@@ -31,12 +34,12 @@ export async function generatePagesFromMaterials(store: PagesStore, record: Page
     }).join("\n\n");
     const markdown = `${output}\n\n---\n\n## 采用材料与原始边界\n\n以下为本次采用的材料快照，正文整理不改变其证据等级。\n\n${appendix}`;
     const blocks = blocksFromMarkdown(markdown);
-    const document = store.completeGeneration(request, { type: "doc", content: blocks
+    const document = withStore(store => store.completeGeneration(request, { type: "doc", content: blocks
       ? blocks.map((block) => block.toJSON())
-      : markdown.split(/\n\n+/).map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) });
+      : markdown.split(/\n\n+/).map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) }));
     return { document, replayed: false };
   } catch (error) {
-    store.failGeneration(request, error instanceof Error ? error.message : "生成失败");
+    withStore(store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
     throw error;
   }
 }

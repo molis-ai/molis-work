@@ -272,7 +272,6 @@ export const INTERACTION_TEXTURE_STYLES = `
   .mw-dir-row[data-settings-section="planning"] { --plugin-tint: var(--tone-hold); }
   .mw-dir-row[data-settings-section="diagnostics"] { --plugin-tint: var(--tone-blocked); }
   .mw-dir-row[data-settings-section="shelf"] { --plugin-tint: var(--plugin-shelf); }
-  .mw-dir-row[data-settings-section="functions"] { --plugin-tint: var(--plugin-functions); }
   .mw-dir-row[data-settings-section="pages"] { --plugin-tint: var(--plugin-pages); }
   .mw-dir-row[data-settings-section="form"] { --plugin-tint: var(--plugin-form); }
   .mw-dir-row[data-settings-section="dataset"] { --plugin-tint: var(--plugin-dataset); }

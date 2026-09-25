@@ -25,6 +25,7 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         ...(typeof request.body.description === "string" ? { description: request.body.description } : {}),
         ...(typeof request.body.scope === "string" ? { scope: request.body.scope } : {}),
         ...(typeof request.body.feed_url === "string" ? { feed_url: request.body.feed_url } : {}),
+        ...(typeof request.body.connection_id === "string" ? { connection_id: request.body.connection_id } : {}),
       };
       const source = sources().update(requireParam(params.source_id, "Feed 来源不存在"), input);
       changed();
@@ -146,7 +147,11 @@ export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): R
         state: request.query.get("state") ?? undefined,
       });
       changed();
-      return { status: 302, redirect: "/settings/connectors?connected=gmail" };
+      const project = /^\/projects\/([^/]+)$/u.exec(options.routePrefix)?.[1];
+      return {
+        status: 302,
+        redirect: `/settings/connectors?connected=gmail${project ? `&project=${project}` : ""}`,
+      };
     },
   };
 }

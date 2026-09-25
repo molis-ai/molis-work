@@ -63,6 +63,17 @@ test("图片完整HTTP链路：配置、本地生成、刷新、下载、失败�
   await click('[data-images-generate]');
   await waitFor("(document.querySelector('[data-images-result]')?.textContent || '').includes('429')",12_000);
   assert.equal(calls,2);
+  await evaluate("window.confirm = () => true");
+  await click('[data-images-delete-job]');
+  await waitFor("document.querySelectorAll('.images-history-row').length === 1");
+  await click('.images-history-row');
+  await click('[data-images-delete-job]');
+  await waitFor("document.querySelectorAll('.images-history-row').length === 0");
+  await click('[data-images-connections]');
+  await click('[data-images-delete-connection]');
+  await waitFor("document.querySelectorAll('[data-images-edit-connection]').length === 0");
+  assert.equal(calls,2,"删除本机记录和连接不会再次调用厂商");
+  await click('[data-images-dialog-close]');
   await command("Emulation.setDeviceMetricsOverride", {width:390,height:844,deviceScaleFactor:1,mobile:true},sessionId);
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"),true);
   await click('[data-images-back]');

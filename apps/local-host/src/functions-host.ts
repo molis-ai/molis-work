@@ -1,10 +1,14 @@
-import { createLazyFileSecretStore } from "@molis-ai/molis-work-storage";
+import { selectedTypeSafeConnection, typeSafeCredential } from "./typesafe-connection.js";
+import { withConnectorConnections } from "./connector-connection-store.js";
+import { createLazyFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import {
+  FUNCTIONS_CREDENTIAL_REF,
   FEED_CAPTURE_SCENE_ID,
   HOME_DOCK_SCENE_ID,
   INBOX_NEXT_SCENE_ID,
   functionFitsScene,
   type JudgmentPort,
+  type FunctionsSettingsStatus,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   createFunctionsService,
@@ -45,6 +49,30 @@ export interface FunctionsHostOptions {
   readonly allowed_behavior_ids?: readonly string[];
 }
 
+/** Discovery inspects configuration without unlocking the user's Keychain. Execution resolves the secret. */
+export function functionsCredentialConfigured(home: string, options: FunctionsHostOptions = {}): boolean {
+  if ((options.env ?? process.env).TYPESAFE_API_KEY?.trim()) return true;
+  if (options.secrets) return !!options.secrets.get(FUNCTIONS_CREDENTIAL_REF)?.trim();
+  const selected = selectedTypeSafeConnection(home, "functions");
+  const ref = selected ? withConnectorConnections(home, store => {
+    const connection = store.get(selected.connection_id);
+    return connection && connection.service_id === "typesafe" && !connection.disconnected_at ? connection.credential_ref : null;
+  }) : FUNCTIONS_CREDENTIAL_REF;
+  return !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null);
+}
+
+export function functionsConnectionStatus(home: string, options: FunctionsHostOptions = {}): FunctionsSettingsStatus {
+  const configured = functionsCredentialConfigured(home, options);
+  return { has_credential: configured, source: (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : configured ? "ui" : "none" };
+}
+
+function functionsSecrets(home: string, options: FunctionsHostOptions): FunctionsSecretPort {
+  if (options.secrets) return options.secrets;
+  const base = createLazyFileSecretStore(home);
+  return { get: ref => ref === FUNCTIONS_CREDENTIAL_REF ? typeSafeCredential(home, "functions") : base.get(ref),
+    put: (ref, value) => base.put(ref, value), delete: ref => base.delete(ref) };
+}
+
 export function withFunctionsService<T>(
   homeDirectory: string,
   run: (service: ReturnType<typeof createFunctionsService>) => T,
@@ -54,10 +82,10 @@ export function withFunctionsService<T>(
   try {
     return run(createFunctionsService({
       store,
-      secrets: options.secrets ?? createLazyFileSecretStore(homeDirectory),
+      secrets: functionsSecrets(homeDirectory, options),
       env: options.env ?? process.env,
       provider: options.provider ?? createHttpTypeSafeProvider(),
-      allowed_behavior_ids: options.allowed_behavior_ids ?? liveHostAllowedBehaviorIds(),
+      allowed_behavior_ids: options.allowed_behavior_ids ?? (() => runWithMolisWorkHome(homeDirectory, liveHostAllowedBehaviorIds)),
     }));
   } finally {
     store.close();
@@ -73,10 +101,10 @@ export async function withFunctionsServiceAsync<T>(
   try {
     return await run(createFunctionsService({
       store,
-      secrets: options.secrets ?? createLazyFileSecretStore(homeDirectory),
+      secrets: functionsSecrets(homeDirectory, options),
       env: options.env ?? process.env,
       provider: options.provider ?? createHttpTypeSafeProvider(),
-      allowed_behavior_ids: options.allowed_behavior_ids ?? liveHostAllowedBehaviorIds(),
+      allowed_behavior_ids: options.allowed_behavior_ids ?? (() => runWithMolisWorkHome(homeDirectory, liveHostAllowedBehaviorIds)),
     }));
   } finally {
     store.close();

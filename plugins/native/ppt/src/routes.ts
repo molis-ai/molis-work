@@ -34,6 +34,7 @@ export const PPT_NATIVE_PLUGIN_ROUTES = [
   route("ppt.get", "GET", /^\/api\/ppt\/([^/]+)$/u, ["id"]),
   route("ppt.update", "POST", /^\/api\/ppt\/([^/]+)$/u, ["id"]),
   route("ppt.delete", "POST", /^\/api\/ppt\/([^/]+)\/delete$/u, ["id"]),
+  route("ppt.export", "GET", /^\/api\/ppt\/([^/]+)\/export$/u, ["id"]),
   route("ppt.promote", "POST", /^\/api\/ppt\/([^/]+)\/promote$/u, ["id"]),
 ] as const satisfies readonly PptPluginRouteDefinition[];
 

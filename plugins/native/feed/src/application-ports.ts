@@ -13,6 +13,8 @@ export interface FeedApplicationPorts {
   readonly outRules?: FeedOutRuleStore;
   readonly artifacts?: FeedArtifactProducer;
   readonly judgments?: JudgmentPort;
+  subscribeInboxCreated(listener: (entry: { board_id: string; entry_id: string }) => void): void;
+  readonly inboxJudgment?: (entry: { board_id: string; entry_id: string }) => Promise<void>;
   readonly offered_behavior_ids?: readonly string[];
   readonly offeredBehaviorsForScene?: (sceneId: string, subjects: readonly string[]) => readonly string[];
   readonly receipts: {

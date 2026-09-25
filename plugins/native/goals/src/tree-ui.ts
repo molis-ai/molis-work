@@ -2,7 +2,7 @@ import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui"
 import type { GoalCollectionModel } from "./collection-model.js";
 import type { GoalsTreeItem, GoalsTreeView, GoalsTreeUiPrimitives, GoalVisibleStatus } from "./tree-ui-model.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
-import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSatisfied, isBlockedWorkStatus, unsatisfiedOutgoingDependencies, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, treeDependencySearchText, visibleGoalStatus } from "./tree-presentation.js";
+import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSatisfied, isBlockedWorkStatus, unsatisfiedOutgoingDependencies, goalTreeCreatedParts, goalTreeCreatorHue, goalTreeCreatorInitial, treeDependencySearchText, visibleGoalStatus } from "./tree-presentation.js";
 
 export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.tree.v1";
 
@@ -103,7 +103,9 @@ function renderGoalTree(
     const hasChildren = nodeChildren.length > 0;
     const searchValue = `${item.goal.goal_id} ${item.goal.title} ${treeDependencySearchText(item, view)}`.toLowerCase();
     const selected = item.goal.goal_id === selectedGoalId;
-    const createdLabel = goalTreeCreatedLabel(item.goal.created_at);
+    const createdParts = goalTreeCreatedParts(item.goal.created_at);
+    // Chinese reads 9月5日; English keeps the compact Sep 5 column.
+    const createdLabel = createdParts ? L("{month}月{day}日", createdParts) : "";
     const creatorId = item.created_by?.trim() || item.goal.accepted_by?.trim() || "";
     const creatorInitial = creatorId ? goalTreeCreatorInitial(creatorId) : "";
     const avatar = creatorId

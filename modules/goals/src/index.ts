@@ -77,7 +77,7 @@ export interface GoalsModuleHooks
 }
 
 export interface GoalsModuleOptions extends GoalsCommandContextOptions {
-  personalPlanningMethodPacks?: readonly PlanningMethodPack[];
+  personalPlanningMethodPacks?: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]);
 }
 
 export class GoalsModule {

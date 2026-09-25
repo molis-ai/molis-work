@@ -34,6 +34,7 @@ export function createHttpTypeSafeProvider(fetchImpl: typeof fetch = fetch): Typ
           signal: combined,
         });
       } catch (error) {
+        if (signal?.aborted) throw signal.reason;
         if (isAbortError(error)) {
           throw new FunctionsError("functions.provider_timeout", "TypeSafe 超时，没有自动重试");
         }

@@ -55,3 +55,5 @@ Git 的 git-changeset / git-result，以及 Shelf 的 materials。Shelf 明确�
 
 
 「独立工作树」可准备并审查从当前仓库提交创建的新目录/分支，批准后关联到项目，再选为下一轮工作区。准备和选用本身不启动模型；Git 注册保存目录与原始提交，项目目录簿保存授权，原 SDK Effect 保存审查及执行回执。主仓库未提交内容、活动内容过滤器、已改变的提交起点或未知执行结果会明确阻止继续。失败时保留已创建目录与分支，旧批准不会重复执行；可勾选 1–4 个已授权的独立目录，填写任务与完成条件并保存，再选择并行写入发送。目录与分工在发送时固定；关闭/刷新保留未保存的本窗口分工草稿，保存后沿用原会话配置。下一轮改分工不改本轮权限或历史。成果整合尚未接通。
+
+Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.

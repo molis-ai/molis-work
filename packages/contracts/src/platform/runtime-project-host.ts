@@ -67,11 +67,3 @@ export interface RuntimeProjectConnectionState {
   clear(clearRefresh?: boolean): void;
   accept(connection: MolisWorkRuntimeConnection | null, context: RuntimeWorkContext): void;
 }
-/** Validated Runtime dialogue fields; Session identity is supplied separately by the host. */
-export interface RuntimeGoalTreeConfirmation {
-  runtimeActorId: string;
-  confirmationSummary: string;
-  proposalId: string;
-  wholeConfirmationPrompted: boolean;
-  idempotencyKey: string;
-}

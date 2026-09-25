@@ -389,13 +389,8 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
           }>;
         }).tools;
         const installedNames = installedTools.map((tool) => tool.name);
-        for (const name of [
-          "molis_work_v1_goal_intent_create",
-          "molis_work_v1_event_note",
-          "molis_work_v1_goal_state",
-          "molis_work_v1_event_resume",
-        ]) {
-          assert.ok(installedNames.includes(name), name);
+        for (const name of ["molis_work_v1_goal_intent_create", "molis_work_v1_event_note", "molis_work_v1_goal_list", "molis_work_v1_goal_state", "molis_work_v1_event_list", "molis_work_v1_event_read", "molis_work_v1_event_configure", "molis_work_v1_event_report", "molis_work_v1_event_progress", "molis_work_v1_event_concern", "molis_work_v1_event_decision_request", "molis_work_v1_event_cite_decision", "molis_work_v1_event_agree", "molis_work_v1_event_close", "molis_work_v1_event_resume"]) {
+          assert.equal(installedNames.includes(name), false, "project binding and explicit action grants are required");
         }
         for (const name of [
           "molis_work_v1_evidence_correct",
@@ -431,6 +426,17 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         }) as { connection: { board_id: string; project_id: string } };
         assert.equal(bound.connection.project_id, created.project.project_id);
         assert.ok(bound.connection.board_id);
+        for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
+          const granted = await securePost(origin, token, "/api/settings/mcp/actions", {
+            client_id: "runtime:codex", project_id: created.project.project_id, capability_id,
+            provider_id: "io.molis.work.goals", version: 1, enabled: true,
+          });
+          assert.equal(granted.status, 200, await granted.clone().text());
+        }
+        const grantedTools = await firstMcp.request("tools/list", {});
+        const grantedNames = (grantedTools.result as { tools: Array<{ name: string }> }).tools.map(tool => tool.name);
+        assert.ok(grantedNames.includes("molis_work_v1_goal_intent_create"));
+        assert.ok(grantedNames.includes("molis_work_v1_event_note"));
         const started = await firstMcp.call("molis_work_v1_goal_intent_create", {
           title: "让用户在当前 Runtime 中通过自然语言维护 Molis Work。",
           outcome: "当前 Runtime 负责继续对话并持久化工作结果。",

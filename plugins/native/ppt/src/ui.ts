@@ -74,13 +74,16 @@ export function renderPptWorkbench(model: PptUiModel): string {
     </div>
     <div class="plugin-stage-workspace" data-ppt-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-ppt-back aria-label="${p.text("返回演示稿列表")}" title="${p.text("返回演示稿列表")}">${icon("arrow")}</button>
+        <button class="plugin-stage-back" type="button" data-ppt-back aria-label="${p.text("返回演示稿列表")}" title="${p.text("返回演示稿列表")}">${icon("chevron-right")}</button>
         <h1 data-ppt-editor-title>${p.text("演示稿")}</h1>
         <span data-ppt-editor-status></span>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-artifact="" data-ppt-artifact-bar>${p.text("存成 Artifact")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export>${p.text("导出 JSON")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-reload>${p.text("重新读取")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-delete>${p.text("删除")}</button>
       </div>
+      <p class="ppt-note" data-ppt-note role="status" aria-live="polite" hidden></p>
+      <p class="ppt-note" data-ppt-publication-note hidden></p>
       <div class="ppt-workspace">
         <div class="ppt-meta">
           <label class="ppt-field">${p.text("标题")}<input class="mw-input" data-ppt-title autocomplete="off"></label>
@@ -106,7 +109,6 @@ export function renderPptWorkbench(model: PptUiModel): string {
           </div>
           <div class="ppt-preview" data-ppt-preview></div>
         </div>
-        <p class="ppt-note" data-ppt-note hidden></p>
       </div>
     </div>
     <dialog class="mw-dialog creative-confirm" data-ppt-confirm>

@@ -101,11 +101,16 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
   assert.equal(seededClaim.goal_id, "CORE");
   assert.equal(seededRun.goal_id, "CORE");
   assert.equal(seededEvidence.locator, "artifact://core-lifecycle-history");
+  const openWork = async () => {
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
+    await waitFor("document.querySelector('.goal-more > summary')?.getBoundingClientRect().width > 0");
+  };
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/WEB" }, sessionId));
   await waitFor("document.querySelector('[data-goal-view=WEB]')");
+  await openWork();
   await click('.goal-more > summary');
   assert.equal(await evaluate("Boolean(document.querySelector('[data-set-active-goal]'))"), false);
   assert.equal(store.snapshot(DEMO_BOARD_ID).board.active_goal_id, before.board.active_goal_id);
@@ -113,7 +118,8 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
   await waitFor("document.querySelector('[data-goal-view=WEB]')");
   assert.equal(store.snapshot(DEMO_BOARD_ID).board.active_goal_id, before.board.active_goal_id);
 
-  await click('.tree-node[data-select-goal="CORE"]');
+  await navigate(() => command("Page.navigate", { url: origin + "/goals/CORE" }, sessionId));
+  await openWork();
   await waitFor("document.querySelector('[data-goal-view=" + JSON.stringify("CORE") + "]')");
   await click('.goal-more > summary');
   await waitFor("document.querySelector('[data-goal-archive=" + JSON.stringify("true") + "]')");
@@ -128,6 +134,7 @@ test("browsing does not set a current Goal; archive actions recover, persist on 
   assert.ok(store.snapshot(DEMO_BOARD_ID).goals.find(g => g.goal_id === "CORE")!.archived_at);
   await reloadPage();
   await waitFor("document.querySelector('[data-goal-archive=" + JSON.stringify("false") + "]')");
+  await openWork();
   await click('.goal-more > summary');
   await navigate(() => click('[data-goal-archive="false"]'));
   await waitFor("document.querySelector('[data-goal-view=" + JSON.stringify("CORE") + "]')");

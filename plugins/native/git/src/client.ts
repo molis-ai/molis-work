@@ -140,7 +140,10 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       push.textContent=!summary.remotes.length?'没有远端':summary.upstream?(summary.ahead?'推送 '+summary.ahead+' 个提交…':'已与远端同步'):'推送并建立远端分支…';
       const others=summary.branches.filter(branch=>branch!==summary.branch);
       options(sc.querySelector('[data-git-branch-choice]'),others,sc.querySelector('[data-git-branch-choice]').value);
-      const base=sc.querySelector('[data-git-pr-base]');options(base,others,base.value || ['main','master'].find(branch=>others.includes(branch)));
+      // The PR target follows the repository's main branch unless the person picked one; a value left over from the
+      // branch previously checked out is not a choice.
+      const base=sc.querySelector('[data-git-pr-base]');if(!base.dataset.watched){base.dataset.watched='true';base.addEventListener('change',()=>{base.dataset.chosen='true';});}
+      options(base,others,base.dataset.chosen==='true' && others.includes(base.value) ? base.value : ['main','master'].find(branch=>others.includes(branch)));
       if(summary.conflicted.length)scStatus.textContent='有 '+summary.conflicted.length+' 个冲突文件；解决并暂存后才能提交。';
       await loadOperations();
     }catch(error){sc.hidden=true;}

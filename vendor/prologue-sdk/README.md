@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-file-mode.tgz`。在派出标识校验之上，工作区写入**保留文件原来的权限**：原来每次写入（包括改已有文件和按检查点回退）都先建一个 0600 的临时文件再改名替换，于是改过的文件都变成 0600，可执行的脚本改完就不再可执行（git 会看到 100755 → 100644）。现在改已有文件沿用它原来的权限，新文件按普通文件的默认权限（0666 减去 umask，通常是 0644）。写入仍是临时文件 + fsync + 原子改名。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-search-file.tgz`。在保留文件权限之上，**搜索的路径可以是单个文件**：原来 search 把 path 当目录去列举，给的是文件时列举失败被吞掉，答成「(no matches)」——模型据此断定文件里没有这段代码（Coding 实测里一个评审子代理连搜 7 次都是空，最后只能自己数行号）。现在路径是文件就只在这份文件里找（字面量与正则两档都是），路径不存在时报 `ROOT_NOT_FOUND`，不再答成没找到；工具说明改为「目录或单个文件」。Tauri 原生 Host 的同一处一并修正（需原生构建才用得上；Molis 走 Node Host）。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[search-file.patch](search-file.patch)，相对基线的**累计**补丁（含此前全部改动与 Rust Host 修正）。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`fd822866fe9125a641123f056c0f4e94c6416540ac5cbc56677c94bb08e93551`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/search-file.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-search-file.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；新增 SDK 定向 1 项（单个文件的字面量与正则搜索、路径不存在报错）与 Rust 定向 1 项，搜索与忽略相关 48 项、Rust Host 全部测试通过。全量结果见 Coding spec。未发布 npm，未替换正式安装版。
+
+## 上一依赖：保留文件权限
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-file-mode.tgz`。在派出标识校验之上，工作区写入**保留文件原来的权限**：原来每次写入（包括改已有文件和按检查点回退）都先建一个 0600 的临时文件再改名替换，于是改过的文件都变成 0600，可执行的脚本改完就不再可执行（git 会看到 100755 → 100644）。现在改已有文件沿用它原来的权限，新文件按普通文件的默认权限（0666 减去 umask，通常是 0644）。写入仍是临时文件 + fsync + 原子改名。
 
 起因：Coding 实测里模型新建的 `src/format.ts` 权限是 0600。
 

@@ -27,7 +27,7 @@ const manifest: AgentManifest = {
   prompts: [{ prompt_id: "reader", version: 1 }, { prompt_id: "builder", version: 2 }],
 };
 
-function fakeProcess(options: { version?: string | null } = {}) {
+function fakeProcess(options: { available?: boolean } = {}) {
   const spawns: Array<{ command: string; args: string[]; cwd: string }> = [];
   let emit: ((event: CliProcessEvent) => void) | null = null;
   let killed = false;
@@ -42,8 +42,8 @@ function fakeProcess(options: { version?: string | null } = {}) {
         },
       };
     },
-    async version() {
-      return options.version === undefined ? "2.1.0" : options.version;
+    async available() {
+      return options.available ?? true;
     },
   };
   return {
@@ -250,7 +250,7 @@ test("controls this runtime does not have are refused, not faked", async () => {
 });
 
 test("health reports a missing binary and a missing model differently", async () => {
-  assert.deepEqual(await adapterFor(fakeProcess({ version: null }).port).health(), {
+  assert.deepEqual(await adapterFor(fakeProcess({ available: false }).port).health(), {
     ok: false,
     status: "unavailable",
     message: "找不到可执行的 claude",
@@ -259,7 +259,7 @@ test("health reports a missing binary and a missing model differently", async ()
   const needsModel = await adapterFor(fakeProcess().port, null).health();
   assert.equal(needsModel.status, "needs_setup");
   const ready = await adapterFor(fakeProcess().port).health();
-  assert.deepEqual(ready, { ok: true, status: "ready", message: "Claude Code 2.1.0" });
+  assert.deepEqual(ready, { ok: true, status: "ready", message: "Claude Code 已检测到可执行程序；登录状态在执行时确认" });
 });
 
 test("the Host refuses a writing role on this runtime, because approvals do not reach it", async () => {

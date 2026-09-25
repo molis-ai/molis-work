@@ -82,9 +82,10 @@ export const TEXT_EDIT_EXTENSIONS = new Set([
 /** A CLI recipe runs only when the picked Agent has a headless job entry. */
 function recipeTable(runtime: ShelfRuntimeStatus): readonly ShelfRecipeAvailability[] {
   const reason = runtime.runtime_key ? missingJobReason(runtime.title) : NO_AGENT_REASON;
+  const available = runtime.can_run_job || runtime.capability_pending === true;
   return SHELF_RECIPES.map((spec) => recipeAvailability(spec.recipe, {
-    available: spec.requires_agent ? runtime.can_run_job : true,
-    reason: spec.requires_agent && !runtime.can_run_job ? reason : null,
+    available: spec.requires_agent ? available : true,
+    reason: spec.requires_agent && !available ? reason : null,
   }));
 }
 
@@ -140,12 +141,13 @@ export class ShelfStore {
   }
 
   /** The terminal Agent a recipe would run in. Never throws at the caller. */
-  runtime(settings: ShelfDeviceSettings = this.settings()): ShelfRuntimeStatus {
+  runtime(settings: ShelfDeviceSettings = this.settings(), probeCapabilities = false): ShelfRuntimeStatus {
     const image_text = imageTextAvailable();
     try {
       return {
         ...detectShelfRuntime({
           ...this.probe,
+          skipHelp: !probeCapabilities,
           preferred: this.probe.preferred ?? settings.engine,
           customRuntimes: settings.custom_runtimes,
         }),
@@ -413,7 +415,7 @@ export class ShelfStore {
     if (items.length < spec.minimum_count) {
       throw new ShelfError("shelf.recipe_unavailable", `「${spec.short_title}」至少要两份材料`);
     }
-    const runtime = this.runtime(settings);
+    const runtime = this.runtime(settings, spec.requires_agent);
     if (spec.requires_agent && !runtime.can_run_job) {
       throw new ShelfError("shelf.no_agent", runtime.runtime_key ? missingJobReason(runtime.title) : NO_AGENT_REASON);
     }

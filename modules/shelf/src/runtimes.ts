@@ -40,7 +40,7 @@ export interface ShelfRuntimeProbe {
   readonly customRuntimes?: readonly ShelfCustomRuntime[];
   /** Look nowhere: an isolated trial or a test that must not meet this Mac's CLIs. */
   readonly disabled?: boolean;
-  /** Skip `--help` probes; used where only the install list matters. */
+  /** Passive by default. Only an explicit job may set false to probe its chosen CLI. */
   readonly skipHelp?: boolean;
 }
 
@@ -78,7 +78,9 @@ export function shelfSearchDirectories(pathEnvironment: string, home: string): s
 }
 
 export function shelfRuntimeCandidates(engine: ShelfEngine, probe: ShelfRuntimeProbe = {}): string[] {
-  const directories = shelfSearchDirectories(pathEnvironmentOf(probe), homeOf(probe));
+  const directories = probe.pathEnvironment === undefined
+    ? shelfSearchDirectories(pathEnvironmentOf(probe), homeOf(probe))
+    : probe.pathEnvironment.split(path.delimiter).filter(Boolean);
   const urls: string[] = [];
   for (const directory of directories) {
     for (const binary of engine.binaries) urls.push(path.join(directory, binary));
@@ -353,7 +355,8 @@ export function shelfRuntimeCatalog(probe: ShelfRuntimeProbe = {}): ShelfRuntime
       title: engine.title,
       executable: live?.executable ?? "",
       kind: "tui",
-      can_run_job: live ? runtimeCanRunJob(live, readCliHelp(live.executable)) : false,
+      can_run_job: false,
+      ...(live ? { capability_pending: true } : {}),
       install_url: engine.install_url,
     };
   });
@@ -364,7 +367,8 @@ export function shelfRuntimeCatalog(probe: ShelfRuntimeProbe = {}): ShelfRuntime
       title: custom.title,
       executable: custom.executable,
       kind: custom.kind,
-      can_run_job: live ? runtimeCanRunJob(live, readCliHelp(live.executable)) : false,
+      can_run_job: false,
+      ...(live ? { capability_pending: true } : {}),
       install_url: "",
     });
   }
@@ -393,8 +397,8 @@ export function detectShelfRuntime(probe: ShelfRuntimeProbe = {}): ShelfRuntimeS
     installed: found.map((runtime) => runtime.key),
     catalog,
   };
-  if (probe.skipHelp) {
-    return { ...status, isolation: "tui", isolation_fact: isolationFact("tui"), can_run_job: false };
+  if (probe.skipHelp !== false) {
+    return { ...status, isolation: "unknown", isolation_fact: "执行能力与隔离范围在执行时检查，登录尚未确认", can_run_job: false, capability_pending: true };
   }
   const help = readCliHelp(chosen.executable);
   if (!runtimeCanRunJob(chosen, help)) {

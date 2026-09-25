@@ -1,4 +1,7 @@
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
+import { constants } from "node:fs";
+import { access, stat } from "node:fs/promises";
+import { delimiter, isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline";
 
 import type { CliProcessHandle, CliProcessPort } from "./cli-runtime.js";
@@ -44,12 +47,23 @@ export function createNodeCliProcessPort(): CliProcessPort {
       return handle;
     },
 
-    async version(command) {
-      return await new Promise((resolve) => {
-        execFile(command, ["--version"], { timeout: 10_000 }, (error, stdout) => {
-          resolve(error ? null : stdout.trim() || "unknown");
-        });
-      });
+    // Passive discovery must never start a CLI: even --version can read credentials.
+    async available(command) {
+      if (!command) return false;
+      const explicit = isAbsolute(command) || command.includes("/") || command.includes("\\");
+      const paths = explicit ? [command] : (process.env.PATH ?? "").split(delimiter).map(dir => join(dir, command));
+      const extensions = process.platform === "win32" ? ["", ...(process.env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";")] : [""];
+      for (const path of paths) {
+        for (const extension of extensions) {
+          try {
+            const candidate = path + extension;
+            if (!(await stat(candidate)).isFile()) continue;
+            await access(candidate, constants.X_OK);
+            return true;
+          } catch { /* Missing or inaccessible candidates are unavailable. */ }
+        }
+      }
+      return false;
     },
   };
 }

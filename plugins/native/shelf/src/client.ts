@@ -422,7 +422,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const mark = tone || (id === "extract" ? "clay" : id === "use" || id === "join" ? "ochre" : id === "talk" ? "plum" : "slate");
     return '<svg class="tone-' + mark + '" aria-hidden="true"><use href="#icon-' + icon + '"></use></svg>';
   };
-  const agentMissing = () => runtime().can_run_job !== true;
+  const agentMissing = () => runtime().can_run_job !== true && runtime().capability_pending !== true;
   const renderBar = (kind) => {
     lastBarKind = kind;
     const hint = workbench.querySelector("[data-shelf-bar-hint]");
@@ -446,7 +446,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     } else {
       const picked = batch();
       const hidden = hiddenActions();
-      const ready = runtime().can_run_job === true;
+      const ready = runtime().can_run_job === true || runtime().capability_pending === true;
       for (const slot of actionOrder()) {
         const action = shortcutFor(slot);
         const recipe = action ? null : recipeFor(slot);
@@ -514,7 +514,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const facts = (recipe, count) => {
     const live = runtime();
     const local = isLocalRecipe(recipe);
-    const ready = live.can_run_job === true;
+    const ready = live.can_run_job === true || live.capability_pending === true;
     const workspace = live.isolation === "workspace";
     return {
       read: L("{count} 份材料的副本", { count: String(count) }),
@@ -530,6 +530,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (isLocalRecipe(recipe)) {
       return selected?.kind === "image" ? L("本机识别，不发送。") : L("本机提取，不发送。");
     }
+    if (live.capability_pending === true) return L("{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。", { agent: live.title });
     if (live.can_run_job === true) return L("{agent} 在任务副本里跑。", { agent: live.title });
     if (live.runtime_key) return L("{agent} 没有无界面执行入口，动作不能跑。", { agent: live.title });
     return L("未发现终端 Agent。");

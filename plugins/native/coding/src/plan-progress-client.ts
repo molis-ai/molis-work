@@ -43,24 +43,38 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const head=el('header','coding-plan-head');head.innerHTML=svg('list');
     head.append(el('strong','',entry.plan?.content.title||'本轮计划'),el('span','coding-plan-count',done+' / '+total+' 步完成'),el('span','coding-plan-revision',entry.revision?'计划修订 '+entry.revision:''));
     card.append(head);
-    const editable=live&&!board.terminal,list=el('ol','coding-plan-steps');
+    // Rows in the TaskBoard's grammar: state, prerequisites, when it last moved and who is doing it.
+    const editable=live&&!board.terminal,list=el('ul','coding-board-tree coding-board--compact coding-plan-steps');
+    const TONE={succeeded:'done',running:'progress',failed:'blocked',blocked:'blocked',cancelled:'quiet',ready:'ready','not-started':'idle'};
+    const pad=(n)=>String(n).padStart(2,'0'),clock=(ms)=>{const date=new Date(ms);return pad(date.getHours())+':'+pad(date.getMinutes());};
+    const who=run.frozen?.character?.title||({builder:'构建者',writer:'改写者',writers:'并行写入',coordinator:'协作',reader:'阅读者',planner:'规划者',reviewer:'评审者'})[run.frozen?.role_id]||'Agent';
+    let hueValue=0;for(const char of who)hueValue=(hueValue*31+char.codePointAt(0))%360;
+    const settledNode=(other)=>other.state==='succeeded'||skipped(other);
     board.nodes.forEach((node,index)=>{
-      const step=stepOf(entry.plan,node),row=el('li','coding-plan-step');row.dataset.state=skipped(node)?'skipped':node.state;row.dataset.step=node.id;if(node.inserted)row.dataset.inserted='true';
-      const mark=el('span','coding-plan-mark');mark.innerHTML=node.state==='running'?'<span class="coding-spinner" aria-hidden="true"></span>':svg(MARK[node.state]||'circle');
-      const title=el('button','coding-plan-title',step.title);title.type='button';title.title='查看这一步的完成条件、模型回报与你的评价';title.addEventListener('click',()=>openStep(run.ref.run_id,node.id));
-      const state=el('span','coding-plan-state',skipped(node)?'你跳过了':LABEL[node.state]||node.state);
-      const verdict=entry.verdicts?.[node.id];if(verdict&&verdict.board_version===board.version){state.textContent=verdict.status==='accepted'?'你已验收':'你要求返工';state.dataset.verdict=verdict.status;}
-      row.append(mark,title,state);
-      const note=node.reports.at(-1)?.note;if(note){const last=el('p','coding-plan-note',note);last.title=note;row.append(last);}
+      const step=stepOf(entry.plan,node),row=el('li','coding-board-item coding-plan-step');row.dataset.state=skipped(node)?'skipped':node.state;row.dataset.step=node.id;if(node.inserted)row.dataset.inserted='true';
+      const line=el('div','coding-board-entry'),lead=el('span','coding-board-lead'),main=el('button','coding-board-node coding-plan-title');main.type='button';
+      const note=node.reports.at(-1)?.note;main.title=(step.acceptance?'完成条件：'+step.acceptance:'')+(note?'\\n最近回报：'+note:'')||'查看这一步的回报并验收';
+      main.append(el('span','coding-board-key',node.inserted?'插入':'S'+(index+1)),el('strong','',step.title));main.addEventListener('click',()=>openStep(run.ref.run_id,node.id));
+      lead.append(el('span','coding-board-guide'),main);
+      const verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===board.version?verdict.status:null;
+      const state=el('span','coding-board-state coding-plan-state');state.dataset.tone=decided==='accepted'?'accepted':decided==='needs-work'?'attention':skipped(node)?'quiet':TONE[node.state]||'idle';
+      state.innerHTML=node.state==='running'&&!decided?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(decided==='accepted'?'check':decided==='needs-work'?'circle-alert':skipped(node)?'minus':MARK[node.state]||'circle');
+      state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':LABEL[node.state]||node.state));if(decided)state.dataset.verdict=decided;
+      const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settledNode(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));
+      const chip=el('span','coding-board-deps '+(!deps.length?'is-empty':stuck.length?'is-blocked':waiting.length?'is-waiting':'is-ready'));
+      if(deps.length){chip.textContent=deps.length+' 个前置'+(stuck.length?' · '+stuck.length+' 个阻塞':waiting.length?' · '+waiting.length+' 个未完成':' · 已就绪');chip.title=deps.map(dep=>stepOf(entry.plan,dep).title).join('\\n');}
+      const meta=el('span','coding-board-meta'),time=el('time','coding-board-time'+(node.reports.length?'':' is-empty'),node.reports.length?clock(node.reports.at(-1).at_ms):''),avatar=el('span','coding-board-avatar',Array.from(who)[0]);
+      avatar.style.setProperty('--board-avatar-hue',String(hueValue));avatar.title='执行：'+who;meta.append(time,avatar);
+      line.append(lead,state,chip,meta);row.append(line);
       if(editable){
-        const tools=el('span','coding-plan-tools'),tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+step.title);button.innerHTML=icon?svg(icon):'';if(!icon)button.textContent=label;button.addEventListener('click',action);tools.append(button);};
+        const tools=el('span','coding-board-tools coding-plan-tools'),tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+step.title);button.innerHTML=svg(icon);button.addEventListener('click',action);tools.append(button);};
         const waiting=node.state==='not-started'||node.state==='ready';
         if(waiting&&index>0&&['not-started','ready'].includes(board.nodes[index-1].state))tool('提前一步','chevron-up',()=>void amend(card,run.ref.run_id,board.version,{kind:'move',node:node.id,direction:'up'}));
         if(waiting&&['not-started','ready'].includes(board.nodes[index+1]?.state))tool('推后一步','chevron-down',()=>void amend(card,run.ref.run_id,board.version,{kind:'move',node:node.id,direction:'down'}));
-        if(node.state==='blocked')tool('给出决定',null,()=>form(card,row,[['note','你的决定，例如：用方案 B，接受行号变化',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'unblock',node:node.id,note}),'继续'));
-        if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过',null,()=>form(card,row,[['reason','跳过原因',300]],([reason])=>amend(card,run.ref.run_id,board.version,{kind:'skip',node:node.id,reason}),'跳过'));
+        if(node.state==='blocked')tool('给出决定','edit',()=>form(card,row,[['note','你的决定，例如：用方案 B，接受行号变化',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'unblock',node:node.id,note}),'继续'));
+        if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过','minus',()=>form(card,row,[['reason','跳过原因',300]],([reason])=>amend(card,run.ref.run_id,board.version,{kind:'skip',node:node.id,reason}),'跳过'));
         if(!['cancelled'].includes(node.state))tool('在后面插入一步','plus',()=>form(card,row,[['title','新步骤要做什么',120],['acceptance','完成条件',300]],([title,acceptance])=>amend(card,run.ref.run_id,board.version,{kind:'insert',after:node.id,title,acceptance}),'插入'));
-        row.append(tools);
+        line.append(tools);
       }
       list.append(row);
     });

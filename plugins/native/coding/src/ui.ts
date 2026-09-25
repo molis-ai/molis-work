@@ -110,11 +110,6 @@ export function renderCodingDirectory(model: CodingUiModel): string {
       body: `<nav class="coding-faces" aria-label="Coding 导航面">${faces}</nav>
       <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">搜索标题</span><input class="mw-input" data-coding-search aria-label="搜索会话标题" placeholder="搜索会话标题"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="会话筛选">${filters}</div></div>
       <div class="coding-session-list" data-coding-sessions>${groups || renderEmpty(p)}</div>
-    <section data-coding-taskboard hidden aria-label="计划与执行看板">
-      <label class="mw-field"><span>当前任务</span><select class="mw-select" data-coding-taskboard-session aria-label="选择看板任务"></select></label>
-      <p data-coding-taskboard-status role="status">选择会话后查看计划与实际执行。</p>
-      <div data-coding-taskboard-tree></div>
-    </section>
     <section data-coding-artifact-directory hidden aria-label="已保存的 Coding 成果">
       <label class="coding-search"><span>搜索成果</span><input class="mw-input" data-coding-artifact-search aria-label="搜索固定成果" placeholder="搜索固定成果"></label>
       <button class="mw-btn mw-btn--ghost" type="button" data-coding-artifact-refresh>刷新成果</button>
@@ -267,6 +262,12 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <section class="coding-turns" data-coding-report-reader aria-label="执行报告" tabindex="0" hidden>
           <header><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-close>${p.icon("chevron-left")}<span>返回对话</span></button><button class="mw-btn mw-btn--primary" type="button" data-coding-report-save>保存固定报告</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-progress hidden>记录原目标进展</button><button class="mw-btn mw-btn--ghost" type="button" data-coding-report-output hidden>设为报告输出</button></header>
           <p data-coding-report-status role="status"></p><p data-coding-report-output-status role="status" hidden></p><div data-coding-report-body></div>
+        </section>
+        <section class="coding-board mw-scroll" data-coding-board aria-label="TaskBoard" tabindex="0" hidden>
+          <header class="coding-board-head"><div class="coding-board-heading"><h2 data-coding-board-title>TaskBoard</h2><p data-coding-board-meta></p></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-board-close>${p.icon("chevron-left")}<span>回到对话</span></button></header>
+          <div class="coding-board-columns" aria-hidden="true"><span>任务</span><span>状态</span><span>进度</span><span>前置</span><span>执行</span></div>
+          <div class="coding-board-list" data-coding-board-list></div>
+          <p class="coding-board-note" data-coding-board-status role="status"></p>
         </section>
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>回到最新</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>

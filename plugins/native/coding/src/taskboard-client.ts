@@ -1,87 +1,189 @@
-/** A navigation projection of the same Plan, Run and child verdicts as the workbench. */
+/**
+ * The TaskBoard: the session's plan and every round that ran one, as a list in the Goal list's grammar — one row per
+ * task, indented under what it belongs to, with its state, progress, prerequisites, who is doing it and when it last
+ * moved. Every state comes from the execution record (the step graph, subagent records and reviews), never from what
+ * the model said. Clicking a row opens it; a live plan keeps its controls to reorder, skip, insert or unblock a step.
+ */
 export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
-  const {directory,current,navigate,status,ownTask}=ports,region=directory.querySelector('[data-coding-taskboard]');
-  const choice=region.querySelector('[data-coding-taskboard-session]'),tree=region.querySelector('[data-coding-taskboard-tree]'),notice=region.querySelector('[data-coding-taskboard-status]');
-  let owner='',data=null,key='',optionsKey='',loadError='';
-  const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
-  const phases={starting:'正在准备',running:'执行中',compacting:'正在整理上下文',pausing:'正在暂停',paused:'已暂停','awaiting-input':'等待回答','awaiting-review':'等待审查',completed:'本轮结束，待核对',failed:'执行失败',stopped:'已停止',cancelled:'已取消','reconcile-required':'结果待核对'};
-  const tone=phase=>['awaiting-input','awaiting-review','reconcile-required'].includes(phase)?'attention':phase==='failed'?'blocked':['running','starting','compacting'].includes(phase)?'progress':'idle';
-  const action=(label,target,mark,phase)=>{
-    const node=el('button',undefined,'mw-btn mw-btn--ghost coding-board-node');node.type='button';node.dataset.boardTarget=JSON.stringify(target);
-    node.append(el('span',label));if(mark){const state=el('span',mark,'mw-status mw-status--plain');state.dataset.tone=tone(phase);node.append(state);}
-    node.addEventListener('click',()=>void navigate(owner,target).catch(error=>status(error.message,true)));return node;
+  const {board,current,navigate,status,ownTask,amend,roleName}=ports;
+  const list=board.querySelector('[data-coding-board-list]'),notice=board.querySelector('[data-coding-board-status]'),title=board.querySelector('[data-coding-board-title]'),meta=board.querySelector('[data-coding-board-meta]');
+  let owner='',data=null,key='',loadError='';const collapsed=new Set();
+  const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
+  const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
+  const clip=(text,max)=>text.length>max?text.slice(0,max-1)+'…':text;
+  const firstLine=(text)=>(text||'').trim().split('\\n')[0];
+  const oneLine=(text)=>(text||'').replace(/\\s+/g,' ').trim();
+  const hue=(name)=>{let value=0;for(const char of name)value=(value*31+char.codePointAt(0))%360;return value;};
+  const when=(at)=>{if(!at)return null;const date=new Date(at);if(Number.isNaN(date.getTime()))return null;const now=new Date(),pad=(n)=>String(n).padStart(2,'0');
+    const text=date.toDateString()===now.toDateString()?pad(date.getHours())+':'+pad(date.getMinutes()):(date.getMonth()+1)+'月'+date.getDate()+'日';return {text,title:date.toLocaleString()};};
+  // Status words and marks follow the Goal list: an icon and a short label, coloured by tone.
+  const STATE={
+    'not-started':['等待前置','circle','idle'],ready:['可以开始','circle','ready'],running:['进行中','','progress'],succeeded:['模型报告完成','check','done'],
+    failed:['模型报告失败','x','blocked'],blocked:['受阻，等你决定','circle-alert','blocked'],cancelled:['已取消','minus','quiet'],skipped:['已跳过','minus','quiet'],
+    accepted:['你已验收','check','accepted'],'needs-work':['要求返工','circle-alert','attention'],pending:['待执行','circle','idle'],
   };
-  const branch=(label,id,opened,initial=false)=>{const node=el('details',undefined,'coding-board-branch');node.dataset.boardBranch=id;node.open=opened.has(id)||!key&&initial;node.append(el('summary',label));return node;};
-  const skippedByUser=(node)=>node.state==='cancelled'&&node.reports.some(report=>report.note.startsWith('用户跳过'));
-  const stepOf=(plan,node)=>node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||'见插入说明'}:plan.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
-  const steps=(parent,plan,target,entry)=>{
-    const states={'not-started':'等待前置步骤',ready:'待执行',running:'模型报告执行中',succeeded:'模型报告成功，待核对',failed:'模型报告失败',cancelled:'模型报告取消',blocked:'模型报告阻塞'};
-    // The running graph's own order wins: a person may have inserted, skipped or moved steps since the plan was confirmed.
-    const rows=entry?.board ? entry.board.nodes.map(node=>({node,step:stepOf(plan,node),index:Number(node.id.replace('step-',''))-1})) : plan.content.steps.map((step,index)=>({node:undefined,step,index}));
-    const list=el('ol');for(const {node,step,index} of rows){
-      const item=el('li'),verdict=node&&entry.verdicts?.[node.id];if(node?.inserted)item.dataset.inserted='true';
-      const accepted=verdict?.board_id===entry?.board?.board_id&&verdict?.board_version===entry?.board?.version;
-      const mark=node?(accepted?(verdict.status==='accepted'?'用户验收通过':'用户要求返工'):skippedByUser(node)?'你跳过了':states[node.state]):undefined;
-      item.append(action(step.title,node?{kind:'step',run_id:entry.run_id,step_id:node.id}:{...target,step_index:index},mark,node?.state==='blocked'?'awaiting-input':node?.state));
-      const criteria=el('details');criteria.append(el('summary','完成条件'),el('p',step.acceptance,'coding-board-meta'));criteria.dataset.boardBranch=JSON.stringify([target,index]);list.append(item);item.append(criteria);
-      if(node?.reports.length)item.append(el('p',node.reports.at(-1).note,'coding-board-meta'));
-    }parent.append(list);
-    parent.append(el('p',entry?.board_error|| (entry?.board?'步骤显示原模型回报；用户验收单独记录。':'尚无步骤级回报；本轮结束不代表各步骤已通过。'),'coding-board-meta'));
+  const PHASE={starting:['准备中','','progress'],running:['进行中','','progress'],compacting:['整理上下文','','progress'],pausing:['正在暂停','pause','attention'],paused:['已暂停','pause','attention'],
+    'awaiting-input':['等你回答','circle-alert','attention'],'awaiting-review':['等你审查','circle-alert','attention'],completed:['已结束','check','done'],failed:['失败','x','blocked'],
+    stopped:['已停止','minus','quiet'],cancelled:['已取消','minus','quiet'],'reconcile-required':['待核对','circle-alert','attention']};
+  const CHILD={running:['进行中','','progress'],completed:['已结束 · 待核对','check','done'],failed:['失败','x','blocked'],cancelled:['已取消','minus','quiet'],stopped:['已停止','minus','quiet']};
+  const skipped=(node)=>node.state==='cancelled'&&node.reports.some(report=>report.note.startsWith('用户跳过'));
+  const stepOf=(plan,node)=>node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||''}
+    :plan?.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
+  const settled=(node)=>node.state==='succeeded'||skipped(node);
+  // The Agent that does the work: the round's own Character when one was chosen, otherwise its role; a subagent is its role.
+  const executorOf=(run)=>{const character=run.frozen?.character?.title,role=roleName(run.frozen?.role_id);
+    return character?{name:character,detail:'Character「'+character+'」· 角色 '+role}:{name:role,detail:'角色 '+role+(run.frozen?.model_id?' · 模型 '+run.frozen.model_id:'')};};
+  // A subagent belongs to the step whose latest report came just before it started; otherwise to the round itself.
+  const startedAt=(child)=>{const at=child.activity?.find(item=>item.at)?.at;return at?Date.parse(at):NaN;};
+  const stepFor=(nodes,child)=>{const at=startedAt(child);if(!Number.isFinite(at))return null;let best=null,bestAt=-Infinity;
+    for(const node of nodes)for(const report of node.reports)if(report.at_ms<=at&&report.at_ms>bestAt){best=node;bestAt=report.at_ms;}return best;};
+  const tree=()=>{
+    const groups=[],runs=data.runs||[],plans=data.taskboard_plans||[],subagents=data.subagents||[];
+    if(data.recovery_required||data.checkpoint_busy){
+      const items=[];
+      if(data.recovery_required)items.push({key:'recovery',title:'核对中断结果',state:PHASE['reconcile-required'],target:{kind:'recovery'},executor:null,children:[]});
+      if(data.checkpoint_busy)items.push({key:'rewind',title:'处理文件回退',state:PHASE['awaiting-review'],target:{kind:'reviews'},executor:null,children:[]});
+      groups.push({id:'attention',label:'需要你处理',mark:'circle-alert',items});
+    }
+    // The plan not yet run: its steps as they would be run.
+    const plan=data.plan;
+    if(plan&&!plans.some(entry=>entry.revision===plan.revision&&entry.board)){
+      const steps=plan.content.steps.map((step,index)=>({key:'plan-'+index,label:'S'+(index+1),title:step.title,hint:'完成条件：'+step.acceptance,state:STATE.pending,progress:{done:0,total:1},executor:null,target:{kind:'plan'},children:[]}));
+      groups.push({id:'plan',label:'当前计划',mark:'list',count:'修订 '+plan.revision,items:[{key:'plan',label:'计划',title:plan.content.title,hint:plan.content.change_reason||'',
+        state:plan.content.blockers?['有阻塞','circle-alert','blocked']:plan.confirmed?['已确认','check','ready']:['待确认','circle','attention'],
+        progress:{done:0,total:steps.length},executor:null,target:{kind:'plan'},children:steps}]});
+    }
+    // Each round that ran a plan or dispatched subagents; newest first. Rounds that continued one step graph are one
+    // task: the graph shows once, under its latest round, with every round that worked on it named on that row.
+    const rounds=[],boardOf=(run)=>plans.find(item=>item.run_id===run.ref.run_id&&item.board)?.board.board_id,spans=new Map();
+    runs.forEach((run,index)=>{const id=boardOf(run);if(id)spans.set(id,[...(spans.get(id)||[]),index]);});
+    runs.forEach((run,index)=>{
+      const id=run.ref.run_id,entry=plans.find(item=>item.run_id===id&&item.board),span=entry?spans.get(entry.board.board_id):[index];
+      if(span.at(-1)!==index)return;
+      const groupsHere=span.map(at=>subagents.find(item=>item.run_id===runs[at].ref.run_id)).filter(Boolean),group=groupsHere.find(item=>item.error),children=groupsHere.flatMap(item=>item.children.map(child=>({child,run_id:item.run_id})));
+      if(!entry&&!children.length&&!plans.some(item=>item.run_id===id))return;
+      const executor=executorOf(run),nodes=entry?.board?.nodes||[];
+      const childRow=({child,run_id})=>{
+        const verdict=child.verdict?.status,role=child.role_name||roleName(child.role_id),at=startedAt(child);
+        const own=child.workspace_path&&run.frozen?.directory?.canonical_path&&child.workspace_path!==run.frozen.directory.canonical_path?child.workspace_path.split('/').filter(Boolean).at(-1):'';
+        return {key:'child-'+child.subagent_id,label:'子任务',title:oneLine(child.task),hint:child.task,
+          state:verdict==='accepted'?STATE.accepted:verdict==='needs-work'?STATE['needs-work']:CHILD[child.state]||['状态未知','circle','idle'],
+          progress:null,note:own?'独立目录 '+own:'',executor:{name:role,detail:'子代理 · '+role+(child.error?' · '+child.error:'')},time:Number.isFinite(at)?when(at):null,
+          target:{kind:'child',run_id,child_id:child.subagent_id},children:[]};
+      };
+      const placed=new Map(),loose=[];
+      for(const item of children){const node=stepFor(nodes,item.child);if(node)placed.set(node.id,[...(placed.get(node.id)||[]),item]);else loose.push(item);}
+      const live=Boolean(entry&&!entry.board.terminal&&['running','starting','paused','pausing','awaiting-review','awaiting-input'].includes(run.phase));
+      const steps=nodes.map((node,position)=>{
+        const step=stepOf(entry.plan,node),verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===entry.board.version?verdict.status:null;
+        const state=decided==='accepted'?STATE.accepted:decided==='needs-work'?STATE['needs-work']:skipped(node)?STATE.skipped:STATE[node.state]||STATE.pending;
+        const deps=(node.depends_on||[]).map(dep=>nodes.find(other=>other.id===dep)).filter(Boolean).map(dep=>({title:stepOf(entry.plan,dep).title,ready:settled(dep),blocked:['failed','blocked'].includes(dep.state)}));
+        const mine=(placed.get(node.id)||[]).map(childRow),last=node.reports.at(-1);
+        const done=mine.length?mine.filter(row=>['done','accepted'].includes(row.state[2])).length:settled(node)||decided==='accepted'?1:0;
+        return {key:'step-'+id+'-'+node.id,label:node.inserted?'插入':'S'+(Number(node.id.replace('step-',''))||position+1),title:step.title,
+          hint:(step.acceptance?'完成条件：'+step.acceptance:'')+(last?'\\n最近回报：'+last.note:''),
+          state,progress:{done,total:mine.length||1},deps,executor,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
+          node,live,board:entry.board,runId:id,position};
+      });
+      const doneSteps=nodes.filter(settled).length,counted=nodes.filter(node=>!skipped(node)).length;
+      const name=entry?.plan?.content.title||clip(firstLine(run.task??ownTask(run.turns?.find(turn=>turn.kind==='user'&&!turn.steer)?.text||'')),90)||'第 '+(index+1)+' 轮';
+      const first=runs[span[0]];
+      rounds.unshift({key:'run-'+id,label:span.length>1?'#'+(span[0]+1)+'–'+(index+1):'#'+(index+1),title:name,
+        hint:[entry?'计划修订 '+(entry.revision??'?'):'',span.length>1?'接续的轮次：'+span.map(at=>'#'+(at+1)).join('、'):''].filter(Boolean).join('\\n'),state:PHASE[run.phase]||['状态未知','circle','idle'],
+        progress:nodes.length?{done:doneSteps,total:counted||nodes.length}:children.length?{done:children.filter(item=>item.child.state==='completed').length,total:children.length}:null,
+        executor,time:when(first.started_at),target:{kind:'run',run_id:id},children:[...steps,...loose.map(childRow)],note:entry?.error||group?.error||''});
+    });
+    if(rounds.length)groups.push({id:'rounds',label:'执行',mark:'play',count:rounds.length+' 轮',items:rounds});
+    return groups;
+  };
+  const renderState=(state)=>{const [label,mark,tone]=state,node=el('span','coding-board-state');node.dataset.tone=tone;
+    node.innerHTML=tone==='progress'?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(mark||'circle');node.append(el('span','',label));node.title=label;return node;};
+  const renderProgress=(progress)=>{const node=el('span','coding-board-progress');if(!progress){node.classList.add('is-empty');return node;}
+    const percent=Math.round(progress.done/Math.max(1,progress.total)*100);node.innerHTML='<span></span><i aria-hidden="true"><b></b></i>';node.firstChild.textContent=progress.done+'/'+progress.total;
+    node.querySelector('b').style.setProperty('--board-progress',percent+'%');node.setAttribute('aria-label',progress.done+'/'+progress.total+' 完成');return node;};
+  const renderDeps=(row)=>{
+    if(!row.deps?.length){const node=el('span','coding-board-deps is-empty');if(row.note){node.className='coding-board-deps is-note';node.textContent=row.note;node.title=row.note;}return node;}
+    const waiting=row.deps.filter(dep=>!dep.ready),blocked=waiting.filter(dep=>dep.blocked);
+    const node=el('details','coding-board-deps '+(blocked.length?'is-blocked':waiting.length?'is-waiting':'is-ready')),summary=el('summary');
+    summary.textContent=row.deps.length+' 个前置'+(blocked.length?' · '+blocked.length+' 个阻塞':waiting.length?' · '+waiting.length+' 个未完成':' · 已就绪');
+    summary.setAttribute('aria-label','查看 '+row.deps.length+' 个前置步骤');node.append(summary);
+    const box=el('div','coding-board-dep-list');
+    for(const dep of row.deps){const item=el('p','coding-board-dep '+(dep.ready?'is-ready':dep.blocked?'is-blocked':'is-waiting'));item.innerHTML=svg('link');item.append(el('strong','',dep.title),el('em','',dep.ready?'已完成，不再挡住':dep.blocked?'受阻，挡住这一步':'还在等它完成'));box.append(item);}
+    node.append(box);return node;
+  };
+  const renderMeta=(row)=>{
+    const node=el('span','coding-board-meta'),time=el('time','coding-board-time'+(row.time?'':' is-empty'),row.time?.text||'');if(row.time)time.title=row.time.title;
+    const avatar=el('span','coding-board-avatar'+(row.executor?'':' is-unknown'));
+    if(row.executor){avatar.textContent=Array.from(row.executor.name)[0]||'?';avatar.style.setProperty('--board-avatar-hue',String(hue(row.executor.name)));avatar.title='执行：'+row.executor.detail;avatar.setAttribute('aria-label','执行者 '+row.executor.name);}
+    const name=el('span','coding-board-agent',row.executor?.name||'');if(row.executor)name.title='执行：'+row.executor.detail;
+    node.append(time,name,avatar);return node;
+  };
+  const tools=(row,entry)=>{
+    if(!row.live||!row.node)return null;
+    const node=row.node,nodes=row.board.nodes,index=row.position,waiting=node.state==='not-started'||node.state==='ready';
+    const group=el('span','coding-board-tools');
+    const tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+row.title);button.innerHTML=svg(icon);
+      button.addEventListener('click',event=>{event.stopPropagation();action();});group.append(button);};
+    const change=async(amendment)=>{board.dataset.busy='true';try{await amend(row.runId,row.board.version,amendment);}finally{delete board.dataset.busy;key='';render();}};
+    const ask=(fields,label,build)=>{
+      list.querySelector('.coding-board-form')?.remove();const form=el('form','coding-board-form');
+      const inputs=fields.map(([name,placeholder,max])=>{const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;form.append(input);return input;});
+      const cancel=el('button','mw-btn mw-btn--ghost','取消'),ok=el('button','mw-btn mw-btn--primary',label);cancel.type='button';ok.type='submit';form.append(cancel,ok);board.dataset.editing='true';
+      const close=()=>{form.remove();delete board.dataset.editing;key='';render();};
+      cancel.addEventListener('click',close);form.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}});
+      form.addEventListener('submit',async event=>{event.preventDefault();if(inputs.some(input=>!input.value.trim()))return;ok.disabled=true;delete board.dataset.editing;await change(build(inputs.map(input=>input.value.trim())));});
+      entry.after(form);inputs[0].focus();
+    };
+    if(waiting&&index>0&&['not-started','ready'].includes(nodes[index-1].state))tool('提前一步','chevron-up',()=>void change({kind:'move',node:node.id,direction:'up'}));
+    if(waiting&&['not-started','ready'].includes(nodes[index+1]?.state))tool('推后一步','chevron-down',()=>void change({kind:'move',node:node.id,direction:'down'}));
+    if(node.state==='blocked')tool('给出决定','edit',()=>ask([['note','你的决定，例如：用方案 B',500]],'继续',([note])=>({kind:'unblock',node:node.id,note})));
+    if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过','minus',()=>ask([['reason','跳过原因',300]],'跳过',([reason])=>({kind:'skip',node:node.id,reason})));
+    if(node.state!=='cancelled')tool('在后面插入一步','plus',()=>ask([['title','新步骤要做什么',120],['acceptance','完成条件',300]],'插入',([title,acceptance])=>({kind:'insert',after:node.id,title,acceptance})));
+    return group;
+  };
+  const renderRow=(row,depth)=>{
+    const item=el('li','coding-board-item');item.dataset.boardKey=row.key;item.style.setProperty('--board-depth',String(depth));
+    const entry=el('div','coding-board-entry'),lead=el('span','coding-board-lead'),open=!collapsed.has(row.key);
+    if(row.children.length){
+      const toggle=el('button','coding-board-toggle');toggle.type='button';toggle.innerHTML=svg('chevron-down');toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',(open?'折叠 ':'展开 ')+row.title);
+      toggle.addEventListener('click',()=>{if(collapsed.has(row.key))collapsed.delete(row.key);else collapsed.add(row.key);key='';render();});lead.append(toggle);
+    }else lead.append(el('span','coding-board-guide'));
+    const main=el('button','coding-board-node');main.type='button';if(row.hint)main.title=row.hint;
+    if(row.label)main.append(el('span','coding-board-key',row.label));main.append(el('strong','',row.title));
+    main.addEventListener('click',()=>void navigate(owner,row.target).catch(error=>status(error.message,true)));
+    lead.append(main);entry.append(lead,renderState(row.state),renderProgress(row.progress),renderDeps(row),renderMeta(row));
+    const controls=tools(row,entry);if(controls)entry.append(controls);
+    item.append(entry);
+    if(row.children.length&&open){const children=el('ul','coding-board-children');for(const child of row.children)children.append(renderRow(child,depth+1));item.append(children);}
+    return item;
   };
   const render=()=>{
-    if(region.hidden)return;
-    if(!data){tree.replaceChildren();notice.textContent=loadError|| (owner?'正在读取原任务…':'选择会话后查看计划与实际执行。');return;}
-    notice.textContent=loadError||data.error||'计划、执行与结果评价分别显示；点击节点进入原任务。';
-    const runs=data.runs.map(run=>({id:run.ref.run_id,phase:run.phase,role:run.frozen.role_id,task:run.task ?? ownTask(run.turns.find(turn=>turn.kind==='user'&&!turn.steer)?.text||'')}));
-    const groups=(data.subagents||[]).map(group=>({...group,children:group.children.map(child=>({subagent_id:child.subagent_id,role_name:child.role_name,role_id:child.role_id,task:child.task,state:child.state,verdict:child.verdict,error:child.error}))}));
-    const next=JSON.stringify([owner,data.plan,data.taskboard_plans,runs,groups,data.recovery_required,data.checkpoint_busy]);if(next===key)return;
-    const opened=new Set([...tree.querySelectorAll('details[open]')].map(node=>node.dataset.boardBranch));
-    const focused=tree.contains(document.activeElement)?document.activeElement.dataset.boardTarget:undefined,focusedBranch=tree.contains(document.activeElement)&&document.activeElement.tagName==='SUMMARY'?document.activeElement.parentElement.dataset.boardBranch:undefined,scroll=region.scrollTop;
-    tree.replaceChildren();
-    if(data.recovery_required)tree.append(action('核对中断结果',{kind:'recovery'},'结果尚未确认','reconcile-required'));
-    if(data.checkpoint_busy)tree.append(action('处理文件回退',{kind:'reviews'},'回退待处理','awaiting-review'));
-    if(data.plan){
-      const plan=data.plan,label='当前计划 · 修订 '+plan.revision+' · '+(plan.content.blockers?'有阻塞':plan.confirmed?'已确认':'待确认');
-      const row=branch(label,'draft',opened,true);row.append(action(plan.content.title,{kind:'plan'}));
-      if(plan.content.blockers)row.append(el('p','待解决：'+plan.content.blockers,'coding-board-meta'));
-      if(plan.content.change_reason)row.append(el('p','变更说明：'+plan.content.change_reason,'coding-board-meta'));
-      steps(row,plan,{kind:'plan'});tree.append(row);
-    }else tree.append(el('p','没有已保存的计划；普通任务可直接执行。','coding-board-meta'));
-    if(!runs.length)tree.append(el('p',data.recovery_required?'执行记录未恢复，不能判断完成情况。':'尚未开始执行。','coding-board-meta'));
-    for(const [index,run] of runs.entries()){
-      const row=branch('第 '+(index+1)+' 轮 · '+(phases[run.phase]||'状态暂不可读'),'run:'+run.id,opened,index===runs.length-1);
-      const title=run.task.length>100?run.task.slice(0,100)+'…':run.task||'查看原执行';
-      row.append(action(title,{kind:'run',run_id:run.id}));
-      if(run.phase==='awaiting-review')row.append(action('处理本轮审查',{kind:'reviews',run_id:run.id}));
-      for(const entry of (data.taskboard_plans||[]).filter(entry=>entry.run_id===run.id)){
-        const label='本轮固定计划 · 修订 '+(entry.revision??'未知');
-        if(entry.plan){row.append(action(label,{kind:'fixed-plan',revision:entry.revision}));steps(row,entry.plan,{kind:'fixed-plan',revision:entry.revision},entry);}
-        else row.append(el('p',label+'：'+entry.error,'coding-board-meta'));
-      }
-      const group=groups.find(group=>group.run_id===run.id);
-      if(group?.error)row.append(el('p','子任务暂不可读：'+group.error,'coding-board-meta'));
-      if(group?.children.length){
-        const children=el('div',undefined,'coding-board-children');children.append(el('p','本轮子任务 · '+group.children.length,'coding-board-meta'));
-        for(const child of group.children){
-          const label=(child.role_name||child.role_id)+' · '+(child.task.length>80?child.task.slice(0,80)+'…':child.task);
-          const mark=child.verdict?(child.verdict.status==='accepted'?'用户已接受此结果':'用户要求返工'):phases[child.state]||'状态暂不可读';
-          children.append(action(label,{kind:'child',run_id:run.id,child_id:child.subagent_id},mark,child.verdict?.status==='needs-work'?'awaiting-input':child.state));
-          if(child.verdict?.notes)children.append(el('p',child.verdict.notes,'coding-board-meta'));
-        }row.append(children);
-      }
-      tree.append(row);
+    if(board.hidden)return;
+    if(!data){list.replaceChildren();title.textContent='TaskBoard';meta.textContent='';notice.textContent=loadError||(owner?'正在读取…':'在左侧选一个会话，查看它的计划、步骤和子任务。');return;}
+    if(board.dataset.editing==='true'||board.dataset.busy==='true')return;
+    const next=JSON.stringify([owner,data.plan,data.taskboard_plans,(data.runs||[]).map(run=>[run.ref.run_id,run.phase,run.frozen?.character?.title]),data.subagents,data.recovery_required,data.checkpoint_busy,[...collapsed]]);
+    if(next===key)return;key=next;
+    const scroll=board.scrollTop,groups=tree();
+    title.textContent='TaskBoard';
+    const latest=(data.taskboard_plans||[]).filter(entry=>entry.board).at(-1)?.board;
+    meta.textContent=[data.plan?'计划修订 '+data.plan.revision+(data.plan.confirmed?' · 已确认':' · 待确认'):'',latest?latest.nodes.filter(settled).length+'/'+latest.nodes.filter(node=>!skipped(node)).length+' 步完成':''].filter(Boolean).join(' · ');
+    notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
+    list.replaceChildren();
+    for(const group of groups){
+      const fold=el('details','coding-board-fold');fold.open=!collapsed.has('group:'+group.id);fold.dataset.boardGroup=group.id;
+      const summary=el('summary');summary.innerHTML='<span class="coding-board-caret">'+svg('chevron-down')+'</span><span class="coding-board-fold-mark">'+svg(group.mark)+'</span>';
+      summary.append(el('strong','',group.label),el('small','',group.count||String(group.items.length)));
+      fold.addEventListener('toggle',()=>{if(fold.open)collapsed.delete('group:'+group.id);else collapsed.add('group:'+group.id);});
+      const rows=el('ul','coding-board-tree');for(const row of group.items)rows.append(renderRow(row,0));
+      fold.append(summary,rows);list.append(fold);
     }
-    for(const detail of tree.querySelectorAll('details'))if(opened.has(detail.dataset.boardBranch))detail.open=true;
-    key=next;region.scrollTop=scroll;
-    if(focused)[...tree.querySelectorAll('[data-board-target]')].find(node=>node.dataset.boardTarget===focused)?.focus({preventScroll:true});
-    if(focusedBranch)[...tree.querySelectorAll('details')].find(node=>node.dataset.boardBranch===focusedBranch)?.querySelector('summary')?.focus({preventScroll:true});
+    board.scrollTop=scroll;
   };
-  choice.addEventListener('change',()=>{if(choice.value)void navigate(choice.value,{kind:'session'}).catch(error=>status(error.message,true));});
   return {
-    sessions(rows){const next=JSON.stringify(rows.map(row=>[row.session_id,row.title]));if(next!==optionsKey){choice.replaceChildren(el('option','选择任务'));choice.firstChild.value='';for(const row of rows){const option=el('option',row.title);option.value=row.session_id;choice.append(option);}optionsKey=next;}choice.value=current();},
-    loading(id){if(id!==owner){owner=id;data=null;key='';loadError='';region.scrollTop=0;}choice.value=id;render();},
-    update(id,value){if(id!==current())return;if(id!==owner){key='';region.scrollTop=0;}owner=id;data=value;loadError='';choice.value=id;render();},
-    fail(id,message){if(id!==owner)return;loadError='任务暂不可读：'+message+'；已显示内容可能过期。';render();},
-    show(){region.hidden=false;render();}
+    loading(id){if(id!==owner){owner=id;data=null;key='';loadError='';collapsed.clear();board.scrollTop=0;}render();},
+    update(id,value){if(id!==current())return;if(id!==owner){key='';collapsed.clear();board.scrollTop=0;}owner=id;data=value;loadError='';render();},
+    fail(id,message){if(id!==owner)return;loadError='任务暂不可读：'+message+'；已显示内容可能过期。';key='';render();},
+    show(){board.hidden=false;key='';render();},
+    hide(){board.hidden=true;},
   };
 }`;

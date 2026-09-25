@@ -24,7 +24,7 @@ export interface CodingRunSummary {
   started_at: string;
   ended_at: string | null;
   task: string;
-  frozen: Pick<AgentRunView["frozen"], "role_id" | "model_id"> & { text_materials: Array<{ source_artifact_id: string; source_version: number }> };
+  frozen: Pick<AgentRunView["frozen"], "role_id" | "model_id"> & { character?: { title: string }; text_materials: Array<{ source_artifact_id: string; source_version: number }> };
   usage: AgentRunUsage;
   command_outputs: Array<{ call_id: string; run_id?: string; target: string }>;
   stop_reason?: string;
@@ -35,7 +35,7 @@ export function codingRunSummary(run: AgentRunView): CodingRunSummary {
   return {
     light: true, ref: run.ref, phase: run.phase, started_at: run.started_at, ended_at: run.ended_at ?? null,
     task: task.length > 300 ? task.slice(0, 300) + "…" : task,
-    frozen: { role_id: run.frozen.role_id, model_id: run.frozen.model_id,
+    frozen: { role_id: run.frozen.role_id, model_id: run.frozen.model_id, ...(run.frozen.character ? { character: { title: run.frozen.character.title } } : {}),
       text_materials: run.frozen.text_materials.map(item => ({ source_artifact_id: item.source_artifact_id, source_version: item.source_version })) },
     usage: run.usage,
     command_outputs: (run.command_outputs ?? []).map(ref => ({ ...ref, target: run.activity.find(item => item.call_id === ref.call_id)?.target ?? "" })),

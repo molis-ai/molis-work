@@ -647,6 +647,20 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const runs = await Promise.all(snapshot.runs.slice(offset, before).map(ref => api!.invoke(agent.readRun, [session, ref])));
       return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
     }),
+    // The whole session's TaskBoard: rounds that ran a confirmed plan or dispatched subagents are read in full, the rest
+    // come as summaries, since the board shows none of their detail.
+    route("coding.taskboard", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) return { runs: [], subagents: [], taskboard_plans: [] };
+      const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+      const snapshot = await api!.invoke(agent.readSession, [session]);
+      const light = await summaries.read(session.session_id, snapshot.runs, ref => api!.invoke(agent.readRun, [session, ref]));
+      const prefix = `coding-plan:${record.session_id}:`;
+      const tasked = snapshot.runs.filter((_, index) => light[index]!.frozen.text_materials.some(material => material.source_artifact_id.startsWith(prefix))
+        || ["coordinator", "writers"].includes(light[index]!.frozen.role_id));
+      const full = await Promise.all(tasked.map(ref => api!.invoke(agent.readRun, [session, ref])));
+      return { runs: light, subagents: await subagentGroups(api!, record.session_id, session, full), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };
+    }),
     // Sessions working together: what this session delegated, what it was created for, and the sessions they touch.
     route("coding.delegations", async (request, _api, execution) => {
       const record = selected(request, execution);

@@ -94,6 +94,23 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
   // The TaskBoard takes the conversation's place in the main area; the session list stays beside it.
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
+  // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
+  // session's plans and subagents, fetched again only when the number of rounds changes.
+  let boardAll={key:'',id:'',value:null};
+  const boardUpdate=(id,data)=>{
+    const merged=()=>{
+      const all=boardAll.id===id?boardAll.value:null;if(!all)return {...data,runs:allRuns};
+      // The window read just now is the freshest for its own rounds; every other round comes from the whole-session read.
+      const held=new Set((data.runs||[]).map(run=>run.ref.run_id));
+      return {...data,runs:all.runs.map(run=>allRuns.find(own=>own.ref.run_id===run.ref.run_id&&!own.light)||run),
+        taskboard_plans:[...all.taskboard_plans.filter(entry=>!held.has(entry.run_id)),...(data.taskboard_plans||[])],
+        subagents:[...all.subagents.filter(group=>!held.has(group.run_id)),...(data.subagents||[])]};
+    };
+    taskboard.update(id,merged());
+    const key=id+':'+(data.run_count??allRuns.length);
+    if(root.dataset.codingBoardOpen==='true'&&boardAll.key!==key){boardAll.key=key;
+      void api('/sessions/'+encodeURIComponent(id)+'/taskboard').then(value=>{if(current!==id)return;boardAll={key,id,value};taskboard.update(id,merged());}).catch(()=>{boardAll.key='';});}
+  };
   const showBoard=(open)=>{root.dataset.codingBoardOpen=String(open);if(open)taskboard.show();else taskboard.hide();};
   const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({board:q('[data-coding-board]'),current:()=>current,status,ownTask,roleName:id=>ROLE_NAMES[id]||id||'Agent',
     amend:async(runId,version,amendment)=>{
@@ -993,7 +1010,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       plans.update(id,data.plan ?? null,allRuns);
       subagents.update(id,data.subagents ?? []);
-      taskboard.update(id,{...data,runs:allRuns});
+      boardUpdate(id,data);
       stepReports.sync(id);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
       // The results panel lists this session's reviews by session, not by naming every round: open items always, and the

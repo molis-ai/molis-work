@@ -117,6 +117,9 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const lost=(await request()).body.taskboard_plans.at(-1);
     assert.equal(lost.run_id,"lost-plan");assert.equal(lost.revision,999);assert.equal(lost.plan,null);assert.match(lost.error,/不能替代/);
     assert.equal((await request()).body.taskboard_plans.length,3,"foreign plan references do not expose another session's plan");
+    const whole=(await request("/taskboard")).body;
+    assert.equal(whole.runs.length,runs.length,"the whole session's TaskBoard lists every round");assert.ok(whole.runs.every((run:any)=>run.light&&run.frozen.directory.canonical_path));
+    assert.deepEqual(whole.taskboard_plans.map((entry:any)=>entry.run_id),(await request()).body.taskboard_plans.map((entry:any)=>entry.run_id),"only rounds that ran a plan are read in full, and none is missed");
     runs.push(makeRun("labelled","reader","[retained assistant run:3-8qod6]\n结论：边界已核对。"));
     const labelled=(await request()).body.runs.find((run:any)=>run.ref.run_id==="labelled").turns.find((turn:any)=>turn.kind==="assistant");
     assert.doesNotMatch(labelled.html,/retained/,"the SDK's compaction label a model copied is not shown to the person");assert.match(labelled.html,/边界已核对/);

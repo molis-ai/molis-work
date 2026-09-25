@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-search-large.tgz`。在大仓库搜全之上，**搜索不再悄悄跳过大于 64KB 的文件**：原来搜索和整份读取共用 64KB 上限，超过的文件在搜索里直接跳过——Molis 的 76KB 样式文件里明明有 `.coding-tool-state[data-tone=failed]`，模型却一再断定"这个类没有样式"。现在搜索单个文件可读到 2MB，更大的仍跳过但计入"没搜全"；整份读取的 64KB 上限不变（仍提示按行窗读）。Tauri 原生 Host 同步修正。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-large-read.tgz`。在搜索读大文件之上，**大于 64KB 的文件可以按行读、可以 edit**：用 Coding 开发 Molis 时，76KB 的样式文件整读被拒、提示"按行窗读"，可 read 工具根本没有行号参数，edit 又先整读同样被拒，模型只好用 `sed -n` 看、再用 `sed -i` 改（macOS 的 `sed -i -e` 还会留下一个备份文件）。现在 read 工具有 `offset`（从第几行起，1 起算）和 `limit`（取几行，最多 2000），回复末尾写明"第几行到第几行、共几行"；edit 与补丁准备为了生成差异可整读到 2MB（正文不进模型上下文）。不带行号的整读仍是 64KB 上限，超过时提示用 offset 和 limit。Tauri 原生 Host 同步支持 `maxBytes`（只能放宽到 2MB，不能调低）。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[large-read.patch](large-read.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`9ec1243b2eb0bd08fdb866926021a8e714dd77cff8c1afa9da23c64ea46c4ebb`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/large-read.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-large-read.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；SDK 全量 3264 项通过、0 失败（新增定向：80KB 文件整读被拒并指向行窗、按行窗读到末尾几行、edit 改成功）；Rust Host 全部测试通过（新增 1 项：默认整读仍拒、放宽后读得到、不能调低、超过 2MB 仍拒）。未发布 npm，未替换正式安装版。
+
+## 上一依赖：搜索读大文件
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-search-large.tgz`。在大仓库搜全之上，**搜索不再悄悄跳过大于 64KB 的文件**：原来搜索和整份读取共用 64KB 上限，超过的文件在搜索里直接跳过——Molis 的 76KB 样式文件里明明有 `.coding-tool-state[data-tone=failed]`，模型却一再断定"这个类没有样式"。现在搜索单个文件可读到 2MB，更大的仍跳过但计入"没搜全"；整份读取的 64KB 上限不变（仍提示按行窗读）。Tauri 原生 Host 同步修正。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

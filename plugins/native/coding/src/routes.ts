@@ -400,7 +400,9 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api!.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
       const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api!.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
       return { sessions, methods, mcp, models: await execution.models(),
-        workspace: await api!.invoke(projectsCapabilities.readWorkspace, []),
+        // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
+        // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
+        workspace: await api!.invoke(projectSettingsCapabilities.browsingWorkspace, []) ?? await api!.invoke(projectsCapabilities.readWorkspace, []),
         workspaces: await api!.invoke(projectSettingsCapabilities.workspaces, []),
         runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
           roles: await api!.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),

@@ -33,13 +33,20 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await b.navigate(() => command("Page.navigate", { url: b.origin + "/__ui/catalog" }, sessionId));
   const boardFrame = await evaluate(`(()=>{const h=document.querySelector('.mw-catalog-shell .mw-frame__header'),title=h.querySelector('h2');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`);
   await b.navigate(() => command("Page.navigate", { url: prefix + "/" }, sessionId));
-  await open("workspace");
-  await waitFor("document.querySelector('[data-workspace-status]').textContent.includes('还没有')");
-  await fill('[data-workspace-add] [name="path"]', workspace);
-  await click('[data-workspace-add] [name="confirmed"]');
-  await click('[data-workspace-add] button[type="submit"]');
-  await waitFor("document.querySelector('[data-workspace-add-status]').textContent.includes('目录已关联')");
-  assert.ok(await evaluate<number>("document.querySelector('[data-workspace-add] button[type=submit]').getBoundingClientRect().height") <= 48, 'inline form controls do not stretch to fill the stage');
+  // Folders are associated in project settings; the chosen one is the project's current directory for Files, Git and Coding.
+  const showWorkspaceSettings = async () => {
+    await click('.navigator-project-settings');
+    await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+    await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
+    await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  };
+  await showWorkspaceSettings();
+  await fill('[data-project-workspaces-add] [name=path]', workspace);
+  await click('[data-project-workspaces-add] [type=submit]');
+  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-fixture') && !document.querySelector('[data-project-workspaces-add] [type=submit]').disabled");
+  const workspaceId = await evaluate<string>("document.querySelector('[data-browse-workspace]').dataset.browseWorkspace");
+  if (await evaluate(`document.querySelector('[data-browse-workspace="${workspaceId}"]').getAttribute('aria-pressed')`) !== 'true') await click(`[data-browse-workspace="${workspaceId}"]`);
+  await waitFor(`document.querySelector('[data-browse-workspace="${workspaceId}"]')?.getAttribute('aria-pressed') === 'true'`);
   await capture("workspace-desktop");
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
@@ -76,7 +83,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
   git("add", "note.txt");
   await writeFile(join(workspace, "note.txt"), "second\n中文🙂\n");
-  await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.workspace/state"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.git/state"] }, sessionId);
   await open("git");
   await waitFor("document.querySelector('[data-companion=git] [data-git-status]').textContent.includes('fetch')");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
@@ -202,8 +209,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate("document.activeElement.hasAttribute('data-git-close')"), true);
   await capture('git-mobile-dark');
   await click('[data-directory-show]');
-  await open('workspace');
-  await waitFor("!document.querySelector('[data-workspace-refresh]').disabled");
+  await showWorkspaceSettings();
   await capture('workspace-mobile-dark');
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 600, deviceScaleFactor: 1, mobile: false }, sessionId);

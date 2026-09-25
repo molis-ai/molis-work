@@ -44,6 +44,21 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const timeline = (${createCodingTimeline.toString()})();
   setInterval(()=>timeline.tick(turns),1000);
   const position = () => ({ offset: turns.scrollTop, viewport: turns.clientHeight, content: turns.scrollHeight });
+  // The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it
+  // for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it.
+  const useProjectWorkspace = async (id) => {
+    const response=await fetch((document.body.dataset.routePrefix || '')+'/api/project-settings/workspaces',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:id})});
+    if(!response.ok){let reason='';try{reason=(await response.json()).error || '';}catch{}throw new Error('没能把项目的当前目录切过去'+(reason?'：'+reason:''));}
+    root.querySelectorAll('[data-git-refresh],[data-files-refresh]').forEach(button=>button.click());
+  };
+  // Opening a session, or pointing it at another directory, makes that directory the project's current one, so Files
+  // and Git always show where the open session's next round runs. A directory that is no longer authorized is left alone.
+  const followWorkspace = async () => {
+    const target=state.workspaces?.find(item=>item.workspace_id===workspaceId && item.realpath_verified);
+    if(!target || target.workspace_id===state.workspace?.workspace_id) return;
+    try{await useProjectWorkspace(target.workspace_id);state.workspace=target;}
+    catch(error){status(error.message+'；Files 与 Git 仍显示原目录。',true);}
+  };
   const renderedText = new WeakMap();
   const directoryRows = new Map(), directoryGroups = new Map();
   let directoryClaimed = false;
@@ -147,7 +162,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     try{await flushDraft();status('分工已保存；选择并行写入并发送任务后才开始。');}catch(error){configurations.set(owner,previous);throw error;}
   },select:async(owner,id)=>{
     if(owner!==current)throw new Error('会话已改变，请重新打开独立工作树');
-    workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
+    workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();await followWorkspace();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
   }});
   const plans = (${CODING_PLANS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,execute:async revision=>{
     if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
@@ -995,7 +1010,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           q('[data-coding-model]').value=state.models[0] ? JSON.stringify([state.models[0].provider_id,state.models[0].model_id]) : '';
           workspaceId=state.workspace?.workspace_id || (state.workspaces?.length===1?state.workspaces[0].workspace_id:'');
         }
-        applyConfiguration();
+        applyConfiguration();void followWorkspace();
       }
       if(!mcpSourceSelections.has(id))mcpSourceSelections.set(id,data.mcp_sources || []);
       if(!mcpSelections.has(id))mcpSelections.set(id,data.mcp_tools || []);
@@ -1178,7 +1193,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const ownWorkspace=(state.workspaces || []).find(item=>item.canonical_path===run.frozen.directory?.canonical_path),own=ownWorkspace?.workspace_id || workspaceId;
         try{sessionStorage.setItem('molis-commit-draft:'+own,draft);}catch{}
         let pointed=false;
-        try{const response=await fetch((document.body.dataset.routePrefix || '')+'/api/project-settings/workspaces',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:own})});pointed=response.ok;}catch{}
+        try{await useProjectWorkspace(own);pointed=true;}catch{}
         directory.querySelector('[data-coding-face=files]')?.click();
         // Git would otherwise stay on another directory, where this message does not belong: say so rather than claim it is there.
         status(pointed?note:'Git 面板没能切到这一轮的工作目录'+(ownWorkspace?'「'+ownWorkspace.display_name+'」':'')+'，提交说明还没有放进去：请在项目设置的工作目录里选中它，再点一次「提交这些改动…」。',failed || !pointed);
@@ -1308,6 +1323,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const workspace=await host.addWorkspace(path);workspaceId=workspace.workspace_id;
       } else workspaceId=q('[data-coding-workspace-choice]').value;
       if(!workspaceId) throw new Error('请选择或关联一个工作目录');
+      await useProjectWorkspace(workspaceId);
       rememberConfiguration();await flushDraft();await refreshState();q('[data-coding-workspace-error]').textContent='';q('[data-coding-workspace-path]').value='';q('[data-coding-workspace-confirm]').checked=false;q('[data-coding-workspace-dialog]').close();
     } catch(error) { q('[data-coding-workspace-error]').textContent=error.message; }
     finally {submit.disabled=false;}

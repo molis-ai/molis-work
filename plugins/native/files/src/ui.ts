@@ -13,8 +13,8 @@ export const FILES_UI_CONTRIBUTION_ID = "io.molis.work.native.files.ui.v1";
 /** Host mounts these fragments in the existing directory and result slots. */
 export function renderFilesBrowserDirectory(): string {
   return `<section data-files-browser hidden class="files-browser mw-dir">
-    <p class="mw-field__label">浏览项目设置中选中的工作目录</p>
-    <p class="files-notice">独立浏览，不改变会话的执行目录。</p>
+    <p class="mw-field__label">项目的当前目录</p>
+    <p class="files-notice">打开的 Coding 会话在哪个目录工作，这里就显示哪个；可在项目设置里切换。</p>
     <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">文件</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span>刷新</button></div>
     <p data-files-status role="status"></p><div class="mw-dir__list" data-files-tree></div>
   </section>`;

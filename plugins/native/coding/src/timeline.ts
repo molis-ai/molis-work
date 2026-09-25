@@ -201,7 +201,9 @@ export function createCodingTimeline() {
     // A round that ended on an announcement ("我先读……") without calling a single tool did nothing; it says so plainly
     // and offers to go on, rather than reading as done. Going on is the person's click, never automatic.
     const said = [...(run.turns ?? [])].reverse().find(turn => turn.kind === "assistant")?.text.trim() ?? "";
-    const stalled = latest && run.phase === "completed" && !run.activity.length && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
+    // Thinking is not doing: a round whose only activity is the model's reasoning still did nothing.
+    const acted = run.activity.some(item => item.name !== "reasoning");
+    const stalled = latest && run.phase === "completed" && !acted && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
     const tone = run.phase === "completed" ? left || stalled ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
     const title = { done: "这一轮完成", partial: stalled ? "这一轮只说了下一步就结束了" : `这一轮结束，计划还剩 ${left} 步`, failed: run.phase === "reconcile-required" ? "这一轮需要核对结果" : "这一轮没有完成", stopped: "这一轮已停止" }[tone];
     // A round cut off by a restart has no end time. Its last recorded moment is when it stopped; measuring to now

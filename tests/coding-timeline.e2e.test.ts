@@ -67,6 +67,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
         done:card({id:'e',phase:'completed'},true),
         stalled:card({id:'f',phase:'completed',turns:[{kind:'user',text:'改 README'},{kind:'assistant',text:'我先读 README.md 确认小节位置。'}]},true),
         answered:card({id:'g',phase:'completed',turns:[{kind:'user',text:'解释一下'},{kind:'assistant',text:'这个函数统计区间内的打卡次数。'}]},true),
+        thoughtOnly:card({id:'h',phase:'completed',activity:[{call_id:'r1',name:'reasoning',state:'completed',output:'先看看任务图',at:null}],turns:[{kind:'user',text:'继续'},{kind:'assistant',text:'我来从断点继续。先核对任务图和 README.md 的当前状态。'}]},true),
       };
     })()`);
     assert.match(resume.stopped, /^从断点继续\|/, "最新一轮停下后可一键继续");
@@ -76,6 +77,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(resume.done, /^none/, "完成的轮次没有继续按钮");
     assert.match(resume.stalled, /^让它继续\|这一轮只说了下一步就结束了\|模型说了要做什么，但没有调用任何工具就结束了/, "只宣布下一步就结束的一轮不算完成，由你一键让它继续");
     assert.match(resume.answered, /^none\|这一轮完成/, "直接作答的讨论不被误判");
+    assert.match(resume.thoughtOnly, /^让它继续\|这一轮只说了下一步就结束了/, "只思考了一下、没有调用任何工具的一轮同样算没做事");
     // A restart leaves an interrupted round without an end time: its duration stops at the last recorded moment, so
     // redrawing the card later changes nothing and the 核对并继续 button under the pointer is not replaced.
     const cutOff = await page.evaluate<{ facts: string; same: boolean; kept: boolean; bare: string }>(`(async()=>{

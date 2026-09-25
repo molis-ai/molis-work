@@ -80,3 +80,28 @@ test("计划的原任务是开始规划的那句话；续上的规划轮不算�
   assert.equal(planTask([resumed]), "让 @ 引用支持无扩展名文件", "a resumed round alone still names the user's own task");
   assert.equal(planTask([root]), "让 @ 引用支持无扩展名文件");
 });
+
+test("继续计划时带上你在任务图上留下的决定、跳过与插入，并让模型按决定直接做", () => {
+  const board = { board_id: "b", version: 7, terminal: false, nodes: [
+    { id: "step-1", title: "加小节标题", state: "succeeded", dependsOn: [], reports: [{ note: "已完成", at_ms: 1 }] },
+    { id: "step-2", title: "写一条记录", state: "ready", dependsOn: ["step-1"], reports: [{ note: "blocked：两种措辞", at_ms: 2 }, { note: "用户决定：用候选 B，措辞保持原样", at_ms: 3 }] },
+    { id: "step-3", title: "补 README", state: "cancelled", dependsOn: ["step-2"], reports: [{ note: "用户跳过：下个 PR 再写", at_ms: 4 }] },
+  ] };
+  const next = codingContinuation({ number: 2, run: run({ phase: "completed", stop_reason: undefined, activity: [], command_outputs: [], step_board: board } as never), reviews: [], commands: [], plan_unfinished: true });
+  assert.match(next.task, /「写一条记录」（step-2）：可开始；用户决定：用候选 B，措辞保持原样/);
+  assert.match(next.task, /「补 README」（step-3）：已取消；用户跳过：下个 PR 再写/);
+  assert.match(next.task, /按这个决定直接做，不要再把它报告为受阻或再问我/);
+  assert.doesNotMatch(next.task, /blocked：两种措辞/, "only the person's own notes travel, not the model's earlier reports");
+});
+
+test("上一轮只宣布了下一步就结束时，继续会说明这一点并要求直接调用工具", () => {
+  const board = { board_id: "b", version: 7, terminal: false, nodes: [{ id: "step-1", title: "写一条记录", state: "ready", dependsOn: [], reports: [] }] };
+  const stalled = run({ phase: "completed", stop_reason: undefined, command_outputs: [], step_board: board,
+    activity: [{ call_id: "r1", name: "reasoning", target: "", state: "completed", summary: "", at: null }],
+    turns: [{ turn_id: "u1", kind: "user", text: "继续", at: null }, { turn_id: "a1", kind: "assistant", text: "我先核对任务图和 README.md 的当前状态。", at: null }] } as never);
+  const next = codingContinuation({ number: 3, run: stalled, reviews: [], commands: [], plan_unfinished: true });
+  assert.match(next.task, /上一轮你只说了「我先核对任务图和 README\.md 的当前状态。」就结束了，没有调用任何工具/);
+  assert.match(next.task, /直接调用工具开始/);
+  const acted = run({ phase: "completed", stop_reason: undefined, command_outputs: [], step_board: board } as never);
+  assert.doesNotMatch(codingContinuation({ number: 3, run: acted, reviews: [], commands: [], plan_unfinished: true }).task, /上一轮你只说了/, "a round that did work is not called idle");
+});

@@ -129,6 +129,17 @@ Open `http://127.0.0.1:4173` and enter the demo project. In “Settings → Runt
 
 Runtimes read MCP and Skill manifests at Session startup, so a newly connected Runtime needs a new Session.
 
+### One-command start (development)
+
+`Start.sh` in the repository root is the daily entry for a checkout: it first cleans up leftover Molis Work processes (the resident LaunchAgent service, an old Web on port 4173, a running desktop app), installs dependencies and rebuilds when build artifacts are missing or older than the sources, then launches the desktop app — its Web UI is served straight from the freshly built repository `dist`, so a restart picks up your code changes. An interactive terminal gets a step-by-step wizard (pick the target, confirm cleanup, confirm rebuild); scripted runs can skip the wizard with flags.
+
+```bash
+./Start.sh              # wizard; starts the desktop app by default
+./Start.sh --web        # Web service only, opens the browser
+./Start.sh --build      # force a rebuild before starting
+./Start.sh --no-clean   # skip cleanup
+```
+
 ### Build, install, and start macOS Desktop
 
 ```bash

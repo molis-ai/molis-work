@@ -205,12 +205,46 @@ function readKeychain(): string | null {
   return readKeychainService(KEYCHAIN_SERVICE);
 }
 
+function keychainItemExists(): boolean {
+  if (process.platform !== "darwin") return false;
+  try {
+    // 元数据查询不带 -w，不读密码数据，不会触发授权弹窗。
+    execFileSync(
+      "security",
+      ["find-generic-password", "-a", KEYCHAIN_ACCOUNT, "-s", KEYCHAIN_SERVICE],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 3000 },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function deleteKeychainItem(): boolean {
+  if (process.platform !== "darwin") return false;
+  try {
+    execFileSync(
+      "security",
+      ["delete-generic-password", "-a", KEYCHAIN_ACCOUNT, "-s", KEYCHAIN_SERVICE],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 3000 },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function writeKeychain(keyB64: string): boolean {
   if (process.platform !== "darwin") return false;
   try {
     // Add-only: if an item already exists but cannot be read in this process,
     // fail and use the recovery path. Replacing it would make every existing
     // ciphertext permanently unreadable.
+    //
+    // -T /usr/bin/security：信任 security CLI 本身，后续 `security
+    // find-generic-password` 读取才不会每次弹授权框。空信任列表（-T ""）会让
+    // 每次读取都弹窗，而读取的 3 秒超时让人来不及点「始终允许」，授权永远
+    // 记不下来。security CLI 与 0600 的 install key 文件同属本地用户信任域。
     execFileSync(
       "security",
       [
@@ -222,7 +256,7 @@ function writeKeychain(keyB64: string): boolean {
         "-w",
         keyB64,
         "-T",
-        "",
+        "/usr/bin/security",
       ],
       { encoding: "utf8", stdio: "ignore", timeout: 3000 },
     );
@@ -304,7 +338,12 @@ function resolveMasterKey(): ResolvedMaster {
         throw new KeychainUnavailableError();
       }
       const generated = randomBytes(32).toString("base64");
-      if (writeKeychain(generated)) {
+      // 走到这里说明没有任何 keychain 后端密文存在。若条目已存在但读不出，
+      // 它只能是历史版本以 -T "" 创建的空信任列表条目：每次读取都会弹授权框，
+      // 且 3 秒超时让「始终允许」来不及生效。删除后按可信方式重建即可，
+      // 整个恢复路径不产生弹窗，已有密文不受影响（它们不在 keychain 里）。
+      const canWrite = !keychainItemExists() || deleteKeychainItem();
+      if (canWrite && writeKeychain(generated)) {
         b64 = generated;
       }
     }

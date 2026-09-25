@@ -116,7 +116,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    return this.registry.descriptors().flatMap(definition => {
+    // Other projects' actions are dropped before anything is copied.
+    return this.registry.descriptors(d => !d.action_provider?.project_id || d.action_provider.project_id === context.project_id).flatMap(definition => {
       const provider = definition.action_provider;
       // A wait (following a live round) observes and is never an action; actions are queries or commands.
       if (definition.operation === "wait") return [];
@@ -239,7 +240,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private actionDefinition(context: ActionCallContext, reference: ActionReference) {
-    const matching = this.registry.descriptors().filter(d => actionKey(d) === actionKey(reference) && d.action);
+    const matching = this.registry.descriptors(d => actionKey(d) === actionKey(reference) && !!d.action);
     return matching.find(d => !d.action_provider?.project_id || d.action_provider.project_id === context.project_id) ?? matching[0];
   }
 

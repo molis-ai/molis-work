@@ -23,7 +23,7 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
     if (body.runtime_session_id !== undefined && (typeof body.runtime_session_id !== "string" || !body.runtime_session_id.trim()
       || !body.client_id.startsWith("runtime:"))) throw new ActionError("actions.input_invalid", "Runtime 会话元数据无效");
     if (body.home_id !== actionGatewayHomeId(home)) throw new ActionError("actions.home_mismatch", "连接的系统服务属于另一个 Home");
-    const instance = host.status().instance_id;
+    const instance = host.instanceId;
     if (body.operation === "invoke" && body.instance_id !== instance) throw new ActionError("actions.host_replaced", "系统服务已重启，请重新发现能力");
     const projectId = body.project_id as string | null;
     const project = projectId ? await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId)) : null;
@@ -32,7 +32,7 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
       ...(body.runtime_session_id === undefined ? {} : { audit_actor_id: `${body.client_id}:${body.runtime_session_id}`, actor_kind: "runtime", runtime_session_id: body.runtime_session_id as string }) };
     const { context, service } = await authorizeMcpActions(host, caller, home, reference, () => {
       abort.signal.throwIfAborted();
-      if (host.status().instance_id !== instance || host.status().state !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
+      if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
     });
     if (body.operation === "discover") { sendJson(response, 200, { instance_id: instance, actions: await service.discover(context) }); return true; }
     const capability = body.capability as ActionReference | undefined;

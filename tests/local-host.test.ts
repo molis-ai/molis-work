@@ -102,6 +102,26 @@ test("a held wait runs beside the project's queue: a later read or command is no
   await host.close();
 });
 
+test("a capability call copies only the descriptor it needs: the registry grows with every project's actions", async t => {
+  const host = new LocalHost<{ value: number }>({ instanceId: "lookup-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
+  for (let index = 0; index < 200; index++) host.register({ capability_id: `test.other.${index}`, version: 1, operation: "query" } as HostCapabilityDefinition<void, number>, () => index);
+  const read = { capability_id: "test.read", version: 1, operation: "query" } as HostCapabilityDefinition<void, number>;
+  const dispose = host.register(read, runtime => runtime.value);
+  const client = host.client({ project_id: "p", board_id: "p", storage_key: "memory:p" });
+  assert.equal(await client.invoke(read, undefined), 0);
+  const clone = t.mock.method(globalThis, "structuredClone");
+  assert.equal(await client.invoke(read, undefined), 0);
+  assert.ok(clone.mock.callCount() < 10, `one call copied ${clone.mock.callCount()} descriptors`);
+  clone.mock.restore();
+  const listed = host.status().capabilities.map(item => item.capability_id);
+  assert.deepEqual(listed, [...listed].sort(), "still listed in key order");
+  (host.status().capabilities[0] as { capability_id: string }).capability_id = "changed";
+  assert.equal(host.status().capabilities[0]!.capability_id, listed[0], "callers get copies");
+  dispose();
+  assert.equal(host.status().capabilities.some(item => item.capability_id === "test.read"), false, "the order is rebuilt after a removal");
+  await host.close();
+});
+
 test("CLI snapshot, MCP intent, and Workbench-style client share one writer and recover after restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-local-host-"));
   const databasePath = join(directory, "molis-work.db");

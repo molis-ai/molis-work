@@ -67,6 +67,8 @@ function capabilityKey(descriptor: RegistryReference): string {
 /** Provider-neutral registry. It owns routing, never business facts. */
 export class CapabilityRegistry<Context> {
   private readonly entries = new Map<string, RegisteredCapability<Context>>();
+  /** Registration order sorted once per change: every capability call looks something up here. */
+  private ordered: HostCapabilityDescriptor[] | null = null;
 
   register<Input, Output>(
     definition: HostCapabilityDefinition<Input, Output>,
@@ -86,6 +88,7 @@ export class CapabilityRegistry<Context> {
       );
     }
     const token = Symbol(key);
+    this.ordered = null;
     this.entries.set(key, {
       token,
       descriptor,
@@ -94,14 +97,17 @@ export class CapabilityRegistry<Context> {
     });
     return () => {
       const current = this.entries.get(key);
-      if (current?.token === token) this.entries.delete(key);
+      if (current?.token === token) { this.entries.delete(key); this.ordered = null; }
     };
   }
 
-  descriptors(): HostCapabilityDescriptor[] {
-    return [...this.entries.values()]
-      .map(({ descriptor }) => structuredClone(descriptor))
-      .sort((left, right) => capabilityKey(left).localeCompare(capabilityKey(right)));
+  /**
+   * Copies of the registered descriptors, in key order. `match` narrows before copying: finding one capability must
+   * not clone the whole registry, which grows with every project's Plugin actions and is consulted on every call.
+   */
+  descriptors(match?: (descriptor: Readonly<HostCapabilityDescriptor>) => boolean): HostCapabilityDescriptor[] {
+    this.ordered ??= [...this.entries.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, entry]) => entry.descriptor);
+    return (match ? this.ordered.filter(match) : this.ordered).map(descriptor => structuredClone(descriptor));
   }
 
   availability(context: Context, reference: RegistryReference): ActionAvailability {

@@ -175,8 +175,8 @@ export class LocalHost<Runtime> {
       discover: async caller => this.discoverActions(contextFor(caller)),
       invoke: async (caller, capability, input) => {
         const context = contextFor(caller);
-        const descriptor = this.capabilities.descriptors().find(d => d.capability_id === capability.capability_id
-          && d.version === capability.version && !d.action_provider?.project_id);
+        const descriptor = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
+          && d.version === capability.version && !d.action_provider?.project_id)[0];
         return this.runHome(async () => {
           await this.checkActionAvailability(context, capability);
           return this.actionService.invoke(context, capability, input);
@@ -309,8 +309,8 @@ export class LocalHost<Runtime> {
       invoke: async (caller, capability, input) => {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
-        const descriptor = this.capabilities.descriptors().find(d => d.capability_id === capability.capability_id
-          && d.version === capability.version && (!d.action_provider?.project_id || d.action_provider.project_id === bound.project_id));
+        const descriptor = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
+          && d.version === capability.version && (!d.action_provider?.project_id || d.action_provider.project_id === bound.project_id))[0];
         if (!descriptor) return Promise.reject(new ActionError("actions.missing", "能力未注册或版本已失效"));
         return this.enqueue(project, descriptor, input, bound, () => this.actionService.invoke(bound, capability, input));
       },
@@ -325,8 +325,8 @@ export class LocalHost<Runtime> {
       project,
       availability: (capability, options) => {
         if (this.state !== "running" || this.closingKeys.has(project.storage_key)) return { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" };
-        const definition = this.capabilities.descriptors().find(d => d.capability_id === capability.capability_id && d.version === capability.version
-          && (!d.action_provider?.project_id || d.action_provider.project_id === project.project_id));
+        const definition = this.capabilities.descriptors(d => d.capability_id === capability.capability_id && d.version === capability.version
+          && (!d.action_provider?.project_id || d.action_provider.project_id === project.project_id))[0];
         if (!definition) return { available: false, code: "actions.dependency_missing", reason: `所需宿主能力未注册：${capability.capability_id}@${capability.version}` };
         if (capability.provider_id && capability.provider_id !== (definition.action_provider?.provider_id ?? "platform")) return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化" };
         const caller: ActionCallContext = { actor_id: "local-host", project_id: project.project_id, audience: "user", permissions: [] };
@@ -355,8 +355,8 @@ export class LocalHost<Runtime> {
       ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}) };
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
     // A typed identity may omit the activation scope; only the bound Host supplies it.
-    const registered = this.capabilities.descriptors().find(d => d.capability_id === capability.capability_id && d.version === capability.version
-      && (!d.action_provider?.project_id || d.action_provider.project_id === reference.project_id));
+    const registered = this.capabilities.descriptors(d => d.capability_id === capability.capability_id && d.version === capability.version
+      && (!d.action_provider?.project_id || d.action_provider.project_id === reference.project_id))[0];
     const scoped = { ...capability, action_provider: registered?.action_provider };
     return this.enqueue(reference, scoped, input, caller, () => this.capabilities.invoke<Input, Output>(caller, scoped, input));
   }
@@ -403,8 +403,8 @@ export class LocalHost<Runtime> {
   }
 
   private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDefinition, "capability_id" | "version">): Promise<void> {
-    const definition = this.capabilities.descriptors().find(d => d.capability_id === capability.capability_id && d.version === capability.version
-      && (!d.action_provider?.project_id || d.action_provider.project_id === caller.project_id));
+    const definition = this.capabilities.descriptors(d => d.capability_id === capability.capability_id && d.version === capability.version
+      && (!d.action_provider?.project_id || d.action_provider.project_id === caller.project_id))[0];
     if (!definition?.action || !definition.action_provider || definition.operation === "wait") return;
     const availability = this.capabilities.availability(caller, definition);
     if (!availability.available) return;
@@ -447,8 +447,8 @@ export class LocalHost<Runtime> {
     // Registered concurrent actions own their short transactions, and a wait only observes (following a live round):
     // held in line it would keep every later operation of the project waiting until it answers. Both run beside the
     // queue; withRuntime keeps close waiting. The registry still refuses a caller claiming "wait" for another operation.
-    const registered = this.capabilities.descriptors().find(d => d.capability_id === capability.capability_id
-      && d.version === capability.version && d.action_provider?.project_id === capability.action_provider?.project_id);
+    const registered = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
+      && d.version === capability.version && d.action_provider?.project_id === capability.action_provider?.project_id)[0];
     if (capability.operation === "wait" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
     const operation = entry.operationTail.then(run);
     entry.operationTail = operation.then(() => undefined, () => undefined);
@@ -470,6 +470,11 @@ export class LocalHost<Runtime> {
         for (const resolve of entry.idleWaiters.splice(0)) resolve();
       }
     }
+  }
+
+  /** Whether the Host still takes work, without copying every registered capability as status() does. */
+  lifecycle(): LocalHostStatus["state"] {
+    return this.state;
   }
 
   status(): LocalHostStatus {

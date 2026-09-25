@@ -17,7 +17,10 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     if(content.change_reason)parent.append(element('p','变更说明：'+content.change_reason));
   };
   const storedKey=id=>'molis-coding-plan-editor:'+location.pathname+':'+id;
-  const remember=()=>{if(!editor)return;try{sessionStorage.setItem(storedKey(editor.id),JSON.stringify({revision:editor.revision,content:values()}));}catch{}};
+  // Only real edits are kept for later: an editor opened and left as it was must not outlive the revision it showed,
+  // or a newer revision would open under a stale copy presented as the person's own unsaved changes.
+  const shape=(content)=>JSON.stringify({title:content?.title||'',steps:(content?.steps||[]).map(step=>({title:step.title||'',acceptance:step.acceptance||''})),blockers:content?.blockers||'',change_reason:content?.change_reason||''});
+  const remember=()=>{if(!editor)return;try{const now=values();if(shape(now)===editor.base)sessionStorage.removeItem(storedKey(editor.id));else sessionStorage.setItem(storedKey(editor.id),JSON.stringify({revision:editor.revision,content:now}));}catch{}};
   const values=()=>({title:editor.title.value,steps:editor.steps.map(step=>({title:step.title.value,acceptance:step.acceptance.value})),blockers:editor.blockers.value,change_reason:editor.reason.value});
   const edit=()=>{
     if(!plan)return;const content=structuredClone(plan.content);let saved;
@@ -25,8 +28,9 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     q('[data-coding-plan-help]').textContent='按依赖顺序安排步骤，每步写清完成条件。保存修改后需要重新确认；正在执行的任务继续使用原固定版本。';
     try{saved=JSON.parse(sessionStorage.getItem(storedKey(owner)) || 'null');}catch{}
     const draft=saved?.content?.steps?saved.content:content;
-    editor={id:owner,revision:plan.revision,steps:[]};const body=q('[data-coding-plan-fields]');body.replaceChildren();
-    if(saved && saved.revision!==plan.revision){const comparison=element('details');comparison.append(element('summary','查看当前已保存版本 · 修订 '+plan.revision));describe(comparison,content);body.append(comparison);}
+    editor={id:owner,revision:plan.revision,base:shape(plan.content),steps:[]};const body=q('[data-coding-plan-fields]');body.replaceChildren();
+    if(saved && saved.revision!==plan.revision){const comparison=element('details');comparison.append(element('summary','查看当前已保存版本 · 修订 '+plan.revision));describe(comparison,content);
+      body.append(comparison,button('放弃我的修改，改用修订 '+plan.revision,()=>{try{sessionStorage.removeItem(storedKey(owner));}catch{}edit();}));}
     const title=field('计划标题',draft.title);editor.title=title.input;body.append(title.node);
     const steps=element('div');body.append(steps);
     const add=(value={title:'',acceptance:''})=>{
@@ -40,7 +44,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     const blockers=field('尚未解决的阻塞（没有则留空）',draft.blockers,true),reason=field('变更理由（调整已确认计划时必填）',draft.change_reason,true);
     editor.blockers=blockers.input;editor.reason=reason.input;body.append(blockers.node,reason.node);
     q('[data-coding-plan-error]').textContent=saved && saved.revision!==plan.revision?'计划已有新修订。下方保留你的未保存修改，请先对照当前已保存版本再合并保存。':'';
-    dialog.showModal();
+    if(!dialog.open)dialog.showModal();
   };
   const fixed=async(revision)=>{
     const id=owner,data=await api(path()+'?revision='+revision);if(id!==current())return;

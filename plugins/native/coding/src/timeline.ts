@@ -167,6 +167,7 @@ export function createCodingTimeline() {
     [/too many tool turns/i, "用完了可用的执行轮次", "已完成的修改都保留着；重试时可以给更多轮次，或把任务拆小。"],
     [/MODEL_RESPONSE_INVALID|MODEL_STRUCTURED_INVALID|MODEL_TOOL_NOT_DECLARED/i, "模型的回复格式不对", "通常是偶发的，从断点继续即可。"],
     [/MODEL_REFUSED/i, "模型拒绝了这个请求", "换个说法或补充背景后再发。"],
+    [/MODEL_OUTPUT_TRUNCATED/i, "回答一直写不完", "已写出的部分和已完成的操作都保留着；从断点继续时让它分几次写，或把任务拆小。"],
   ];
   const explainFailure = (reason: string) => {
     const match = FAILURES.find(([pattern]) => pattern.test(reason));

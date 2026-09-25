@@ -1,6 +1,23 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-loopback-model.tgz`。修复模型目录允许本机 HTTP、Run 启动却仅接受 HTTPS 的不一致；Cognia 的实际动作与界面现可使用本机模型。Host 默认拒绝、显式 model/loopback 授权、凭据和重定向检查不变。回环判断同步精确识别 IPv4 与 IPv6，拒绝 `127.` 开头的公网域名冒充回环。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-output-continuation.tgz`。在本机模型地址修复之上，让被输出上限截断的回答**接着写到写完**：截下来的那段先进历史再请模型从断开处接着写（原来只发一句「接着写」，模型看不到写到哪，只能从头再写）；每次续写须写出新正文，不扣轮次，并记一条 `model-response-repair`（`output-truncated`）。续写有上界（8 次）；到了还在截断，或还没写出正文就用完上限且重采样用完，以 `MODEL_OUTPUT_TRUNCATED` 失败，不再把半截或空回答当成完成。护栏与记忆提炼看拼好的整段回答。
+
+起因：思考档开启后，思考与正文共用单次输出上限（SDK 默认 4096），真实 MiniMax 规划轮思考用完上限、计划只写出 53 字，两次重采样后仍以「完成」收场，计划丢失。Molis 同时在思考开启时把单次上限设为 32768（用户拍板）。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（detached worktree，先应用 model-loopback.patch 再改）。没有修改原 `/Users/yijunwang/code/prologue` checkout 或 `prologue-action-loopback`。
+- 未提交源码修改：[output-continuation.patch](output-continuation.patch)，相对基线的**累计**补丁（含本机模型地址全部改动）。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`a8a8d1563cf7257015f54ac385f58c189b6e0407b2f4a6a1a5889d88c4a36c6b`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/output-continuation.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-output-continuation.tgz`。
+
+核对：500 个 dist 文件在源码构建与 Molis 实际安装中逐字节相同；补丁可在源码工作树反向检查通过。SDK 构建、`tsconfig.typecheck.json` 类型检查通过；全量 3279 项为 3259 通过、20 跳过、0 失败；新增 3 项定向（截断续写拼成完整回答且每次请求带上已写部分、续写到上界如实失败、思考用完上限先让它少想再答且一直如此则失败）。Molis 侧定向见 Coding spec。未发布 npm，未替换正式安装版。
+
+## 上一依赖：本机模型地址
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-loopback-model.tgz`。修复模型目录允许本机 HTTP、Run 启动却仅接受 HTTPS 的不一致；Cognia 的实际动作与界面现可使用本机模型。Host 默认拒绝、显式 model/loopback 授权、凭据和重定向检查不变。回环判断同步精确识别 IPv4 与 IPv6，拒绝 `127.` 开头的公网域名冒充回环。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

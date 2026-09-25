@@ -52,7 +52,7 @@ export type PrologueEvent =
   | { type: "usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
   | { type: "compaction-usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
   | { type: "compaction-skipped"; usageRecorded?: boolean }
-  | { type: "model-response-repair"; reason: "tool-not-declared" }
+  | { type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }
   | { type: "compaction-started" }
   | { type: "compacted"; replaced?: number; usageRecorded?: boolean }
   | { type: "compaction-failed"; why?: string }
@@ -99,6 +99,8 @@ export interface PrologueStreamState {
   streaming_sequence?: number;
   /** Activity index of the reasoning being streamed; reasoning is shown as activity, never merged into what the model said. */
   reasoning_index?: number;
+  /** The SDK is continuing an answer the output limit cut off: its thinking must not close that answer. */
+  continuing?: true;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -289,7 +291,7 @@ export function applyPrologueEvent(
     case "reasoning-delta": {
       const delta = event as Extract<PrologueEvent, { type: "reasoning-delta" }>;
       if (delta.text === "") return false;
-      closeStreamingText(state);
+      if (!state.continuing) closeStreamingText(state);
       let index = state.reasoning_index;
       if (index === undefined) {
         index = state.activity.push({ call_id: `reasoning-${state.next_sequence}`, name: "reasoning", target: "", state: "started",
@@ -305,6 +307,7 @@ export function applyPrologueEvent(
       const delta = event as Extract<PrologueEvent, { type: "text-delta" }>;
       if (delta.text === "") return false;
       closeReasoning(state);
+      delete state.continuing;
       if (state.streaming === "") {
         state.streaming_at = at;
         state.streaming_sequence = state.next_sequence++;
@@ -400,6 +403,14 @@ export function applyPrologueEvent(
     }
 
     case "model-response-repair": {
+      if (event.reason === "output-truncated") {
+        // One answer in several calls: what the model writes next joins the text it was cut off in.
+        state.continuing = true;
+        const sequence = state.next_sequence++;
+        state.activity.push({ call_id: `model-continue-${sequence}`, name: "接着写", target: "回答",
+          state: "completed", summary: "回答写到单次输出上限，已让模型从断开处接着写", at, sequence });
+        return true;
+      }
       if (event.reason !== "tool-not-declared") return false;
       closeStreaming(state);
       const sequence = state.next_sequence++;

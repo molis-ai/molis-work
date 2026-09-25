@@ -1,0 +1,614 @@
+diff --git a/crates/prologue-host-tauri/src/network_guard.rs b/crates/prologue-host-tauri/src/network_guard.rs
+index b8a68f03..87f7aa3c 100644
+--- a/crates/prologue-host-tauri/src/network_guard.rs
++++ b/crates/prologue-host-tauri/src/network_guard.rs
+@@ -48,8 +48,11 @@ fn denied(message: &'static str) -> HostError {
+ fn is_loopback_host(host: &str) -> bool {
+     host == "localhost"
+         || host == "::1"
++        || host == "[::1]"
+         || host.ends_with(".localhost")
+-        || host.starts_with("127.")
++        || host
++            .parse::<std::net::Ipv4Addr>()
++            .is_ok_and(|ip| ip.is_loopback())
+ }
+ 
+ /// 不该让请求打到的地址段。挡的是「用一个能过闸的名字把流量引到内网」，
+@@ -81,7 +84,9 @@ fn is_private_host(host: &str) -> bool {
+     if lower.starts_with("fc") || lower.starts_with("fd") {
+         return true;
+     }
+-    if lower.starts_with("fe8") || lower.starts_with("fe9") || lower.starts_with("fea")
++    if lower.starts_with("fe8")
++        || lower.starts_with("fe9")
++        || lower.starts_with("fea")
+         || lower.starts_with("feb")
+     {
+         return true;
+@@ -147,3 +152,46 @@ pub fn check_redirect(
+     }
+     Ok(next)
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn explicit_loopback_does_not_allow_hostname_lookalikes() {
++        let allowance = NetworkAllowance {
++            model: true,
++            loopback: true,
++            ..Default::default()
++        };
++        for url in [
++            "http://localhost:11434/v1",
++            "http://model.localhost/v1",
++            "http://127.0.0.1/v1",
++            "http://127.2.3.4/v1",
++            "http://[::1]/v1",
++        ] {
++            assert!(check_target(url, &allowance).is_ok(), "{url}");
++            assert!(
++                check_target(
++                    url,
++                    &NetworkAllowance {
++                        model: true,
++                        ..Default::default()
++                    }
++                )
++                .is_err(),
++                "{url}"
++            );
++        }
++        for url in [
++            "http://localhost.example.com/v1",
++            "http://127.example.com/v1",
++            "http://127.0.0.1.example.com/v1",
++            "http://localhost@api.example.com/v1",
++            "http://192.168.0.1/v1",
++        ] {
++            assert!(check_target(url, &allowance).is_err(), "{url}");
++        }
++    }
++}
+diff --git a/docs/product/requirements/engines/agent/loop.md b/docs/product/requirements/engines/agent/loop.md
+index aebbf7de..ff853719 100644
+--- a/docs/product/requirements/engines/agent/loop.md
++++ b/docs/product/requirements/engines/agent/loop.md
+@@ -63,7 +63,9 @@
+ 
+ ## 空回合重采样
+ 
+-**没往前走就再来一次，而且不扣轮次。** 一个字没说、或者被上限截在半句，都算没往前走。扣它等于让一次网络抖动吃掉用户的预算。截断那一种续写时明说「从断的地方接着，别重复已经写过的」。
++**没往前走就再来一次，而且不扣轮次。** 一个字没说，算没往前走——包括还没写出正文就撞上输出上限（思考把上限用完了），这时告诉它少想一点、把回答写出来。扣它等于让一次网络抖动吃掉用户的预算。
++
++**被上限截在半句，但写出了新正文：接着写，直到写完。** 截下来的那段先进历史，再明说「从断的地方接着，别重复已经写过的」——不放进历史，模型不知道断在哪，只能从头再写，多半又断在同一处。几段正文在对话里本来就连成一条回答；护栏和记忆提炼看的是整段。续写不扣轮次，同样两边都退，并留下一条 `model-response-repair`（`output-truncated`）。续写有自己的上界；到了还在被截断，或者重采样用完仍一个字没写出来，就以 `MODEL_OUTPUT_TRUNCATED` **失败**——半截或空的回答不能当成完成交出去。
+ 
+ 「不扣轮次」得**两边都不扣**：循环那个计数退了、账那边不退的话，重采样照样吃掉轮次预算，只是吃得更隐蔽。
+ 
+diff --git a/docs/slices/model-loopback.md b/docs/slices/model-loopback.md
+new file mode 100644
+index 00000000..b0690bb8
+--- /dev/null
++++ b/docs/slices/model-loopback.md
+@@ -0,0 +1,13 @@
++# 模型回环端点一致性
++
++消费结果：Molis Cognia 已配置的本机 HTTP 模型可经原 Prologue Session/Run/Node Host 完成整理和取消；模型目录与 Run 不再给出相互矛盾的端点判断。基于消费包对应的 a7e785b8 修复，保留其后的当前工作区不受影响。
++
++范围：Model 的目录及启动输入共用端点形状校验，HTTPS 或 HTTP 回环；Host 提供同一回环主机判断，精确识别 localhost、其子域、127/8 IPv4 和 ::1，拒绝看似回环的公网域名。登记不是授权。Session 继续只拥有 Run 生命周期；真正发出仍经过原 Host 网络许可、DNS、重定向和凭据来源检查，不新增执行链、槽或状态。
++
++合同依据：[Model](../../packages/sdk/src/model/README.md)、[Session](../../packages/sdk/src/session/README.md)、[Host](../../packages/sdk/src/host/README.md)，需求为模型目录、Run 与 Host 网络放行。允许修改上述模块中的端点校验、对应测试/合同和消费包。默认禁止网络、回环需显式授权、凭据来源约束是硬边界；协议和 Host 仍通过既有槽替换；App 传 endpoint 和 network.model/loopback；用户模型设置及文案归消费 App。
++
++不合法 URL、非回环 HTTP 在登记/启动前失败；合法回环缺少网络授权由 Host 拒绝，零请求。正常完成和取消保留原终态与回放，不自动重试；不改恢复语义。
++
++同一回环识别修正同步到 crates/prologue-host-tauri/src/network_guard.rs，保持两个 Host 的判据一致；使用 Rust 标准 IPv4 解析而非 127 前缀匹配，识别 URL 的 [::1] 主机形式。补充 cargo test --manifest-path crates/Cargo.toml -p prologue-host-tauri --lib network_guard 验证真实原生目标检查函数。npm 包只包含 Node/Tauri JS SDK，Rust 源修正随可重建补丁保存，不声称已替换原生安装版。
++
++验证：pnpm exec vitest run packages/sdk/test/model-loopback.live.test.ts packages/sdk/test/model-catalog-audit.test.ts packages/sdk/test/host-network.test.ts packages/sdk/test/host-network.live.test.ts；pnpm build；pnpm exec tsc -p tsconfig.typecheck.json。真实受控 HTTP Provider 经公开 Runtime/Session 入口验证请求、结果、权限拒绝和取消；再用重打包 SDK 验证 Molis 实际动作和浏览器路径。测试响应不代表商业模型质量。
+diff --git a/packages/sdk/src/agent/core/loop.ts b/packages/sdk/src/agent/core/loop.ts
+index 3d32de17..e553b616 100644
+--- a/packages/sdk/src/agent/core/loop.ts
++++ b/packages/sdk/src/agent/core/loop.ts
+@@ -371,6 +371,15 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+   let toolNameRepaired = false;
+   let resamples = 0;
+   const MAX_RESAMPLES = 2;
++  /**
++   * 截断续写。回答被输出上限截在半句时**接着写，直到写完**：写出来的那段留在历史里，模型看得见自己
++   * 写到了哪；每次续写都必须写出新正文，否则按重采样计。续写也有上界，到了还没写完就如实失败——
++   * 半截回答不能当成完成交出去。
++   */
++  let continuations = 0;
++  const MAX_CONTINUATIONS = 8;
++  /** 这一段回答里之前几次续写已经说出的正文。收工时和最后一段拼成完整回答再过护栏。 */
++  let continuedText = "";
+   /**
+    * 因为溢出压过几次。
+    *
+@@ -1214,16 +1223,53 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         pending = [...lifted];
+       }
+     }
++    if (pending.length > 0) {
++      // 续写走到了工具调用：前面几段已在历史里，下一段回答重新计。
++      continuedText = "";
++      continuations = 0;
++    }
+     if (pending.length < 1) {
++      const truncated = lastStop === "max-tokens";
++      if (truncated && turnText.trim().length > 0) {
++        /*
++         * 被上限截在半句，但写出了新正文：**接着写**。
++         *
++         * 截下来的那段先进历史，再说「从断的地方接着」——不放进去的话模型根本不知道断在哪，
++         * 只能从头再写一遍，而那一遍多半又被截在同一个地方。续写不扣轮次（两边都退），
++         * 界面上几段正文本来就连成一条回答。
++         */
++        if (continuations >= MAX_CONTINUATIONS) {
++          done({
++            type: "failed",
++            error: createPrologueError(
++              "MODEL_OUTPUT_TRUNCATED",
++              `The answer was still cut off at the output limit after ${MAX_CONTINUATIONS} continuations.`,
++            ),
++          });
++          return;
++        }
++        continuations += 1;
++        turn -= 1;
++        budget.turnResampled();
++        continuedText += turnText;
++        history.push({ kind: "text", role: "assistant", text: turnText, source: "assistant" });
++        history.push(
++          runtimePromptRecord(
++            "Your last message was cut off at the output limit. Continue from exactly where it stopped; do not repeat what you already wrote.",
++            "runtime:truncated",
++          ),
++        );
++        input.run.emit({ type: "model-response-repair", reason: "output-truncated" });
++        continue;
++      }
+       /*
+-       * 这一轮没往前走：一个字没说，或者被上限截在半句。
++       * 这一轮没往前走：一个字没说——没开口，或者还没写正文就撞上了上限（思考把上限用完了）。
+        *
+        * **重采样，而且不扣轮次**——这一轮什么也没产出，扣它等于让
+        * 一次网络抖动吃掉用户的预算。重试本身有上界，否则「不扣轮次」
+        * 就成了一个不会停的循环。
+        */
+-      const stalled =
+-        turnText.trim().length < 1 ? "empty" : lastStop === "max-tokens" ? "truncated" : undefined;
++      const stalled = turnText.trim().length < 1 ? (truncated ? "truncated" : "empty") : undefined;
+       if (stalled !== undefined && resamples < MAX_RESAMPLES) {
+         resamples += 1;
+         // **两边都退。** 只退循环那个计数的话，重采样照样吃掉轮次预算，
+@@ -1233,13 +1279,26 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         history.push(
+           runtimePromptRecord(
+             stalled === "truncated"
+-              ? "Your last message was cut off at the output limit. Continue from exactly where it stopped; do not repeat what you already wrote."
++              ? "Your last message reached the output limit before any answer text was written. Keep your reasoning shorter and write the answer."
+               : "That turn produced nothing. Either call a tool to make progress, or answer the question.",
+             stalled === "truncated" ? "runtime:truncated" : "runtime:empty",
+           ),
+         );
+         continue;
+       }
++      if (stalled === "truncated") {
++        // 重采样用完仍然一个字没写出来：**失败，不是完成**。空回答当完成，人会以为拿到了答案。
++        done({
++          type: "failed",
++          error: createPrologueError(
++            "MODEL_OUTPUT_TRUNCATED",
++            "The output limit was reached before any answer text was written.",
++          ),
++        });
++        return;
++      }
++      // 护栏和记忆看的是整段回答；历史里前几段已经放过，只补最后这段。
++      const answerText = continuedText + turnText;
+       if (input.guards.guardrails.length > 0) {
+         /*
+          * **输出护栏在终态前跑。**
+@@ -1250,7 +1309,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         const verdict = await runGuardrails({
+           rails: input.guards.guardrails,
+           stage: "output",
+-          text: turnText,
++          text: answerText,
+           onError: input.guards.guardrailOnError,
+           isCancelled: input.run.isCancelled,
+         });
+@@ -1306,7 +1365,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+        */
+       try {
+         // 空话不成候选，那一条在提炼那一侧判——**这里不重复一遍**。
+-        input.work.extractMemory?.({ text: turnText });
++        input.work.extractMemory?.({ text: answerText });
+       } catch {
+         // **提炼失败不影响这一次的收场。** 它是附加物，不是主体。
+       }
+diff --git a/packages/sdk/src/host/README.md b/packages/sdk/src/host/README.md
+index a577eaf9..d42ead7c 100644
+--- a/packages/sdk/src/host/README.md
++++ b/packages/sdk/src/host/README.md
+@@ -14,6 +14,8 @@ JS 与原生 Host 之间的合同和窄桥：握手、只写凭证、网络放
+ 
+ 不定义 Session/Run 状态，不拥有产品交互。不拥有授权根上的读、补丁、命令状态机——那些见 `workspace/`。JS 侧不做权限判定——判定在原生 Host。
+ 
++Model 预检可使用 Host 的纯回环主机判断窄口，但不能因此获得网络许可。实际回环 HTTP 仍需显式 model/loopback 放行；127 前缀域名不是回环 IP。见 [回环端点合同](../../../../docs/slices/model-loopback.md)。
++
+ ## 可配与可换
+ 
+ - **槽（可换执行逻辑）：** `host`——原生能力：存储、网络、命令、时钟、沙箱。**现役唯一真的能换的槽。**
+diff --git a/packages/sdk/src/host/core/index.ts b/packages/sdk/src/host/core/index.ts
+index 14995ad8..dd28b723 100644
+--- a/packages/sdk/src/host/core/index.ts
++++ b/packages/sdk/src/host/core/index.ts
+@@ -67,6 +67,7 @@ export {
+   DENY_ALL,
+   CHANNELS_NEEDING_CREDENTIAL,
+   isChannelAllowed,
++  isLoopbackHost,
+   MAX_REDIRECTS,
+   type CheckedTarget,
+   type NetworkAllowance,
+diff --git a/packages/sdk/src/host/core/network-guard.ts b/packages/sdk/src/host/core/network-guard.ts
+index 3e8b6696..a6d872a9 100644
+--- a/packages/sdk/src/host/core/network-guard.ts
++++ b/packages/sdk/src/host/core/network-guard.ts
+@@ -48,13 +48,14 @@ export function isChannelAllowed(allowance: NetworkAllowance, channel: NetworkCh
+   return allowance[channel] === true;
+ }
+ 
+-function isLoopbackHost(host: string): boolean {
++/** Pure target classification; this never grants network permission. */
++export function isLoopbackHost(host: string): boolean {
+   return (
+     host === "localhost" ||
+     host === "::1" ||
+     host === "[::1]" ||
+     host.endsWith(".localhost") ||
+-    /^127\./.test(host)
++    /^127(?:\.(?:\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])){3}$/.test(host)
+   );
+ }
+ 
+diff --git a/packages/sdk/src/kernel/core/error.ts b/packages/sdk/src/kernel/core/error.ts
+index baf61a66..03af6af6 100644
+--- a/packages/sdk/src/kernel/core/error.ts
++++ b/packages/sdk/src/kernel/core/error.ts
+@@ -26,6 +26,12 @@ export type PrologueErrorCode =
+    * 手里其实是一段空的。
+    */
+   | "MODEL_REFUSED"
++  /**
++   * 回答一直撞输出上限：续写到上界仍没写完，或者还没写出正文就用完了上限。
++   *
++   * **是失败，不是成功**——半截回答当成完成，人会以为拿到了完整的答案。
++   */
++  | "MODEL_OUTPUT_TRUNCATED"
+   | "MODEL_STRUCTURED_INVALID"
+   /** 这份 schema 用了这个构建核不动的关键字。**当场失败**，不是「先跑起来，核不动的那几条就算过」。 */
+   | "MODEL_STRUCTURED_UNSUPPORTED"
+@@ -418,6 +424,7 @@ const CODES: ReadonlySet<string> = new Set([
+   "MODEL_PURPOSE_AMBIGUOUS",
+   "MODEL_NOT_FOUND",
+   "MODEL_REFUSED",
++  "MODEL_OUTPUT_TRUNCATED",
+   "MODEL_STRUCTURED_INVALID",
+   "MODEL_STRUCTURED_UNSUPPORTED",
+   "MODEL_HTTP_ERROR",
+diff --git a/packages/sdk/src/model/README.md b/packages/sdk/src/model/README.md
+index 1f50d853..c2fd8099 100644
+--- a/packages/sdk/src/model/README.md
++++ b/packages/sdk/src/model/README.md
+@@ -12,6 +12,8 @@
+ 
+ 不持有密钥（Host 在最后边界注入），不拥有 Run 状态，不做协议探测或失败换格式。
+ 
++目录登记和 Run 启动使用相同的端点形状合同：HTTPS 或本机回环 HTTP。Host 的回环主机判断经模块窄口复用，登记通过不授予网络权限；真实调用仍由 Host 逐跳检查。见 [回环端点合同](../../../../docs/slices/model-loopback.md)。
++
+ 公开协议缝使用的 `ToolSpec`、`WireMessage` 与 `ProtocolAdapter` 一同经模块 API 和 SDK 根入口提供类型；消费者无需深导入才能声明规范工具和消息。它们是已有协议合同的命名类型，不是原始 Provider 帧读取入口。
+ 
+ ## 可配与可换
+diff --git a/packages/sdk/src/model/core/adapter.ts b/packages/sdk/src/model/core/adapter.ts
+index 4142b949..1f574e29 100644
+--- a/packages/sdk/src/model/core/adapter.ts
++++ b/packages/sdk/src/model/core/adapter.ts
+@@ -1,4 +1,5 @@
+ import { createPrologueError } from "../../kernel/core/index.js";
++import { isLoopbackHost } from "../../host/core/index.js";
+ import { assertStructuredSupported, type StructuredRequest } from "./structured.js";
+ import type {
+   ModelAuthScheme,
+@@ -12,6 +13,17 @@ import type {
+   WireMessage,
+ } from "./types.js";
+ 
++/** Input shape only. Host separately enforces channel, loopback and target permissions. */
++export function assertModelEndpoint(endpoint: unknown): asserts endpoint is string {
++  if (typeof endpoint === "string") {
++    try {
++      const url = new URL(endpoint);
++      if (url.protocol === "https:" || url.protocol === "http:" && isLoopbackHost(url.hostname)) return;
++    } catch { /* Report a stable error without echoing the target. */ }
++  }
++  throw createPrologueError("RUNTIME_OPTIONS_INVALID", "A model endpoint must be an https URL or a loopback http URL; network permission is checked separately.");
++}
++
+ /**
+  * 一次调用可以拧的旋钮。
+  *
+diff --git a/packages/sdk/src/model/core/catalog.ts b/packages/sdk/src/model/core/catalog.ts
+index a8437436..3fd339af 100644
+--- a/packages/sdk/src/model/core/catalog.ts
++++ b/packages/sdk/src/model/core/catalog.ts
+@@ -1,5 +1,6 @@
+ import { createPrologueError, mintRef, type ExactRef } from "../../kernel/core/index.js";
+ import type { ModelProtocol } from "./types.js";
++import { assertModelEndpoint } from "./adapter.js";
+ 
+ /**
+  * 一条模型登记。**能干什么要明说**——「支持结构化输出」这类东西
+@@ -14,7 +15,7 @@ export interface ModelCapabilities {
+ export interface ModelEntryInput {
+   readonly name: string;
+   readonly protocol: ModelProtocol;
+-  /** 完整的 HTTPS URL。本机回环要在出网放行里显式打开。 */
++  /** HTTPS 或本机回环 HTTP URL。回环仍要在 Host 出网放行里显式打开。 */
+   readonly endpoint: string;
+   /** Provider 侧的 model 标识。 */
+   readonly model: string;
+@@ -209,12 +210,7 @@ export function createModelCatalog(
+       if (input.name.length < 1 || input.model.length < 1) {
+         throw createPrologueError("RUNTIME_OPTIONS_INVALID", "A model entry needs a name and a model id.");
+       }
+-      if (!/^https:\/\//.test(input.endpoint) && !/^http:\/\/(localhost|127\.)/.test(input.endpoint)) {
+-        throw createPrologueError(
+-          "RUNTIME_OPTIONS_INVALID",
+-          "A model endpoint must be an https URL (or explicit loopback).",
+-        );
+-      }
++      assertModelEndpoint(input.endpoint);
+       const entry: ModelEntry = { ...input, ref: mintRef("model", newId()) };
+       entries.set(entry.ref.id, entry);
+       return entry;
+diff --git a/packages/sdk/src/model/core/index.ts b/packages/sdk/src/model/core/index.ts
+index c72cbcc8..8595e602 100644
+--- a/packages/sdk/src/model/core/index.ts
++++ b/packages/sdk/src/model/core/index.ts
+@@ -15,6 +15,7 @@ export type {
+ export {
+   ALL_KNOBS,
+   assertParamsSupported,
++  assertModelEndpoint,
+   createAdapterRegistry,
+   MAX_REQUEST_BYTES,
+   prepareWire,
+diff --git a/packages/sdk/src/model/core/types.ts b/packages/sdk/src/model/core/types.ts
+index 93244e6b..bcbc49a8 100644
+--- a/packages/sdk/src/model/core/types.ts
++++ b/packages/sdk/src/model/core/types.ts
+@@ -352,7 +352,7 @@ export type ModelEvent =
+    */
+   | Readonly<{ type: "agent-control"; state: "running" | "pausing" | "paused" }>
+   /** 整批工具未执行，已请求模型纠正；不代表纠正成功，不含原始工具名或参数。 */
+-  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" }>
++  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }>
+   /** Explicit recovery of an interrupted Run, never a reconstructed tool transcript. */
+   | Readonly<{ type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix";
+       questions?: readonly { ref: ExactRef<"pending">; kind: string; prompt: string }[];
+diff --git a/packages/sdk/src/session/README.md b/packages/sdk/src/session/README.md
+index 8e742ca2..30b5f085 100644
+--- a/packages/sdk/src/session/README.md
++++ b/packages/sdk/src/session/README.md
+@@ -12,6 +12,8 @@
+ 
+ 不发模型请求、不执行工具。Agent 和 Function 请求开始/继续/取消，但不能自己另记一份终态。
+ 
++Run 启动将端点形状交给 Model 的同一预检窄口，避免与目录登记不一致；预检不替代 Host 网络授权。见 [回环端点合同](../../../../docs/slices/model-loopback.md)。
++
+ 原问题等待、持久答案、独立Run输入事件与取消/重启的现役消费合同见 [AskUser](../../../../docs/slices/ask-user.md)。该合同不把UI或第二套等待状态搬入模块。
+ 
+ ## 可配与可换
+diff --git a/packages/sdk/src/session/core/run.ts b/packages/sdk/src/session/core/run.ts
+index f5b7a470..eaf0e597 100644
+--- a/packages/sdk/src/session/core/run.ts
++++ b/packages/sdk/src/session/core/run.ts
+@@ -10,6 +10,7 @@ import { visibleUnderPrivacy } from "./metadata.js";
+ import type { BoundAttachments } from "../../resource/core/index.js";
+ import {
+   assertParamsSupported,
++  assertModelEndpoint,
+   decidePromptCache,
+   estimateTokens,
+   mergeUsageSnapshot,
+@@ -83,9 +84,7 @@ export function assertRunStartable(input: {
+   for (const binding of input.start.attachments ?? []) {
+     input.assertBindable(binding);
+   }
+-  if (typeof input.start.endpoint !== "string" || !/^https:\/\//.test(input.start.endpoint)) {
+-    throw createPrologueError("RUNTIME_OPTIONS_INVALID", "endpoint must be an https URL.");
+-  }
++  assertModelEndpoint(input.start.endpoint);
+   if (typeof input.start.model !== "string" || input.start.model.length < 1) {
+     throw createPrologueError("RUNTIME_OPTIONS_INVALID", "model is required.");
+   }
+diff --git a/packages/sdk/test/agent-native-continuation.test.ts b/packages/sdk/test/agent-native-continuation.test.ts
+index f7cb38ec..98e67a47 100644
+--- a/packages/sdk/test/agent-native-continuation.test.ts
++++ b/packages/sdk/test/agent-native-continuation.test.ts
+@@ -676,3 +676,52 @@ describe("同 Run 原生响应续接", () => {
+     await started.runtime.shutdown();
+   });
+ });
++
++describe("回答被输出上限截断时接着写", () => {
++  const cut = (text: string) => nativeToolFrames({ text, tools: [], stopReason: "max_tokens" });
++  const end = (text: string) => nativeToolFrames({ text, tools: [], stopReason: "end_turn" });
++  const thoughtOut = () => nativeToolFrames({ thinkingParts: [THINK_A], signatureParts: [SIG_A], tools: [], stopReason: "max_tokens" });
++  const written = (seen: readonly ModelEvent[]) =>
++    seen.filter((one) => one.type === "text-delta").map((one) => (one as { text: string }).text).join("");
++  const code = (event: ModelEvent) => (event as { error?: { code?: string } }).error?.code;
++
++  it("截下来的那段留在历史里，续写到写完为止，几段连成一条完整回答", async () => {
++    const probe: MemoryHostPrepareProbe = {};
++    const started = await boot({ probe, turns: [{ frames: cut("第一段，") }, { frames: cut("第二段，") }, { frames: end("写完了。") }] });
++    expect((await started.wait()).type).toBe("completed");
++    expect(written(started.seen)).toBe("第一段，第二段，写完了。");
++    const [, second, third] = probe.bodies ?? [];
++    expect(second).toContain("第一段，");
++    expect(second).toContain("cut off at the output limit");
++    expect(third).toContain("第一段，");
++    expect(third).toContain("第二段，");
++    expect(started.seen.filter((one) => one.type === "model-response-repair" && one.reason === "output-truncated")).toHaveLength(2);
++    await started.runtime.shutdown();
++  });
++
++  it("续写到上界还在被截断：如实失败，不把半截当成完成", async () => {
++    const probe: MemoryHostPrepareProbe = {};
++    const started = await boot({ probe, turns: Array.from({ length: 9 }, (_, index) => ({ frames: cut(`第${index + 1}段，`) })) });
++    const terminal = await started.wait();
++    expect(terminal.type).toBe("failed");
++    expect(code(terminal)).toBe("MODEL_OUTPUT_TRUNCATED");
++    expect(probe.bodies).toHaveLength(9);
++    await started.runtime.shutdown();
++  });
++
++  it("思考用完上限、还没写正文：让它少想一点再答；一直如此就失败，不交空回答", async () => {
++    const recovered: MemoryHostPrepareProbe = {};
++    const once = await boot({ probe: recovered, params: { thinking: "adaptive" }, turns: [{ frames: thoughtOut() }, { frames: end("答案。") }] });
++    expect((await once.wait()).type).toBe("completed");
++    expect(written(once.seen)).toBe("答案。");
++    expect(recovered.bodies?.[1]).toContain("Keep your reasoning shorter");
++    await once.runtime.shutdown();
++
++    const probe: MemoryHostPrepareProbe = {};
++    const started = await boot({ probe, params: { thinking: "adaptive" }, turns: [{ frames: thoughtOut() }, { frames: thoughtOut() }, { frames: thoughtOut() }] });
++    const terminal = await started.wait();
++    expect(terminal.type).toBe("failed");
++    expect(code(terminal)).toBe("MODEL_OUTPUT_TRUNCATED");
++    await started.runtime.shutdown();
++  });
++});
+diff --git a/packages/sdk/test/model-loopback.live.test.ts b/packages/sdk/test/model-loopback.live.test.ts
+new file mode 100644
+index 00000000..605655f2
+--- /dev/null
++++ b/packages/sdk/test/model-loopback.live.test.ts
+@@ -0,0 +1,112 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { createServer } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { createRuntime, type NetworkAllowance, type Run } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++import { createMemoryHost } from "../src/testing/api/index.js";
++import { checkNetworkTarget } from "../src/host/core/index.js";
++
++const app = { appId: "prologue.loopback", appVersion: "0.1.0" };
++const definition = { name: "Local", protocol: "openai-compatible", model: "local-model", purposes: [], capabilities: { tools: false, structuredOutput: false, promptCache: false } } as const;
++
++function terminal(run: Run): Promise<void> {
++  if (["completed", "failed", "cancelled"].includes(run.state)) return Promise.resolve();
++  return new Promise(resolve => {
++    const stop = run.subscribe(event => {
++      if (["completed", "failed", "cancelled"].includes(event.type)) { stop(); resolve(); }
++    });
++  });
++}
++async function ready(host: Parameters<typeof createRuntime>[0]["host"], network: NetworkAllowance = {}) {
++  const runtime = await createRuntime({ app, host, network });
++  const credential = await runtime.credentials.write({ label: "fixture", secret: { plaintext: new TextEncoder().encode("loopback-fixture-key") } });
++  const session = await runtime.sessions.create();
++  const start = (endpoint: string) => session.startRun({ protocol: definition.protocol, model: definition.model, endpoint, credentialRef: credential.ref, messages: [{ role: "user", text: "local evidence" }] });
++  return { runtime, session, start };
++}
++
++it("catalog and Run reject malformed or non-loopback plaintext endpoints before execution", async () => {
++  const { runtime, session, start } = await ready(createMemoryHost(), { model: true, loopback: true });
++  try {
++    for (const endpoint of ["", "https://", "not-a-url", "file:///tmp/model", "http://api.example.com/v1", "http://localhost.example.com/v1", "http://127.example.com/v1", "http://127.0.0.1.example.com/v1", "http://localhost@api.example.com/v1", "http://192.168.0.1/v1"]) {
++      expect(() => runtime.models.register({ ...definition, endpoint })).toThrow(expect.objectContaining({ code: "RUNTIME_OPTIONS_INVALID" }));
++      await expect(start(endpoint)).rejects.toMatchObject({ code: "RUNTIME_OPTIONS_INVALID" });
++      expect(() => checkNetworkTarget(endpoint, { model: true, loopback: true })).toThrow(expect.objectContaining({ code: "NETWORK_TARGET_DENIED" }));
++    }
++    expect(runtime.models.list()).toHaveLength(0);
++    expect(await session.terminalRuns()).toHaveLength(0);
++  } finally { await runtime.shutdown(); }
++});
++
++it("catalog and Run share normalized local endpoint shapes; registration cannot enable the model channel", async () => {
++  const { runtime, session, start } = await ready(createMemoryHost());
++  try {
++    for (const endpoint of ["http://localhost:11434/v1", "http://model.localhost:11434/v1", "http://127.0.0.1/v1", "http://127.2.3.4/v1", "http://[::1]/v1", "http://[0:0:0:0:0:0:0:1]/v1", "https://api.example.com/v1"]) {
++      const entry = runtime.models.register({ ...definition, endpoint });
++      expect(runtime.models.resolve({ ref: entry.ref }).endpoint).toBe(endpoint);
++      const run = await start(endpoint);
++      await terminal(run);
++      expect(run.state).toBe("failed");
++      expect(await session.replay(run.ref)).toContainEqual(expect.objectContaining({ type: "failed", error: expect.objectContaining({ code: "MODEL_NETWORK_FAILED", safeMessage: expect.stringContaining('"model" channel was never allowed') }) }));
++    }
++  } finally { await runtime.shutdown(); }
++});
++
++for (const address of ["127.0.0.1", "::1"]) it(`public Session uses a real HTTP model on ${address}, with cancellation and local replay`, async () => {
++  const storageRoot = mkdtempSync(join(tmpdir(), "prologue-loopback-"));
++  let requests = 0, hold = false;
++  const entered = Promise.withResolvers<void>();
++  const bodies: string[] = [], keys: (string | string[] | undefined)[] = [];
++  const server = createServer(async (request, response) => {
++    let body = ""; for await (const chunk of request) body += chunk;
++    requests++; bodies.push(body); keys.push(request.headers.authorization);
++    if (hold) { entered.resolve(); return; }
++    response.writeHead(200, { "content-type": "text/event-stream" });
++    response.end(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: "local result" }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);
++  });
++  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, address, resolve); });
++  const bound = server.address(); if (!bound || typeof bound === "string") throw new Error("No server address");
++  const endpoint = `http://${address === "::1" ? "[::1]" : address}:${bound.port}/v1/chat/completions`;
++  const { runtime, session, start } = await ready(createNodeHost({ storageRoot }), { model: true, loopback: true });
++  try {
++    runtime.models.register({ ...definition, endpoint });
++    const run = await start(endpoint); await terminal(run);
++    expect(run.state).toBe("completed"); expect(requests).toBe(1);
++    expect(keys).toEqual(["Bearer loopback-fixture-key"]);
++    expect(JSON.parse(bodies[0]!)).toMatchObject({ model: "local-model", messages: [{ role: "user", content: "local evidence" }] });
++    expect(await session.replay(run.ref)).toContainEqual(expect.objectContaining({ type: "text-delta", text: "local result" }));
++    expect(requests).toBe(1);
++    hold = true;
++    const cancelled = await start(endpoint); await entered.promise;
++    await cancelled.cancel(); await terminal(cancelled);
++    expect(cancelled.state).toBe("cancelled"); expect(requests).toBe(2);
++    expect(JSON.stringify(await session.replay(cancelled.ref))).not.toContain("loopback-fixture-key");
++  } finally {
++    await runtime.shutdown(); server.closeAllConnections();
++    await new Promise<void>(resolve => server.close(() => resolve()));
++    rmSync(storageRoot, { recursive: true, force: true });
++  }
++}, 15_000);
++
++it("real Node Host requires explicit loopback and model grants even for a registered model", async () => {
++  let requests = 0;
++  const server = createServer((_request, response) => { requests++; response.end("unexpected"); });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const bound = server.address(); if (!bound || typeof bound === "string") throw new Error("No server address");
++  const endpoint = `http://127.0.0.1:${bound.port}/v1/chat/completions`;
++  try {
++    for (const [network, reason] of [[{}, /model.*channel was never allowed/], [{ model: true }, /explicitly enabled loopback/], [{ loopback: true }, /model.*channel was never allowed/]] as const) {
++      const storageRoot = mkdtempSync(join(tmpdir(), "prologue-loopback-denied-"));
++      const { runtime, session, start } = await ready(createNodeHost({ storageRoot }), network);
++      try {
++        runtime.models.register({ ...definition, endpoint });
++        const run = await start(endpoint); await terminal(run);
++        expect(run.state).toBe("failed");
++        expect(await session.replay(run.ref)).toContainEqual(expect.objectContaining({ type: "failed", error: expect.objectContaining({ code: "MODEL_NETWORK_FAILED", safeMessage: expect.stringMatching(reason) }) }));
++        expect(requests).toBe(0);
++      } finally { await runtime.shutdown(); rmSync(storageRoot, { recursive: true, force: true }); }
++    }
++  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
++});

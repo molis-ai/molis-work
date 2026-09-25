@@ -95,6 +95,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 // it must not silently cut a valid 20,000-character published Character.
 const MAX_COMPOSED_INSTRUCTION_CHARS = 64_000;
 /** Turns a subagent may take when its dispatch does not say; the user set it to 20. */
+/** Output limit per model call while thinking is on (the user's choice); only a ceiling, usage is what the model spends. */
+export const THINKING_OUTPUT_TOKENS = 32_768;
 export const SUBAGENT_DEFAULT_TURNS = 20;
 /** Turns a round started without a budget may take: the SDK's own default, unchanged. */
 const ROUND_DEFAULT_TURNS = 8;
@@ -744,8 +746,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off"
             ? {}
             : { promptCache: input.model.prompt_cache }),
-          // Absent when off: the request carries no thinking field at all.
-          ...(input.model.thinking ? { params: { thinking: input.model.thinking } } : {}),
+          // Absent when off: the request carries no thinking field at all. On, thinking and the answer share one
+          // output limit, and the SDK's default (4096) is spent on thinking before a plan or file is written.
+          ...(input.model.thinking ? { params: { thinking: input.model.thinking, maxOutputTokens: THINKING_OUTPUT_TOKENS } } : {}),
         },
         agent: {
           // A round started without a budget keeps the turns it always had; only subagents use the raised default.

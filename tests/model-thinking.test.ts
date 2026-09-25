@@ -88,12 +88,49 @@ test("packed SDK: 开着时请求带上思考档、这一轮记下它；关着�
     const done = async (ref: never) => { for (let i = 0; i < 200; i++) { const view = await adapter.read(ref); if (view.phase === "completed") return view; await new Promise(r => setTimeout(r, 25)); } throw new Error("run did not complete"); };
     const on = await done((await adapter.start({ ...owner, directory, session, task: "说一句话。", role_id: "reader", role })).ref as never);
     assert.deepEqual(bodies[0].thinking, { type: "adaptive" });
+    assert.equal(bodies[0].max_tokens, 32_768, "thinking and the answer share one output limit, raised while thinking is on");
     assert.equal(on.frozen.thinking, "adaptive", "the round records that it was asked to think");
     assert.ok(on.activity.some(item => item.name === "reasoning"), "the thinking is shown as its own activity, not as the answer");
     assert.equal(on.turns.filter(turn => turn.kind === "assistant").at(-1)?.text, "好的。");
     thinking = undefined;
     const off = await done((await adapter.start({ ...owner, directory, session, task: "再说一句。", role_id: "reader", role })).ref as never);
     assert.equal("thinking" in bodies.at(-1), false, "off sends no thinking field at all");
+    assert.equal(bodies.at(-1).max_tokens, 4096, "off keeps the SDK's limit");
     assert.equal(off.frozen.thinking, undefined);
+  } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("packed SDK: 回答被输出上限截断时接着写，几段连成一条回答，界面记下一次续写", { timeout: 30_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-continue-")), project = join(root, "project");await mkdir(project);
+  const bodies: any[] = [];
+  const replies = [{ text: "计划第一段，", stop: "max_tokens" }, { text: "计划第二段。", stop: "end_turn" }];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    bodies.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)));
+    const reply = replies[bodies.length - 1] ?? replies.at(-1)!;
+    const events: string[] = [], emit = (type: string, value: unknown) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value as object })}\n\n`);
+    emit("message_start", { message: { id: "m" + bodies.length, type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 5, output_tokens: 0 } } });
+    emit("content_block_start", { index: 0, content_block: { type: "thinking", thinking: "" } });
+    emit("content_block_delta", { index: 0, delta: { type: "thinking_delta", thinking: "想一想。" } });
+    emit("content_block_stop", { index: 0 });
+    emit("content_block_start", { index: 1, content_block: { type: "text", text: "" } });
+    emit("content_block_delta", { index: 1, delta: { type: "text_delta", text: reply.text } });
+    emit("content_block_stop", { index: 1 });emit("message_delta", { delta: { stop_reason: reply.stop, stop_sequence: null }, usage: { output_tokens: 4 } });emit("message_stop", {});
+    return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+  });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "molis.continue.test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: new AgentReviewQueue(),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "test", thinking: "adaptive" as const }),
+    resolveCredential: () => "test-only" });
+  try {
+    const owner = { board_id: "board", plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "user" }, directory = { canonical_path: project, realpath_verified: true };
+    const role = { role_id: "planner", version: 1, execution: "read-only" as const, prompts: [], host_tools: [] };
+    const session = await adapter.createSession({ ...owner, directory, title: "continue" });
+    const handle = await adapter.start({ ...owner, directory, session, task: "写一份计划。", role_id: "planner", role });
+    let view = await adapter.read(handle.ref);
+    for (let i = 0; i < 200 && view.phase !== "completed" && view.phase !== "failed"; i++) { await new Promise(r => setTimeout(r, 25)); view = await adapter.read(handle.ref); }
+    assert.equal(view.phase, "completed");
+    assert.equal(bodies.length, 2);
+    assert.ok(JSON.stringify(bodies[1].messages).includes("计划第一段，"), "the cut-off part goes back so the model knows where it stopped");
+    assert.deepEqual(view.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text), ["计划第一段，计划第二段。"], "one answer, not two");
+    assert.ok(view.activity.some(item => item.name === "接着写"), "the continuation is shown, not hidden");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

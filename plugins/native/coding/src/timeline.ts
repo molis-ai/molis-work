@@ -177,10 +177,15 @@ export function createCodingTimeline() {
    * explanation never replaces the fact it explains.
    */
   const FAILURES: Array<[RegExp, string, string]> = [
+    // The model went silent or the connection dropped mid-answer: not a settings problem, and what was done is kept.
+    [/MODEL_NETWORK_FAILED.*(timeout|went quiet)/i, "模型服务长时间没有回应", "可能是网络不稳或服务繁忙；已完成的操作都保留着，从断点继续即可。反复出现时把任务拆小一些。"],
+    [/MODEL_NETWORK_FAILED.*(terminated|reset|hang up)/i, "和模型服务的连接中断了", "已完成的操作都保留着；网络恢复后从断点继续即可。"],
     [/MODEL_NETWORK_FAILED|NETWORK_|ENOTFOUND|ECONN|ETIMEDOUT|DNS/i, "连不上模型服务", "检查网络或代理后，从断点继续即可。"],
     [/TIMEOUT|超时/i, "请求超时", "稍后从断点继续；若反复超时，把任务拆小一些。"],
     [/CREDENTIAL_/i, "模型凭据不可用或已过期", "到模型设置里重新检查凭据，再从断点继续。"],
     [/MODEL_HTTP_ERROR.*(429|rate)|rate.?limit/i, "模型服务限流", "等一会儿再从断点继续。"],
+    [/MODEL_HTTP_ERROR.*\(5\d\d\)/i, "模型服务暂时出错", "这是服务方的问题，不是你的设置；已完成的操作都保留着，稍后从断点继续即可。"],
+    [/MODEL_HTTP_ERROR.*\((401|403)\)/i, "模型服务拒绝了凭据", "到模型设置里检查密钥和账号权限，再从断点继续。"],
     [/MODEL_HTTP_ERROR|MODEL_NOT_FOUND|MODEL_PROTOCOL_UNSUPPORTED|MODEL_PARAM_UNSUPPORTED/i, "模型服务返回错误", "检查模型设置（地址、型号、协议）后再继续。"],
     [/MODEL_CONTEXT_OVERFLOW|MODEL_REQUEST_TOO_LARGE|CONTEXT_BUDGET_EXCEEDED/i, "上下文超出模型上限", "从断点继续时会带上整理后的事实；也可以把任务拆小。"],
     [/CONTEXT_COMPACTION_INVALID/i, "上下文整理失败", "已完成的操作都保留着；从断点继续时改用前面对话的摘要，不再整理原文。"],
@@ -209,8 +214,14 @@ export function createCodingTimeline() {
       footer.dataset.state = ["awaiting-review", "awaiting-input", "paused"].includes(run.phase) ? "waiting" : "live";
       footer.dataset.started = run.started_at ?? "";
       const text = LIVE_TEXT[run.phase] ?? "正在工作";
-      const html = `<div class="coding-live">${footer.dataset.state === "waiting" ? svg(run.phase === "paused" ? "pause" : "waiting") : '<span class="coding-pulse" aria-hidden="true"></span>'}<span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div>`;
+      // Anything new from the round (a tool, a state change, more text) counts as hearing from it.
+      const progress = [run.activity.length, ...run.activity.map(item => `${item.state}:${(item.output ?? "").length}`), ...(run.turns ?? []).map(turn => turn.text.length)].join(",");
+      if (footer.dataset.progress !== progress) { footer.dataset.progress = progress; footer.dataset.heard = String(Date.now()); }
+      // Only a round waiting on the model can go quiet; a running command or test is allowed to take its time.
+      footer.dataset.quietable = String(run.phase === "running" && !run.activity.some(item => item.state === "started" && item.name !== "reasoning"));
+      const html = `<div class="coding-live">${footer.dataset.state === "waiting" ? svg(run.phase === "paused" ? "pause" : "waiting") : '<span class="coding-pulse" aria-hidden="true"></span>'}<span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
       if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
+      tick(block);
       return;
     }
     const edited = new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target));
@@ -259,11 +270,21 @@ export function createCodingTimeline() {
     if (footer.dataset.html !== html) { footer.innerHTML = html; footer.dataset.html = html; footer.dataset.state = "ended"; }
   };
   /** Keep elapsed times honest without re-rendering the transcript. */
-  const tick = (scope: Element) => {
+  const QUIET_AFTER_SECONDS = 20;
+  function tick(scope: Element) {
     scope.querySelectorAll(".coding-run-footer[data-state=live] [data-coding-elapsed], .coding-run-footer[data-state=waiting] [data-coding-elapsed]").forEach((node: Element) => {
       const started = (node.closest(".coding-run-footer") as Element).dataset.started;
       node.textContent = duration(started);
     });
-  };
+    // Say so when the model has gone quiet, instead of a timer that keeps counting as if all were well.
+    scope.querySelectorAll(".coding-run-footer [data-coding-quiet]").forEach((node: Element) => {
+      const footer = node.closest(".coding-run-footer") as Element;
+      const quiet = Math.floor((Date.now() - Number(footer.dataset.heard ?? Date.now())) / 1000);
+      const show = footer.dataset.state === "live" && footer.dataset.quietable === "true" && quiet >= QUIET_AFTER_SECONDS;
+      if (node.hidden === !show && (!show || node.dataset.seconds === String(quiet))) return;
+      node.hidden = !show; node.dataset.seconds = String(quiet);
+      node.textContent = show ? `模型已 ${quiet} 秒没有新输出，可能在长时间思考，也可能网络不稳。一直没有回应时这一轮会自动结束，已完成的操作都保留，可以从断点继续。` : "";
+    });
+  }
   return { renderGroup, renderFooter, tick, explainFailure };
 }

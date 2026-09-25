@@ -453,6 +453,7 @@ dialog.coding-palette::backdrop { background:color-mix(in srgb,var(--ink) 18%,tr
 .coding-run-footer[data-state=live] .coding-live-text { background:linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation:coding-shimmer 1.8s linear infinite; }
 .coding-run-footer[data-state=waiting] .coding-live { color:var(--amber); }
 .coding-live-time { font-variant-numeric:tabular-nums; color:var(--faint); }
+.coding-live-quiet { margin:6px 0 0 18px; color:var(--muted); font-size:12px; line-height:1.5; }
 .coding-pulse { width:8px; height:8px; border-radius:50%; background:var(--blue); box-shadow:0 0 0 0 color-mix(in srgb, var(--blue) 45%, transparent); animation:coding-pulse 1.4s ease-out infinite; }
 .coding-run-card { padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--paper); animation:coding-rise .24s ease-out; }
 .coding-run-card header { display:flex; align-items:center; gap:8px; }

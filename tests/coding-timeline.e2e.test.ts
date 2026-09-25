@@ -63,6 +63,10 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
         stopped:card({id:'a',phase:'stopped',stop_reason:'已停止'},true),
         older:card({id:'b',phase:'stopped',stop_reason:'已停止'},false),
         network:card({id:'c',phase:'failed',stop_reason:'MODEL_NETWORK_FAILED: fetch failed'},true),
+        timeout:card({id:'c2',phase:'failed',stop_reason:'MODEL_NETWORK_FAILED: The operation was aborted due to timeout'},true),
+        dropped:card({id:'c3',phase:'failed',stop_reason:'MODEL_NETWORK_FAILED: terminated'},true),
+        server:card({id:'c4',phase:'failed',stop_reason:'MODEL_HTTP_ERROR: The model provider rejected the request (500).'},true),
+        denied:card({id:'c5',phase:'failed',stop_reason:'MODEL_HTTP_ERROR: The model provider rejected the request (401).'},true),
         interrupted:card({id:'d',phase:'reconcile-required',stop_reason:'运行中断'},true),
         done:card({id:'e',phase:'completed'},true),
         stalled:card({id:'f',phase:'completed',turns:[{kind:'user',text:'改 README'},{kind:'assistant',text:'我先读 README.md 确认小节位置。'}]},true),
@@ -73,6 +77,32 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(resume.stopped, /^从断点继续\|/, "最新一轮停下后可一键继续");
     assert.match(resume.older, /^none\|/, "更早的轮次不提供继续，避免从旧断点重来");
     assert.match(resume.network, /^从断点继续\|这一轮没有完成\|连不上模型服务：检查网络或代理后，从断点继续即可。\s*MODEL_NETWORK_FAILED/, "失败原因翻成人话，原始错误码仍保留");
+    // Each real interruption (injected on the transport while running MiniMax) reads as what it was, not as a settings problem.
+    assert.match(resume.timeout, /^从断点继续\|这一轮没有完成\|模型服务长时间没有回应：/, "超时不说成连不上");
+    assert.match(resume.dropped, /^从断点继续\|这一轮没有完成\|和模型服务的连接中断了：/, "流到一半断开说成连接中断");
+    assert.match(resume.server, /^从断点继续\|这一轮没有完成\|模型服务暂时出错：这是服务方的问题，不是你的设置/, "5xx 不让人去查自己的设置");
+    assert.match(resume.denied, /^从断点继续\|这一轮没有完成\|模型服务拒绝了凭据：/, "401 指向密钥");
+    const quiet = await page.evaluate<{ early: boolean; late: string; tool: boolean; heard: boolean }>(`(()=>{
+      const timeline=(${createCodingTimeline.toString()})();
+      const block=document.createElement('section');document.body.append(block);
+      const run={ref:{run_id:'q'},phase:'running',started_at:new Date(Date.now()-90000).toISOString(),ended_at:null,activity:[{call_id:'r',name:'reasoning',state:'started',output:'想一想',at:null}],turns:[]};
+      timeline.renderFooter(block,run,0,true);
+      const footer=block.querySelector('.coding-run-footer'),note=()=>block.querySelector('[data-coding-quiet]');
+      const early=note().hidden;
+      footer.dataset.heard=String(Date.now()-35000);timeline.tick(block);
+      const late=note().hidden?'':note().textContent;
+      // A command that is still running is allowed to take its time.
+      timeline.renderFooter(block,{...run,activity:[...run.activity,{call_id:'c',name:'run-command',target:'npm test',state:'started',at:null}]},0,true);
+      footer.dataset.heard=String(Date.now()-35000);timeline.tick(block);
+      const tool=note().hidden;
+      // New output resets the clock.
+      timeline.renderFooter(block,{...run,activity:[{...run.activity[0],output:'想一想，再想一想'}]},0,true);timeline.tick(block);
+      return {early,late,tool,heard:note().hidden};
+    })()`);
+    assert.equal(quiet.early, true, "刚开始不提示");
+    assert.match(quiet.late, /^模型已 3\d 秒没有新输出.*可以从断点继续/, "模型一直没动静时如实说出来");
+    assert.equal(quiet.tool, true, "命令还在跑不算模型没动静");
+    assert.equal(quiet.heard, true, "有新输出就收起提示");
     assert.match(resume.interrupted, /^核对并继续\|/, "中断的轮次先核对再继续");
     assert.match(resume.done, /^none/, "完成的轮次没有继续按钮");
     assert.match(resume.stalled, /^让它继续\|这一轮只说了下一步就结束了\|模型说了要做什么，但没有调用任何工具就结束了/, "只宣布下一步就结束的一轮不算完成，由你一键让它继续");

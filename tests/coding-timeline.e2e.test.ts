@@ -76,5 +76,23 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(resume.done, /^none/, "完成的轮次没有继续按钮");
     assert.match(resume.stalled, /^让它继续\|这一轮只说了下一步就结束了\|模型说了要做什么，但没有调用任何工具就结束了/, "只宣布下一步就结束的一轮不算完成，由你一键让它继续");
     assert.match(resume.answered, /^none\|这一轮完成/, "直接作答的讨论不被误判");
+    // A restart leaves an interrupted round without an end time: its duration stops at the last recorded moment, so
+    // redrawing the card later changes nothing and the 核对并继续 button under the pointer is not replaced.
+    const cutOff = await page.evaluate<{ facts: string; same: boolean; kept: boolean; bare: string }>(`(async()=>{
+      const timeline=(${createCodingTimeline.toString()})();
+      const block=document.createElement('section');document.body.append(block);
+      const run={ref:{run_id:'r'},phase:'reconcile-required',stop_reason:'运行中断',started_at:'2026-09-25T10:00:00Z',ended_at:null,
+        activity:[{call_id:'e1',name:'edit',target:'src/a.ts',state:'completed',at:'2026-09-25T10:01:05Z'}],turns:[{kind:'user',text:'改',at:'2026-09-25T10:00:00Z'}]};
+      timeline.renderFooter(block,run,0,true);const first=block.querySelector('.coding-run-footer').dataset.html,button=block.querySelector('[data-coding-recover-continue]');
+      await new Promise(resolve=>setTimeout(resolve,1100));timeline.renderFooter(block,run,0,true);
+      const bare=document.createElement('section');document.body.append(bare);
+      timeline.renderFooter(bare,{...run,ref:{run_id:'s'},activity:[{...run.activity[0],at:null}]},0,true);
+      return {facts:block.querySelector('.coding-run-facts').textContent,same:block.querySelector('.coding-run-footer').dataset.html===first,kept:block.querySelector('[data-coding-recover-continue]')===button,
+        bare:bare.querySelector('.coding-run-facts').textContent};
+    })()`);
+    assert.match(cutOff.facts, /用时 1 分 5 秒/, "a cut-off round is timed to its last recorded moment, not to now");
+    assert.equal(cutOff.same, true);
+    assert.equal(cutOff.kept, true, "the recovery button survives a later redraw");
+    assert.doesNotMatch(cutOff.bare, /用时/, "with nothing recorded after its start, a recovered round claims no duration");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

@@ -19,6 +19,7 @@ export interface TimelineActivity {
   output_truncated?: boolean;
   /** Lines the Host left out of a display copy of the output; the timeline never shows them either. */
   output_hidden_lines?: number;
+  at?: string | null;
 }
 export interface TimelineRun {
   ref: { run_id: string };
@@ -29,7 +30,7 @@ export interface TimelineRun {
   usage?: { tokens?: { input?: number; output?: number } };
   stop_reason?: string | null;
   step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
-  turns?: Array<{ kind: string; text: string }>;
+  turns?: Array<{ kind: string; text: string; at?: string | null }>;
 }
 
 export function createCodingTimeline() {
@@ -203,8 +204,13 @@ export function createCodingTimeline() {
     const stalled = latest && run.phase === "completed" && !run.activity.length && said.length < 160 && /^(好的[，,]?\s*)?(我先|我来|我会|让我|现在开始|接下来我|首先我)/.test(said);
     const tone = run.phase === "completed" ? left || stalled ? "partial" : "done" : run.phase === "failed" || run.phase === "reconcile-required" ? "failed" : "stopped";
     const title = { done: "这一轮完成", partial: stalled ? "这一轮只说了下一步就结束了" : `这一轮结束，计划还剩 ${left} 步`, failed: run.phase === "reconcile-required" ? "这一轮需要核对结果" : "这一轮没有完成", stopped: "这一轮已停止" }[tone];
+    // A round cut off by a restart has no end time. Its last recorded moment is when it stopped; measuring to now
+    // would keep the card changing every second, and each redraw replaces its buttons under the pointer. A recovered
+    // round may have kept no moment after its start at all, and then it shows no duration rather than "0 秒".
+    const stoppedAt = run.ended_at ?? [...run.activity.map(item => item.at), ...(run.turns ?? []).map(turn => turn.at)]
+      .filter((at): at is string => typeof at === "string" && (!run.started_at || at > run.started_at)).sort().at(-1);
     const facts = [
-      duration(run.started_at, run.ended_at) && `用时 ${duration(run.started_at, run.ended_at)}`,
+      stoppedAt && duration(run.started_at, stoppedAt) && `用时 ${duration(run.started_at, stoppedAt)}`,
       edited.size ? `修改 ${edited.size} 个文件` : "没有修改文件",
       run.activity.some(item => item.name === "dispatch-subagent" && item.state === "completed") && `派出 ${run.activity.filter(item => item.name === "dispatch-subagent" && item.state === "completed").length} 个子任务`,
       commands.length ? `运行 ${commands.length} 条命令` : "",

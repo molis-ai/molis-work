@@ -12,7 +12,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const EVENT={submitted:'已提交',delivered:'已送达对方会话',accepted:'对方已接受',started:'对方开始执行','delivery-sent':'对方交付了成果','delivery-accepted':'已收下交付','delivery-rejected':'没有收下交付',completed:'已完成',rejected:'对方拒绝',cancelled:'已取消',failed:'失败'};
   const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',done:'本轮结束'};
   const TONE={received:'attention',delivered:'attention',accepted:'progress',committing:'progress',completed:'done',rejected:'blocked',cancelled:'idle',failed:'blocked'};
-  let owner='',data=null,readAt=0,reading=false,drafts=new Map();
+  let owner='',data=null,readAt=0,reading=false,drafts=new Map(),drawnKey='';
   const act=async(path,body,done)=>{try{await api('/sessions/'+encodeURIComponent(current())+'/delegations'+path,'POST',body);if(done)status(done);await refresh(true);}catch(error){status(error.message,true);await refresh(true);}};
   const receipts=(delegation)=>{const details=el('details','coding-coop-receipts'),summary=el('summary','','回执 '+delegation.receipts.length+' 条'),list=el('ol');
     for(const receipt of delegation.receipts){const item=el('li');item.append(el('span','coding-coop-event',EVENT[receipt.event]||receipt.event),el('time','',time(receipt.at)));
@@ -83,7 +83,10 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   };
   const refresh=async(force=false)=>{
     const id=current();if(!id||reading)return;if(!force && owner===id && Date.now()-readAt<3000)return;
-    reading=true;try{const value=await api('/sessions/'+encodeURIComponent(id)+'/delegations');if(id!==current())return;owner=id;readAt=Date.now();data=value;drawBanner(value.incoming);drawSection(value);}
+    reading=true;try{const value=await api('/sessions/'+encodeURIComponent(id)+'/delegations');if(id!==current())return;owner=id;readAt=Date.now();data=value;
+      // Redrawn only when something changed: a redraw replaces the forms, so a click or a half-written note would be lost.
+      const key=JSON.stringify([id,value,rounds().map(round=>[round.run_id,round.phase,round.number])]);
+      if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);}}
     catch(error){if(id===current()){banner.hidden=true;}}finally{reading=false;}
   };
   // Delegating: a new session gets the task as its draft, with fixed outputs handed over at their versions.

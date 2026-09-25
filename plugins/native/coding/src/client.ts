@@ -923,9 +923,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const list=q('[data-coding-checkpoints-list]');list.replaceChildren();
       data.checkpoints.forEach(item=>{
         const row=document.createElement('section'), label=document.createElement('p'), meta=document.createElement('small'), button=document.createElement('button');
-        label.textContent=item.label;meta.textContent=new Date(item.created_at).toLocaleString()+(item.origin_run_id?' · 原轮次 '+item.origin_run_id:'')+(item.directory?' · '+item.directory.canonical_path:'');
-        button.className='mw-btn';button.type='button';button.dataset.codingRewind=item.checkpoint_id;button.textContent='预览回退';button.setAttribute('aria-label','预览回退 '+item.label+' '+item.checkpoint_id);
-        row.append(label,meta,button);list.append(row);
+        label.textContent=item.label;const round=allRuns.findIndex(run=>run.ref?.run_id===item.origin_run_id);
+        meta.textContent=new Date(item.created_at).toLocaleString()+(item.origin_run_id?' · '+(round>=0?'第 '+(round+1)+' 轮':'原轮次 '+item.origin_run_id):'')+(item.directory?' · '+item.directory.canonical_path:'');
+        button.className='mw-btn';button.type='button';button.dataset.codingRewind=item.checkpoint_id;button.textContent=item.rewound_at?'再次预览回退':'预览回退';button.setAttribute('aria-label',button.textContent+' '+item.label+' '+item.checkpoint_id);
+        row.append(label,meta);
+        // Already rewound here: say when, so the list does not read as untouched; the files may have changed since.
+        if(item.rewound_at){const done=document.createElement('small');done.className='coding-checkpoint-done';done.textContent='已于 '+new Date(item.rewound_at).toLocaleString()+' 回退到这里；之后文件可能又有改动。';row.append(done);}
+        row.append(button);list.append(row);
       });
       q('[data-coding-checkpoints-status]').textContent=checkpointBusy?'回退尚未结束或结果待核对，请查看下方审查。':data.checkpoints.length?'先查看完整预览，再由你批准这一次。':'本会话暂无可读取的检查点；命令修改不在文件检查点范围内。';
     } catch(error) {

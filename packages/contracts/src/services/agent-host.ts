@@ -658,6 +658,8 @@ export interface AgentCheckpoint {
   session_id: string;
   label: string;
   created_at: string;
+  /** When a reviewed rewind to this checkpoint last took effect, if one has; the files may have changed since. */
+  rewound_at?: string;
 }
 
 export interface AgentCheckpointsCapability {

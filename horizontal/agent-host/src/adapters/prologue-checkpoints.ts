@@ -148,6 +148,16 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
       await restore(session.session_id);
       const index = await requireIndex(session.session_id);
       const directories = new Map(index.attempts.map(attempt => [attempt.frozen.directory.canonical_path, attempt.frozen.directory]));
+      // A checkpoint already rewound to says so, from the Host's own receipts, rather than looking untouched.
+      const rewound = new Map<string, string>();
+      for (const item of queue.list(index.owner.board_id)) {
+        if (item.kind !== "rewind" || item.operation?.session_id !== session.session_id) continue;
+        const receipt = queue.receipt(item.review_id);
+        if (!receipt?.effect_settled) continue;
+        const id = (item.document as AgentRewindReviewDocument).checkpoint_id, at = receipt.decided_at ?? item.requested_at;
+        const seen = rewound.get(id);
+        if (seen === undefined || seen < at) rewound.set(id, at);
+      }
       const result: AgentCheckpoint[] = [];
       for (const directory of directories.values()) {
         const root = await runtime.workspace.authorize({ path: directory.canonical_path });
@@ -156,7 +166,8 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
           if (item.sessionId !== session.session_id || !item.paths.every(safePath)) continue;
           result.push({ checkpoint_id: item.checkpointId, session_id: session.session_id,
             ...(item.runId ? { origin_run_id: item.runId } : {}), paths: [...item.paths], directory: structuredClone(directory),
-            label: item.paths.join("、"), created_at: new Date(item.takenAtMs).toISOString() });
+            label: item.paths.join("、"), created_at: new Date(item.takenAtMs).toISOString(),
+            ...(rewound.has(item.checkpointId) ? { rewound_at: rewound.get(item.checkpointId)! } : {}) });
         }
       }
       return result.sort((a, b) => b.created_at.localeCompare(a.created_at));

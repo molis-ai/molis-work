@@ -4,7 +4,7 @@
  * and decides whether to take what comes back. Related sessions are listed read-only. None of it reaches the model.
  */
 export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
-  const {q,api,current,status,openSession,refreshSessions,rounds,prefill,materialsChanged}=ports;
+  const {q,api,current,status,openSession,refreshSessions,rounds,prefill,materialsChanged,openArtifact}=ports;
   const banner=q('[data-coding-delegation-banner]'),section=q('[data-coding-cooperation]'),dialog=q('[data-coding-delegate-dialog]');
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
   const button=(label,variant,handler)=>{const node=el('button','mw-btn'+(variant?' mw-btn--'+variant:''),label);node.type='button';node.addEventListener('click',handler);return node;};
@@ -67,6 +67,9 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       for(const delivery of delegation.deliveries){
         const row=el('div','coding-coop-delivery');row.dataset.state=delivery.state;
         row.append(el('p','','交付：'+(delivery.kind==='report'?'报告':'固定变更')+' · '+delivery.title+(delivery.note?' · '+delivery.note:'')+' · '+time(delivery.sent_at)));
+        // What came back can be read before it is taken: the fixed version opens in its own tab, read-only, and this
+        // session stays where it is.
+        if(delivery.artifact&&openArtifact)row.append(button(delivery.kind==='report'?'查看交付的报告':'查看交付的变更','ghost',()=>openArtifact(delivery.artifact,delivery.title)));
         if(delivery.state==='sent'){const actions=el('div','coding-coop-actions');
           actions.append(button('收下并作为下一轮材料','secondary',()=>void act(path+'/deliveries/'+encodeURIComponent(delivery.delivery_id),{decision:'accept',expected_revision:delegation.revision},'已收下，交付的成果已加入下一轮材料。').then(()=>materialsChanged())),
             button('不收下…','ghost',()=>{actions.replaceChildren(reasonForm('不收下的原因（对方会看到）','确认',reason=>act(path+'/deliveries/'+encodeURIComponent(delivery.delivery_id),{decision:'reject',reason,expected_revision:delegation.revision},'已退回，对方可以修改后再交付。')));}));

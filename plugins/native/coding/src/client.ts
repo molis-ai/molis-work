@@ -103,6 +103,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent()});
   const cooperationUi = (${CODING_COOPERATION_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);},refreshSessions:()=>refreshState(),
+    openArtifact:(reference,title)=>host.openItem('coding',reference.artifact_id,title || reference.artifact_id),
     rounds:()=>allRuns.map((run,index)=>({run_id:run.ref.run_id,number:index+1,phase:run.phase})),
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.

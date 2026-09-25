@@ -41,6 +41,30 @@ test("removing a dependency during a real nested Host call blocks the caller's s
   } finally { release(); await host.close(); }
 });
 
+test("a plugin query does not discover every action on each read; a command still confirms before it writes", async () => {
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = reference("reads");
+  const caller = { actor_id: "owner", project_id: project.project_id, audience: "user" as const, permissions: [] };
+  const client = host.actionClient(project);
+  let discovered = 0;
+  const actions = bindActionClient({ ...client, discover: async (who) => { discovered++; return client.discover(who); } }, () => caller);
+  const context: PluginStartContext = { install_id: "fixture", plugin_id: "io.molis.work.example.reads", version: "1.0.0", deployment: "local", grants: [], actor_id: caller.actor_id,
+    services: { actions, artifacts: { read: () => { throw new Error("No Artifact reads expected"); }, publish: () => { throw new Error("No Artifact writes expected"); } },
+      ui: { register: () => { throw new Error("No UI expected"); }, unregister: () => {} } },
+    requireGrant: () => { throw new Error("No grant is declared"); } };
+  const shape = { scope: "project" as const, audiences: ["user" as const], permissions: [], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "number" } };
+  const read: ActionDefinition<Record<string, never>, number> = { capability_id: "example.read", version: 1, operation: "query", action: { title: "Read", description: "Read a value", kind: "query", ...shape } };
+  const save: ActionDefinition<Record<string, never>, number> = { capability_id: "example.save", version: 1, operation: "command", action: { title: "Save", description: "Write a value", kind: "operation", ...shape } };
+  host.actionRegistry(project).registerProvider({ provider: { provider_id: context.install_id, title: "Fixture", kind: "plugin" }, definitions: [read, save],
+    handlers: [bindOwnerPluginAction(context, read, () => 7), bindOwnerPluginAction(context, save, () => 8)] });
+  try {
+    for (let i = 0; i < 3; i++) assert.equal(await actions.invoke(read, {}), 7);
+    assert.equal(discovered, 0, "reads are routed by the registry; they do not list every action");
+    assert.equal(await actions.invoke(save, {}), 8);
+    assert.equal(discovered, 1, "a command confirms it is still the published action before writing");
+  } finally { await host.close(); }
+});
+
 test("declared SDK dependency inspection uses the live Host registry without opening or invoking, and never widens manifests", async () => {
   let opened = 0, calls = 0, active = true;
   const host = new LocalHost({ runtimeFactory: { open: () => { opened++; return {}; }, close: () => {} } });

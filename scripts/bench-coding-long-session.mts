@@ -124,6 +124,20 @@ const read = await measureRead("session read (first)", readUrl);
 const held = await (await realFetch(readUrl, { headers: { origin } })).json();
 const steadyUrl = readUrl + (held.earlier_fingerprint ? `&earlier=${held.earlier_fingerprint}` : "") + (held.runs?.some((run: { fingerprint?: string }) => run.fingerprint) ? `&known=${held.runs.map((run: { fingerprint: string }) => run.fingerprint).join(",")}` : "");
 const steady = await measureRead("session read (refresh, nothing changed)", steadyUrl);
+// SERVER_PROFILE=1: where the server spends an unchanged refresh (it runs in this process).
+if (process.env.SERVER_PROFILE) {
+  const { Session } = await import("node:inspector/promises"), inspector = new Session(); inspector.connect();
+  await inspector.post("Profiler.enable"); await inspector.post("Profiler.setSamplingInterval", { interval: 100 }); await inspector.post("Profiler.start");
+  for (let i = 0; i < 20; i++) await (await realFetch(steadyUrl, { headers: { origin } })).arrayBuffer();
+  const { profile } = await inspector.post("Profiler.stop") as { profile: { nodes: Array<{ id: number; callFrame: { functionName: string; url: string; lineNumber: number }; children?: number[] }>; samples: number[]; timeDeltas: number[] } };
+  const parent = new Map<number, number>(); for (const node of profile.nodes) for (const child of node.children ?? []) parent.set(child, node.id);
+  const byId = new Map(profile.nodes.map(node => [node.id, node])), self = new Map<number, number>();
+  profile.samples.forEach((id, index) => self.set(id, (self.get(id) ?? 0) + (profile.timeDeltas[index] ?? 0)));
+  const name = (id: number) => { const frame = byId.get(id)!.callFrame; return `${frame.functionName || "(anon)"} ${frame.url.replace(/^.*\/(packages|apps|plugins|horizontal|node_modules)\//, "$1/")}:${frame.lineNumber + 1}`; };
+  const top = [...self].filter(([id]) => !/^\((idle|program|garbage collector)\)/.test(byId.get(id)!.callFrame.functionName)).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  for (const [id, us] of top) { const chain: string[] = []; for (let at: number | undefined = id; at !== undefined && chain.length < 9; at = parent.get(at)) chain.push(name(at)); log(`server ${Math.round(us / 1000)}ms:`, chain.join(" < ")); }
+  inspector.disconnect();
+}
 
 if (process.env.NO_BROWSER) { log("server kept running at", `${projectPath}/?surface=coding`, "token", token); await new Promise(() => {}); }
 // And what the page does with it: first paint of the session, DOM size, scrolling from the bottom to the top.

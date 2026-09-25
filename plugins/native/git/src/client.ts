@@ -147,7 +147,9 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       commit.textContent=summary.staged.length?'提交 '+summary.staged.length+' 个已暂存文件…':summary.merging?'完成合并提交…':'没有已暂存的文件';
       const push=sc.querySelector('[data-git-push]');push.disabled=!summary.branch || !summary.remotes.length || !summary.head_commit || Boolean(summary.upstream && !summary.ahead);
       push.textContent=!summary.remotes.length?'没有远端':summary.upstream?(summary.ahead?'推送 '+summary.ahead+' 个提交…':'已与远端同步'):'推送并建立远端分支…';
-      const others=summary.branches.filter(branch=>branch!==summary.branch);
+      // Branches Coding keeps for its independent writer directories are checked out there: they can be neither
+      // switched to here nor a sensible PR target, so they are not offered.
+      const others=summary.branches.filter(branch=>branch!==summary.branch && !branch.startsWith('molis-work/writer/'));
       options(sc.querySelector('[data-git-branch-choice]'),others,sc.querySelector('[data-git-branch-choice]').value);
       // The PR target follows the repository's main branch unless the person picked one; a value left over from the
       // branch previously checked out is not a choice.

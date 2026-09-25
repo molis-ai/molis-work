@@ -84,23 +84,23 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   async function afterDecision(outcome){
     if(!outcome.workspaceId || outcome.workspaceId!==workspace)return;
     const receipt=outcome.receipt;
-    let message;
-    if(outcome.error)message='本次请求未取得执行回执：'+outcome.error+'。请核对下方操作记录，不要直接重试。';
-    else if(receipt?.effect_uncertain)message='执行结果待核对：'+receipt.effect_uncertain;
-    else if(receipt?.status==='rejected')message='已拒绝，本次没有更新暂存区。';
-    else if(receipt?.reconciliation)message='已核对原操作未发生，已解除阻塞；原操作不会重试。';
-    else if(receipt?.effect_error)message='已批准，但执行未完成：'+receipt.effect_error;
-    else if(receipt?.effect_settled)message='所审查的暂存区操作已完成，工作区文件未改写。';
-    else message='决定已记录，执行结果尚未确认，请查看下方操作记录。';
+    let notice;
+    if(outcome.error)notice='本次请求未取得执行回执：'+outcome.error+'。请核对下方操作记录，不要直接重试。';
+    else if(receipt?.effect_uncertain)notice='执行结果待核对：'+receipt.effect_uncertain;
+    else if(receipt?.status==='rejected')notice='已拒绝，本次没有更新暂存区。';
+    else if(receipt?.reconciliation)notice='已核对原操作未发生，已解除阻塞；原操作不会重试。';
+    else if(receipt?.effect_error)notice='已批准，但执行未完成：'+receipt.effect_error;
+    else if(receipt?.effect_settled)notice='所审查的暂存区操作已完成，工作区文件未改写。';
+    else notice='决定已记录，执行结果尚未确认，请查看下方操作记录。';
     // A commit, branch, push or PR decided here reads as that operation, never as an index change.
     if(lastPrepared){
       const done=receipt?.effect_settled,label={commit:'提交','branch-create':'新建分支','branch-switch':'切换分支',push:'推送','pr-create':'建 PR'}[lastPrepared] || 'Git 操作';
-      if(lastPrepared==='commit' && done)message.value='';
+      if(lastPrepared==='commit' && done){message.value='';try{sessionStorage.removeItem('molis-commit-draft:'+scWorkspace);}catch{}}
       scStatus.textContent=outcome.error?'本次请求未取得执行回执：'+outcome.error:receipt?.status==='rejected'?'已拒绝「'+label+'」，仓库没有改变。':receipt?.effect_error?'「'+label+'」没有完成：'+receipt.effect_error:done?'「'+label+'」已完成，结果见下方记录。':'决定已记录，结果尚未确认。';
       lastPrepared='';q('[data-git-notice]').textContent=scStatus.textContent;await refresh();return;
     }
     displayed=null;action.hidden=true;
-    q('[data-git-notice]').textContent=message+' 再次操作请从左侧重新打开当前差异。';
+    q('[data-git-notice]').textContent=notice+' 再次操作请从左侧重新打开当前差异。';
     await refresh();if(!resultPanel.hidden)await loadResults();
   }
   directory.querySelector('[data-git-refresh]').addEventListener('click',()=>void (host.refreshWorkspace ? host.refreshWorkspace() : refresh()));
@@ -124,14 +124,23 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const OUTCOME={pending:'等你审查',running:'执行中',succeeded:'已完成',failed:'未完成',denied:'已拒绝',cancelled:'已撤回',expired:'已过期',unknown:'结果待核对'};
   const TOOL={'git-commit':'提交','git-branch-create':'新建分支','git-branch-switch':'切换分支','git-push':'推送','git-pr-create':'建 PR'};
   const options=(select,values,keep)=>{select.replaceChildren(...values.map(value=>{const option=document.createElement('option');option.value=value;option.textContent=value;return option;}));if(keep && values.includes(keep))select.value=keep;};
-  async function loadOperations(){try{const value=await request('/operations');operations.replaceChildren(...value.operations.slice(0,6).map(op=>{const item=document.createElement('li');item.dataset.outcome=op.outcome;item.textContent=(TOOL[op.tool]||op.tool)+' · '+(OUTCOME[op.outcome]||op.outcome)+' · '+(op.detail||op.failure_reason||op.summary);return item;}));}catch{}}
+  async function loadOperations(){try{const value=await request('/operations');operations.replaceChildren(...value.operations.slice(0,6).map(op=>{const item=document.createElement('li');item.dataset.outcome=op.outcome;const text=(TOOL[op.tool]||op.tool)+' · '+(OUTCOME[op.outcome]||op.outcome)+' · '+(op.detail||op.failure_reason||op.summary);
+      // An address in the result (the PR that was opened) is a link; in the desktop app it opens in the system browser.
+      for(const [index,part] of text.split(/(https:\\/\\/[^\\s，。）)]+)/).entries()){
+        if(index%2===0){item.append(part);continue;}
+        const link=document.createElement('a');link.href=part;link.textContent=part;link.target='_blank';link.rel='noopener noreferrer';
+        link.addEventListener('click',event=>{if(!globalThis.molisWorkOpenExternalUrl)return;event.preventDefault();void globalThis.molisWorkOpenExternalUrl(part);});
+        item.append(link);
+      }
+      return item;}));}catch{}}
   async function loadSource(){
     try{
       const value=await request('/summary');summary=value.summary;scWorkspace=value.workspace.workspace_id;sc.hidden=!summary;
       if(!summary){scStatus.textContent=value.message||'';return;}
       draft=value.draft||'';
       // A commit message handed over from a Coding round arrives once, to be edited before anything runs.
-      try{const key='molis-commit-draft:'+scWorkspace,handed=sessionStorage.getItem(key);if(handed){sessionStorage.removeItem(key);message.value=handed;scStatus.textContent='已放入 Coding 这一轮的提交说明，确认或修改后再提交。';}}catch{}
+      // It stays until that commit is made, so a reload keeps it, and it never replaces what the person has typed.
+      try{const handed=sessionStorage.getItem('molis-commit-draft:'+scWorkspace);if(handed && !message.value.trim()){message.value=handed;scStatus.textContent='已放入 Coding 这一轮的提交说明，确认或修改后再提交。';}}catch{}
       sc.querySelector('[data-git-branch]').textContent=summary.branch||('分离的 HEAD '+(summary.head_commit||'').slice(0,8));
       sc.querySelector('[data-git-sync]').textContent=summary.upstream?('↑'+summary.ahead+' ↓'+summary.behind+' · '+summary.upstream):(summary.remotes.length?'还没有推送到远端':'没有远端');
       const commit=sc.querySelector('[data-git-commit]');commit.disabled=!summary.staged.length && !summary.merging;

@@ -420,8 +420,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
     configurations.set(current,{intent:q('[data-coding-intent]').value,provider_id:provider_id || '',model_id:model_id || '',workspace_id:workspaceId,...(configurations.get(current)?.writer_assignments ? {writer_assignments:configurations.get(current).writer_assignments} : {})});
   };
+  // A session named by its first task renames its open tab too, while Coding is the surface on show (its tab is then
+  // the active one and only its title changes). Whichever read sees the new name first does it.
+  const retitle=(id,before,after)=>{if(id && id===current && before && after && before!==after && root.getBoundingClientRect().width>0)host.openItem('coding',id,after);};
   const refreshState = async () => {
+    const before=current && state?.sessions?.find(item=>item.session_id===current)?.title;
     const result=await api('/state'); state=result;
+    retitle(current,before,current && result.sessions.find(item=>item.session_id===current)?.title);
     const models=q('[data-coding-model]'); const previous=models.value;
     const options=result.models.map((model) => { const option=document.createElement('option'); option.value=JSON.stringify([model.provider_id,model.model_id]); option.textContent=model.label; return option; });
     if (!options.length) { const option=document.createElement('option'); option.textContent='先配置可用模型'; option.value=''; options.push(option); }
@@ -1008,6 +1013,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(recovery && recoveryKey!==id){recoveryKey=id;void readRecovery();}
       if(!q('[data-coding-title] input')) q('[data-coding-title]').textContent=data.session.title;
       q('[data-coding-goal-label]').textContent=data.session.goal_id?'下一轮目标：'+(data.session.goal_title || data.session.goal_id):'下一轮未关联目标';
+      retitle(id,state.sessions.find(record=>record.session_id===id)?.title,data.session.title);
       state.sessions=state.sessions.map(record=>record.session_id===id ? data.session : record);
       if(!configurations.has(id)) configurations.set(id,data.configuration);
       if(fresh) {
@@ -1155,7 +1161,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-rewind]')) {
         const id=current,ticket=generation;checkpointBusy=true;controls();
         try {
-          await api('/sessions/'+encodeURIComponent(id)+'/checkpoints/'+encodeURIComponent(target.dataset.codingRewind)+'/rewind','POST',{intent:q('[data-coding-intent]').value});
+          // A rewind is the person's own reviewed file change, not a round: it does not depend on the composer's mode.
+          const chosen=q('[data-coding-intent]').value,intent=['edit','execute'].includes(chosen)?chosen:'edit';
+          await api('/sessions/'+encodeURIComponent(id)+'/checkpoints/'+encodeURIComponent(target.dataset.codingRewind)+'/rewind','POST',{intent});
           if(current===id && generation===ticket){status('回退预览已准备，请在右侧审查当前内容与回退后的内容。');await readCurrent();}
         } catch(error) {if(current===id && generation===ticket){checkpointBusy=false;throw error;}}
         finally {controls();}

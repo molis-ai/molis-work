@@ -85,7 +85,8 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
           state,progress:{done,total:mine.length||1},deps,executor,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
           node,live,board:entry.board,runId:id,position};
       });
-      const doneSteps=nodes.filter(settled).length,counted=nodes.filter(node=>!skipped(node)).length;
+      // A skipped step leaves the count altogether: it is neither done nor still to do.
+      const doneSteps=nodes.filter(node=>settled(node)&&!skipped(node)).length,counted=nodes.filter(node=>!skipped(node)).length;
       const name=entry?.plan?.content.title||clip(firstLine(run.task??ownTask(run.turns?.find(turn=>turn.kind==='user'&&!turn.steer)?.text||'')),90)||'第 '+(index+1)+' 轮';
       const first=runs[span[0]];
       rounds.unshift({key:'run-'+id,label:span.length>1?'#'+(span[0]+1)+'–'+(index+1):'#'+(index+1),title:name,
@@ -166,7 +167,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const scroll=board.scrollTop,groups=tree();
     title.textContent='TaskBoard';
     const latest=(data.taskboard_plans||[]).filter(entry=>entry.board).at(-1)?.board;
-    meta.textContent=[data.plan?'计划修订 '+data.plan.revision+(data.plan.confirmed?' · 已确认':' · 待确认'):'',latest?latest.nodes.filter(settled).length+'/'+latest.nodes.filter(node=>!skipped(node)).length+' 步完成':''].filter(Boolean).join(' · ');
+    meta.textContent=[data.plan?'计划修订 '+data.plan.revision+(data.plan.confirmed?' · 已确认':' · 待确认'):'',latest?latest.nodes.filter(node=>settled(node)&&!skipped(node)).length+'/'+latest.nodes.filter(node=>!skipped(node)).length+' 步完成'+(latest.nodes.some(skipped)?' · 跳过 '+latest.nodes.filter(skipped).length+' 步':''):''].filter(Boolean).join(' · ');
     notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
     list.replaceChildren();
     for(const group of groups){

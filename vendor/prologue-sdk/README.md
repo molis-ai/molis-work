@@ -1,6 +1,23 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`。在截断续写之上，派出子任务（及其他声明 `idempotencyKey` 的系统工具）的键**在进入审查前就按存储地址的格式校验**：1–48 个字母、数字、点、短横或下划线，首字符为字母或数字。原来工具说明里没有格式约束，模型给出 `研究/第一步` 这类键时，要等用户批准后写回执才失败，批准白给；现在当场以 `TOOL_ARGUMENTS_INVALID` 退回，模型按工具修复路径改键重试，不产生审查项。工具说明同步写明格式。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-file-mode.tgz`。在派出标识校验之上，工作区写入**保留文件原来的权限**：原来每次写入（包括改已有文件和按检查点回退）都先建一个 0600 的临时文件再改名替换，于是改过的文件都变成 0600，可执行的脚本改完就不再可执行（git 会看到 100755 → 100644）。现在改已有文件沿用它原来的权限，新文件按普通文件的默认权限（0666 减去 umask，通常是 0644）。写入仍是临时文件 + fsync + 原子改名。
+
+起因：Coding 实测里模型新建的 `src/format.ts` 权限是 0600。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[file-mode.patch](file-mode.patch)，相对基线的**累计**补丁（含本机模型地址、截断续写、派出标识校验全部改动）。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`f9ca532288b8b6a3d3f68b575f48458f948f8ab93ac29244beb7fce840438398`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/file-mode.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-file-mode.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；新增 1 项定向（可执行脚本改完、回退后仍是 0755，新文件是 0666 减去 umask），写入与补丁相关 59 项通过。全量结果见 Coding spec。未发布 npm，未替换正式安装版。
+
+## 上一依赖：派出标识校验
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`。在截断续写之上，派出子任务（及其他声明 `idempotencyKey` 的系统工具）的键**在进入审查前就按存储地址的格式校验**：1–48 个字母、数字、点、短横或下划线，首字符为字母或数字。原来工具说明里没有格式约束，模型给出 `研究/第一步` 这类键时，要等用户批准后写回执才失败，批准白给；现在当场以 `TOOL_ARGUMENTS_INVALID` 退回，模型按工具修复路径改键重试，不产生审查项。工具说明同步写明格式。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

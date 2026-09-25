@@ -298,7 +298,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         const active = pending.origin.run && activeRuns.get(pending.origin.run);
         if (!active || !active.live()) throw new Error("原执行已结束，修改意见尚未交给 Agent");
         const request = options.reviewQueue!.get(receipt.review_id)!;
-        const target = request.document.kind === "text-edit" ? request.document.target_path : request.kind;
+        const document = request.document;
+        const target = document.kind === "text-edit" ? document.target_path
+          : document.kind === "command" ? [document.command, ...document.args].join(" ")
+          : document.kind === "tool-operation" ? `${document.tool}：${document.summary}`
+          : document.kind === "mcp" ? `${document.server} / ${document.tool}` : request.kind;
         await active.steer(`用户拒绝了这一次待审操作，并给出修改意见。原审查：${JSON.stringify(receipt.review_id)}；对象：${JSON.stringify(target)}。\n用户意见：\n${receipt.note}\n\n这条意见不批准任何写入，也不撤销已发生的其他操作。请结合当前任务核对并修改提案；新的操作仍须经过原宿主审查。`);
       }
     },

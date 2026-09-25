@@ -215,7 +215,8 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
 function renderFooter(row: AgentReviewRow, decidable: boolean, p: AgentReviewPrimitives): string {
   if (decidable) {
     const reviewId = p.escape(row.request.review_id);
-    return `${row.request.run && row.request.document.kind === "text-edit" && row.request.plugin_id === "io.molis.work.coding" ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="1" placeholder="要改哪里？写下意见后点拒绝，交回给 Agent…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
+    // A round's own proposals (edits, commands, dispatches, MCP calls) can be refused with a reason the round receives.
+    return `${row.request.run && ["text-edit", "command", "tool-operation", "mcp"].includes(row.request.document.kind) && row.request.plugin_id === "io.molis.work.coding" ? `<label class="mw-field agent-review-feedback"><span class="mw-field__label">修改意见（可选）</span><textarea class="mw-textarea" data-slot="textarea" data-agent-review-feedback aria-label="修改意见（可选）" maxlength="2000" rows="1" placeholder="要改哪里？写下意见后点拒绝，交回给 Agent…"></textarea><span class="mw-field__hint">填写后随拒绝交给原任务；新提案仍需重新审查。</span></label>` : ""}<footer class="agent-review-actions">
       ${row.request.document.kind === "command" && row.request.document.escalate === false && row.request.run ? `<label class="agent-review-remember"><input type="checkbox" data-agent-review-remember>${p.escape("本会话内同样的命令不再询问")}</label>` : ""}
       <button class="mw-btn" type="button" data-agent-review-reject="${reviewId}">${p.escape("拒绝")}</button>
       <button class="mw-btn mw-btn--primary" type="button" data-agent-review-approve="${reviewId}">${p.escape("批准这一次")}</button>

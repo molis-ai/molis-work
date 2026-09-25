@@ -1174,12 +1174,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         catch(error){failed=true;note='模型起草没有成功（'+error.message+'），已放入按规则拼出的草稿：先暂存这些文件，改好说明再提交。';}
         finally{target.disabled=false;}
         if(id!==current)return;
-        // The Git view works on the workspace chosen for Files; point it at the round's own directory first.
-        const own=(state.workspaces || []).find(item=>item.canonical_path===run.frozen.directory?.canonical_path)?.workspace_id || workspaceId;
+        // The Git view works on the project's browsing directory (project settings); point it at the round's own directory first.
+        const ownWorkspace=(state.workspaces || []).find(item=>item.canonical_path===run.frozen.directory?.canonical_path),own=ownWorkspace?.workspace_id || workspaceId;
         try{sessionStorage.setItem('molis-commit-draft:'+own,draft);}catch{}
-        try{await fetch((document.body.dataset.routePrefix || '')+'/api/plugins/io.molis.work.workspace/select',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:own})});}catch{}
+        let pointed=false;
+        try{const response=await fetch((document.body.dataset.routePrefix || '')+'/api/project-settings/workspaces',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:own})});pointed=response.ok;}catch{}
         directory.querySelector('[data-coding-face=files]')?.click();
-        status(note,failed);
+        // Git would otherwise stay on another directory, where this message does not belong: say so rather than claim it is there.
+        status(pointed?note:'Git 面板没能切到这一轮的工作目录'+(ownWorkspace?'「'+ownWorkspace.display_name+'」':'')+'，提交说明还没有放进去：请在项目设置的工作目录里选中它，再点一次「提交这些改动…」。',failed || !pointed);
       }
       if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();

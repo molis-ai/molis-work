@@ -65,27 +65,47 @@ export function createCodingTimeline() {
     const match = /^exit (-?\d+)/.exec(item.output ?? "");
     return match ? Number(match[1]) : null;
   };
+  /**
+   * A board-report that fails with TASKBOARD_CONFLICT is a version-conflict retry, not a real failure, when a later
+   * board-report in the same group lands successfully. The host records board-report's target as empty (it only
+   * pulls path/file_path/command/pattern/query from tool args, none of which board-report sets), so "later success"
+   * cannot be matched on target and is matched by state alone.
+   */
+  const conflictRetry = (item: TimelineActivity, items: TimelineActivity[]) => {
+    if (item.name !== "board-report" || item.state !== "failed") return false;
+    if (!/TASKBOARD_CONFLICT/.test(item.output ?? "")) return false;
+    const self = items.indexOf(item);
+    if (self < 0) return false;
+    for (let i = self + 1; i < items.length; i += 1) {
+      const later = items[i]!;
+      if (later.name === "board-report" && later.state === "completed") return true;
+    }
+    return false;
+  };
   /** Only side effects go through review; a read started alongside one is merely held until the round resumes. */
   const APPROVABLE = new Set(["edit", "write", "run-command", "dispatch-subagent", "steer-subagent"]);
-  const outcome = (item: TimelineActivity, ended: boolean, waiting = false) => {
+  const outcome = (item: TimelineActivity, ended: boolean, waiting = false, items?: TimelineActivity[]) => {
     const code = exitCode(item);
     if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }
       : waiting ? (APPROVABLE.has(item.name) ? { tone: "waiting", label: "等你批准" } : { tone: "held", label: "等待中" })
       : { tone: "running", label: "进行中" };
     if (item.name === "reasoning" && item.state === "completed") return { tone: "quiet", label: "" };
-    if (item.state === "failed") return { tone: "failed", label: "失败" };
+    if (item.state === "failed") {
+      if (items && conflictRetry(item, items)) return { tone: "retry", label: "已重试" };
+      return { tone: "failed", label: "失败" };
+    }
     if (item.state === "unknown") return { tone: "unknown", label: "结果未知" };
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
   };
   const statusMark = (tone: string) => tone === "running" ? '<span class="coding-spinner" aria-hidden="true"></span>'
-    : tone === "quiet" ? "" : tone === "waiting" ? svg("clock") : tone === "held" ? svg("dot") : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : svg("circle-alert");
+    : tone === "quiet" ? "" : tone === "waiting" ? svg("clock") : tone === "held" ? svg("dot") : tone === "ok" ? svg("check") : tone === "failed" ? svg("x") : tone === "retry" ? svg("dot") : svg("circle-alert");
   const lines = (text: string, limit: number) => {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
-  const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean) => {
-    const kind = kindOf(item), result = outcome(item, ended, waiting);
+  const rowHtml = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
+    const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const firstLine = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
     const what = item.target ? `<code>${escape(item.target)}</code>` : firstLine ? `<span class="coding-tool-preview">${escape(firstLine)}</span>` : "";
@@ -115,7 +135,7 @@ export function createCodingTimeline() {
     }
     const parts = [...counts.values()].map(({ kind, targets, calls }) => kind.noun === "" && kind.unit === "" ? kind.verb
       : `${kind.verb} ${kind.noun === "文件" || kind.noun === "目录" ? targets.size || calls : calls} ${kind.unit}${kind.noun}`);
-    const failed = items.filter(item => outcome(item, ended).tone === "failed").length;
+    const failed = items.filter(item => outcome(item, ended, waiting, items).tone === "failed").length;
     return { live: false, waiting: false, text: parts.join(" · ") + (failed ? ` · ${failed} 项未成功` : "") };
   };
   const opened = new Map<string, boolean>();
@@ -138,7 +158,7 @@ export function createCodingTimeline() {
       let list = detail.querySelector(".coding-tool-list");
       if (!list) { list = document.createElement("div"); list.className = "coding-tool-list"; detail.append(list); }
       const openRows = new Set([...list.querySelectorAll("details.coding-tool[open]")].map((node: Element) => node.dataset.tool));
-      list.innerHTML = items.map(item => rowHtml(item, ended, waiting)).join("");
+      list.innerHTML = items.map(item => rowHtml(item, ended, waiting, items)).join("");
       list.querySelectorAll("details.coding-tool").forEach((node: Element) => { if (openRows.has(node.dataset.tool)) (node as Element).open = true; });
       detail.dataset.live = String(summary.live);
       const remembered = opened.get(key);

@@ -438,6 +438,7 @@ dialog.coding-palette::backdrop { background:color-mix(in srgb,var(--ink) 18%,tr
 .coding-tool-state { display:inline-flex; align-items:center; gap:4px; margin-left:auto; flex:none; font-size:11px; font-variant-numeric:tabular-nums; }
 .coding-tool-state[data-tone=ok] { color:var(--green); }
 .coding-tool-state[data-tone=failed] { color:var(--red); }
+.coding-tool-state[data-tone=retry] { color:var(--muted); }
 .coding-tool-state[data-tone=unknown] { color:var(--amber); }
 .coding-tool-output { margin:4px 0 8px 28px; max-height:280px; overflow:auto; padding:8px 10px; border-radius:8px; background:var(--rail); color:var(--ink); font-size:11.5px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere; }
 .coding-spinner { width:12px; height:12px; flex:none; border-radius:50%; border:1.5px solid color-mix(in srgb, var(--muted) 30%, transparent); border-top-color:var(--ink); animation:coding-spin .8s linear infinite; }

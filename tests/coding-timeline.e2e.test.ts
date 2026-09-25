@@ -96,5 +96,34 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.equal(cutOff.same, true);
     assert.equal(cutOff.kept, true, "the recovery button survives a later redraw");
     assert.doesNotMatch(cutOff.bare, /用时/, "with nothing recorded after its start, a recovered round claims no duration");
+    // A TASKBOARD_CONFLICT on a board-report that is later overridden by a successful board-report in the same
+    // group is a version-conflict retry, not a real failure. The host records board-report's activity target as
+    // "" (it only takes path/file_path/command/pattern/query from tool args), so matching retries by target would
+    // be vacuous; matching by "any later completed board-report" is what the data actually supports.
+    const retry = await page.evaluate<{ row: string; tone: string; summary: string }>(`(()=>{
+      const timeline=(${createCodingTimeline.toString()})();
+      const detail=document.createElement('details');detail.dataset.codingActivity='r:retry';document.body.append(detail);
+      const items=[
+        {call_id:'br1',name:'board-report',target:'',state:'failed',output:'TASKBOARD_CONFLICT: stale version'},
+        {call_id:'br2',name:'board-report',target:'',state:'completed'},
+      ];
+      timeline.renderGroup(detail,items,{ref:{run_id:'retry'},phase:'completed',activity:items},true);
+      const row=detail.querySelector('[data-tool=br1] .coding-tool-state');
+      return {row:row.textContent.trim(),tone:row.dataset.tone,summary:detail.querySelector('summary').textContent.trim()};
+    })()`);
+    assert.equal(retry.row, "已重试", "TASKBOARD_CONFLICT 后被同组后续成功的 board-report 覆盖,失败条目标为已重试");
+    assert.equal(retry.tone, "retry");
+    assert.doesNotMatch(retry.summary, /未成功/, "重试不计入未成功,摘要里没有'项未成功'");
+    const plain = await page.evaluate<{ row: string; tone: string; summary: string }>(`(()=>{
+      const timeline=(${createCodingTimeline.toString()})();
+      const detail=document.createElement('details');detail.dataset.codingActivity='r:plain';document.body.append(detail);
+      const items=[{call_id:'br3',name:'board-report',target:'',state:'failed',output:'some other error'}];
+      timeline.renderGroup(detail,items,{ref:{run_id:'plain'},phase:'failed',activity:items},true);
+      const row=detail.querySelector('[data-tool=br3] .coding-tool-state');
+      return {row:row.textContent.trim(),tone:row.dataset.tone,summary:detail.querySelector('summary').textContent.trim()};
+    })()`);
+    assert.equal(plain.row, "失败", "非 TASKBOARD_CONFLICT 的失败保持'失败'标");
+    assert.equal(plain.tone, "failed");
+    assert.match(plain.summary, /1 项未成功/, "普通失败仍然计入'未成功'摘要");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

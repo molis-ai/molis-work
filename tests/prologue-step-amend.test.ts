@@ -125,6 +125,10 @@ test("a later round continues the same unfinished graph, keeping a person's chan
     await assert.rejects(host.start("prologue", request({ continue_step_board_of: first.ref.run_id }), authority), /还没有结束|仍在执行/, "a live round's graph is not taken over");
     await adapter.control(first.ref, { kind: "stop" }); const stopped = await finish(first.ref);
     assert.deepEqual(stopped.step_board!.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "ready"], ["step-2", "not-started"]]);
+    // Between rounds the latest round's unfinished graph can still be changed: the next round carries on from it.
+    let between = await adapter.amendStepBoard!(first.ref, { kind: "move", node: "step-2", direction: "up" }, stopped.step_board!.version);
+    between = await adapter.amendStepBoard!(first.ref, { kind: "move", node: "step-2", direction: "down" }, between.version);
+    assert.ok(between.version > stopped.step_board!.version, "both changes are on the record");
 
     const otherPlan = { ...plan, steps: [...plan.steps, { id: "step-3", title: "多一步", acceptance: "x" }] };
     await assert.rejects(host.start("prologue", request({ execution_plan: otherPlan, continue_step_board_of: first.ref.run_id }), authority), /同一版确认计划/);
@@ -138,6 +142,7 @@ test("a later round continues the same unfinished graph, keeping a person's chan
     assert.equal(done.step_board!.board_id, stopped.step_board!.board_id);
     assert.deepEqual(done.step_board!.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "succeeded"], ["step-2", "succeeded"]]);
     assert.equal(done.step_board!.terminal, true);
+    await assert.rejects(adapter.amendStepBoard!(first.ref, { kind: "skip", node: "step-2", reason: "x" }, done.step_board!.version), /新的一轮/, "an earlier round's graph stays the record it was");
     await assert.rejects(host.start("prologue", request({ continue_step_board_of: second.ref.run_id }), authority), /已经结束/, "a finished graph is not reopened");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

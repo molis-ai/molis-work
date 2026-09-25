@@ -574,10 +574,18 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
   }
 
-  /** A person adjusts a live round's plan graph; an ended round keeps its graph as the record it was. */
+  /**
+   * A person adjusts a plan graph while its round runs, or between rounds while the graph is unfinished and belongs to
+   * the session's latest round: "继续计划" carries on from that same graph, so a blocked step is decided (or a step
+   * skipped or added) before the plan continues. An earlier round's graph, or a finished one, stays the record it was.
+   */
   async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number) {
     const current = await this.read(run);
-    if (isEnded(current.phase)) throw new PrologueAdapterError("agent.session_busy", "这一轮已经结束，计划图不再调整；请调整计划后开始新一轮");
+    if (isEnded(current.phase)) {
+      const record = await this.#loadSession(run.session_id);
+      if (record.runs.at(-1)?.run_id !== run.run_id) throw new PrologueAdapterError("agent.session_busy", "这一轮之后已有新的一轮，它的计划图不再调整；请在最新一轮上调整");
+      if (!current.step_board || current.step_board.terminal) throw new PrologueAdapterError("agent.session_busy", "这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
+    }
     if (!this.#runtime.amendStepBoard) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能调整计划图");
     return this.#runtime.amendStepBoard(run, amendment, expectedVersion);
   }

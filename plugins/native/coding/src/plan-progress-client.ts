@@ -16,7 +16,9 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const id=current();card.dataset.busy='true';
     try{
       const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
-      status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);
+      // A round that has ended hears of the change when the plan continues; only a live round is told right away.
+      if(card.dataset.live!=='true')status('已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
+      else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);
       delete card.dataset.editing;
     }catch(error){status(error.message,true);}
     finally{delete card.dataset.busy;card.dataset.signature='';if(id===current())await refresh();}
@@ -31,11 +33,11 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     box.addEventListener('submit',event=>{event.preventDefault();if(inputs.some(input=>!input.value.trim()))return;ok.disabled=true;void submit(inputs.map(input=>input.value.trim()));});
     row.after(box);inputs[0].focus();
   };
-  return {render(run,entry,live){
+  return {render(run,entry,live,latest=false){
     const board=entry?.board;if(!board)return null;
     let card=document.querySelector('[data-coding-plan-progress="'+CSS.escape(run.ref.run_id)+'"]');
     if(!card){card=el('section','coding-plan-progress');card.dataset.codingPlanProgress=run.ref.run_id;card.setAttribute('aria-label','本轮计划进度');}
-    const signature=JSON.stringify([board.version,board.terminal,live,run.phase,entry.verdicts]);
+    const signature=JSON.stringify([board.version,board.terminal,live,latest,run.phase,entry.verdicts]);
     // Never rebuild under the person's hands: an open form keeps the card as it is until they finish.
     if(card.dataset.editing==='true'||card.dataset.busy==='true'||card.dataset.signature===signature)return card;
     card.dataset.signature=signature;card.replaceChildren();
@@ -44,7 +46,9 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     head.append(el('strong','',entry.plan?.content.title||'本轮计划'),el('span','coding-plan-count',done+' / '+total+' 步完成'),el('span','coding-plan-revision',entry.revision?'计划修订 '+entry.revision:''));
     card.append(head);
     // Rows in the TaskBoard's grammar: state, prerequisites, when it last moved and who is doing it.
-    const editable=live&&!board.terminal,list=el('ul','coding-board-tree coding-board--compact coding-plan-steps');
+    // The latest round's unfinished graph stays open to change after the round ends: a blocked step is decided, a
+    // step skipped or added, and "继续计划" carries on from the graph as changed.
+    const editable=(live||latest)&&!board.terminal,list=el('ul','coding-board-tree coding-board--compact coding-plan-steps');card.dataset.live=String(Boolean(live));
     const TONE={succeeded:'done',running:'progress',failed:'blocked',blocked:'blocked',cancelled:'quiet',ready:'ready','not-started':'idle'};
     const pad=(n)=>String(n).padStart(2,'0'),clock=(ms)=>{const date=new Date(ms);return pad(date.getHours())+':'+pad(date.getMinutes());};
     const who=run.frozen?.character?.title||({builder:'构建者',writer:'改写者',writers:'并行写入',coordinator:'协作',reader:'阅读者',planner:'规划者',reviewer:'评审者'})[run.frozen?.role_id]||'Agent';
@@ -79,7 +83,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       list.append(row);
     });
     card.append(list);
-    card.append(el('p','coding-plan-foot',editable?'状态来自模型对任务图的回报；调整会记录在图上，并告诉执行中的这一轮。':'状态来自模型对任务图的回报；点步骤可以查看回报并验收。'));
+    card.append(el('p','coding-plan-foot',editable?(live?'状态来自模型对任务图的回报；调整会记录在图上，并告诉执行中的这一轮。':'状态来自模型对任务图的回报；这一轮已结束，调整会记录在图上，点「继续计划」后按新的图继续。'):'状态来自模型对任务图的回报；点步骤可以查看回报并验收。'));
     return card;
   }};
 }`;

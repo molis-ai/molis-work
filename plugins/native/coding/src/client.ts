@@ -129,10 +129,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const showBoard=(open)=>{root.dataset.codingBoardOpen=String(open);if(open)taskboard.show();else taskboard.hide();};
   const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({board:q('[data-coding-board]'),current:()=>current,status,ownTask,roleName:id=>ROLE_NAMES[id]||id||'Agent',
-    amend:async(runId,version,amendment)=>{
+    amend:async(runId,version,amendment,live=true)=>{
       const id=current;
       try{const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
-        status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);}
+        if(!live)status('已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
+        else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);}
       catch(error){status(error.message,true);}
       if(id===current)await readCurrent();
     },
@@ -812,7 +813,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const planEntry=planEntries.find(entry=>entry.run_id===run.ref.run_id),boardId=planEntry?.board?.board_id;
       const laterOnSameGraph=boardId && all.slice(all.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.board_id===boardId);
       if(laterOnSameGraph)block.querySelector(':scope > .coding-plan-progress')?.remove();
-      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase));
+      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase),run===all.at(-1));
       if(planCard){const at=ordered.findIndex(node=>node.dataset?.kind==='user');ordered.splice(at+1,0,planCard);}
       // Children appear right after the step that sent them.
       const children=subagentCards.render(run,subagentGroups.find(group=>group.run_id===run.ref.run_id));

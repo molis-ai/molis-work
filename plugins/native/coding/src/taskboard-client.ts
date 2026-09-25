@@ -74,6 +74,8 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const placed=new Map(),loose=[];
       for(const item of children){const node=stepFor(nodes,item.child);if(node)placed.set(node.id,[...(placed.get(node.id)||[]),item]);else loose.push(item);}
       const live=Boolean(entry&&!entry.board.terminal&&['running','starting','paused','pausing','awaiting-review','awaiting-input'].includes(run.phase));
+      // The latest round's unfinished graph can still be changed once the round ends; "继续计划" carries on from it.
+      const editable=Boolean(entry&&!entry.board.terminal&&(live||span.includes(runs.length-1)));
       const steps=nodes.map((node,position)=>{
         const step=stepOf(entry.plan,node),verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===entry.board.version?verdict.status:null;
         const state=decided==='accepted'?STATE.accepted:decided==='needs-work'?STATE['needs-work']:skipped(node)?STATE.skipped:STATE[node.state]||STATE.pending;
@@ -83,7 +85,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         return {key:'step-'+id+'-'+node.id,label:node.inserted?'插入':'S'+(Number(node.id.replace('step-',''))||position+1),title:step.title,
           hint:(step.acceptance?'完成条件：'+step.acceptance:'')+(last?'\\n最近回报：'+last.note:''),
           state,progress:{done,total:mine.length||1},deps,executor,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
-          node,live,board:entry.board,runId:id,position};
+          node,live,editable,board:entry.board,runId:id,position};
       });
       // A skipped step leaves the count altogether: it is neither done nor still to do.
       const doneSteps=nodes.filter(node=>settled(node)&&!skipped(node)).length,counted=nodes.filter(node=>!skipped(node)).length;
@@ -120,12 +122,12 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     node.append(time,name,avatar);return node;
   };
   const tools=(row,entry)=>{
-    if(!row.live||!row.node)return null;
+    if(!row.editable||!row.node)return null;
     const node=row.node,nodes=row.board.nodes,index=row.position,waiting=node.state==='not-started'||node.state==='ready';
     const group=el('span','coding-board-tools');
     const tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+row.title);button.innerHTML=svg(icon);
       button.addEventListener('click',event=>{event.stopPropagation();action();});group.append(button);};
-    const change=async(amendment)=>{board.dataset.busy='true';try{await amend(row.runId,row.board.version,amendment);}finally{delete board.dataset.busy;key='';render();}};
+    const change=async(amendment)=>{board.dataset.busy='true';try{await amend(row.runId,row.board.version,amendment,row.live);}finally{delete board.dataset.busy;key='';render();}};
     const ask=(fields,label,build)=>{
       list.querySelector('.coding-board-form')?.remove();const form=el('form','coding-board-form');
       const inputs=fields.map(([name,placeholder,max])=>{const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;form.append(input);return input;});

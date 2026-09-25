@@ -25,9 +25,15 @@ test("Manifest gates individual settings; host scopes and projects records, reje
     const files = createPluginCapabilityClient(filesManifest, a);
     assert.deepEqual(await files.invoke(settings.browsingWorkspace, []), workspace("a"));
     await assert.rejects(files.invoke(settings.workspaces, []), /没有声明/);
+    // Coding reads the project's current directory (one directory for new rounds, Files and Git) as well as the list.
     const coding = createPluginCapabilityClient(codingManifest, a);
     assert.deepEqual(await coding.invoke(settings.workspaces, []), [workspace("a")]);
-    await assert.rejects(coding.invoke(settings.browsingWorkspace, []), /没有声明/);
+    assert.deepEqual(await coding.invoke(settings.browsingWorkspace, []), workspace("a"));
+    // Each setting is gated on its own: declaring the list does not grant the current directory.
+    const listOnly = createPluginCapabilityClient({ ...codingManifest, capabilities: { ...codingManifest.capabilities,
+      consumes: codingManifest.capabilities.consumes.filter(id => id !== settings.browsingWorkspace.capability_id) } }, a);
+    assert.deepEqual(await listOnly.invoke(settings.workspaces, []), [workspace("a")]);
+    await assert.rejects(listOnly.invoke(settings.browsingWorkspace, []), /没有声明/);
     assert.deepEqual(await b.invoke(settings.workspaces, []), [workspace("b")]);
     assert.deepEqual(await a.invoke(projectsCapabilities.listWorkspaces, []), [workspace("a")]);
     await assert.rejects(a.invoke(settings.workspaces, { project_id: "b" } as never), { code: "actions.input_invalid" });

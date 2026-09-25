@@ -139,6 +139,9 @@ export const CODING_STYLES = `
 [data-coding-goal-dialog] [data-coding-goal-list] .mw-dir-row.is-selected::before { content:none; }
 .coding-workspace svg { width:12px; height:12px; margin-right:4px; }
 .coding-turns { overflow-anchor:none; overscroll-behavior:contain; }
+/* A long session keeps dozens of rounds in the page. Rounds out of view skip layout and paint, and remember their last
+   size, so drawing earlier rounds while scrolling does not relayout every round already there. */
+.coding-turns > [data-run] { content-visibility:auto; contain-intrinsic-size:auto 480px; }
 /* Earlier rounds of a long session load as the reader scrolls up; the control is also a button for keyboard and screen readers. */
 /* The slash menu opens above the composer; the palette is a centred list. Both keep the keyboard in the field. */
 .coding-composer-shell { position:relative; }

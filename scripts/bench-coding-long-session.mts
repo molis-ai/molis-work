@@ -88,8 +88,10 @@ const call = async <T = any>(url: string, method = "GET", body?: unknown): Promi
 };
 log("home", home, "project", projectPath);
 
+// Model keys live in Connectors; the provider refers to the connection.
+const key = await call(`${origin}/api/settings/connectors/connections`, "POST", { service_id: "model-api", display_name: "Bench key", token: "bench-placeholder-not-a-secret" });
 await call(`${origin}/api/settings/models/bench`, "POST", { display_name: "Bench", base_url: "https://1.1.1.1", api_format: "anthropic-messages", enabled: true, prompt_cache: "off",
-  models: [{ model_id: "bench-model", enabled: true, context_tokens: 200_000 }], api_key: "bench-placeholder-not-a-secret" });
+  models: [{ model_id: "bench-model", enabled: true, context_tokens: 200_000 }], connection_id: key.connection.connection_id });
 const grant = await call(`${projectPath}/api/workspaces`, "POST", { workspace_path: workspace, user_confirmed: true });
 const workspaceId: string = grant.workspace?.workspace_id ?? grant.workspace_id ?? grant.workspaces?.[0]?.workspace_id;
 if (!workspaceId) throw new Error("workspace grant: " + JSON.stringify(grant).slice(0, 400));
@@ -158,13 +160,42 @@ const traffic = await inPage<Record<string, number>>(`async()=>{performance.clea
   for(const entry of performance.getEntriesByType('resource')){const path=new URL(entry.name).pathname.replace(/\\/projects\\/[^/]+/,'').replace(/sessions\\/[^/]+/,'sessions/:id');sums[path]=(sums[path]||0)+entry.encodedBodySize;}return sums;}`);
 const wire = Object.values(traffic).reduce((sum, value) => sum + value, 0);
 log(`idle refresh traffic: ${Math.round(wire / 1024)} KB over 10 s`, JSON.stringify(Object.fromEntries(Object.entries(traffic).map(([path, bytes]) => [path, Math.round(bytes / 1024) + " KB"]))));
-const scroll = await inPage<{ frames: number; slow: number; worst: number; longTasks: number; loadedRounds: number }>(`async()=>{
+// PROFILE=1 records where the page spends the scroll: the heaviest functions by their own time.
+if (process.env.PROFILE) { await page.command("Profiler.enable"); await page.command("Profiler.setSamplingInterval", { interval: 200 }); await page.command("Profiler.start"); }
+const scroll = await inPage<{ frames: number; slow: number; worst: number; longTasks: number; loadedRounds: number; topRound?: string; topRoundLater?: string; scrollTop: number; scrollTopLater: number }>(`async()=>{
   const turns=document.querySelector('[data-coding-turns]');let longTasks=0;const observer=new PerformanceObserver(list=>{longTasks+=list.getEntries().length;});observer.observe({entryTypes:['longtask']});
   const gaps=[];let last=performance.now();const until=performance.now()+8000;
   await new Promise(resolve=>{const step=()=>{const now=performance.now();gaps.push(now-last);last=now;turns.scrollTop=Math.max(0,turns.scrollTop-600);if(now<until)requestAnimationFrame(step);else resolve();};requestAnimationFrame(step);});
   observer.disconnect();gaps.shift();
-  return {frames:gaps.length,slow:gaps.filter(gap=>gap>50).length,worst:Math.round(Math.max(...gaps)),longTasks,loadedRounds:document.querySelectorAll('[data-coding-turns] > [data-run]').length};}`);
+  // Where reading ended up: the round at the top of the view, then again a second later (a jump would change it).
+  const top=()=>[...turns.querySelectorAll(':scope > [data-run]')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top)?.dataset.runIndex;
+  const at=top(),offset=Math.round(turns.scrollTop);await new Promise(resolve=>setTimeout(resolve,1000));
+  return {frames:gaps.length,slow:gaps.filter(gap=>gap>50).length,worst:Math.round(Math.max(...gaps)),longTasks,loadedRounds:document.querySelectorAll('[data-coding-turns] > [data-run]').length,
+    topRound:at,topRoundLater:top(),scrollTop:offset,scrollTopLater:Math.round(turns.scrollTop)};}`);
 log(`scroll up 8 s: ${scroll.frames} frames · ${scroll.slow} over 50 ms · worst ${scroll.worst} ms · ${scroll.longTasks} long tasks · ${scroll.loadedRounds} rounds loaded`);
+if (process.env.PROFILE) {
+  const { profile } = await page.command("Profiler.stop") as { profile: { nodes: Array<{ id: number; callFrame: { functionName: string; url: string; lineNumber: number }; children?: number[]; positionTicks?: Array<{ line: number; ticks: number }> }>; samples: number[]; timeDeltas: number[] } };
+  // Hot lines inside the heaviest functions, to tell rendering work from forced layout.
+  const lines = new Map<string, number>();
+  for (const node of profile.nodes) for (const tick of node.positionTicks ?? []) {
+    const key = `${node.callFrame.functionName || "(anonymous)"}@${tick.line}`; lines.set(key, (lines.get(key) ?? 0) + tick.ticks);
+  }
+  log("scroll hot lines (ticks):", [...lines].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([key, ticks]) => `${key} ${ticks}`).join(" | "));
+  const self = new Map<number, number>(); profile.samples.forEach((id, index) => self.set(id, (self.get(id) ?? 0) + (profile.timeDeltas[index] ?? 0)));
+  const byName = new Map<string, number>();
+  for (const node of profile.nodes) {
+    const frame = node.callFrame, key = `${frame.functionName || "(anonymous)"} ${frame.url.replace(/^.*\//, "")}:${frame.lineNumber + 1}`;
+    byName.set(key, (byName.get(key) ?? 0) + (self.get(node.id) ?? 0));
+  }
+  log("scroll profile (self ms):", [...byName].filter(([key]) => !/^\((idle|program|garbage collector)\)/.test(key)).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([key, us]) => `${key} ${Math.round(us / 1000)}`).join(" | "));
+}
+// DIAG=1: what one forced layout of the transcript costs, and how much of it the TaskBoard section accounts for.
+if (process.env.DIAG) log("forced layout ms:", JSON.stringify(await inPage(`async()=>{
+  const turns=document.querySelector('[data-coding-turns]'),board=document.querySelector('[data-coding-board]');
+  const measure=()=>{const times=[];for(let i=0;i<5;i++){const probe=document.createElement('div');turns.prepend(probe);const t=performance.now();void turns.scrollHeight;times.push(performance.now()-t);probe.remove();}return times.map(Math.round);};
+  const withBoard=measure(),boardInfo=board?{hidden:board.hidden,display:getComputedStyle(board).display,nodes:board.querySelectorAll('*').length,inTurns:turns.contains(board)}:null;
+  board?.remove();const withoutBoard=measure();
+  return {withBoard,withoutBoard,boardInfo,turnsNodes:turns.querySelectorAll('*').length};}`)));
 await page.screenshot(join(home, "long-session.png"));
 console.log(JSON.stringify({ rounds: ROUNDS, read, steady, opened, dom, idle_kb_10s: Math.round(wire / 1024), traffic, scroll, screenshot: join(home, "long-session.png") }));
 await browser.close();

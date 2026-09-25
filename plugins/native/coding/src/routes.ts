@@ -920,7 +920,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const subagent_workspaces: AgentSubagentWorkspace[] = [];
         if (role === "writers") {
           const assignments = codingWriterAssignments(body.writer_assignments, true);
-          const owned = await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id });
+          // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned.
+          const owned = (await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id })).filter(child => !child.problem);
           const tasks = assignments.map(assignment => {
             const child = owned.find(child => child.workspace_id === assignment.workspace_id);
             const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);

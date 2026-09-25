@@ -98,6 +98,11 @@ export interface PreparedWriterDirectory {
   canonical_path: string;
   /** Present only after the Host recorded the project authorization. */
   workspace_id: string | null;
+  /**
+   * Why this directory in the writers' folder can no longer serve as a writer (its branch was switched, its origin is
+   * missing). Such an entry is listed so the person sees it, and is never assigned or integrated.
+   */
+  problem?: string;
 }
 export interface WriterIntegrationFile {
   path: readonly string[];

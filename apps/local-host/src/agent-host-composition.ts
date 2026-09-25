@@ -214,11 +214,15 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   };
   const unregisterWriters = options.localHost.registerCapability(writerDirectoryCapabilities.list, async (project, input) => {
     const { grants, parent, port } = await writerParent(project.project_id, input.workspace_id);
-    return (await port.list()).map(tree => {
+    const { owned, unavailable } = await port.inspect();
+    const grantFor = (canonical_path: string) => grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null;
+    return [...owned.map(tree => {
       const canonical_path = path.resolve(parent.canonical_path, tree.directory);
-      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path,
-        workspace_id: grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null };
-    });
+      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path, workspace_id: grantFor(canonical_path) };
+    }), ...unavailable.map(entry => {
+      const canonical_path = path.resolve(parent.canonical_path, entry.directory);
+      return { worktree_id: path.basename(canonical_path), branch: entry.branch ?? "", base_commit: "", canonical_path, workspace_id: grantFor(canonical_path), problem: entry.reason };
+    })];
   });
   const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input) => {
     await initialize();

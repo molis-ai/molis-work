@@ -590,8 +590,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-output-continuation.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-output-continuation.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-dispatch-key.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-dispatch-key.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1390,8 +1390,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-output-continuation.tgz':
-    resolution: {integrity: sha512-a1xgrQQ/l+3GEKSfQQh0g1Uwr8dmWkzL7cHE1JwU21kp4WAB9HXAJ1KxFSBsfL5FZEODdeOnPqjaaHUPNK5dlg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-output-continuation.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-dispatch-key.tgz':
+    resolution: {integrity: sha512-9ALe8AYUz0Kb2Ujkyk6FSw0lpdIfxpwaYCKJYpXYTJeCfAJRxPJ8uZaRm5Y8MWotM3SdtcJJ9Ozs2Fa8F5k4SA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-dispatch-key.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':
@@ -2739,7 +2739,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-output-continuation.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-dispatch-key.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

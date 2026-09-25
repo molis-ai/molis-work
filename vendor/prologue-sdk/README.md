@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-output-continuation.tgz`。在本机模型地址修复之上，让被输出上限截断的回答**接着写到写完**：截下来的那段先进历史再请模型从断开处接着写（原来只发一句「接着写」，模型看不到写到哪，只能从头再写）；每次续写须写出新正文，不扣轮次，并记一条 `model-response-repair`（`output-truncated`）。续写有上界（8 次）；到了还在截断，或还没写出正文就用完上限且重采样用完，以 `MODEL_OUTPUT_TRUNCATED` 失败，不再把半截或空回答当成完成。护栏与记忆提炼看拼好的整段回答。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`。在截断续写之上，派出子任务（及其他声明 `idempotencyKey` 的系统工具）的键**在进入审查前就按存储地址的格式校验**：1–48 个字母、数字、点、短横或下划线，首字符为字母或数字。原来工具说明里没有格式约束，模型给出 `研究/第一步` 这类键时，要等用户批准后写回执才失败，批准白给；现在当场以 `TOOL_ARGUMENTS_INVALID` 退回，模型按工具修复路径改键重试，不产生审查项。工具说明同步写明格式。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree，在截断续写之上继续改）。
+- 未提交源码修改：[dispatch-key.patch](dispatch-key.patch)，相对基线的**累计**补丁（含本机模型地址与截断续写全部改动）。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`35367d16ad89cc9b1aac0beaab9fa105e79f07c48addea19cf19d36c52ef81b8`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/dispatch-key.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-dispatch-key.tgz`。
+
+核对：补丁可在源码工作树反向检查通过。SDK 构建、类型检查通过；新增 1 项定向（坏键当场以参数错误退回、不走到存储键报错，同一轮换合法键照常派出且只派出一个），子代理相关 13 项通过。全量 3280 项中 5 项 live 测试在满载并行时失败（computer-use 真浏览器、agent-context、effect-pending-recovery SIGKILL、registry-store、workspace-ignore），单独重跑 5 个文件全部通过（58 项与 11 项），属负载下的时序抖动，与本改动无关。未发布 npm，未替换正式安装版。
+
+## 上一依赖：截断续写
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-output-continuation.tgz`。在本机模型地址修复之上，让被输出上限截断的回答**接着写到写完**：截下来的那段先进历史再请模型从断开处接着写（原来只发一句「接着写」，模型看不到写到哪，只能从头再写）；每次续写须写出新正文，不扣轮次，并记一条 `model-response-repair`（`output-truncated`）。续写有上界（8 次）；到了还在截断，或还没写出正文就用完上限且重采样用完，以 `MODEL_OUTPUT_TRUNCATED` 失败，不再把半截或空回答当成完成。护栏与记忆提炼看拼好的整段回答。
 
 起因：思考档开启后，思考与正文共用单次输出上限（SDK 默认 4096），真实 MiniMax 规划轮思考用完上限、计划只写出 53 字，两次重采样后仍以「完成」收场，计划丢失。Molis 同时在思考开启时把单次上限设为 32768（用户拍板）。
 

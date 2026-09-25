@@ -38,6 +38,7 @@ test("a round the runtime refuses while packing its context leaves the session u
     // A 200-token window cannot hold the role's instructions: refused before any run exists.
     await assert.rejects(start(), (error: { code?: string }) => error.code === "CONTEXT_BUDGET_EXCEEDED");
     assert.equal((await adapter.readSession(session)).recovery, undefined, "a refusal is not an unknown outcome");
+    assert.deepEqual((await adapter.recovery!.inspect(session)).blockers, [], "nor does it block closing a later interrupted round");
 
     window = undefined;
     const first = await settle((await start()).ref);

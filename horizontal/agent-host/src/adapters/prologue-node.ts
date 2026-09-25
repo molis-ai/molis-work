@@ -454,7 +454,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     const report = await runtime.sessions.inspectRecovery(index.ref);
     const open = await runtime.listOpenWork();
     const blockers: string[] = [];
-    if (index.attempts.some(attempt => !attempt.run_id)) blockers.push("一次启动未保存完整引用，暂不能确认它对应的操作。");
+    // Same rule as restoring the session: a start refused while packing its context never created a run.
+    if (index.attempts.some(attempt => !attempt.run_id && !attempt.refused)) blockers.push("一次启动未保存完整引用，暂不能确认它对应的操作。");
     if (report.runs.some(run => !index.attempts.some(attempt => attempt.run_id === run.ref.id))) blockers.push("存在未关联到此会话启动记录的轮次，需要核对来源。");
     if (open.unavailable.length) blockers.push("部分运行记录不可读取，请恢复存储访问后重新核对。");
     if (open.items.some(item => item.origin.session === sessionId && !report.runs.some(run => run.ref.id === item.origin.run || run.ref.id === item.id))) blockers.push("还有未关联到中断轮次的等待或操作，暂不能安全继续。");

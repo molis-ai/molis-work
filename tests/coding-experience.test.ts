@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codeTokens, codeLanguage, diffRowTokens, mentionedPaths, attachMentions, requestText, MENTIONS_MARKER, codingHistoryDigest } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, codeLanguage, diffRowTokens, mentionedPaths, attachMentions, workspaceFileIndex, requestText, MENTIONS_MARKER, codingHistoryDigest } from "@molis-ai/molis-work-plugin-coding";
 
 const kinds = (text: string, language: string) => codeTokens(text, language).filter(([kind]) => kind).map(([kind, value]) => `${kind}:${value}`);
 
@@ -19,10 +19,10 @@ test("语法高亮只切分文本并标注种类，不产出任何标记；常�
 test("@ 提到的文件：只认词首的路径，不认邮箱；发送时附上当时的内容，读不到的说明原因，且不计入“你写的话”", async () => {
   assert.deepEqual(mentionedPaths("看看 @src/streaks.ts 和 @README.md，联系 me@example.com，@../secret 不算"), ["src/streaks.ts", "README.md"]);
   const reads: string[] = [];
-  const read = async (query: { path: readonly string[]; kind: string }) => { reads.push(query.path.join("/"));
+  const read = async (query: { path: readonly string[]; kind: string }) => { reads.push(query.kind + ":" + query.path.join("/"));
     return query.path.join("/") === "src/streaks.ts" ? { outcome: "text" as const, text: "export const a = 1;\n", fingerprint: "f" } : { outcome: "missing" as const }; };
   const { task, attached } = await attachMentions(read as never, "w", "看看 @src/streaks.ts 和 @docs/gone.md");
-  assert.deepEqual(attached, ["src/streaks.ts"]); assert.deepEqual(reads, ["src/streaks.ts", "docs/gone.md"]);
+  assert.deepEqual(attached, ["src/streaks.ts"]); assert.deepEqual(reads, ["text:src/streaks.ts", "text:docs/gone.md", "directory:docs/gone.md"], "a path that is not a readable file is tried as a folder once");
   assert.ok(task.startsWith("看看 @src/streaks.ts 和 @docs/gone.md" + MENTIONS_MARKER));
   assert.match(task, /### src\/streaks\.ts\n```\nexport const a = 1;\n\n```/);
   assert.match(task, /### docs\/gone\.md\n（没有附上：工作区里没有这个文件/);
@@ -58,7 +58,7 @@ test("@ 提到的文件：裸名字在工作区根目录直接读，读到就附
     };
     const { task, attached } = await attachMentions(read as never, "w", "看一下 @Makefile");
     assert.deepEqual(attached, []);
-    assert.deepEqual(reads, ["Makefile"]);
+    assert.deepEqual(reads, ["Makefile", "Makefile"], "tried as a text file, then once as a folder");
     assert.doesNotMatch(task, /### Makefile/);
     assert.doesNotMatch(task, /没有附上/);
   }
@@ -71,7 +71,7 @@ test("@ 提到的文件：裸名字在工作区根目录直接读，读到就附
     };
     const { task, attached } = await attachMentions(read as never, "w", "提一下 @todo");
     assert.deepEqual(attached, []);
-    assert.deepEqual(reads, ["todo"]);
+    assert.deepEqual(reads, ["todo", "todo"], "tried as a text file, then once as a folder");
     assert.doesNotMatch(task, /### todo/);
     assert.doesNotMatch(task, /没有附上/);
     assert.equal(task, "提一下 @todo", "没有任何可附内容时原样返回任务");
@@ -85,7 +85,7 @@ test("@ 提到的文件：裸名字在工作区根目录直接读，读到就附
     };
     const { task, attached } = await attachMentions(read as never, "w", "看一下 @docs/gone.md");
     assert.deepEqual(attached, []);
-    assert.deepEqual(reads, ["docs/gone.md"]);
+    assert.deepEqual(reads, ["docs/gone.md", "docs/gone.md"], "tried as a text file, then once as a folder");
     assert.match(task, /### docs\/gone\.md\n（没有附上：工作区里没有这个文件/);
   }
 });
@@ -102,4 +102,22 @@ test("差异按行着色时，跨行的块注释在同一侧连续，注释结�
   assert.deepEqual(painted[3].map(([kind]) => kind), ["comment"]);
   assert.ok(painted[4].some(([kind, value]) => kind === "keyword" && value === "export"), "code after the closing line is code again");
   assert.deepEqual(diffRowTokens([{ kind: "insert", text: "# not a comment opener /*" }, { kind: "insert", text: "x = 1" }], "py", codeTokens)[1].some(([kind]) => kind === "comment"), false, "languages without block comments carry nothing");
+});
+
+test("@ 一个目录时附上它这一层的列表，子目录标上 /；索引里也列出目录", async () => {
+  const read = async (query: { path: readonly string[]; kind: string }) => {
+    const path = query.path.join("/");
+    if (query.kind === "directory" && path === "src") return { outcome: "directory" as const, truncated: false, entries: [
+      { name: "streaks.ts", kind: "file", path: ["src", "streaks.ts"] }, { name: "lib", kind: "directory", path: ["src", "lib"] }, { name: "habits.ts", kind: "file", path: ["src", "habits.ts"] }] };
+    if (query.kind === "directory" && path === "") return { outcome: "directory" as const, truncated: false, entries: [{ name: "src", kind: "directory", path: ["src"] }, { name: "README.md", kind: "file", path: ["README.md"] }] };
+    if (query.kind === "directory" && path === "src/lib") return { outcome: "directory" as const, truncated: false, entries: [] };
+    return { outcome: "unsupported" as const };
+  };
+  const { task, attached } = await attachMentions(read as never, "w", "看看 @src/ 里有什么");
+  assert.deepEqual(attached, ["src/"]);
+  assert.match(task, /### src\/（目录，列出一层）\n```\nlib\/\nhabits\.ts\nstreaks\.ts\n```/, "folders first, then files, by name");
+  const bare = await attachMentions(read as never, "w", "@src 下面的文件");
+  assert.deepEqual(bare.attached, ["src/"], "a bare folder name is attached too");
+  const index = await workspaceFileIndex(read as never, "w");
+  assert.deepEqual(index.files, ["README.md", "src/", "src/habits.ts", "src/lib/", "src/streaks.ts"]);
 });

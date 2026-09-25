@@ -33,7 +33,7 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const before=input.value.slice(0,input.selectionStart ?? input.value.length),at=/(^|\\s)[@＠]([^\\s@＠]*)$/.exec(before);
     if(at){
       mention={start:before.length-at[2].length-1,query:at[2]};void loadFiles();
-      const word=at[2].toLowerCase(),base=(path)=>path.slice(path.lastIndexOf('/')+1).toLowerCase();
+      const word=at[2].toLowerCase(),base=(path)=>{const own=path.replace(/\\/$/,'');return own.slice(own.lastIndexOf('/')+1).toLowerCase();};
       items=(files || []).filter(path=>matches(word,path)).sort((a,b)=>Number(!base(a).startsWith(word))-Number(!base(b).startsWith(word)) || a.length-b.length).slice(0,12);
       active=Math.min(active,Math.max(items.length-1,0));draw();return;
     }

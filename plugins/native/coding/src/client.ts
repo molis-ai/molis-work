@@ -779,9 +779,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             }
             // Files named with @ were attached after the person's words; the words show, the attachments fold away.
             else if(turn.kind==='user' && turn.text.includes(MENTIONS_MARKER) && !turn.text.startsWith(CONTINUATION_MARKER)){
-              const at=turn.text.indexOf(MENTIONS_MARKER),own=turn.text.slice(0,at),attached=turn.text.slice(at+MENTIONS_MARKER.length),count=(attached.match(/^### /gm)||[]).length;
+              const at=turn.text.indexOf(MENTIONS_MARKER),own=turn.text.slice(0,at),attached=turn.text.slice(at+MENTIONS_MARKER.length),folders=(attached.match(/^### .*（目录/gm)||[]).length,count=(attached.match(/^### /gm)||[]).length-folders;
               node.replaceChildren();const text=document.createElement('div'),details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre');
-              text.className='coding-turn-own';text.textContent=own;details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-paperclip"></use></svg>';summary.append(document.createTextNode('附带了 '+count+' 个文件（发送时的内容）'));
+              text.className='coding-turn-own';text.textContent=own;details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-paperclip"></use></svg>';summary.append(document.createTextNode('附带了 '+[count?count+' 个文件':'',folders?folders+' 个目录':''].filter(Boolean).join('、')+'（发送时的内容）'));
               body.textContent=attached;details.append(summary,body);node.append(text,details);
             }
             // Material the runtime handed the model (a confirmed plan, a fixed report) arrives wrapped as reference data;

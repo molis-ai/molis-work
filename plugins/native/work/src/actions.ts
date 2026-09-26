@@ -1,6 +1,6 @@
 import { sessionMessageActions, createSessionMessageHandlers } from "./message-actions.js";
 import type { SessionMessageService } from "./messages.js";
-import { defineSubjectContextAction, subjectContext, ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSubject, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectContextAction, subjectContext, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSubject, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkSessionApi, WorkSessionRecord, WorkSessionGoalLink } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { RUNTIME_SESSION_CAPABILITIES, type RuntimeHostApi, type RuntimeSessionCapabilities } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { SessionContentService } from "./content.js";
@@ -24,9 +24,10 @@ const sessionInput = { type: "object", properties: { session_id: { type: "string
 const eventProperties = { event_id: text, session_id: text, source: { enum: ["runtime_native", "molis_work_tui", "molis_work"] },
   kind: { enum: ["user_message", "runtime_message", "tool", "approval", "status", "artifact", "terminal_output"] },
   label: text, content: text, occurred_at: text, source_order: { type: "number" }, runtime_id: text, metadata: { type: "object" } };
-const define = <I, O>(id: string, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[]): ActionDefinition<I, O> => ({
+const define = <I, O>(id: string, title: string, description: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[],
+  audiences: readonly ("user" | "agent" | "workflow" | "mcp")[] = ["user", "agent", "workflow", "mcp"]): ActionDefinition<I, O> => ({
   capability_id: id, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "project",
-    audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["session"], input_schema: input, output_schema: output },
+    audiences, permissions, subject_kinds: ["session"], input_schema: input, output_schema: output },
 });
 const goalLinkProperties = { link_id: text, session_id: text, goal_id: text, relation: { enum: ["current", "history"] }, linked_by: text, created_at: text, ended_at: nullable };
 export const workActions = {
@@ -53,8 +54,17 @@ export const workActions = {
   resume: define<{ session_id: string }, SessionResumeResult>("sessions.resume", "恢复原生会话", "请求原 Runtime 加载此会话；不发送用户消息，不改变会话关联。", "command", sessionInput,
     { type: "object", anyOf: [{ type: "object", properties: { status: { const: "ok" }, runtime_id: text, native_runtime_session_id: text, value: {} }, required: ["status", "runtime_id", "native_runtime_session_id", "value"] },
       { type: "object", properties: { status: { enum: ["unsupported", "failed"] }, runtime_id: text, code: text, message: text, next_action: { enum: ["create_handoff", "retry"] } }, required: ["status", "runtime_id", "code", "message", "next_action"] }] }, ["sessions:read", "sessions:resume"]),
+  /** Changing which project/Goal a session belongs to, or archiving it, carries the person's confirmation: local user only. */
+  archive: define<{ session_id: string; archived: boolean }, { session: PublicWorkSession }>("sessions.archive", "归档或恢复会话记录", "归档（结束）或恢复一条会话记录；原生会话与内容保留", "command",
+    { type: "object", properties: { session_id: { type: "string", minLength: 1 }, archived: { type: "boolean" } }, required: ["session_id", "archived"], additionalProperties: false },
+    { type: "object", properties: { session: publicWorkSessionSchema }, required: ["session"], additionalProperties: false }, ["sessions:manage"], ["user"]),
+  associations: define<{ session_id: string; project_id: string | null; current_goal_id: string | null; workspace_path: string | null }, { session: PublicWorkSession }>("sessions.associations.update", "修改会话关联",
+    "把会话挂到另一个项目或当前项目的某个 Goal，或解除关联；工作区路径变化时不沿用原工作区身份", "command",
+    { type: "object", properties: { session_id: { type: "string", minLength: 1 }, project_id: nullable, current_goal_id: nullable, workspace_path: nullable },
+      required: ["session_id", "project_id", "current_goal_id", "workspace_path"], additionalProperties: false },
+    { type: "object", properties: { session: publicWorkSessionSchema }, required: ["session"], additionalProperties: false }, ["sessions:manage"], ["user"]),
 };
-export const WORK_ACTION_PERMISSIONS = ["sessions:read", "sessions:resume", "sessions:message"] as const;
+export const WORK_ACTION_PERMISSIONS = ["sessions:read", "sessions:resume", "sessions:message", "sessions:manage"] as const;
 export interface WorkSessionActionResources { messages: SessionMessageService; registry: WorkSessionApi; content: Pick<SessionContentService, "read" | "resume">; router: Pick<RuntimeHostApi, "capabilities">; supportedRuntimeIds: readonly string[] }
 
 export function createWorkActionHandlers(projectId: string, resources: () => Promise<WorkSessionActionResources>,
@@ -134,5 +144,28 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
       return { ...result, session: publicSessionRecord(result.session) };
     })),
     bind(workActions.resume, (input, caller) => scoped(input.session_id, caller, workActions.resume, owner => owner.content.resume(input.session_id))),
+    bind(workActions.archive, async (input, caller) => {
+      const owner = await resources(); await assertAuthority(caller, workActions.archive);
+      check(owner.registry, input.session_id, caller);
+      await (caller as ActionExecutionContext).beforeEffect?.();
+      // The action is offered to the local user only; that audience is what stands for the person's confirmation.
+      return { session: publicSessionRecord(owner.registry.setStatus({ session_id: input.session_id, actor_id: caller.actor_id, user_confirmed: caller.audience === "user",
+        status: input.archived ? "closed" : "active" })) };
+    }),
+    bind(workActions.associations, async (input, caller) => {
+      const owner = await resources(); await assertAuthority(caller, workActions.associations);
+      const current = check(owner.registry, input.session_id, caller);
+      const goalId = input.project_id === projectId ? input.current_goal_id?.trim() || null : null;
+      if (goalId) {
+        let goal: ActionSubjectContext | null = null;
+        try { goal = readSubject ? await readSubject({ kind: "goal", id: goalId }, caller) : null; } catch { goal = null; }
+        if (!goal) throw new ActionError("actions.input_invalid", "当前 Goal 不属于这个 Project，或已经不在当前 Goal Tree");
+      }
+      const workspacePath = input.workspace_path?.trim() || null;
+      await (caller as ActionExecutionContext).beforeEffect?.();
+      return { session: publicSessionRecord(owner.registry.updateAssociations({ session_id: input.session_id, actor_id: caller.actor_id, user_confirmed: caller.audience === "user",
+        project_id: input.project_id?.trim() || null, current_goal_id: goalId,
+        workspace_id: workspacePath === current.workspace_path ? current.workspace_id : null, workspace_path: workspacePath })) };
+    }),
   ];
 }

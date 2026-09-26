@@ -1,6 +1,7 @@
 import type { WorkSessionHttpContext } from "./types.js";
 import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import { publicSessionRecord } from "./public-records.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workActions } from "../actions.js";
 
 export async function handleSessionAssociationHttp(context: WorkSessionHttpContext): Promise<boolean> {
   const { method, pathname, readBody, respond, resourcesPromise, projectOptions, hasCurrentGoal } = context;
@@ -39,18 +40,10 @@ export async function handleSessionAssociationHttp(context: WorkSessionHttpConte
       const workspacePath = typeof body.workspace_path === "string" && body.workspace_path.trim()
         ? body.workspace_path.trim()
         : null;
-      const session = resources.registry.updateAssociations({
-        session_id: sessionId,
-        actor_id: "web-user",
-        user_confirmed: true,
-        project_id: targetProjectId,
-        current_goal_id: goalId,
-        workspace_id: workspacePath === current.workspace_path ? current.workspace_id : null,
-        workspace_path: workspacePath,
-      });
-      respond( 200, { session: publicSessionRecord(session) });
+      // The page checks the project list and current Goal tree it shows; the registered action performs the change.
+      respond(200, await requireActions(context).invoke(workActions.associations, { session_id: sessionId, project_id: targetProjectId, current_goal_id: goalId, workspace_path: workspacePath }));
     } catch (error) {
-      respond( error instanceof MolisWorkSessionError ? 400 : 503, {
+      respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -71,15 +64,9 @@ export async function handleSessionAssociationHttp(context: WorkSessionHttpConte
         respond( 400, { error: "请确认归档或恢复这条 Session 记录" });
         return true;
       }
-      const session = resources.registry.setStatus({
-        session_id: sessionId,
-        actor_id: "web-user",
-        user_confirmed: true,
-        status: body.archived ? "closed" : "active",
-      });
-      respond( 200, { session: publicSessionRecord(session) });
+      respond(200, await requireActions(context).invoke(workActions.archive, { session_id: sessionId, archived: body.archived }));
     } catch (error) {
-      respond( error instanceof MolisWorkSessionError ? 400 : 503, {
+      respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -87,4 +74,9 @@ export async function handleSessionAssociationHttp(context: WorkSessionHttpConte
   }
 
   return false;
+}
+
+function requireActions(context: WorkSessionHttpContext) {
+  if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
+  return context.actions;
 }

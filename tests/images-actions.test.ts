@@ -45,8 +45,10 @@ test('Images actions use real provider bytes, original jobs, retry identity and 
   const image=await f.client.invoke(actions.image,{id:job.id,image_id:finished.images[0]!.id});assert.equal(image.mime_type,'image/png');assert.deepEqual(Buffer.from(image.base64,'base64'),Buffer.from(PNG,'base64'));
   assert.deepEqual((await f.bind(f.host,'b').invoke(actions.list,{})).jobs,[]);
   await assert.rejects(f.bind(f.host,'b').invoke(actions.image,{id:job.id,image_id:finished.images[0]!.id}),{code:'images.not_found'});
+  assert.throws(() => f.open(), { code: 'inference.home_in_use' }, 'one Home cannot silently acquire a second Runtime owner');
+  await f.host.close();
   const other=f.open(),otherClient=f.bind(other);assert.equal((await otherClient.invoke(actions.get,{id:job.id})).job.id,job.id);
-  await f.host.close();assert.equal((await otherClient.invoke(actions.start,input)).job.id,job.id);assert.equal(calls,1);
+  assert.equal((await otherClient.invoke(actions.start,input)).job.id,job.id);assert.equal(calls,1);
   await otherClient.invoke(actions.deleteConnection,{id:connection.id});assert.equal((await otherClient.invoke(actions.get,{id:job.id})).job.status,'succeeded');
   assert.deepEqual((await otherClient.invoke(actions.connections,{})).connections,[]);
   await other.close();const restarted=f.open(),restartedClient=f.bind(restarted);assert.deepEqual((await restartedClient.invoke(actions.image,{id:job.id,image_id:finished.images[0]!.id})),image);

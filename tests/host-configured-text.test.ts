@@ -21,7 +21,7 @@ const listen = async (server: Server) => {
 };
 const close = (server: Server) => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
 async function fixture(run: (f: {
-  home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
+  home: string; host: MolisWorkLocalHost; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
   modelOrigin: string; requests: { url: string; headers: Record<string, unknown>; body: any }[];
   answer: (handler: (body: any) => Promise<unknown>) => void;
 }) => Promise<void>) {
@@ -30,6 +30,7 @@ async function fixture(run: (f: {
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MINIMAX_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT"]) delete process.env[key];
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const homeOwner = new MolisWorkLocalHost({ homeDirectory: home });
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
   const server = createServer(async (request, response) => {
@@ -58,8 +59,8 @@ async function fixture(run: (f: {
     }
   });
   const modelOrigin = await listen(server);
-  try { await run({ home, catalog, modelOrigin, requests, answer: next => { handler = next; } }); }
-  finally { await close(server); catalog.close(); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
+  try { await run({ home, host: homeOwner, catalog, modelOrigin, requests, answer: next => { handler = next; } }); }
+  finally { await homeOwner.close(); await close(server); catalog.close(); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
 }
 function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId = "configured", format: "openai-chat-completions" | "anthropic-messages" = "openai-chat-completions") {
   const connection = withConnectorConnections(f.home, store => {
@@ -75,7 +76,7 @@ function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId =
 test("production settings HTTP -> shared connection -> Lingguang action actually calls the configured server", async () => fixture(async f => {
   const created = await f.catalog.createProject({ display_name: "模型调用", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
-  const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+  const host = f.host;
   const token = "configured-model-01234567890123456789";
   const web = createMolisWorkWebServer({ homeDirectory: f.home, localHost: host, controlToken: token });
   const origin = await listen(web);
@@ -146,7 +147,7 @@ for (const change of ["disconnect", "disable", "replace-model", "replace-key", "
     const started = new Promise<void>(resolve => { entered = resolve; });
     const resumed = new Promise<void>(resolve => { release = resolve; });
     f.answer(async () => { entered(); await resumed; return { choices: [{ message: { content: "stale" } }] }; });
-    const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+    const host = f.host;
     const ref = molisWorkHostProjectReference({ databasePath: join(f.home, "project.sqlite"), projectId: "a", boardId: "a" });
     const caller = { actor_id: "test", project_id: "a", audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
@@ -254,7 +255,7 @@ test("Dataset uses the configured model connection, keeps local columns offline 
   const created = await f.catalog.createProject({ display_name: "Dataset model", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
-  const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+  const host = f.host;
   try {
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
@@ -288,7 +289,7 @@ test("Form uses the configured model connection, keeps local questions offline a
   const created = await f.catalog.createProject({ display_name: "Form model", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
-  const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+  const host = f.host;
   try {
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };

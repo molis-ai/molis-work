@@ -60,7 +60,7 @@ test("packed SDK: failed terminal ledger and frozen ownership survive restart wi
     assert.equal(before.phase, "failed");
     await adapter.close(); adapter = await make();
     const restored = await adapter.readSession(session);
-    assert.deepEqual(restored.owner, owner);
+    assert.deepEqual(restored.owner, { ...owner, actor_id: "local-user" });
     assert.equal(restored.recovery, undefined);
     assert.deepEqual(restored.runs, [handle.ref]);
     assert.equal(restored.latest_run?.phase, "failed");

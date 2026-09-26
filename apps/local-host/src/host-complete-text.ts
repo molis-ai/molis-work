@@ -38,7 +38,10 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
           const result = await completeTextRequest(config, before.provider.credential_ref, () => {
             if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
             return apiKey;
-          }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch);
+          }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch).catch(error => {
+            if (JSON.stringify(current()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
+            throw error;
+          });
           if (JSON.stringify(current()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
           return result;
         };
@@ -81,7 +84,10 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
     const result = await completeTextRequest(config, legacyRef, () => {
       if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw unavailable();
       return key;
-    }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch);
+    }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch).catch(error => {
+            if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
+            throw error;
+          });
     if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     return result;
   };

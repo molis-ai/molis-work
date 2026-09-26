@@ -245,6 +245,10 @@ export class ImagesService {
       });
       if (this.store.finish(job.project_id, job.id, "succeeded", images, "")) files.length = 0;
     } catch (error) {
+      // A native dispatch/result guard may reject first; preserve the current business reason.
+      if (!controller.signal.aborted) {
+        try { assertCurrent(); } catch (changed) { error = changed; }
+      }
       this.store.finish(job.project_id, job.id, "failed", [], error instanceof ImagesError ? error.message : "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。");
     } finally {
       clearTimeout(timeout);

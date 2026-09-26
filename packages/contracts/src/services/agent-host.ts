@@ -166,7 +166,8 @@ export interface AgentRunBudget {
 export interface AgentExecutionPlan {
   source: ArtifactReference;
   title: string;
-  steps: Array<{ id: string; title: string; acceptance: string }>;
+  /** `depends_on` names earlier steps this one waits for; absent, a step waits for the one before it. */
+  steps: Array<{ id: string; title: string; acceptance: string; depends_on?: string[] }>;
 }
 
 /** Original SDK facts. A reported success is never a user acceptance. */

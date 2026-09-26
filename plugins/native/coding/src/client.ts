@@ -424,7 +424,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // A session named by its first task renames its open tab too, while Coding is the surface on show (its tab is then
   // the active one and only its title changes). Whichever read sees the new name first does it.
   const retitle=(id,before,after)=>{if(id && id===current && before && after && before!==after && root.getBoundingClientRect().width>0)host.openItem('coding',id,after);};
-  const refreshState = async () => {
+  // One directory read at a time. The poll and every event ask for it; a slow read must not let them pile up in the
+  // project's queue, where each would hold up reviews and every other call behind it. A caller arriving mid-read gets
+  // the next read, which starts after this one, so it still sees whatever it just changed.
+  let stateRead=null,stateNext=null;
+  const refreshState = () => {
+    const run=()=>{stateRead=readState().finally(()=>{stateRead=null;});return stateRead;};
+    if(!stateRead)return run();
+    stateNext??=stateRead.catch(()=>{}).then(()=>{stateNext=null;return stateRead??run();});
+    return stateNext;
+  };
+  const readState = async () => {
     const before=current && state?.sessions?.find(item=>item.session_id===current)?.title;
     const result=await api('/state'); state=result;
     retitle(current,before,current && result.sessions.find(item=>item.session_id===current)?.title);
@@ -1238,7 +1248,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-directory-back]')) {root.dataset.codingDetail='false';(directory.querySelector('[aria-current=true]') || directory.querySelector('[data-coding-new]'))?.focus({preventScroll:true});}
       if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){const intent=q('[data-coding-intent]'),wanted=[...intent.options].find(option=>option.value===target.dataset.codingPromptIntent && !option.disabled);if(wanted){intent.value=wanted.value;intent.dispatchEvent(new Event('change',{bubbles:true}));}input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(input.value.length,input.value.length);}
       if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=true; try { await create(); } finally { target.disabled=false; } }
-      if(target.matches('[data-coding-session]')) { event.preventDefault(); const session=state.sessions.find(item=>item.session_id===target.dataset.codingSession);host.openItem('coding',session.session_id,session.title);await select(session.session_id); }
+      // The first list is drawn by the server, so a row can be clicked before the directory read has arrived.
+      if(target.matches('[data-coding-session]')) { event.preventDefault(); const id=target.dataset.codingSession,session=state.sessions.find(item=>item.session_id===id);host.openItem('coding',id,session?.title || (target.querySelector('.coding-session-title,strong,.mw-dir-row__title')?.textContent || '').trim());await select(id); }
       if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>{item.setAttribute('aria-pressed',String(item===target));}); renderDirectory(); }
       if(target.matches('[data-coding-face]')) {
         const face=target.dataset.codingFace;

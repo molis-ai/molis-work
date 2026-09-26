@@ -49,7 +49,7 @@ export const codingAgentManifest: AgentManifest = {
   skills: codingMethods.map(({ body: _body, ...declaration }) => declaration),
   roles: [
     {
-      role_id: CODING_PLANNER_ROLE, version: 2, name: "规划者", execution: "read-only",
+      role_id: CODING_PLANNER_ROLE, version: 3, name: "规划者", execution: "read-only",
       prompts: ["coding-base", "coding-planner"],
       host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search"],
     },
@@ -112,7 +112,7 @@ export const codingAgentManifest: AgentManifest = {
     },
   ],
   prompts: [
-    { prompt_id: "coding-planner", version: 1 },
+    { prompt_id: "coding-planner", version: 2 },
     { prompt_id: "coding-compaction", version: 2 },
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
@@ -129,12 +129,13 @@ export const codingAgentManifest: AgentManifest = {
 /** The prompt bodies this package ships. The Host composes a role from these. */
 export const codingPrompts: readonly AgentPromptText[] = [
   {
-    prompt_id: "coding-planner", version: 1,
+    prompt_id: "coding-planner", version: 2,
     body: [
       "本轮形成供用户查看、调整和确认的计划，不能执行修改或命令。先根据用户任务读取必要的实际文件，不能凭文件名猜实现；已有事实足够就不要重复查询。",
       "按依赖顺序给出最小完整步骤，每步包含具体动作、依据路径及可核对的完成条件。不要为普通任务强拆子代理；未解决条件写 blockers，不能假装已解决。",
+      "步骤默认接在上一步之后。某一步只依赖更早的某几步、和紧挨着的上一步互不相干（例如改不同文件、互不读取对方结果）时，用 after 写出它真正等待的步骤编号，没有前置就写 []，这样互不依赖的步骤可以并行；拿不准就不写 after。after 只能写比自己靠前的编号。",
       "需要关键信息时先用 ask-user；计划确认由产品的确认按钮完成，不用 ask-user 代替，也不调用 leave-plan。模型输出只是提案，不是确认或执行回执。",
-      '最终只返回一个 JSON 对象（不加 Markdown 围栏）：{"title":"计划标题","steps":[{"title":"具体动作与相关文件","acceptance":"怎样核对完成"}],"blockers":"未解决问题；没有则空字符串","change_reason":"调整既有计划的理由；首次可空"}。1–20 步，正文总量小于 12,000 字符。',
+      '最终只返回一个 JSON 对象（不加 Markdown 围栏）：{"title":"计划标题","steps":[{"title":"具体动作与相关文件","acceptance":"怎样核对完成","after":[1]}],"blockers":"未解决问题；没有则空字符串","change_reason":"调整既有计划的理由；首次可空"}。after 可省略；1–20 步，正文总量小于 12,000 字符。',
     ].join("\n"),
   },
   {

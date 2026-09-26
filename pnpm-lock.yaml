@@ -590,8 +590,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-role-tools.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-role-tools.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1390,8 +1390,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-role-tools.tgz':
-    resolution: {integrity: sha512-ODV07qZaNSGHDkiFfuY8QnEN1aqOfx9jtPeqKVCrUEfcqxfrUjBgnACZA/lXVcHY3pkIp+XwyQo06CUSqS6MbA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-role-tools.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz':
+    resolution: {integrity: sha512-L96fHPseFq6iF71c9P9puTqgISWVTfcjqcrMTu7UPNtrgIA67LlkSt7jaSdNJMFs6TWcJ7pdhzJRaiGg9zC/4w==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':
@@ -2739,7 +2739,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-role-tools.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

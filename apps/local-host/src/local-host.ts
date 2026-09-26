@@ -28,6 +28,9 @@ export interface LocalHostOptions<Runtime> {
   };
 }
 
+/** How long one queued project operation may hold everything else of the project before the log names it. */
+const HELD_IN_LINE_WARN_MS = 20_000;
+
 export class LocalHostError extends Error {
   constructor(
     readonly code:
@@ -441,6 +444,14 @@ export class LocalHost<Runtime> {
         return result;
       });
     };
+    // Everything else of the project waits while a queued operation runs, so one that holds the line for long is named
+    // in the log (only its capability, never its input): a page that stops answering is otherwise a mystery.
+    const heldInLine = async () => {
+      const started = Date.now();
+      const watch = setInterval(() => console.warn(`[local-host] ${capability.capability_id}@${capability.version} 已占用项目 ${reference.project_id} 的操作队列 ${Math.round((Date.now() - started) / 1000)} 秒`), HELD_IN_LINE_WARN_MS);
+      watch.unref?.();
+      try { return await run(); } finally { clearInterval(watch); }
+    };
     // A Plugin action may await another declared Host capability. Queueing it behind itself deadlocks.
     const parent = this.executionScope.getStore();
     if (parent?.active && parent.entry === entry) return run();
@@ -452,7 +463,7 @@ export class LocalHost<Runtime> {
     const registered = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
       && d.version === capability.version && d.action_provider?.project_id === capability.action_provider?.project_id)[0];
     if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
-    const operation = entry.operationTail.then(run);
+    const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;
   }

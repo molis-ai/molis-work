@@ -12,20 +12,26 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
   const field=(label,value,multiline=false)=>{const node=element('label',undefined,'mw-field'),input=element(multiline?'textarea':'input',undefined,'mw-input');node.append(element('span',label),input);input.value=value;if(multiline)input.rows=3;return {node,input};};
   const describe=(parent,content)=>{
     parent.append(element('h3',content.title));const list=element('ol');
-    for(const step of content.steps){const item=element('li');item.append(element('p',step.title),element('p','完成条件：'+step.acceptance));list.append(item);}parent.append(list);
+    for(const [index,step] of content.steps.entries()){const item=element('li');item.append(element('p',step.title),element('p','完成条件：'+step.acceptance));
+      if(index && step.after)item.append(element('p',step.after.length?'等待第 '+step.after.join('、')+' 步完成':'不等其他步骤，可以和前面的步骤同时开始','coding-plan-after'));list.append(item);}parent.append(list);
     if(content.blockers)parent.append(element('p','待解决：'+content.blockers));
     if(content.change_reason)parent.append(element('p','变更说明：'+content.change_reason));
   };
   const storedKey=id=>'molis-coding-plan-editor:'+location.pathname+':'+id;
   // Only real edits are kept for later: an editor opened and left as it was must not outlive the revision it showed,
   // or a newer revision would open under a stale copy presented as the person's own unsaved changes.
-  const shape=(content)=>JSON.stringify({title:content?.title||'',steps:(content?.steps||[]).map(step=>({title:step.title||'',acceptance:step.acceptance||''})),blockers:content?.blockers||'',change_reason:content?.change_reason||''});
+  const shape=(content)=>JSON.stringify({title:content?.title||'',steps:(content?.steps||[]).map(step=>({title:step.title||'',acceptance:step.acceptance||'',...(step.after?{after:step.after}:{})})),blockers:content?.blockers||'',change_reason:content?.change_reason||''});
   const remember=()=>{if(!editor)return;try{const now=values();if(shape(now)===editor.base)sessionStorage.removeItem(storedKey(editor.id));else sessionStorage.setItem(storedKey(editor.id),JSON.stringify({revision:editor.revision,content:now}));}catch{}};
-  const values=()=>({title:editor.title.value,steps:editor.steps.map(step=>({title:step.title.value,acceptance:step.acceptance.value})),blockers:editor.blockers.value,change_reason:editor.reason.value});
+  // A step's waits are typed as earlier step numbers: empty keeps the default (the step before), 无 means none.
+  const afterText=after=>after===undefined?'':after.length?after.join('、'):'无';
+  const afterOf=text=>{const value=text.trim();if(!value)return undefined;if(/^(无|没有|不等|none|0)$/i.test(value))return [];return value.split(/[\\s,，、]+/).filter(Boolean).map(Number);};
+  // Reordering or removing steps renumbers them; every typed wait follows its step, and a wait on a removed step is dropped.
+  const renumber=map=>{for(const step of editor.steps){const after=afterOf(step.after.value);if(!after?.length)continue;const next=after.map(map).filter(n=>n!==null);step.after.value=next.length?afterText(next):'';}};
+  const values=()=>({title:editor.title.value,steps:editor.steps.map(step=>{const after=afterOf(step.after.value);return {title:step.title.value,acceptance:step.acceptance.value,...(after===undefined?{}:{after})};}),blockers:editor.blockers.value,change_reason:editor.reason.value});
   const edit=()=>{
     if(!plan)return;const content=structuredClone(plan.content);let saved;
     dialog.querySelector('h2').textContent='调整计划';dialog.setAttribute('aria-label','调整计划');q('[data-coding-plan-save]').hidden=false;
-    q('[data-coding-plan-help]').textContent='按依赖顺序安排步骤，每步写清完成条件。保存修改后需要重新确认；正在执行的任务继续使用原固定版本。';
+    q('[data-coding-plan-help]').textContent='按依赖顺序安排步骤，每步写清完成条件。步骤默认等上一步完成；互不相干的步骤可以在「等待哪些步骤」里写更早的编号或「无」，让它们并行。保存修改后需要重新确认；正在执行的任务继续使用原固定版本。';
     try{saved=JSON.parse(sessionStorage.getItem(storedKey(owner)) || 'null');}catch{}
     const draft=saved?.content?.steps?saved.content:content;
     editor={id:owner,revision:plan.revision,base:shape(plan.content),steps:[]};const body=q('[data-coding-plan-fields]');body.replaceChildren();
@@ -35,9 +41,10 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     const steps=element('div');body.append(steps);
     const add=(value={title:'',acceptance:''})=>{
       const row=element('section',undefined,'coding-material'),title=field('步骤',value.title),acceptance=field('完成条件',value.acceptance,true);
-      const entry={title:title.input,acceptance:acceptance.input};editor.steps.push(entry);row.append(title.node,acceptance.node);
-      row.append(button('上移',()=>{const index=editor.steps.indexOf(entry);if(index>0){[editor.steps[index-1],editor.steps[index]]=[editor.steps[index],editor.steps[index-1]];steps.insertBefore(row,row.previousElementSibling);remember();}}));
-      row.append(button('移除步骤',()=>{editor.steps=editor.steps.filter(one=>one!==entry);row.remove();remember();}));steps.append(row);
+      const after=field('等待哪些步骤（更早的编号，如 1、2；留空 = 上一步；「无」= 不等）',afterText(value.after));after.input.inputMode='numeric';after.node.dataset.codingPlanAfter='';
+      const entry={title:title.input,acceptance:acceptance.input,after:after.input};editor.steps.push(entry);row.append(title.node,acceptance.node,after.node);
+      row.append(button('上移',()=>{const index=editor.steps.indexOf(entry);if(index>0){[editor.steps[index-1],editor.steps[index]]=[editor.steps[index],editor.steps[index-1]];steps.insertBefore(row,row.previousElementSibling);renumber(n=>n===index?index+1:n===index+1?index:n);remember();}}));
+      row.append(button('移除步骤',()=>{const gone=editor.steps.indexOf(entry)+1;editor.steps=editor.steps.filter(one=>one!==entry);row.remove();renumber(n=>n===gone?null:n>gone?n-1:n);remember();}));steps.append(row);
     };
     for(const step of draft.steps)add(step);
     body.append(button('添加步骤',()=>{if(editor.steps.length<20){add();remember();}else q('[data-coding-plan-error]').textContent='最多 20 步，请合并相关工作。';}));

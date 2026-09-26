@@ -15,6 +15,7 @@ export const CODING_STYLES = `
 .coding-compare-column pre { max-width:100%; overflow:auto; }
 [data-coding-subagents] .mw-field { display:grid; gap:4px; margin:12px 0 8px; }
 [data-coding-subagents] textarea { width:100%; resize:vertical; }
+.coding-plan-after { color:var(--muted); font-size:12px; }
 .coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }
 [data-coding-workbench] { container: molis-coding / inline-size; }
 .coding-layout { display:grid; grid-template-columns:240px minmax(0,1fr); height:100%; min-height:0; }

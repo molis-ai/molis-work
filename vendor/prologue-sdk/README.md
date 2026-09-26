@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-role-tools.tgz`。在写错角色版本审查前就拒之上，**点名的子角色带着它声明的工具去**（用户拍板"就给工具"）：原来子角色声明的工具必须全部出现在父任务这次派出的工具名单里，父任务漏写一个（比如只读的 list），整次派出就以 CHARACTER_ESCALATION 失败，所以子角色只能不声明 list，子任务只好一条条 ls 请人审查。现在派出时把角色声明、且父任务这一轮本身就有的工具补进名单；父任务没有的工具仍然整次失败，孩子永远拿不到父亲没有的东西。每次写入和命令照旧经宿主审查。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-parent-reads.tgz`。在子任务带着角色声明的工具去之上，**分派到独立目录的父任务可以只读这些目录**（用户拍板"允许只读"）：并行写入时父任务（协调者）原来只看得见主工作区，核对子任务成果只能靠子任务的文字汇报。现在 `startAgentRun` 的 `subagents.parentReads` 为真时，父任务的 read、list、search 可以带 `workspace`（本轮冻结的子目录标识）只读查看那个目录；不带就是自己的目录。write、edit、命令都不接受这个参数，父任务不能在子目录写入或运行命令。父任务的查看不记进子目录"看过什么"的账：子任务改文件之前仍要自己先读。这项授权进开始指纹（只在授予时出现，未授予的旧运行指纹不变）。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[parent-reads.patch](parent-reads.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`3584a8b6c21c6761d65f9ed9c4320ecf570bcd52aba5ee470d6f984eb75d34e3`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/parent-reads.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-parent-reads.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；SDK 全量 3269 项通过（全量并跑时有 6 项计时类用例在机器繁忙时超时，单独重跑这 6 个文件 84 项全过）。新增定向：真实 Node 宿主上，授权后父任务按标识读、列、搜子目录，写入被拒；父任务看过的文件子任务不先读就改仍被拒；未授权时点名子目录被拒。未发布 npm，未替换正式安装版。
+
+## 上一依赖：子任务带着角色声明的工具去
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-role-tools.tgz`。在写错角色版本审查前就拒之上，**点名的子角色带着它声明的工具去**（用户拍板"就给工具"）：原来子角色声明的工具必须全部出现在父任务这次派出的工具名单里，父任务漏写一个（比如只读的 list），整次派出就以 CHARACTER_ESCALATION 失败，所以子角色只能不声明 list，子任务只好一条条 ls 请人审查。现在派出时把角色声明、且父任务这一轮本身就有的工具补进名单；父任务没有的工具仍然整次失败，孩子永远拿不到父亲没有的东西。每次写入和命令照旧经宿主审查。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

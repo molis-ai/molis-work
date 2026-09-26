@@ -232,8 +232,13 @@ test("production writers role runs two isolated children concurrently with indep
       const refs = [...new Set<string>(JSON.stringify(body.messages).match(/sub-[a-z0-9-]+/g) ?? [])]; assert.equal(refs.length, 2);
       return toolResponse("await-subagents", { refs, mode: "all", timeoutMs: 10_000 });
     }
+    // The coordinator checks what its children actually wrote by reading their directories, read-only.
+    if (parentCalls === 4) { assert.match(JSON.stringify(body.system), /加 workspace 参数/); return toolResponse("read", { path: "sample.txt", workspace: "writer-0" }, "-a"); }
+    if (parentCalls === 5) { assert.match(JSON.stringify(body.messages), /CHILD 0/); return toolResponse("read", { path: "sample.txt", workspace: "writer-1" }, "-b"); }
+    if (parentCalls === 6) { parentLooked = JSON.stringify(body.messages); return toolResponse("read", { path: "sample.txt" }, "-own"); }
     return toolResponse();
   });
+  let parentLooked = "";
   let queue = new AgentReviewQueue();
   const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.production-writers", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
@@ -269,6 +274,8 @@ test("production writers role runs two isolated children concurrently with indep
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     assert.equal(concurrent, true, "both children must reach pending writes before either is approved");
+    // Child 1's write was rejected, so its directory still reads ORIGINAL through the parent's read-only view.
+    assert.match(parentLooked, /CHILD 0[\s\S]*ORIGINAL/);
     assert.equal(await readFile(join(parent, "sample.txt"), "utf8"), "ORIGINAL\n");
     assert.equal(await readFile(join(childPaths[0]!, "sample.txt"), "utf8"), "CHILD 0\n");
     assert.equal(await readFile(join(childPaths[1]!, "sample.txt"), "utf8"), "ORIGINAL\n");

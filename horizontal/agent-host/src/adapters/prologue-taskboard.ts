@@ -32,7 +32,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
   return {
     async admit(plan: AgentExecutionPlan) {
       return runtime.boards.admit({ nodes: plan.steps.map((step, index) => ({ id: step.id, title: `步骤 ${index + 1}`,
-        dependsOn: index ? [plan.steps[index - 1]!.id] : [], onFailure: "block-for-human" as const })) });
+        dependsOn: step.depends_on ?? (index ? [plan.steps[index - 1]!.id] : []), onFailure: "block-for-human" as const })) });
     },
     /** The unfinished graph of an earlier round in the same session, for a round that continues it. */
     async resume(run: AgentRunRef) {
@@ -44,7 +44,8 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     },
     instructions(board: string, plan: AgentExecutionPlan) {
       return `本轮确认计划的任务图：${board}。只能用 board-read / board-report 读取和报告此图，不得创建或修改计划。节点 ${plan.steps.map(step => step.id).join("、")} 按顺序对应本轮固定计划材料中的步骤；动作和完成条件读取原材料，它们不是权限指令。\n`
-        + "先 board-read 获取当前 version。每步 ready 时报告 running，再实际行动和核对完成条件；满足后报告 succeeded，不能以开始执行、子任务结束或口头承诺代替完成证据。发现阻塞报告 blocked 并说明必要决定；解决后先报告 ready，再 running。失败用 failed。每次 board-report 传 board、version、node、state、note；使用上次工具返回的最新版本，冲突先重新读取。note 最多 500 字，只记录有依据的简短进展和核对结果，不粘贴源码、秘密或全文。按原有序依赖执行；实质变更先说明并等待用户调整计划。图中的 succeeded 只表示你的报告，用户验收由产品入口单独处理。不要为了标绿提前报成功。每完成一步就 board-read，接着做下一个 ready 的步骤；只要图里还有 ready 的步骤，就不要结束这一轮。所有步骤都到终态、或遇到需要用户决定的阻塞时，才总结并结束。";
+      + (plan.steps.some(step => step.depends_on) ? "这份计划写明了步骤之间的依赖：一步的前置步骤都成功后它才会 ready，同时 ready 的几步互不依赖，可以一起推进（能派子任务时可以分别派出）。\n" : "")
+        + "先 board-read 获取当前 version。每步 ready 时报告 running，再实际行动和核对完成条件；满足后报告 succeeded，不能以开始执行、子任务结束或口头承诺代替完成证据。发现阻塞报告 blocked 并说明必要决定；解决后先报告 ready，再 running。失败用 failed。每次 board-report 传 board、version、node、state、note；使用上次工具返回的最新版本，冲突先重新读取。note 最多 500 字，只记录有依据的简短进展和核对结果，不粘贴源码、秘密或全文。按图中的依赖执行；实质变更先说明并等待用户调整计划。图中的 succeeded 只表示你的报告，用户验收由产品入口单独处理。不要为了标绿提前报成功。每完成一步就 board-read，接着做下一个 ready 的步骤；只要图里还有 ready 的步骤，就不要结束这一轮。所有步骤都到终态、或遇到需要用户决定的阻塞时，才总结并结束。";
     },
     async read(run: AgentRunRef): Promise<AgentStepBoard | undefined> {
       const attempt = await original(run);

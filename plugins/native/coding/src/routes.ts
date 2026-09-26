@@ -23,7 +23,7 @@ import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerp
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
 import { characterSelection, characterTitle, savedCharacter, savedCharacterSkills, characterSkillSelection, type CodingCharacterPorts } from "./characters.js";
-import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
+import { confirmedPlan, executionSteps, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
@@ -196,6 +196,38 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       } catch (error) { groups.push({ run_id: run.ref.run_id, children: [], error: error instanceof Error ? error.message : "子任务状态不可读取" }); }
     }
     return groups;
+  };
+  // The directory a page shows: every session's current state, with what a new round needs. Read by coding.state.
+  let stateRead: Promise<unknown> | null = null, stateNext: Promise<unknown> | null = null;
+  const readState = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts) => {
+    const runtimes = await api.invoke(agent.listRuntimes, []);
+    const sessions = await Promise.all(execution.sessions.list(boardId).map(async record => {
+      let checkpointBusy = false;
+      if (record.runtime_session_id) {
+        try {
+          const snapshot = await api.invoke(agent.readSession, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
+          checkpointBusy = snapshot.checkpoint_busy === true;
+          const next = snapshot.recovery ? "reconcile-required" : snapshot.latest_run ? sessionState(snapshot.latest_run) : "idle";
+          if (next !== record.state) record = execution.sessions.setState(boardId, record.session_id, next, record.updated_at);
+        } catch {
+          // One unreadable ledger must not hide other sessions or make the
+          // directory call completed work safe to continue.
+          if (record.state !== "reconcile-required") record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
+        }
+      }
+      return { ...record, checkpoint_busy: checkpointBusy, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+    }));
+    const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
+    const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
+    return { sessions, methods, mcp, models: await execution.models(),
+      // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
+      // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
+      workspace: await api.invoke(projectSettingsCapabilities.browsingWorkspace, []) ?? await api.invoke(projectsCapabilities.readWorkspace, []),
+      workspaces: await api.invoke(projectSettingsCapabilities.workspaces, []),
+      runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
+        roles: await api.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
+      }))),
+    };
   };
   const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => ({
     route_id,
@@ -385,34 +417,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       return { materials: materialChoices(context, savedMaterials(context, record.session_id), execution.materialReferences?.(), sessionOutputs(execution), sessionTitle(execution), record.session_id) };
     }),
     route("coding.state", async (_request, api, execution) => {
-      const runtimes = await api!.invoke(agent.listRuntimes, []);
-      const sessions = await Promise.all(execution.sessions.list(boardId).map(async record => {
-        let checkpointBusy = false;
-        if (record.runtime_session_id) {
-          try {
-            const snapshot = await api!.invoke(agent.readSession, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
-            checkpointBusy = snapshot.checkpoint_busy === true;
-            const next = snapshot.recovery ? "reconcile-required" : snapshot.latest_run ? sessionState(snapshot.latest_run) : "idle";
-            if (next !== record.state) record = execution.sessions.setState(boardId, record.session_id, next, record.updated_at);
-          } catch {
-            // One unreadable ledger must not hide other sessions or make the
-            // directory call completed work safe to continue.
-            if (record.state !== "reconcile-required") record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
-          }
-        }
-        return { ...record, checkpoint_busy: checkpointBusy, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
-      }));
-      const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api!.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
-      const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api!.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
-      return { sessions, methods, mcp, models: await execution.models(),
-        // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
-        // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
-        workspace: await api!.invoke(projectSettingsCapabilities.browsingWorkspace, []) ?? await api!.invoke(projectsCapabilities.readWorkspace, []),
-        workspaces: await api!.invoke(projectSettingsCapabilities.workspaces, []),
-        runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
-          roles: await api!.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
-        }))),
-      };
+      // Every open page polls this, and each read asks the Host about every session, one call at a time in the
+      // project's queue. However many pages ask, one read runs and at most one waits behind it; a request that arrives
+      // mid-read gets the next one, so it still sees what was just changed. Each caller gets its own copy.
+      const run = () => { stateRead = readState(api!, execution).finally(() => { stateRead = null; }); return stateRead; };
+      if (!stateRead) return structuredClone(await run());
+      stateNext ??= stateRead.catch(() => undefined).then(() => { stateNext = null; return stateRead ?? run(); });
+      return structuredClone(await stateNext);
     }),
     route("coding.save-mcp", async (request, api) => {
       const body = bodyOf(request);
@@ -1006,7 +1017,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           }
         })();
         const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
-          ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
+          ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
           ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
           ...(mode === "digest" ? { history: "digest" as const } : {}),
           budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },

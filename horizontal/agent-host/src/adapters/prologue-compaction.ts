@@ -18,9 +18,22 @@ function parts(text: string): string[] {
   return result;
 }
 
+/**
+ * The selection object in the model's answer. Models sometimes fence it or put a line of prose before it; one fenced
+ * block, or one object at the end that starts with its "selections" key, is still unambiguous. Two blocks are not.
+ */
+function selectionText(text: string): string {
+  const trimmed = text.trim();
+  const blocks = [...trimmed.matchAll(/```(?:json)?[^\S\n]*\n([\s\S]*?)\n?```/g)];
+  if (blocks.length > 1) throw invalid("整理结果包含多个选择记录");
+  if (blocks.length === 1) return blocks[0]![1]!;
+  const start = trimmed.search(/\{\s*"selections"\s*:/);
+  return start > 0 && trimmed.endsWith("}") ? trimmed.slice(start) : trimmed;
+}
+
 export function compactionSelection(text: string, older: readonly ContextCompactionRecord[]) {
   let value: unknown;
-  try { value = JSON.parse(text); } catch { throw invalid("整理结果不是有效的选择记录"); }
+  try { value = JSON.parse(selectionText(text)); } catch (error) { throw (error as { code?: string }).code === "CONTEXT_COMPACTION_INVALID" ? error : invalid("整理结果不是有效的选择记录"); }
   if (!value || typeof value !== "object" || !("selections" in value) || !Array.isArray(value.selections)) throw invalid("整理结果缺少原文选择");
   return { excerpts: value.selections.flatMap((item: unknown) => {
     if (!item || typeof item !== "object") throw invalid("原文选择格式无效");

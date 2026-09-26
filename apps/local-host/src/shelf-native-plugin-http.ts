@@ -21,7 +21,7 @@ export async function handleShelfNativePluginHttp(
 ): Promise<boolean> {
   return dispatchNativePluginJsonHttp(request, response, url, {
     prefix: "/api/shelf",
-    maxBodyBytes: 48_000_000,
+    maxBodyBytes: 96 * 1024 * 1024,
     async handle(input) {
       const store = openShelfStore(homeDirectory, shelfRuntimeProbe());
       return new ShelfPluginRouteTable(createShelfRouteHandlers({

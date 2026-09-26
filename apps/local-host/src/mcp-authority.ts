@@ -57,7 +57,11 @@ export function assertMcpToolAllowed(
     requireMcpRuntimeContextHost(state, callContext);
     return;
   }
-  assertRuntimeOrdinaryToolInput(name, arguments_, catalog?.home_scoped_names ?? new Set());
+  // Registered actions validate their own business schema and receive authority separately.
+  // Legacy event payload/actor heuristics must not reject an unrelated plugin's declared fields.
+  if (catalog?.entries.find(entry => entry.definition.name === name)?.source !== "action") {
+    assertRuntimeOrdinaryToolInput(name, arguments_, catalog?.home_scoped_names ?? new Set());
+  }
   if (!state.connectionState.explicit) {
     const host = requireMcpRuntimeContextHost(state, callContext);
     if (state.connectionState.observe(host.runtimeContext) === "refresh_required") {

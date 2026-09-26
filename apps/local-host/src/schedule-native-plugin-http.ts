@@ -15,7 +15,7 @@ export interface ScheduleNativePluginHttpOptions {
   readonly schedule: ScheduleService;
   readonly invalidateWebView: () => void;
   readonly renderer?: Pick<WorkbenchRenderer, "renderScheduleWorkbenchFragment">;
-  readonly readWebView?: () => MolisWorkWebView;
+  readonly readWebView?: () => MolisWorkWebView | Promise<MolisWorkWebView>;
 }
 
 export async function handleScheduleNativePluginHttp(
@@ -36,7 +36,7 @@ export async function handleScheduleNativePluginHttp(
     ...ports,
     changed: () => options.invalidateWebView(),
     renderWorkbench: options.renderer && options.readWebView
-      ? () => options.renderer!.renderScheduleWorkbenchFragment(options.readWebView!())
+      ? async () => options.renderer!.renderScheduleWorkbenchFragment(await options.readWebView!())
       : undefined,
   }));
   try {

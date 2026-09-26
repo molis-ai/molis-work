@@ -1,23 +1,14 @@
-import { attachEventDocument, buildGoalsDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
-import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication, FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
-import type { GoalProjectApplication } from "./goal-project-application.js";
-import { currentLocale, L } from "./web-locale.js";
-import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import { statSync } from "node:fs";
+import { currentLocale } from "./web-locale.js";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
 import { createScheduleRouteHandlerPorts } from "@molis-ai/molis-work-plugin-schedule";
-import { readFunctionScenesView, withFunctionsService } from "./functions-host.js";
-import {
-  FEED_CAPTURE_SCENE_ID,
-  HOME_DOCK_SCENE_ID,
-  INBOX_NEXT_SCENE_ID,
-} from "@molis-ai/molis-work-contracts/modules/functions";
 
 export interface WebViewOptions {
   databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
@@ -33,42 +24,18 @@ interface MolisWorkWebViewCacheEntry {
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
-function feedDirectorySnapshot(feed: FeedApplication, boardId: string, homeDirectory?: string): FeedSnapshot {
+function feedDirectorySnapshot(feed: FeedApplication, boardId: string): FeedSnapshot {
   const snapshot = feed.snapshot(boardId);
   const hideBodies = (item: FeedSnapshot["feed_items"][number]) => ({
     ...item,
     body: null,
     materials: item.materials.map((material) => ({ ...material, content: undefined })),
   });
-  if (!homeDirectory) {
-    return {
-      ...snapshot,
-      feed_items: snapshot.feed_items.map(hideBodies),
-    };
-  }
-  return withFunctionsService(homeDirectory, (service) => {
-    const suggested = (
-      kind: "inbox_entry" | "feed_item",
-      id: string,
-      sceneId: string,
-    ) => service.latestJudgment(kind, id, boardId, sceneId)?.suggested_behavior_ids ?? [];
-    return {
-      ...snapshot,
-      inbox_entries: snapshot.inbox_entries.map((entry) => {
-        const binding = service.sceneBinding(INBOX_NEXT_SCENE_ID, boardId);
-        const latest = service.latestJudgment("inbox_entry", entry.entry_id, boardId, INBOX_NEXT_SCENE_ID);
-        const judgment = binding && latest?.function_key === binding.function_key ? latest : null;
-        return { ...entry, next_judgment: judgment,
-          suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [],
-          home_dock_suggested_behavior_ids: suggested("inbox_entry", entry.entry_id, HOME_DOCK_SCENE_ID) };
-      }),
-      feed_items: snapshot.feed_items.map((item) => ({
-        ...hideBodies(item),
-        suggested_behavior_ids: suggested("feed_item", item.item_id, FEED_CAPTURE_SCENE_ID),
-        home_dock_suggested_behavior_ids: suggested("feed_item", item.item_id, HOME_DOCK_SCENE_ID),
-      })),
-    };
-  });
+  // Current judgments are decorated through the authorized Inbox/Feed actions after the cached base is read.
+  return { ...snapshot,
+    inbox_entries: snapshot.inbox_entries.map(entry => ({ ...entry, next_judgment: null, suggested_behavior_ids: [] })),
+    feed_items: snapshot.feed_items.map(item => ({ ...hideBodies(item), suggested_behavior_ids: [] })),
+  };
 }
 
 function scheduleProjection(db: LocalProjectDatabase["db"]): Pick<MolisWorkWebView, "schedule_jobs" | "schedule_tasks"> {
@@ -79,14 +46,7 @@ function scheduleProjection(db: LocalProjectDatabase["db"]): Pick<MolisWorkWebVi
   };
 }
 
-export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: GoalProjectApplication, options: WebViewOptions): MolisWorkWebView {
-  coordinator.goalDecisionAttention.reconcile(options.boardId);
-  const collection = buildGoalsDocumentCollection({
-    snapshot: boardId => store.snapshot(boardId), events: boardId => store.readEventsDescending(boardId),
-    goals: coordinator.goalQueries, inputs: coordinator.goalInputs,
-    projectGoalLifecycle: (snapshot, goalId) => coordinator.projectGoalLifecycle(snapshot, goalId),
-    eventWork: coordinator.goalEvents,
-  }, options.boardId, L);
+export function buildMolisWorkWebView(store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions): MolisWorkWebView {
   return {
     snapshot: options.project
       ? { ...collection.snapshot, board: { ...collection.snapshot.board, board_id: "" } }
@@ -97,33 +57,22 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, coordinator: 
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
     counts: collection.counts, coverage: collection.coverage, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
-    feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId, options.homeDirectory),
+    feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId),
     feed_source_catalog: listFeedSourceCatalog(),
     feed_connector_auth: createLocalFeedConnectorService(store.db, options.boardId).authStatus(),
     ...scheduleProjection(store.db),
-    function_scenes: options.homeDirectory
-      ? readFunctionScenesView(options.homeDirectory, options.boardId)
-      : undefined,
   };
 }
 
-function functionsViewFingerprint(homeDirectory?: string): string {
-  if (!homeDirectory) return "";
-  try {
-    const stat = statSync(homeSqlitePath(homeDirectory, "functions"));
-    return `${stat.mtimeMs}:${stat.size}`;
-  } catch {
-    return "missing";
-  }
-}
-
-export function cachedMolisWorkWebView(
+export async function cachedMolisWorkWebView(
   cache: MolisWorkWebViewCache,
   store: LocalProjectDatabase,
-  coordinator: GoalProjectApplication,
   options: WebViewOptions,
-): MolisWorkWebView {
-  const cursor = store.eventCursor(options.boardId);
+  actions: BoundActionClient,
+): Promise<MolisWorkWebView> {
+  // Always authorize through the shared service before reusing any cached content.
+  const collection = await actions.invoke(goalsActions.collection, {});
+  const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
     board_id: options.boardId,
     locale: currentLocale(),
@@ -133,7 +82,6 @@ export function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     schedule: scheduleViewFingerprint(store.db),
-    functions: functionsViewFingerprint(options.homeDirectory),
     home_directory: options.homeDirectory ?? "",
   });
   const cached = cache.get(options.databasePath);
@@ -141,32 +89,23 @@ export function cachedMolisWorkWebView(
     cached?.cursor === cursor &&
     cached.optionsFingerprint === optionsFingerprint
   ) return cached.view;
-  const view = buildMolisWorkWebView(store, coordinator, options);
+  const view = buildMolisWorkWebView(store, collection, options);
   cache.set(options.databasePath, {
-    cursor: store.eventCursor(options.boardId),
+    cursor,
     optionsFingerprint,
     view,
   });
   return view;
 }
 
-export function withSelectedEventDocument(
+export async function withSelectedEventDocument(
   view: MolisWorkWebView,
-  boardId: string,
   goalId: string | undefined,
-  goalEvents: Parameters<typeof attachEventDocument>[2],
-  planningMethods: readonly PlanningMethodPack[] = [],
-): MolisWorkWebView {
-  if (!goalId) return view;
-  const methods = planningMethods.length ? planningMethods : view.snapshot.planning_method_packs ?? [];
+  actions: BoundActionClient,
+): Promise<MolisWorkWebView> {
+  if (!goalId || ![...view.goals, ...view.archived_goals, ...view.trashed_goals].some(item => item.goal.goal_id === goalId)) return view;
+  const eventDocument = await actions.invoke(goalsActions.document, { goal_id: goalId });
   const decorate = (item: MolisWorkWebView["goals"][number]) =>
-    item.goal.goal_id === goalId
-      ? attachEventDocument(item, boardId, goalEvents, view.snapshot, methods, view.events ?? [])
-      : item;
-  return {
-    ...view,
-    goals: view.goals.map(decorate),
-    archived_goals: view.archived_goals.map(decorate),
-    trashed_goals: view.trashed_goals.map(decorate),
-  };
+    item.goal.goal_id === goalId ? { ...item, event_document: eventDocument } : item;
+  return { ...view, goals: view.goals.map(decorate), archived_goals: view.archived_goals.map(decorate), trashed_goals: view.trashed_goals.map(decorate) };
 }

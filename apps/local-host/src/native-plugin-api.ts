@@ -2,7 +2,7 @@ import { PLUGIN_ROUTE_PREFIX } from "@molis-ai/molis-work-plugin-runtime";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 function nativePluginHttpAliases(): Readonly<Record<string, string>> {
-  const aliases: Record<string, string> = {};
+  const aliases: Record<string, string> = { functions: "functions", "io.molis.work.functions": "functions" };
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     if (entry.personal !== true) continue;
     aliases[entry.project_plugin_id] = entry.project_plugin_id;

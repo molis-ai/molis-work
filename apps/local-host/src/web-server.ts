@@ -1,5 +1,6 @@
-import { closeAlchemist } from "./alchemist-native-plugin-http.js";
-import { closeImages } from "./images-native-plugin-http.js";
+import { createLocalImServer } from "./im-server.js";
+import { projectActionAvailability } from "./project-action-availability.js";
+import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { closeExperiments } from "./experiments-native-plugin-http.js";
 import { loadCasebookConfiguration } from "./casebook/config.js";
 import { handleCasebookHttp } from "./casebook/http.js";
@@ -8,16 +9,14 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
-import { composeAgentHost, workspaceRefFor } from "./agent-host-composition.js";
+import { workspaceRefFor } from "./agent-host-composition.js";
+import { ensureSystemAgentService } from "./system-agent-service.js";
 import { createMolisWorkLocalHost } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
-import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 import { resolveWebControlToken } from "./web-control-token.js";
 import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
-import { openSessionRuntimeResources } from "./web-session.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
@@ -39,6 +38,18 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
+    const catalogAvailability = projectActionAvailability(platform.withCatalog, storageHome);
+    // Explicit single-database mode predates project installation records. Its
+    // configured board is the authority; other project callers still use catalog policy.
+    const actionAvailability = Object.assign((...args: Parameters<typeof catalogAvailability>) => {
+      const [caller, action] = args;
+      return fixture && caller.project_id === fixture.boardId
+        ? { available: true as const } : catalogAvailability(caller, action);
+    }, {
+      snapshotForDiscovery: async (caller: Parameters<typeof catalogAvailability>[0]) =>
+      fixture && caller.project_id === fixture.boardId
+        ? () => ({ available: true as const }) : catalogAvailability.snapshotForDiscovery(caller),
+    });
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({
       homeDirectory: serverOptions.homeDirectory,
     });
@@ -46,38 +57,23 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       homeDirectory: serverOptions.homeDirectory,
     });
     const localHost = serverOptions.localHost ?? createMolisWorkLocalHost({
-      planningMethods: () => readPersonalPlanningMethodPacks(serverOptions.homeDirectory),
-      workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
-      workspaceFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, (catalog) => workspaceRefFor(catalog, projectId)),
-    });
-    const ownsLocalHost = !serverOptions.localHost;
-    // Runtime storage and credentials belong to this explicit Home.
-    const agents = composeAgentHost({
-      localHost,
-      authorizeWriterDirectory: async (projectId, canonicalPath) => {
-        await platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true }));
-      },
       homeDirectory: storageHome,
+      actionAvailability,
+      sceneAvailability: actionAvailability,
       workspacesFor: (projectId) => platform.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
-      workspaceFor: (projectId) => platform.withCatalog(
-        { homeDirectory: serverOptions.homeDirectory },
-        (catalog) => workspaceRefFor(catalog, projectId),
-      ),
-      prologue: {
-        storageRoot: path.join(storageHome, "agent-runtime"),
-        modelConfiguration: (selection) => platform.withCatalog(
-          { homeDirectory: storageHome },
-          (catalog) => prologueModelConfiguration(catalog.models.resolveConfiguration(selection)),
-        ),
-        resolveCredential: (ref) => platform.withCatalog(
-          { homeDirectory: storageHome },
-          (catalog) => {
-            const provider = catalog.models.list().find((entry) => entry.credential_ref === ref);
-            return provider ? catalog.models.resolveConfiguration({ provider_id: provider.provider_id })?.api_key ?? null : null;
-          },
-        ),
+      workspaceFor: (projectId) => {
+        const configuredRoot = () => {
+          if (!serverOptions.projectRoot) return null;
+          const canonical_path = fs.realpathSync(serverOptions.projectRoot);
+          return { workspace_id: `configured:${projectId}`, canonical_path, realpath_verified: true, display_name: path.basename(canonical_path) };
+        };
+        if (fixture && projectId === fixture.boardId) return configuredRoot();
+        return platform.withCatalog({ homeDirectory: storageHome }, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
       },
     });
+    localHost.configurePersonalPlanning(storageHome, platform.withCatalog);
+    const ownsLocalHost = !serverOptions.localHost;
+    const agents = ensureSystemAgentService(localHost, storageHome, platform.withCatalog);
     const controlToken = resolveWebControlToken(serverOptions);
     serverOptions.casebook ??= loadCasebookConfiguration(storageHome,serverOptions.casebookConfigPath,[controlToken]);
     if ([...(serverOptions.casebook?.grants ?? []), ...(serverOptions.casebook?.catalogConnections ?? [])].some(g => g.token === controlToken || g.token.length < 32)) {
@@ -86,10 +82,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
-    const sessionResources = openSessionRuntimeResources(serverOptions);
+    localHost.configureSessionRuntime(storageHome, serverOptions.runtimeSessionTransport);
+    const sessionResources = localHost.sessionResources();
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const pty = { host: null as MolisWorkPtyHost | null };
+    const im = createLocalImServer(storageHome);
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
@@ -123,6 +121,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
               pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
           }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
+          if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
+          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, platform.withCatalog)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(
@@ -152,6 +152,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
     }));
+    // SSE is an active HTTP response, so stop its streams before close waits.
+    const closeServer = server.close.bind(server);
+    server.close = (callback) => { im.stop(); return closeServer(callback); };
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
         void sessionResources
@@ -180,20 +183,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     }), 30_000);
     schedulerTimer.unref();
     server.once("close", () => {
+      im.close();
       void closeExperiments(storageHome);
-      void closeImages(storageHome);
-      void closeAlchemist(storageHome).catch(() => undefined);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
-      void agents.dispose().catch(() => undefined);
       if (ownsLocalHost) void localHost.close();
-      void sessionResources
-        .then((resources) => {
-          resources.recorder.close();
-          resources.ownedCodexTransport?.close();
-          resources.registry.close();
-        })
-        .catch(() => undefined);
     });
     return server;
   }

@@ -1,13 +1,19 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { resolvePlanningMethodPacks } from "@molis-ai/molis-work-module-goals";
-import type { GoalsPlanningApi, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalsActions, personalPlanningActions, matchGoalsPlanningRoute } from "@molis-ai/molis-work-plugin-goals";
 import { renderWorkbenchPlanningRequest, type MolisWorkWebView, type WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
-import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
-import type { MolisWorkLocalHost } from "./project-host.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
+
+/** Older HTTP editors may submit a returned pack; provenance remains owned by Catalog. */
+function personalMethodInput(method: PlanningMethodPackInput): PlanningMethodPackInput {
+  const { scope: _scope, created_at: _created, updated_at: _updated, overridden_scopes: _overrides, ...input } =
+    method as PlanningMethodPackInput & { scope?: unknown; created_at?: unknown; updated_at?: unknown; overridden_scopes?: unknown };
+  return input;
+}
 
 export function createLocalPlanningHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -18,7 +24,7 @@ export function createLocalPlanningHttp(ports: {
   const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
   const { renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = ports.renderer;
   async function personal(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
-    projects: WebProjectNavigation[], controlToken: string, localHost: MolisWorkLocalHost, clearFeedSchedulers: () => void,
+    projects: WebProjectNavigation[], controlToken: string, homeActions: BoundActionClient,
   ): Promise<boolean> {
     const contextProjectId = url.searchParams.get("project");
     const contextProject = contextProjectId
@@ -27,8 +33,13 @@ export function createLocalPlanningHttp(ports: {
     const enabledPlugins = planningDocument && contextProject && homeDirectory
       ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjectPlugins(contextProject.project_id))
       : [];
+    const route = request.method === "GET" ? matchGoalsPlanningRoute(url.pathname, "personal") : null;
+    let methods: PlanningMethodPack[] = [];
+    if (route && !(route.kind === "method" && route.method_id === "new")) {
+      try { methods = (await homeActions.invoke(personalPlanningActions.list, {})).methods; }
+      catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
+    }
     const globalPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "personal", () => {
-      const methods = resolvePlanningMethodPacks(readPersonalPlanningMethodPacks(homeDirectory));
       return {
         methods,
         library: () => renderMolisWorkPlanningLibrary(methods, contextProject, controlToken, isDesktopShellRequest(request, url), projects, enabledPlugins),
@@ -47,7 +58,8 @@ export function createLocalPlanningHttp(ports: {
       return true;
     }
     if (request.method === "GET" && url.pathname === "/api/settings/planning-methods") {
-      sendJson(response, 200, { methods: resolvePlanningMethodPacks(readPersonalPlanningMethodPacks(homeDirectory)) });
+      try { sendJson(response, 200, await homeActions.invoke(personalPlanningActions.list, {})); }
+      catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); }
       return true;
     }
     if (request.method === "POST" && url.pathname === "/api/settings/planning-methods") {
@@ -60,17 +72,7 @@ export function createLocalPlanningHttp(ports: {
         return true;
       }
       try {
-        const saved = await withMolisWorkProjectCatalog({ homeDirectory: homeDirectory }, (catalog) => {
-          const saved = catalog.personalPlanningMethods.save(method, new Date().toISOString());
-          return saved;
-        });
-        // Personal planning methods are constructor inputs for every
-        // Project runtime. Reopen them through the Host instead of letting
-        // each entrypoint rebuild its own Coordinator.
-        await Promise.all(localHost.status().projects.map((project) =>
-          localHost.closeProject(project.storage_key)));
-        clearFeedSchedulers();
-        sendJson(response, 200, { method: saved });
+        sendJson(response, 200, await homeActions.invoke(personalPlanningActions.save, { method: personalMethodInput(method) }));
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
       }
@@ -78,13 +80,19 @@ export function createLocalPlanningHttp(ports: {
     }
     return false;
   }
-  async function project(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
-    boardId: string, controlToken: string, readWebView: () => MolisWorkWebView, planning: GoalsPlanningApi,
+  async function project(request: IncomingMessage, response: ServerResponse, url: URL,
+    controlToken: string, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, actions: BoundActionClient, homeActions: BoundActionClient,
   ): Promise<boolean> {
-    const projectPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "project", route => {
-      const view = readWebView();
-      const methods = route.kind === "method" && route.method_id === "new"
-        ? [] : planning.effectiveMethods(boardId);
+    const route = request.method === "GET" ? matchGoalsPlanningRoute(url.pathname, "project") : null;
+    let pageMethods: PlanningMethodPack[] = [];
+    if (route && !(route.kind === "method" && route.method_id === "new")) {
+      try { pageMethods = (await actions.invoke(goalsActions.planningRead, {})).methods; }
+      catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
+    }
+    const pageView = route ? await readWebView() : null;
+    const projectPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "project", () => {
+      const view = pageView!;
+      const methods = pageMethods;
       return {
         methods,
         library: () => renderMolisWorkPlanningSettings(view, methods, controlToken, isDesktopShellRequest(request, url)),
@@ -103,51 +111,21 @@ export function createLocalPlanningHttp(ports: {
       return true;
     }
     if (request.method === "GET" && url.pathname === "/api/settings/planning-methods") {
-      sendJson(response, 200, {
-        methods: planning.effectiveMethods(boardId),
-        composition: planning.projectComposition(boardId),
-      });
+      try { sendJson(response, 200, await actions.invoke(goalsActions.planningRead, {})); }
+      catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); }
       return true;
     }
     if (request.method === "POST" && url.pathname === "/api/settings/planning-methods/apply") {
       const body = await readBody(request);
       const methodId = typeof body.method_id === "string" ? body.method_id.trim() : "";
-      const source = methodId
-        ? resolvePlanningMethodPacks(readPersonalPlanningMethodPacks(homeDirectory))
-          .find((method) => method.method_id === methodId && method.scope !== "project") ?? null
-        : null;
-      if (!source) {
-        sendJson(response, 404, { error: L("找不到可选的规划方法") });
-        return true;
-      }
-      const method: PlanningMethodPackInput = {
-        method_id: source.method_id,
-        version: source.version,
-        kind: source.kind,
-        name: source.name,
-        summary: source.summary,
-        instructions: source.instructions,
-        applies_to: source.applies_to,
-        domain_tags: source.domain_tags,
-        steps: source.steps,
-        required_coverage: source.required_coverage,
-        dependency_rules: source.dependency_rules,
-        evidence_requirements: source.evidence_requirements,
-        completion_checks: source.completion_checks,
-        failure_modes: source.failure_modes,
-        source_refs: source.source_refs,
-        confidence: source.confidence,
-        enabled: true,
-      };
       try {
-        sendJson(response, 200, planning.saveProjectMethod({
-          board_id: boardId,
-          method,
-          actor_id: "web-user",
+        sendJson(response, 200, await actions.invoke(goalsActions.planningApply, {
+          method_id: methodId,
           user_confirmed: body.user_confirmed === true,
         }));
       } catch (error) {
-        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
+        sendJson(response, error && typeof error === "object" && "code" in error && error.code === "planning_method.not_found" ? 404 : 400,
+          { error: error instanceof Error ? error.message : String(error) });
       }
       return true;
     }
@@ -163,18 +141,13 @@ export function createLocalPlanningHttp(ports: {
       }
       try {
         if (scope === "project") {
-          const saved = planning.saveProjectMethod({
-            board_id: boardId,
+          const saved = await actions.invoke(goalsActions.planningSave, {
             method,
-            actor_id: "web-user",
             user_confirmed: true,
           });
           sendJson(response, 200, saved);
         } else {
-          await withMolisWorkProjectCatalog({ homeDirectory: homeDirectory }, (catalog) => {
-            const saved = catalog.personalPlanningMethods.save(method, new Date().toISOString());
-            sendJson(response, 200, { method: saved });
-          });
+          sendJson(response, 200, await homeActions.invoke(personalPlanningActions.save, { method: personalMethodInput(method) }));
         }
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });

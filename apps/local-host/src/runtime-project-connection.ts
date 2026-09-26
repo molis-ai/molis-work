@@ -8,7 +8,17 @@ function contextKey(context: RuntimeWorkContext): string {
 
 /** Preserve the existing cache invalidation protocol without changing canonical bindings. */
 export class RuntimeProjectConnection implements RuntimeProjectConnectionState {
-  connection: MolisWorkRuntimeConnection | null;
+  private currentConnection: MolisWorkRuntimeConnection | null = null;
+  private lifetime = new AbortController();
+  get signal(): AbortSignal { return this.lifetime.signal; }
+  get connection(): MolisWorkRuntimeConnection | null { return this.currentConnection; }
+  set connection(value: MolisWorkRuntimeConnection | null) {
+    if (value !== this.currentConnection) {
+      this.lifetime.abort(new Error("MCP 项目连接已变化"));
+      this.lifetime = new AbortController();
+      this.currentConnection = value;
+    }
+  }
   private key: string | null;
   private refreshKey: string | null = null;
 

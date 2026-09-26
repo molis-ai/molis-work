@@ -39,10 +39,10 @@ export const codingAgentManifest: AgentManifest = {
   // A child's Character tools must fit inside the tool list its parent passes at dispatch, so they are kept to what the
   // child cannot work without: a parent that leaves out an optional tool must not make the whole dispatch fail.
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [
-    { role_id: "coding-reader", version: 3, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "list", "search"] },
+    { role_id: "coding-reader", version: 2, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search"] },
     // The independent reviewer may run checks such as tests in the main workspace; each command is a Host review and it has no file-writing tool.
     { role_id: "coding-reviewer", version: 3, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command"] },
-    { role_id: "coding-builder", version: 5, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "write", "edit-file", "run-command"] },
+    { role_id: "coding-builder", version: 4, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
@@ -116,7 +116,7 @@ export const codingAgentManifest: AgentManifest = {
     { prompt_id: "coding-compaction", version: 2 },
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
-    { prompt_id: "coding-base", version: 8, layer: "base" },
+    { prompt_id: "coding-base", version: 9, layer: "base" },
     { prompt_id: "coding-reader", version: 2 },
     { prompt_id: "coding-writer", version: 3 },
     { prompt_id: "coding-reviewer", version: 3 },

@@ -23,6 +23,7 @@ import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
 import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
+import { EXTERNAL_MCP_PERMISSION } from "./external-mcp-actions.js";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
@@ -399,7 +400,7 @@ export async function handleMolisWorkWebRequest(
         })) return;
         if (serverOptions.homeDirectory && await handleWorkflowsNativePluginHttp(request, response, url, {
           actions: bindActionClient(localHost.actionClient(hostReference), () => ({
-            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, "functions:invoke"],
+            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, "functions:invoke", EXTERNAL_MCP_PERMISSION],
           })),
           invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;

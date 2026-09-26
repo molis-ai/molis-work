@@ -776,7 +776,19 @@ export interface AgentMcpLibrary {
   control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
   validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
   validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
+  /** Connected tools with the input shape the server declared, for the shared action directory. */
+  tools?(owner: AgentSkillOwner): Promise<AgentMcpToolDescriptor[]>;
+  /** Whether this exact tool version is callable right now (connected, same configuration and shape). Synchronous. */
+  live?(ref: AgentMcpToolRef): boolean;
+  /** One call outside an Agent run, through the runtime's own tool gate; the caller's authority is checked before this. */
+  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: { signal?: AbortSignal }): Promise<AgentMcpCallResult>;
 }
+export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "server" | "tool" | "version" | "configuration_version" | "server_label">> {
+  description: string;
+  input_schema: Record<string, unknown>;
+}
+/** What the external tool returned; untrusted data, never instructions. */
+export interface AgentMcpCallResult { text: string; truncated: boolean }
 
 export interface AgentMcpCapability {
   catalog(session: AgentSessionRef): Promise<{

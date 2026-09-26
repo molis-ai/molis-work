@@ -1,5 +1,6 @@
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 import {
   AgentHost,
@@ -106,11 +107,22 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     }).then((adapter) => { prologue = adapter; agentHost.register(adapter); }))
       .catch(error => { ready = undefined; throw error; });
   };
+  // Connected external MCP tools join the project directory; they follow every list, save and connection change.
+  const externalMcp = createExternalMcpDirectory({ localHost: options.localHost, homeDirectory: options.homeDirectory });
+  const mcpChanges = new Set<unknown>([agentHostCapabilities.listMcp, agentHostCapabilities.saveMcp, agentHostCapabilities.controlMcp]);
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
       register: (definition, handler) => options.localHost.registerCapability(definition, async (project, input, invocation) => {
         await initialize();
-        return handler(project, input, invocation);
+        const result = await handler(project, input, invocation);
+        if (mcpChanges.has(definition) && Array.isArray(input) && typeof input[0] === "string" && typeof input[1] === "string") {
+          const [runtimeId, pluginId] = input as [string, string];
+          try {
+            const { library, owner } = agentHost.mcpLibrary(runtimeId, await startAuthority(project, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, invocation.plugin));
+            await externalMcp.sync(project, pluginId, library, owner);
+          } catch { /* The configuration change itself succeeded; the directory catches up on the next list. */ }
+        }
+        return result;
       }),
     },
     {
@@ -319,6 +331,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     unregisterPrepareWriter();
     unregisterReadIntegration();
     unregisterPrepareIntegration();
+    externalMcp.close();
     return disposal = (async () => {
       await ready?.catch(() => undefined);
       await prologue?.close();

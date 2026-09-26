@@ -21,7 +21,8 @@ function define<I, O>(name: string, title: string, description: string, operatio
 export const lingguangActions = {
   list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),
   get: define<{ id: string }, { spark: LingguangSpark }>("get", "读取灵光", "读取当前项目的一条灵光，包括已丢弃记录", "query", object({ id }), object({ spark }), read),
-  create: define<{ title?: string; body?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光", "command", object(fields, []), object({ spark }), write),
+  create: define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试时返回第一次保存的那条", "command",
+    object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write),
   update: define<{ id: string; title?: string; body?: string; expected_updated_at?: string }, { spark: LingguangSpark }>("update", "修改灵光", "修改当前项目灵光；提供读取时的 updated_at 可防止覆盖其他编辑", "command",
     object({ id, ...fields, expected_updated_at: text }, ["id"]), object({ spark }), write),
   discard: define<{ ids: string[] }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据", "command", object({ ids }), object({ ok: { const: true } }), write),

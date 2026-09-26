@@ -361,6 +361,14 @@ export function bindOwnerPluginAction<Input, Output>(
   } };
 }
 
+/** A Manifest declares every permission its actions use; these stay optional because the Host grants them per call. */
+export function actionPermissionDeclarations(definitions: readonly ActionDefinition[], reason: string,
+  declared: readonly { readonly permission: string }[] = []): { permission: string; required: boolean; reason: string }[] {
+  const known = new Set(declared.map(item => item.permission));
+  return [...new Set(definitions.flatMap(definition => definition.action.permissions))].filter(permission => !known.has(permission))
+    .map(permission => ({ permission, required: false, reason }));
+}
+
 export class ActionError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);

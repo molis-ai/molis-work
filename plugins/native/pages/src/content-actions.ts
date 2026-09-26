@@ -1,4 +1,5 @@
-import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createHash } from "node:crypto";
+import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesActions } from "./actions.js";
 import { nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
@@ -18,13 +19,17 @@ export function createPagesContentHandlers(actions: ActionClient) {
       return { title: page.title, body: nodesToMarkdown(nodes).trim(), source: "Pages", feed_item_id: null };
     },
     create: async ({ title }, caller) => ref((await bindActionClient(actions, () => caller).invoke(pagesActions.create, { title })).document),
-    receive: async ({ payload }, caller) => {
+    receive: async ({ payload, context }, caller) => {
       const source = payload.url && !payload.body.includes(payload.url) ? `\n来源：${payload.source ?? ""} ${payload.url}`.replace("： ", "：") : "";
       const markdown = [payload.body, source].filter(Boolean).join("\n");
       const blocks = blocksFromMarkdown(markdown);
       const body = { type: "doc", content: blocks ? blocks.map(block => block.toJSON())
         : markdown.split(/\n\n+/).map(text => ({ type: "paragraph", content: [{ type: "text", text }] })) };
-      return ref((await bindActionClient(actions, () => caller).invoke(pagesActions.create, { title: payload.title, body: body as never })).document);
+      // One delivery is one document: a retried handoff returns the original page and keeps later edits.
+      const documents = [{ title: payload.title, body: body as never }];
+      const request_hash = createHash("sha256").update(JSON.stringify(documents)).digest("hex");
+      const imported = await bindActionClient(actions, () => caller).invoke(pagesActions.importDocuments, { request_id: workflowDeliveryKey(context), request_hash, documents });
+      return ref(imported.documents[0]!);
     },
   });
 }

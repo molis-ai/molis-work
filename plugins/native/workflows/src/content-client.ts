@@ -1,14 +1,13 @@
 import { ActionError, type ActionDefinition, type ActionView, type BoundActionClient, type WorkflowContentBinding,
   type WorkflowContentRole, type WorkflowItemRef, type WorkflowPayload, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { WorkflowsRoutePorts, WorkflowStationInfo } from "./route-handlers.js";
+import type { WorkflowContentPorts, WorkflowStationInfo } from "./actions.js";
 
 const required: readonly WorkflowContentRole[] = ["list", "read", "receive"];
 const key = (view: ActionView) => `${view.provider.provider_id}\0${view.action.workflow_content!.id}`;
 const definition = (view: ActionView): ActionDefinition => ({ ...view, provider_id: view.provider.provider_id });
 
 /** The consumer understands the content protocol, never a provider's plugin ID or implementation. */
-export function createWorkflowContentPorts(actions: BoundActionClient): Pick<WorkflowsRoutePorts,
-  "stations" | "resolveStation" | "listStartItems" | "createBlank" | "read" | "receive"> {
+export function createWorkflowContentPorts(actions: BoundActionClient): WorkflowContentPorts {
   const directory = async () => (await actions.discover()).filter(view => view.action.workflow_content?.protocol === 1);
   const group = (views: readonly ActionView[]) => {
     const groups = new Map<string, ActionView[]>();

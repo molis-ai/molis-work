@@ -9,12 +9,13 @@ import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, workflowsHostPorts } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { EN } from "../apps/workbench/src/i18n/en.js";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
 import {
+  WORKFLOWS_ACTION_PERMISSIONS,
   WORKFLOWS_CLIENT_FACTORY_SCRIPT,
   WORKFLOWS_EN,
   WORKFLOWS_PROJECT_PLUGIN_ID,
@@ -132,24 +133,20 @@ async function withProject(run: (ctx: {
     feed.ingestItem({ source, externalId: id, title, summary: `${title}的摘要`, body: `${title}的正文。`, url: `https://example.com/${id}`, occurredAt: new Date().toISOString(), attention: false });
   }
   const prompts: string[] = [];
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home,
+    completeText: async (prompt) => { prompts.push(prompt); return "给 Pages 的一页\n\n结论：可以推进。\n\n- 背景\n- 要点"; } });
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: PROJECT });
-  const ports = workflowsHostPorts({
-    projectId: PROJECT, homeDirectory: home,
-    actions: bindActionClient(host.actionClient(reference), () => ({ actor_id: "test-user", project_id: PROJECT, audience: "workflow", permissions: NATIVE_CONTENT_PERMISSIONS })),
-    completeText: async (prompt) => { prompts.push(prompt); return "给 Pages 的一页\n\n结论：可以推进。\n\n- 背景\n- 要点"; },
-  });
+  // Every route is a registered Workflows action; each station is reached through the project's content actions.
+  const actions = bindActionClient(host.actionClient(reference), () => ({ actor_id: "test-user", project_id: PROJECT, audience: "user",
+    permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] }));
   const call = async (method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}) => {
-    const store = openWorkflowsStore(home);
     try {
-      const table = new WorkflowsPluginRouteTable(createWorkflowsRouteHandlers(store, ports));
+      const table = new WorkflowsPluginRouteTable(createWorkflowsRouteHandlers(actions));
       const response = await table.handle({ method, pathname, query: new URLSearchParams(), body });
       assert.ok(response, `no route for ${method} ${pathname}`);
       return response as { status: number; body: Record<string, unknown> };
     } catch (error) {
       return workflowsRouteErrorResponse(error) as { status: number; body: Record<string, unknown> };
-    } finally {
-      store.close();
     }
   };
   try {

@@ -42,6 +42,8 @@ export interface Workflow extends WorkflowChain {
 export type WorkflowHandoffActor = "function" | "ai" | "person";
 
 export interface WorkflowHandoff {
+  /** Fixed delivery identity `instance_id:from`; receivers return the same item for it, so a retry never delivers twice. */
+  readonly key?: string;
   readonly kind: WorkflowLinkKind;
   readonly actor: WorkflowHandoffActor;
   readonly at: string;
@@ -63,6 +65,12 @@ export interface WorkflowStep {
   readonly arrived_at: string | null;
   /** Filled once this step has been handed to the next one. */
   readonly handoff: WorkflowHandoff | null;
+  /** Saved before delivery: a retry after a crash or a lost race re-sends exactly this, instead of asking the model again. */
+  readonly pending?: WorkflowHandoff & { readonly key: string };
+}
+
+export function handoffKey(instance: Pick<WorkflowInstance, "instance_id">, from: number): string {
+  return `${instance.instance_id}:${from}`;
 }
 
 export type WorkflowInstanceStatus = "active" | "done" | "stopped";
@@ -292,7 +300,7 @@ export function advanceInstance(
   if (from >= instance.steps.length - 1) throw new WorkflowError("workflows.invalid", "已经是最后一站");
   const next = from + 1;
   const steps = instance.steps.map((step, index): WorkflowStep => {
-    if (index === from) return { ...step, status: "done", handoff };
+    if (index === from) { const { pending: _pending, ...rest } = step; return { ...rest, status: "done", handoff }; }
     if (index === next) return { ...step, status: next === instance.steps.length - 1 ? "done" : "current", item: arrived, arrived_at: at };
     return step;
   });

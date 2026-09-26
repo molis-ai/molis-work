@@ -57,6 +57,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
+import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
 import { handleInformationAssistantHttp } from "./assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
@@ -396,10 +397,8 @@ export async function handleMolisWorkWebRequest(
         })) return;
         if (serverOptions.homeDirectory && await handleWorkflowsNativePluginHttp(request, response, url, {
           actions: bindActionClient(localHost.actionClient(hostReference), () => ({
-            actor_id: "web-user", project_id: hostReference.project_id, audience: "workflow", permissions: NATIVE_CONTENT_PERMISSIONS,
+            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS],
           })),
-          projectId: options.project?.project_id ?? options.boardId,
-          homeDirectory: serverOptions.homeDirectory,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleInboxNativePluginHttp(request, response, url, {

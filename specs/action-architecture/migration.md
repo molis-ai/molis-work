@@ -75,7 +75,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | plugins/native/shelf | 原 18 项置物架 HTTP（面板、放入、文件夹、处理任务、剪贴板、设置、项目材料）与 5 项 Runtime 路由（接收 Coding 成果、材料输出） | [src/actions.ts](../../plugins/native/shelf/src/actions.ts) 18 项 Home 动作 + 2 项项目材料动作由 Host 注册；[src/runtime-actions.ts](../../plugins/native/shelf/src/runtime-actions.ts) 5 项由项目 Runtime 实例兑现（1.5.0，兼容 1.4.0） | 面板 HTTP 与 Runtime 路由薄转发；Agent/工作流/MCP 只见材料列表、正文与放入/处理/编辑类动作 | 已迁移并验证（`tests/shelf-actions.test.ts`、shelf 系列回归与基线一致）。剪贴板、设备设置、整面板快照、原件路径与示例仅限本机界面；Runtime 动作与个人 Shelf 绑定同一用户 |
 | plugins/native/text-stats | [src/actions.ts](../../plugins/native/text-stats/src/actions.ts) | 固定快照统计、纯文本统计 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；真实 Files 快照接线 | 业务查询已迁移并验证；通用配置消费待系统收尾 |
 | plugins/native/work | [src/actions.ts](../../plugins/native/work/src/actions.ts)、原 Session owner | 目录、列表、内容、恢复及普通消息共用动作；Host 统一持有 Registry/Runtime | 网页目录、工作区会话摘要、原内容/恢复 HTTP、正式 MCP | 7 项接通；普通消息后端与 MCP/HTTP 已验证，首页消费及创建/关联/交接/终端待迁移 |
-| plugins/native/workflows | [src/manifest.ts](../../plugins/native/workflows/src/manifest.ts), [src/routes.ts](../../plugins/native/workflows/src/routes.ts) | 内容消费者已使用共同目录和动作客户端 | 内容站接线完成；通用字段映射及自身管理 API 待迁移 | 部分完成 |
+| plugins/native/workflows | 原 11 项流程/运行 HTTP | [src/actions.ts](../../plugins/native/workflows/src/actions.ts) `workflows.*` → 项目注册；站点经调用者自身授权的内容动作读写 | 工作台 HTTP 薄转发；Agent/MCP 按精确授权使用 | 管理与运行动作已迁移；F4 交接固定身份并先落盘再交付，同步竞争只交付一次、中断重试复用原结果且不重复调模型，Pages/灵光接收按交付键幂等（`tests/workflows-handoff-idempotency.test.ts`）。通用字段映射步骤仍待完成 |
 | 原 plugins/native/workspace（已移除） | 退役的浏览目录选择（state/select 两条 Runtime 路由），生产已不安装 | 由 Host 项目设置 `projects.settings.browsing-workspace.read.v1` 等工作区动作取代 | 无生产消费方；旧选择由 `ProjectBrowsingSettings` 一次性从原私有存储迁入 | 包、依赖声明、锁文件条目、Files/Git 废弃的来源常量与专属测试已删除；旧选择迁移路径保留 |
 | plugins/official-integrations/catalog | [src/index.ts](../../plugins/official-integrations/catalog/src/index.ts), [src/provider.ts](../../plugins/official-integrations/catalog/src/provider.ts), [src/catalog.ts](../../plugins/official-integrations/catalog/src/catalog.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
 | plugins/official-integrations/github | [src/index.ts](../../plugins/official-integrations/github/src/index.ts), [src/provider.ts](../../plugins/official-integrations/github/src/provider.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
@@ -95,7 +95,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts | 连接与能力接入共用 | 未迁移 |
 | 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景、使用关系待迁移 |
 | 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 部分完成：系统判断场景、真实事件、初始页/刷新建议及 MCP 已接通；动态动作执行和“说一句”待迁移 |
-| 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；通用步骤映射、恢复待完成 |
+| 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身 11 项动作与 F4 幂等交接/中断恢复已完成；通用字段映射步骤待完成 |
 | Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 未迁移 |
 | 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；编辑器、全量授权/历史待完成 |
 | 生成与开发 | plugins/native/plugin-builder, packages/plugin-sdk, tooling/plugin-cli, skills/molis-plugin-dev | 默认注册能力和消费场景 | 未迁移 |

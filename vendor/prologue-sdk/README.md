@@ -1,6 +1,28 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-coding-inference.tgz`（2026-09-26，main 与 Coding 分支 `codex/molis-work-goal-continue` 合并时合成）。它同时包含两条累计补丁线：Coding 线的 [parent-reads.patch](parent-reads.patch)（子任务、角色工具、父任务只读子目录、大文件读、同状态回报等，见下「Coding 线」）与共享推理线的 [bounded-inference.patch](bounded-inference.patch)（有界文字、OpenAI/Gemini 图片、原生 TypeSafe、每次网络 dispatch 前的 Host 权限复核，见下「共享推理线」）。两条线都相对同一基线，回环修复两边都带着。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-claims.tgz`（2026-09-26，协同第一期"认领与任务图摘要"）。在 coding-inference 合成包之上：
+
+- 任务图负责人可以是角色、会话（包括子任务的会话）或人；只有负责人能报告，报告记下是哪个会话、哪个人。
+- 新增 `handOver`：把没结束的一步从一个负责人交给另一个，状态与进展不动，留下交接记录。
+- 宿主替人记录决定时用 `override` 并写明人，模型的任务图工具不能这样做。
+- `dispatch-subagent` 新增 `claims`：派出前整体核对，子任务开跑前接过这几步，结束时没做完的交回父会话；子任务总能看到读图和回报两个工具（`grantedTools`，不超过父任务本身的工具）。
+- 读图时负责人写成 `you (this session)`、`subagent <引用>`、`the session that dispatched you`。
+- 任务图事件带上图的编号（`board`）。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
+- 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：见下方"核对"一行（每次重打包后更新）。
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过（仍有上一包就有的 `test/host-agnostic-adapters.test.ts` 类型错误）；安装后的 dist 与源码构建逐文件一致。SDK 全量结果见 Coding spec 第 0 节"协同第一期"。未发布 npm，未替换正式安装版。
+
+## 上一依赖：coding-inference 合成包
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-coding-inference.tgz`（2026-09-26，main 与 Coding 分支 `codex/molis-work-goal-continue` 合并时合成）。它同时包含两条累计补丁线：Coding 线的 [parent-reads.patch](parent-reads.patch)（子任务、角色工具、父任务只读子目录、大文件读、同状态回报等，见下「Coding 线」）与共享推理线的 [bounded-inference.patch](bounded-inference.patch)（有界文字、OpenAI/Gemini 图片、原生 TypeSafe、每次网络 dispatch 前的 Host 权限复核，见下「共享推理线」）。两条线都相对同一基线，回环修复两边都带着。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

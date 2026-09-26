@@ -45,7 +45,10 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
     const lines = [`步骤 ${index + 1}：${step.title}`, `完成条件：${step.acceptance}`,
       node ? states[node.state] : "步骤回报未知，不能推断已完成。"];
     if (node) {
-      lines.push(...node.reports.map(report => `模型回报：${report.note}`));
+      // A person's record and a handover are not the model's report; a subtask's report says which subtask.
+      const label = (by?: string) => by === "用户" ? "用户记录" : by === "改派" ? "改派" : by && by !== "本会话" ? `模型回报（${by}）` : "模型回报";
+      if (node.owner && node.owner.kind !== "session") lines.push(`负责：${node.owner.kind === "person" ? "用户" : node.owner.label}`);
+      lines.push(...node.reports.map(report => `${label(report.by)}：${report.note}`));
       if (!node.reports.length) lines.push("尚无模型步骤回报。");
     }
     if (verdict) {

@@ -131,9 +131,11 @@ function stepAmendment(value: unknown): AgentStepAmendment {
   const words = (key: string, label: string, max: number) => { const found = entry[key]; if (typeof found !== "string" || !found.trim() || found.length > max) throw new Error(`请填写${label}（不超过 ${max} 字）`); return found.trim(); };
   switch (entry.kind) {
     case "skip": return { kind: "skip", node: id("node"), reason: words("reason", "跳过原因", 300) };
-    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300) };
+    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300), ...(entry.mine === true ? { mine: true as const } : {}) };
     case "unblock": return { kind: "unblock", node: id("node"), note: words("note", "你的决定", 500) };
     case "move": if (entry.direction !== "up" && entry.direction !== "down") throw new Error("移动方向无效"); return { kind: "move", node: id("node"), direction: entry.direction };
+    case "assign": if (entry.to !== "me" && entry.to !== "session") throw new Error("改派对象无效"); return { kind: "assign", node: id("node"), to: entry.to };
+    case "resolve": if (entry.state !== "succeeded" && entry.state !== "failed") throw new Error("结果无效"); return { kind: "resolve", node: id("node"), state: entry.state, note: words("note", "结果说明", 500) };
     default: throw new Error("不支持的计划调整");
   }
 }
@@ -144,9 +146,15 @@ function amendmentNote(amendment: AgentStepAmendment, board: AgentStepBoard): st
   const tail = "请先用 board-read 读取最新版本，按新的顺序继续；不要重做已完成的步骤。";
   switch (amendment.kind) {
     case "skip": return `我调整了本轮计划：跳过${name(amendment.node)}，原因：${amendment.reason}。${tail}`;
-    case "insert": return `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}。新步骤在任务图里的编号以 board-read 为准（user- 开头），轮到它时照常报告 running 与结果。${tail}`;
+    case "insert": return amendment.mine
+      ? `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}，由我自己处理。你不要报告这一步；等它完成后再继续依赖它的步骤。${tail}`
+      : `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}。新步骤在任务图里的编号以 board-read 为准（user- 开头），轮到它时照常报告 running 与结果。${tail}`;
     case "unblock": return `关于受阻的${name(amendment.node)}，我的决定：${amendment.note}。请按这个决定继续。${tail}`;
     case "move": return `我调整了本轮计划顺序：把${name(amendment.node)}${amendment.direction === "up" ? "提前" : "推后"}一步。${tail}`;
+    case "assign": return amendment.to === "me"
+      ? `我把${name(amendment.node)}改派给我自己处理。你（以及原来负责它的子任务）不要再报告这一步；等它完成后再继续依赖它的步骤。${tail}`
+      : `我把${name(amendment.node)}交回本会话，由你负责报告和完成。${tail}`;
+    case "resolve": return `我处理的${name(amendment.node)}${amendment.state === "succeeded" ? "已经完成" : "失败了"}：${amendment.note}。${amendment.state === "succeeded" ? "依赖它的步骤现在可以继续。" : "请看依赖它的步骤怎么办，需要我决定就说明。"}${tail}`;
   }
 }
 

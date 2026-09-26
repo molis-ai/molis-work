@@ -157,7 +157,7 @@ export interface PrologueRuntimePort {
   /** The window the runtime packs against when a model states none; a configured window is capped by it. */
   defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
-  amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number): Promise<NonNullable<AgentRunView["step_board"]>>;
+  amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string): Promise<NonNullable<AgentRunView["step_board"]>>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
@@ -623,7 +623,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
    * the session's latest round: "继续计划" carries on from that same graph, so a blocked step is decided (or a step
    * skipped or added) before the plan continues. An earlier round's graph, or a finished one, stays the record it was.
    */
-  async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number) {
+  async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string) {
     const current = await this.read(run);
     if (isEnded(current.phase)) {
       const record = await this.#loadSession(run.session_id);
@@ -631,7 +631,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (!current.step_board || current.step_board.terminal) throw new PrologueAdapterError("agent.session_busy", "这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
     }
     if (!this.#runtime.amendStepBoard) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能调整计划图");
-    return this.#runtime.amendStepBoard(run, amendment, expectedVersion);
+    return this.#runtime.amendStepBoard(run, amendment, expectedVersion, actorId);
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {

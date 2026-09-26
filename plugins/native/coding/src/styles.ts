@@ -102,6 +102,11 @@ export const CODING_STYLES = `
 .coding-board-agent { max-width:6.5rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--muted); }
 .coding-board-avatar { flex:none; display:grid; place-items:center; width:18px; height:18px; border-radius:50%; font-size:9px; line-height:1; color:var(--ink); background:color-mix(in srgb, hsl(var(--board-avatar-hue, 210) 42% 48%) 26%, var(--paper)); }
 .coding-board-avatar.is-unknown { background:color-mix(in srgb, var(--muted) 14%, var(--paper)); box-shadow:inset 0 0 0 1px var(--line); }
+.coding-board-avatar svg { width:10px; height:10px; color:var(--muted); }
+.coding-board-avatar.is-person { box-shadow:inset 0 0 0 1px var(--ink); }
+.coding-board-meta[data-owner=none] .coding-board-agent { color:var(--amber); }
+.coding-board-meta[data-owner=person] .coding-board-agent { color:var(--ink); }
+.coding-board-check { display:inline-flex; align-items:center; gap:4px; flex:none; font-size:12px; color:var(--muted); white-space:nowrap; }
 .coding-board-tools { position:absolute; right:8px; top:2px; display:none; gap:2px; padding:0 2px; border-radius:6px; background:var(--paper); box-shadow:0 1px 3px color-mix(in srgb, var(--shadow-color, #000) 16%, transparent); }
 .coding-board-tools .mw-btn { width:24px; height:24px; min-height:24px; padding:0; }
 .coding-board-tools svg { width:12px; height:12px; }

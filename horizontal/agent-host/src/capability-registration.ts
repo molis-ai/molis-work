@@ -103,6 +103,7 @@ export function registerAgentHostCapabilities<Context>(
     if (run.session_id !== session.session_id || !view.runs.some(entry => entry.run_id === run.run_id && entry.session_id === session.session_id)) {
       throw new AgentHostError("agent.run_unknown", "当前会话找不到这一轮执行");
     }
+    return view;
   };
   const disposers = [
     register(agentHostCapabilities.listActions, async (context, [runtimeId, pluginId]) => {
@@ -240,11 +241,13 @@ export function registerAgentHostCapabilities<Context>(
       await port.cancel(run, childId, caller?.actor_id ?? actorId);
     }),
     register(agentHostCapabilities.amendStepBoard, async (context, [session, run, amendment, expectedVersion]) => {
-      await requireRun(context, session, run);
+      const view = await requireRun(context, session, run);
       const adapter = ports.agentHost(context).adapter(session.runtime_id);
       if (!adapter.amendStepBoard) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能调整计划图");
       await context.invocation.beforeEffect();
-      return adapter.amendStepBoard(run, amendment, expectedVersion);
+      // The person deciding: the calling plugin's actor, else the session's owner.
+      const actor = pluginFor(context)?.actor_id ?? view.owner.actor_id ?? owners.legacyActorId?.(context.source) ?? "user";
+      return adapter.amendStepBoard(run, amendment, expectedVersion, actor);
     }),
     register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);

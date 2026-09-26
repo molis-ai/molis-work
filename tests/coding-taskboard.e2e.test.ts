@@ -61,3 +61,60 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
     assert.match(result.meta, /计划修订 3 · 已确认 · 1\/3 步完成/);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+// Every step shows who holds it on the graph: this session, a subtask it was handed to, you, or no one; and a person
+// can take a step on, hand it back, record the result of their own step, or add a step for themselves.
+test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认领），可以认领、交回、标记自己那一步的结果", { timeout: 30000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-taskboard-owner-"));
+  const browser = await ChromeHarness.start(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  try {
+    const page = await browser.page();
+    const result = await page.evaluate<any>(`(async()=>{
+      document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
+      const board=document.querySelector('[data-coding-board]'),amended=[];
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'构建者':id,
+        navigate:async()=>{},amend:async(runId,version,amendment)=>{amended.push(amendment);}});
+      const t0=Date.parse('2026-09-26T07:00:00Z');
+      const plan={revision:1,content:{title:'四步',steps:[{title:'改 a',acceptance:'a'},{title:'改 b',acceptance:'b'},{title:'看页面',acceptance:'c'},{title:'写说明',acceptance:'d'}],blockers:'',change_reason:''}};
+      const nodes=[
+        {id:'step-1',state:'succeeded',owner:{kind:'session',label:'本会话'},reports:[{note:'a 改好了',at_ms:t0+1000,by:'本会话'}]},
+        {id:'step-2',state:'running',depends_on:[],owner:{kind:'subtask',label:'子任务「two」',subagent_id:'c1'},reports:[{note:'本会话 → 子任务「two」（派出子任务时交给它）',at_ms:t0+2000,by:'改派',handover:true},{note:'开始改 b',at_ms:t0+3000,by:'子任务「two」'}]},
+        {id:'step-3',state:'ready',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'本会话 → 用户（用户改派给自己处理）',at_ms:t0+4000,by:'改派',handover:true}]},
+        {id:'step-4',state:'ready',depends_on:[],owner:{kind:'none',label:'没人认领'},reports:[]},
+      ];
+      api.update('s',{session:{title:'会话'},plan:{...plan,confirmed:{artifact_id:'x',version:1}},
+        runs:[{ref:{run_id:'r1'},phase:'running',started_at:new Date(t0).toISOString(),frozen:{role_id:'writers',directory:{canonical_path:'/w'}},task:'按计划执行'}],
+        taskboard_plans:[{run_id:'r1',revision:1,plan,board:{board_id:'b1',version:7,terminal:false,nodes},verdicts:{}}],
+        // The subtask started before any report, so only its hold on step-2 places it there.
+        subagents:[{run_id:'r1',children:[{subagent_id:'c1',role_id:'coding-builder',role_name:'构建者',task:'改 b',state:'running',activity:[{at:new Date(t0).toISOString()}],workspace_path:'/w/writer-0'}]}]});
+      board.hidden=false;api.show();
+      const row=(key)=>board.querySelector('[data-board-key="'+key+'"] > .coding-board-entry');
+      const view=(key)=>{const entry=row(key);return {agent:entry.querySelector('.coding-board-agent').textContent,avatar:entry.querySelector('.coding-board-avatar').title,
+        owner:entry.querySelector('.coding-board-meta').dataset.owner||'',tools:[...entry.querySelectorAll('.coding-board-tools button')].map(button=>button.title)};};
+      const steps={one:view('step-r1-step-1'),two:view('step-r1-step-2'),three:view('step-r1-step-3'),four:view('step-r1-step-4')};
+      const under=[...board.querySelectorAll('[data-board-key="step-r1-step-2"] .coding-board-children [data-board-key]')].map(item=>item.dataset.boardKey);
+      const press=(key,title)=>[...row(key).querySelectorAll('.coding-board-tools button')].find(button=>button.title===title).click();
+      press('step-r1-step-4','由我处理');await new Promise(r=>setTimeout(r,20));
+      press('step-r1-step-3','标记完成');let form=board.querySelector('.coding-board-form');form.querySelector('input').value='页面正常，截图已看';form.requestSubmit();await new Promise(r=>setTimeout(r,20));
+      press('step-r1-step-1','在后面插入一步');form=board.querySelector('.coding-board-form');const [title,acceptance,mine]=form.querySelectorAll('input');
+      title.value='手工核对';acceptance.value='没有报错';mine.checked=true;form.requestSubmit();await new Promise(r=>setTimeout(r,20));
+      return {steps,under,amended,meta:board.querySelector('[data-coding-board-meta]').textContent};
+    })()`);
+    assert.equal(result.steps.one.agent, "writers"); assert.match(result.steps.one.avatar, /负责：本会话/);
+    assert.equal(result.steps.two.agent, "子任务「two」"); assert.match(result.steps.two.avatar, /子代理 构建者/);
+    assert.deepEqual(result.under, ["child-c1"], "the subtask sits under the step it holds");
+    assert.equal(result.steps.three.agent, "你"); assert.equal(result.steps.three.owner, "person");
+    assert.ok(result.steps.three.tools.includes("标记完成") && result.steps.three.tools.includes("标记失败") && result.steps.three.tools.includes("交回本会话"));
+    assert.ok(!result.steps.three.tools.includes("由我处理"));
+    assert.equal(result.steps.four.agent, "没人认领"); assert.equal(result.steps.four.owner, "none");
+    assert.ok(result.steps.four.tools.includes("由我处理") && result.steps.four.tools.includes("交给本会话"));
+    assert.ok(result.steps.two.tools.includes("由我处理") && result.steps.two.tools.includes("交回本会话") && !result.steps.two.tools.includes("标记完成"));
+    assert.deepEqual(result.amended, [
+      { kind: "assign", node: "step-4", to: "me" },
+      { kind: "resolve", node: "step-3", state: "succeeded", note: "页面正常，截图已看" },
+      { kind: "insert", after: "step-1", title: "手工核对", acceptance: "没有报错", mine: true },
+    ]);
+    assert.match(result.meta, /1 步在子任务手上 · 你负责 1 步 · 没人认领 1 步/);
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});

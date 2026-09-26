@@ -2,7 +2,9 @@
  * The TaskBoard: the session's plan and every round that ran one, as a list in the Goal list's grammar — one row per
  * task, indented under what it belongs to, with its state, progress, prerequisites, who is doing it and when it last
  * moved. Every state comes from the execution record (the step graph, subagent records and reviews), never from what
- * the model said. Clicking a row opens it; a live plan keeps its controls to reorder, skip, insert or unblock a step.
+ * the model said. A step's "who" is its holder on the graph: this session, the subtask it was handed to, you, or no one.
+ * Clicking a row opens it; a live plan keeps its controls to reorder, skip, insert or unblock a step, and to take a
+ * step on yourself, hand it back, or record your own result on it.
  */
 export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const {board,current,navigate,status,ownTask,amend,roleName}=ports;
@@ -35,7 +37,9 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     return character?{name:character,detail:'Character「'+character+'」· 角色 '+role}:{name:role,detail:'角色 '+role+(run.frozen?.model_id?' · 模型 '+run.frozen.model_id:'')};};
   // A subagent belongs to the step whose latest report came just before it started; otherwise to the round itself.
   const startedAt=(child)=>{const at=child.activity?.find(item=>item.at)?.at;return at?Date.parse(at):NaN;};
-  const stepFor=(nodes,child)=>{const at=startedAt(child);if(!Number.isFinite(at))return null;let best=null,bestAt=-Infinity;
+  // A subagent holding a step belongs under it; one holding none, under the step reported just before it started.
+  const stepFor=(nodes,child)=>{const held=nodes.find(node=>node.owner?.subagent_id===child.subagent_id);if(held)return held;
+    const at=startedAt(child);if(!Number.isFinite(at))return null;let best=null,bestAt=-Infinity;
     for(const node of nodes)for(const report of node.reports)if(report.at_ms<=at&&report.at_ms>bestAt){best=node;bestAt=report.at_ms;}return best;};
   const tree=()=>{
     const groups=[],runs=data.runs||[],plans=data.taskboard_plans||[],subagents=data.subagents||[];
@@ -81,10 +85,16 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         const state=decided==='accepted'?STATE.accepted:decided==='needs-work'?STATE['needs-work']:skipped(node)?STATE.skipped:STATE[node.state]||STATE.pending;
         const deps=(node.depends_on||[]).map(dep=>nodes.find(other=>other.id===dep)).filter(Boolean).map(dep=>({title:stepOf(entry.plan,dep).title,ready:settled(dep),blocked:['failed','blocked'].includes(dep.state)}));
         const mine=(placed.get(node.id)||[]).map(childRow),last=node.reports.at(-1);
+        const holder=node.owner,held=holder?.kind==='subtask'?children.find(item=>item.child.subagent_id===holder.subagent_id)?.child:null;
+        // Who does this step: its holder on the graph, not whoever runs the round.
+        const doer=!holder?executor:holder.kind==='session'?{name:executor.name,detail:'负责：本会话 · '+executor.detail}
+          :holder.kind==='subtask'?{name:holder.label,detail:'负责：'+holder.label+(held?' · 子代理 '+(held.role_name||roleName(held.role_id)):'')}
+          :holder.kind==='person'?{name:'你',detail:'负责：你（这一步由你处理）',person:true}
+          :holder.kind==='none'?{name:'没人认领',detail:'这一步没有负责人',none:true}:{name:holder.label,detail:'负责：'+holder.label};
         const done=mine.length?mine.filter(row=>['done','accepted'].includes(row.state[2])).length:settled(node)||decided==='accepted'?1:0;
         return {key:'step-'+id+'-'+node.id,label:node.inserted?'插入':'S'+(Number(node.id.replace('step-',''))||position+1),title:step.title,
-          hint:(step.acceptance?'完成条件：'+step.acceptance:'')+(last?'\\n最近回报：'+last.note:''),
-          state,progress:{done,total:mine.length||1},deps,executor,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
+          hint:(step.acceptance?'完成条件：'+step.acceptance:'')+(holder?'\\n负责：'+(holder.kind==='person'?'你':holder.label):'')+(last?'\\n最近回报：'+(last.by?last.by+'：':'')+last.note:''),
+          state,progress:{done,total:mine.length||1},deps,executor:doer,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
           node,live,editable,board:entry.board,runId:id,position};
       });
       // A skipped step leaves the count altogether: it is neither done nor still to do.
@@ -116,8 +126,9 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   };
   const renderMeta=(row)=>{
     const node=el('span','coding-board-meta'),time=el('time','coding-board-time'+(row.time?'':' is-empty'),row.time?.text||'');if(row.time)time.title=row.time.title;
-    const avatar=el('span','coding-board-avatar'+(row.executor?'':' is-unknown'));
-    if(row.executor){avatar.textContent=Array.from(row.executor.name)[0]||'?';avatar.style.setProperty('--board-avatar-hue',String(hue(row.executor.name)));avatar.title='执行：'+row.executor.detail;avatar.setAttribute('aria-label','执行者 '+row.executor.name);}
+    const avatar=el('span','coding-board-avatar'+(row.executor&&!row.executor.none?'':' is-unknown')+(row.executor?.person?' is-person':''));
+    if(row.executor?.none){node.dataset.owner='none';avatar.innerHTML=svg('user');avatar.title=row.executor.detail;avatar.setAttribute('aria-label','没人认领');}
+    else if(row.executor){if(row.executor.person)node.dataset.owner='person';avatar.textContent=Array.from(row.executor.name)[0]||'?';avatar.style.setProperty('--board-avatar-hue',String(hue(row.executor.name)));avatar.title='执行：'+row.executor.detail;avatar.setAttribute('aria-label','执行者 '+row.executor.name);}
     const name=el('span','coding-board-agent',row.executor?.name||'');if(row.executor)name.title='执行：'+row.executor.detail;
     node.append(time,name,avatar);return node;
   };
@@ -130,18 +141,29 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const change=async(amendment)=>{board.dataset.busy='true';try{await amend(row.runId,row.board.version,amendment,row.live);}finally{delete board.dataset.busy;key='';render();}};
     const ask=(fields,label,build)=>{
       list.querySelector('.coding-board-form')?.remove();const form=el('form','coding-board-form');
-      const inputs=fields.map(([name,placeholder,max])=>{const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;form.append(input);return input;});
+      // A field is a text input, or with a 'check' kind a labelled checkbox that is off by default.
+      const inputs=fields.map(([name,placeholder,max,kind])=>{if(kind==='check'){const label=el('label','coding-board-check'),box=el('input');box.type='checkbox';box.name=name;label.append(box,el('span','',placeholder));form.append(label);return box;}
+        const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;form.append(input);return input;});
       const cancel=el('button','mw-btn mw-btn--ghost','取消'),ok=el('button','mw-btn mw-btn--primary',label);cancel.type='button';ok.type='submit';form.append(cancel,ok);board.dataset.editing='true';
       const close=()=>{form.remove();delete board.dataset.editing;key='';render();};
       cancel.addEventListener('click',close);form.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close();}});
-      form.addEventListener('submit',async event=>{event.preventDefault();if(inputs.some(input=>!input.value.trim()))return;ok.disabled=true;delete board.dataset.editing;await change(build(inputs.map(input=>input.value.trim())));});
+      form.addEventListener('submit',async event=>{event.preventDefault();if(inputs.some(input=>input.type!=='checkbox'&&!input.value.trim()))return;ok.disabled=true;delete board.dataset.editing;
+        await change(build(inputs.map(input=>input.type==='checkbox'?input.checked:input.value.trim())));});
       entry.after(form);inputs[0].focus();
     };
     if(waiting&&index>0&&['not-started','ready'].includes(nodes[index-1].state))tool('提前一步','chevron-up',()=>void change({kind:'move',node:node.id,direction:'up'}));
     if(waiting&&['not-started','ready'].includes(nodes[index+1]?.state))tool('推后一步','chevron-down',()=>void change({kind:'move',node:node.id,direction:'down'}));
     if(node.state==='blocked')tool('给出决定','edit',()=>ask([['note','你的决定，例如：用方案 B',500]],'继续',([note])=>({kind:'unblock',node:node.id,note})));
     if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过','minus',()=>ask([['reason','跳过原因',300]],'跳过',([reason])=>({kind:'skip',node:node.id,reason})));
-    if(node.state!=='cancelled')tool('在后面插入一步','plus',()=>ask([['title','新步骤要做什么',120],['acceptance','完成条件',300]],'插入',([title,acceptance])=>({kind:'insert',after:node.id,title,acceptance})));
+    if(node.state!=='cancelled')tool('在后面插入一步','plus',()=>ask([['title','新步骤要做什么',120],['acceptance','完成条件',300],['mine','由我处理',0,'check']],'插入',([title,acceptance,mine])=>({kind:'insert',after:node.id,title,acceptance,...(mine?{mine:true}:{})})));
+    // Who holds it: take it on yourself, hand it back to the session, and on your own step record how it went.
+    const open=!['succeeded','failed','cancelled'].includes(node.state),holder=node.owner?.kind;
+    if(open&&holder!=='person')tool('由我处理','user',()=>void change({kind:'assign',node:node.id,to:'me'}));
+    if(open&&holder&&holder!=='session')tool(holder==='none'?'交给本会话':'交回本会话','undo',()=>void change({kind:'assign',node:node.id,to:'session'}));
+    if(open&&holder==='person'&&node.state!=='not-started'){
+      tool('标记完成','check',()=>ask([['note','做了什么、怎么核对的',500]],'完成',([note])=>({kind:'resolve',node:node.id,state:'succeeded',note})));
+      tool('标记失败','x',()=>ask([['note','失败原因',500]],'标记失败',([note])=>({kind:'resolve',node:node.id,state:'failed',note})));
+    }
     return group;
   };
   const renderRow=(row,depth)=>{
@@ -169,7 +191,10 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const scroll=board.scrollTop,groups=tree();
     title.textContent='TaskBoard';
     const latest=(data.taskboard_plans||[]).filter(entry=>entry.board).at(-1)?.board;
-    meta.textContent=[data.plan?'计划修订 '+data.plan.revision+(data.plan.confirmed?' · 已确认':' · 待确认'):'',latest?latest.nodes.filter(node=>settled(node)&&!skipped(node)).length+'/'+latest.nodes.filter(node=>!skipped(node)).length+' 步完成'+(latest.nodes.some(skipped)?' · 跳过 '+latest.nodes.filter(skipped).length+' 步':''):''].filter(Boolean).join(' · ');
+    const unfinished=latest?latest.nodes.filter(node=>!['succeeded','failed','cancelled'].includes(node.state)):[];
+    const count=(kind)=>unfinished.filter(node=>node.owner?.kind===kind).length;
+    meta.textContent=[data.plan?'计划修订 '+data.plan.revision+(data.plan.confirmed?' · 已确认':' · 待确认'):'',latest?latest.nodes.filter(node=>settled(node)&&!skipped(node)).length+'/'+latest.nodes.filter(node=>!skipped(node)).length+' 步完成'+(latest.nodes.some(skipped)?' · 跳过 '+latest.nodes.filter(skipped).length+' 步':''):'',
+      count('subtask')?count('subtask')+' 步在子任务手上':'',count('person')?'你负责 '+count('person')+' 步':'',count('none')?'没人认领 '+count('none')+' 步':''].filter(Boolean).join(' · ');
     notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
     list.replaceChildren();
     for(const group of groups){

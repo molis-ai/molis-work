@@ -193,6 +193,17 @@ export interface AgentExecutionPlan {
 }
 
 /** Original SDK facts. A reported success is never a user acceptance. */
+/** Who holds a step: only its holder reports on it. */
+export interface AgentStepOwner {
+  kind: "session" | "subtask" | "person" | "none" | "other";
+  /** How the holder reads: 本会话, 子任务「…」, 用户, 没人认领. */
+  label: string;
+  /** The subtask holding it, as listed in the round's subagents. */
+  subagent_id?: string;
+  /** The person holding it. */
+  actor_id?: string;
+}
+
 export interface AgentStepBoard {
   board_id: string;
   version: number;
@@ -201,7 +212,9 @@ export interface AgentStepBoard {
   nodes: Array<{
     id: string;
     state: "not-started" | "ready" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
-    reports: Array<{ note: string; at_ms: number }>;
+    /** Who reported (本会话, 子任务「…」, 用户); a handover says so. */
+    reports: Array<{ note: string; at_ms: number; by?: string; handover?: true }>;
+    owner?: AgentStepOwner;
     /** The SDK node title; a person's inserted step carries its own. */
     title?: string;
     depends_on?: string[];
@@ -216,9 +229,14 @@ export interface AgentStepBoard {
  */
 export type AgentStepAmendment =
   | { kind: "skip"; node: string; reason: string }
-  | { kind: "insert"; after: string; title: string; acceptance: string }
+  /** `mine`: the person takes the new step on themselves. */
+  | { kind: "insert"; after: string; title: string; acceptance: string; mine?: true }
   | { kind: "unblock"; node: string; note: string }
-  | { kind: "move"; node: string; direction: "up" | "down" };
+  | { kind: "move"; node: string; direction: "up" | "down" }
+  /** Hand an unfinished step to the person themselves, or back to the round's session. */
+  | { kind: "assign"; node: string; to: "me" | "session" }
+  /** The person's own result on a step they hold. */
+  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string };
 
 /**
  * Exactly what the Host froze for one Run. Later settings changes never alter a
@@ -867,7 +885,7 @@ export interface AgentRuntimeAdapter {
   readonly mcp?: AgentMcpCapability;
   readonly subagents?: AgentSubagentsCapability;
   /** Adjust a running plan's step graph on behalf of a person. Absent when the Runtime has no step graphs. */
-  amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number): Promise<AgentStepBoard>;
+  amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
 }
 
 /**

@@ -439,7 +439,16 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     try { await next; }
     finally { if (indexUpdates.get(id) === next) indexUpdates.delete(id); }
   };
-  const stepBoards = createPrologueTaskBoards(runtime, async run => (await readIndex(run.session_id))?.attempts.find(attempt => attempt.run_id === run.run_id));
+  const stepBoards = createPrologueTaskBoards(runtime, async run => {
+    const index = await readIndex(run.session_id), attempt = index?.attempts.find(attempt => attempt.run_id === run.run_id);
+    return attempt && { ...attempt, session: index!.ref };
+  }, async (run, text) => {
+    // Only a round still running hears about changes; a settled one reads the graph when it next starts.
+    const active = activeRuns.get(run.run_id);
+    if (!active?.live()) return false;
+    await active.steer(text);
+    return true;
+  });
   const rememberReview = async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
     const request = options.reviewQueue!.get(receipt.review_id);
     if (!request) throw new Error("原审查请求不可读取，不能保存决定");
@@ -552,7 +561,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const port: PrologueRuntimePort = {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
-    amendStepBoard: (run, amendment, expectedVersion) => stepBoards.amend(run, amendment, expectedVersion),
+    amendStepBoard: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor),
     recovery: {
       inspect: session => inspectRecovery(session.session_id),
       close: async (session, runId, expectedVersion) => {
@@ -736,9 +745,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const plan = input.provenance.frozen.execution_plan;
       const continued = input.provenance.frozen.continues_step_board_of;
       // A continued plan keeps its graph — with every step a person inserted, skipped or reordered — rather than starting over.
-      const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan) : undefined;
+      const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan, session.ref) : undefined;
+      // A round without a plan of its own still starts knowing where the session's unfinished graph stands.
+      const earlier = plan ? undefined : [...index.attempts].reverse().find(attempt => attempt.step_board && attempt.frozen.execution_plan);
+      const standing = earlier ? stepBoards.standing(earlier.step_board!, earlier.frozen.execution_plan!, session.ref.id) : "";
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
-        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard.ref.id, plan)] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
+        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), standing, (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
       if (!none) {
         await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
         await mcpLibrary.validateSources(index.owner,input.mcp_sources ?? []);
@@ -898,6 +910,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       let stopping: Promise<void> | undefined;
       activeRuns.set(started.run.ref.id, { live: () => started.run.state === "running" && stopping === undefined,
         steer: text => started.control.steer({ text }) });
+      if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);
       const control = started.control;
       return {
         run: {
@@ -906,6 +919,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
             started.run.subscribe((event) => {
               if (["completed", "failed", "cancelled"].includes(event.type)) {
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
+                if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);
               }
               if (event.type === "command-receipt") {
                 const events = commandEvents.get(started.run.ref.id) ?? [];

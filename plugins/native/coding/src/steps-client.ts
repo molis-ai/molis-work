@@ -22,7 +22,9 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(!node||!entry.plan)throw new Error('原步骤回报暂不可读；不能判断完成情况。');
       const step=node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||'见插入说明'}:entry.plan.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
       detail.append(el('p','原执行 '+runId+' · 固定计划修订 '+entry.revision),el('h3',step.title),el('p','完成条件：'+step.acceptance),el('p',states[node.state]||'状态暂不可读'));
-      const reports=el('ol','');for(const report of node.reports)reports.append(el('li',report.note));detail.append(reports);
+      // Who holds the step now, and who made each report (a handover says so).
+      if(node.owner)detail.append(el('p','负责：'+(node.owner.kind==='person'?'你':node.owner.label)));
+      const reports=el('ol','');for(const report of node.reports)reports.append(el('li',(report.by?report.by+'：':'')+report.note));detail.append(reports);
       if(!node.reports.length)detail.append(el('p','尚无模型步骤回报。'));
       if(verdict){detail.append(el('p',verdict.status==='accepted'?'用户已验收通过':'用户要求返工'),el('p',verdict.notes));if(verdict.board_id!==entry.board.board_id||verdict.board_version!==entry.board.version)detail.append(el('p','这条评价对应较早回报，请重新核对当前版本。'));}
       else detail.append(el('p','用户尚未评价。'));

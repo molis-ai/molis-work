@@ -200,3 +200,51 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       if (server.listening) await new Promise<void>(resolve => server.close(() => resolve()));
     }
   }, "exit 36"));
+
+// The Keychain item is shared by every Home on this machine, so a Home without Keychain ciphertext never deletes
+// or replaces it: another Home's secrets may depend on the key it holds.
+async function withFreshHomeKeychain(behavior: string, run: (fixture: { home: string; calls: () => string[] }) => void | Promise<void>) {
+  const root = mkdtempSync(join(tmpdir(), "molis-keychain-fresh-"));
+  const home = join(root, "home"), bin = join(root, "bin"), calls = join(root, "calls");
+  const old = { PATH: process.env.PATH, MOLIS_WORK_SECRET_BACKEND: process.env.MOLIS_WORK_SECRET_BACKEND,
+    MOLIS_WORK_ENCRYPTION_KEY: process.env.MOLIS_WORK_ENCRYPTION_KEY };
+  mkdirSync(bin);
+  writeFileSync(join(bin, "security"), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${calls}'\n${behavior}\n`, { mode: 0o700 });
+  try {
+    process.env.PATH = bin;
+    process.env.MOLIS_WORK_SECRET_BACKEND = "keychain";
+    process.env.MOLIS_WORK_ENCRYPTION_KEY = "";
+    resetSecretStoreCache();
+    await run({ home, calls: () => existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [] });
+  } finally {
+    resetSecretStoreCache();
+    for (const [key, value] of Object.entries(old)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test("a fresh Home never deletes or replaces an existing Keychain item it cannot read and uses its own key file",
+  { skip: process.platform !== "darwin" }, () => withFreshHomeKeychain(
+    `case "$*" in *" -w") exit 36;; find-generic-password*) exit 0;; *) exit 1;; esac`, ({ home, calls }) => {
+      const store = runWithMolisWorkHome(home, createFileSecretStore);
+      assert.equal(store.backend().kind, "aes-gcm-file");
+      store.put("fixture", "fresh credential");
+      assert.equal(store.get("fixture"), "fresh credential");
+      assert.equal(existsSync(join(home, "feed", "secrets.key")), true);
+      assert.deepEqual(calls().map(line => line.split(" ")[0]), ["find-generic-password", "find-generic-password"]);
+    }));
+
+test("a fresh Home creates the missing Keychain item add-only and trusted for the security CLI",
+  { skip: process.platform !== "darwin" }, () => withFreshHomeKeychain(
+    `case "$1" in add-generic-password) exit 0;; *) exit 44;; esac`, ({ home, calls }) => {
+      const store = runWithMolisWorkHome(home, createFileSecretStore);
+      assert.equal(store.backend().kind, "keychain+aes-gcm");
+      const added = calls().filter(line => line.startsWith("add-generic-password"));
+      assert.equal(added.length, 1);
+      assert.match(added[0]!, / -T \/usr\/bin\/security$/);
+      assert.doesNotMatch(added[0]!, / -U\b/, "an existing item is never overwritten");
+      assert.equal(calls().some(line => line.startsWith("delete-generic-password")), false);
+      assert.equal(existsSync(join(home, "feed", "secrets.key")), false);
+    }));

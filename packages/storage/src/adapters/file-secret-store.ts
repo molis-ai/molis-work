@@ -220,20 +220,6 @@ function keychainItemExists(): boolean {
   }
 }
 
-function deleteKeychainItem(): boolean {
-  if (process.platform !== "darwin") return false;
-  try {
-    execFileSync(
-      "security",
-      ["delete-generic-password", "-a", KEYCHAIN_ACCOUNT, "-s", KEYCHAIN_SERVICE],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 3000 },
-    );
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function writeKeychain(keyB64: string): boolean {
   if (process.platform !== "darwin") return false;
   try {
@@ -338,12 +324,10 @@ function resolveMasterKey(): ResolvedMaster {
         throw new KeychainUnavailableError();
       }
       const generated = randomBytes(32).toString("base64");
-      // 走到这里说明没有任何 keychain 后端密文存在。若条目已存在但读不出，
-      // 它只能是历史版本以 -T "" 创建的空信任列表条目：每次读取都会弹授权框，
-      // 且 3 秒超时让「始终允许」来不及生效。删除后按可信方式重建即可，
-      // 整个恢复路径不产生弹窗，已有密文不受影响（它们不在 keychain 里）。
-      const canWrite = !keychainItemExists() || deleteKeychainItem();
-      if (canWrite && writeKeychain(generated)) {
+      // 这个 Home 还没有 keychain 后端密文，但钥匙串条目是全机共用的：别的 Home
+      // 的密文可能正依赖它。条目存在却读不出（拒绝授权、弹窗超时、历史版本以
+      // -T "" 创建）时一律不删、不覆盖，这个 Home 改用自己的本地密钥文件。
+      if (!keychainItemExists() && writeKeychain(generated)) {
         b64 = generated;
       }
     }

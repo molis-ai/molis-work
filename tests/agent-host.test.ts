@@ -85,7 +85,7 @@ function adapterFor(input: {
           host_tools: [],
           text_materials: [],
           budget: null,
-          directory: request.directory,
+          ...(request.workspace === "none" ? { workspace: "none" as const } : { directory: request.directory }),
         },
       };
     },
@@ -112,9 +112,9 @@ function adapterFor(input: {
   };
 }
 
-function startRequest(roleId: string): AgentStartRequest {
+function startRequest(roleId: string, runtimeId = "prologue"): AgentStartRequest {
   return {
-    session: { session_id: "session-1", runtime_id: "prologue" },
+    session: { session_id: "session-1", runtime_id: runtimeId },
     board_id: BOARD,
     plugin_id: PLUGIN,
     install_id: "install-1",
@@ -227,12 +227,12 @@ test("a writing role is refused on a Runtime that cannot write", async () => {
   const host = new AgentHost();
   host.register(adapterFor({ runtimeId: "cli-readonly" }));
   await assert.rejects(
-    () => host.start("cli-readonly", startRequest("builder"), authority),
+    () => host.start("cli-readonly", startRequest("builder", "cli-readonly"), authority),
     (error: unknown) => error instanceof AgentHostError
       && error.code === "agent.capability_unavailable",
   );
   // The read-only role on the same Runtime still works.
-  const handle = await host.start("cli-readonly", startRequest("reader"), authority);
+  const handle = await host.start("cli-readonly", startRequest("reader", "cli-readonly"), authority);
   assert.equal(handle.frozen.execution, "read-only");
 });
 
@@ -721,13 +721,14 @@ test("Host resolves compaction separately from role prompts and rejects missing 
   host.register(adapter);
   const granted = { ...authority, manifest: { ...manifest, compaction: { prompt_id: "select", above_tokens: 12000 }, prompts: [...manifest.prompts!, { prompt_id: "select", version: 2 }] },
     prompts: [{ prompt_id: "reader", version: 1, body: "Read only" }, { prompt_id: "select", version: 2, body: "Select originals" }] };
-  const request = { ...startRequest("reader"), role: { role_id: "reader", version: 1, execution: "read-only" as const, prompts: [], host_tools: [], compaction: { prompt: { prompt_id: "fake", version: 9, body: "Override" }, above_tokens: 1 } } };
+  const request = { ...startRequest("reader", "compact"), role: { role_id: "reader", version: 1, execution: "read-only" as const, prompts: [], host_tools: [], compaction: { prompt: { prompt_id: "fake", version: 9, body: "Override" }, above_tokens: 1 } } };
   const run = await host.start("compact", request, granted);
   assert.deepEqual(run.frozen.compaction, { prompt_id: "select", version: 2, above_tokens: 12000 });
   assert.equal(observed?.role?.compaction?.prompt.body, "Select originals");
   assert.deepEqual(observed?.role?.prompts.map(p => p.body), ["Read only"]);
   await assert.rejects(host.start("compact", request, { ...granted, prompts: granted.prompts.map(p => ({ ...p, version: 1 })) }), /对应版本/);
   lie = true; await assert.rejects(host.start("compact", request, granted), /已取消/);
+});
 function scriptedCli(command = "claude") {
   const spawns: Array<{ command: string; args: string[]; emit: (event: CliProcessEvent) => void; killed: boolean }> = [];
   const port: CliProcessPort = {

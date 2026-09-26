@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -13,7 +14,7 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
   const home=mkdtempSync(join(tmpdir(),'coding-child-http-')),dbPath=join(home,'board.db');seedDemoBoard(dbPath);let store=new LocalProjectDatabase(dbPath);
   const sessions=new CodingSessionStore(store.db);sessions.create({board_id:DEMO_BOARD_ID,session_id:'app',title:'App',runtime_id:'prologue',at:new Date().toISOString()});sessions.setRuntimeSession(DEMO_BOARD_ID,'app','sdk',new Date().toISOString());
   let state='running',cancels=0;
-  const host=()=>({store,homeDirectory:home,boardId:DEMO_BOARD_ID,actorId:'web-user',goalTitle:()=>undefined,escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
+  const host=()=>({store,homeDirectory:home,boardId:DEMO_BOARD_ID,actions:pluginActions(store,DEMO_BOARD_ID),actorId:'web-user',goalTitle:()=>undefined,escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
     execution:{ready:async()=>{},models:async()=>[]},capabilities:{async invoke<I,O>(definition:{capability_id:string},args:I):Promise<O>{
       const input=args as any[];
       if(input[0]?.session_id!=='sdk'||input[1]?.run_id!=='parent')throw new Error('not original parent');

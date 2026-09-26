@@ -3,6 +3,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -41,6 +42,9 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
     assert.equal(connected.status, "bound");
     assert.ok(connected.connection.board_id);
     assert.ok(connected.connection.project_id);
+    const permissionsCatalog = await openMolisWorkProjectCatalog({ homeDirectory: host.homeDirectory });
+    try { await grantGoalsMcp(null, host.homeDirectory, permissionsCatalog.getProject(connected.connection.project_id)); }
+    finally { permissionsCatalog.close(); }
     const created = await call<{ goal: { goal_id: string }; replayed: boolean }>("goal_intent_create", {
       goal_id: "skill-goal", title: "交付一份可读取的结果说明", outcome: "用户可以读取完整说明",
       idempotency_key: "start",
@@ -81,7 +85,7 @@ test("Runtime public JSON-RPC binds, records current events, and replays the sam
           (item) => item.kind === "system" && item.payload.operation === "observation_note",
         );
         assert.equal(notes.length, 1);
-        assert.equal(notes[0]!.payload.body, "只交付这份说明，不加其他功能");
+        assert.equal((notes[0]!.payload as { body: string }).body, "只交付这份说明，不加其他功能");
       } finally { store.close(); }
     } finally { catalog.close(); }
   } finally { await server.close(); rmSync(directory, { recursive: true, force: true }); }

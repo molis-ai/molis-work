@@ -1,14 +1,13 @@
+import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import {
-  GoalProjectApplication,
+import { GoalProjectApplication,
   LocalProjectDatabase,
-  buildMolisWorkWebView,
-  createLocalFeedApplication,
-} from "@molis-ai/molis-work-app-local-host";
+  
+  createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { renderMolisWorkWeb } from "./workbench-renderer-fixture.js";
 

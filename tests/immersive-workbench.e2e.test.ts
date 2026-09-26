@@ -96,8 +96,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  assert.equal(await evaluate("document.querySelector('.plugin-rail-items [data-plugin-id=market]')"), null);
-  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-work-surface-open=market]')?.dataset.pluginId"), "market");
+  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-plugin-id=market]')"), null);
+  assert.equal(await evaluate("document.querySelector('.plugin-rail-items [data-work-surface-open=market]')?.dataset.pluginId"), "market");
   const railColors = await evaluate<{ current: string; idle: string; market: string; idleId: string }>(`(() => {
     const items = [...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].map((node) => ({
       id: node.dataset.pluginId,
@@ -106,7 +106,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
     }));
     const current = items.find((item) => item.current);
     const idle = items.find((item) => !item.current);
-    const marketNode = document.querySelector('.personal-sidebar-footer [data-plugin-id=market] svg');
+    const marketNode = document.querySelector('.plugin-rail-items [data-plugin-id=market] svg');
     return { current: current?.color || '', idle: idle?.color || '', idleId: idle?.id || '', market: marketNode ? getComputedStyle(marketNode).color : '' };
   })()`);
   assert.ok(railColors.idle && railColors.current && railColors.market, "rail has current, idle and market icons: " + JSON.stringify(railColors));
@@ -155,6 +155,7 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
@@ -176,9 +177,13 @@ test("Project entry lands at home, while refresh preserves work and Goal links r
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden");
   await reloadPage();
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
-  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
-  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
-  assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]')?.hidden !== false || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal !== " + JSON.stringify(goalId)), true);
+  const linkedGoal = goalId === "CORE" ? "WEB" : "CORE";
+  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(linkedGoal) }, sessionId));
+  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === " + JSON.stringify(linkedGoal) + " && document.querySelector('[data-goal-frame-surface]')?.hidden === false");
+  await click("[data-frame-goal-work]");
+  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(linkedGoal) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
+  assert.equal(await evaluate("document.querySelector('[data-goal-event-document]')?.dataset.goalView"), linkedGoal);
+  assert.equal(await evaluate("location.pathname"), "/goals/" + linkedGoal);
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });

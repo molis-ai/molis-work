@@ -1,3 +1,4 @@
+import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterState, CharactersCommand, CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseCharacterContent, parseCharacterTools, selectCharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharactersRepository } from "./repository.js";
@@ -57,8 +58,11 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
     let host_tools: string[] | null;
     try { host_tools = parseCharacterTools(patch.host_tools); }
     catch (error) { throw new CharacterError("character.invalid", (error as Error).message); }
+    let action_tools = current.action_tools;
+    try { if (patch.action_tools !== undefined) action_tools = patch.action_tools === null ? null : parseExactActionReferences(patch.action_tools); }
+    catch (error) { throw new CharacterError("character.invalid", (error as Error).message); }
     // Preserve instructions verbatim; editing an empty draft is valid, publishing it is not.
-    return this.replace(current, { ...current, title: patch.title.trim(), instructions: patch.instructions, host_tools });
+    return this.replace(current, { ...current, title: patch.title.trim(), instructions: patch.instructions, host_tools, ...(action_tools === undefined ? {} : { action_tools }) });
   }
 
   setState(id: string, expectedRevision: number, state: CharacterState): CharacterDraft {
@@ -87,6 +91,7 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
       let content: CharacterContent;
       try { content = parseCharacterContent({ character_id: current.character_id, title: current.title,
         instructions: current.instructions, host_tools: current.host_tools,
+        ...(current.action_tools === undefined ? {} : { action_tools: current.action_tools }),
         ...(current.import_snapshot ? { import_snapshot: current.import_snapshot } : {}),
         source: { owner_actor_id: current.owner_actor_id, draft_revision: current.revision } }); }
       catch (error) { throw new CharacterError("character.invalid", (error as Error).message); }

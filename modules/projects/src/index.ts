@@ -169,3 +169,4 @@ export type {
   StoredProjectDeletion,
 };
 export { inspectProjectCatalogForUninstall } from "./installation-inspection.js";
+export { listProjectDatabasePaths } from "./database-paths.js";

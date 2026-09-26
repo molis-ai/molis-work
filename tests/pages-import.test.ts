@@ -1,3 +1,4 @@
+import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -31,7 +32,7 @@ async function withHome(run: (home: string) => Promise<void>): Promise<void> {
 }
 
 function post(store: PagesStore, pathname: string, body: Record<string, unknown>, project = PROJECT) {
-  return new PagesPluginRouteTable(createPagesRouteHandlers(store)).handle({
+  return new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, project))).handle({
     method: "POST", pathname, query: new URLSearchParams({ project_id: project }), body: { project_id: project, ...body },
   });
 }
@@ -51,9 +52,13 @@ test("Pages 导入预览只转换，选择的文档才落库并可重开编辑",
     assert.equal(store.list(PROJECT).length, 0);
     const chosen = prepared.documents[1];
     const expectedBody = JSON.parse(JSON.stringify(chosen.body));
-    const result = await post(store, "/api/pages/import", {
+    await assert.rejects(post(store, "/api/pages/import", {
       files: FILES, selected_keys: [chosen.key], request_id: randomUUID(), folder_id: folder.id,
       body: bodyOf("客户端伪造正文不应落库"),
+    }), { code: "actions.input_invalid" });
+    assert.equal(store.list(PROJECT).length, 0);
+    const result = await post(store, "/api/pages/import", {
+      files: FILES, selected_keys: [chosen.key], request_id: randomUUID(), folder_id: folder.id,
     });
     assert.equal(result?.status, 200);
     const documents = (result.body as { documents: PagesRecord[] }).documents;
@@ -213,9 +218,11 @@ test("Pages 导入已删除文档的旧请求不会把文档重新创建", async
 
 test("Pages HTTP 仅两条导入路由接受大于原限额的请求，并执行预览到保存", async () => {
   await withHome(async (home) => {
+    const httpStore = openPagesStore(home);
+    const ports = pagesTestPorts(httpStore, PROJECT);
     const server = createServer((request, response) => {
       const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      void handlePagesNativePluginHttp(request, response, url, home).then((handled) => {
+      void handlePagesNativePluginHttp(request, response, url, ports).then((handled) => {
         if (!handled) { response.writeHead(404); response.end(); }
       }).catch((error: unknown) => {
         if (!response.headersSent) {
@@ -233,11 +240,12 @@ test("Pages HTTP 仅两条导入路由接受大于原限额的请求，并执行
     });
     try {
       const padding = " ".repeat(1_050_000);
-      const previewResponse = await request("/api/pages/import/preview", { files: FILES, padding });
+      const largeFiles = [{ name: "large.txt", data: Buffer.from("正文" + " ".repeat(790_000)).toString("base64") }];
+      const previewResponse = await request("/api/pages/import/preview", { files: largeFiles });
       assert.equal(previewResponse.status, 200);
       const prepared = await previewResponse.json() as PreparedPagesImport;
       const importResponse = await request("/api/pages/import", {
-        files: FILES, selected_keys: [prepared.documents[0].key], request_id: randomUUID(), padding,
+        files: largeFiles, selected_keys: [prepared.documents[0].key], request_id: randomUUID(),
       });
       assert.equal(importResponse.status, 200);
       const imported = await importResponse.json() as { documents: PagesRecord[] };
@@ -255,6 +263,7 @@ test("Pages HTTP 仅两条导入路由接受大于原限额的请求，并执行
       assert.equal(persisted.list(PROJECT)[0].title, prepared.documents[0].title);
       persisted.close();
     } finally {
+      httpStore.close();
       server.closeAllConnections();
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }

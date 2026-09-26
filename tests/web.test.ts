@@ -1,4 +1,5 @@
-import { buildMolisWorkWebView, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { buildMolisWorkWebView, cachedMolisWorkWebView } from "./fixtures/web-view.js";
+
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -581,13 +582,13 @@ test("Web health identifies the process serving the response", async () => {
   }
 });
 
-test("Web View cache follows canonical Board events instead of SQLite file lifecycle", () => {
+test("Web View cache follows canonical Board events instead of SQLite file lifecycle", async () => {
   const { databasePath } = webFixture();
   const cache = new Map() as Parameters<typeof cachedMolisWorkWebView>[0];
   const options = { databasePath, boardId: DEMO_BOARD_ID, demo: true };
 
   const firstStore = new LocalProjectDatabase(databasePath);
-  const first = cachedMolisWorkWebView(
+  const first = await cachedMolisWorkWebView(
     cache,
     firstStore,
     new GoalProjectApplication(firstStore),
@@ -598,7 +599,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
   const reopenedStore = new LocalProjectDatabase(databasePath);
   try {
     const coordinator = new GoalProjectApplication(reopenedStore);
-    const unchanged = cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
+    const unchanged = await cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
     assert.strictEqual(unchanged, first, "opening the SQLite WAL must not invalidate an unchanged Board");
 
     coordinator.goals.commands.createGoal(
@@ -615,7 +616,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
       },
       { actor_id: "test-user", idempotency_key: "web-cache-event" },
     );
-    const changed = cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
+    const changed = await cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
     assert.notStrictEqual(changed, first);
     assert.ok(changed.goals.some((item) => item.goal.goal_id === "CACHE-EVENT"));
 
@@ -884,22 +885,13 @@ test("Web first-run onboarding can be skipped without creating a project or Runt
 
     const onboarding = await (await webFetch(`${origin}/onboarding`)).text();
     assertInlineScriptsCompile(onboarding);
-    assert.match(onboarding, /你希望我们一起做什么/);
-    assert.doesNotMatch(onboarding, /onboarding-topology/);
-    assert.match(onboarding, /这次先跳过/);
-    assert.match(onboarding, /只把内容填进终端，等我自己发送/);
-    assert.match(onboarding, /class="onboarding-stage"/);
-    assert.match(onboarding, /class="onboarding-actions" aria-label="引导步骤导航"/);
-    assert.match(onboarding, /data-onboarding-next-label/);
-    assert.match(onboarding, /name="intent_frame"/);
-    assert.match(onboarding, /data-onboarding-intent-trigger/);
-    assert.match(onboarding, /role="listbox"/);
-    assert.match(onboarding, /我想想清楚/);
-    assert.match(onboarding, /onboarding-runtime/);
-    assert.match(onboarding, /data-onboarding-step="4"/);
-    assert.match(onboarding, /data-onboarding-runtime-frame/);
-    assert.match(onboarding, /我们先把项目安排清楚/);
-    assert.match(onboarding, /安排好了，进入 Molis Work/);
+    assert.match(onboarding, /从你正在做的事/);
+    assert.match(onboarding, /想带入哪些内容/);
+    assert.match(onboarding, /cx-all/);
+    assert.match(onboarding, /连接 Google/);
+    assert.match(onboarding, /空白开始/);
+    assert.match(onboarding, /api\/onboarding\/context/);
+    assert.doesNotMatch(onboarding, /data-onboarding-form|name="intent_frame"|data-onboarding-runtime-frame/);
 
     const dismissed = await webFetch(`${origin}/api/onboarding/dismiss`, {
       method: "POST",

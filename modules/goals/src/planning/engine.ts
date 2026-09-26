@@ -39,7 +39,7 @@ type GraphRelation = Pick<
 export class GoalsPlanningEngine implements GoalsPlanningApi {
   constructor(
     private readonly context: GoalsCommandContext,
-    private readonly personalMethods: readonly PlanningMethodPack[] = [],
+    private readonly personalMethods: readonly PlanningMethodPack[] | (() => readonly PlanningMethodPack[]) = [],
   ) {}
 
   validateRelationAddition(boardId: string, input: AddGoalRelationInput): Pick<PlanningGraphIssue, "code" | "message"> | null {
@@ -53,10 +53,14 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     return issue ? { code: issue.code, message: issue.message } : null;
   }
 
+  private readPersonalMethods(): readonly PlanningMethodPack[] {
+    return typeof this.personalMethods === "function" ? this.personalMethods() : this.personalMethods;
+  }
+
   effectiveMethods(boardId: string): PlanningMethodPack[] {
     this.context.requireBoard(boardId);
     return resolvePlanningMethodPacks(
-      this.personalMethods,
+      this.readPersonalMethods(),
       this.context.repository.listPlanningMethodPacks(boardId),
     );
   }
@@ -89,13 +93,11 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     requested: GoalEventAdoptedPlanningRequest[],
   ): ResolvedPlanningEventAdoption {
     this.context.requireBoard(boardId);
+    const personal = this.readPersonalMethods();
+    const project = this.context.repository.listPlanningMethodPacks(boardId);
     return resolvePlanningEventAdoption(
       requested,
-      {
-        effective: this.effectiveMethods(boardId),
-        personal: this.personalMethods,
-        project: this.context.repository.listPlanningMethodPacks(boardId),
-      },
+      { effective: resolvePlanningMethodPacks(personal, project), personal, project },
       (code, message, details) => this.context.error(code, message, details),
     );
   }

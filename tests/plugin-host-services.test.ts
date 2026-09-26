@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -147,7 +148,7 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
   });
 
   const invoked: string[] = [];
-  const executor = new PluginHostExecutor({
+  const executor = new PluginHostExecutor({ actions: pluginActions(store, DEMO_BOARD_ID),
     board_id: DEMO_BOARD_ID,
     actor_id: "tester",
     artifacts,

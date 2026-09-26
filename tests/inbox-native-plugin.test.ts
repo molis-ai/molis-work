@@ -1,3 +1,6 @@
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, createInboxActionHandlers } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -252,12 +255,13 @@ test("Inbox list does not paint a board-level judgment binder", () => {
 test("Inbox judgment routes bind and unbind through Host ports", async () => {
   let key: string | null = null;
   let changed = 0;
-  const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
+  const service = new ActionService();
+  service.registerProvider({ provider: { provider_id: "inbox-test", kind: "plugin", title: "Inbox", project_id: "project-one" },
+    definitions: INBOX_ACTIONS, handlers: createInboxActionHandlers({
     listEntries: () => [],
     setStatus: () => {
       throw new Error("unused");
     },
-    changed() { changed += 1; },
     readJudgment: () => ({
       function_key: key,
       functions: [{ function_key: "system_pick_inbox_next", name: "挑 Inbox 下一步" }],
@@ -266,6 +270,10 @@ test("Inbox judgment routes bind and unbind through Host ports", async () => {
       key = next;
       return { function_key: next };
     },
+  }) });
+  const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
+    actions: bindActionClient(service, () => ({ actor_id: "test", project_id: "project-one", audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] })),
+    changed() { changed += 1; },
   }));
   const listed = await routes.handle({
     method: "GET",

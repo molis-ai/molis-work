@@ -32,14 +32,24 @@ test("模型设置经正式 HTTP 保存、验证、重开与隔离，凭据不�
     });
     assert.equal((await mutate(record, "POST", false)).status, 403);
     assert.equal((await mutate({ ...record, base_url: "https://username:password@example.com" })).status, 400);
-    let response = await mutate({ ...record, api_key: secret });
+    assert.equal((await mutate({ ...record, api_key: secret })).status, 400);
+    const created = await fetch(origin + "/api/settings/connectors/connections", {
+      method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
+        "x-molis-work-control-token": controlToken },
+      body: JSON.stringify({ service_id: "model-api", display_name: "模型测试账号", token: secret }),
+    });
+    assert.equal(created.status, 201);
+    const connection = (await created.json() as { connection: { connection_id: string } }).connection;
+    let response = await mutate({ ...record, connection_id: connection.connection_id });
     assert.equal(response.status, 200);
     assert.equal((await response.text()).includes(secret), false);
-    response = await mutate({ ...record, display_name: "重新命名", api_key: "" });
+    response = await mutate({ ...record, display_name: "重新命名" });
     assert.equal(response.status, 200);
+    assert.equal((await mutate({ ...record, base_url: "https://other.example/v1" })).status, 400);
     const beforeRestart = await (await fetch(origin + "/api/settings/models")).json();
     assert.equal(beforeRestart.health[0].status, "ready");
     assert.equal(beforeRestart.providers[0].models[0].context_tokens, 200000);
+    assert.equal(beforeRestart.providers[0].base_url, record.base_url);
     const html = await (await fetch(origin + "/settings/models")).text();
     assert.ok(html.includes("data-model-save") && html.includes("重新命名"));
     assert.equal(html.includes(secret), false);

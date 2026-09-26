@@ -8,7 +8,8 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
-import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
 import { SessionContentService } from "@molis-ai/molis-work-plugin-work";
@@ -332,7 +333,7 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
       acceptance_criteria: [{
         criterion_id: "handoff-web-delivery",
         statement: "目标 Session 收到修改后的 package",
-        decision_method: "test",
+        decision_method: "automated_check",
         pass_condition: "目标 Session 内容 API 返回用户保存的文本",
         required_evidence: ["test"],
       }],
@@ -360,7 +361,11 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
   });
   registry.close();
 
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: WEB_TOKEN });
+  let denied: string | undefined;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
+    actionAvailability: (_caller, view) => view.capability_id === denied
+      ? { available: false, code: "actions.plugin_disabled", reason: "交接资料当前不可读" } : { available: true } });
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: WEB_TOKEN, localHost: host });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -384,6 +389,18 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
       { method: "POST" },
     );
     assert.equal(unauthorized.status, 403);
+
+    for (const action of [goalsActions.contract, goalsActions.state]) {
+      denied = action.capability_id;
+      const refused = await mutation(`${prefix}/api/sessions/${encodeURIComponent(source.session_id)}/handoffs`, "POST",
+        { target_runtime_id: "claude-code", target_workspace_path: directory });
+      assert.ok(refused.status >= 400, await refused.clone().text());
+      assert.match(await refused.text(), /交接资料当前不可读/);
+      const stored = await openWorkSessionRegistry({ homeDirectory: home });
+      try { assert.deepEqual(stored.handoffsForSession(source.session_id), []); }
+      finally { stored.close(); }
+    }
+    denied = undefined;
 
     const preparedResponse = await mutation(
       `${prefix}/api/sessions/${encodeURIComponent(source.session_id)}/handoffs`,
@@ -451,6 +468,7 @@ test("project Handoff web API keeps the editable draft, requires confirmation, a
     assert.match(targetContent.events.map((event) => event.content).join("\n"), /用户补充：先检查目标 Session 内容/);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
+    await host.close();
     await rm(directory, { recursive: true, force: true });
   }
 });
@@ -540,7 +558,7 @@ test("current handoff acceptance uses live event requirements; original v35 crit
   const fixture = materializeGoalEventV35Fixture("legacy");
   const store = new LocalProjectDatabase(fixture.path);
   const app = new GoalProjectApplication(store);
-  const boardId = DEMO_BOARD_ID;
+  const boardId = "goalboard-v1-demo";
   const goalId = "CORE";
   const registry = await openWorkSessionRegistry({ homeDirectory: fixture.directory });
   try {

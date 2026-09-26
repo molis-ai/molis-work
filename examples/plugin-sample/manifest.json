@@ -1,8 +1,8 @@
 {
-  "schema_version": 1,
-  "host_api_version": 1,
+  "schema_version": 2,
+  "host_api_version": 2,
   "plugin_id": "io.molis.work.example.notes",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "name": "Local Plugin Sample",
   "kind": "integration",
   "publisher": {
@@ -38,9 +38,7 @@
     }
   ],
   "capabilities": {
-    "provides": [
-      "connector.sample.v1"
-    ],
+    "provides": [],
     "consumes": []
   },
   "artifacts": {
@@ -61,5 +59,192 @@
     "contributions": [
       "io.molis.work.example.notes.main"
     ]
-  }
+  },
+  "actions": [
+    {
+      "capability_id": "io.molis.work.example.notes.health",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "Sample health",
+        "description": "Read the sample connector's health without accessing private results.",
+        "kind": "query",
+        "scope": "project",
+        "audiences": [
+          "user",
+          "workflow",
+          "mcp"
+        ],
+        "permissions": [],
+        "subject_kinds": [],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "type": "boolean"
+            },
+            "status": {
+              "enum": [
+                "connected"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ok",
+            "status",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.results.read",
+      "version": 1,
+      "operation": "query",
+      "action": {
+        "title": "Read my sample results",
+        "description": "Read the startup owner's private count and latest personal Artifact.",
+        "kind": "query",
+        "scope": "project",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private",
+          "artifact:read"
+        ],
+        "subject_kinds": [],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "count": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "latest": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "artifact_id": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "sequence": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "sequence"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "artifact_id",
+                    "version",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "count",
+            "latest"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    {
+      "capability_id": "io.molis.work.example.notes.results.publish",
+      "version": 1,
+      "operation": "command",
+      "action": {
+        "title": "Save my sample result",
+        "description": "Publish the next personal Artifact version and update the original private counter.",
+        "kind": "operation",
+        "scope": "project",
+        "audiences": [
+          "user"
+        ],
+        "permissions": [
+          "storage:private",
+          "artifact:read",
+          "artifact:write"
+        ],
+        "subject_kinds": [],
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "properties": {
+            "artifact_id": {
+              "type": "string"
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "sequence": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "title",
+                "sequence"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "artifact_id",
+            "version",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
 }

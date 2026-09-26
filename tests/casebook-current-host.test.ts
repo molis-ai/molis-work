@@ -64,7 +64,7 @@ test('startup config is absent by default, strict, private and requires separate
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
-test('real Web creation uses the existing owner and records the synchronous event path',async t=>{
+test('real Web creation uses shared actions and preserves the Web observation channel',async t=>{
  const f=await fixture(t);await f.action('join');const controlToken=randomBytes(32).toString('hex');
  const server=createMolisWorkWebServer({databasePath:f.ref.storage_key,boardId:'board',homeDirectory:join(f.dir,'home'),localHost:f.host,controlToken});
  server.listen(0,'127.0.0.1');await once(server,'listening');t.after(()=>new Promise<void>(r=>server.close(()=>r())));

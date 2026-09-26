@@ -35,6 +35,10 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     assert.ok(files.has("skills/molis-plugin-dev/authoring.md"));
     assert.ok(files.has("skills/molis-plugin-dev/integrations.md"));
     assert.ok(files.has("vendor/search-evidence-layer/sbom.cdx.json"));
+    assert.ok(files.has("vendor/prologue-sdk/README.md"));
+    assert.ok(files.has("node_modules/@prologue/sdk/package.json"));
+    assert.ok(packed.bundled.includes("@prologue/sdk"));
+    assert.equal([...files].some(file => file.startsWith("vendor/prologue-sdk/") && file.endsWith(".tgz")), false);
     const desktopPrefix = "node_modules/@molis-ai/molis-work-app-desktop/";
     assert.ok(files.has(`${desktopPrefix}dist/index.js`));
     for (const file of files) {

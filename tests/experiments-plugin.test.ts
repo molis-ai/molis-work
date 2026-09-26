@@ -25,6 +25,24 @@ test("one active experiment, cancellation stops pending work and preserves compl
  const f=fixture(()=>({async evaluate(p,r,signal){calls++;entered();await new Promise<void>((resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}));return answer();},close(){}}));
  try{const e=f.service.create(input());f.service.start(e.id);await started;assert.throws(()=>f.service.start(e.id),/正在运行/);f.service.cancel(e.id);await f.service.idle();const done=f.service.get(e.id);assert.equal(calls,1);assert.equal(done.status,"cancelled");assert.deepEqual(done.cells.map(c=>c.status),['cancelled','cancelled']);assert.equal(done.cells[1]!.attempts,0);}finally{f.db.close();}
 });
+test("实验删除拒绝运行中记录；自建模型配置可删除且旧快照不变",async()=>{
+ let entered!:()=>void;const started=new Promise<void>(r=>entered=r);
+ const f=fixture(()=>({async evaluate(_p,_r,signal){entered();await new Promise<void>((_resolve,reject)=>signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}));return answer();},close(){}}));
+ try{
+  const participant={...input().participants[0]!,id:"custom-model"};
+  f.service.saveParticipant(participant);
+  const e=f.service.create(input());
+  f.service.start(e.id);await started;
+  assert.throws(()=>f.service.deleteExperiment(e.id),/先取消/);
+  f.service.cancel(e.id);await f.service.idle();
+  f.service.deleteParticipant(participant.id);
+  assert.equal(f.service.participants().length,0);
+  assert.equal(f.service.get(e.id).participants.length,2);
+  f.service.deleteExperiment(e.id);
+  assert.equal(f.service.list().length,0);
+  assert.throws(()=>f.service.get(e.id),/不存在/);
+ }finally{f.db.close();}
+});
 test("invalid output and failures are not correct; human review is separate append-only evidence",async()=>{
  const f=fixture(()=>({async evaluate(p){if(p.id==='a')return answer('invalid');return answer('yes');},close(){}}));
  try{const i=input();i.cases[0]!.reference_status="human";const e=f.service.create(i);assert.throws(()=>f.service.review(e.id,'a','yes','checked'),/运行结束/);f.service.start(e.id);await f.service.idle();let done=f.service.get(e.id);assert.equal(done.cells[0]!.status,'failed');assert.equal(summarize(done)[0]!.accuracy,0);assert.equal(summarize(done)[0]!.labeled_failures,1);assert.equal(summarize(done)[1]!.false_positive,1);
@@ -54,7 +72,7 @@ test("experiments survives unified catalog, contribution and navigation registra
 });
 
 test("Functions provider relocation preserves reported tokens and leaves unavailable usage unknown", async () => {
- const { readChoiceAnswer } = await import("@molis-ai/molis-work-plugin-functions");
+ const { readChoiceAnswer } = await import("@molis-ai/molis-work-module-functions");
  const body = { model: "fixture", answers: { fixture: { choice: "yes" } } };
  assert.equal(readChoiceAnswer(body, "fixture").usage, undefined);
  assert.deepEqual(readChoiceAnswer({ ...body, usage: { input_tokens: 12 } }, "fixture").usage, { input_tokens: 12, output_tokens: null });

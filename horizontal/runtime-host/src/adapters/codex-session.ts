@@ -14,6 +14,7 @@ const CODEX_CAPABILITIES: RuntimeSessionCapabilities = {
   resume: "native",
   events: "native",
   handoff: "native",
+  message: "native",
 };
 
 const CODEX_METHODS: Partial<Record<RuntimeSessionCapability, string>> = {
@@ -35,6 +36,7 @@ export class CodexRuntimeSessionAdapter implements RuntimeSessionAdapter {
     capability: RuntimeSessionCapability,
     input: Record<string, unknown>,
   ): Promise<RuntimeSessionAdapterResult> {
+    if (capability === "message") return this.message(input);
     if (capability === "handoff") return this.handoff(input);
     try {
       if (capability === "events") {
@@ -85,6 +87,21 @@ export class CodexRuntimeSessionAdapter implements RuntimeSessionAdapter {
         has_earlier: typeof page.nextCursor === "string" && page.nextCursor.length > 0,
       },
     };
+  }
+
+  private async message(input: Record<string, unknown>): Promise<RuntimeSessionAdapterResult> {
+    const threadId = optionalString(input.threadId);
+    const text = typeof input.text === "string" ? input.text : "";
+    if (!threadId || !text.trim()) return failed("message", "消息缺少明确的原生会话或文本", { phase: "deliver", retryable: true });
+    try {
+      const response = objectValue(await this.transport.request("turn/start", { threadId,
+        input: [{ type: "text", text, text_elements: [] }], turnTrigger: "molis_work_message" }));
+      const turnId = optionalString(objectValue(response.turn).id);
+      if (!turnId) return failed("message", "Runtime 没有返回可确认的消息回执", { phase: "deliver", native_runtime_session_id: threadId, retryable: false });
+      return ok("message", { native_turn_id: turnId });
+    } catch (error) {
+      return failed("message", "Runtime 消息投递失败", { phase: "deliver", native_runtime_session_id: threadId, retryable: definitelyNotAccepted(error) }, runtimeErrorCode(error));
+    }
   }
 
   private async handoff(input: Record<string, unknown>): Promise<RuntimeSessionAdapterResult> {

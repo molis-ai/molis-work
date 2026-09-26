@@ -1,3 +1,4 @@
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -40,6 +41,7 @@ test("MCP event directory and trash composition cannot be split by a queued comp
         return result;
       };
     });
+    await grantGoalsMcp(host, directory, { project_id: reference.project_id, board_id: boardId, database_path: databasePath }, "runtime:entry");
     const listed = JSON.parse(await mcp.callTool("molis_work_v1_goal_list", { limit: 100 }));
     await competingWrite;
     assert.deepEqual(listed.goals.map((item: { goal_id: string }) => item.goal_id), ["first"]);

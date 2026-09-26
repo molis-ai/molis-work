@@ -144,7 +144,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
 });
 
-test("Home stream opens real Inbox, Feed reconnect, and Sessions", { timeout: 90_000 }, async t => {
+test("Home opens original Inbox items and source groups, completes Inbox, and keeps an empty message unsent", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
@@ -153,7 +153,7 @@ test("Home stream opens real Inbox, Feed reconnect, and Sessions", { timeout: 90
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   await waitFor("document.querySelectorAll('[data-home-day]').length===7");
-  await waitFor('document.querySelector("[data-home-open-event^=\\"inbox:\\"], [data-home-open-event^=\\"auth:\\"]")', 8_000);
+  await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry], [data-home-subject-kind=source]')", 8_000);
   const visitHomeDays = `(visit) => {
     const ids = [...document.querySelectorAll("[data-home-day]")].map((day) => day.dataset.homeDay);
     for (const id of ids) {
@@ -183,42 +183,43 @@ test("Home stream opens real Inbox, Feed reconnect, and Sessions", { timeout: 90
     });
   })()`;
   const inboxId = await evaluate<string | null>(`(${visitHomeDays})(() => {
-    const ids = [...document.querySelectorAll('[data-home-open-event^="inbox:"]')].map((row) => row.dataset.homeOpenEvent);
+    const ids = [...document.querySelectorAll('[data-home-subject-kind="inbox_entry"]')].map((row) => row.dataset.homeSubjectId);
     for (const id of ids) {
-      document.querySelector('[data-home-open-event="' + CSS.escape(id) + '"]')?.click();
-      if (document.querySelector("[data-home-continue]") && document.querySelector("[data-home-done]")) return id;
+      document.querySelector('[data-home-subject-id="' + CSS.escape(id) + '"]')?.click();
+      if (document.querySelector("[data-home-open-target]")?.textContent === "打开事项") return id;
     }
     return null;
   })`);
   if (!inboxId) assert.fail(await evaluate(dumpHome));
-  await waitFor("document.querySelector('[data-work-surface=home]').dataset.event==='on' && document.querySelector('[data-home-continue]') && document.querySelector('[data-home-done]')");
-  const dock = await evaluate<{ wrap: boolean; talkRight: boolean }>("(()=>{const act=document.querySelector('[data-home-detail-act]');const buttons=[...act.querySelectorAll('.mw-btn')];const tops=buttons.map(b=>Math.round(b.getBoundingClientRect().y));const talk=act.querySelector('[data-home-open-talk]');const last=buttons.at(-1);return {wrap:new Set(tops).size!==1,talkRight:last===talk && talk.getBoundingClientRect().left>buttons[0].getBoundingClientRect().left}})()");
-  assert.equal(dock.wrap, false, "dock actions stay on one row");
+  await waitFor("document.querySelector('[data-work-surface=home]').dataset.event==='on' && document.querySelector('[data-home-open-target]') && [...document.querySelectorAll('[data-home-offer]')].some(button=>button.textContent==='做完了' && !button.disabled)");
+  const dock = await evaluate<{ wrap: boolean; talkRight: boolean }>("(()=>{const act=document.querySelector('.home-detail__primary');const buttons=[...act.querySelectorAll('.mw-btn')];const tops=buttons.map(b=>Math.round(b.getBoundingClientRect().y));const talk=act.querySelector('[data-home-open-talk]');const last=buttons.at(-1);return {wrap:new Set(tops).size!==1,talkRight:last===talk && talk.getBoundingClientRect().left>buttons[0].getBoundingClientRect().left}})()");
+  assert.equal(dock.wrap, false, "open and talk controls stay on one row below plugin actions");
   assert.equal(dock.talkRight, true, "say-something sits on the right");
-  await click("[data-home-continue]");
+  await click("[data-home-open-target]");
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await evaluate(`document.querySelector('[data-home-open-event="${inboxId}"]')?.click()`);
-  await waitFor("document.querySelector('[data-home-done]')");
+  await evaluate(`document.querySelector('[data-home-subject-id="${inboxId}"]')?.click()`);
+  await waitFor("[...document.querySelectorAll('[data-home-offer]')].some(button=>button.textContent==='做完了' && !button.disabled)");
   const beforeCount = await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length");
-  await click("[data-home-done]");
-  await waitFor(`!document.querySelector('[data-home-open-event="${inboxId}"]')`, 8_000);
+  const doneIndex = await evaluate<string>("[...document.querySelectorAll('[data-home-offer]')].find(button=>button.textContent==='做完了').dataset.homeOffer");
+  await click('[data-home-offer="' + doneIndex + '"]');
+  await waitFor(`!document.querySelector('[data-home-subject-id="${inboxId}"]')`, 8_000);
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length") < beforeCount);
   const openedAuth = await evaluate<boolean>(`(() => {
-    if (document.querySelector("[data-home-reauth]")) return true;
+    if (document.querySelector("[data-home-open-target]")?.textContent === "查看来源") return true;
     return Boolean((${visitHomeDays})(() => {
-      const ids = [...document.querySelectorAll('[data-home-open-event^="auth:"], [data-home-open-event^="inbox:"]')]
+      const ids = [...document.querySelectorAll('[data-home-subject-kind="source"], [data-home-subject-kind="inbox_entry"]')]
         .map((row) => row.dataset.homeOpenEvent);
       for (const id of ids) {
         document.querySelector('[data-home-open-event="' + CSS.escape(id) + '"]')?.click();
-        if (document.querySelector("[data-home-reauth]")) return true;
+        if (document.querySelector("[data-home-open-target]")?.textContent === "查看来源") return true;
       }
       return null;
     }));
   })()`);
-  assert.equal(openedAuth, true, "demo home still has a reconnect action");
-  await click("[data-home-reauth]");
+  assert.equal(openedAuth, true, "demo home exposes the source group without claiming to authorize it");
+  await click("[data-home-open-target]");
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
@@ -226,9 +227,11 @@ test("Home stream opens real Inbox, Feed reconnect, and Sessions", { timeout: 90
   await waitFor("document.querySelector('[data-home-open-talk]')");
   await click("[data-home-open-talk]");
   await waitFor("document.querySelector('[data-work-surface=home]').dataset.dock==='open'");
+  assert.equal(await evaluate("document.querySelector('[data-home-talk-form] [type=submit]').disabled"), true);
   await evaluate("document.querySelector('[data-home-talk-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))");
-  await waitFor("document.body.dataset.desktopSurface === 'sessions'");
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
+
 
 test("Home shortcuts persist per project, open a new browser page, and preserve edits on failure", { timeout: 90_000 }, async t => {
   const browser=await openGoalBrowser(t,"seeded");if(!browser)return;

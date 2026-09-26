@@ -25,6 +25,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const before = fixture.listRuntimeContextBindings();
     const connection = new RuntimeProjectConnection({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path, webBaseUrl: "http://127.0.0.1:4173" });
     const originalConnection = connection.connection;
+    const currentConnection = () => connection.connection;
     let scoped: MolisWorkProjectCatalog | undefined;
     let opened!: () => void;
     const didOpen = new Promise<void>(resolve => { opened = resolve; });
@@ -67,7 +68,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     const restored = JSON.parse(await handlers.molis_work_v1_context_resolve({}, context));
     assert.equal(restored.status, "bound");
     assert.equal(restored.project.project_id, project.project_id);
-    assert.equal(connection.connection?.boardId, project.board_id);
+    assert.equal(currentConnection()?.boardId, project.board_id);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before, "recovering the response does not create a second binding");
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
     const localHost = createMolisWorkLocalHost();
@@ -87,7 +88,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
       },
       readSession: async () => {
         calls.push("session");
-        assert.equal(connection.connection?.projectId, project.project_id, "accept follows guidance and precedes the secondary Session read");
+        assert.equal(connection.connection?.projectId, project.project_id, "the resolved connection is accepted before its optional content reads");
         return { sessionGoalId: null, sessionRegistry: { status: "unavailable", message: "secondary Session unavailable", session: null } };
       },
       readResumeFacts: () => {
@@ -102,7 +103,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     try {
       await assert.rejects(actual.molis_work_v1_context_resolve({}, context), /guidance unavailable/);
       assert.deepEqual(calls, ["guidance"]);
-      assert.equal(connection.connection, null, "failed guidance must not accept a new connection");
+      assert.equal(currentConnection()?.projectId, project.project_id, "an ancillary read failure does not erase the resolved project connection");
       failGuidance = false;
       calls.length = 0;
       const presented = JSON.parse(await actual.molis_work_v1_context_resolve({}, context));

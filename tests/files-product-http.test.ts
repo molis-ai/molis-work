@@ -32,7 +32,7 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
       assert.equal(created.status, 201); projects.push(created.body.project.project_id);
       await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding" });
     }
-    const api = (plugin: string, suffix: string, project = projects[0]) => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
+    const api = (plugin: string, suffix: string, project = projects[0]) => plugin === "workspace" ? `/projects/${project}/api/project-settings/workspaces` : `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
     const directories: string[] = [], ids: string[] = [];
     for (const name of ["one", "two"]) {
       const directory = path.join(root, name); await mkdir(directory); directories.push(directory);
@@ -41,11 +41,11 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     }
     const state = await request(api("workspace", "/state"));
     assert.equal(state.status, 200); assert.equal(state.body.selected, null);
-    for (const name of ["one", "two"]) ids.push(state.body.workspaces.find((item: any) => item.name === name).workspace_id);
-    assert.ok(!JSON.stringify(state).includes(root), "opaque workspace selection never exposes canonical paths");
+    for (const name of ["one", "two"]) ids.push(state.body.workspaces.find((item: any) => item.display_name === name).workspace_id);
+    assert.ok(state.body.workspaces.every((item: any) => !Object.hasOwn(item, "project_ids")), "settings do not expose other projects");
     assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] }, false)).status, 403);
     assert.equal((await request(api("workspace", "/select", projects[1]), "POST", { workspace_id: ids[0] })).status, 403);
-    assert.equal((await request(api("files", "/directory?path=[]&workspace_id=" + ids[0]))).status, 400);
+    const noSelection = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0])); assert.equal(noSelection.status, 400, JSON.stringify(noSelection));
     assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] })).status, 200);
     const directory = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0]));
     assert.equal(directory.body.result.outcome, "directory"); assert.equal(directory.body.result.entries[0].name, "note.txt");
@@ -80,6 +80,7 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     const denied = await request(api("coding", `/sessions/${foreign}/materials`, projects[1]));
     assert.equal(denied.body.materials[0].text, null); assert.ok(denied.body.materials[0].error);
     const stats = await request(api("text-stats", "/state"));
+    assert.equal(stats.status, 200, JSON.stringify(stats.body));
     assert.equal(stats.body.view.characters, Array.from(first.body.result.text).length); assert.equal(stats.body.view.lines, 2);
     assert.ok(stats.body.html.includes("UTF-8"));
     const selection = await capture("selection", first.body.result.fingerprint, { start: 2, end: 4 });
@@ -110,6 +111,6 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     // Revoking the catalog membership is checked on the next Host read, even with a retained graph input.
     const unlinked = await request(`/projects/${projects[0]}/api/workspaces/${ids[1]}/unlink`, "POST", { user_confirmed: true });
     assert.equal(unlinked.status, 200, JSON.stringify(unlinked.body));
-    assert.equal((await open(["note.txt"], ids[1])).body.result.outcome, "denied");
+    assert.equal((await open(["note.txt"], ids[1])).status, 400);
   } finally { await close(); await rm(root, { recursive: true, force: true }); }
 });

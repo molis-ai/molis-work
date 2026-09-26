@@ -23,6 +23,8 @@ export interface GitWorktreePort {
   preview(slotId: string): Promise<WriterWorktree>;
   create(slotId: string, expectedBase?: string): Promise<WriterWorktree>;
   list(): Promise<WriterWorktree[]>;
+  /** The owned writers, and directories in the writers' folder that no longer qualify, each with the reason. */
+  inspect(): Promise<{ owned: WriterWorktree[]; unavailable: Array<{ directory: string; branch: string | null; reason: string }> }>;
   changes(worktree: WriterWorktree): Promise<Array<{ path: string[]; target: WriterFileTarget }>>;
   /** Remove only a clean, owned directory. Its branch and original provenance remain. */
   remove(worktree: WriterWorktree): Promise<void>;
@@ -150,13 +152,22 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
       return { worktree_id: slotId, branch, base_commit: ctx.head, directory: path.relative(ctx.root, directory) };
     },
     async list() {
+      return (await this.inspect()).owned;
+    },
+    // One directory whose branch was switched by hand must not hide every other writer: it is reported, not used.
+    async inspect() {
       const ctx = await context();
       const rows = registeredWorktrees(await git(ctx.root, ["worktree", "list", "--porcelain", "-z"]));
-      const result: WriterWorktree[] = [];
+      const owned: WriterWorktree[] = [], unavailable: Array<{ directory: string; branch: string | null; reason: string }> = [];
       for (const row of rows) {
-        if (path.dirname(row.directory) === ctx.directory) result.push(await readOwned(ctx, row));
+        if (path.dirname(row.directory) !== ctx.directory) continue;
+        try { owned.push(await readOwned(ctx, row)); }
+        catch (error) {
+          if (!(error instanceof GitWorktreeError) || error.code !== "git.worktree_not_owned") throw error;
+          unavailable.push({ directory: path.relative(ctx.root, row.directory), branch: row.branch ?? null, reason: error.message });
+        }
       }
-      return result;
+      return { owned, unavailable };
     },
     async changes(worktree) {
       const { directory } = await owned(worktree);

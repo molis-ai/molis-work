@@ -102,6 +102,8 @@ export interface ActionMetadata {
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
+  /** An action is a query or a command; a wait (following a live round) only observes and is never offered as one. */
+  readonly operation: "query" | "command";
   readonly provider_id?: string;
   readonly action: ActionMetadata;
 }
@@ -351,7 +353,10 @@ export function bindOwnerPluginAction<Input, Output>(
       for (const permission of definition.action.permissions) context.requireGrant(permission);
       caller.signal?.throwIfAborted();
     };
-    await beforeWrite();
+    // A query writes nothing, and the registry already routed it to the live registration after the Host checked its
+    // availability. Only a command confirms, before it writes, that the action is still the one published: discovering
+    // every action of the project on each read made plain page refreshes pay for it.
+    if (definition.operation !== "query") await beforeWrite();
     return handle(input as Input, beforeWrite);
   } };
 }

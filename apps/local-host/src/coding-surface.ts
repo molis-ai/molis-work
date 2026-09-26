@@ -10,6 +10,8 @@ import {
   toDirectoryEntries,
   renderPendingQuestionCard,
   renderCodingReport,
+  codingNetChange,
+  HISTORY_DIGEST_MARKER,
   type CodingUiModel,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
@@ -225,7 +227,12 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   if (body?.runs) for (const run of body.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
-    for (const turn of run.turns) Object.assign(turn, { html: renderFeedRichText(turn.text) });
+    // A digest round's opening is drawn by the page from its text; rendering it as well would double what travels.
+    // After the SDK compacts context, earlier replies reach the model labelled "[retained assistant …]" or
+    // "[historical … run:…]", and it sometimes opens its answer with one or several of them. They are the SDK's
+    // bookkeeping, not something said to the person; only labels at the very start are dropped.
+    for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
+      html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
       questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
         text: value => value, formatDate: value => value },
@@ -238,11 +245,34 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
   const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
   if (result.status === 200 && changeBody?.change) {
-    const changeIndex = Number(url.searchParams.get("change_index") ?? 0);
-    const view = compareRunChangeSet({ content: changeBody.change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
-      Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1);
-    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference),
+    const change = changeBody.change, changeIndex = Number(url.searchParams.get("change_index") ?? 0);
+    const index = Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1, chosen = change.files[index];
+    // A file written several times reads best as one net change, but only when that is exactly what happened.
+    const requested = url.searchParams.get("net"), net = chosen && (requested === "1" || requested === "auto") ? codingNetChange(change, chosen.path) : null;
+    const netFiles = net?.available ? (() => {
+      const first = change.files[net.indices[0]!]!, last = change.files[net.indices.at(-1)!]!;
+      return [{ ...last, kind: first.kind, review: { ...last.review!, before_text: net.before_text } }];
+    })() : null;
+    const view = compareRunChangeSet({ content: netFiles ? { ...change, files: netFiles } : change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
+      netFiles ? 0 : index);
+    const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);
+    Object.assign(changeBody, { view_mode: netFiles ? "net" : "write",
+      net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available, ...(group.available ? {} : { reason: group.reason }) })) });
+    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+  }
+  // A child's results read as diffs against the main workspace, folded like the change reader, not as two full copies.
+  const integrationBody = result.body as { files?: Array<{ path: string[]; before_text?: string | null; after_text?: string | null; diff_html?: string }> } | undefined;
+  if (result.status === 200 && (request.method ?? "GET") === "GET" && url.pathname.endsWith("/integration") && Array.isArray(integrationBody?.files)) {
+    for (const file of integrationBody.files) {
+      if (file.before_text === undefined || file.after_text === undefined) continue;
+      const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", files: [{ path: file.path.join("/"),
+        kind: file.before_text === null ? "added" : file.after_text === null ? "deleted" : "modified", added_lines: 0, removed_lines: 0, diff: "",
+        review: { review_id: "integration", before_text: file.before_text, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
+        source_plugin_id: CODING_PLUGIN_ID, content_version: 1 }, undefined, 0);
+      file.diff_html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", fold_context: 3, sides: false,
+        primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+    }
   }
   if (result.status === 200 && reportBody?.report) {
     const report = reportBody.report;

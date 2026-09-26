@@ -20,7 +20,7 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       data=value;entry=value.taskboard_plans?.find(entry=>entry.run_id===runId && entry.board?.nodes.some(node=>node.id===stepId));
       node=entry?.board.nodes.find(node=>node.id===stepId);verdict=entry?.verdicts?.[stepId]||null;detail.replaceChildren();
       if(!node||!entry.plan)throw new Error('原步骤回报暂不可读；不能判断完成情况。');
-      const index=entry.board.nodes.findIndex(node=>node.id===stepId),step=entry.plan.content.steps[index];
+      const step=node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||'见插入说明'}:entry.plan.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
       detail.append(el('p','原执行 '+runId+' · 固定计划修订 '+entry.revision),el('h3',step.title),el('p','完成条件：'+step.acceptance),el('p',states[node.state]||'状态暂不可读'));
       const reports=el('ol','');for(const report of node.reports)reports.append(el('li',report.note));detail.append(reports);
       if(!node.reports.length)detail.append(el('p','尚无模型步骤回报。'));

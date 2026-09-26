@@ -152,3 +152,30 @@ test("integration with an uncertain write retains its original review and blocks
     assert.equal(calls, 1); assert.equal(await readFile(path.join(root, "created"), "utf8"), "once");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+test("after a restart, review refreshes bring earlier Git operations back once and do not reread the whole execution ledger", async () => {
+  const fs = (await import("node:fs")).default, { syncBuiltinESMExports } = await import("node:module");
+  const root = await mkdtemp(path.join(tmpdir(), "git-refresh-once-"));
+  let queue = new AgentReviewQueue();
+  const make = () => createPrologueNodeAdapter({ app: { appId: "molis.git.refresh", appVersion: "1.0.0" }, storageRoot: path.join(root, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => { throw new Error("manual Git operations must not request a model"); } });
+  let adapter = await make();
+  const original = fs.readFileSync;
+  try {
+    for (const operation_id of ["operation-one", "operation-two", "operation-three"]) {
+      const request = await adapter.gitReviews!.prepare({ board_id: "board", workspace_id: "workspace", operation_id,
+        document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [{ path: operation_id, before_text: "a", after_text: "b", before_mode: "100644", after_mode: "100644" }] } },
+        { check: async () => {}, execute: async () => {} });
+      await queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" });
+    }
+    await adapter.close(); queue = new AgentReviewQueue(); adapter = await make();
+    await queue.refresh("board");
+    assert.equal(queue.list("board").filter(item => item.operation?.kind === "git-index").length, 3, "the earlier operations are back after the restart");
+    let reads = 0;
+    fs.readFileSync = ((...args: Parameters<typeof original>) => { reads++; return original(...args); }) as typeof original; syncBuiltinESMExports();
+    for (let index = 0; index < 5; index++) await queue.refresh("board");
+    fs.readFileSync = original; syncBuiltinESMExports();
+    assert.equal(reads, 0, "a refresh after the first finds nothing new to bring back and reads no stored record");
+    assert.equal(queue.list("board").filter(item => item.operation?.kind === "git-index").length, 3);
+  } finally { fs.readFileSync = original; syncBuiltinESMExports(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});

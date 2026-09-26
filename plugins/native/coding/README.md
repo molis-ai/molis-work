@@ -44,6 +44,8 @@ Git 的 git-changeset / git-result，以及 Shelf 的 materials。Shelf 明确�
 
 会话输入区可以选择方法、MCP 工具与只读资料来源，并固定下一轮使用的版本。只读资料可用于讨论/评审，外部工具仍走宿主逐笔审查。模型和凭据、工作区授权、连接与执行账各归现有宿主能力；具体已验证路径和未完成部分以需求书 §0 为准。
 
+**报告保留步骤评价。** 新保存的执行报告同时固定原计划完成条件、原步骤图与模型回报，以及保存时的用户评价。返工、未评价和过期评价分别显示；图或计划不可读不阻止保留已有答复，但明确无法判断。后续评价不改写固定报告，需回原任务查看当前评价；旧报告不回填，单步通过也不代表 Goal 验收。
+
 **按轮次查看固定变更。** 结束的一轮可以读取原 Agent Host 文本审查与执行回执，主动保存为该会话/轮次唯一的 `coding.changeset.v1`。同一文件的多次提案分开保留，分别显示批准决定和保存时已执行、未执行、失败或未知；固定版本不代表当前磁盘状态，也不包含命令、二进制或外部操作产生的全部变化。旧版本从原 Artifact 读取，读取失败不能用当前 Git 差异替代。
 
 保存后可点击前后行号，填写多条意见；服务端依据固定版本推导引用原行，追加到原任务草稿，由原输入区发送。意见不批准写入，执行仍走宿主审查。本机浏览器保留尚未加入草稿的意见，正式草稿沿用原会话持久化；不另建执行账。保存不自动切换输出，用户明确选择后，原 `changeset` 输出通过默认连线进入 Diff，且不更换 Diff 当前输入组。桌面在右栏阅读，窄屏展开时使用完整内容区，收起恢复对话。
@@ -55,5 +57,7 @@ Git 的 git-changeset / git-result，以及 Shelf 的 materials。Shelf 明确�
 
 
 「独立工作树」可准备并审查从当前仓库提交创建的新目录/分支，批准后关联到项目，再选为下一轮工作区。准备和选用本身不启动模型；Git 注册保存目录与原始提交，项目目录簿保存授权，原 SDK Effect 保存审查及执行回执。主仓库未提交内容、活动内容过滤器、已改变的提交起点或未知执行结果会明确阻止继续。失败时保留已创建目录与分支，旧批准不会重复执行；可勾选 1–4 个已授权的独立目录，填写任务与完成条件并保存，再选择并行写入发送。目录与分工在发送时固定；关闭/刷新保留未保存的本窗口分工草稿，保存后沿用原会话配置。下一轮改分工不改本轮权限或历史。成果整合尚未接通。
+
+Coding 每次发送明确冻结 60 轮执行预算；固定计划按步骤计算若需更多轮次，保留较大值。达到上限会停止，可在原会话开始下一轮继续；这不替代逐笔操作审查。
 
 Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.

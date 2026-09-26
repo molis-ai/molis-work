@@ -69,7 +69,7 @@ export function clearGmailOAuthForManualToken(): void {
 }
 
 export function bindFeishuCli(): void {
-  if (!feishuCliStatus().authorized) throw new Error("请先完成飞书 CLI 用户授权");
+  if (!feishuCliStatus({ fresh: true }).authorized) throw new Error("请先完成飞书 CLI 用户授权");
   const store = createFileSecretStore();
   store.put(FEISHU_MODE_REF, "cli");
   store.delete(authRefFor("feishu"));

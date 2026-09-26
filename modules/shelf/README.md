@@ -43,3 +43,7 @@ node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts
 - Status: `partial`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/modules/shelf`
 - Migration Goals: `goal-reorg-f2`
+
+## 被动发现与真实执行
+
+`runtime()` / `snapshot()` 和 Agent 目录只检查可执行文件，不启动 `--help`。找到程序后 `capability_pending: true`、`can_run_job: false`，动作可以进入确认界面但不宣称能力或登录已验证。`runJob()` 仅在需要 Agent 时探测所选程序，继续按原规则校验任务入口与隔离；本机提取不探测 Agent。显式 `pathEnvironment` 是完整搜索范围，默认发现才包含常用安装目录。

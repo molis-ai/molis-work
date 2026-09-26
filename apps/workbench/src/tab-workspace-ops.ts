@@ -370,6 +370,32 @@ export function createTabWorkspaceOps(titles) {
     }
     return ensureHome(state);
   };
+  /**
+   * Open an item — or, without one, a plugin's own view — in the pane beside the focused one: the pane to its right
+   * when the layout already has one there, otherwise a new pane split off to the right. The focused pane keeps showing
+   * what it showed, so two items of one plugin (two Coding sessions, say) can sit side by side.
+   */
+  const openBeside = (state, plugin, itemId = null, title = undefined) => {
+    state.exclusive = null;
+    normalizeLayout(state);
+    const from = focused(state);
+    const firstPane = (node) => node.paneId ? node.paneId : firstPane(node.children[0]);
+    const trail = (node, steps) => node.paneId ? (node.paneId === from.id ? steps : null)
+      : node.children.reduce((found, child, index) => found || trail(child, [...steps, { node, index }]), null);
+    const step = [...(trail(state.layout.tree, []) || [])].reverse().find(({ node, index }) => node.direction === "row" && index === 0);
+    let pane = step ? state.panes.find((candidate) => candidate.id === firstPane(step.node.children[1])) : null;
+    if (!pane) {
+      pane = { id: uid(), tabs: [], activeTabId: null, groups: [], viewPlugin: plugin };
+      state.layout.tree = mapTree(state.layout.tree, (node) => node.paneId === from.id
+        ? { id: uid(), direction: "row", ratio: .5, children: [node, { paneId: pane.id }] } : node);
+      state.panes.splice(state.panes.indexOf(from) + 1, 0, pane);
+    }
+    state.focusedPaneId = pane.id;
+    pane.viewPlugin = plugin;
+    if (itemId === null) pane.activeTabId = null;
+    else openInPane(state, pane, itemTab(plugin, itemId, title || itemId));
+    return ensureHome(state);
+  };
   const setExclusive = (state, surface) => {
     state.exclusive = surface || null;
     return state;
@@ -400,6 +426,7 @@ export function createTabWorkspaceOps(titles) {
     togglePinned,
     closePane,
     splitPane,
+    openBeside,
     moveTab,
     setExclusive,
     toggleGroup,

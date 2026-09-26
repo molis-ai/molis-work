@@ -47,14 +47,15 @@ function normalizedDescriptor<Input, Output>(
   if (!capabilityId || !Number.isInteger(definition.version) || definition.version < 1) {
     throw new CapabilityRegistryError("kernel.capability_invalid", "Capability 必须有非空 ID 和正整数版本");
   }
-  if (definition.operation !== "query" && definition.operation !== "command") {
-    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability operation 必须是 query 或 command");
+  if (definition.operation !== "query" && definition.operation !== "command" && definition.operation !== "wait") {
+    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability operation 必须是 query、command 或 wait");
   }
   return {
     capability_id: capabilityId,
     version: definition.version,
     operation: definition.operation,
     ...(definition.host_only ? { host_only: true } : {}),
+    ...(definition.scheduling === "concurrent" ? { scheduling: "concurrent" as const } : {}),
     ...(definition.action ? { action: structuredClone(definition.action) } : {}),
     ...(definition.action_provider ? { action_provider: structuredClone(definition.action_provider) } : {}),
   };
@@ -68,6 +69,8 @@ function capabilityKey(descriptor: RegistryReference): string {
 /** Provider-neutral registry. It owns routing, never business facts. */
 export class CapabilityRegistry<Context> {
   private readonly entries = new Map<string, RegisteredCapability<Context>>();
+  /** Registration order sorted once per change: every capability call looks something up here. */
+  private ordered: HostCapabilityDescriptor[] | null = null;
 
   register<Input, Output>(
     definition: HostCapabilityDefinition<Input, Output>,
@@ -87,6 +90,7 @@ export class CapabilityRegistry<Context> {
       );
     }
     const token = Symbol(key);
+    this.ordered = null;
     this.entries.set(key, {
       token,
       descriptor,
@@ -95,14 +99,17 @@ export class CapabilityRegistry<Context> {
     });
     return () => {
       const current = this.entries.get(key);
-      if (current?.token === token) this.entries.delete(key);
+      if (current?.token === token) { this.entries.delete(key); this.ordered = null; }
     };
   }
 
-  descriptors(): HostCapabilityDescriptor[] {
-    return [...this.entries.values()]
-      .map(({ descriptor }) => structuredClone(descriptor))
-      .sort((left, right) => capabilityKey(left).localeCompare(capabilityKey(right)));
+  /**
+   * Copies of the registered descriptors, in key order. `match` narrows before copying: finding one capability must
+   * not clone the whole registry, which grows with every project's Plugin actions and is consulted on every call.
+   */
+  descriptors(match?: (descriptor: Readonly<HostCapabilityDescriptor>) => boolean): HostCapabilityDescriptor[] {
+    this.ordered ??= [...this.entries.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, entry]) => entry.descriptor);
+    return (match ? this.ordered.filter(match) : this.ordered).map(descriptor => structuredClone(descriptor));
   }
 
   /** Resolve one visible identity without cloning the complete directory. Returned metadata stays isolated. */

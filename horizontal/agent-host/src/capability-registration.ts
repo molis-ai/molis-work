@@ -1,5 +1,5 @@
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentSessionRef, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentSessionRef, type AgentRunRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { AgentHostError, type AgentHost, type AgentStartAuthority } from "./index.js";
 
@@ -36,6 +36,14 @@ export interface AgentCapabilityPorts<Context> {
   boardId(context: Context): string;
   /** Explicit historical owner, never inferred from a request. */
   legacyActorId?(context: Context): string | undefined;
+}
+
+/** A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage. */
+export function runViewVersion(view: AgentRunView): string {
+  const last = view.turns[view.turns.length - 1];
+  return [view.phase, view.turns.length, last?.text.length ?? 0, view.activity.length,
+    view.activity.map(item => item.state[0] + (item.output?.length ?? 0)).join(""), view.awaiting_input.length,
+    view.usage.tokens.input + view.usage.tokens.output, view.step_board?.version ?? 0].join(":");
 }
 
 export function registerAgentHostCapabilities<Context>(
@@ -156,6 +164,28 @@ export function registerAgentHostCapabilities<Context>(
     register(agentHostCapabilities.readSession, async (context, [session]) =>
       await readScopedSession(context, session)),
 
+    register(agentHostCapabilities.readSessionStatuses, async (context, [runtimeId, sessionIds]) => {
+      if (!Array.isArray(sessionIds) || sessionIds.length > 1000 || sessionIds.some(id => typeof id !== "string" || !id)) throw new AgentHostError("agent.session_unknown", "会话列表无效");
+      const adapter = ports.agentHost(context).adapter(runtimeId), board = ports.boardId(context), caller = pluginFor(context);
+      return Promise.all(sessionIds.map(async session_id => {
+        const session = { runtime_id: runtimeId, session_id };
+        try {
+          if (adapter.readSessionStatus) {
+            const { owner, status } = await adapter.readSessionStatus(session);
+            if (owner?.board_id !== board) throw new AgentHostError("agent.session_unknown", "当前项目找不到这条会话");
+            // The fast path answers the same caller check as a full scoped read.
+            if (caller && (owner.plugin_id !== caller.plugin_id || owner.install_id !== caller.install_id
+              || (owner.actor_id ?? owners.legacyActorId?.(context.source)) !== caller.actor_id)) throw denied();
+            return status;
+          }
+          const view = await readScopedSession(context, session);
+          return { session_id, latest_phase: view.latest_run?.phase ?? null, recovery: Boolean(view.recovery), checkpoint_busy: view.checkpoint_busy === true };
+        } catch (error) {
+          return { session_id, error: error instanceof Error ? error.message : "会话暂不可读" };
+        }
+      }));
+    }),
+
     register(agentHostCapabilities.startRun, async (context, [runtimeId, request]) => {
       const caller = assertInputOwner(context, request);
       const authority = await ports.authority(context, request.plugin_id);
@@ -175,6 +205,25 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).adapter(session.runtime_id).read(run);
     }),
 
+    // Following a live round: wake on the first change, gather the deltas that arrive within 40 ms, answer with the latest.
+    register(agentHostCapabilities.waitRun, async (context, [session, run, since, timeoutMs]) => {
+      await requireRun(context, session, run);
+      const adapter = ports.agentHost(context).adapter(session.runtime_id);
+      const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000);
+      return new Promise<{ version: string; view: AgentRunView }>((resolve, reject) => {
+        let latest: AgentRunView | undefined, gather: ReturnType<typeof setTimeout> | undefined, stop: (() => void) | undefined, finished = false;
+        // The published view only names pending questions; a full read resolves them into something a person can answer.
+        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.();
+          const version = runViewVersion(latest!);
+          if (!latest!.awaiting_input.length) { resolve({ version, view: latest! }); return; }
+          adapter.read(run).then(view => resolve({ version, view }), () => resolve({ version, view: latest! })); };
+        const timer = setTimeout(finish, limit);
+        try {
+          stop = adapter.observe(run, view => { latest = view; if (runViewVersion(view) !== since && !gather) gather = setTimeout(finish, 40); });
+          if (finished) stop();
+        } catch (error) { clearTimeout(timer); reject(error); }
+      });
+    }),
     register(agentHostCapabilities.listSubagents, async (context, [session, run]) => {
       await requireRun(context, session, run);
       const port = ports.agentHost(context).adapter(session.runtime_id).subagents;
@@ -189,6 +238,13 @@ export function registerAgentHostCapabilities<Context>(
       if (caller && caller.actor_id !== actorId) throw denied();
       await context.invocation.beforeEffect();
       await port.cancel(run, childId, caller?.actor_id ?? actorId);
+    }),
+    register(agentHostCapabilities.amendStepBoard, async (context, [session, run, amendment, expectedVersion]) => {
+      await requireRun(context, session, run);
+      const adapter = ports.agentHost(context).adapter(session.runtime_id);
+      if (!adapter.amendStepBoard) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能调整计划图");
+      await context.invocation.beforeEffect();
+      return adapter.amendStepBoard(run, amendment, expectedVersion);
     }),
     register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);
@@ -211,9 +267,14 @@ export function registerAgentHostCapabilities<Context>(
       return recovery.inspect(session);
     }),
     register(agentHostCapabilities.recoverRun, async (context, [session, run, expectedVersion]) => {
-      await requireRun(context, session, run);
+      const view = await readScopedSession(context, session);
       const recovery = ports.agentHost(context).adapter(session.runtime_id).recovery;
       if (!recovery) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通中断恢复");
+      // The session's own round, or the interrupted round of one of its subtasks as this session's recovery lists it.
+      const own = run.session_id === session.session_id && view.runs.some(entry => entry.run_id === run.run_id && entry.session_id === session.session_id);
+      if (!own && (run.session_id !== session.session_id || !(await recovery.inspect(session)).runs.some(entry => entry.run_id === run.run_id && entry.subagent))) {
+        throw new AgentHostError("agent.run_unknown", "当前会话找不到这一轮执行");
+      }
       await context.invocation.beforeEffect();
       return recovery.close(session, run.run_id, expectedVersion);
     }),

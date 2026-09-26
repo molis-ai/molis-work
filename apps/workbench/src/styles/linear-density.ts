@@ -305,4 +305,32 @@ export const LINEAR_DENSITY_STYLES = `
     display: flex;
     flex-direction: column;
   }
+  /* Low-height desktop density (pointer: fine, 601..∞ width, ≤600 height). Keep the 48px rail,
+     every entry visible and stacked vertically; only shrink vertical padding/gaps so the middle
+     .plugin-rail-items gains at least one full 32px button. <=600px drawer and (pointer: coarse)
+     keep their 44px rules above. */
+  @media (min-width: 601px) and (max-height: 600px) and (pointer: fine) {
+    body.immersive-workbench .plugin-stack {
+      --plugin-rail-gap: 4px;
+      padding-bottom: 4px;
+    }
+    body.immersive-workbench .assistant-island { gap: 4px; }
+    body.immersive-workbench .assistant-island-card { gap: 2px; padding: 3px; }
+    body.immersive-workbench .workspace-chrome.project-island { padding: 4px 0; gap: 4px; }
+    body.immersive-workbench .workspace-chrome .navigator-project-primary { padding: 3px; gap: 2px; }
+    body.immersive-workbench .plugin-rail-items { gap: 1px; padding: 3px; }
+    body.immersive-workbench .plugin-rail .personal-sidebar-footer { gap: 1px; padding: 3px; }
+    body.immersive-workbench :is(.plugin-rail, .assistant-island) .plugin-rail-item {
+      width: 36px; height: 32px; min-height: 32px;
+    }
+    body.immersive-workbench .plugin-rail .personal-account {
+      width: 36px; height: 32px; min-height: 32px;
+    }
+    /* Project block buttons must stay 32×32 inside the 48px rail; the (max-width:760px), (pointer:coarse)
+       block above expands them to 44px and would crowd the 48px column. */
+    body.immersive-workbench .immersive-workspace .navigator-project-selector,
+    body.immersive-workbench .workspace-chrome :is(.navigator-project-settings, .navigator-project-search) {
+      width: 32px; height: 32px; min-height: 32px;
+    }
+  }
 `;

@@ -42,11 +42,22 @@ export function onContentAppended(input: {
   position: ScrollPosition;
   pinned: boolean;
 }): StickDecision {
-  const follow = input.pinned && atBottom(input.position);
+  // Only the reader un-pins. Content that grew below the fold since the last paint (a card loading,
+  // a section opening) did not move the reader, so it must not stop the follow either.
+  const follow = input.pinned;
   return { follow, show_jump_to_latest: !follow };
 }
 
-/** Recompute the pin after the reader scrolled. Reaching the bottom re-pins. */
-export function onReaderScrolled(position: ScrollPosition): boolean {
-  return atBottom(position);
+/** How long after a wheel, touch, pointer or key a scroll still counts as the reader's own. */
+export const READER_INTENT_MS = 800;
+
+/**
+ * Recompute the pin after a scroll. Reaching the bottom re-pins; only a scroll
+ * the reader made un-pins. A card re-rendering above the fold, a panel keeping
+ * its anchor, or content shrinking also fire scroll events — none of those is
+ * the reader moving up, so they must not stop the follow.
+ */
+export function onReaderScrolled(position: ScrollPosition, input: { pinned: boolean; by_reader: boolean } = { pinned: false, by_reader: true }): boolean {
+  if (atBottom(position)) return true;
+  return input.by_reader ? false : input.pinned;
 }

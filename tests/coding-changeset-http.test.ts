@@ -43,6 +43,9 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
     const saved = await request(prefix, "POST"); assert.equal(saved.status, 200); assert.equal(saved.body.output, null);
     assert.equal((await request(prefix.replace('/app/', '/foreign/'))).status, 400);
     const reading = await request(prefix+'?change_index=1'); assert.match(reading.body.html, /latest &lt;script&gt;/); assert.doesNotMatch(reading.body.html, /latest <script>/);
+    const auto = await request(prefix+'?change_index=1&net=auto');
+    assert.equal(auto.body.view_mode, "write", "第一次写入结果未知时不拼净变更");
+    assert.deepEqual(auto.body.net_groups, [{ path: "cart.mjs", indices: [0, 1], available: false, reason: "有写入未批准或执行结果不确定，只能逐次查看" }]);
     assert.match(reading.body.html, /评论修改后第 1 行/);
     const comments = [{ change_index: 1, side: "before", line: 1, comment: "请保留原行尾", text: "forged" }];
     const feedback = await request(prefix+'/feedback', 'POST', { comments }); assert.equal(feedback.status, 200); assert.match(feedback.body.task, /new\\r\\n/); assert.doesNotMatch(feedback.body.task, /forged/);

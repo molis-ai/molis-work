@@ -90,6 +90,25 @@ test("建出真实工作树，分支与基线提交对得上", async () => {
   }
 });
 
+test("一个写入者目录被手动切了分支：它单独列为不可用，不再让其他写入者整体列不出来", async () => {
+  const repo = await repository();
+  try {
+    const port = createGitWorktreePort(repo.directory);
+    const kept = await port.create("w1"), switched = await port.create("w2");
+    const moved = join(repo.directory, switched.directory);
+    await run("git", ["-C", moved, "checkout", "-q", "-b", "feature/by-hand"]);
+    const { owned, unavailable } = await port.inspect();
+    assert.deepEqual(owned.map(entry => entry.worktree_id), ["w1"]);
+    assert.equal(unavailable.length, 1);
+    assert.equal(unavailable[0]!.branch, "feature/by-hand");
+    assert.match(unavailable[0]!.reason, /不属于这个写入者/);
+    assert.deepEqual((await port.list()).map(entry => entry.worktree_id), ["w1"], "list only offers writers that can still take work");
+    assert.equal((await port.changes(kept)).length, 0);
+  } finally {
+    await rm(repo.home, { recursive: true, force: true });
+  }
+});
+
 test("只报这个写入者自己改了什么，不掺主工作区的改动", async () => {
   const repo = await repository();
   try {
@@ -173,8 +192,10 @@ test("拒绝冒认目录与基线，不能接管其他工作树或扩大子目�
     assert.deepEqual(await port.list(), [worktree], "同前缀的外部工作树不能被接管");
     await assert.rejects(port.remove({ ...worktree, directory: "../foreign", worktree_id: "foreign", branch: "molis-work/writer/foreign" }), /不属于/);
     await repo.git(["config", "--unset", "branch.molis-work/writer/w1.molisWorkOrigin"]);
-    await assert.rejects(port.list(), /缺少原始来源/);
+    assert.deepEqual(await port.list(), [], "a writer without its origin is no longer offered");
+    assert.match((await port.inspect()).unavailable.find(entry => entry.branch === "molis-work/writer/w1")?.reason ?? "", /缺少原始来源/, "and says why");
     await assert.rejects(port.remove(worktree), /缺少原始来源/);
+    await assert.rejects(port.changes(worktree), /缺少原始来源/);
     assert.equal((await repo.git(["worktree", "list", "--porcelain"])).stdout.includes(foreignDirectory), true);
   } finally { await rm(repo.home, { recursive: true, force: true }); }
 });

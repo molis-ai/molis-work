@@ -1,6 +1,6 @@
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { confirmedPlan, type CodingPlanDraft } from "./plans.js";
+import { confirmedPlan, executionSteps, type CodingPlanDraft } from "./plans.js";
 
 export interface CodingTaskBoardPlan {
   run_id: string;
@@ -28,7 +28,7 @@ export function codingTaskBoardPlans(context: PluginStartContext, sessionId: str
       const plan = confirmedPlan(context, sessionId, revision);
       const frozen = run.frozen.execution_plan;
       const original = frozen && frozen.source.artifact_id === material.source_artifact_id && frozen.source.version === material.source_version
-        && JSON.stringify(frozen.steps) === JSON.stringify(plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })));
+        && JSON.stringify(frozen.steps) === JSON.stringify(executionSteps(plan.content));
       const verdicts: Record<string, CodingStepVerdict> = {};
       if (original && run.step_board) for (const node of run.step_board.nodes) {
         const saved = context.services!.storage!.get(stepVerdictKey(sessionId, run.ref.run_id, node.id));

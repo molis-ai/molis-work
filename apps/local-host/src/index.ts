@@ -212,6 +212,7 @@ export {
 export { createGitWorktreePort, GitWorktreeError, type GitWorktreePort } from "./git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 export { MolisWorkCasebookIntegration } from "./casebook/integration.js";
+export { draftText } from "./model-draft.js";
 
 export { ensureSystemAgentService } from "./system-agent-service.js";
 export { LocalActionGatewayClient } from "./action-gateway.js";

@@ -9,4 +9,9 @@ export const DIFF_STYLES = `
 .diff .diff-notices { padding:0; list-style:none; font-size:12px; line-height:1.65; color:var(--muted); }
 .diff .diff-sign { display:inline-block; width:2ch; }
 .diff .diff-before,.diff .diff-after { color:var(--muted); text-align:right; }
+.diff .diff-rows li[hidden] { display:none; }
+.diff .diff-rows li.diff-fold { display:block; padding:0; }
+.diff .diff-fold button { display:flex; align-items:center; gap:6px; width:100%; min-height:26px; padding:2px 12px; border:0; background:color-mix(in srgb,var(--ink) 4%,transparent); color:var(--muted); font:inherit; font-size:11.5px; cursor:pointer; }
+.diff .diff-fold button:hover { background:color-mix(in srgb,var(--ink) 8%,transparent); color:var(--ink); }
+.diff .diff-fold svg { width:12px; height:12px; }
 `;

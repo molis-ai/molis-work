@@ -35,6 +35,9 @@ export interface LocalHostOptions<Runtime> {
   };
 }
 
+/** How long one queued project operation may hold everything else of the project before the log names it. */
+const HELD_IN_LINE_WARN_MS = 20_000;
+
 export class LocalHostError extends Error {
   constructor(
     readonly code:
@@ -480,10 +483,10 @@ export class LocalHost<Runtime> {
 
   private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDefinition, "capability_id" | "version">): Promise<void> {
     const definition = this.capabilities.descriptor(capability, caller.project_id);
-    if (!definition?.action || !definition.action_provider) return;
+    if (!definition?.action || !definition.action_provider || definition.operation === "wait") return;
     const availability = this.capabilities.availability(caller, definition);
     if (!availability.available) return;
-    const state = await this.resolveActionAvailability(caller, { ...definition, action: definition.action, provider: definition.action_provider, availability });
+    const state = await this.resolveActionAvailability(caller, { ...definition, operation: definition.operation, action: definition.action, provider: definition.action_provider, availability });
     if (!state.available) throw new ActionError(state.code, state.reason);
   }
 
@@ -516,13 +519,25 @@ export class LocalHost<Runtime> {
         return result;
       });
     };
+    // Everything else of the project waits while a queued operation runs, so one that holds the line for long is named
+    // in the log (only its capability, never its input): a page that stops answering is otherwise a mystery.
+    const heldInLine = async () => {
+      const started = Date.now();
+      const watch = setInterval(() => console.warn(`[local-host] ${capability.capability_id}@${capability.version} 已占用项目 ${reference.project_id} 的操作队列 ${Math.round((Date.now() - started) / 1000)} 秒`), HELD_IN_LINE_WARN_MS);
+      watch.unref?.();
+      try { return await run(); } finally { clearInterval(watch); }
+    };
     // A Plugin action may await another declared Host capability. Queueing it behind itself deadlocks.
     const parent = this.executionScope.getStore();
     if (parent?.active && parent.entry === entry) return run();
-    // Registered concurrent actions own their short transactions. withRuntime keeps close waiting.
+    // Registered concurrent actions own their short transactions, a wait only observes (following a live round), and a
+    // capability registered as concurrent touches no project state (a model draft): held in line, each would keep every
+    // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
+    // waiting. The registry still refuses a caller claiming "wait" for another operation, and concurrency is read from
+    // the registered descriptor, never from the caller's.
     const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
-    if (registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
-    const operation = entry.operationTail.then(run);
+    if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
+    const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;
   }
@@ -542,6 +557,11 @@ export class LocalHost<Runtime> {
         for (const resolve of entry.idleWaiters.splice(0)) resolve();
       }
     }
+  }
+
+  /** Whether the Host still takes work, without copying every registered capability as status() does. */
+  lifecycle(): LocalHostStatus["state"] {
+    return this.state;
   }
 
   status(): LocalHostStatus {

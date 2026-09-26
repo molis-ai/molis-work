@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { filesActions, FILES_ACTIONS } from "@molis-ai/molis-work-plugin-files";
 import { gitActions, GIT_ACTIONS } from "@molis-ai/molis-work-plugin-git";
-import { prepareGitIndexCapability, readGitResultsCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 
@@ -30,7 +30,9 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
   try {
     await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ board_id: "board", title: "Workspace actions", actor_id: caller.actor_id, idempotency_key: "init" }));
     const directory = await client.discover(caller);
-    const reviewActions = [gitActions.prepareIndex.capability_id, gitActions.results.capability_id, gitActions.saveResult.capability_id];
+    // Actions that need the Host review backend: staging, its results, and commit/branch/push/PR with their log.
+    const reviewActions = [gitActions.prepareIndex.capability_id, gitActions.results.capability_id, gitActions.saveResult.capability_id,
+      gitActions.operations.capability_id, gitActions.prepareOperation.capability_id];
     for (const definition of [...FILES_ACTIONS, ...GIT_ACTIONS]) assert.equal(directory.find(row => row.capability_id === definition.capability_id)?.availability.available, !reviewActions.includes(definition.capability_id), definition.capability_id);
     assert.equal(reads, 0, "registration must not perform business reads");
     const stateOf = async (id: string) => (await client.discover(caller)).find(row => row.capability_id === id)!.availability;
@@ -41,11 +43,16 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     assert.equal((await stateOf(gitActions.prepareIndex.capability_id)).available, false); stopWrongVersion();
     const stopPrepare = host.registerCapability(prepareGitIndexCapability, () => { reviewed++; return { review_id: "fixture" }; });
     const stopResults = host.registerCapability(readGitResultsCapability, () => { reviewed++; return []; });
+    const stopOperation = host.registerCapability(prepareGitOperationCapability, () => { reviewed++; return { review_id: "fixture" }; });
+    const stopOperations = host.registerCapability(readGitOperationsCapability, () => { reviewed++; return []; });
     for (const id of reviewActions) assert.equal((await stateOf(id)).available, true);
     assert.equal(reviewed, 0); assert.equal(reads, 0);
     stopPrepare(); assert.equal((await stateOf(gitActions.prepareIndex.capability_id)).available, false);
     assert.equal((await stateOf(gitActions.results.capability_id)).available, true);
     stopResults(); assert.equal((await stateOf(gitActions.results.capability_id)).available, false);
+    stopOperation(); assert.equal((await stateOf(gitActions.prepareOperation.capability_id)).available, false);
+    stopOperations(); assert.equal((await stateOf(gitActions.operations.capability_id)).available, false);
+    assert.equal((await stateOf(gitActions.summary.capability_id)).available, true, "reading where the repository stands needs no review backend");
     assert.equal((await stateOf(gitActions.state.capability_id)).available, true, "read-only Git needs no review backend");
     const foreign = { ...caller, actor_id: "runtime:foreign", audience: "mcp" as const };
     const foreignDirectory = await client.discover(foreign);

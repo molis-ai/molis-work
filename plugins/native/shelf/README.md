@@ -47,3 +47,5 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
 - Status: `partial`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`
+
+Agent 列表与页面刷新不启动本机 CLI。已找到程序但尚未检查能力时显示“执行时检查”；动作确认保留登录与隔离未知的提示。用户真正执行动作时由原 Shelf Module 检查所选 Agent，不遍历启动其他程序。

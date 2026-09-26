@@ -138,7 +138,9 @@ test("recovery capabilities bind project and exact session/run before allowing c
   const session = { runtime_id: "recovery", session_id: "session-1" }, run = { session_id: "session-1", run_id: "owned" };
   const readSession = adapter.readSession.bind(adapter);
   Object.assign(adapter, { readSession: async () => ({ ...await readSession(session), runs: [run] }),
-    recovery: { inspect: async () => ({ session_id: session.session_id, runs: [], blockers: [] }), close: async () => { closes++; return { session_id: session.session_id, runs: [], blockers: [] }; } } });
+    recovery: { inspect: async () => ({ session_id: session.session_id, blockers: [],
+      runs: [{ run_id: "child-run", version: 1, live: false, waiting: 0, can_close: true, blockers: [], operations: [], subagent: { subagent_id: "sub-1" } }] }),
+    close: async () => { closes++; return { session_id: session.session_id, runs: [], blockers: [] }; } } });
   agentHost.register(adapter);
   const handlers = new Map<string, Function>();
   registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
@@ -150,4 +152,9 @@ test("recovery capabilities bind project and exact session/run before allowing c
   await assert.rejects(close({ board_id: "board-a" }, [session, { ...run, run_id: "foreign" }, 1]));
   assert.equal(closes, 0);
   await close({ board_id: "board-a" }, [session, run, 1]); assert.equal(closes, 1);
+  // A subtask's interrupted round is closed through its parent only while the parent's recovery lists it as the subtask's.
+  await close({ board_id: "board-a" }, [session, { session_id: "session-1", run_id: "child-run" }, 1]); assert.equal(closes, 2);
+  await assert.rejects(close({ board_id: "board-a" }, [session, { session_id: "other", run_id: "child-run" }, 1]));
+  await assert.rejects(close({ board_id: "other" }, [session, { session_id: "session-1", run_id: "child-run" }, 1]));
+  assert.equal(closes, 2);
 });

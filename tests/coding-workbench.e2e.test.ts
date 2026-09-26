@@ -33,13 +33,20 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await b.navigate(() => command("Page.navigate", { url: b.origin + "/__ui/catalog" }, sessionId));
   const boardFrame = await evaluate(`(()=>{const h=document.querySelector('.mw-catalog-shell .mw-frame__header'),title=h.querySelector('h2');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`);
   await b.navigate(() => command("Page.navigate", { url: prefix + "/" }, sessionId));
-  await open("workspace");
-  await waitFor("document.querySelector('[data-workspace-status]').textContent.includes('还没有')");
-  await fill('[data-workspace-add] [name="path"]', workspace);
-  await click('[data-workspace-add] [name="confirmed"]');
-  await click('[data-workspace-add] button[type="submit"]');
-  await waitFor("document.querySelector('[data-workspace-add-status]').textContent.includes('目录已关联')");
-  assert.ok(await evaluate<number>("document.querySelector('[data-workspace-add] button[type=submit]').getBoundingClientRect().height") <= 48, 'inline form controls do not stretch to fill the stage');
+  // Folders are associated in project settings; the chosen one is the project's current directory for Files, Git and Coding.
+  const showWorkspaceSettings = async () => {
+    await click('.navigator-project-settings');
+    await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+    await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
+    await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  };
+  await showWorkspaceSettings();
+  await fill('[data-project-workspaces-add] [name=path]', workspace);
+  await click('[data-project-workspaces-add] [type=submit]');
+  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-fixture') && !document.querySelector('[data-project-workspaces-add] [type=submit]').disabled");
+  const workspaceId = await evaluate<string>("document.querySelector('[data-browse-workspace]').dataset.browseWorkspace");
+  if (await evaluate(`document.querySelector('[data-browse-workspace="${workspaceId}"]').getAttribute('aria-pressed')`) !== 'true') await click(`[data-browse-workspace="${workspaceId}"]`);
+  await waitFor(`document.querySelector('[data-browse-workspace="${workspaceId}"]')?.getAttribute('aria-pressed') === 'true'`);
   await capture("workspace-desktop");
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
@@ -76,7 +83,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");
   git("add", "note.txt");
   await writeFile(join(workspace, "note.txt"), "second\n中文🙂\n");
-  await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.workspace/state"] }, sessionId);
+  await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.git/state"] }, sessionId);
   await open("git");
   await waitFor("document.querySelector('[data-companion=git] [data-git-status]').textContent.includes('fetch')");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
@@ -95,14 +102,17 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${coding} [data-files-tree] [title="note.txt"]')`);
   await click(`${coding} [data-files-tree] [title="note.txt"]`);
   await waitFor(`!document.querySelector('${coding} [data-files-text]').hidden && document.querySelector('${coding} [data-files-text]').value.startsWith('second')`);
+  // Layout can settle a frame after the text arrives under a loaded suite; a reader that never shows still fails here.
+  await waitFor(`document.querySelector('${coding} [data-files-text]').getBoundingClientRect().width > 100`);
   assert.equal(await evaluate(`document.querySelector('${coding} [data-files-text]').getBoundingClientRect().width > 100`), true, "embedded file reads are visible before a Coding session exists");
   await click(`${coding} [data-coding-face="sessions"]`);
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled`);
   await waitFor(`document.querySelector('${coding} [data-coding-prompt]')`);
   await capture("coding-welcome-desktop");
-  await click(`${coding} [data-coding-prompt]`);
+  await click(`${coding} [data-coding-prompt][data-coding-prompt-intent="discuss"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value.includes('主要模块')`);
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-intent]').value`), "discuss", "a starter also picks the way the round runs");
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-prompt]').disabled`), true, "examples never overwrite an existing draft");
   await fill(`${coding} [data-coding-task]`, "first session draft");
   await click(`${coding} [data-coding-new]`);
@@ -121,6 +131,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
   await click(`[data-tab-id="${secondTab.id}"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
+  await click(`${coding} [data-coding-new]`);
+  await waitFor(`document.querySelectorAll('${coding} [data-coding-session]').length === 3 && document.querySelector('${coding} [data-coding-task]').value === ''`);
+  const untouched = await evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`);
+  await click(`${coding} [data-coding-new]`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-new]').disabled`);
+  assert.equal(await evaluate(`document.querySelectorAll('${coding} [data-coding-session]').length`), 3, "an untouched new session is reused instead of piling up");
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`), untouched);
   assert.deepEqual(await evaluate(`(()=>{const h=document.querySelector('${coding} .coding-dialogue-head'),title=h.querySelector('[data-coding-title]');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`), boardFrame, 'real Coding heading matches the component board, not just its class names');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('${coding} [data-coding-tools]')).display`), 'none', 'empty results do not consume a permanent column');
   await click(`${coding} [data-coding-results-open]`);
@@ -137,7 +154,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-send]').disabled`), true, "no model cannot execute a run");
   const sessionsResponse = await fetch(`${prefix}/api/plugins/io.molis.work.coding/state`);
   const sessionState = await sessionsResponse.json();
-  assert.equal(sessionState.sessions.length, 2, "opening and restoring never creates extra sessions");
+  assert.equal(sessionState.sessions.length, 3, "two drafted sessions plus one reused untouched session: opening and restoring never creates extra sessions");
   for (const row of sessionState.sessions) {
     const detail = await (await fetch(`${prefix}/api/plugins/io.molis.work.coding/sessions/${row.session_id}`)).json();
     assert.equal(detail.runs.length, 0, "opening and typing do not launch a model");
@@ -146,9 +163,14 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await evaluate(`document.querySelector('${coding} [data-coding-send]').scrollIntoView({block:'nearest'})`);
   const sendBottom = await evaluate<number>(`document.querySelector('${coding} [data-coding-send]').getBoundingClientRect().bottom`);
   assert.ok(sendBottom <= 780, "send remains reachable on a narrow screen");
-  assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 4, 'updating context labels preserves shared icons');
+  assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 5, 'updating context labels preserves shared icons (materials, character, methods, MCP, delegate)');
+  // Session settings and context sources live behind the composer's "+" so the bar stays about the task.
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true);
+  await click(`${coding} [data-coding-attach-toggle]`);
   await click(`${coding} [data-coding-context-toggle]`);
+  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true, "choosing an item closes the menu");
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-rename]').getBoundingClientRect().height > 0`), true, 'compact session settings retain rename');
+  await click(`${coding} [data-coding-attach-toggle]`);
   await click(`${coding} [data-coding-context-toggle]`);
   await capture("coding-mobile");
   await click(`${coding} [data-coding-results-open]`);
@@ -187,8 +209,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate("document.activeElement.hasAttribute('data-git-close')"), true);
   await capture('git-mobile-dark');
   await click('[data-directory-show]');
-  await open('workspace');
-  await waitFor("!document.querySelector('[data-workspace-refresh]').disabled");
+  await showWorkspaceSettings();
   await capture('workspace-mobile-dark');
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 600, deviceScaleFactor: 1, mobile: false }, sessionId);

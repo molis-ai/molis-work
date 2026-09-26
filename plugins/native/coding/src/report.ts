@@ -1,3 +1,5 @@
+import { codingReportStepsMarkdown, type CodingReportSteps } from "./report-steps.js";
+import { requestText } from "./continuation.js";
 import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -6,6 +8,7 @@ import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_REPORT_TYPE, type CodingReport } from "./artifacts.js";
 
 export interface CodingExecutionReport extends CodingReport {
+  steps?: CodingReportSteps;
   goal?: { goal_id: string; title: string; contract_revision: number; agreement_version?: number; goal_event_cursor: number; reference: ArtifactReference } | null;
   goal_source_error?: { references: ArtifactReference[]; reason: string };
   source: { session_id: string; runtime_id: string; runtime_session_id: string };
@@ -60,6 +63,7 @@ function literal(value: string): string {
 export function createCodingExecutionReport(input: {
   session_id: string; runtime_id: string; title: string; run: AgentRunView;
   commands: CodingExecutionReport["commands"];
+  steps?: CodingReportSteps;
   goal?: CodingExecutionReport["goal"];
   goal_source_error?: CodingExecutionReport["goal_source_error"];
 }): CodingExecutionReport {
@@ -68,7 +72,7 @@ export function createCodingExecutionReport(input: {
     throw new Error("这一轮尚未结束或仍需核对结果，暂不能保存报告");
   }
   const phase = { completed: "本轮结束", failed: "执行失败", stopped: "已停止", cancelled: "已取消" };
-  const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n");
+  const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text)).join("\n\n");
   const modelAnswer = run.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
   const supplemental = run.turns.filter(turn => turn.steer).map(turn =>
     `${turn.steer!.state === "applied" ? "已加入后续上下文" : "已收到，未确认应用"}\n${literal(turn.text)}`).join("\n\n");
@@ -77,7 +81,8 @@ export function createCodingExecutionReport(input: {
     const state = output.timed_out ? "超时" : output.cancelled ? "已取消" : output.exit_code === null ? "退出状态未知" : `退出码 ${output.exit_code}`;
     return `${state}${output.truncated ? "；输出已截断" : ""}\n${literal(output.command)}\n标准输出\n${literal(output.stdout)}\n标准错误\n${literal(output.stderr)}`;
   }).join("\n\n");
-  const activity = run.activity.map(item => `${item.name} · ${item.target} · ${
+  // Model reasoning is not evidence of anything done, so the report's activity lists only operations.
+  const activity = run.activity.filter(item => item.name !== "reasoning").map(item => `${item.name} · ${item.target} · ${
     item.state === "completed" ? "已返回（不等于任务通过）" : item.state === "failed" ? "失败" : "结果未知，未收到结束回执"
   }`).join("\n");
   const usage = codingUsageSummary(run.usage);
@@ -85,6 +90,7 @@ export function createCodingExecutionReport(input: {
   return {
     title: `${input.title} · 执行报告`, run_id: run.ref.run_id,
     source: { session_id: input.session_id, runtime_id: input.runtime_id, runtime_session_id: run.ref.session_id },
+    ...(input.steps ? { steps: structuredClone(input.steps) } : {}),
     state: run.phase, ended_at: run.ended_at, task, model_answer: modelAnswer,
     ...(input.goal ? { goal: structuredClone(input.goal) } : {}),
     ...(input.goal_source_error ? { goal_source_error: structuredClone(input.goal_source_error) } : {}),
@@ -92,6 +98,7 @@ export function createCodingExecutionReport(input: {
     body_markdown: [
       `## 执行状态\n${phase[run.phase as keyof typeof phase]}。运行结束不代表需求完成或用户验收。\n结束时间：${run.ended_at ?? "未记录，不推断原结束时刻"}。${run.stop_reason ? `\n${literal(run.stop_reason)}` : ""}`,
       `## 本轮任务\n${task || "任务正文未保存，不能补造。"}`,
+      ...(input.steps ? [codingReportStepsMarkdown(run, input.steps, literal)] : []),
       ...(input.goal_source_error ? [`## 目标来源暂不可读\n本轮回答和执行证据仍已保留。无法确认原目标归属，不使用会话后来选择的目标替代，也不能据此回写 Goal 进展。\n${literal(`${input.goal_source_error.reason}\n原固定来源：${input.goal_source_error.references.map(ref => `${ref.artifact_id} v${ref.version}`).join("、")}`)}`] : []),
       ...(input.goal ? [`## 本轮关联目标\n${literal(`${input.goal.title}\n目标：${input.goal.goal_id}\n${codingGoalVersionLabel(input.goal)} · 目标事件 ${input.goal.goal_event_cursor}\n固定来源：${input.goal.reference.artifact_id} v${input.goal.reference.version}`)}\n这是开始本轮时固定的目标，不随会话改关联；本报告不代表目标验收。`] : []),
       ...(supplemental ? [`## 补充要求\n应用表示进入上下文，不证明模型遵循，也不代替问题回答。\n\n${supplemental}`] : []),

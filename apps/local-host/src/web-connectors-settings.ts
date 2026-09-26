@@ -157,7 +157,7 @@ export async function handleLocalConnectorsSettingsHttp(
     return true;
   }
   if (method === "GET" && url.pathname === "/api/settings/connectors/feishu/cli/status") {
-    sendJson(response, 200, feishuCliStatus());
+    sendJson(response, 200, feishuCliStatus({ fresh: true }));
     return true;
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/feishu/cli/setup") {

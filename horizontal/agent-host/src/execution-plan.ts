@@ -11,7 +11,9 @@ export function freezeExecutionPlan(request: AgentStartRequest): AgentExecutionP
     || !Number.isSafeInteger(plan.source.version) || plan.source.version < 1
     || !request.text_materials?.some(material => material.source_artifact_id === plan.source.artifact_id && material.source_version === plan.source.version)
     || !Array.isArray(plan.steps) || !plan.steps.length || plan.steps.length > 20
-    || plan.steps.some((step, index) => !step || step.id !== `step-${index + 1}` || !text(step.title, 1000) || !text(step.acceptance, 1000))
+    || plan.steps.some((step, index) => !step || step.id !== `step-${index + 1}` || !text(step.title, 1000) || !text(step.acceptance, 1000)
+      || step.depends_on !== undefined && (!Array.isArray(step.depends_on) || new Set(step.depends_on).size !== step.depends_on.length
+        || step.depends_on.some(id => !plan.steps.slice(0, index).some(earlier => earlier.id === id))))
     || JSON.stringify(plan).length > 16_000) throw new Error("执行计划与固定材料不一致，或步骤格式无效");
   return structuredClone(plan);
 }

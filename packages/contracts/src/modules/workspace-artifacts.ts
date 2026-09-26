@@ -21,14 +21,77 @@ export const readWorkspaceFileCapability = {
 export type GitFileMode = "100644" | "100755";
 export type WorkspaceGitQuery = { workspace_id: string } & (
   | { kind: "status" }
+  /** Branch, upstream, remotes and what is staged: where committing, branching, pushing or a PR starts. */
+  | { kind: "summary" }
+  /** Whether a pull request can be opened from here (GitHub CLI installed and signed in). Reads only. */
+  | { kind: "pr-support" }
   | { kind: "diff"; path: readonly string[]; side: "index" | "worktree" }
+  /** A file left conflicted by a merge or pull: its current text with the conflict markers. Reads only. */
+  | { kind: "conflict"; path: string }
 );
 export type WorkspaceGitResult =
   | { outcome: "status"; porcelain: string; head_commit: string | null }
+  | WorkspaceGitSummary
+  | { outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string }
+  | { outcome: "conflict-file"; path: string; text: string; conflicts: number; ours: string; theirs: string; revision: string }
   | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
       before_exists: boolean; after_exists: boolean; before: string; after: string;
       before_mode: GitFileMode | null; after_mode: GitFileMode | null; revision: string }
   | { outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
+export interface WorkspaceGitSummary {
+  outcome: "summary";
+  /** Null on a detached HEAD. */
+  branch: string | null;
+  head_commit: string | null;
+  upstream: string | null;
+  ahead: number;
+  behind: number;
+  branches: readonly string[];
+  remotes: readonly { name: string; url: string }[];
+  staged: readonly { path: string; status: string }[];
+  /** Files changed but not staged, untracked ones included. */
+  unstaged: number;
+  conflicted: readonly string[];
+  merging: boolean;
+  /** HEAD, branch, upstream and staged content: an operation prepared against it is refused once it moves. */
+  revision: string;
+}
+
+/** One Git operation a person asks for; each goes through Host review and runs only as reviewed. */
+export type GitOperation =
+  | { action: "commit"; message: string }
+  | { action: "branch-create"; name: string; checkout: boolean }
+  | { action: "branch-switch"; name: string }
+  | { action: "push"; remote: string; set_upstream: boolean }
+  | { action: "pr-create"; base: string; title: string; body: string; draft: boolean }
+  /** Merge a local branch into the current one; conflicts stop it for resolving, file by file. */
+  | { action: "merge"; branch: string }
+  /** Fetch and merge the current branch's upstream (never rebase); conflicts stop it the same way. */
+  | { action: "pull" }
+  /** Write one conflicted file as resolved (no markers left) and stage it. */
+  | { action: "resolve"; path: string; content: string }
+  | { action: "merge-abort" };
+export const prepareGitOperationCapability = {
+  capability_id: "projects.workspace.git.operation.prepare.v1", version: 1, operation: "command",
+} as HostCapabilityDefinition<{ workspace_id: string; operation_id: string; revision: string; operation: GitOperation }, { review_id: string }>;
+/** What became of each Git operation in a workspace, from its Host review and what it produced. */
+export interface GitOperationRecord {
+  operation_id: string;
+  review_id: string;
+  tool: string;
+  summary: string;
+  outcome: "pending" | "running" | "succeeded" | "failed" | "denied" | "cancelled" | "expired" | "unknown";
+  /** What the operation produced (a commit, a push, a PR address), when it succeeded and this was recorded. */
+  detail?: string;
+  failure_reason?: string;
+  requested_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+}
+export const readGitOperationsCapability = {
+  capability_id: "projects.workspace.git.operations.v1", version: 1, operation: "query",
+} as HostCapabilityDefinition<{ workspace_id: string }, readonly GitOperationRecord[]>;
+
 export const readWorkspaceGitCapability = {
   capability_id: "projects.workspace.git.read.v1", version: 1, operation: "query",
 } as HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>;
@@ -45,6 +108,11 @@ export interface PreparedWriterDirectory {
   canonical_path: string;
   /** Present only after the Host recorded the project authorization. */
   workspace_id: string | null;
+  /**
+   * Why this directory in the writers' folder can no longer serve as a writer (its branch was switched, its origin is
+   * missing). Such an entry is listed so the person sees it, and is never assigned or integrated.
+   */
+  problem?: string;
 }
 export interface WriterIntegrationFile {
   path: readonly string[];
@@ -56,6 +124,8 @@ export interface WriterIntegrationFile {
   after_text?: string | null;
   before_mode?: GitFileMode | null;
   after_mode?: GitFileMode | null;
+  /** Both sides changed this path since the child started: the base and a three-way merge for a person to finish. */
+  conflict?: { base_text: string | null; merged_text: string; clean: boolean; markers: number };
 }
 export interface WriterIntegrationView {
   workspace_id: string;
@@ -70,7 +140,7 @@ export interface WriterIntegrationView {
 export interface WriterIntegrationSource { session_id: string; run_id: string; subagent_id: string }
 export const writerIntegrationCapabilities = {
   read: { capability_id: "projects.workspace.writers.integration.read.v1", version: 1, operation: "query" } as HostCapabilityDefinition<WriterIntegrationSource, WriterIntegrationView>,
-  prepare: { capability_id: "projects.workspace.writers.integration.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string }[] }, { review_id: string }>,
+  prepare: { capability_id: "projects.workspace.writers.integration.prepare.v1", version: 1, operation: "command" } as HostCapabilityDefinition<WriterIntegrationSource & { operation_id: string; files: readonly { path: readonly string[]; revision: string; resolution?: string }[] }, { review_id: string }>,
 } as const;
 
 export const writerDirectoryCapabilities = {

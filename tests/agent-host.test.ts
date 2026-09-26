@@ -580,6 +580,12 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
     () => registry.invoke(otherContext, agentHostCapabilities.controlRun, [ownedSession,{run_id:"run-1",session_id:"session-1"},{kind:"stop"}]),
     () => registry.invoke(otherContext, agentHostCapabilities.readCommandOutput, [ownedSession,{call_id:"c1"}]),
   ]) await assert.rejects(operation, (error: unknown) => (error as {code?:string}).code === "agent.session_unknown");
+  // A directory's batch read answers session by session, and a session of another project is never read into it.
+  assert.deepEqual(await registry.invoke(otherContext, agentHostCapabilities.readSessionStatuses, ["prologue", ["session-1"]]),
+    [{ session_id: "session-1", error: "当前项目找不到这条会话" }]);
+  const [owned] = await registry.invoke(context, agentHostCapabilities.readSessionStatuses, ["prologue", ["session-1"]]);
+  assert.ok(owned && !("error" in owned) && owned.session_id === "session-1" && owned.recovery === false, JSON.stringify(owned));
+  await assert.rejects(() => registry.invoke(context, agentHostCapabilities.readSessionStatuses, ["prologue", [""]]));
   await assert.rejects(() => registry.invoke(context, agentHostCapabilities.controlRun, [ownedSession,{run_id:"other-run",session_id:"other-session"},{kind:"stop"}]),
     (error:unknown) => (error as {code?:string}).code === "agent.run_unknown");
 
@@ -742,8 +748,8 @@ function scriptedCli(command = "claude") {
         },
       };
     },
-    async version() {
-      return "2.1.0";
+    async available() {
+      return true;
     },
   };
   return { command, port, spawns };

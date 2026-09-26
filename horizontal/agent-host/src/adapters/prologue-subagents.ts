@@ -49,7 +49,9 @@ export function verifySubagentStart(runtime: Runtime, roles: ReadonlyMap<string,
     const child = runtime.subagents.list().find(child => child.parentSession.id === parentSession.id && child.parentRun.id === parentRun.id
       && child.session.id === childSession.ref.id && child.run.id === run.ref.id);
     const role = child?.character && roles.get(exactCharacterKey(child.character));
-    if (!role || !roots.length && role.execution !== "read-only") throw new Error("本轮没有授权这个子角色，未开始子任务模型请求");
+    // In the main workspace a child never writes files; one that runs commands (each a Host review) is allowed.
+    const writesFiles = role?.host_tools.some(tool => tool === "write" || tool === "edit-file");
+    if (!role || !roots.length && (role.execution === "text-edit" || writesFiles)) throw new Error("本轮没有授权这个子角色，未开始子任务模型请求");
     if (roots.length && (!workspace || !roots.some(root => root.id === workspace.id && sameRoot(root.rootRef, workspace.rootRef)))) throw new Error("本轮没有授权这个子目录，未开始子任务模型请求");
   };
 }

@@ -38,7 +38,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
+  if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, openBeside() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
   const PLUGIN_TAB_TITLES = ${JSON.stringify({ home: "项目首页", ...pluginTabTitles() })};
@@ -942,6 +942,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     apply();
     persist();
   };
+  // An item (or a plugin's own view) in the pane beside this one; a narrow window has no room, so it opens in place.
+  const openBeside = (plugin, itemId, title) => {
+    if (embedded) { notifyParent("workbench-pane-open-beside", { plugin, itemId: itemId || null, title: itemId ? titleForItem(plugin, itemId, title) : null }); return; }
+    if (narrow()) { if (itemId) openItem(plugin, itemId, title); else openPlugin(plugin); return; }
+    ops.openBeside(state, plugin, itemId || null, itemId ? titleForItem(plugin, itemId, title) : undefined);
+    apply();
+    persist();
+  };
   const openGoalWork = () => {
     const tab = ops.activeTab(state);
     if (tab?.plugin !== "goals" || tab.kind !== "item") return;
@@ -1419,7 +1427,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       apply();
       return;
     }
-    if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-goal-view"].includes(event.data?.type)) return;
+    if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-goal-view"].includes(event.data?.type)) return;
     const frame = [...panesEl.querySelectorAll("iframe")].find((node) => node.contentWindow === event.source);
     const pane = state.panes.find((candidate) => candidate.id === frame?.dataset.paneOwner);
     if (!pane) return;
@@ -1431,6 +1439,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
     } else if (event.data.type === "workbench-pane-focus") {
       if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
+    } else if (event.data.type === "workbench-pane-open-beside") {
+      state.focusedPaneId = pane.id;
+      openBeside(event.data.plugin, event.data.itemId, event.data.title);
     } else {
       state.focusedPaneId = pane.id;
       if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
@@ -1468,5 +1479,5 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openPluginRecord, openItem, openGoalWork, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
+  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

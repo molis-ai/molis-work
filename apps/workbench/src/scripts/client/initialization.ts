@@ -10,6 +10,7 @@ import { CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-ch
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
+import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
@@ -35,6 +36,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
     (${NAVIGATION_PRESENTATION_SCRIPT})(L);
+    (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
@@ -104,6 +107,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         return result.workspace;
       },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openBeside: (plugin, id, title) => tabWorkspace?.openBeside(plugin, id, title),
     });
     (${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})({
       request: companionRequest, route, icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},

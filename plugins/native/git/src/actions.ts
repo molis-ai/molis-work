@@ -2,9 +2,38 @@ import { bindOwnerPluginAction, type ActionHandlerBinding } from "@molis-ai/moli
 import { gitActions, type GitSelected } from "./action-definitions.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parseFilePath, readWorkspaceGitCapability, prepareGitIndexCapability, readGitResultsCapability, GIT_RESULT_TYPE, type GitReviewedResult, type WorkspaceGitQuery } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { parseFilePath, readWorkspaceGitCapability, prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, GIT_RESULT_TYPE,
+  type GitOperation, type GitReviewedResult, type WorkspaceGitQuery, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "./status.js";
 import { projectGit } from "./projection.js";
+
+const STATUS_WORD: Record<string, string> = { A: "新增", M: "修改", D: "删除", R: "重命名", C: "复制", T: "类型变化" };
+/** A starting point the person edits: a title from what is staged and one line per file. Never sent on its own. */
+export function commitDraft(summary: WorkspaceGitSummary): string {
+  const files = summary.staged;
+  if (!files.length) return "";
+  const base = (file: string) => file.slice(file.lastIndexOf("/") + 1), folders = new Set(files.map(file => file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : ""));
+  const title = files.length === 1 ? `${STATUS_WORD[files[0]!.status] ?? "更新"} ${base(files[0]!.path)}`
+    : folders.size === 1 && [...folders][0] ? `更新 ${[...folders][0]}/ 下的 ${files.length} 个文件` : `更新 ${files.length} 个文件`;
+  return files.length === 1 ? title : `${title}\n\n${files.slice(0, 30).map(file => `- ${STATUS_WORD[file.status] ?? "更新"} ${file.path}`).join("\n")}${files.length > 30 ? `\n- 另有 ${files.length - 30} 个文件` : ""}`;
+}
+/** Only the shapes the Host accepts go on; everything else is refused here first. */
+function gitOperation(value: unknown): GitOperation {
+  const input = value as Record<string, unknown> | null;
+  const text = (key: string, max: number) => { const found = input?.[key]; if (typeof found !== "string" || found.length > max) throw new Error("Git 操作参数无效"); return found; };
+  switch (input?.action) {
+    case "commit": return { action: "commit", message: text("message", 5_000) };
+    case "branch-create": return { action: "branch-create", name: text("name", 200), checkout: input.checkout === true };
+    case "branch-switch": return { action: "branch-switch", name: text("name", 200) };
+    case "push": return { action: "push", remote: text("remote", 200), set_upstream: input.set_upstream === true };
+    case "pr-create": return { action: "pr-create", base: text("base", 200), title: text("title", 256), body: text("body", 20_000), draft: input.draft === true };
+    case "merge": return { action: "merge", branch: text("branch", 200) };
+    case "pull": return { action: "pull" };
+    case "resolve": return { action: "resolve", path: text("path", 1000), content: text("content", 1024 * 1024) };
+    case "merge-abort": return { action: "merge-abort" };
+    default: throw new Error("不支持的 Git 操作");
+  }
+}
 
 export function gitActionHandlers(context: PluginStartContext, onReady: (ready: boolean) => void = () => {}): ActionHandlerBinding[] {
   const services = context.services!;
@@ -78,6 +107,37 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
         action: input.action as "stage" | "unstage", revision: input.revision, operation_id: input.operation_id }, { before_effect: beforeWrite });
       return result;
     }, [...browsing, prepareGitIndexCapability]),
+    // Source control: commit, branch, push and PR, each prepared against the repository as the person saw it and run
+    // only after Host review.
+    bindOwnerPluginAction(context, gitActions.summary, async () => {
+      const current = await workspace(), value = await read({ workspace_id: current.workspace_id, kind: "summary" });
+      if (value.result.outcome !== "summary") return { workspace: current, summary: null, message: "message" in value.result ? value.result.message : "Git 状态不可读" };
+      return { workspace: current, summary: value.result, draft: commitDraft(value.result) };
+    }, reading),
+    bindOwnerPluginAction(context, gitActions.prSupport, async () => {
+      const current = await workspace();
+      return (await read({ workspace_id: current.workspace_id, kind: "pr-support" })).result;
+    }, reading),
+    // A file a merge or pull left conflicted, markers included, so the person can pick and edit before resolving.
+    bindOwnerPluginAction(context, gitActions.conflict, async (input) => {
+      const current = await workspace();
+      if (!input || typeof input.path !== "string" || !input.path) throw new Error("请选择冲突文件");
+      return (await read({ workspace_id: current.workspace_id, kind: "conflict", path: input.path })).result;
+    }, reading),
+    bindOwnerPluginAction(context, gitActions.operations, async () => {
+      const current = await workspace();
+      const operations = await services.capabilities!.invoke(readGitOperationsCapability, { workspace_id: current.workspace_id });
+      if ((await workspace()).workspace_id !== current.workspace_id) throw new Error("工作目录已改变，请重新读取操作记录");
+      return { workspace: current, operations };
+    }, [...browsing, readGitOperationsCapability]),
+    bindOwnerPluginAction(context, gitActions.prepareOperation, async (input, beforeWrite) => {
+      const current = await workspace();
+      if (!input || input.workspace_id !== current.workspace_id || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw new Error("Git 操作请求无效或工作区已切换");
+      const operation = gitOperation(input.operation);
+      await beforeWrite();
+      return services.capabilities!.invoke(prepareGitOperationCapability, { workspace_id: current.workspace_id, operation_id: input.operation_id, revision: input.revision, operation },
+        { before_effect: beforeWrite });
+    }, [...browsing, prepareGitOperationCapability]),
     bindOwnerPluginAction(context, gitActions.state, async () => {
       onReady(false);
       const current = await workspace(), value = await read({ workspace_id: current.workspace_id, kind: "status" });

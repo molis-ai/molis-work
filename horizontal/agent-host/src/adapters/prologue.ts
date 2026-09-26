@@ -21,6 +21,7 @@ import type {
   AgentRuntimeHealth,
   AgentSessionRef,
   AgentSessionView,
+  AgentSessionStatus,
   AgentStartRequest,
   AgentStartExecution,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -76,11 +77,15 @@ export interface PrologueModelConfiguration {
   model: string;
   /** Opaque credential reference. The adapter never sees the secret itself. */
   credential_ref: string;
+  /** The model's configured context window. Absent means unknown; the runtime default then applies. */
+  context_tokens?: number;
   /**
    * Prompt cache mode for this Run. Absent is `off`, and `off` must behave
    * exactly as if caching did not exist — no field is sent at all.
    */
   prompt_cache?: "off" | "best-effort" | "required";
+  /** The model thinks before answering. Absent means off, and no thinking field is sent. */
+  thinking?: "adaptive";
 }
 
 export interface PrologueAdapterPorts {
@@ -134,6 +139,8 @@ export interface PrologueStartInput {
   mcp_sources?: readonly AgentMcpSourceRef[];
   /** Read-only work never asks to write; the Host decides this, not the model. */
   mode: "plan" | "build";
+  /** `digest`: the task carries earlier rounds; do not replay the session's verbatim history. */
+  history?: "digest";
 }
 
 /** Host observation times only; the SDK ledger owns content and execution state. */
@@ -147,7 +154,10 @@ export interface PrologueRuntimePort {
   /** The SDK path really runs with no authorized root and no tools. */
   workspaceNone?: boolean;
   actionTools?: boolean;
+  /** The window the runtime packs against when a model states none; a configured window is capped by it. */
+  defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
+  amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number): Promise<NonNullable<AgentRunView["step_board"]>>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
@@ -278,7 +288,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       inspect: async session => { await this.#loadSession(session.session_id); return options.runtime.recovery!.inspect(session); },
       close: async (session, runId, expectedVersion) => {
         const held = await this.#loadSession(session.session_id);
-        if (!held.runs.some(run => run.run_id === runId)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于当前会话");
+        // One of this session's rounds, or a subtask's interrupted round that this session's recovery lists as its own.
+        if (!held.runs.some(run => run.run_id === runId)
+          && !(await options.runtime.recovery!.inspect(session)).runs.some(run => run.run_id === runId && run.subagent)) {
+          throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于当前会话");
+        }
         const latest = held.runs.at(-1);
         const phase = latest && this.#requireRun(latest.run_id).view.phase;
         if (this.#startingSessions.has(session.session_id) || options.runtime.checkpoints?.busy?.(session)
@@ -374,6 +388,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
   }
 
+  async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
+    const record = await this.#loadSession(session.session_id);
+    const latest = record.runs.at(-1);
+    return { owner: { ...record.owner }, status: { session_id: session.session_id, latest_phase: latest ? this.#requireRun(latest.run_id).view.phase : null,
+      recovery: Boolean(record.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false } };
+  }
+
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
     request = { ...request, budget: parseAgentRunBudget(request.budget) };
     request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
@@ -418,6 +439,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         "宿主没有冻结角色定义，不能在没有角色 Prompt 的情况下起跑",
       );
     }
+    if (request.continue_step_board_of !== undefined) {
+      // Continuing a graph is only ever the same plan, in the same session, while that graph is unfinished.
+      if (!request.execution_plan) throw new PrologueAdapterError("agent.capability_unavailable", "继续计划需要原确认计划");
+      const earlier = await this.read({ session_id: request.session.session_id, run_id: request.continue_step_board_of });
+      if (!isEnded(earlier.phase)) throw new PrologueAdapterError("agent.session_busy", "被继续的那一轮还没有结束");
+      if (JSON.stringify(earlier.frozen.execution_plan) !== JSON.stringify(request.execution_plan)) throw new PrologueAdapterError("agent.capability_unavailable", "继续计划必须使用那一轮的同一版确认计划");
+      if (!earlier.step_board || earlier.step_board.terminal) throw new PrologueAdapterError("agent.capability_unavailable", "那一轮的计划图已经结束，请调整计划后重新开始");
+    }
     if (request.execution_plan && (!this.#runtime.readStepBoard || STEP_TOOLS.some(tool => !role.host_tools.includes(tool)))) {
       throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时或角色尚未接通计划步骤回报");
     }
@@ -442,6 +471,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (role.actions?.tools.length && !this.#runtime.actionTools) throw new PrologueAdapterError("agent.capability_unavailable", "Action tools are not connected to this runtime");
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
+    state.prompt_includes_cache = model.protocol.startsWith("openai");
     const frozen: AgentRunView["frozen"] = {
       ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
       ...(role.character ? { character: structuredClone(role.character) } : {}),
@@ -468,6 +498,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         source_version: material.source_version,
       })),
       ...(request.execution_plan ? { execution_plan: request.execution_plan } : {}),
+      ...(request.continue_step_board_of ? { continues_step_board_of: request.continue_step_board_of } : {}),
+      ...(request.history === "digest" ? { history: "digest" as const } : {}),
+      ...(model.thinking ? { thinking: model.thinking } : {}),
+      ...(this.#runtime.defaultContextWindowTokens ? { model_context: {
+        window_tokens: Math.min(model.context_tokens ?? this.#runtime.defaultContextWindowTokens, this.#runtime.defaultContextWindowTokens),
+        prompt_includes_cache: model.protocol.startsWith("openai"),
+      } } : {}),
       budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
       ...(request.workspace === "none" ? { workspace: "none" } : { directory: structuredClone(request.directory) }),
     };
@@ -497,6 +534,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       mcp_sources: request.mcp_sources ?? [],
       ...(role.actions ? { actions: role.actions } : {}),
       mode,
+      ...(request.history === "digest" ? { history: "digest" as const } : {}),
     });
 
     const ref: AgentRunRef = {
@@ -578,6 +616,22 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     return () => {
       record.listeners.delete(listener);
     };
+  }
+
+  /**
+   * A person adjusts a plan graph while its round runs, or between rounds while the graph is unfinished and belongs to
+   * the session's latest round: "继续计划" carries on from that same graph, so a blocked step is decided (or a step
+   * skipped or added) before the plan continues. An earlier round's graph, or a finished one, stays the record it was.
+   */
+  async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number) {
+    const current = await this.read(run);
+    if (isEnded(current.phase)) {
+      const record = await this.#loadSession(run.session_id);
+      if (record.runs.at(-1)?.run_id !== run.run_id) throw new PrologueAdapterError("agent.session_busy", "这一轮之后已有新的一轮，它的计划图不再调整；请在最新一轮上调整");
+      if (!current.step_board || current.step_board.terminal) throw new PrologueAdapterError("agent.session_busy", "这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
+    }
+    if (!this.#runtime.amendStepBoard) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能调整计划图");
+    return this.#runtime.amendStepBoard(run, amendment, expectedVersion);
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {
@@ -755,6 +809,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(restored.recovery ? { recovery: restored.recovery } : {}) };
     for (const saved of restored.runs) {
       const state = emptyPrologueStreamState();
+      state.prompt_includes_cache = saved.frozen.model_context?.prompt_includes_cache ?? false;
       state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
       let firstPrompt = true;
       let endedAt: string | null = null;

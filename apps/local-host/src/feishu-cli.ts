@@ -39,17 +39,48 @@ function statusFromOutput(output: Record<string, unknown>): FeishuCliStatus {
   };
 }
 
-export function feishuCliStatus(): FeishuCliStatus {
+const STATUS_OPTIONS = { encoding: "utf8", timeout: 3_000, maxBuffer: 100_000 } as const;
+const STATUS_FRESH_MS = 30_000;
+let known: { executable: string; status: FeishuCliStatus; checked_at: number } | null = null;
+let refreshing: Promise<void> | null = null;
+
+function statusFromFailure(error: unknown): FeishuCliStatus {
+  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  if (code === "ENOENT") return { installed: false, configured: false, authorized: false, problem: "请先安装飞书 CLI" };
+  return { installed: true, configured: false, authorized: false, problem: "飞书 CLI 状态不可用，请运行 lark-cli auth status" };
+}
+
+function checkNow(file: string): FeishuCliStatus {
   try {
-    const raw = execFileSync(executable(), ["auth", "status", "--json"], {
-      encoding: "utf8", timeout: 3_000, maxBuffer: 100_000, stdio: ["ignore", "pipe", "ignore"],
-    });
-    return statusFromOutput(parseJson(raw));
-  } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
-    if (code === "ENOENT") return { installed: false, configured: false, authorized: false, problem: "请先安装飞书 CLI" };
-    return { installed: true, configured: false, authorized: false, problem: "飞书 CLI 状态不可用，请运行 lark-cli auth status" };
-  }
+    return statusFromOutput(parseJson(execFileSync(file, ["auth", "status", "--json"], { ...STATUS_OPTIONS, stdio: ["ignore", "pipe", "ignore"] })));
+  } catch (error) { return statusFromFailure(error); }
+}
+
+/** Refresh in the background; a stale answer is served meanwhile. */
+function refreshFeishuCliStatus(): void {
+  if (refreshing) return;
+  const file = executable();
+  const pending = execFile(file, ["auth", "status", "--json"], STATUS_OPTIONS);
+  pending.child.stdin?.end();
+  // Output that is not JSON (an empty reply, say) is a failed status like any other: a background refresh must never
+  // reject unhandled, which ends the whole server process.
+  refreshing = pending.then(({ stdout }) => statusFromOutput(parseJson(stdout))).catch(statusFromFailure)
+    .then(status => { if (executable() === file) known = { executable: file, status, checked_at: Date.now() }; })
+    .finally(() => { refreshing = null; });
+}
+
+/**
+ * Whether the CLI is installed, configured and authorized. Connector reads reach this on every web request, and a
+ * synchronous CLI run there stops the whole server for up to three seconds. So only the first read for an executable,
+ * or a `fresh` one (the settings page, a login or binding the user just asked for), waits for the CLI; other reads get
+ * the last answer, and one older than half a minute is refreshed in the background.
+ */
+export function feishuCliStatus(options: { fresh?: boolean } = {}): FeishuCliStatus {
+  const file = executable();
+  if (options.fresh || known?.executable !== file) {
+    known = { executable: file, status: checkNow(file), checked_at: Date.now() };
+  } else if (Date.now() - known.checked_at > STATUS_FRESH_MS) refreshFeishuCliStatus();
+  return known.status;
 }
 
 /** Launch the CLI's official app setup and return only its Feishu URL. */
@@ -77,12 +108,12 @@ export function startFeishuCliSetup(): Promise<string> {
     child.stdout.on("data", receive);
     child.stderr.on("data", receive);
     child.once("error", () => { if (!settled) { settled = true; clearTimeout(timeout); reject(new Error("无法启动飞书 CLI")); } setupProcess = null; });
-    child.once("exit", () => { setupProcess = null; if (!settled) { settled = true; clearTimeout(timeout); reject(new Error("飞书 CLI 应用配置未完成")); } });
+    child.once("exit", () => { setupProcess = null; refreshFeishuCliStatus(); if (!settled) { settled = true; clearTimeout(timeout); reject(new Error("飞书 CLI 应用配置未完成")); } });
   });
 }
 
 export async function startFeishuCliLogin(): Promise<string> {
-  const status = feishuCliStatus();
+  const status = feishuCliStatus({ fresh: true });
   if (!status.installed || !status.configured) throw new Error(status.problem || "请先配置飞书 CLI 应用");
   if (loginProcess) throw new Error("飞书授权已在进行中");
   const started = await runCli(["auth", "login", "--scope", USER_SCOPES, "--no-wait", "--json"]);
@@ -97,7 +128,7 @@ export async function startFeishuCliLogin(): Promise<string> {
   loginProcess = child;
   const timeout = setTimeout(() => child.kill(), 10 * 60_000);
   child.once("error", () => { clearTimeout(timeout); loginProcess = null; });
-  child.once("exit", () => { clearTimeout(timeout); loginProcess = null; });
+  child.once("exit", () => { clearTimeout(timeout); loginProcess = null; refreshFeishuCliStatus(); });
   return url.toString();
 }
 

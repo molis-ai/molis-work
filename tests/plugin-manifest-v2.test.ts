@@ -219,6 +219,13 @@ test("agent block is checked against the Plugin's own ports, prompts and subagen
     const agent = manifest.agent as { roles: Array<{ prompts?: string[] }> };
     agent.roles[0]!.prompts = ["nowhere"];
   }, "引用了未声明的 Prompt");
+  // A child in the main workspace may run commands (each reviewed) but never write files.
+  const checker = v2Manifest(), declared = checker.agent as { prompts: unknown[]; subagents: { parent_role_ids: string[]; roles: Array<Record<string, unknown>> } };
+  declared.subagents.parent_role_ids.push("reader");declared.prompts.push({ prompt_id: "checker", version: 1 });
+  declared.subagents.roles.push({ role_id: "checker", version: 1, name: "Checker", execution: "workspace-write", parent_role_ids: ["reader"], host_tools: ["read-file", "run-command"] });
+  assert.doesNotThrow(() => parsePluginManifest(checker));
+  (declared.subagents.roles.at(-1)!.host_tools as string[]).push("write");
+  assert.throws(() => parsePluginManifest(checker), /只能属于要求独立子目录的父角色/);
   rejects((manifest) => {
     const agent = manifest.agent as {
       roles: Array<{ role_id: string; subagent_workspaces?: string }>;

@@ -336,3 +336,28 @@ test("fresh project-root navigation lands leftover plugin views on home", () => 
   const source = readFileSync(new URL("../apps/workbench/src/scripts/client/initialization.ts", import.meta.url), "utf8");
   assert.match(source, /navigationType !== "reload" && navigationType !== "back_forward" && !tabWorkspace\.isEmbedded\?\.\(\)\) tabWorkspace\.landAtProjectRoot\(\)/);
 });
+
+test("opening beside puts a second item of the same plugin in a pane to the right, and reuses that pane afterwards", () => {
+  const state = ops.create();
+  ops.openItem(state, "coding", "session-a", "A");
+  const left = ops.focused(state);
+  ops.openBeside(state, "coding", "session-b", "B");
+  assert.equal(state.panes.length, 2);
+  const right = ops.focused(state);
+  assert.notEqual(right.id, left.id);
+  assert.equal(ops.activeTab(state)?.itemId, "session-b");
+  assert.equal(left.tabs.find((tab) => tab.id === left.activeTabId)?.itemId, "session-a", "the pane it came from keeps showing its session");
+  assert.deepEqual(state.layout.tree.children.map((child: { paneId: string }) => child.paneId), [left.id, right.id]);
+  assert.equal(state.layout.tree.direction, "row");
+  // From the left pane again, the next item goes into the pane already on the right rather than a third one.
+  state.focusedPaneId = left.id;
+  ops.openBeside(state, "coding", "session-c", "C");
+  assert.equal(state.panes.length, 2);
+  assert.equal(ops.focused(state).id, right.id);
+  assert.equal(ops.activeTab(state)?.itemId, "session-c");
+  // Without an item, the plugin's own view (its session list) opens beside.
+  ops.openBeside(state, "coding");
+  assert.equal(state.panes.length, 3, "the right-most pane has nothing to its right, so a new pane opens");
+  assert.equal(ops.focused(state).viewPlugin, "coding");
+  assert.equal(ops.activeTab(state), null);
+});

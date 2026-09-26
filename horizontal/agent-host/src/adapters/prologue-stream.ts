@@ -43,6 +43,7 @@ export type PrologueEvent =
   | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string }
   | { type: "steer-applied"; steerId: string }
   | { type: "text-delta"; text: string }
+  | { type: "reasoning-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
   | { type: "tool-result"; callId: string; name: string; text: string; outcome?: "returned" | "failed"; errorCode?: string }
   | { type: "awaiting-approval"; effectRef: { kind: "effect"; id: string; revision: number }; pendingRef: { kind: "pending"; id: string; revision: number }; why: string; character?: string }
@@ -51,7 +52,7 @@ export type PrologueEvent =
   | { type: "usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
   | { type: "compaction-usage-recorded"; callId: string; receipt: PrologueUsageReceipt }
   | { type: "compaction-skipped"; usageRecorded?: boolean }
-  | { type: "model-response-repair"; reason: "tool-not-declared" }
+  | { type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }
   | { type: "compaction-started" }
   | { type: "compacted"; replaced?: number; usageRecorded?: boolean }
   | { type: "compaction-failed"; why?: string }
@@ -83,6 +84,8 @@ export interface PrologueStreamState {
   compaction_receipts: Map<string, PrologueUsageReceipt>;
   compaction_unaccounted: number;
   usage_preview: PrologueUsageReceipt | undefined;
+  /** OpenAI-style providers count cached prompt tokens inside input; Anthropic-style report them beside it. */
+  prompt_includes_cache?: boolean;
   stop_reason?: string;
   /** Approvals the Run is stopped on. The bridge mirrors these to the Host queue. */
   awaiting_approval: PrologueApprovalWaiting[];
@@ -94,6 +97,10 @@ export interface PrologueStreamState {
   streaming: string;
   streaming_at: string | null;
   streaming_sequence?: number;
+  /** Activity index of the reasoning being streamed; reasoning is shown as activity, never merged into what the model said. */
+  reasoning_index?: number;
+  /** The SDK is continuing an answer the output limit cut off: its thinking must not close that answer. */
+  continuing?: true;
 }
 
 export function emptyPrologueStreamState(): PrologueStreamState {
@@ -127,6 +134,13 @@ export function prologuePhaseOf(state: PrologueControlState): AgentRunPhase {
 
 function target(input: Record<string, unknown> | undefined): string {
   if (!input) return "";
+  // A command is its whole argv: "npm test" says what ran, "npm" alone does not.
+  if (typeof input.executable === "string" && input.executable !== "") {
+    const words = [input.executable, ...(Array.isArray(input.argv) ? input.argv.map(String) : [])]
+      .map(word => word !== "" && /^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`);
+    const line = words.join(" ");
+    return line.length <= 200 ? line : `${line.slice(0, 200)}…`;
+  }
   for (const key of ["path", "file_path", "command", "pattern", "query"]) {
     const value = input[key];
     if (typeof value !== "string" || value === "") continue;
@@ -156,7 +170,15 @@ function updateUsage(state: PrologueStreamState): void {
   const cost = aggregate(receipts.map(r => ({ source: r.cost.currency === "USD" ? r.cost.source : "unknown", value: r.cost.amount })));
   const unknown = [input, output].some(item => ["unknown", "partial", "partial-estimated"].includes(item.coverage));
   const estimated = [input, output].some(item => item.coverage.includes("estimated"));
+  // The window in use is the latest main call's whole prompt; compaction calls size a different request.
+  const latest = state.usage_preview ?? [...state.usage_receipts.values()].at(-1);
+  const prompt = latest ? [latest.input, ...(state.prompt_includes_cache ? [] : [latest.cacheRead, latest.cacheWrite])] : [];
+  const context = prompt.length && prompt[0]!.source !== "unknown" && prompt[0]!.tokens !== undefined ? {
+    tokens: prompt.reduce((sum, count) => sum + (count.source === "unknown" || count.tokens === undefined ? 0 : count.tokens), 0),
+    coverage: (prompt.every(count => count.source === "reported") ? "reported" : prompt.some(count => count.source === "unknown") ? "partial" : "estimated") as AgentUsageCoverage,
+  } : undefined;
   state.usage = {
+    ...(context ? { context } : {}),
     ...(compaction ? { compaction } : {}),
     tokens: {
       input: input.value ?? 0, output: output.value ?? 0,
@@ -182,7 +204,19 @@ function mergeUsage(previous: PrologueUsageReceipt | undefined, next: PrologueUs
   };
 }
 
+const REASONING_LIMIT = 16_384;
+
+/** Reasoning ends when anything else begins: text, a tool call, a prompt, a stop. */
+function closeReasoning(state: PrologueStreamState): void {
+  const index = state.reasoning_index;
+  if (index === undefined) return;
+  delete state.reasoning_index;
+  const entry = state.activity[index];
+  if (entry?.state === "started") state.activity[index] = { ...entry, state: "completed" };
+}
+
 function closeStreaming(state: PrologueStreamState): void {
+  closeReasoning(state);
   if (state.streaming === "") return;
   state.turns.push({
     turn_id: `assistant-${state.turns.length + 1}`,
@@ -194,6 +228,14 @@ function closeStreaming(state: PrologueStreamState): void {
   state.streaming = "";
   state.streaming_at = null;
   delete state.streaming_sequence;
+}
+
+/** Close the open assistant text without touching reasoning, so text and reasoning keep their order. */
+function closeStreamingText(state: PrologueStreamState): void {
+  const reasoning = state.reasoning_index;
+  delete state.reasoning_index;
+  closeStreaming(state);
+  if (reasoning !== undefined) state.reasoning_index = reasoning;
 }
 
 /** A restored prefix is readable history, not a live stream or a tool receipt. */
@@ -246,9 +288,26 @@ export function applyPrologueEvent(
       return true;
     }
 
+    case "reasoning-delta": {
+      const delta = event as Extract<PrologueEvent, { type: "reasoning-delta" }>;
+      if (delta.text === "") return false;
+      if (!state.continuing) closeStreamingText(state);
+      let index = state.reasoning_index;
+      if (index === undefined) {
+        index = state.activity.push({ call_id: `reasoning-${state.next_sequence}`, name: "reasoning", target: "", state: "started",
+          summary: "推理", output: "", at, sequence: state.next_sequence++ }) - 1;
+        state.reasoning_index = index;
+      }
+      const entry = state.activity[index]!, text = (entry.output ?? "") + delta.text;
+      state.activity[index] = { ...entry, output: text.slice(0, REASONING_LIMIT), output_truncated: text.length > REASONING_LIMIT, at };
+      return true;
+    }
+
     case "text-delta": {
       const delta = event as Extract<PrologueEvent, { type: "text-delta" }>;
       if (delta.text === "") return false;
+      closeReasoning(state);
+      delete state.continuing;
       if (state.streaming === "") {
         state.streaming_at = at;
         state.streaming_sequence = state.next_sequence++;
@@ -344,6 +403,14 @@ export function applyPrologueEvent(
     }
 
     case "model-response-repair": {
+      if (event.reason === "output-truncated") {
+        // One answer in several calls: what the model writes next joins the text it was cut off in.
+        state.continuing = true;
+        const sequence = state.next_sequence++;
+        state.activity.push({ call_id: `model-continue-${sequence}`, name: "接着写", target: "回答",
+          state: "completed", summary: "回答写到单次输出上限，已让模型从断开处接着写", at, sequence });
+        return true;
+      }
       if (event.reason !== "tool-not-declared") return false;
       closeStreaming(state);
       const sequence = state.next_sequence++;

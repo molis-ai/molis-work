@@ -214,7 +214,7 @@ export class MolisWorkLocalHost {
 
   /** Platform startup injects the existing Catalog owner before accepting requests. */
   configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): void {
-    if (this.closing || this.host.status().state !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.closing || this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
     this.personalPlanningHome = canonicalHome;
@@ -224,7 +224,7 @@ export class MolisWorkLocalHost {
 
   /** A transport borrows this service; only the Host owns its lifetime. */
   ensureAgentService(homeDirectory: string, create: () => AgentHostComposition): AgentHostComposition {
-    if (this.closing || this.host.status().state !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.closing || this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
     const home = path.resolve(homeDirectory);
     if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== home || this.agents && this.agents.home !== home) {
       throw new ActionError("actions.home_mismatch", "Agent 服务与 Host 必须属于同一个 Home");
@@ -270,7 +270,7 @@ export class MolisWorkLocalHost {
 
   /** Local management inspects registered metadata without borrowing execution permissions. */
   async inspectActions(caller: ActionCallContext, reference?: LocalHostProjectReference) {
-    if (this.host.status().state !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+    if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
     this.systemFunctions?.refresh();
     if (reference) await this.prepareProjectPlugins(reference, caller);
     return this.host.inspectActions(caller, reference);
@@ -290,7 +290,7 @@ export class MolisWorkLocalHost {
 
   private withSystemActions(client: ActionClient): ActionClient {
     const refresh = () => {
-      if (this.host.status().state !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+      if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
       this.systemFunctions?.refresh();
     };
     return {
@@ -302,7 +302,7 @@ export class MolisWorkLocalHost {
   sceneClient(reference?: LocalHostProjectReference): ActionSceneClient {
     const client = this.host.sceneClient(reference);
     const refresh = () => {
-      if (this.host.status().state !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
+      if (this.host.lifecycle() !== "running") throw new LocalHostError("host.closed", "Local Host 已关闭");
       this.systemFunctions?.refresh();
     };
     return {
@@ -347,6 +347,14 @@ export class MolisWorkLocalHost {
         await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close(), this.sessions.close()]);
       }
     })();
+  }
+
+  get instanceId(): string {
+    return this.host.instanceId;
+  }
+
+  lifecycle(): LocalHostStatus["state"] {
+    return this.host.lifecycle();
   }
 
   status(): LocalHostStatus {

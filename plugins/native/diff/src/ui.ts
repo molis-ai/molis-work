@@ -19,6 +19,10 @@ export interface DiffUiModel {
   readonly view: DiffView;
   readonly primitives: DiffUiPrimitives;
   readonly line_feedback?: boolean;
+  /** Unchanged runs further than this many lines from a change fold behind a reveal row; omitted, every row shows. */
+  readonly fold_context?: number;
+  /** False when the host already names the file and version above the comparison. */
+  readonly sides?: boolean;
 }
 
 export const diffUiDescriptor: UiContributionDescriptor = {
@@ -50,7 +54,7 @@ export const diffUiContribution: UiContribution<DiffUiModel> = {
 export function renderDiff(model: DiffUiModel): string {
   const { escape } = model.primitives;
   const view = model.view;
-  const header = view.before === undefined || view.after === undefined
+  const header = view.before === undefined || view.after === undefined || model.sides === false
     ? ""
     : `<header class="diff-sides"><span class="diff-path">对比前：${escape(view.before.path)} · v${escape(view.before.content_version)}</span>`
       + `<span class="diff-source">对比后：${escape(view.after.path)} · v${escape(view.after.content_version)}</span>`
@@ -92,11 +96,44 @@ function renderUnified(rows: readonly TextDiffRow[], model: DiffUiModel): string
   const { escape } = model.primitives;
   const lineNumber = (side: "before" | "after", number: number | undefined) => number === undefined ? ""
     : model.line_feedback ? `<button type="button" class="mw-btn mw-btn--ghost" data-coding-line-side="${side}" data-coding-line="${number}" aria-label="评论${side === "before" ? "修改前" : "修改后"}第 ${number} 行">${number}</button>` : escape(number);
-  return `<ol class="diff-rows">${rows.map((row) =>
-    `<li data-kind="${escape(row.kind)}">`
+  const folds = foldGroups(rows, model.fold_context);
+  const render = (row: TextDiffRow, fold: number | undefined) =>
+    `<li data-kind="${escape(row.kind)}"${fold === undefined ? "" : ` data-diff-folded="${fold}" hidden`}>`
     + `<span class="diff-before">${lineNumber("before", row.before_number)}</span>`
     + `<span class="diff-after">${lineNumber("after", row.after_number)}</span>`
-    + `<code><span class="diff-sign" aria-label="${row.kind === "insert" ? "新增" : row.kind === "delete" ? "删除" : "未改变"}">${row.kind === "insert" ? "+" : row.kind === "delete" ? "−" : " "}</span>${escape(row.text)}</code></li>`).join("")}</ol>`;
+    + `<code><span class="diff-sign" aria-label="${row.kind === "insert" ? "新增" : row.kind === "delete" ? "删除" : "未改变"}">${row.kind === "insert" ? "+" : row.kind === "delete" ? "−" : " "}</span>${escape(row.text)}</code></li>`;
+  return `<ol class="diff-rows">${rows.map((row, index) => {
+    const fold = folds.get(index);
+    // Folded rows stay in the document: a reader can reveal them, and line
+    // feedback keeps addressing the same stored numbers.
+    const opener = fold !== undefined && folds.get(index - 1) !== fold
+      ? `<li class="diff-fold"><button type="button" data-diff-unfold="${fold}">${model.primitives.icon("chevron-down")}<span>展开 ${[...folds.values()].filter((group) => group === fold).length} 行未改变</span></button></li>`
+      : "";
+    return opener + render(row, fold);
+  }).join("")}</ol>`;
+}
+
+/** Row index → fold group, for equal rows more than `context` lines from any change. */
+function foldGroups(rows: readonly TextDiffRow[], context: number | undefined): Map<number, number> {
+  const folds = new Map<number, number>();
+  if (context === undefined || !rows.some((row) => row.kind !== "equal")) return folds;
+  const near = rows.map(() => false);
+  rows.forEach((row, index) => {
+    if (row.kind === "equal") return;
+    for (let at = Math.max(0, index - context); at <= Math.min(rows.length - 1, index + context); at++) near[at] = true;
+  });
+  let start = -1, group = 0;
+  const close = (end: number) => {
+    // A fold hiding fewer than four lines costs more attention than it saves.
+    if (start >= 0 && end - start >= 4) { for (let at = start; at < end; at++) folds.set(at, group); group++; }
+    start = -1;
+  };
+  rows.forEach((row, index) => {
+    if (row.kind === "equal" && !near[index]) { if (start < 0) start = index; }
+    else close(index);
+  });
+  close(rows.length);
+  return folds;
 }
 
 function renderSplit(rows: readonly TextDiffRow[], model: DiffUiModel): string {

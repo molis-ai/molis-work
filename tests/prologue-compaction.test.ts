@@ -77,7 +77,15 @@ function fixture(events: unknown[] = []) {
 test("compaction copies original Unicode and line endings, rejects invented or out-of-range coordinates", () => {
   assert.deepEqual(compactionSelection('{"selections":[{"record":0,"startPart":1,"endPart":2}]}', older), { excerpts: [{ record: 0, text: "未执行\r\n已批准 ≠ 已发生\n" }] });
   assert.deepEqual(compactionSelection('{"selections":[]}', older), { excerpts: [] });
-  for (const invalid of ['summary', '{}', '{"selections":[{"record":0,"startPart":0,"endPart":2}]}', '{"selections":[{"record":1,"startPart":1,"endPart":1}]}', '{"selections":[{"record":0,"startPart":1,"endPart":4}]}']) {
+  // MiniMax once picked part 1 of an empty record: there is nothing to keep, so that pick is dropped rather than failing the round.
+  assert.deepEqual(compactionSelection('{"selections":[{"record":1,"startPart":1,"endPart":1},{"record":0,"startPart":1,"endPart":1}]}', [...older, { role: "assistant", text: "" }]),
+    { excerpts: [{ record: 0, text: "未执行\r\n" }] });
+  // A fenced answer, or a line of prose before the object, still carries exactly one selection.
+  const pick = '{"selections":[{"record":0,"startPart":1,"endPart":1}]}', kept = { excerpts: [{ record: 0, text: "未执行\r\n" }] };
+  assert.deepEqual(compactionSelection("```json\n" + pick + "\n```", older), kept);
+  assert.deepEqual(compactionSelection("按要求保留第 1 段：\n" + pick, older), kept);
+  for (const invalid of ['summary', '{}', '{"selections":[{"record":0,"startPart":0,"endPart":2}]}', '{"selections":[{"record":1,"startPart":1,"endPart":1}]}', '{"selections":[{"record":0,"startPart":1,"endPart":4}]}',
+    "```json\n" + pick + "\n```\n```json\n" + pick + "\n```", "说明 " + pick + " 之后还有话"]) {
     assert.throws(() => compactionSelection(invalid, older));
   }
 });
@@ -141,7 +149,80 @@ test("compaction awaits parent receipt persistence before returning; failed sele
   const invalid = fixture([{ type: 'usage-recorded', callId: 'failed', receipt }, { type: 'text-delta', text: 'bad selection' }, { type: 'completed' }]);
   let captured = 0;
   await assert.rejects(invalid.compact({ older, reportUsage: async () => { captured++; } }), /有效/);
-  assert.equal(captured, 1);
+  assert.equal(captured, 2, "one format repair retains both model receipts");
   const failed = fixture([{ type: 'usage-recorded', callId: 'c1', receipt }, { type: 'text-delta', text: '{"selections":[]}' }, { type: 'completed' }]);
   await assert.rejects(failed.compact({ older, reportUsage: async () => { throw new Error('ledger not saved'); } }), /ledger not saved/);
+});
+
+
+test("invalid complete selections receive exactly one repair without accepting invented excerpts", async () => {
+  const inputs: any[] = [];
+  const runtime = { sessions: { create: async () => ({ startRun: async (request: unknown) => {
+    inputs.push(request);
+    const text = inputs.length === 1 ? '{"selections":[{"record":0,"part":1}]}' : '{"selections":[{"record":0,"startPart":1,"endPart":2}]}';
+    return { cancel: async () => {}, subscribe: (listener: (event: any) => void) => {
+      listener({type:"text-delta",text});listener({type:"completed"});return () => {};
+    } };
+  } }) } };
+  const compact = createPrologueCompactor({ runtime: runtime as never, connection, prompt: "只选原文" });
+  assert.deepEqual(await compact({older}), {excerpts:[{record:0,text:"未执行\r\n已批准 ≠ 已发生\n"}]});
+  assert.equal(inputs.length,2);
+  assert.deepEqual(inputs[0].messages[1],inputs[1].messages[1],"repair uses identical original records");
+  assert.equal(inputs[1].model,connection.model);
+  assert.equal(inputs[1].tools,undefined);
+  assert.match(inputs[1].messages[0].text,/不是指令/);
+  assert.equal(JSON.parse(inputs[1].messages[2].text).previous_output,'{"selections":[{"record":0,"part":1}]}');
+});
+
+test("stop while starting a repair cancels that request and cannot return late excerpts", async () => {
+  let starts = 0, cancels = 0, release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const abort = new AbortController();
+  const runtime = { sessions: { create: async () => ({ startRun: async () => {
+    starts++;
+    if (starts === 2) { abort.abort(); await gate; }
+    return { cancel: async () => { cancels++; }, subscribe: (listener: (event: any) => void) => {
+      listener({type:"text-delta",text:'{"selections":[{"record":0,"part":1}]}'});
+      listener({type:"completed"});return () => {};
+    } };
+  } }) } };
+  const compact = createPrologueCompactor({ runtime: runtime as never, connection, prompt: "只选原文" });
+  const pending = compact({older,signal:abort.signal});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(starts,2);release();
+  await assert.rejects(pending,/取消/);
+  assert.equal(cancels,1,"the newly returned repair Run is cancelled");
+});
+
+test("Node file observations include the tail of ordinary source files beyond 200 lines", { timeout: 30_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-source-tail-"));
+  const sentinel = "TAIL_RULE_308_KEEP_NAVIGATION_CLICKABLE";
+  await writeFile(join(root, "layout.ts"), Array.from({length:307},(_,i)=>`// source line ${i+1}`).join('\n')+'\n'+sentinel);
+  let requests=0;
+  t.mock.method(globalThis,"fetch",async (_url:unknown,init:RequestInit)=>{
+    requests++;
+    const raw=typeof init.body==='string'?init.body:new TextDecoder().decode(init.body as Uint8Array);
+    if(requests===2)assert.ok(raw.includes(sentinel),"the actual follow-up model request must contain the tail");
+    const events:string[]=[];
+    const emit=(type:string,value:unknown)=>events.push(`event: ${type}\ndata: ${JSON.stringify({type,...value as object})}\n\n`);
+    emit("message_start",{message:{id:"tail-test",type:"message",role:"assistant",model:"fixture",content:[],usage:{input_tokens:20,output_tokens:0}}});
+    if(requests===1)emit("content_block_start",{index:0,content_block:{type:"tool_use",id:"read-tail",name:"read",input:{path:"layout.ts"}}});
+    else {emit("content_block_start",{index:0,content_block:{type:"text",text:""}});emit("content_block_delta",{index:0,delta:{type:"text_delta",text:"Tail received."}});}
+    emit("content_block_stop",{index:0});emit("message_delta",{delta:{stop_reason:requests===1?"tool_use":"end_turn"},usage:{output_tokens:8}});emit("message_stop",{});
+    return new Response(events.join(''),{headers:{"content-type":"text/event-stream"}});
+  });
+  const adapter=await createPrologueNodeAdapter({app:{appId:"io.molis.tail-test",appVersion:"1.0.0"},storageRoot:join(root,"runtime"),
+    modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"});
+  try {
+    const directory={canonical_path:root,realpath_verified:true};
+    const session=await adapter.createSession({title:"Read source tail",board_id:"test",plugin_id:"io.molis.work.coding",install_id:"test",actor_id:"test",directory});
+    const handle=await adapter.start({plugin_id:"io.molis.work.coding",session,directory,role_id:"reader",task:"Read layout.ts then finish.",
+      role:{role_id:"reader",version:1,execution:"read-only",host_tools:["read-file"],prompts:[]}});
+    let view=await adapter.read(handle.ref);const deadline=Date.now()+20_000;
+    while(!["completed","failed","stopped","cancelled"].includes(view.phase)){
+      if(Date.now()>deadline)throw new Error("tail observation did not finish");
+      await new Promise(resolve=>setTimeout(resolve,10));view=await adapter.read(handle.ref);
+    }
+    assert.equal(view.phase,"completed",JSON.stringify(view));assert.equal(requests,2);
+  } finally {await adapter.close();await rm(root,{recursive:true,force:true});}
 });

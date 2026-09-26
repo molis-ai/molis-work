@@ -1,5 +1,13 @@
 export { codingReportPreview } from "./report.js";
-export { codingChangeSetPreview } from "./changeset.js";
+export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
+export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";
+export { codeTokens, codeLanguage, diffRowTokens } from "./highlight.js";
+export { commitDraftMaterial, commitMessageFrom, COMMIT_DRAFT_INSTRUCTIONS } from "./commit-draft.js";
+export { planTask } from "./plans.js";
+export { mentionedPaths, attachMentions, workspaceFileIndex, symbolsIn, symbolBlock } from "./mentions.js";
+export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, HISTORY_SUMMARY_INSTRUCTIONS, MODEL_DIGEST_HEAD } from "./history-digest.js";
+export { CodingCooperationStore, MAX_DELEGATION_HOPS, DELEGATION_STATE_LABEL, type CodingDelegation, type CodingDelivery, type DelegationState } from "./cooperation.js";
+export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-coding",
@@ -109,6 +117,7 @@ export {
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
 export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
+export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./routes.js";
 export {
   projectMcp,
   projectSkills,
@@ -166,17 +175,20 @@ export {
   type WriterWorktree,
   type WritersProjectionInput,
 } from "./writers.js";
+export { createCodingTimeline, type TimelineActivity, type TimelineRun } from "./timeline.js";
 export {
   STICK_THRESHOLD_PX,
   atBottom,
   onContentAppended,
   onReaderScrolled,
+  READER_INTENT_MS,
   type ScrollPosition,
   type StickDecision,
 } from "./reading.js";
 
 export { CODING_STYLES } from "./styles.js";
 export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 export type { CodingCharacterChoice, CodingCharacterPorts } from "./characters.js";
 
 export { codingMethods } from "./methods.js";

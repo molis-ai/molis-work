@@ -58,16 +58,19 @@ test('packed SDK: checkpoint review is a manual operation, reject does not write
     await assert.rejects(f.checkpoints.prepareRewind(f.session,id),/已有回退/);
     await f.queue.respond({review_id:review.review_id,decision:'reject',actor_id:'user'});
     await waitUntil(()=>!f.checkpoints.busy!(f.session));assert.equal(await readFile(join(f.project,'a.ts'),'utf8'),'new\n');
+    assert.equal((await f.checkpoints.list(f.session))[0].rewound_at,undefined,'a rejected rewind does not mark the checkpoint');
     const second=await f.checkpoints.prepareRewind(f.session,id);assert.notEqual(second.review_id,review.review_id);
     await f.queue.respond({review_id:second.review_id,decision:'approve',actor_id:'user'});
     await waitUntil(()=>!f.checkpoints.busy!(f.session));assert.equal(f.queue.receipt(second.review_id)?.effect_settled,true);
     assert.equal(await readFile(join(f.project,'a.ts'),'utf8'),'original\n');
+    assert.equal((await f.checkpoints.list(f.session))[0].rewound_at,f.queue.receipt(second.review_id)?.decided_at,'a rewind that took effect marks its checkpoint');
     const context=await f.checkpoints.context(f.session.session_id);assert.match(context,/回退已实际写入/);assert.match(context,/重新读取当前文件/);assert.match(context,/a.ts/);assert.doesNotMatch(context,/actual-model-run.*completed/);
     await assert.rejects(f.queue.respond({review_id:second.review_id,decision:'approve',actor_id:'user'}));
     await f.queue.refresh('board');assert.equal(f.queue.receipt(second.review_id)?.effect_settled,true);
     await writeFile(join(f.project,'a.ts'),'after review\n');await f.restart();await f.checkpoints.restore(f.session.session_id);
     assert.equal(f.queue.receipt(second.review_id)?.effect_settled,true);assert.equal(f.queue.receipt(review.review_id)?.status,'rejected');
     assert.equal(await readFile(join(f.project,'a.ts'),'utf8'),'after review\n','restoring history must not dispatch another rewind');
+    assert.ok((await f.checkpoints.list(f.session))[0].rewound_at,'the mark survives a restart');
   } finally {await f.close();}
 });
 

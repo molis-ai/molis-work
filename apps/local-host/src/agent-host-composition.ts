@@ -20,7 +20,12 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import type { ModelProviderStore } from "./model-provider-store.js";
-import { prepareGitIndexCapability, readGitResultsCapability, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { prepareGitOperation } from "./git-operations.js";
+import { draftText } from "./model-draft.js";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { resolveConfiguredHome } from "./product-home.js";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { prepareGitIndex } from "./workspace-git-index.js";
 import { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 import { createGitWorktreePort } from "./git-worktrees.js";
@@ -130,6 +135,59 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   });
 
 
+  // Commit, branch, push and PR: prepared against the repository as the person saw it, run only as the review shows.
+  // What each produced is kept beside the review, since a receipt only says whether it happened.
+  const detailsFile = path.join(options.homeDirectory ?? resolveConfiguredHome(), "git-operation-details.json");
+  const readDetails = async (): Promise<Record<string, string>> => { try { return JSON.parse(await readFile(detailsFile, "utf8")); } catch { return {}; } };
+  const saveDetail = async (key: string, detail: string) => {
+    const next = { ...await readDetails(), [key]: detail }, temporary = detailsFile + "." + process.pid + ".tmp";
+    await writeFile(temporary, JSON.stringify(next)); await rename(temporary, detailsFile);
+  };
+  const unregisterGitOperation = options.localHost.registerCapability(prepareGitOperationCapability, async (project, input, invocation) => {
+    await initialize();
+    if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
+    if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("Git 操作标识无效");
+    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
+      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const workspace = grants.find(item => item.workspace_id === input.workspace_id && item.realpath_verified);
+    if (!workspace) throw new Error("工作区已取消授权");
+    const prepared = await prepareGitOperation(workspace, input.revision, input.operation);
+    // The caller's authority is checked again right before the review is created, as for staging.
+    await invocation.beforeEffect();
+    const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+      operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
+      { check: prepared.check, async execute() {
+        const detail = await prepared.execute();
+        try { await saveDetail(`${project.board_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
+      } });
+    return { review_id: request.review_id };
+  });
+  // A short draft from the model (a commit message): its own throwaway runtime, no tools, no review queue.
+  const unregisterDraft = options.localHost.registerCapability(agentHostCapabilities.draftText, async (project, input) => {
+    if (!options.prologue) throw new Error("模型执行方尚未接通，不能起草");
+    const { reviewQueue: _queue, storageRoot: _root, ...prologue } = options.prologue;
+    return draftText(prologue, path.join(options.homeDirectory ?? resolveConfiguredHome(), "agent-drafts"), project.board_id, input);
+  });
+  const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
+    await initialize();
+    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
+      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
+    await agentHost.reviews.refresh(project.board_id);
+    const details = await readDetails(), records: GitOperationRecord[] = [];
+    for (const request of agentHost.reviews.list(project.board_id)) {
+      if (request.operation?.kind !== "git-operation" || request.operation.workspace_id !== input.workspace_id || request.document.kind !== "tool-operation") continue;
+      const receipt = agentHost.reviews.receipt(request.review_id);
+      const outcome: GitOperationRecord["outcome"] = !receipt ? "unknown" : receipt.effect_uncertain ? "unknown" : receipt.status === "pending" ? "pending"
+        : receipt.status === "rejected" ? "denied" : receipt.status === "cancelled" ? "cancelled" : receipt.status === "expired" ? "expired"
+        : receipt.effect_settled ? "succeeded" : receipt.effect_error ? "failed" : "running";
+      const detail = details[`${project.board_id}:${request.operation.operation_id}`];
+      records.push({ operation_id: request.operation.operation_id, review_id: request.review_id, tool: request.document.tool, summary: request.document.summary, outcome,
+        ...(outcome === "succeeded" && detail ? { detail } : {}), ...(receipt?.effect_error ? { failure_reason: receipt.effect_error } : {}),
+        requested_at: request.requested_at, decided_by: receipt?.decided_by ?? null, decided_at: receipt?.decided_at ?? null });
+    }
+    return records.reverse();
+  });
   const unregisterGitResults = options.localHost.registerCapability(readGitResultsCapability, async (project, input) => {
     await initialize();
     const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
@@ -165,11 +223,15 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   };
   const unregisterWriters = options.localHost.registerCapability(writerDirectoryCapabilities.list, async (project, input) => {
     const { grants, parent, port } = await writerParent(project.project_id, input.workspace_id);
-    return (await port.list()).map(tree => {
+    const { owned, unavailable } = await port.inspect();
+    const grantFor = (canonical_path: string) => grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null;
+    return [...owned.map(tree => {
       const canonical_path = path.resolve(parent.canonical_path, tree.directory);
-      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path,
-        workspace_id: grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null };
-    });
+      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path, workspace_id: grantFor(canonical_path) };
+    }), ...unavailable.map(entry => {
+      const canonical_path = path.resolve(parent.canonical_path, entry.directory);
+      return { worktree_id: path.basename(canonical_path), branch: entry.branch ?? "", base_commit: "", canonical_path, workspace_id: grantFor(canonical_path), problem: entry.reason };
+    })];
   });
   const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input) => {
     await initialize();
@@ -206,7 +268,9 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const run = await prologue.read(ref);
     if (!["completed", "failed", "cancelled", "stopped"].includes(run.phase) || run.frozen.role_id !== "writers" || session.latest_run && !["completed", "failed", "cancelled", "stopped"].includes(session.latest_run.phase)) throw new Error("父任务仍在执行或需核对，暂不能整合");
     const children = await prologue.subagents.list(ref), child = children.find(c => c.subagent_id === source.subagent_id);
-    if (!child || child.state !== "completed" || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
+    // Any ended child may be brought back: one that ran out of turns after writing and testing its files still did the
+    // work. What lands is exactly what the person reviews file by file, re-checked at approval; unknown outcomes still block.
+    if (!child || !["completed", "failed", "cancelled"].includes(child.state) || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
     const granted = options.workspacesFor ? await options.workspacesFor(project.project_id)
       : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     const originalDirectory = run.frozen.directory;
@@ -247,6 +311,9 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     disposed = true;
     unregister();
     unregisterGit();
+    unregisterGitOperation();
+    unregisterDraft();
+    unregisterGitOperations();
     unregisterGitResults();
     unregisterWriters();
     unregisterPrepareWriter();

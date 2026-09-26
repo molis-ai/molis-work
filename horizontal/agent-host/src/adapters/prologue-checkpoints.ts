@@ -85,7 +85,11 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
       else { if (sessionId) uncertain.add(sessionId); queue.uncertain(reviewId, "尚无可确认的回退结果，不能重复执行"); }
     } else if (receipt?.status === "pending" && ["cancelled", "denied", "failed"].includes(effect?.state ?? "")) queue.cancel(reviewId, "回退已结束，未获得可继续的批准");
   };
+  // Rewinds from before this process are brought back once per session; every later one is live here, so rereading
+  // the whole execution ledger on each refresh and each round's start found nothing new and cost a disk read per record.
+  const settledSessions = new Set<string>(), settledBoards = new Set<string>();
   const restore = (sessionId: string): Promise<void> => {
+    if (settledSessions.has(sessionId)) return Promise.resolve();
     const held = restoring.get(sessionId);
     if (held) return held;
     const work = (async () => {
@@ -110,15 +114,17 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
         await settle(effect.ref, request.review_id);
         restored.add(intent.operation_id);
       }
-    })().finally(() => restoring.delete(sessionId));
+    })().then(() => { settledSessions.add(sessionId); }).finally(() => restoring.delete(sessionId));
     restoring.set(sessionId, work);
     return work;
   };
   const detach = queue.registerRefresh(async boardId => {
+    if (settledBoards.has(boardId)) return;
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行账暂不可读");
     const sessions = new Set(report.effects.flatMap(effect => effect.proposal.origin?.session ? [effect.proposal.origin.session] : []));
     for (const id of sessions) if ((await ports.readIndex(id))?.owner.board_id === boardId) await restore(id);
+    settledBoards.add(boardId);
   });
   const capability: AgentCheckpointsCapability & { restore: typeof restore; close(): Promise<void>; context(sessionId: string): Promise<string> } = {
     busy: session => active.has(session.session_id) || uncertain.has(session.session_id),
@@ -149,6 +155,16 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
       const index = await requireIndex(session.session_id);
       const directories = new Map(index.attempts.flatMap(attempt => attempt.frozen.directory
         ? [[attempt.frozen.directory.canonical_path, attempt.frozen.directory] as const] : []));
+      // A checkpoint already rewound to says so, from the Host's own receipts, rather than looking untouched.
+      const rewound = new Map<string, string>();
+      for (const item of queue.list(index.owner.board_id)) {
+        if (item.kind !== "rewind" || item.operation?.session_id !== session.session_id) continue;
+        const receipt = queue.receipt(item.review_id);
+        if (!receipt?.effect_settled) continue;
+        const id = (item.document as AgentRewindReviewDocument).checkpoint_id, at = receipt.decided_at ?? item.requested_at;
+        const seen = rewound.get(id);
+        if (seen === undefined || seen < at) rewound.set(id, at);
+      }
       const result: AgentCheckpoint[] = [];
       for (const directory of directories.values()) {
         const root = await runtime.workspace.authorize({ path: directory.canonical_path });
@@ -157,7 +173,8 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
           if (item.sessionId !== session.session_id || !item.paths.every(safePath)) continue;
           result.push({ checkpoint_id: item.checkpointId, session_id: session.session_id,
             ...(item.runId ? { origin_run_id: item.runId } : {}), paths: [...item.paths], directory: structuredClone(directory),
-            label: item.paths.join("、"), created_at: new Date(item.takenAtMs).toISOString() });
+            label: item.paths.join("、"), created_at: new Date(item.takenAtMs).toISOString(),
+            ...(rewound.has(item.checkpointId) ? { rewound_at: rewound.get(item.checkpointId)! } : {}) });
         }
       }
       return result.sort((a, b) => b.created_at.localeCompare(a.created_at));

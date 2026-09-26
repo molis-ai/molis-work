@@ -7,7 +7,7 @@ import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-p
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
@@ -136,6 +136,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
         changeSetReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
+          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
+          .map(({ artifact_id, version }) => ({ artifact_id, version })),
+        // Confirmed plans, so another session can cite one as a fixed material.
+        planReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } };

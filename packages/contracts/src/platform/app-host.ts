@@ -18,7 +18,11 @@ export const platformAppHostContract = {
   ssot: "docs/system/ARCHITECTURE.md",
 } as const satisfies ContractDescriptor;
 
-export type HostCapabilityOperation = "query" | "command";
+/**
+ * `wait` is a read that may hold until something changes, such as following a live round. The Host runs it beside
+ * the project's queued operations rather than in line with them, so a held wait never delays a stop, an answer or a read.
+ */
+export type HostCapabilityOperation = "query" | "command" | "wait";
 
 export interface DesktopPanelRecord {
   panel_id: string;
@@ -73,6 +77,12 @@ export interface HostCapabilityDescriptor {
   operation: HostCapabilityOperation;
   /** Legacy adapter for authenticated Host composition only; a plugin's consumes declaration cannot grant access. */
   readonly host_only?: boolean;
+  /**
+   * The call touches no project state (a model draft written in a directory of its own, say): it runs beside the
+   * project's operation queue instead of holding every later operation until it answers. The Host reads this from the
+   * registered descriptor, so a caller cannot claim it for a queued operation.
+   */
+  readonly scheduling?: "concurrent";
   /** Optional transport-neutral metadata for discoverable system actions. */
   readonly action?: import("./actions.js").ActionMetadata;
   /** Injected by the registration owner, not supplied by tool callers. */

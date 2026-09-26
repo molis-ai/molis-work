@@ -166,6 +166,8 @@ export interface ShelfRuntimeInstall {
   readonly executable: string;
   readonly kind: ShelfRuntimeKind;
   readonly can_run_job: boolean;
+  /** An executable was found; job support is checked only when a job is requested. */
+  readonly capability_pending?: boolean;
   readonly install_url: string;
 }
 
@@ -177,6 +179,8 @@ export interface ShelfRuntimeStatus {
   readonly isolation: ShelfIsolationGrade;
   readonly isolation_fact: string;
   readonly can_run_job: boolean;
+  /** An executable was found; job support is checked only when a job is requested. */
+  readonly capability_pending?: boolean;
   /** Whether this device can read text out of an image on its own. */
   readonly image_text: boolean;
   readonly installed: readonly string[];

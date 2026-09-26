@@ -65,8 +65,8 @@ export interface ModelProviderRecord {
 /**
  * Whether this format has a cache breakpoint **we** can set.
  *
- * Anthropic-compatible takes a `cache_control` marker on the system block, so
- * the choice is ours. OpenAI-compatible caches prefixes on the provider's side
+ * Anthropic-compatible takes a `cache_control` marker on the system block (or,
+ * with no system block, on the last user message), so the choice is ours. OpenAI-compatible caches prefixes on the provider's side
  * with no field for us to set — which is not the same as "this model does not
  * cache", and not something we can promise on the user's behalf.
  */

@@ -3,6 +3,7 @@ import { feedContentActions, feedSubjectAction, feedSourceSubjectAction } from "
 import { feedHomeEventsAction } from "./home-events.js";
 import { feedRuleActions } from "./rule-actions.js";
 import { feedItemActions } from "./item-actions.js";
+import { feedSourceActions } from "./source-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -27,9 +28,9 @@ export const feedManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-feed-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [...new Set([...Object.values(feedContentActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), feedHomeEventsAction].flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 内容、捕捉规则与首页事项，处理消息去向" })),
+  permissions: [...new Set([...Object.values(feedContentActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedHomeEventsAction].flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 内容、捕捉规则与首页事项，处理消息去向与管理来源" })),
   capabilities: { provides: [], consumes: [] },
-  actions: [...Object.values(feedContentActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), feedSubjectAction, feedSourceSubjectAction, feedHomeEventsAction],
+  actions: [...Object.values(feedContentActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedSubjectAction, feedSourceSubjectAction, feedHomeEventsAction],
   artifacts: { produces: [], consumes: [] },
   requires: [],
   action_scenes: [feedCaptureScene],

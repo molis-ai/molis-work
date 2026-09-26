@@ -134,15 +134,13 @@ test("没有声明 Agent 的插件，一个角色都拿不到", async () => {
   }
 });
 
-test("项目没绑定工作区时，起跑被目录那道闸拦住", async () => {
+// 目录闸在建会话时就拦下：没授权的目录连会话都开不出来，更轮不到起跑。
+test("项目没绑定工作区时，建会话就被目录那道闸拦住", async () => {
   const item = await fixture(null);
   try {
     await assert.rejects(
-      () => item.client.invoke(agentHostCapabilities.startRun, ["claude-code", {
-        plugin_id: CODING, board_id: "board-a", install_id: "coding", actor_id: "user",
-        session: { session_id: "s", runtime_id: "claude-code" },
-        task: "看看代码",
-        role_id: "reader",
+      () => item.client.invoke(agentHostCapabilities.createSession, ["claude-code", {
+        plugin_id: CODING, board_id: "board-a", install_id: "coding", actor_id: "user", title: "看看代码",
         directory: { canonical_path: "/tmp/anywhere", realpath_verified: true },
       }]),
       (error: unknown) => (error as { code?: string }).code === "agent.directory_unauthorized",
@@ -152,18 +150,15 @@ test("项目没绑定工作区时，起跑被目录那道闸拦住", async () =>
   }
 });
 
-test("插件不能拿一个宿主没授权的目录起跑", async () => {
+test("插件不能拿一个宿主没授权的目录开会话", async () => {
   const real = await realpath(await mkdtemp(join(tmpdir(), "ws-")));
   const item = await fixture({
     workspace_id: "w", canonical_path: real, realpath_verified: true, display_name: "ws",
   });
   try {
     await assert.rejects(
-      () => item.client.invoke(agentHostCapabilities.startRun, ["claude-code", {
-        plugin_id: CODING, board_id: "board-a", install_id: "coding", actor_id: "user",
-        session: { session_id: "s", runtime_id: "claude-code" },
-        task: "看看代码",
-        role_id: "reader",
+      () => item.client.invoke(agentHostCapabilities.createSession, ["claude-code", {
+        plugin_id: CODING, board_id: "board-a", install_id: "coding", actor_id: "user", title: "看看代码",
         directory: { canonical_path: "/somewhere/else", realpath_verified: true },
       }]),
       (error: unknown) => (error as { code?: string }).code === "agent.directory_unauthorized",

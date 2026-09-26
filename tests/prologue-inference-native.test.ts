@@ -28,7 +28,7 @@ test("native final dispatch rechecks source after an awaited credential check", 
     finalDispatch = true;
     await scope.getStore()?.();
   } });
-  const runtime = createRuntime({ app: { appId: "io.molis.native.guard-test", appVersion: "1.0.0" }, host,
+  const runtime = await createRuntime({ app: { appId: "io.molis.native.guard-test", appVersion: "1.0.0" }, host,
     preset: "local-agent", network: { model: true } });
   const resolveCredential = async () => {
     if (finalDispatch && !held) { held = true; entered.resolve(); await release.promise; }

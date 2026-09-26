@@ -196,6 +196,8 @@ test("two configured Homes keep account credentials separate even under another 
   configure(f);
   const homeB = join(f.home, "other-home");
   const catalogB = await openMolisWorkProjectCatalog({ homeDirectory: homeB });
+  // Each Home's inference is owned by that Home's Host.
+  const hostB = new MolisWorkLocalHost({ homeDirectory: homeB });
   try {
     const connectionB = configure({ ...f, home: homeB, catalog: catalogB });
     withConnectorConnections(homeB, store => store.replaceToken(connectionB.connection_id, "other-home-fixture-key"));
@@ -207,7 +209,7 @@ test("two configured Homes keep account credentials separate even under another 
     resetSecretStoreCache();
     await hostCompleteText({ homeDirectory: f.home })!("After cache restart");
     assert.equal(f.requests[2]!.headers.authorization, "Bearer configured-fixture-key");
-  } finally { catalogB.close(); }
+  } finally { await hostB.close(); catalogB.close(); }
 }));
 
 test("legacy stored key remains usable only without catalog configuration and respects disconnect during a request", async () => fixture(async f => {

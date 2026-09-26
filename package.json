@@ -63,6 +63,7 @@
     "mcp": "tsx apps/desktop/launchers/mcp/server.ts",
     "web": "tsx apps/desktop/launchers/web/server.ts",
     "desktop": "cargo run --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "start": "node scripts/start.mjs",
     "desktop:build:macos": "bash apps/desktop/tooling/build-macos-release.sh",
     "desktop:install:macos": "bash apps/desktop/tooling/install-macos-app.sh",
     "desktop:start:macos": "bash apps/desktop/tooling/start-macos-app.sh",
@@ -140,6 +141,7 @@
     "@molis-ai/molis-work-plugin-sandbox": "workspace:*"
   },
   "devDependencies": {
+    "@clack/prompts": "^1.8.1",
     "@modelcontextprotocol/sdk": "^1.30.1",
     "@molis-ai/molis-work-test-kit": "workspace:*",
     "@tauri-apps/cli": "2.11.4",

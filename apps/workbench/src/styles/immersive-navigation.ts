@@ -285,7 +285,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .workspace-history-button:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
   body.immersive-workbench .immersive-titlebar [data-titlebar-tabs] { order: 2; flex: 1; min-width: 0; z-index: 0; overflow: hidden; }
   body.immersive-workbench .immersive-titlebar .desktop-titlebar-drag { order: 3; }
-  body.immersive-workbench .immersive-titlebar .background-tasks-button { order: 4; flex: none; gap: 4px; height: var(--desktop-titlebar-control-height); padding: 0 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  body.immersive-workbench .immersive-titlebar .background-tasks-button { order: 4; flex: none; margin-left: auto; gap: 4px; height: var(--desktop-titlebar-control-height); padding: 0 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   body.immersive-workbench .immersive-titlebar .background-tasks-button svg { width: 14px; height: 14px; }
   body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"] { color: var(--ink); }
   body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"]::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, currentColor); }

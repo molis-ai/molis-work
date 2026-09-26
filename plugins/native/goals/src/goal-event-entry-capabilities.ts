@@ -191,6 +191,7 @@ export const recordGoalUserDecisionCapability = {
   capability_id: "io.molis.work.goals.events.decide",
   version: 1,
   operation: "command",
+  host_only: true,
 } as HostCapabilityDefinition<
   Parameters<GoalEventEntryApi["recordTrustedDecision"]>[0],
   ReturnType<GoalEventEntryApi["recordTrustedDecision"]>

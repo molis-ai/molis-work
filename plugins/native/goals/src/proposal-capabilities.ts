@@ -12,7 +12,7 @@ export const goalTreeCapabilities = {
     capability_id: "io.molis.work.goals.check-goal-tree-proposal", version: 1, operation: "command",
   } as MethodCapability<GoalTreeApplicationApi["checkGoalTreeProposal"]>,
   decideGoalTreeProposal: {
-    capability_id: "io.molis.work.goals.decide-goal-tree-proposal", version: 1, operation: "command",
+    capability_id: "io.molis.work.goals.decide-goal-tree-proposal", version: 1, operation: "command", host_only: true,
   } as MethodCapability<GoalTreeApplicationApi["decideGoalTreeProposal"]>,
 };
 

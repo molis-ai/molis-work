@@ -2,6 +2,13 @@ export interface McpToolDefinition {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+}
+
+export interface McpToolResult {
+  readonly content: readonly { readonly type: "text"; readonly text: string }[];
+  readonly structuredContent?: Record<string, unknown>;
+  readonly isError?: boolean;
 }
 
 export interface McpToolCallContext {
@@ -12,8 +19,8 @@ export interface McpToolCallContext {
 
 export interface McpProtocolPorts {
   readonly serverInfo: { readonly name: string; readonly version: string };
-  readonly tools: readonly McpToolDefinition[];
-  callTool(name: string, arguments_: Record<string, unknown>, context: McpToolCallContext): Promise<string>;
+  readonly tools: readonly McpToolDefinition[] | Promise<readonly McpToolDefinition[]>;
+  callTool(name: string, arguments_: Record<string, unknown>, context: McpToolCallContext): Promise<string | McpToolResult>;
   formatToolError(error: unknown): string;
 }
 
@@ -50,12 +57,13 @@ export async function handleMcpMessage(
   }
   if (method === "notifications/initialized") return null;
   if (method === "ping") return { jsonrpc: "2.0", id: msgId, result: {} };
-  if (method === "tools/list") return { jsonrpc: "2.0", id: msgId, result: { tools: ports.tools } };
+  if (method === "tools/list") return { jsonrpc: "2.0", id: msgId, result: { tools: await ports.tools } };
   if (method === "tools/call") {
     try {
       const params = message.params as { name: string; arguments?: Record<string, unknown>; _meta?: Record<string, unknown> };
-      const text = await ports.callTool(params.name, params.arguments || {}, toolCallContextFromParams(params));
-      return { jsonrpc: "2.0", id: msgId, result: { content: [{ type: "text", text }], isError: false } };
+      const output = await ports.callTool(params.name, params.arguments || {}, toolCallContextFromParams(params));
+      const result = typeof output === "string" ? { content: [{ type: "text", text: output }], isError: false } : output;
+      return { jsonrpc: "2.0", id: msgId, result };
     } catch (error) {
       return { jsonrpc: "2.0", id: msgId, result: { content: [{ type: "text", text: ports.formatToolError(error) }], isError: true } };
     }

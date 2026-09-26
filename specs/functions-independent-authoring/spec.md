@@ -1,5 +1,7 @@
 # 函数三栏：看什么 / 函数 / 用在哪 解耦
 
+2026-09-25 归属更新：判断编辑器与 HTTP 已移到 Workbench/Local Host，独立 Functions 插件已移除。本文记录原交互约束；当前架构、完整范围和验证状态以 [统一动作服务](../action-architecture/spec.md) 为准。
+
 完成等级：**3 功能可用**。不宣称可发布。不把函数选项长成 Inbox / 首页 / Feed 的新按钮。
 
 ## 背景目标
@@ -60,7 +62,7 @@
 
 ## 文件 / 模块边界
 
-允许：`specs/functions-independent-authoring/`、`packages/contracts`（functions 合同）、`modules/functions`、`plugins/native/functions`、对应测试、`docs/SSOT-MATRIX.md` 一行。
+原实现范围：functions 合同、modules/functions、判断编辑器及对应 HTTP（现位于 apps/workbench/src/functions 与 apps/local-host/src/functions-http）、对应测试、SSOT 索引。
 
 禁止：Feed / Inbox / 首页为函数选项长新按钮；把映射写进 `config_hash`。
 
@@ -79,7 +81,7 @@
 ## 验证命令
 
 ```bash
-pnpm --filter @molis-ai/molis-work-contracts --filter @molis-ai/molis-work-module-functions --filter @molis-ai/molis-work-plugin-functions --filter @molis-ai/molis-work-app-local-host --filter @molis-ai/molis-work-app-workbench build
+pnpm --filter @molis-ai/molis-work-contracts --filter @molis-ai/molis-work-module-functions --filter @molis-ai/molis-work-app-local-host --filter @molis-ai/molis-work-app-workbench build
 node --import tsx --test --test-concurrency=1 tests/functions-plugin.test.ts tests/functions-system-capability.test.ts tests/chrome-inner-scroll.test.ts
 ```
 

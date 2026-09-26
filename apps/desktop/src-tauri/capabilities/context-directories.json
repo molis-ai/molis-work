@@ -1,0 +1,9 @@
+{
+  "identifier": "context-directories",
+  "description": "Explicit directory access for the main local onboarding page.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:4173/onboarding*", "http://localhost:4173/onboarding*"]
+  },
+  "permissions": ["allow-context-directories"]
+}

@@ -90,8 +90,11 @@ interface FunctionRecordBase {
   readonly model: string;
   readonly instructions: string;
   readonly scene_id: string | null;
+  readonly scene_version?: number | null;
+  readonly scene_provider_id?: string | null;
   readonly subject_kinds: readonly string[];
   readonly scene_map: FunctionSceneMap;
+  readonly action_map?: FunctionActionMap;
   readonly config_hash: string;
   readonly last_preview: FunctionsPreviewRecord | null;
   readonly samples: readonly FunctionSample[];
@@ -111,9 +114,14 @@ export interface FunctionDraftPatch {
   readonly instructions?: string;
   readonly criteria?: FunctionCriteria;
   readonly scene_id?: string | null;
+  readonly scene_version?: number | null;
+  readonly scene_provider_id?: string | null;
   readonly subject_kinds?: readonly string[];
   readonly scene_map?: FunctionSceneMap;
+  readonly action_map?: FunctionActionMap;
 }
+
+export type FunctionActionMap = Readonly<Record<string, import("../platform/actions.js").ActionReference & { readonly provider_id: string }>>;
 
 export type FunctionAuthoringDestinationKind = "event" | "mcp";
 
@@ -131,6 +139,9 @@ export interface FunctionAuthoringDestination {
   readonly effect: string;
   readonly subject_kinds: readonly string[];
   readonly behavior_ids: readonly string[];
+  readonly scene_version?: number;
+  readonly provider_id?: string;
+  readonly availability?: import("../platform/actions.js").ActionAvailability;
 }
 
 export interface FunctionAuthoringBehavior {
@@ -143,6 +154,12 @@ export interface FunctionAuthoringBehavior {
   readonly plugin_title: string;
   readonly subject_kinds: readonly string[];
   readonly clickable: boolean;
+  readonly availability?: import("../platform/actions.js").ActionAvailability;
+  /** Consumer output symbols are scoped to their scene, not global action names. */
+  readonly destination_id?: string;
+  readonly scene_version?: number;
+  readonly provider_id?: string;
+  readonly action_ref?: import("../platform/actions.js").ActionReference & { readonly provider_id: string };
 }
 
 export interface FunctionAuthoringCatalog {
@@ -151,18 +168,6 @@ export interface FunctionAuthoringCatalog {
   readonly behaviors: readonly FunctionAuthoringBehavior[];
 }
 
-export interface FunctionAuthoringCatalogInput {
-  readonly behaviors?: readonly {
-    readonly behavior_id: string;
-    readonly plugin_id: string;
-    readonly title: string;
-    readonly effect: "read" | "write";
-    readonly subject_kinds: readonly string[];
-    readonly source: "plugin" | "mcp" | "system";
-  }[];
-  readonly plugin_titles?: Readonly<Record<string, string>>;
-  readonly extra_subjects?: readonly FunctionAuthoringSubject[];
-}
 
 export interface FunctionSummary {
   readonly function_key: string;
@@ -179,6 +184,8 @@ export interface FunctionDescribe extends FunctionSummary {
 }
 
 export interface FunctionInvokeResult {
+  readonly recommended_actions?: readonly (import("../platform/actions.js").ActionReference & { readonly provider_id: string })[];
+  readonly suggested_behavior_ids?: readonly string[];
   readonly status: FunctionsOutcome;
   readonly function_key: string;
   readonly version: number;
@@ -200,7 +207,8 @@ export interface FunctionsSettingsStatus {
   readonly source: FunctionsCredentialSource;
 }
 
-export type JudgmentSubjectKind = "feed_item" | "inbox_entry" | "home_event" | "source" | "session" | "mcp_invoke";
+/** Plugin-owned subject kinds are open; access is resolved through registered context readers. */
+export type JudgmentSubjectKind = string;
 
 export interface JudgmentSubject {
   readonly kind: JudgmentSubjectKind;
@@ -209,6 +217,7 @@ export interface JudgmentSubject {
 }
 
 export interface JudgmentRecord {
+  readonly recommended_actions?: FunctionInvokeResult["recommended_actions"];
   readonly judgment_id: string;
   readonly function_key: string;
   readonly function_version: number;
@@ -218,6 +227,16 @@ export interface JudgmentRecord {
   readonly suggested_behavior_ids: readonly string[];
   readonly error_code: string | null;
   readonly created_at: string;
+  /** Present on shared-scene results; old records remain readable history. */
+  readonly scene_provenance?: {
+    readonly binding_id: string;
+    readonly binding_revision: string;
+    readonly function: import("../platform/actions.js").ActionReference;
+    readonly subject_revision: string;
+    /** Preparation identity and digest let Home recheck original offer parameters without storing their content. */
+    readonly offer_request_id?: string;
+    readonly offer_revision?: string;
+  };
 }
 
 export interface FunctionSceneBinding {
@@ -249,21 +268,6 @@ export interface TypeSafeProvider {
   evaluate(apiKey: string, record: FunctionRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
-export interface JudgeFunctionInput {
-  readonly function_key: string;
-  readonly input: string;
-  readonly subject: JudgmentSubject;
-  readonly scene_id?: string;
-  readonly offered_behavior_ids: readonly string[];
-}
-
-export interface JudgmentPort {
-  judge(input: JudgeFunctionInput): Promise<JudgmentRecord>;
-  bindScene(sceneId: string, functionKey: string, boardId?: string | null, ref?: string | null): FunctionSceneBinding;
-  unbindScene(sceneId: string, boardId?: string | null, ref?: string | null): void;
-  sceneBinding(sceneId: string, boardId?: string | null, ref?: string | null): FunctionSceneBinding | null;
-  latest(kind: JudgmentSubjectKind, id: string, boardId?: string, sceneId?: string | null): JudgmentRecord | null;
-}
 
 export class FunctionsError extends Error {
   readonly code: string;
@@ -286,66 +290,6 @@ export function filterSuggestedBehaviorIds(
     return [];
   }
   return [choice];
-}
-
-export function defaultHomeDockBehaviorIds(act: "continue" | "reauth", canDone: boolean): string[] {
-  if (act === "reauth") return [FEED_REAUTH_BEHAVIOR_ID, HOME_ASK_BEHAVIOR_ID];
-  return canDone ? [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID] : [HOME_CONTINUE_BEHAVIOR_ID];
-}
-
-/** Home dock click paths Host already wires. MCP tools and unwired plugin ids stay off the bar. */
-export const HOME_DOCK_ACTION_IDS: readonly string[] = [
-  HOME_CONTINUE_BEHAVIOR_ID,
-  HOME_ASK_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
-  INBOX_DISMISS_BEHAVIOR_ID,
-  FEED_REAUTH_BEHAVIOR_ID,
-  FEED_OPEN_BEHAVIOR_ID,
-];
-
-const HOME_DOCK_PRIMARY_BEHAVIOR_IDS: readonly string[] = [
-  HOME_CONTINUE_BEHAVIOR_ID,
-  HOME_ASK_BEHAVIOR_ID,
-  FEED_REAUTH_BEHAVIOR_ID,
-  FEED_OPEN_BEHAVIOR_ID,
-];
-
-export function visibleDockBehaviorIds(
-  suggested: readonly string[] | null | undefined,
-  offered: readonly string[],
-  fallback: readonly string[] = offered,
-): string[] {
-  const kept = (suggested ?? []).filter((id) => offered.includes(id) && id !== HOME_TALK_BEHAVIOR_ID);
-  return kept.length > 0 ? kept : [...fallback];
-}
-
-export function offeredHomeDockBehaviorIds(
-  catalog: readonly {
-    readonly behavior_id: string;
-    readonly source: "plugin" | "mcp" | "system";
-    readonly subject_kinds: readonly string[];
-  }[],
-  subjects: readonly string[],
-): string[] {
-  const kinds = new Set(subjects);
-  return catalog
-    .filter((row) => row.source !== "mcp" && HOME_DOCK_ACTION_IDS.includes(row.behavior_id))
-    .filter((row) => row.subject_kinds.some((kind) => kinds.has(kind)))
-    .map((row) => row.behavior_id);
-}
-
-export function homeDockSubjectKinds(input: {
-  readonly act: "continue" | "reauth";
-  readonly hasInbox: boolean;
-  readonly plugin?: string;
-  readonly openPlugin?: string;
-}): string[] {
-  const kinds: string[] = [];
-  if (input.hasInbox) kinds.push("inbox_entry");
-  if (input.act === "reauth") kinds.push("source");
-  else if (input.plugin === "feed" || input.openPlugin === "feed") kinds.push("feed_item");
-  if (input.plugin === "sessions") kinds.push("session");
-  return kinds;
 }
 
 export function defaultInboxNextBehaviorIds(active: boolean): string[] {
@@ -380,25 +324,15 @@ export function visibleFeedDispositionIds(
 }
 
 export function sceneBehaviorIds(sceneId: string): string[] {
-  if (sceneId === HOME_DOCK_SCENE_ID) return [...HOME_DOCK_ACTION_IDS];
   if (sceneId === INBOX_NEXT_SCENE_ID) return [INBOX_COMPOSE_BEHAVIOR_ID, INBOX_VERIFY_BEHAVIOR_ID, ...defaultInboxNextBehaviorIds(true)];
   if (sceneId === FEED_CAPTURE_SCENE_ID) return defaultFeedCaptureBehaviorIds(true);
   return [];
 }
 
-export function clickableBehaviorIds(): string[] {
-  return [...new Set([
-    ...sceneBehaviorIds(HOME_DOCK_SCENE_ID),
-    ...sceneBehaviorIds(INBOX_NEXT_SCENE_ID),
-    ...sceneBehaviorIds(FEED_CAPTURE_SCENE_ID),
-  ])];
-}
-
 export function isFunctionDestinationId(value: string): boolean {
-  return value === HOME_DOCK_SCENE_ID
-    || value === INBOX_NEXT_SCENE_ID
-    || value === FEED_CAPTURE_SCENE_ID
-    || value === AGENT_MCP_DESTINATION_ID;
+  // Registration and live compatibility belong to the scene service. Drafts
+  // retain valid identities even if their original provider is currently absent.
+  return /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(value);
 }
 
 export const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[] = [
@@ -410,110 +344,28 @@ export const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[] = 
   { subject_kind: "mcp_invoke", title: "Agent" },
 ];
 
-export function functionAuthoringDestinations(): FunctionAuthoringDestination[] {
-  return [
-    {
-      destination_id: HOME_DOCK_SCENE_ID,
-      kind: "event",
-      title: "首页",
-      when: "点开事件时，亮哪些按钮",
-      configure_at: "发布后打开",
-      effect: "亮哪些按钮",
-      subject_kinds: ["inbox_entry", "feed_item", "source", "session", "home_event"],
-      behavior_ids: sceneBehaviorIds(HOME_DOCK_SCENE_ID),
-    },
-    {
-      destination_id: INBOX_NEXT_SCENE_ID,
-      kind: "event",
-      title: "Inbox",
-      when: "新事项来时，建议整理成稿、先核查或处理状态",
-      configure_at: "发布后打开",
-      effect: "建议下一步，由人点击执行",
-      subject_kinds: ["inbox_entry"],
-      behavior_ids: sceneBehaviorIds(INBOX_NEXT_SCENE_ID),
-    },
-    {
-      destination_id: FEED_CAPTURE_SCENE_ID,
-      kind: "event",
-      title: "Feed",
-      when: "这条消息该进 Inbox、存资料、升格还是忽略",
-      configure_at: "去任务捕捉规则里选",
-      effect: "亮哪条去向",
-      subject_kinds: ["feed_item"],
-      behavior_ids: sceneBehaviorIds(FEED_CAPTURE_SCENE_ID),
-    },
-    {
-      destination_id: AGENT_MCP_DESTINATION_ID,
-      kind: "mcp",
-      title: "Agent",
-      when: "给 Agent 选动作",
-      configure_at: "发布后可用",
-      effect: "给 Agent 选动作",
-      subject_kinds: ["mcp_invoke"],
-      behavior_ids: [],
-    },
-  ];
-}
-
-export function assembleFunctionAuthoringCatalog(
-  input: FunctionAuthoringCatalogInput = {},
-): FunctionAuthoringCatalog {
-  const clickable = new Set(clickableBehaviorIds());
-  const pluginTitles = input.plugin_titles ?? {};
-  const behaviors: FunctionAuthoringBehavior[] = (input.behaviors ?? []).map((row) => {
-    const plugin_title = row.plugin_id === "system" ? "系统" : (pluginTitles[row.plugin_id] ?? pluginTitleFallback(row.plugin_id));
-    if (row.source === "mcp") {
-      return {
-        behavior_id: row.behavior_id,
-        title: mcpAuthoringTitle(row.behavior_id, plugin_title),
-        hint: row.title,
-        effect: row.effect,
-        source: row.source,
-        plugin_id: row.plugin_id,
-        plugin_title,
-        subject_kinds: row.subject_kinds,
-        clickable: false,
-      };
-    }
-    return {
-      behavior_id: row.behavior_id,
-      title: row.title,
-      effect: row.effect,
-      source: row.source,
-      plugin_id: row.plugin_id,
-      plugin_title,
-      subject_kinds: row.subject_kinds,
-      clickable: clickable.has(row.behavior_id),
-    };
-  });
-  const destinations = functionAuthoringDestinations().map((dest) => {
-    if (dest.destination_id !== AGENT_MCP_DESTINATION_ID) return dest;
-    return { ...dest, behavior_ids: behaviors.map((row) => row.behavior_id) };
-  });
-  return {
-    subjects: mergeAuthoringSubjects(FUNCTION_AUTHORING_SUBJECTS, input.extra_subjects),
-    destinations,
-    behaviors,
-  };
-}
-
 export function suggestedAuthoringBehaviors(
   catalog: FunctionAuthoringCatalog,
   destinationId: string,
   subjectKinds: readonly string[],
+  reference?: { readonly scene_version: number; readonly provider_id: string },
 ): FunctionAuthoringBehavior[] {
-  const dest = catalog.destinations.find((row) => row.destination_id === destinationId) ?? null;
+  const destinations = catalog.destinations.filter(row => row.destination_id === destinationId
+    && (!reference || row.scene_version === reference.scene_version && row.provider_id === reference.provider_id));
+  const dest = destinations.length === 1 ? destinations[0] : null;
   const kinds = subjectKinds.filter(Boolean);
   const matches = (row: FunctionAuthoringBehavior) => (
-    kinds.length === 0 || row.subject_kinds.some((kind) => kinds.includes(kind))
+    kinds.length === 0 || row.subject_kinds.length === 0 || row.subject_kinds.some((kind) => kinds.includes(kind))
   );
   if (!destinationId) {
-    return kinds.length === 0 ? [] : catalog.behaviors.filter(matches);
+    return kinds.length === 0 ? [] : catalog.behaviors.filter(row => !row.destination_id && matches(row));
   }
   if (dest?.kind === "mcp" || destinationId === AGENT_MCP_DESTINATION_ID) {
-    return catalog.behaviors.filter(matches);
+    return catalog.behaviors.filter(row => row.destination_id === AGENT_MCP_DESTINATION_ID && matches(row));
   }
-  const byId = new Map(catalog.behaviors.map((row) => [row.behavior_id, row]));
+  const byId = new Map(catalog.behaviors.filter(row => !row.destination_id).map(row => [row.behavior_id, row]));
+  for (const row of catalog.behaviors) if (dest && row.destination_id === dest.destination_id
+    && (!row.scene_version || row.scene_version === dest.scene_version) && (!row.provider_id || row.provider_id === dest.provider_id)) byId.set(row.behavior_id, row);
   const rows: FunctionAuthoringBehavior[] = [];
   for (const id of dest?.behavior_ids ?? []) {
     const row = byId.get(id);
@@ -530,31 +382,6 @@ export function choiceCriteriaFollowContext(
   if (keys.length === 2 && keys[0] === "yes" && keys[1] === "no") return true;
   const ids = new Set(catalogBehaviorIds);
   return keys.every((key) => ids.has(key));
-}
-
-function pluginTitleFallback(pluginId: string): string {
-  const segment = pluginId.split(".").at(-1) ?? pluginId;
-  return segment;
-}
-
-function mcpAuthoringTitle(behaviorId: string, pluginTitle: string): string {
-  const prefix = "molis_work_v1_";
-  const rest = behaviorId.startsWith(prefix) ? behaviorId.slice(prefix.length) : behaviorId;
-  const cut = rest.indexOf("_");
-  const toolId = cut >= 0 ? rest.slice(cut + 1) : rest;
-  return `${pluginTitle} · ${toolId}`;
-}
-
-function mergeAuthoringSubjects(
-  base: readonly FunctionAuthoringSubject[],
-  extra: readonly FunctionAuthoringSubject[] | undefined,
-): FunctionAuthoringSubject[] {
-  const byKind = new Map<string, FunctionAuthoringSubject>();
-  for (const row of base) byKind.set(row.subject_kind, row);
-  for (const row of extra ?? []) {
-    if (!byKind.has(row.subject_kind)) byKind.set(row.subject_kind, row);
-  }
-  return [...byKind.values()];
 }
 
 export function functionOutputKeys(record: {
@@ -618,19 +445,12 @@ export function functionFitsScene(
   sceneId: string,
   pool: readonly string[] = sceneBehaviorIds(sceneId),
 ): boolean {
+  // Home compatibility requires the current registered offer directory.
+  if (sceneId === HOME_DOCK_SCENE_ID) return false;
   if (record.scene_id === AGENT_MCP_DESTINATION_ID) return sceneId === AGENT_MCP_DESTINATION_ID;
   if (record.scene_id && record.scene_id !== sceneId) return false;
   if (pool.length === 0) return true;
   const resolved = resolvedSceneBehaviors(record, pool);
   if (!resolved) return false;
-  if (sceneId === HOME_DOCK_SCENE_ID) {
-    const inboxPool = sceneBehaviorIds(INBOX_NEXT_SCENE_ID);
-    if (
-      resolved.every((id) => inboxPool.includes(id))
-      && !resolved.some((id) => HOME_DOCK_PRIMARY_BEHAVIOR_IDS.includes(id))
-    ) {
-      return false;
-    }
-  }
   return true;
 }

@@ -25,12 +25,8 @@ import {
   filterSuggestedBehaviorIds,
   functionFitsScene,
   mapJudgmentChoice,
-  visibleDockBehaviorIds,
-  defaultHomeDockBehaviorIds,
   defaultInboxNextBehaviorIds,
   defaultFeedCaptureBehaviorIds,
-  offeredHomeDockBehaviorIds,
-  homeDockSubjectKinds,
   suggestedAuthoringBehaviors,
   visibleFeedDispositionIds,
 } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -41,14 +37,15 @@ import {
   openFunctionsStore,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
-import { createFunctionsService as createPluginFunctionsService } from "@molis-ai/molis-work-plugin-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
-import { assembleHostBehaviorCatalog, hostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
-import { buildHomeEvents } from "../apps/workbench/src/home-flow.ts";
+import { liveHostFunctionAuthoringCatalog } from "../apps/local-host/src/behavior-catalog.ts";
+import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectHomeEvents } from "../apps/workbench/src/home-flow.ts";
 import { assertContributionMatchesManifest, PluginContributionError } from "@molis-ai/molis-work-plugin-runtime";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const LIST = mcpPublicToolName("functions", "list");
@@ -100,7 +97,6 @@ async function publishChoice(
     secrets: memorySecrets(),
     env: { TYPESAFE_API_KEY: "sk-test" },
     provider: input.provider ?? fixtureProvider(input.keys[0] ?? null),
-    allowed_behavior_ids: [...input.keys],
   });
   const created = service.createChoice({ name: input.name, function_key: input.function_key });
   const criteria = input.keys.map((key) => ({ key, description: key }));
@@ -136,17 +132,7 @@ test("filterSuggestedBehaviorIds keeps registered Choice keys and drops talk plu
   );
 });
 
-test("visibleDockBehaviorIds fall back to defaults when suggestions are empty or illegal", () => {
-  const defaults = [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID];
-  assert.deepEqual(visibleDockBehaviorIds([], defaults), defaults);
-  assert.deepEqual(visibleDockBehaviorIds(["invented"], defaults), defaults);
-  assert.deepEqual(visibleDockBehaviorIds([HOME_CONTINUE_BEHAVIOR_ID, "invented"], defaults), [HOME_CONTINUE_BEHAVIOR_ID]);
-  assert.deepEqual(defaultInboxNextBehaviorIds(true), [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID]);
-  assert.deepEqual(defaultInboxNextBehaviorIds(false), []);
-  assert.deepEqual(
-    visibleDockBehaviorIds([INBOX_DONE_BEHAVIOR_ID], defaultInboxNextBehaviorIds(true)),
-    [INBOX_DONE_BEHAVIOR_ID],
-  );
+test("Feed disposition defaults are offered until a valid choice selects them", () => {
   assert.deepEqual(defaultFeedCaptureBehaviorIds(true), [
     INBOX_ADMIT_BEHAVIOR_ID,
     FEED_SAVE_BEHAVIOR_ID,
@@ -155,10 +141,6 @@ test("visibleDockBehaviorIds fall back to defaults when suggestions are empty or
     FEED_OPEN_BEHAVIOR_ID,
   ]);
   assert.deepEqual(defaultFeedCaptureBehaviorIds(false), []);
-  assert.deepEqual(
-    visibleDockBehaviorIds([FEED_OPEN_BEHAVIOR_ID], defaultFeedCaptureBehaviorIds(true)),
-    [FEED_OPEN_BEHAVIOR_ID],
-  );
   assert.deepEqual(visibleFeedDispositionIds([], true), [
     INBOX_ADMIT_BEHAVIOR_ID,
     FEED_SAVE_BEHAVIOR_ID,
@@ -179,216 +161,27 @@ test("visibleDockBehaviorIds fall back to defaults when suggestions are empty or
   ]);
 });
 
-test("Module persists a judgment and latest query returns it", async () => {
-  await withHome(async (home) => {
-    const { store, service, published } = await publishChoice(home, {
-      name: "卡底",
-      function_key: "pick_dock",
-      keys: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      provider: fixtureProvider(HOME_CONTINUE_BEHAVIOR_ID),
-    });
+test("historical judgments retain original object, project and scene scope", async () => {
+  await withHome(async home => {
+    const store = openFunctionsStore(home);
     try {
-      const judged = await service.judge({
-        function_key: published.function_key,
-        input: "这条 Inbox 还没做完",
-        subject: { kind: "inbox_entry", id: "att-1", board_id: "board" },
-        scene_id: HOME_DOCK_SCENE_ID,
-        offered_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      });
-      assert.equal(judged.outcome, "ok");
-      assert.deepEqual(judged.suggested_behavior_ids, [HOME_CONTINUE_BEHAVIOR_ID]);
-      const latest = service.latestJudgment("inbox_entry", "att-1", "board");
-      assert.equal(latest?.judgment_id, judged.judgment_id);
-      assert.equal(latest?.function_version, 1);
-    } finally {
-      store.close();
-    }
+      const write = (scene: string, project: string, result: string) => store.recordJudgment({ function_key: "old-rule", function_version: 1,
+        subject: { kind: "inbox_entry", id: "same-object", board_id: project }, scene_id: scene, outcome: "ok", suggested_behavior_ids: [result], error_code: null });
+      const inbox = write(INBOX_NEXT_SCENE_ID, "first", INBOX_DONE_BEHAVIOR_ID);
+      const home = write(HOME_DOCK_SCENE_ID, "first", HOME_CONTINUE_BEHAVIOR_ID);
+      const foreign = write(INBOX_NEXT_SCENE_ID, "other", INBOX_DISMISS_BEHAVIOR_ID);
+      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "first", INBOX_NEXT_SCENE_ID), inbox);
+      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "first", HOME_DOCK_SCENE_ID), home);
+      assert.deepEqual(store.latestJudgment("inbox_entry", "same-object", "other", INBOX_NEXT_SCENE_ID), foreign);
+      assert.deepEqual(store.latestSceneJudgments("first", INBOX_NEXT_SCENE_ID), [inbox]);
+    } finally { store.close(); }
   });
 });
 
-test("judge maps a custom Choice onto the Inbox button pool", async () => {
+test("system module can publish using the existing rule store", async () => {
   await withHome(async (home) => {
     const store = openFunctionsStore(home);
     const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
-      env: { TYPESAFE_API_KEY: "sk-test" },
-      provider: fixtureProvider("urgent"),
-      allowed_behavior_ids: [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
-    });
-    try {
-      const created = service.createChoice({ name: "急不急", function_key: "mail_urgency" });
-      service.updateDraft(created.id, {
-        instructions: "这封邮件急吗？",
-        criteria: [
-          { key: "urgent", description: "急" },
-          { key: "later", description: "不急" },
-        ],
-        scene_id: INBOX_NEXT_SCENE_ID,
-        subject_kinds: ["inbox_entry"],
-        scene_map: {
-          urgent: INBOX_DONE_BEHAVIOR_ID,
-          later: INBOX_DISMISS_BEHAVIOR_ID,
-        },
-      });
-      await service.preview(created.id, "三天没人回");
-      service.publish(created.id);
-      const bound = service.bindScene(INBOX_NEXT_SCENE_ID, "mail_urgency", "board");
-      assert.equal(bound.function_key, "mail_urgency");
-      const judged = await service.judge({
-        function_key: "mail_urgency",
-        input: "三天没人回",
-        subject: { kind: "inbox_entry", id: "mail-1", board_id: "board" },
-        scene_id: INBOX_NEXT_SCENE_ID,
-        offered_behavior_ids: [INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
-      });
-      assert.equal(judged.outcome, "ok");
-      assert.deepEqual(judged.suggested_behavior_ids, [INBOX_DONE_BEHAVIOR_ID]);
-    } finally {
-      store.close();
-    }
-  });
-});
-
-test("latest judgment is scoped to a scene so later home.dock does not cover inbox.next or feed.capture", async () => {
-  await withHome(async (home) => {
-    const offered = [
-      HOME_CONTINUE_BEHAVIOR_ID,
-      INBOX_DONE_BEHAVIOR_ID,
-      FEED_REAUTH_BEHAVIOR_ID,
-      HOME_ASK_BEHAVIOR_ID,
-      INBOX_DISMISS_BEHAVIOR_ID,
-      INBOX_ADMIT_BEHAVIOR_ID,
-      FEED_OPEN_BEHAVIOR_ID,
-    ];
-    const store = openFunctionsStore(home);
-    const service = createFunctionsService({
-      store,
-      secrets: memorySecrets(),
-      env: { TYPESAFE_API_KEY: "sk-test" },
-      allowed_behavior_ids: offered,
-      provider: {
-        async evaluate(_apiKey, record) {
-          const choice = record.function_key === SYSTEM_INBOX_NEXT_FUNCTION_KEY
-            ? INBOX_DONE_BEHAVIOR_ID
-            : record.function_key === SYSTEM_INBOX_ADMIT_FUNCTION_KEY
-              ? FEED_OPEN_BEHAVIOR_ID
-              : HOME_CONTINUE_BEHAVIOR_ID;
-          return {
-            primitive: record.primitive,
-            choice,
-            noul: null,
-            score: null,
-            legend: null,
-            probabilities: { [choice]: 1 },
-            confidence: 1,
-            model: "jev-1.13.0",
-          };
-        },
-      },
-    });
-    try {
-      const inbox = { kind: "inbox_entry" as const, id: "att-scene", board_id: "board" };
-      const feed = { kind: "feed_item" as const, id: "item-scene", board_id: "board" };
-      await service.judge({
-        function_key: SYSTEM_INBOX_NEXT_FUNCTION_KEY,
-        input: "Inbox 下一步",
-        subject: inbox,
-        scene_id: INBOX_NEXT_SCENE_ID,
-        offered_behavior_ids: offered,
-      });
-      await service.judge({
-        function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
-        input: "首页卡底",
-        subject: inbox,
-        scene_id: HOME_DOCK_SCENE_ID,
-        offered_behavior_ids: offered,
-      });
-      await service.judge({
-        function_key: SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
-        input: "Feed 捕捉",
-        subject: feed,
-        scene_id: FEED_CAPTURE_SCENE_ID,
-        offered_behavior_ids: offered,
-      });
-      await service.judge({
-        function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
-        input: "首页卡底",
-        subject: feed,
-        scene_id: HOME_DOCK_SCENE_ID,
-        offered_behavior_ids: offered,
-      });
-      assert.deepEqual(
-        service.latestJudgment("inbox_entry", "att-scene", "board", INBOX_NEXT_SCENE_ID)?.suggested_behavior_ids,
-        [INBOX_DONE_BEHAVIOR_ID],
-      );
-      assert.deepEqual(
-        service.latestJudgment("inbox_entry", "att-scene", "board", HOME_DOCK_SCENE_ID)?.suggested_behavior_ids,
-        [HOME_CONTINUE_BEHAVIOR_ID],
-      );
-      assert.deepEqual(
-        service.latestJudgment("feed_item", "item-scene", "board", FEED_CAPTURE_SCENE_ID)?.suggested_behavior_ids,
-        [FEED_OPEN_BEHAVIOR_ID],
-      );
-      assert.deepEqual(
-        service.latestJudgment("feed_item", "item-scene", "board", HOME_DOCK_SCENE_ID)?.suggested_behavior_ids,
-        [HOME_CONTINUE_BEHAVIOR_ID],
-      );
-    } finally {
-      store.close();
-    }
-  });
-});
-
-test("illegal Choice keys are dropped; missing key or failure keeps empty suggestions", async () => {
-  await withHome(async (home) => {
-    const { store, service } = await publishChoice(home, {
-      name: "卡底",
-      function_key: "pick_dock_filter",
-      keys: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      provider: fixtureProvider("invented.behavior"),
-    });
-    try {
-      const illegal = await service.judge({
-        function_key: "pick_dock_filter",
-        input: "乱发明",
-        subject: { kind: "home_event", id: "evt-1" },
-        scene_id: HOME_DOCK_SCENE_ID,
-        offered_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      });
-      assert.deepEqual(illegal.suggested_behavior_ids, []);
-    } finally {
-      store.close();
-    }
-
-    const noKey = openFunctionsStore(home);
-    const failing = createFunctionsService({
-      store: noKey,
-      secrets: { put() {}, get() { return null; }, delete() { return false; } },
-      env: {},
-      allowed_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID],
-    });
-    try {
-      const judged = await failing.judge({
-        function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
-        input: "没 Key",
-        subject: { kind: "inbox_entry", id: "att-2" },
-        scene_id: HOME_DOCK_SCENE_ID,
-        offered_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID],
-      });
-      assert.equal(judged.outcome, "needs_review");
-      assert.deepEqual(judged.suggested_behavior_ids, []);
-      assert.equal(judged.error_code, "functions.provider_not_configured");
-    } finally {
-      noKey.close();
-    }
-  });
-});
-
-test("plugin UI path can still publish via the thinned plugin entry", async () => {
-  await withHome(async (home) => {
-    const store = openFunctionsStore(home);
-    const service = createPluginFunctionsService({
       store,
       secrets: memorySecrets(),
       env: { TYPESAFE_API_KEY: "sk-test" },
@@ -413,126 +206,38 @@ test("plugin UI path can still publish via the thinned plugin entry", async () =
   });
 });
 
-test("Host behavior catalog includes Functions MCP tools and home/Inbox dock actions", () => {
-  const ids = assembleHostBehaviorCatalog().map((row) => row.behavior_id);
-  assert.ok(ids.includes(LIST));
-  assert.ok(ids.includes(DESCRIBE));
-  assert.ok(ids.includes(INVOKE));
-  assert.ok(ids.includes(HOME_CONTINUE_BEHAVIOR_ID));
-  assert.ok(ids.includes(INBOX_DONE_BEHAVIOR_ID));
-  assert.ok(ids.includes(FEED_REAUTH_BEHAVIOR_ID));
-  assert.ok(ids.includes(HOME_ASK_BEHAVIOR_ID));
-  assert.ok(ids.includes(INBOX_ADMIT_BEHAVIOR_ID));
-  assert.ok(ids.includes(FEED_OPEN_BEHAVIOR_ID));
-  assert.ok(ids.includes(FEED_SAVE_BEHAVIOR_ID));
-  assert.ok(ids.includes(FEED_PROMOTE_BEHAVIOR_ID));
-  assert.ok(ids.includes(FEED_ARCHIVE_BEHAVIOR_ID));
-  assert.equal(ids.includes(HOME_TALK_BEHAVIOR_ID), false);
-  assert.equal(ids.includes("github.whoami"), false);
+const catalogAction = (id: string, version = 1, provider = "example.notes"): ActionView => ({
+  capability_id: id, version, operation: "query", provider: { provider_id: provider, kind: "system", title: "Notes" }, availability: { available: true },
+  action: { title: "Read note", description: "Read original note", kind: "query", scope: "home", audiences: ["agent", "user"],
+    permissions: [], subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "object" } },
 });
 
-test("authoring catalog exposes event destinations, MCP tools, and plugin actions", () => {
-  const catalog = hostFunctionAuthoringCatalog();
-  const dest = Object.fromEntries(catalog.destinations.map((row) => [row.destination_id, row]));
-  assert.equal(dest["home.dock"]?.kind, "event");
-  assert.match(dest["home.dock"]?.when ?? "", /亮哪些按钮/);
-  assert.match(dest["home.dock"]?.configure_at ?? "", /发布后打开/);
-  assert.match(dest["home.dock"]?.effect ?? "", /亮哪些按钮/);
-  assert.match(dest["feed.capture"]?.when ?? "", /升格还是忽略/);
-  assert.ok(dest["feed.capture"]?.behavior_ids.includes(FEED_SAVE_BEHAVIOR_ID));
-  assert.ok(dest["feed.capture"]?.behavior_ids.includes(FEED_PROMOTE_BEHAVIOR_ID));
-  assert.ok(dest["feed.capture"]?.behavior_ids.includes(FEED_ARCHIVE_BEHAVIOR_ID));
-  assert.equal(dest["agent.mcp"]?.kind, "mcp");
-  assert.ok(catalog.subjects.some((row) => row.subject_kind === "home_event"));
-  const byId = Object.fromEntries(catalog.behaviors.map((row) => [row.behavior_id, row]));
-  assert.equal(byId[HOME_CONTINUE_BEHAVIOR_ID]?.source, "system");
-  assert.equal(byId[HOME_CONTINUE_BEHAVIOR_ID]?.clickable, true);
-  assert.equal(byId[FEED_SAVE_BEHAVIOR_ID]?.clickable, true);
-  assert.equal(byId[FEED_PROMOTE_BEHAVIOR_ID]?.clickable, true);
-  assert.equal(byId[FEED_ARCHIVE_BEHAVIOR_ID]?.clickable, true);
-  assert.equal(byId[INVOKE]?.source, "mcp");
-  assert.equal(byId[INVOKE]?.clickable, false);
-  assert.equal(byId[mcpPublicToolName("form", "create")]?.source, "mcp");
-  assert.equal(byId[mcpPublicToolName("form", "create")]?.effect, "write");
-  assert.equal(byId[mcpPublicToolName("form", "create")]?.title, "Forms · create");
-  assert.match(byId[mcpPublicToolName("form", "create")]?.hint ?? "", /新建一份草稿问卷/);
-  assert.ok(dest["agent.mcp"]?.behavior_ids.includes(INVOKE));
+test("authoring derives exact Agent capabilities from the supplied directory without static aliases or guessed scenes", () => {
+  const first = catalogAction("unknown.notes");
+  const second = catalogAction("unknown.notes", 2);
+  const unavailable = { ...catalogAction("unknown.write"), availability: { available: false as const, code: "notes.offline", reason: "Offline" } };
+  const userOnly = { ...catalogAction("private.user"), action: { ...first.action, audiences: ["user" as const] } };
+  const catalog = liveHostFunctionAuthoringCatalog([first, second, unavailable, userOnly]);
+  assert.deepEqual(catalog.destinations.map(row => row.destination_id), ["agent.mcp"]);
+  assert.equal(catalog.behaviors.length, 3);
+  assert.deepEqual(catalog.behaviors.map(row => row.action_ref), [first, second, unavailable].map(row => ({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id })));
+  assert.equal(new Set(catalog.behaviors.map(row => row.behavior_id)).size, 3);
+  assert.equal(catalog.behaviors[2]?.availability?.available, false);
+  assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "an empty directory cannot expose builtins or legacy aliases");
+  assert.equal(liveHostFunctionAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
 });
 
-test("unbound home events keep the previous continue/reauth act", () => {
+test("Home preserves declared navigation and bound suggestions without inventing actions", () => {
   const now = new Date(2026, 8, 19, 13, 20);
-  const events = buildHomeEvents({
-    now,
-    locale: "zh-CN",
-    inbox: [{
-      entry_id: "att-1",
-      subject_type: "feed_item",
-      subject_id: "pr-1",
-      reason: "source_rule",
-      status: "open",
-      revision: 1,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-    }],
-    feedItems: [{
-      item_id: "pr-1",
-      title: "PR",
-      summary: "摘要",
-      body: "正文",
-      source_id: "gh",
-      source_kind: "github",
-      source_label: "GitHub",
-      imported_at: now.toISOString(),
-      source_created_at: now.toISOString(),
-      author: null,
-      url: null,
-      linked_goal_id: null,
-    }],
-    sources: [],
-    sessions: [],
-  });
-  assert.equal(events[0]?.act, "continue");
-  assert.deepEqual(events[0]?.suggested_behavior_ids ?? [], []);
-});
-
-test("bound Choice suggestions ride on the home event without hiding 说一句", () => {
-  const now = new Date(2026, 8, 19, 13, 20);
-  const events = buildHomeEvents({
-    now,
-    locale: "zh-CN",
-    inbox: [{
-      entry_id: "att-2",
-      subject_type: "feed_item",
-      subject_id: "pr-2",
-      reason: "source_rule",
-      status: "open",
-      revision: 1,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
-      suggested_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID],
-    }],
-    feedItems: [{
-      item_id: "pr-2",
-      title: "PR",
-      summary: null,
-      body: null,
-      source_id: "gh",
-      source_kind: "github",
-      source_label: "GitHub",
-      imported_at: now.toISOString(),
-      source_created_at: now.toISOString(),
-      author: null,
-      url: null,
-      linked_goal_id: null,
-    }],
-    sources: [],
-    sessions: [],
-  });
+  const open = { kind: "item" as const, surface: "notes", id: "note-1", title: "笔记", label: "打开笔记" };
+  const events = projectHomeEvents({ now, events: [{
+    id: "opaque", event_id: "note-event", subject: { kind: "note", id: "note-1" },
+    source: { capability_id: "plugin.events", version: 1, provider_id: "unknown" }, origin: { surface: "notes", title: "笔记", icon: "note" },
+    occurred_at: now.toISOString(), placement: "occurred", category: "personal", title: "笔记", summary: "摘要", content: "正文", facts: [], needs_attention: false,
+    open, suggested_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID],
+  }] });
+  assert.deepEqual(events[0]?.open, open);
   assert.deepEqual(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_BEHAVIOR_ID]);
-  assert.equal(
-    visibleDockBehaviorIds(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID]).includes(HOME_TALK_BEHAVIOR_ID),
-    false,
-  );
 });
 
 test("built-in function keys exist in the Module store", async () => {
@@ -579,7 +284,7 @@ test("functionFitsScene keeps every Choice option inside the scene pool", () => 
       { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
     ],
   };
-  assert.equal(functionFitsScene(homeDock, HOME_DOCK_SCENE_ID), true);
+  assert.equal(functionFitsScene(homeDock, HOME_DOCK_SCENE_ID), false, "legacy static helpers cannot establish Home compatibility");
   assert.equal(functionFitsScene(homeDock, INBOX_NEXT_SCENE_ID), false);
   assert.equal(functionFitsScene(homeDock, FEED_CAPTURE_SCENE_ID), false);
   assert.equal(functionFitsScene(admit, FEED_CAPTURE_SCENE_ID), true);
@@ -595,7 +300,7 @@ test("functionFitsScene keeps every Choice option inside the scene pool", () => 
       { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
     ],
   };
-  assert.equal(functionFitsScene(continueDismiss, HOME_DOCK_SCENE_ID), true);
+  assert.equal(functionFitsScene(continueDismiss, HOME_DOCK_SCENE_ID), false);
   assert.equal(functionFitsScene(continueDismiss, INBOX_NEXT_SCENE_ID), false);
   assert.equal(functionFitsScene({ primitive: "noul", criteria: { true_description: "是", false_description: "否" } }, HOME_DOCK_SCENE_ID), false);
   assert.equal(functionFitsScene(admit, "unknown.scene"), true);
@@ -675,7 +380,7 @@ test("bindScene rejects a published function whose options miss the scene pool",
       const bound = service.bindScene(INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, "board");
       assert.equal(bound.function_key, SYSTEM_INBOX_NEXT_FUNCTION_KEY);
       assert.equal(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
-      assert.ok((store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds ?? []).includes("home_event"));
+      assert.deepEqual(store.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
     } finally {
       store.close();
     }
@@ -714,71 +419,26 @@ test("agent.mcp functions cannot bind to a site scene", async () => {
   });
 });
 
-test("authoring suggestions follow destination and subject kinds", () => {
-  const catalog = hostFunctionAuthoringCatalog();
-  assert.deepEqual(
-    suggestedAuthoringBehaviors(catalog, INBOX_NEXT_SCENE_ID, []).map((row) => row.behavior_id),
-    ["inbox.compose", "inbox.verify", INBOX_DONE_BEHAVIOR_ID, INBOX_DISMISS_BEHAVIOR_ID],
-  );
-  assert.deepEqual(
-    suggestedAuthoringBehaviors(catalog, FEED_CAPTURE_SCENE_ID, []).map((row) => row.behavior_id),
-    [
-      INBOX_ADMIT_BEHAVIOR_ID,
-      FEED_SAVE_BEHAVIOR_ID,
-      FEED_PROMOTE_BEHAVIOR_ID,
-      FEED_ARCHIVE_BEHAVIOR_ID,
-      FEED_OPEN_BEHAVIOR_ID,
-    ],
-  );
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, INBOX_NEXT_SCENE_ID, ["feed_item"]), []);
-  const homeInbox = suggestedAuthoringBehaviors(catalog, HOME_DOCK_SCENE_ID, ["inbox_entry"]).map((row) => row.behavior_id);
-  assert.ok(homeInbox.includes(INBOX_DONE_BEHAVIOR_ID));
-  assert.ok(homeInbox.includes(HOME_CONTINUE_BEHAVIOR_ID));
-  assert.equal(homeInbox.includes(INBOX_ADMIT_BEHAVIOR_ID), false);
-  const homeFeed = suggestedAuthoringBehaviors(catalog, HOME_DOCK_SCENE_ID, ["feed_item"]).map((row) => row.behavior_id);
-  assert.ok(homeFeed.includes(FEED_OPEN_BEHAVIOR_ID));
-  assert.ok(homeFeed.includes(HOME_CONTINUE_BEHAVIOR_ID));
-  assert.equal(homeFeed.includes(INBOX_DONE_BEHAVIOR_ID), false);
-  assert.equal(homeFeed.includes(FEED_SAVE_BEHAVIOR_ID), false);
-  assert.equal(homeFeed.includes(FEED_PROMOTE_BEHAVIOR_ID), false);
-  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "", []), []);
-  assert.ok(
-    suggestedAuthoringBehaviors(catalog, "", ["inbox_entry"]).some((row) => row.behavior_id === INBOX_DONE_BEHAVIOR_ID),
-  );
-});
-
-test("home dock offered set is collected from catalog subjects, not the unbound default pair", () => {
-  const catalog = assembleHostBehaviorCatalog();
-  assert.deepEqual(
-    homeDockSubjectKinds({ act: "continue", hasInbox: true, plugin: "inbox", openPlugin: "feed" }),
-    ["inbox_entry", "feed_item"],
-  );
-  const offered = offeredHomeDockBehaviorIds(catalog, ["inbox_entry", "feed_item"]);
-  assert.ok(offered.includes(INBOX_DISMISS_BEHAVIOR_ID));
-  assert.ok(offered.includes(INBOX_DONE_BEHAVIOR_ID));
-  assert.ok(offered.includes(HOME_CONTINUE_BEHAVIOR_ID));
-  assert.ok(offered.includes(FEED_OPEN_BEHAVIOR_ID));
-  assert.equal(offered.includes(INBOX_ADMIT_BEHAVIOR_ID), false);
-  assert.equal(offered.includes(FEED_SAVE_BEHAVIOR_ID), false);
-  assert.equal(offered.includes(FEED_PROMOTE_BEHAVIOR_ID), false);
-  assert.equal(offered.includes(FEED_ARCHIVE_BEHAVIOR_ID), false);
-  assert.equal(offered.includes(LIST), false);
-  const defaults = defaultHomeDockBehaviorIds("continue", true);
-  assert.deepEqual(defaults, [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID]);
-  assert.deepEqual(
-    visibleDockBehaviorIds([INBOX_DISMISS_BEHAVIOR_ID], offered, defaults),
-    [INBOX_DISMISS_BEHAVIOR_ID],
-  );
-  assert.deepEqual(visibleDockBehaviorIds([], offered, defaults), defaults);
+test("Agent suggestions respect subject contracts and exclude other scenes", () => {
+  const generic = catalogAction("generic.read");
+  const note = { ...catalogAction("note.read"), action: { ...generic.action, subject_kinds: ["note"] } };
+  const feed = { ...catalogAction("feed.read"), action: { ...generic.action, subject_kinds: ["feed_item"] } };
+  const base = liveHostFunctionAuthoringCatalog([generic, note, feed]);
+  const catalog = { ...base, behaviors: [...base.behaviors, { ...base.behaviors[0]!, behavior_id: "other-scene-symbol", destination_id: "other.scene", action_ref: undefined }] };
+  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "agent.mcp", ["note"]).map(row => row.action_ref?.capability_id), ["generic.read", "note.read"]);
+  assert.equal(suggestedAuthoringBehaviors(catalog, "agent.mcp", []).length, 3);
+  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "", ["note"]), []);
+  assert.deepEqual(suggestedAuthoringBehaviors(catalog, "unregistered.scene", []), []);
 });
 
 test("Feed and Inbox declare scenes without naming the Functions plugin implementation", () => {
-  assert.equal(feedManifest.function_scenes?.[0]?.scene_id, FEED_CAPTURE_SCENE_ID);
-  assert.ok(feedManifest.requires?.some((row) => row.capability_id === "functions.evaluate"));
+  assert.equal(feedManifest.action_scenes?.[0]?.scene_id, FEED_CAPTURE_SCENE_ID);
+  assert.ok(!feedManifest.requires?.some((row) => row.capability_id === "functions.evaluate"));
   assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "save"));
   assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "promote"));
   assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "archive"));
-  assert.equal(inboxManifest.function_scenes?.[0]?.scene_id, "inbox.next");
+  assert.equal(inboxManifest.action_scenes?.[0]?.scene_id, "inbox.next");
+  assert.equal(inboxManifest.function_scenes, undefined);
   assert.equal(inboxManifest.plugin_id.includes("functions"), false);
 });
 
@@ -814,9 +474,8 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     );
   }
   const webView = await readFile(join(ROOT, "..", "apps/local-host/src/web-view.ts"), "utf8");
-  assert.match(webView, /latestJudgment\("inbox_entry", entry\.entry_id, boardId, INBOX_NEXT_SCENE_ID\)/);
-  assert.match(webView, /item\.item_id, FEED_CAPTURE_SCENE_ID/);
-  assert.match(webView, /home_dock_suggested_behavior_ids/);
+  assert.doesNotMatch(webView, /latestJudgment\(/, "page composition must not bypass the registered consumer's current binding query");
+  assert.doesNotMatch(webView, /home_dock_suggested_behavior_ids/);
 });
 
 test("home dock HTTP binds a published function at the scene without executing writes", async (t) => {
@@ -825,7 +484,8 @@ test("home dock HTTP binds a published function at the scene without executing w
   const created = await catalog.createProject({ display_name: "卡底绑定", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const token = "home-dock-test-token-0123456789012345";
-  const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });
+  const localHost = new MolisWorkLocalHost({ homeDirectory, functions: { env: { TYPESAFE_API_KEY: "fixture-only" } } });
+  const server = createMolisWorkWebServer({ homeDirectory, localHost, controlToken: token });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -834,6 +494,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   let sequence = 0;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await localHost.close();
     catalog.close();
     await rm(homeDirectory, { recursive: true, force: true });
   });
@@ -860,24 +521,24 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.equal(listedBody.function_key, null);
   assert.ok(listedBody.functions.some((row) => row.function_key === SYSTEM_HOME_DOCK_FUNCTION_KEY));
   assert.equal(listedBody.functions.some((row) => row.function_key === SYSTEM_INBOX_ADMIT_FUNCTION_KEY), false);
-  assert.equal(listedBody.functions.some((row) => row.function_key === SYSTEM_INBOX_NEXT_FUNCTION_KEY), false);
+  assert.equal(listedBody.functions.some((row) => row.function_key === SYSTEM_INBOX_NEXT_FUNCTION_KEY), false,
+    "Inbox scene result symbols are not canonical declared Home offer references");
 
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
-  assert.match(page, /"function_scenes"/);
-  assert.match(page, /"home_dock":null/);
-  assert.match(page, /"home_dock_functions"/);
+  assert.doesNotMatch(page, /"function_scenes"/);
+  assert.match(page, /"inbox_judgment"/);
+  assert.doesNotMatch(page, /"home_dock_functions"/);
   const homeClient = await readFile(join(ROOT, "..", "apps/workbench/src/scripts/client/project-home.ts"), "utf8");
-  const functionsClient = await readFile(join(ROOT, "..", "plugins/native/functions/src/client.ts"), "utf8");
+  const functionsClient = await readFile(join(ROOT, "..", "apps/workbench/src/functions/client.ts"), "utf8");
   assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
-  assert.match(functionsClient, /\/api\/home\/dock-judgment/);
-  assert.match(functionsClient, /\/api\/inbox\/judgment/);
-  assert.match(functionsClient, /用在 Inbox/);
-  assert.match(functionsClient, /用在首页/);
-  assert.match(homeClient, /home_dock_suggested_behavior_ids/);
-  assert.match(homeClient, /dock_behaviors/);
-  assert.match(homeClient, /data-home-behavior/);
-  assert.match(homeClient, /data-home-dismiss/);
-  assert.match(page, /"dock_behaviors"/);
+  assert.doesNotMatch(functionsClient, /\/api\/home\/dock-judgment|\/api\/inbox\/judgment/, "the generic editor must not keep native scene dispatch branches");
+  const now = new Date();
+  const eventResponse = await webFetch(`${origin}${prefix}/api/home/events`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
+    from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString(),
+  }) });
+  assert.equal(eventResponse.status, 200);
+  assert.ok((await eventResponse.json() as { events: Array<{ suggested_behavior_ids: string[] }> }).events.every(event => event.suggested_behavior_ids.length === 0), "Home has no judgment suggestions before a rule is bound");
+  assert.doesNotMatch(page, /"dock_behaviors"/);
 
   const mismatched = await webFetch(`${origin}${prefix}/api/home/dock-judgment`, {
     method: "POST",
@@ -891,7 +552,7 @@ test("home dock HTTP binds a published function at the scene without executing w
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY }),
   });
-  assert.equal(bound.status, 200);
+  assert.equal(bound.status, 200, await bound.clone().text());
   assert.equal((await bound.json() as { function_key: string }).function_key, SYSTEM_HOME_DOCK_FUNCTION_KEY);
 
   const reread = await webFetch(`${origin}${prefix}/api/home/dock-judgment`);
@@ -900,7 +561,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   const board = await (await webFetch(`${origin}${prefix}/api/board`)).json() as {
     function_scenes?: { home_dock: string | null };
   };
-  assert.equal(board.function_scenes?.home_dock, SYSTEM_HOME_DOCK_FUNCTION_KEY);
+  assert.equal(board.function_scenes, undefined, "the page does not expose a second Functions binding snapshot");
 
   const unpublished = await webFetch(`${origin}${prefix}/api/home/dock-judgment`, {
     method: "POST",
@@ -934,6 +595,8 @@ test("app plugins must redeem declared behavior handlers", () => {
     ...feedManifest,
     kind: "app" as const,
     plugin_id: "io.molis.work.demo-dock",
+    actions: [],
+    action_scenes: [],
     ui: { contributions: [], views: [] },
     behaviors: [{ behavior_id: "pin", title: "挂到 Goal", effect: "write" as const, subject_kinds: ["inbox_entry"] }],
     mcp_exports: [],
@@ -953,4 +616,18 @@ test("app plugins must redeem declared behavior handlers", () => {
 
 test("FunctionsError still surfaces from the Module", () => {
   assert.equal(new FunctionsError("functions.invalid", "x").code, "functions.invalid");
+});
+
+
+test("all builtin action declarations feed the Agent palette without maintaining a second tool list", async () => {
+  const { BUILTIN_PLUGIN_CATALOG } = await import("../apps/workbench/src/plugin-catalog.ts");
+  const directory = BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).map(definition => ({ ...definition,
+    provider: { provider_id: entry.manifest.plugin_id, title: entry.manifest.name, kind: "plugin" as const }, availability: { available: true as const },
+  })));
+  const actual = liveHostFunctionAuthoringCatalog(directory);
+  const expected = directory.filter(row => row.action.audiences.some(audience => audience === "agent" || audience === "mcp"));
+  assert.ok(expected.length > 0);
+  assert.equal(actual.behaviors.length, expected.length);
+  for (const action of expected) assert.ok(actual.behaviors.some(row => row.action_ref?.capability_id === action.capability_id
+    && row.action_ref.version === action.version && row.action_ref.provider_id === action.provider.provider_id), action.capability_id);
 });

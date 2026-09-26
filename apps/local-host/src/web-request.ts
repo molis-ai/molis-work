@@ -213,6 +213,7 @@ export async function handleMolisWorkWebRequest(
         const schedule = scheduleServiceFor(store.db);
         bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
           agentHost,
+          ready: agentReady,
           boardId: options.boardId,
           projectId: options.project?.project_id ?? "",
           workspaceFor,

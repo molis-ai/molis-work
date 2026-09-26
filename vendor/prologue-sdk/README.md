@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-subagent-close.tgz`。在同状态回报只记进展之上，**核对并结束子任务被中断的那一轮后，子任务立即有终态**：重启后，运行到一半的子任务被投影为"需要对账"，父会话因此拒绝开始任何新一轮（`EFFECT_RECONCILE_REQUIRED`）。结束子会话那一轮会写下终态，但子任务登记表只在启动时读一次，父会话要等下次重启才解开。现在经恢复结束一轮后，重新读取以这一轮为运行的子任务并装回登记表。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-character-precheck.tgz`。在子任务中断轮次结束即有终态之上，**派出子任务时写错角色版本，在审查之前就拒**：预演中 MiniMax 两次把子角色写成不存在的版本，人批准派出之后才报错，白审两次。现在工具调用器在进审查前核对 `character`：登记表里没有这个 `id@version` 时直接失败（`CHARACTER_NOT_FOUND`），并列出同名的现有版本，什么也没派出。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[character-precheck.patch](character-precheck.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`2015571474b5dbc6033d74d54f6a9456fac7ddc588a737536e3811d0fe76cecc`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/character-precheck.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-character-precheck.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；SDK 全量 3267 项通过、0 失败（新增定向：登记过的角色写错版本时审查前就拒，并列出现有版本，孩子没上线）。未发布 npm，未替换正式安装版。
+
+## 上一依赖：子任务中断轮次结束即有终态
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-subagent-close.tgz`。在同状态回报只记进展之上，**核对并结束子任务被中断的那一轮后，子任务立即有终态**：重启后，运行到一半的子任务被投影为"需要对账"，父会话因此拒绝开始任何新一轮（`EFFECT_RECONCILE_REQUIRED`）。结束子会话那一轮会写下终态，但子任务登记表只在启动时读一次，父会话要等下次重启才解开。现在经恢复结束一轮后，重新读取以这一轮为运行的子任务并装回登记表。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

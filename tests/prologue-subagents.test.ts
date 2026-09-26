@@ -112,6 +112,7 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
     const children=await adapter.subagents!.list(handle.ref);
     if(outcome==='rejected'||outcome==='unknown-role'){assert.equal(childCalls,0);assert.ok(children.every(child=>child.state!=='completed'));}
     else {assert.equal(childCalls,1);assert.equal(children.length,1);assert.equal(children[0].state,outcome);assert.equal(children[0].result,null);}
-    assert.equal(decided.size,1);
+    // A character that does not exist is refused before the dispatch is reviewed: nobody approves a call that can only fail.
+    assert.equal(decided.size,outcome==='unknown-role'?0:1);
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
 });

@@ -77,11 +77,13 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   });
 
   const state = {
-    workflows: [], stations: [], ai: false, loaded: false, judgments: null, workflow: null, instances: [], instance: null, step: 0,
+    workflows: [], stations: [], ai: false, loaded: false, judgments: null, actionSteps: null, stepDraft: null, stepIndex: null, workflow: null, instances: [], instance: null, step: 0,
     saving: 0, handoff: null, busy: null, openLink: null, openGap: null, returnTo: null,
   };
-  const stationInfo = (plugin) => state.stations.find((item) => item.plugin === plugin) || { plugin, label: plugin, icon: 'grid', supported: false };
-  const label = (plugin) => L(stationInfo(plugin).label);
+  const stationInfo = (plugin) => plugin === 'action' ? { plugin, label: '动作', icon: 'zap', supported: true }
+    : state.stations.find((item) => item.plugin === plugin) || { plugin, label: plugin, icon: 'grid', supported: false };
+  // A station is named by what it is: a plugin, or the one action a step runs.
+  const label = (value) => value && typeof value === 'object' ? (value.action ? value.action.title : L(stationInfo(value.plugin).label)) : L(stationInfo(value).label);
   const tint = (plugin) => 'var(--plugin-' + plugin + ', var(--muted))';
   const readiness = (link) => {
     const chain = [state.instance?.chain, state.workflow].find(chain => chain?.links.includes(link));
@@ -182,7 +184,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function chainText(chain) {
     if (!chain.stations.length) return '<span class="wf-muted">' + tx('还没有站') + '</span>';
     return chain.stations.map((station, index) => (index ? '<i class="wf-mini-link" data-kind="' + chain.links[index - 1].kind + '">' + esc(L(KIND_LABEL[chain.links[index - 1].kind])) + '</i>' : '')
-      + '<b style="--station-tint:' + tint(station.plugin) + '">' + esc(label(station.plugin)) + '</b>').join('');
+      + '<b style="--station-tint:' + tint(station.plugin) + '">' + esc(label(station)) + '</b>').join('');
   }
   function renderList() {
     if (!state.loaded) return;
@@ -207,10 +209,12 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return chain.links.map((link, index) => ({ index, link, state: readiness(link) })).filter((item) => !item.state.ready);
   }
   function stationHtml(station, index, count) {
-    const info = stationInfo(station.plugin); const name = label(station.plugin);
+    const info = stationInfo(station.plugin); const name = label(station);
     return '<div class="wf-station" role="listitem" tabindex="0" draggable="true" data-wf-station="' + index + '" data-station-id="' + esc(station.station_id) + '" style="--station-tint:' + tint(station.plugin) + '"'
       + ' aria-label="' + esc(L('{plugin} · 第 {n} 站', { plugin: name, n: index + 1 })) + '" aria-description="' + esc(L('拖动或用 {mod} ← → 调顺序，Delete 拿掉', { mod: MOD === '⌘' ? '⌥' : 'Alt +' })) + '">'
-      + '<span class="wf-station__icon">' + ico(info.icon) + '</span><span class="wf-station__name">' + esc(name) + '</span>'
+      + '<span class="wf-station__icon">' + ico(info.icon) + '</span>'
+      + (station.action ? '<button type="button" class="wf-station__name wf-station__edit" tabindex="-1" data-wf-action="edit-step" data-index="' + index + '" title="' + tx('设置这一步的动作和字段') + '">' + esc(name)
+        + (station.action.group ? '<small>' + esc(station.action.group) + '</small>' : '') + '</button>' : '<span class="wf-station__name">' + esc(name) + '</span>')
       + (station.availability?.available === false ? '<span class="wf-station__warning" role="img" aria-label="' + esc(station.availability.reason) + '" title="' + esc(station.availability.reason) + '">' + ico('alert') + '</span>' : '')
       + '<span class="wf-station__tools">'
       + (index > 0 ? '<button type="button" class="wf-tool" tabindex="-1" data-wf-action="move" data-from="' + index + '" data-gap="' + (index - 1) + '" aria-label="' + tx('往前挪') + '" title="' + tx('往前挪') + '">' + ico('chevron-left') + '</button>' : '')
@@ -221,13 +225,13 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function linkHtml(flow, index) {
     const link = flow.links[index]; const ready = readiness(link);
     const from = flow.stations[index]; const to = flow.stations[index + 1];
-    const between = label(from.plugin) + ' → ' + label(to.plugin);
+    const between = label(from) + ' → ' + label(to);
     const open = state.openLink === index;
     return '<div class="wf-link' + (state.openGap === index + 1 ? ' is-picking' : '') + '" data-wf-gap="' + (index + 1) + '" data-link-key="' + esc(from.station_id + '>' + to.station_id) + '" data-kind="' + link.kind + '" data-ready="' + ready.ready + '">'
       + '<span class="wf-link__line" aria-hidden="true"></span>'
       + '<button type="button" class="wf-link__pill' + (open ? ' is-open' : '') + '" data-wf-action="link" data-link="' + index + '" aria-haspopup="dialog" aria-expanded="' + open + '" aria-label="' + esc(between + ' · ' + L(KIND_LABEL[link.kind]) + (ready.ready ? '' : ' · ' + L('未接上'))) + '">'
       + (ready.ready ? '' : ico('alert')) + '<span>' + esc(L(KIND_LABEL[link.kind])) + '</span></button>'
-      + '<button type="button" class="wf-add" data-wf-action="gap" data-gap="' + (index + 1) + '" aria-label="' + esc(L('在 {a} 和 {b} 之间加入插件', { a: label(from.plugin), b: label(to.plugin) })) + '" title="' + tx('在这里加入插件') + '">' + ico('plus') + '</button>'
+      + '<button type="button" class="wf-add" data-wf-action="gap" data-gap="' + (index + 1) + '" aria-label="' + esc(L('在 {a} 和 {b} 之间加入插件', { a: label(from), b: label(to) })) + '" title="' + tx('在这里加入插件') + '">' + ico('plus') + '</button>'
       + '<span class="wf-link__line" aria-hidden="true"></span></div>';
   }
   function chainInner(flow) {
@@ -248,7 +252,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const issues = chainIssues(flow);
     if (!issues.length) return '';
     return '<p class="wf-issues" role="status">' + ico('alert') + '<span>' + esc(L('{count} 段还没接上：', { count: issues.length })) + issues.map((item) => {
-      const message = esc(label(flow.stations[item.index].plugin) + ' → ' + label(flow.stations[item.index + 1].plugin) + '（' + L(item.state.reason) + '）');
+      const message = esc(label(flow.stations[item.index]) + ' → ' + label(flow.stations[item.index + 1]) + '（' + L(item.state.reason) + '）');
       if (flow.stations.slice(item.index, item.index + 2).some(station => station.availability?.available === false)) return '<span>' + message + '</span>';
       return '<button type="button" class="wf-issue" data-wf-action="link" data-link="' + item.index + '">' + message + '</button>';
     }).join('<span aria-hidden="true">；</span>') + '</span></p>';
@@ -256,7 +260,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function runStatus(run) {
     if (run.status === 'done') return { tone: 'done', text: L('已走完') };
     if (run.status === 'stopped') return { tone: 'quiet', text: L('已结束 · 停在第 {n} 步', { n: run.current + 1 }) };
-    return { tone: 'progress', text: L('第 {n}/{total} 步 · {plugin}', { n: run.current + 1, total: run.chain.stations.length, plugin: label(run.chain.stations[run.current].plugin) }) };
+    return { tone: 'progress', text: L('第 {n}/{total} 步 · {plugin}', { n: run.current + 1, total: run.chain.stations.length, plugin: label(run.chain.stations[run.current]) }) };
   }
   function pipsHtml(run) {
     return '<span class="wf-pips" aria-hidden="true">' + run.chain.stations.map((station, i) => '<i data-state="' + stepState(run, i) + '" style="--station-tint:' + tint(station.plugin) + '"></i>').join('') + '</span>';
@@ -268,7 +272,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const head = '<div class="wf-section__head"><h2>' + tx('走过的每一次') + '</h2><span class="wf-muted">' + esc(state.instances.length ? L('{count} 次', { count: state.instances.length }) : '') + '</span>'
       + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="start"' + (canStart ? '' : ' disabled title="' + esc(startReason) + '"') + '>' + ico('play') + '<span>' + tx('开始一次') + '</span></button></div>';
     if (!state.instances.length) {
-      return head + '<p class="wf-muted wf-runs-empty">' + esc(unavailable ? L('先恢复不可用的站点，再开始第一次。') : canStart ? L('还没走过。开始一次时，先在 {plugin} 里选这一次的内容。', { plugin: label(flow.stations[0].plugin) }) : L('先把至少两站排好，再开始第一次。')) + '</p>';
+      return head + '<p class="wf-muted wf-runs-empty">' + esc(unavailable ? L('先恢复不可用的站点，再开始第一次。') : canStart ? L('还没走过。开始一次时，先在 {plugin} 里选这一次的内容。', { plugin: label(flow.stations[0]) }) : L('先把至少两站排好，再开始第一次。')) + '</p>';
     }
     return head + '<div class="wf-runs">' + state.instances.map((run) => {
       const status = runStatus(run);
@@ -284,6 +288,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const joinable = state.stations.filter((info) => info.supported);
     const others = state.stations.filter((info) => !info.supported);
     return joinable.map((info) => '<button type="button" class="wf-chip" draggable="true" data-wf-plugin="' + esc(info.plugin) + '" data-wf-action="append" title="' + tx('拖到链上，或点一下加到末尾') + '" style="--station-tint:' + tint(info.plugin) + '">' + ico(info.icon) + '<span>' + esc(L(info.label)) + '</span></button>').join('')
+      + '<button type="button" class="wf-chip wf-chip--action" data-wf-action="add-step" title="' + tx('在末尾加一步：执行某个插件的动作，字段从交过来的内容里填') + '">' + ico('zap') + '<span>' + tx('加一步动作') + '</span></button>'
       + (others.length ? '<span class="wf-palette__others" title="' + esc(others.map((info) => L(info.label)).join('、')) + '">' + esc(L('其余 {count} 个插件暂不能串进流程', { count: others.length })) + '</span>' : '');
   }
   function renderWorkflow() {
@@ -413,7 +418,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     // The exit is a courtesy: never let an unpainted frame hold the edit back.
     if (leaving) await Promise.race([leaving.finished.catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 180))]);
     if (keyboard) { const next = flow.stations[index + 1] || flow.stations[index - 1]; pendingFocus = next ? next.station_id : null; }
-    saveWorkflow({ chain: removeStation(chainOf(), index), undoable: true, announce: L('已拿掉 {plugin}', { plugin: label(flow.stations[index].plugin) }) });
+    saveWorkflow({ chain: removeStation(chainOf(), index), undoable: true, announce: L('已拿掉 {plugin}', { plugin: label(flow.stations[index]) }) });
   }
   function insertAt(gap, plugin, { focus = false } = {}) {
     const id = uid();
@@ -468,7 +473,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   function openGapPicker(gap) {
     const chain = state.workflow;
     const before = chain.stations[gap - 1]; const after = chain.stations[gap];
-    const heading = before && after ? L('加入到 {a} 和 {b} 之间', { a: label(before.plugin), b: label(after.plugin) }) : before ? L('加在 {a} 后面', { a: label(before.plugin) }) : after ? L('加在 {a} 前面', { a: label(after.plugin) }) : L('加入第一站');
+    const heading = before && after ? L('加入到 {a} 和 {b} 之间', { a: label(before), b: label(after) }) : before ? L('加在 {a} 后面', { a: label(before) }) : after ? L('加在 {a} 前面', { a: label(after) }) : L('加入第一站');
     const others = state.stations.filter((info) => !info.supported);
     state.openLink = null; state.openGap = gap;
     pop.dataset.mode = 'gap';
@@ -511,9 +516,120 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!state.returnTo) return '';
     return '<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="return-to-run" data-wf-return-button' + (ready.ready ? '' : ' disabled') + '>' + ico('arrow') + '<span>' + esc(L('回到「{title}」继续', { title: state.returnTo.title })) + '</span></button></footer>';
   }
+  // ---------- action steps ----------
+  const FIELD_LABEL = { title: '标题', body: '正文', source: '来源', url: '链接', date: '日期' };
+  const refKey = judgmentKey;
+  async function loadActionSteps() {
+    if (state.actionSteps) return state.actionSteps;
+    try { state.actionSteps = (await api('/steps/actions')).actions; } catch (error) { state.actionSteps = []; toast(error.message, 'error'); }
+    return state.actionSteps;
+  }
+  const stepChoice = (draft) => (state.actionSteps || []).find(row => refKey(row.ref) === refKey(draft.ref));
+  /** Mirrors the Host check so the editor says what is missing before saving; the Host checks again on save and on every run. */
+  function stepProblem(draft, choice) {
+    if (!draft.ref) return L('还没选动作');
+    if (!choice) return L('这个动作已不可用或版本已变化');
+    if (!choice.available) return L(choice.reason || '这个动作暂不可用');
+    for (const field of choice.fields) if (field.required && !draft.mapping[field.name]) return L('还没填「{field}」', { field: field.title || field.name });
+    for (const [name, source] of Object.entries(draft.mapping)) {
+      const field = choice.fields.find(item => item.name === name);
+      if (!field) return L('动作已不再接受「{field}」', { field: name });
+      if ('value' in source && (source.value === '' || source.value === undefined || (typeof source.value === 'number' && Number.isNaN(source.value)))) return L('「{field}」的固定值还没填', { field: field.title || name });
+    }
+    return '';
+  }
+  function stepFieldsHtml(draft, choice) {
+    if (!choice) return '';
+    if (!choice.fields.length) return '<p class="wf-hint">' + tx('这个动作不需要输入。') + '</p>';
+    return '<div class="wf-map" role="group" aria-label="' + tx('字段怎么填') + '">' + choice.fields.map((field) => {
+      const source = draft.mapping[field.name];
+      const current = !source ? '' : 'from' in source ? 'from:' + source.from : 'value';
+      const named = field.title || field.name;
+      const mappable = field.type === 'string' && !field.enum;
+      const options = (field.required ? (current === '' ? '<option value="" selected disabled>' + tx('选一个来源') + '</option>' : '') : '<option value=""' + (current === '' ? ' selected' : '') + '>' + tx('不填') + '</option>')
+        + (mappable ? Object.keys(FIELD_LABEL).map((key) => '<option value="from:' + key + '"' + (current === 'from:' + key ? ' selected' : '') + '>' + esc(L('交过来的{field}', { field: L(FIELD_LABEL[key]) })) + '</option>').join('') : '')
+        + '<option value="value"' + (current === 'value' ? ' selected' : '') + '>' + tx('固定值') + '</option>';
+      let valueInput = '';
+      if (current === 'value') {
+        const value = source.value; const aria = ' aria-label="' + esc(L('「{field}」的固定值', { field: named })) + '"';
+        valueInput = field.enum ? '<select class="mw-select" data-wf-map-value="' + esc(field.name) + '"' + aria + '>' + field.enum.map((option) => '<option value="' + esc(String(option)) + '"' + (option === value ? ' selected' : '') + '>' + esc(String(option)) + '</option>').join('') + '</select>'
+          : field.type === 'boolean' ? '<select class="mw-select" data-wf-map-value="' + esc(field.name) + '"' + aria + '><option value="true"' + (value === true ? ' selected' : '') + '>' + tx('是') + '</option><option value="false"' + (value === false ? ' selected' : '') + '>' + tx('否') + '</option></select>'
+          : '<input class="mw-input" data-wf-map-value="' + esc(field.name) + '"' + aria + (field.type === 'string' ? '' : ' type="number" inputmode="decimal"' + (field.type === 'integer' ? ' step="1"' : '')) + ' value="' + esc(value === undefined ? '' : String(value)) + '">';
+      }
+      return '<div class="wf-map__row"><span class="wf-map__name">' + esc(named) + (field.required ? '<i aria-label="' + tx('必填') + '">*</i>' : '')
+        + (field.title && field.title !== field.name ? '<small>' + esc(field.name) + '</small>' : '') + '</span>'
+        + '<select class="mw-select" data-wf-map-source="' + esc(field.name) + '" aria-label="' + esc(L('「{field}」从哪里来', { field: named })) + '">' + options + '</select>' + valueInput + '</div>';
+    }).join('') + '</div>';
+  }
+  function stepReadyHtml(problem) {
+    if (problem) return ico('alert') + '<span>' + esc(problem) + '</span>';
+    return ico('check') + '<span>' + tx(Object.keys(state.stepDraft.mapping).length ? '字段都填好了' : '没有必填字段，可以直接执行') + '</span>';
+  }
+  function stepEditorHtml() {
+    const draft = state.stepDraft; const rows = [...(state.actionSteps || [])];
+    // A saved step whose action went away stays visible as what it was, so nothing silently changes.
+    if (draft.ref && state.actionSteps && !stepChoice(draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || '', fields: [], available: false, reason: '已不可用' });
+    const choice = rows.find(row => refKey(row.ref) === refKey(draft.ref));
+    const groups = [...new Set(rows.map(row => row.group))];
+    const picker = !state.actionSteps ? '<div class="wf-judgment" aria-busy="true"><span class="mw-skeleton" style="width:70%"></span><span class="mw-skeleton wf-skeleton-small"></span></div>'
+      : rows.length ? '<label class="mw-field"><span class="mw-field__label">' + tx('执行哪个动作') + '</span><select class="mw-select" data-wf-step-action>'
+        + (draft.ref ? '' : '<option value="" selected disabled>' + tx('选一个动作') + '</option>')
+        + groups.map(group => '<optgroup label="' + esc(group) + '">' + rows.filter(row => row.group === group).map(row => '<option value="' + esc(refKey(row.ref)) + '"' + (row === choice ? ' selected' : '') + '>'
+          + esc(row.title + (row.available ? '' : ' · ' + L(row.reason || '不可用'))) + '</option>').join('') + '</optgroup>').join('') + '</select></label>'
+        + (choice?.description ? '<p class="wf-hint">' + esc(choice.description) + '</p>' : '')
+      : '<p class="wf-hint">' + tx('现在没有可以放进流程的动作。插件声明了接受流程调用的动作后，会自动出现在这里。') + '</p>';
+    const problem = state.actionSteps ? stepProblem(draft, choice) : '';
+    const editing = state.stepIndex !== null;
+    return '<header class="wf-pop__head"><strong>' + tx(editing ? '这一步执行的动作' : '加一步动作') + '</strong><span class="wf-muted">' + tx('字段从前一步交过来的内容里取，或填固定值') + '</span></header>'
+      + '<div class="wf-link-fields">' + picker + '<div data-wf-step-fields>' + stepFieldsHtml(draft, choice) + '</div>'
+      + (state.actionSteps && rows.length ? '<p class="wf-readiness" data-ready="' + !problem + '" data-wf-step-ready>' + stepReadyHtml(problem) + '</p>' : '') + '</div>'
+      + '<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="step-save"' + (problem || !state.actionSteps ? ' disabled' : '') + '>' + ico(editing ? 'check' : 'plus') + '<span>' + tx(editing ? '保存这一步' : '加到末尾') + '</span></button></footer>';
+  }
+  function renderStepEditor() {
+    pop.innerHTML = stepEditorHtml();
+    keepPopInView();
+  }
+  async function openStepEditor(index, anchorOf) {
+    const station = index === null ? null : state.workflow.stations[index];
+    state.stepIndex = index;
+    state.stepDraft = station?.action ? JSON.parse(JSON.stringify(station.action)) : { ref: null, title: '', group: '', mapping: {} };
+    state.openLink = null; state.openGap = null;
+    pop.dataset.mode = 'step'; delete pop.dataset.link;
+    renderStepEditor();
+    markOpen();
+    placePop(anchorOf);
+    await loadActionSteps();
+    if (pop.dataset.mode !== 'step' || !pop.matches(':popover-open')) return;
+    renderStepEditor(); settle(pop.querySelector('.wf-link-fields'));
+    pop.querySelector('[data-wf-step-action]')?.focus({ preventScroll: true });
+  }
+  function saveStep() {
+    const draft = state.stepDraft; const chain = chainOf();
+    if (stepProblem(draft, stepChoice(draft))) return;
+    pop.hidePopover?.();
+    if (state.stepIndex === null) {
+      const id = uid(); pendingFocus = id;
+      const inserted = insertStation(chain, chain.stations.length, 'action', id);
+      inserted.stations[inserted.stations.length - 1] = { station_id: id, plugin: 'action', action: draft };
+      saveWorkflow({ chain: inserted, undoable: true, announce: L('已加入「{action}」', { action: draft.title }) });
+      return;
+    }
+    const { availability, ...kept } = chain.stations[state.stepIndex];
+    void availability;
+    chain.stations[state.stepIndex] = { ...kept, action: draft };
+    saveWorkflow({ chain, undoable: true });
+  }
+  function updateMapValue(input) {
+    const draft = state.stepDraft; const name = input.dataset.wfMapValue;
+    const field = stepChoice(draft)?.fields.find(item => item.name === name);
+    const raw = input.value;
+    const value = field?.type === 'boolean' ? raw === 'true' : field?.type === 'number' || field?.type === 'integer' ? (raw.trim() === '' ? '' : Number(raw))
+      : field?.enum ? field.enum.find(option => String(option) === raw) : raw;
+    state.stepDraft = { ...draft, mapping: { ...draft.mapping, [name]: { value } } };
+  }
   function openLinkEditor(index) {
     const flow = state.workflow; const link = flow.links[index];
-    const from = label(flow.stations[index].plugin); const to = label(flow.stations[index + 1].plugin);
+    const from = label(flow.stations[index]); const to = label(flow.stations[index + 1]);
     const ready = readiness(link);
     state.openLink = index; state.openGap = null;
     pop.dataset.mode = 'link'; pop.dataset.link = String(index);
@@ -670,7 +786,8 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const on = i === selected;
       return '<button type="button" class="wf-vstep is-' + st + (on ? ' is-selected' : '') + '" data-wf-step="' + i + '" tabindex="' + (on ? '0' : '-1') + '" style="--station-tint:' + tint(station.plugin) + '"' + (on ? ' aria-current="step"' : '') + '>'
         + '<span class="wf-vstep__mark">' + mark + '</span><span class="wf-station__icon">' + ico(stationInfo(station.plugin).icon) + '</span>'
-        + '<span class="wf-vstep__copy"><strong>' + esc(label(station.plugin)) + '</strong><small>' + esc(s.item ? s.item.title : (st === 'pending' ? L('还没走到') : '')) + '</small></span></button>' + linkRow;
+        + '<span class="wf-vstep__copy"><strong>' + esc(label(station)) + '</strong><small>' + esc(station.action ? (s.item ? L('已在{place}执行', { place: station.action.group || L('对应插件') }) : run.steps[i - 1]?.pending?.attempted_at ? L('结果未确认') : st === 'pending' ? L('还没走到') : '')
+          : s.item ? s.item.title : (st === 'pending' ? L('还没走到') : '')) + '</small></span></button>' + linkRow;
     }).join('');
   }
   let lastRun = { id: null, steps: null, links: null };
@@ -707,7 +824,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     lastRun.steps = steps; lastRun.links = links;
     if (focusedStep !== null && focusedStep !== undefined) vchain.querySelector('[data-wf-step="' + focusedStep + '"]')?.focus({ preventScroll: true });
 
-    article.querySelector('[data-wf-stage-head]').innerHTML = '<span class="wf-stage__step">' + esc(L('第 {n} 步', { n: index + 1 })) + '</span><span class="wf-station__icon" style="--station-tint:' + tint(step.plugin) + '">' + ico(stationInfo(step.plugin).icon) + '</span><strong>' + esc(label(step.plugin)) + '</strong>' + (step.item ? '<span class="wf-muted">' + esc(step.item.title) + '</span>' : '');
+    article.querySelector('[data-wf-stage-head]').innerHTML = '<span class="wf-stage__step">' + esc(L('第 {n} 步', { n: index + 1 })) + '</span><span class="wf-station__icon" style="--station-tint:' + tint(step.plugin) + '">' + ico(stationInfo(step.plugin).icon) + '</span><strong>' + esc(label(run.chain.stations[index])) + '</strong>' + (step.item && step.plugin !== 'action' ? '<span class="wf-muted">' + esc(step.item.title) + '</span>' : '');
 
     const handoffEl = article.querySelector('[data-wf-handoff]');
     const focusedAction = handoffEl.contains(document.activeElement) ? document.activeElement.dataset.wfAction : null;
@@ -716,13 +833,25 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (handoffEl.dataset.key !== key) { handoffEl.dataset.key = key; settle(handoffEl.firstElementChild); }
     if (focusedAction) handoffEl.querySelector('[data-wf-action="' + focusedAction + '"]')?.focus({ preventScroll: true });
 
-    syncFrame(article.querySelector('[data-wf-frame-slot]'), step);
+    syncFrame(article.querySelector('[data-wf-frame-slot]'), step, run.chain.stations[index]);
   }
   /**
    * The embedded plugin is kept while the step stays the same, so continuing or opening the handoff form never reloads it.
    * A new step's plugin fades in over the previous one once it has loaded; the first one shows a quiet skeleton.
    */
-  function syncFrame(slot, step) {
+  function syncFrame(slot, step, station) {
+    // An action step has no page of its own: it shows what it was given and what the action returned.
+    if (station?.action) {
+      const key = 'action:' + (step.item ? step.item.item_id : 'pending') + ':' + (step.result === undefined ? '' : 'done');
+      if (slot.dataset.src === key) return;
+      slot.dataset.src = key; slot.className = 'wf-stage__frame is-empty';
+      slot.innerHTML = step.item
+        ? '<div class="wf-stage__result"><p class="wf-record__label">' + tx('交给动作的内容') + '</p>' + payloadBlock(step.payload || { title: '', body: '' })
+          + '<p class="wf-record__label">' + esc(L('「{action}」返回的结果', { action: station.action.title })) + '</p><pre class="wf-rule">' + esc(JSON.stringify(step.result ?? null, null, 2)) + '</pre></div>'
+        : '<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">' + ico('zap') + '</span><strong>' + tx('还没走到这一步') + '</strong><p>' + esc(L('前一步交过来后，这一步会执行「{action}」。', { action: station.action.title })) + '</p></div>';
+      settle(slot.firstElementChild);
+      return;
+    }
     if (!step.item) {
       if (slot.dataset.src === '') return;
       slot.dataset.src = '';
@@ -773,7 +902,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const step = run.steps[index];
     const chain = run.chain;
     if (step.handoff) {
-      const h = step.handoff; const next = label(chain.stations[index + 1].plugin);
+      const h = step.handoff; const next = label(chain.stations[index + 1]);
       const who = h.actor === 'ai' ? L('AI 整理后交给了 {next}', { next }) : h.actor === 'function' ? L('按规则交给了 {next}', { next })
         : h.actor === 'judgment' ? L('判断为「{choice}」，交给了 {next}', { choice: h.verdict?.choice || '', next }) : L('你手动交给了 {next}', { next });
       return '<details class="wf-record mw-disclosure"' + (h.actor === 'ai' ? ' open' : '') + '><summary><span class="wf-handoff__kind" data-kind="' + h.kind + '">' + esc(L(KIND_LABEL[h.kind])) + '</span><span>' + esc(who) + '</span><span class="wf-muted">' + esc(when(h.at)) + '</span></summary>'
@@ -793,8 +922,17 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       return '';
     }
-    const link = chain.links[index]; const ready = readiness(link); const next = label(chain.stations[index + 1].plugin);
+    const link = chain.links[index]; const ready = readiness(link); const next = label(chain.stations[index + 1]);
     const busy = state.busy && state.busy.index === index;
+    const target = chain.stations[index + 1];
+    if (target.action && step.pending?.attempted_at && !busy) {
+      // The action was called and never confirmed: nothing repeats it until the person has checked.
+      return '<div class="wf-handoff__bar is-blocked wf-uncertain" role="status">' + ico('alert') + '<span>'
+        + esc(step.pending.attempt_error ? L('上次执行「{action}」时出错：{error}', { action: target.action.title, error: step.pending.attempt_error }) : L('上次执行「{action}」没有确认结果', { action: target.action.title }))
+        + ' · ' + esc(L('先到{place}核对，确认没有生效再重新执行。', { place: target.action.group || L('对应插件') })) + '</span>'
+        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="stop">' + tx('结束这一次') + '</button>'
+        + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="retry-action" data-index="' + index + '">' + ico('refresh') + '<span>' + tx('重新执行') + '</span></button></div>';
+    }
     if (state.handoff?.index === index && state.handoff.mode === 'manual') {
       const draft = state.handoff.draft;
       return '<form class="wf-manual" data-wf-manual><header><strong>' + esc(L('手动交给 {next}', { next })) + '</strong><span class="wf-muted">' + tx('看完再决定交不交、交什么。改好的内容会交过去。') + '</span></header>'
@@ -809,11 +947,11 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     const action = link.kind === 'manual' ? L('看内容并交给 {next}', { next }) : link.kind === 'ai' ? L('AI 整理后交给 {next}', { next })
       : link.kind === 'judgment' ? L('判断后交给 {next}', { next }) : L('按规则交给 {next}', { next });
-    const working = busy ? (state.busy.kind === 'preview' ? L('正在读取…') : link.kind === 'ai' ? L('AI 正在整理…') : link.kind === 'judgment' ? L('正在判断…') : L('正在交接…')) : action;
+    const working = busy ? (state.busy.kind === 'preview' ? L('正在读取…') : target.action && link.kind !== 'ai' && link.kind !== 'judgment' ? L('正在执行…') : link.kind === 'ai' ? L('AI 正在整理…') : link.kind === 'judgment' ? L('正在判断…') : L('正在交接…')) : action;
     return '<p class="wf-handoff__bar' + (busy ? ' is-working' : '') + '"><span class="wf-handoff__kind" data-kind="' + link.kind + '">' + esc(L(KIND_LABEL[link.kind])) + '</span><span>' + esc(L('下一段：{kind}交给 {next}', { kind: link.kind === 'manual' ? L('人看完后') : link.kind === 'ai' ? L('AI 整理后') : link.kind === 'judgment' ? L('判断通过后') : L('按规则'), next })) + '</span>'
       + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="continue" data-index="' + index + '"' + (busy ? ' aria-disabled="true" aria-busy="true"' : '') + '>' + (busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ico('arrow')) + '<span>' + esc(working) + '</span></button></p>';
   }
-  async function continueRun(index, manual) {
+  async function continueRun(index, manual, options = {}) {
     if (state.busy) return;
     const run = state.instance; const link = run.chain.links[index];
     if (link.kind === 'manual' && !manual) {
@@ -828,13 +966,15 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     state.busy = { index, kind: 'handoff' }; renderInstance();
     try {
-      const result = await api('/instances/' + run.instance_id + '/continue', { from: index, updated_at: run.updated_at, ...(manual || {}) });
+      const result = await api('/instances/' + run.instance_id + '/continue', { from: index, updated_at: run.updated_at, ...(manual || {}), ...(options.retry ? { retry_action: true } : {}) });
       state.instance = result.instance; state.handoff = null; state.step = index + 1;
-      toast(L('已交给 {next}', { next: label(run.chain.stations[index + 1].plugin) }));
+      const target = run.chain.stations[index + 1];
+      toast(target.action ? L('已执行「{action}」', { action: target.action.title }) : L('已交给 {next}', { next: label(target) }));
       refreshFlowQuietly();
     } catch (error) {
       toast(error.message, 'error');
-      if (error.status === 409) { state.busy = null; await openInstance(run.instance_id).catch(() => undefined); }
+      // A conflict or an action whose result is now unconfirmed: load what was recorded so the page shows the real state.
+      if (error.status === 409 || run.chain.stations[index + 1]?.action) { state.busy = null; await openInstance(run.instance_id).catch(() => undefined); }
     }
     state.busy = null; remember(); renderInstance();
   }
@@ -882,6 +1022,11 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (action === 'gap') { openGapPicker(Number(target.dataset.gap)); return; }
       if (action === 'append') { insertAt(state.workflow.stations.length, target.dataset.wfPlugin); return; }
+      if (action === 'add-step') {
+        if (!state.workflow.stations.length) { toast(L('先放一个能挑出内容的插件，动作接在它后面'), 'error'); return; }
+        await openStepEditor(null, () => view.querySelector('[data-wf-action=add-step]')); return;
+      }
+      if (action === 'edit-step') { const index = Number(target.dataset.index); await openStepEditor(index, () => view.querySelector('[data-wf-chain] [data-wf-action=edit-step][data-index="' + index + '"]')); return; }
       if (action === 'remove') { await removeAt(Number(target.dataset.index)); return; }
       if (action === 'move') { moveTo(Number(target.dataset.from), Number(target.dataset.gap), { focus: true }); return; }
       if (action === 'link') {
@@ -908,6 +1053,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         return;
       }
       if (action === 'continue') { await continueRun(Number(target.dataset.index)); return; }
+      if (action === 'retry-action') { await continueRun(Number(target.dataset.index), undefined, { retry: true }); return; }
       if (action === 'handoff-cancel') { cancelManual(); return; }
     } catch (error) { toast(error.message, 'error'); }
   });
@@ -929,6 +1075,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const target = event.target.closest('[data-wf-action]');
     if (!target) return;
     if (target.dataset.wfAction === 'insert') { pop.hidePopover?.(); insertAt(Number(target.dataset.gap), target.dataset.plugin, { focus: event.detail === 0 }); return; }
+    if (target.dataset.wfAction === 'step-save') { saveStep(); return; }
     if (target.dataset.wfAction === 'kind') { switchKind(Number(target.dataset.link), target.dataset.kind, { pointer: event.detail > 0 }); return; }
     if (target.dataset.wfAction === 'return-to-run') {
       const back = state.returnTo; if (!back) return;
@@ -953,6 +1100,34 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (lostFocus && anchor) anchor.focus({ preventScroll: true });
   });
   pop.addEventListener('change', (event) => {
+    if (pop.dataset.mode === 'step') {
+      const draft = state.stepDraft;
+      const picked = event.target.closest('[data-wf-step-action]');
+      if (picked) {
+        const row = (state.actionSteps || []).find(item => refKey(item.ref) === picked.value);
+        // Another action takes other fields: nothing is guessed across, each one is chosen again.
+        if (row) state.stepDraft = { ref: row.ref, title: row.title, group: row.group, mapping: {} };
+        renderStepEditor(); settle(pop.querySelector('[data-wf-step-fields]'));
+        pop.querySelector('[data-wf-step-action]')?.focus({ preventScroll: true });
+        return;
+      }
+      const source = event.target.closest('[data-wf-map-source]');
+      if (source) {
+        const name = source.dataset.wfMapSource;
+        const field = stepChoice(draft)?.fields.find(item => item.name === name);
+        const mapping = { ...draft.mapping };
+        if (!source.value) delete mapping[name];
+        else if (source.value === 'value') mapping[name] = { value: field?.enum ? field.enum[0] : field?.type === 'boolean' ? true : '' };
+        else mapping[name] = { from: source.value.slice(5) };
+        state.stepDraft = { ...draft, mapping };
+        renderStepEditor();
+        (pop.querySelector('[data-wf-map-value="' + name + '"]') || pop.querySelector('[data-wf-map-source="' + name + '"]'))?.focus({ preventScroll: true });
+        return;
+      }
+      const value = event.target.closest('select[data-wf-map-value]');
+      if (value) { updateMapValue(value); refreshStepReadiness(); }
+      return;
+    }
     const index = Number(pop.dataset.link);
     const select = event.target.closest('[data-wf-judgment]');
     if (select) {
@@ -970,7 +1145,19 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       refreshReadiness(index); saveWorkflow({ chain: chainOf() });
     }
   });
+  /** Typing keeps the field in place; only the readiness line and the save button follow. */
+  function refreshStepReadiness() {
+    const problem = stepProblem(state.stepDraft, stepChoice(state.stepDraft));
+    const line = pop.querySelector('[data-wf-step-ready]');
+    if (line) { line.dataset.ready = String(!problem); line.innerHTML = stepReadyHtml(problem); }
+    const save = pop.querySelector('[data-wf-action=step-save]'); if (save) save.disabled = Boolean(problem);
+  }
   pop.addEventListener('input', (event) => {
+    if (pop.dataset.mode === 'step') {
+      const value = event.target.closest('input[data-wf-map-value]');
+      if (value) { updateMapValue(value); refreshStepReadiness(); }
+      return;
+    }
     const field = event.target.closest('[data-wf-link-field]');
     if (!field) return;
     const index = Number(pop.dataset.link);

@@ -1,8 +1,66 @@
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
-  type Workflow, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowVerdict,
+  isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS,
+  type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
+
+/** One input field of a candidate action, as the mapping editor shows it. */
+export interface WorkflowActionField { readonly name: string; readonly type: string; readonly required: boolean; readonly title?: string; readonly enum?: readonly (string | number | boolean)[] }
+/** A registered command a workflow step can run: grouped by provider, filled by mapping. */
+export interface WorkflowActionChoice {
+  readonly ref: { readonly capability_id: string; readonly version: number; readonly provider_id: string };
+  readonly title: string;
+  readonly description: string;
+  readonly group: string;
+  readonly fields: readonly WorkflowActionField[];
+  readonly available: boolean;
+  readonly reason?: string;
+}
+
+const MAPPABLE = new Set(["string", "number", "integer", "boolean"]);
+function fieldsOf(view: ActionView): WorkflowActionField[] | null {
+  const schema = view.action.input_schema as { type?: unknown; properties?: Record<string, { type?: unknown; enum?: unknown[]; title?: unknown; description?: unknown }>; required?: unknown };
+  if (schema.type !== "object" || !schema.properties) return null;
+  const required = Array.isArray(schema.required) ? schema.required.filter((name): name is string => typeof name === "string") : [];
+  const fields = Object.entries(schema.properties).map(([name, property]) => {
+    const type = Array.isArray(property?.type) ? String(property.type.find(item => item !== "null") ?? "") : String(property?.type ?? (property?.enum ? "string" : ""));
+    return { name, type, required: required.includes(name), ...(typeof property?.title === "string" || typeof property?.description === "string" ? { title: String(typeof property.title === "string" ? property.title : property.description).slice(0, 120) } : {}),
+      ...(Array.isArray(property?.enum) ? { enum: property.enum.filter((value): value is string | number | boolean => ["string", "number", "boolean"].includes(typeof value)) } : {}) };
+  });
+  // A step fills flat fields; a required object or list cannot be mapped from handed-over text.
+  return fields.some(field => field.required && !MAPPABLE.has(field.type)) ? null : fields;
+}
+
+/** Commands that accept flat input and are offered to workflows: the directory, not a Host list, decides what can be a step. */
+export function workflowActionChoices(directory: readonly ActionView[]): WorkflowActionChoice[] {
+  return directory.flatMap(view => {
+    if (view.operation !== "command" || view.action.kind === "judgment" || !view.action.audiences.includes("workflow") || view.action.workflow_content
+      || view.capability_id.startsWith("workflows.")) return [];
+    const fields = fieldsOf(view);
+    if (!fields) return [];
+    return [{ ref: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, title: view.action.title,
+      description: view.action.description, group: view.provider.title, fields, available: view.availability.available,
+      ...(view.availability.available ? {} : { reason: view.availability.reason }) }];
+  });
+}
+
+/** Why a saved mapping no longer fits the action's current contract, or null when it does. */
+export function actionMappingProblem(step: WorkflowActionStep, choice: Pick<WorkflowActionChoice, "fields">): string | null {
+  for (const field of choice.fields) if (field.required && !step.mapping[field.name]) return `还没填「${field.title ?? field.name}」`;
+  for (const [name, source] of Object.entries(step.mapping)) {
+    const field = choice.fields.find(item => item.name === name);
+    if (!field) return `动作已不再接受「${name}」`;
+    if (!MAPPABLE.has(field.type)) return `「${field.title ?? name}」不能从交过来的内容填写`;
+    if ("from" in source) { if (field.type !== "string" || field.enum) return `「${field.title ?? name}」需要固定值`; continue; }
+    const value = source.value;
+    const typed = field.type === "string" ? typeof value === "string" : field.type === "boolean" ? typeof value === "boolean"
+      : typeof value === "number" && (field.type === "number" || Number.isInteger(value));
+    if (!typed) return `「${field.title ?? name}」的固定值类型不对`;
+    if (field.enum && !field.enum.includes(value)) return `「${field.title ?? name}」的固定值不在可选范围内`;
+  }
+  return null;
+}
 
 /** A published Choice rule a link can use to decide whether content goes on. */
 export interface WorkflowJudgmentChoice {
@@ -105,10 +163,13 @@ export const workflowsActions = {
     "instances.preview", "预览交接", "读取当前一步交出去前的内容；模板转换会给出交接后的样子，不调用模型、不写入", "query",
     object({ id, from: { type: "integer", minimum: 0 } }, ["id"]),
     object({ from: { type: "integer" }, link: { type: "object" }, readiness: { type: "object" }, input: payload, output: { anyOf: [payload, { type: "null" }] } }), read),
-  continue: define<{ id: string; from?: number; updated_at?: string; title?: string; body?: string }, { instance: WorkflowInstance }>("instances.continue", "交给下一站",
-    "按这一段的交接方式（模板转换、AI 整理或人工交接）把内容交给下一站；同一步重试只交付一次", "command",
-    object({ id, from: { type: "integer", minimum: 0 }, updated_at: text, title: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 100_000 } }, ["id"]),
+  continue: define<{ id: string; from?: number; updated_at?: string; title?: string; body?: string; retry_action?: boolean }, { instance: WorkflowInstance }>("instances.continue", "交给下一站",
+    "按这一段的交接方式（判断规则、模板转换、AI 整理或人工交接）把内容交给下一站；下一站是动作时按字段映射执行。同一步重试只交付一次；动作结果未确认时需明确 retry_action 才会重新执行", "command",
+    object({ id, from: { type: "integer", minimum: 0 }, updated_at: text, title: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 100_000 }, retry_action: { type: "boolean" } }, ["id"]),
     object({ instance }), [...write, "model:invoke"]),
+  actionSteps: define<Record<string, never>, { actions: WorkflowActionChoice[]; fields: readonly string[] }>("steps.actions", "可放进流程的动作",
+    "列出可以作为一步执行的已注册动作，按提供方分组，并给出每个输入字段；交过来的标题、正文、来源、链接和日期可以映射进去", "query", object({}),
+    object({ actions: { type: "array" }, fields: { type: "array", items: text } }), read),
   judgments: define<Record<string, never>, { judgments: WorkflowJudgmentChoice[] }>("judgments.list", "可用的判断规则",
     "列出可以放在一段交接上的已发布 Choice 判断规则及其可选结果", "query", object({}), object({ judgments: { type: "array" } }), read),
   stop: define<{ id: string }, { instance: WorkflowInstance }>("instances.stop", "结束一次运行", "结束还在进行的一次运行，已交接的内容保留", "command",
@@ -126,13 +187,28 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, content: WorkflowContentPorts, caller: ActionCallContext & { beforeEffect(): Promise<void> }) => Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, scoped(caller), caller),
   });
-  const validChain = async (content: WorkflowContentPorts, value: unknown): Promise<WorkflowChain> => {
-    const parsed = parseChain(value);
-    return { ...parsed, stations: await Promise.all(parsed.stations.map(station => content.resolveStation(station))) };
+  /** An action step resolves against the caller's own directory; its mapping must still fit the action's contract. */
+  const resolveAction = async (caller: ActionCallContext, station: WorkflowStation & { action: WorkflowActionStep }): Promise<WorkflowActionChoice> => {
+    const ref = station.action.ref;
+    const view = (await ports.actions({ ...caller, audience: "workflow" }).discover()).find(row => row.capability_id === ref.capability_id
+      && row.version === ref.version && row.provider.provider_id === ref.provider_id);
+    const choice = view && workflowActionChoices([view])[0];
+    if (!choice) throw new WorkflowError("workflows.unavailable", `动作「${station.action.title}」v${ref.version} 已不可用或不再接受流程调用；原引用已保留，请重新选择`);
+    if (!choice.available) throw new WorkflowError("workflows.unavailable", `动作「${station.action.title}」暂不可用：${choice.reason}`);
+    const problem = actionMappingProblem(station.action, choice);
+    if (problem) throw new WorkflowError("workflows.not_ready", `动作「${station.action.title}」的字段映射需要调整：${problem}`);
+    return choice;
   };
-  const describe = async <T extends WorkflowChain>(content: WorkflowContentPorts, chainValue: T): Promise<T> => ({ ...chainValue,
+  const resolveStation = async (caller: ActionCallContext, content: WorkflowContentPorts, station: WorkflowStation) =>
+    isActionStation(station) ? (await resolveAction(caller, station), station) : content.resolveStation(station);
+  const validChain = async (content: WorkflowContentPorts, value: unknown, caller: ActionCallContext): Promise<WorkflowChain> => {
+    const parsed = parseChain(value);
+    if (parsed.stations[0] && isActionStation(parsed.stations[0])) throw new WorkflowError("workflows.invalid", "第一站要选一个能挑出内容的插件，动作只能接在后面");
+    return { ...parsed, stations: await Promise.all(parsed.stations.map(station => resolveStation(caller, content, station))) };
+  };
+  const describe = async <T extends WorkflowChain>(content: WorkflowContentPorts, chainValue: T, caller: ActionCallContext): Promise<T> => ({ ...chainValue,
     stations: await Promise.all(chainValue.stations.map(async station => {
-      try { await content.resolveStation(station); return { ...station, availability: { available: true } }; }
+      try { await resolveStation(caller, content, station); return { ...station, availability: { available: true } }; }
       catch (error) { return { ...station, availability: { available: false, reason: error instanceof Error ? error.message : "站点不可用" } }; }
     })),
   });
@@ -142,6 +218,12 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     try { return withPendingLinks(current, store.get(current.workflow_id, projectId)); } catch { return current; }
   };
   const readStep = async (content: WorkflowContentPorts, current: WorkflowInstance, index: number): Promise<WorkflowPayload> => {
+    // An action step hands on what it received; the action's result stays in its record.
+    if (isActionStation(current.chain.stations[index]!)) {
+      const payload = current.steps[index]?.payload;
+      if (!payload) throw new WorkflowError("workflows.invalid", "这一步还没有收到内容");
+      return payload;
+    }
     const item = current.steps[index]?.item;
     if (!item) throw new WorkflowError("workflows.invalid", "这一步还没有内容");
     try { return await content.read(item, current.chain.stations[index]!.content); }
@@ -166,20 +248,20 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       function_key: result.function_key, version: result.version, confidence: result.confidence ?? null };
   };
   return [
-    bind(workflowsActions.list, async (_input, content) => ({
-      workflows: await Promise.all((await ports.withStore(store => store.list(projectId))).map(row => describe(content, row))),
+    bind(workflowsActions.list, async (_input, content, caller) => ({
+      workflows: await Promise.all((await ports.withStore(store => store.list(projectId))).map(row => describe(content, row, caller))),
       stations: await content.stations(), ai_available: ports.aiAvailable() })),
-    bind(workflowsActions.get, async (input, content) => {
+    bind(workflowsActions.get, async (input, content, caller) => {
       const { workflow: row, instances } = await ports.withStore(store => ({ workflow: store.get(input.id, projectId), instances: store.instances(input.id, projectId) }));
-      return { workflow: await describe(content, row), instances, ai_available: ports.aiAvailable() };
+      return { workflow: await describe(content, row, caller), instances, ai_available: ports.aiAvailable() };
     }),
     bind(workflowsActions.create, async (input, content, caller) => {
-      const chainValue = await validChain(content, input.chain);
+      const chainValue = await validChain(content, input.chain, caller);
       await caller.beforeEffect();
       return changed({ workflow: await ports.withStore(store => store.create({ project_id: projectId, title: input.title ?? "", chain: chainValue })) });
     }),
     bind(workflowsActions.update, async (input, content, caller) => {
-      const chainValue = input.chain === undefined ? undefined : await validChain(content, input.chain);
+      const chainValue = input.chain === undefined ? undefined : await validChain(content, input.chain, caller);
       await caller.beforeEffect();
       return changed({ workflow: await ports.withStore(store => store.update(input.id, projectId, { revision: input.revision, title: input.title, chain: chainValue })) });
     }),
@@ -191,7 +273,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }),
     bind(workflowsActions.start, async (input, content, caller) => {
       const stored = await ports.withStore(store => store.get(input.id, projectId));
-      const current = { ...stored, ...await validChain(content, stored) };
+      const current = { ...stored, ...await validChain(content, stored, caller) };
       if (current.stations.length < 2) throw new WorkflowError("workflows.invalid", "流程至少要有两站才能开始");
       const first = current.stations[0]!;
       const itemId = input.item_id?.trim();
@@ -207,9 +289,9 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       await caller.beforeEffect();
       return changed({ instance: await ports.withStore(store => store.startInstance(current, item)) });
     }),
-    bind(workflowsActions.instance, async (input, content) => {
+    bind(workflowsActions.instance, async (input, content, caller) => {
       const { current, title } = await ports.withStore(store => { const current = live(store, input.id); return { current, title: workflowTitle(store, current) }; });
-      return { instance: { ...current, chain: await describe(content, current.chain) }, workflow_title: title, ai_available: ports.aiAvailable() };
+      return { instance: { ...current, chain: await describe(content, current.chain, caller) }, workflow_title: title, ai_available: ports.aiAvailable() };
     }),
     bind(workflowsActions.preview, async (input, content) => {
       const current = await ports.withStore(store => live(store, input.id));
@@ -228,7 +310,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const key = handoffKey(current, from);
       let pending = current.steps[from]!.pending;
       if (!pending) {
-        const resolved = { ...current.chain, stations: await Promise.all(current.chain.stations.map((station, index) => index < from ? station : content.resolveStation(station))) };
+        const resolved = { ...current.chain, stations: await Promise.all(current.chain.stations.map((station, index) => index < from ? station : resolveStation(caller, content, station))) };
         const link = current.chain.links[from]!;
         const readiness = linkReadiness(link, ports.aiAvailable());
         if (!readiness.ready) throw new WorkflowError("workflows.not_ready", `这一段还没接上：${readiness.reason}`);
@@ -276,12 +358,45 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         throw new WorkflowError("workflows.conflict", "这一步已经在交接另一份内容，已载入最新进度");
       }
       await caller.beforeEffect();
-      const arrived = await content.receive(current.chain.stations[from + 1]!.plugin, pending.output,
-        { instance_id: current.instance_id, step: from + 1, title: current.title }, current.chain.stations[from + 1]!.content);
+      const target = current.chain.stations[from + 1]!;
+      let arrived: WorkflowItemRef;
+      let arrival: { payload?: WorkflowPayload; result?: unknown } = {};
+      if (isActionStation(target)) {
+        // Actions carry no delivery key: a run whose result was never confirmed is not repeated unless the person says so.
+        if (pending.attempted_at && !input.retry_action) {
+          throw new WorkflowError("workflows.uncertain", `上次执行「${target.action.title}」${pending.attempt_error ? `时出错（${pending.attempt_error}）` : "没有确认结果"}；请先到${target.action.group ?? "对应插件"}核对，确认没有生效后再选择重新执行，或结束这一次`);
+        }
+        const choice = await resolveAction(caller, target);
+        const mapped = mapActionInput(target.action, pending.output);
+        const attempt = { ...pending, attempted_at: new Date().toISOString() };
+        const before = current;
+        current = await ports.withStore(store => store.saveInstance(before, { ...before,
+          steps: before.steps.map((step, index) => index === from ? { ...step, pending: attempt } : step), updated_at: new Date().toISOString() }));
+        pending = attempt;
+        let result: unknown;
+        try { result = await ports.actions({ ...caller, audience: "workflow" }).invoke(choice.ref, mapped); }
+        catch (error) {
+          // Only a call the directory refused before any handler ran is known to have changed nothing; anything else stays unconfirmed.
+          const failedBase = current;
+          const { attempted_at: _attempt, attempt_error: _prior, ...clean } = attempt;
+          const code = (error as { code?: unknown }).code;
+          const settled = typeof code === "string" && REFUSED_BEFORE_RUNNING.has(code) ? clean
+            : { ...attempt, attempt_error: (error instanceof Error ? error.message : String(error)).slice(0, 400) };
+          await ports.withStore(store => store.saveInstance(failedBase, { ...failedBase,
+            steps: failedBase.steps.map((step, index) => index === from ? { ...step, pending: settled } : step), updated_at: new Date().toISOString() })).catch(() => undefined);
+          throw error;
+        }
+        const encoded = JSON.stringify(result ?? null);
+        arrival = { payload: pending.output, result: encoded.length > 20_000 ? { truncated: true, bytes: encoded.length } : result ?? null };
+        arrived = { plugin: "action", item_id: `${choice.ref.capability_id}@${choice.ref.version}:${key}`, title: target.action.title };
+      } else {
+        arrived = await content.receive(target.plugin, pending.output, { instance_id: current.instance_id, step: from + 1, title: current.title }, target.content);
+      }
       const handoff = pending;
       try {
         const base = current;
-        return changed({ instance: await ports.withStore(store => store.saveInstance(base, advanceInstance(base, from, handoff, arrived, handoff.at))) });
+        const { attempted_at: _attempted, attempt_error: _error, ...recorded } = handoff;
+        return changed({ instance: await ports.withStore(store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, handoff.at, arrival))) });
       } catch (error) {
         // Another call already recorded this exact delivery: reuse it rather than report a failure that did not happen.
         const latest = await ports.withStore(store => store.instance(current.instance_id, projectId));
@@ -290,9 +405,14 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       }
     }),
     bind(workflowsActions.stop, async input => changed({ instance: await ports.withStore(store => store.stopInstance(input.id, projectId)) })),
+    bind(workflowsActions.actionSteps, async (_input, _content, caller) => ({ actions: workflowActionChoices(await ports.actions({ ...caller, audience: "workflow" }).discover()), fields: WORKFLOW_PAYLOAD_FIELDS })),
     bind(workflowsActions.judgments, async (_input, _content, caller) => ({ judgments: workflowJudgmentChoices(await ports.actions({ ...caller, audience: "workflow" }).discover()) })),
   ];
 }
+
+/** Refusals the directory makes before handing the call to any provider: the action did not run. */
+const REFUSED_BEFORE_RUNNING = new Set(["actions.missing", "actions.provider_changed", "actions.forbidden", "actions.owner_mismatch", "actions.input_invalid",
+  "actions.scope_mismatch", "actions.async_required", "actions.unredeemed", "kernel.capability_missing", "workflows.unavailable"]);
 
 function handoffIndex(current: WorkflowInstance, raw: unknown): number {
   const from = Number(raw ?? current.current);

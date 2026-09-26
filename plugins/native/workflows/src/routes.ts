@@ -34,6 +34,7 @@ export const WORKFLOWS_NATIVE_PLUGIN_ROUTES = [
   route("workflows.list", "GET", /^\/api\/workflows$/u),
   route("workflows.create", "POST", /^\/api\/workflows$/u),
   route("workflows.judgments", "GET", /^\/api\/workflows\/judgments$/u),
+  route("workflows.step_actions", "GET", /^\/api\/workflows\/steps\/actions$/u),
   route("workflows.station_items", "GET", /^\/api\/workflows\/stations\/([a-z][a-z0-9-]{1,40})\/items$/u, ["plugin"]),
   route("workflows.instance_get", "GET", new RegExp(`^/api/workflows/instances/${ID}$`, "u"), ["id"]),
   route("workflows.instance_preview", "POST", new RegExp(`^/api/workflows/instances/${ID}/preview$`, "u"), ["id"]),

@@ -28,9 +28,11 @@ export function createWorkflowsRouteHandlers(actions: BoundActionClient): Record
       ...(integer(request.body.from) !== undefined ? { from: integer(request.body.from) } : {}),
       ...(optional(request.body.updated_at) !== undefined ? { updated_at: optional(request.body.updated_at) } : {}),
       ...(optional(request.body.title) !== undefined ? { title: optional(request.body.title) } : {}),
-      ...(optional(request.body.body) !== undefined ? { body: optional(request.body.body) } : {}) })(),
+      ...(optional(request.body.body) !== undefined ? { body: optional(request.body.body) } : {}),
+      ...(request.body.retry_action === true ? { retry_action: true } : {}) })(),
     "workflows.instance_stop": ({ params }) => run(workflowsActions.stop, { id: params.id! })(),
     "workflows.judgments": () => run(workflowsActions.judgments, {})(),
+    "workflows.step_actions": () => run(workflowsActions.actionSteps, {})(),
   };
 }
 

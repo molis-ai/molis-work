@@ -20,6 +20,7 @@ import { datasetActionProvider } from "./dataset-actions.js";
 import { jellyActionProvider } from "./jelly-actions.js";
 import { lingguangActionProvider } from "./lingguang-actions.js";
 import { scheduleActionProvider } from "./schedule-actions.js";
+import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -172,6 +173,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) registry.registerProvider(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             registry.registerProvider(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
             registry.registerProvider(scheduleActionProvider(runtime));
+            if (options.homeDirectory) registry.registerProvider(shelfProjectActionProvider(runtime, options.homeDirectory));
             if (options.homeDirectory) registry.registerProvider(homeActionProvider(options.homeDirectory, reference.project_id, reference.board_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, boardId: reference.board_id, actorId: caller.actor_id,
@@ -207,6 +209,7 @@ export class MolisWorkLocalHost {
     });
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
+    if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     registerProjectCapabilities(
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },

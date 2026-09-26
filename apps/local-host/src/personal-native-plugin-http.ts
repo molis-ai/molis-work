@@ -7,7 +7,7 @@ import { withRewrittenPluginApi } from "./native-plugin-api.js";
 export interface PersonalNativePluginHttpPorts {
   readonly alchemist?: AlchemistHostPorts;
   readonly projectId?: string;
-  readonly projectMaterials?: Parameters<typeof handleShelfNativePluginHttp>[4];
+  readonly shelf?: Parameters<typeof handleShelfNativePluginHttp>[3];
 }
 
 export async function handlePersonalNativePluginHttp(
@@ -20,7 +20,7 @@ export async function handlePersonalNativePluginHttp(
   const routed = withRewrittenPluginApi(url);
   for (const handle of [
     () => handleExperimentsNativePluginHttp(request, response, routed, homeDirectory),
-    () => handleShelfNativePluginHttp(request, response, routed, homeDirectory, ports.projectMaterials),
+    () => ports.shelf ? handleShelfNativePluginHttp(request, response, routed, ports.shelf) : false,
     () => ports.alchemist ? handleAlchemistNativePluginHttp(request, response, routed, ports.alchemist) : false,
   ]) {
     if (await handle()) return true;

@@ -15,6 +15,7 @@ export function workflowsActionProvider(home: string, projectId: string, actions
     handlers: createWorkflowsActionHandlers(projectId, {
       withStore: async run => { const store = openWorkflowsStore(home); try { return await run(store); } finally { store.close(); } },
       content: caller => createWorkflowContentPorts(bindActionClient(actions, () => caller)),
+      actions: caller => ({ discover: async () => actions.discover(caller), invoke: (reference, input) => actions.invoke(caller, reference, input) }),
       aiAvailable: () => Boolean(model()),
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();

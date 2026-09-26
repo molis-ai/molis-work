@@ -20,11 +20,12 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const dialogForm = $('[data-wf-dialog-form]');
   const toastEl = $('[data-wf-toast]');
   const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '') ? '⌘' : 'Ctrl';
-  const KIND_LABEL = { function: '模板转换', ai: 'AI', manual: '手动' };
+  const KIND_LABEL = { judgment: '判断规则', function: '模板转换', ai: 'AI', manual: '手动' };
   const KIND_HELP = {
     function: '按定好的规则，把上一步的结果变成下一步能直接用的内容，中间不再问人。',
     ai: 'AI 读上一步的结果，整理成下一步能接着用的内容。整理出的内容会留在这一次的记录里。',
     manual: '人看完这一步，自己决定交不交、交什么过去。',
+    judgment: '用一条已发布的判断规则看这一步的内容：结果是勾选的那几种才原样交给下一站，否则这一次停在这里，并记下判断。',
   };
   const headers = () => typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : { 'content-type': 'application/json' };
   async function api(path, body) {
@@ -76,7 +77,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   });
 
   const state = {
-    workflows: [], stations: [], ai: false, loaded: false, workflow: null, instances: [], instance: null, step: 0,
+    workflows: [], stations: [], ai: false, loaded: false, judgments: null, workflow: null, instances: [], instance: null, step: 0,
     saving: 0, handoff: null, busy: null, openLink: null, openGap: null, returnTo: null,
   };
   const stationInfo = (plugin) => state.stations.find((item) => item.plugin === plugin) || { plugin, label: plugin, icon: 'grid', supported: false };
@@ -90,12 +91,28 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (unavailable) return { ready: false, reason: unavailable.availability.reason };
     }
     if (link.kind === 'manual') return { ready: true, reason: '' };
+    if (link.kind === 'judgment') {
+      if (!link.judgment) return { ready: false, reason: '还没选判断规则' };
+      const known = (state.judgments || []).find(row => judgmentKey(row.ref) === judgmentKey(link.judgment));
+      if (state.judgments && !known) return { ready: false, reason: '所选判断规则已不可用或版本已变化' };
+      if (known && !known.available) return { ready: false, reason: known.reason || '所选判断规则暂不可用' };
+      return (link.pass || []).length ? { ready: true, reason: '' } : { ready: false, reason: '还没选哪些结果可以交过去' };
+    }
     if (link.kind === 'function') return link.body_template.trim() ? { ready: true, reason: '' } : { ready: false, reason: '还没写交接规则' };
     if (!link.instructions.trim()) return { ready: false, reason: '还没写 AI 要整理成什么' };
     if (!state.ai) return { ready: false, reason: '还没有可用的文字模型' };
     return { ready: true, reason: '' };
   };
   const manualLink = () => ({ kind: 'manual', title_template: '', body_template: '', instructions: '' });
+  const verdictText = (verdict) => verdict.status === 'needs_review' ? L('需要人确认') : L('结果「{choice}」', { choice: verdict.choice || L('无') })
+    + (verdict.confidence == null ? '' : ' · ' + L('把握 {value}%', { value: Math.round(verdict.confidence * 100) }));
+  const judgmentKey = (ref) => ref ? ref.capability_id + '@' + ref.version + '@' + ref.provider_id : '';
+  /** Choice rules come from the same directory as everything else; they are read once per open and after publishing elsewhere. */
+  async function loadJudgments(force) {
+    if (state.judgments && !force) return state.judgments;
+    try { state.judgments = (await api('/judgments')).judgments; } catch (error) { state.judgments = []; toast(error.message, 'error'); }
+    return state.judgments;
+  }
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
   const when = (iso) => { if (!iso) return ''; const d = new Date(iso); const today = new Date(); return d.toDateString() === today.toDateString() ? d.toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric' }); };
 
@@ -473,6 +490,21 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         + '<p class="wf-hint">' + tx('标题规则留空时沿用上一步的标题。') + '</p>';
     }
     if (link.kind === 'ai') return field('instructions', '要整理成什么', link.instructions, 4, '例如：整理成一页说明，分成背景、要点和待确认的问题，保留原文链接。');
+    if (link.kind === 'judgment') {
+      if (!state.judgments) return '<div class="wf-judgment" aria-busy="true"><span class="mw-skeleton" style="width:70%"></span><span class="mw-skeleton wf-skeleton-small"></span></div>';
+      const rows = [...state.judgments];
+      if (link.judgment && !rows.some(row => judgmentKey(row.ref) === judgmentKey(link.judgment))) rows.unshift({ ref: link.judgment, title: link.judgment.title || link.judgment.capability_id, choices: [], available: false, reason: '已不可用' });
+      const current = rows.find(row => judgmentKey(row.ref) === judgmentKey(link.judgment));
+      const picker = rows.length
+        ? '<label class="mw-field"><span class="mw-field__label">' + tx('判断规则') + '</span><select class="mw-select" data-wf-judgment>'
+          + (link.judgment ? '' : '<option value="" selected>' + tx('选一条判断规则') + '</option>')
+          + rows.map(row => '<option value="' + esc(judgmentKey(row.ref)) + '"' + (row === current ? ' selected' : '') + '>' + esc(row.title + ' · v' + row.ref.version + (row.available ? '' : ' · ' + L(row.reason || '不可用'))) + '</option>').join('') + '</select></label>'
+        : '<p class="wf-hint">' + tx('还没有可用的 Choice 判断规则。') + ' <a href="/capabilities/rules">' + tx('去写一条判断规则') + '</a></p>';
+      const choices = current ? '<fieldset class="wf-pass"><legend class="mw-field__label">' + tx('结果是这些时交过去') + '</legend>'
+        + (current.choices.length ? current.choices.map(choice => '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-wf-pass value="' + esc(choice) + '"' + ((link.pass || []).includes(choice) ? ' checked' : '') + '><span>' + esc(choice) + '</span></label>').join('')
+          : '<p class="wf-muted">' + tx('这条规则现在读不到可选结果；原选择已保留。') + '</p>') + '</fieldset>' : '';
+      return picker + choices + '<p class="wf-hint">' + tx('交过去的是这一步的原内容；判断结果会记在这一次里。判断要人确认时也不会交过去。') + '</p>';
+    }
     return '<p class="wf-hint">' + tx('走到这里时会停下来，人看完上一步的内容，改好要交的标题和正文，再决定交不交。') + '</p>';
   }
   function returnFootHtml(ready) {
@@ -487,11 +519,20 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     pop.dataset.mode = 'link'; pop.dataset.link = String(index);
     pop.innerHTML = '<header class="wf-pop__head"><strong>' + esc(from + ' → ' + to) + '</strong><span class="wf-muted">' + tx('这一段的交接') + '</span></header>'
       + '<div class="mw-toggle-group wf-kinds" role="radiogroup" aria-label="' + tx('交接方式') + '">'
-      + ['function', 'ai', 'manual'].map((kind) => '<button type="button" class="mw-toggle' + (kind === link.kind ? ' is-current' : '') + '" role="radio" aria-checked="' + (kind === link.kind) + '" data-wf-action="kind" data-kind="' + kind + '" data-link="' + index + '">' + esc(L(KIND_LABEL[kind])) + '</button>').join('')
+      + ['judgment', 'function', 'ai', 'manual'].map((kind) => '<button type="button" class="mw-toggle' + (kind === link.kind ? ' is-current' : '') + '" role="radio" aria-checked="' + (kind === link.kind) + '" data-wf-action="kind" data-kind="' + kind + '" data-link="' + index + '">' + esc(L(KIND_LABEL[kind])) + '</button>').join('')
       + '</div><p class="wf-kind-help" data-wf-kind-help>' + tx(KIND_HELP[link.kind]) + '</p><div class="wf-link-fields" data-wf-link-fields>' + linkFieldsHtml(link) + '</div>'
       + '<p class="wf-readiness" data-ready="' + ready.ready + '" data-wf-readiness>' + readinessHtml(ready) + '</p>' + returnFootHtml(ready);
     markOpen();
     placePop(pillOf(index));
+    if (link.kind === 'judgment' && !state.judgments) refreshJudgmentFields(index);
+  }
+  /** The rule list arrives after the editor opens; only this link's fields and readiness are redrawn. */
+  async function refreshJudgmentFields(index, force) {
+    await loadJudgments(force);
+    if (pop.dataset.mode !== 'link' || Number(pop.dataset.link) !== index) return;
+    const fields = pop.querySelector('[data-wf-link-fields]');
+    if (fields && state.workflow.links[index].kind === 'judgment') { fields.innerHTML = linkFieldsHtml(state.workflow.links[index]); settle(fields); }
+    refreshReadiness(index);
   }
   /** Changing the handoff type keeps the editor where it is: the chip travels, the fields below swap. */
   function switchKind(index, kind, { pointer = false } = {}) {
@@ -509,6 +550,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     settle(fields);
     refreshReadiness(index);
     keepPopInView();
+    if (kind === 'judgment' && !state.judgments) refreshJudgmentFields(index);
     if (pointer) fields.querySelector('input, textarea')?.focus({ preventScroll: true });
   }
   function refreshReadiness(index) {
@@ -732,17 +774,23 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const chain = run.chain;
     if (step.handoff) {
       const h = step.handoff; const next = label(chain.stations[index + 1].plugin);
-      const who = h.actor === 'ai' ? L('AI 整理后交给了 {next}', { next }) : h.actor === 'function' ? L('按规则交给了 {next}', { next }) : L('你手动交给了 {next}', { next });
+      const who = h.actor === 'ai' ? L('AI 整理后交给了 {next}', { next }) : h.actor === 'function' ? L('按规则交给了 {next}', { next })
+        : h.actor === 'judgment' ? L('判断为「{choice}」，交给了 {next}', { choice: h.verdict?.choice || '', next }) : L('你手动交给了 {next}', { next });
       return '<details class="wf-record mw-disclosure"' + (h.actor === 'ai' ? ' open' : '') + '><summary><span class="wf-handoff__kind" data-kind="' + h.kind + '">' + esc(L(KIND_LABEL[h.kind])) + '</span><span>' + esc(who) + '</span><span class="wf-muted">' + esc(when(h.at)) + '</span></summary>'
         + '<div class="wf-record__body"><p class="wf-record__label">' + tx(h.actor === 'ai' ? 'AI 整理出的内容' : '交过去的内容') + '</p>' + payloadBlock(h.output)
-        + (h.rule ? '<p class="wf-record__label">' + tx(h.actor === 'ai' ? '这段交接的要求' : '规则') + '</p><pre class="wf-rule">' + esc(h.rule) + '</pre>' : '')
+        + (h.rule ? '<p class="wf-record__label">' + tx(h.actor === 'ai' ? '这段交接的要求' : h.actor === 'judgment' ? '判断规则' : '规则') + '</p><pre class="wf-rule">' + esc(h.rule) + '</pre>' : '')
+        + (h.verdict ? '<p class="wf-record__label">' + tx('判断结果') + '</p><p class="wf-verdict">' + esc(verdictText(h.verdict)) + '</p>' : '')
         + '<button class="mw-btn mw-btn--ghost" type="button" data-wf-step="' + (index + 1) + '"><span>' + esc(L('去 {next} 看这一次', { next })) + '</span>' + ico('arrow') + '</button></div></details>';
     }
     if (index >= chain.links.length) {
       return run.status === 'done' ? '<p class="wf-handoff__note is-done">' + ico('completed') + '<span>' + tx('这是最后一站，这一次已经走完。') + '</span></p>' : '';
     }
     if (run.status !== 'active' || index !== run.current) {
-      if (run.status === 'stopped' && index === run.current) return '<p class="wf-handoff__note">' + ico('pause') + '<span>' + tx('这一次在这里结束了，后面的站没有继续。') + '</span></p>';
+      if (run.status === 'stopped' && index === run.current) {
+        // A judgment that held the content back says what it decided; a person ending the run needs no reason.
+        if (run.stopped && run.stopped.from === index) return '<p class="wf-handoff__note is-held">' + ico('pause') + '<span>' + esc(L(run.stopped.reason)) + (run.stopped.verdict ? ' · ' + esc(verdictText(run.stopped.verdict)) : '') + '</span></p>';
+        return '<p class="wf-handoff__note">' + ico('pause') + '<span>' + tx('这一次在这里结束了，后面的站没有继续。') + '</span></p>';
+      }
       return '';
     }
     const link = chain.links[index]; const ready = readiness(link); const next = label(chain.stations[index + 1].plugin);
@@ -759,9 +807,10 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (!ready.ready) {
       return '<p class="wf-handoff__bar is-blocked">' + ico('alert') + '<span>' + esc(L('下一段 {kind} → {next} 还没接上：{reason}', { kind: L(KIND_LABEL[link.kind]), next, reason: L(ready.reason) })) + '</span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="' + index + '">' + tx('去配置') + '</button></p>';
     }
-    const action = link.kind === 'manual' ? L('看内容并交给 {next}', { next }) : link.kind === 'ai' ? L('AI 整理后交给 {next}', { next }) : L('按规则交给 {next}', { next });
-    const working = busy ? (state.busy.kind === 'preview' ? L('正在读取…') : link.kind === 'ai' ? L('AI 正在整理…') : L('正在交接…')) : action;
-    return '<p class="wf-handoff__bar' + (busy ? ' is-working' : '') + '"><span class="wf-handoff__kind" data-kind="' + link.kind + '">' + esc(L(KIND_LABEL[link.kind])) + '</span><span>' + esc(L('下一段：{kind}交给 {next}', { kind: link.kind === 'manual' ? L('人看完后') : link.kind === 'ai' ? L('AI 整理后') : L('按规则'), next })) + '</span>'
+    const action = link.kind === 'manual' ? L('看内容并交给 {next}', { next }) : link.kind === 'ai' ? L('AI 整理后交给 {next}', { next })
+      : link.kind === 'judgment' ? L('判断后交给 {next}', { next }) : L('按规则交给 {next}', { next });
+    const working = busy ? (state.busy.kind === 'preview' ? L('正在读取…') : link.kind === 'ai' ? L('AI 正在整理…') : link.kind === 'judgment' ? L('正在判断…') : L('正在交接…')) : action;
+    return '<p class="wf-handoff__bar' + (busy ? ' is-working' : '') + '"><span class="wf-handoff__kind" data-kind="' + link.kind + '">' + esc(L(KIND_LABEL[link.kind])) + '</span><span>' + esc(L('下一段：{kind}交给 {next}', { kind: link.kind === 'manual' ? L('人看完后') : link.kind === 'ai' ? L('AI 整理后') : link.kind === 'judgment' ? L('判断通过后') : L('按规则'), next })) + '</span>'
       + '<button class="mw-btn mw-btn--primary" type="button" data-wf-action="continue" data-index="' + index + '"' + (busy ? ' aria-disabled="true" aria-busy="true"' : '') + '>' + (busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ico('arrow')) + '<span>' + esc(working) + '</span></button></p>';
   }
   async function continueRun(index, manual) {
@@ -902,6 +951,24 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     state.openLink = null; state.openGap = null; popAnchor = null;
     markOpen();
     if (lostFocus && anchor) anchor.focus({ preventScroll: true });
+  });
+  pop.addEventListener('change', (event) => {
+    const index = Number(pop.dataset.link);
+    const select = event.target.closest('[data-wf-judgment]');
+    if (select) {
+      const row = (state.judgments || []).find(item => judgmentKey(item.ref) === select.value);
+      if (!row) return;
+      // A different rule has different answers: earlier ticks do not carry over.
+      state.workflow.links[index] = { ...state.workflow.links[index], judgment: { ...row.ref, title: row.title }, pass: [] };
+      const fields = pop.querySelector('[data-wf-link-fields]'); fields.innerHTML = linkFieldsHtml(state.workflow.links[index]); settle(fields);
+      refreshReadiness(index); saveWorkflow({ chain: chainOf() });
+      return;
+    }
+    if (event.target.closest('[data-wf-pass]')) {
+      const pass = [...pop.querySelectorAll('[data-wf-pass]:checked')].map(box => box.value);
+      state.workflow.links[index] = { ...state.workflow.links[index], pass };
+      refreshReadiness(index); saveWorkflow({ chain: chainOf() });
+    }
   });
   pop.addEventListener('input', (event) => {
     const field = event.target.closest('[data-wf-link-field]');

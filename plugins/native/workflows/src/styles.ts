@@ -132,6 +132,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-link__pill:focus-visible { outline: var(--focus-stroke, 1px solid var(--ink)); outline-offset: 1px; }
   [data-workflows="workbench"] .wf-link[data-kind="ai"] .wf-link__pill { color: var(--hue-purple, var(--ink)); border-color: color-mix(in srgb, var(--hue-purple, var(--ink)) 32%, var(--line)); }
   [data-workflows="workbench"] .wf-link[data-kind="function"] .wf-link__pill { color: var(--hue-indigo, var(--ink)); border-color: color-mix(in srgb, var(--hue-indigo, var(--ink)) 32%, var(--line)); }
+  [data-workflows="workbench"] .wf-link[data-kind="judgment"] .wf-link__pill { color: var(--hue-cyan, var(--ink)); border-color: color-mix(in srgb, var(--hue-cyan, var(--ink)) 32%, var(--line)); }
   [data-workflows="workbench"] .wf-link[data-ready="false"] .wf-link__pill { border-style: dashed; color: var(--amber); border-color: color-mix(in srgb, var(--amber) 55%, var(--line)); }
   [data-workflows="workbench"] .wf-link .wf-link__pill.is-open { border-style: solid; border-color: currentColor; background: color-mix(in srgb, currentColor 8%, var(--paper)); box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 12%, transparent); }
   [data-workflows="workbench"] .wf-link__pill svg { width: 12px; height: 12px; }
@@ -326,8 +327,14 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-handoff__kind { flex: none; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; color: var(--muted); }
   [data-workflows="workbench"] .wf-handoff__kind[data-kind="ai"] { color: var(--hue-purple, var(--ink)); border-color: color-mix(in srgb, var(--hue-purple, var(--ink)) 30%, var(--line)); }
   [data-workflows="workbench"] .wf-handoff__kind[data-kind="function"] { color: var(--hue-indigo, var(--ink)); border-color: color-mix(in srgb, var(--hue-indigo, var(--ink)) 30%, var(--line)); }
+  [data-workflows="workbench"] .wf-handoff__kind[data-kind="judgment"] { color: var(--hue-cyan, var(--ink)); border-color: color-mix(in srgb, var(--hue-cyan, var(--ink)) 30%, var(--line)); }
   [data-workflows="workbench"] .wf-handoff__note { display: flex; align-items: center; gap: 6px; margin: 0 0 10px; color: var(--muted); font-size: 12px; }
   [data-workflows="workbench"] .wf-handoff__note.is-done { color: var(--green); }
+  [data-workflows="workbench"] .wf-handoff__note.is-held { color: var(--ink-soft); }
+  [data-workflows="workbench"] .wf-pass { display: grid; gap: 4px; margin: 0; padding: 0; border: 0; min-width: 0; }
+  [data-workflows="workbench"] .wf-pass .mw-check-row { font-size: 13px; }
+  [data-workflows="workbench"] .wf-judgment { display: grid; gap: 6px; padding: 4px 0; }
+  [data-workflows="workbench"] .wf-verdict { margin: 0; font-size: 12px; color: var(--ink-soft); }
   [data-workflows="workbench"] .wf-handoff__note svg { width: 13px; height: 13px; }
   [data-workflows="workbench"] .wf-manual {
     display: grid; gap: 10px; margin: 0 0 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-surface, 12px); background: var(--page);

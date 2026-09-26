@@ -30,6 +30,7 @@ export function createWorkflowsRouteHandlers(actions: BoundActionClient): Record
       ...(optional(request.body.title) !== undefined ? { title: optional(request.body.title) } : {}),
       ...(optional(request.body.body) !== undefined ? { body: optional(request.body.body) } : {}) })(),
     "workflows.instance_stop": ({ params }) => run(workflowsActions.stop, { id: params.id! })(),
+    "workflows.judgments": () => run(workflowsActions.judgments, {})(),
   };
 }
 

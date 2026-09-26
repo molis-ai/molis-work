@@ -1,8 +1,31 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
-  type Workflow, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload,
+  type Workflow, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowVerdict,
 } from "./model.js";
+
+/** A published Choice rule a link can use to decide whether content goes on. */
+export interface WorkflowJudgmentChoice {
+  readonly ref: { readonly capability_id: string; readonly version: number; readonly provider_id: string };
+  readonly title: string;
+  readonly description: string;
+  readonly choices: readonly string[];
+  readonly available: boolean;
+  readonly reason?: string;
+}
+
+/** Choice rules come from the caller's directory: a published judgment whose result names a finite set of answers. */
+export function workflowJudgmentChoices(directory: readonly ActionView[]): WorkflowJudgmentChoice[] {
+  return directory.flatMap(view => {
+    if (view.action.kind !== "judgment" || view.operation !== "command" || !view.action.audiences.includes("workflow")) return [];
+    const data = (view.action.output_schema?.properties as Record<string, { properties?: Record<string, { enum?: unknown[] }> }> | undefined)?.data;
+    const choices = data?.properties?.choice?.enum?.filter((value): value is string => typeof value === "string") ?? [];
+    if (!choices.length) return [];
+    return [{ ref: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, title: view.action.title,
+      description: view.action.description, choices, available: view.availability.available,
+      ...(view.availability.available ? {} : { reason: view.availability.reason }) }];
+  });
+}
 import type { WorkflowSummary, WorkflowsStore } from "./store.js";
 
 /** A plugin as the chain editor sees it. Only plugins the Host can read from and hand to may join a chain. */
@@ -28,9 +51,16 @@ export interface WorkflowContentPorts {
   receive(plugin: string, payload: WorkflowPayload, context: { instance_id: string; step: number; title?: string }, content?: WorkflowContentBinding): Promise<WorkflowItemRef>;
 }
 
+/** Other registered actions, reached with the same caller's authority (a judgment rule on a link). */
+export interface WorkflowActionReach {
+  discover(): Promise<readonly ActionView[]>;
+  invoke(reference: ActionReference & { provider_id: string }, input: unknown): Promise<unknown>;
+}
+
 export interface WorkflowsActionPorts {
   withStore<T>(run: (store: WorkflowsStore) => T | Promise<T>): Promise<T>;
   content(caller: ActionCallContext): WorkflowContentPorts;
+  actions(caller: ActionCallContext): WorkflowActionReach;
   aiAvailable(): boolean;
   completeText?(prompt: string, options: { signal?: AbortSignal }): Promise<string>;
   changed?(): void;
@@ -79,6 +109,8 @@ export const workflowsActions = {
     "按这一段的交接方式（模板转换、AI 整理或人工交接）把内容交给下一站；同一步重试只交付一次", "command",
     object({ id, from: { type: "integer", minimum: 0 }, updated_at: text, title: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 100_000 } }, ["id"]),
     object({ instance }), [...write, "model:invoke"]),
+  judgments: define<Record<string, never>, { judgments: WorkflowJudgmentChoice[] }>("judgments.list", "可用的判断规则",
+    "列出可以放在一段交接上的已发布 Choice 判断规则及其可选结果", "query", object({}), object({ judgments: { type: "array" } }), read),
   stop: define<{ id: string }, { instance: WorkflowInstance }>("instances.stop", "结束一次运行", "结束还在进行的一次运行，已交接的内容保留", "command",
     object({ id }), object({ instance }), write),
 };
@@ -119,6 +151,20 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }
   };
   const changed = <T>(value: T) => { ports.changed?.(); return value; };
+  /** Runs the link's exact rule on the step's content, with the caller's own authority; a changed or revoked rule stops here. */
+  const judge = async (caller: ActionCallContext, link: WorkflowLink, handed: WorkflowPayload): Promise<WorkflowVerdict> => {
+    const ref = link.judgment!;
+    const reach = ports.actions({ ...caller, audience: "workflow" });
+    const view = (await reach.discover()).find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
+    if (!view) throw new WorkflowError("workflows.not_ready", "这一段的判断规则已不可用或版本已变化；原引用已保留，请重新选择");
+    if (!view.availability.available) throw new WorkflowError("workflows.not_ready", `这一段的判断规则暂不可用：${view.availability.reason}`);
+    const content = [handed.title, handed.body].filter(Boolean).join("\n\n").slice(0, 8000);
+    const result = await reach.invoke({ capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }, { content }) as
+      { status: "ok" | "needs_review"; function_key: string; version: number; data: { choice?: string | null }; confidence: number | null };
+    const choice = result.data?.choice ?? null;
+    return { choice, status: result.status, passed: result.status === "ok" && !!choice && (link.pass ?? []).includes(choice),
+      function_key: result.function_key, version: result.version, confidence: result.confidence ?? null };
+  };
   return [
     bind(workflowsActions.list, async (_input, content) => ({
       workflows: await Promise.all((await ports.withStore(store => store.list(projectId))).map(row => describe(content, row))),
@@ -187,13 +233,25 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         const readiness = linkReadiness(link, ports.aiAvailable());
         if (!readiness.ready) throw new WorkflowError("workflows.not_ready", `这一段还没接上：${readiness.reason}`);
         const handed = await readStep(content, current, from);
-        let output: WorkflowPayload, actor: WorkflowHandoff["actor"], rule: string | undefined;
+        let output: WorkflowPayload, actor: WorkflowHandoff["actor"], rule: string | undefined, judged: WorkflowVerdict | undefined;
         if (link.kind === "manual") {
           const edited = { title: (input.title ?? "").trim().slice(0, 200), body: (input.body ?? "").trim() };
           if (!edited.title || !edited.body) throw new WorkflowError("workflows.invalid", "交过去的内容需要标题和正文");
           const unchanged = edited.title === handed.title.trim() && edited.body === handed.body.trim();
           output = { ...handed, ...edited, feed_item_id: unchanged ? handed.feed_item_id ?? null : null };
           actor = "person";
+        } else if (link.kind === "judgment") {
+          // The rule only decides whether this content goes on; what goes on is the step's own content.
+          const verdict = await judge(caller, link, handed);
+          if (!verdict.passed) {
+            await caller.beforeEffect();
+            const at = new Date().toISOString();
+            const reason = verdict.status === "needs_review" ? "判断需要人确认，这一次没有交过去" : `判断结果是「${verdict.choice ?? "无"}」，不在可以交过去的结果里`;
+            const held = current;
+            return changed({ instance: await ports.withStore(store => store.saveInstance(held, { ...held, status: "stopped", stopped: { at, from, reason, verdict }, updated_at: at })) });
+          }
+          output = handed; actor = "judgment"; judged = verdict;
+          rule = link.judgment!.title ?? link.judgment!.capability_id;
         } else if (link.kind === "function") {
           output = applyFunctionRule(link, handed);
           actor = "function";
@@ -207,7 +265,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
           rule = link.instructions;
         }
         if (!output.body.trim()) throw new WorkflowError("workflows.invalid", "交接后的正文是空的，没有交过去");
-        pending = { key, kind: link.kind, actor, at: new Date().toISOString(), input: handed, output, ...(rule ? { rule } : {}) };
+        pending = { key, kind: link.kind, actor, at: new Date().toISOString(), input: handed, output, ...(rule ? { rule } : {}), ...(judged ? { verdict: judged } : {}) };
         await caller.beforeEffect();
         // The fixed handoff is saved before anything reaches the next station; losing a race here delivers nothing.
         const savedPending = pending;
@@ -232,6 +290,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       }
     }),
     bind(workflowsActions.stop, async input => changed({ instance: await ports.withStore(store => store.stopInstance(input.id, projectId)) })),
+    bind(workflowsActions.judgments, async (_input, _content, caller) => ({ judgments: workflowJudgmentChoices(await ports.actions({ ...caller, audience: "workflow" }).discover()) })),
   ];
 }
 

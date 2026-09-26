@@ -5,7 +5,7 @@ export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-cont
 export const WORKFLOWS_PLUGIN_ID = "io.molis.work.native.workflows";
 export const WORKFLOWS_PROJECT_PLUGIN_ID = "workflows";
 
-export type WorkflowLinkKind = "function" | "ai" | "manual";
+export type WorkflowLinkKind = "function" | "ai" | "manual" | "judgment";
 
 /** One handoff between two stations. Fields that do not belong to `kind` are kept so switching back restores them. */
 export interface WorkflowLink {
@@ -15,6 +15,9 @@ export interface WorkflowLink {
   readonly body_template: string;
   /** AI: what the next step needs from this one. */
   readonly instructions: string;
+  /** Judgment: the exact published Choice rule that checks this step, and the results that let the content through. */
+  readonly judgment?: { readonly capability_id: string; readonly version: number; readonly provider_id: string; readonly title?: string };
+  readonly pass?: readonly string[];
 }
 
 export interface WorkflowStation {
@@ -39,7 +42,7 @@ export interface Workflow extends WorkflowChain {
   readonly updated_at: string;
 }
 
-export type WorkflowHandoffActor = "function" | "ai" | "person";
+export type WorkflowHandoffActor = "function" | "ai" | "person" | "judgment";
 
 export interface WorkflowHandoff {
   /** Fixed delivery identity `instance_id:from`; receivers return the same item for it, so a retry never delivers twice. */
@@ -53,6 +56,17 @@ export interface WorkflowHandoff {
   readonly output: WorkflowPayload;
   /** AI: the instruction it followed. Function: the rule. Manual: nothing. */
   readonly rule?: string;
+  /** Judgment: the rule's answer; the content only went on because the answer was one of `pass`. */
+  readonly verdict?: WorkflowVerdict;
+}
+
+export interface WorkflowVerdict {
+  readonly choice: string | null;
+  readonly passed: boolean;
+  readonly status: "ok" | "needs_review";
+  readonly function_key: string;
+  readonly version: number;
+  readonly confidence: number | null;
 }
 
 export type WorkflowStepStatus = "pending" | "current" | "done";
@@ -86,6 +100,8 @@ export interface WorkflowInstance {
   /** The chain as it was when this instance started; later edits to the workflow do not rewrite history. */
   readonly chain: WorkflowChain;
   readonly steps: readonly WorkflowStep[];
+  /** Why a run stopped before its last station, when a judgment held the content back. */
+  readonly stopped?: { readonly at: string; readonly from: number; readonly reason: string; readonly verdict?: WorkflowVerdict };
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -112,6 +128,10 @@ export function newStation(plugin: string): WorkflowStation {
 /** Whether a link can actually hand over. `aiAvailable` is the Host's answer about a configured text model. */
 export function linkReadiness(link: WorkflowLink, aiAvailable: boolean): { ready: boolean; reason: string } {
   if (link.kind === "manual") return { ready: true, reason: "" };
+  if (link.kind === "judgment") {
+    if (!link.judgment) return { ready: false, reason: "还没选判断规则" };
+    return link.pass?.length ? { ready: true, reason: "" } : { ready: false, reason: "还没选哪些结果可以交过去" };
+  }
   if (link.kind === "function") {
     return link.body_template.trim()
       ? { ready: true, reason: "" }
@@ -157,14 +177,30 @@ function parseStation(value: unknown): WorkflowStation {
 
 function parseLink(value: unknown): WorkflowLink {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
-  const kind = raw.kind === "function" || raw.kind === "ai" || raw.kind === "manual" ? raw.kind : "manual";
+  const kind = raw.kind === "function" || raw.kind === "ai" || raw.kind === "manual" || raw.kind === "judgment" ? raw.kind : "manual";
   const text = (field: unknown, max: number) => typeof field === "string" ? field.slice(0, max) : "";
+  // Fields of the other kinds are kept, so switching back restores what was written.
+  const judgment = parseJudgmentRef(raw.judgment);
+  const pass = Array.isArray(raw.pass) ? [...new Set(raw.pass.filter((value): value is string => typeof value === "string" && /^[a-z][a-z0-9_]{0,39}$/.test(value)))].slice(0, 8) : undefined;
   return {
     kind,
     title_template: text(raw.title_template, 400),
     body_template: text(raw.body_template, 8000),
     instructions: text(raw.instructions, 4000),
+    ...(judgment ? { judgment } : {}),
+    ...(pass ? { pass } : {}),
   };
+}
+
+function parseJudgmentRef(value: unknown): WorkflowLink["judgment"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.capability_id !== "string" || !/^functions\.published\.[a-z0-9][a-z0-9_.-]{0,120}$/.test(raw.capability_id)
+    || !Number.isInteger(raw.version) || Number(raw.version) < 1 || typeof raw.provider_id !== "string" || !raw.provider_id.trim()) {
+    throw new WorkflowError("workflows.invalid", "判断规则引用无效");
+  }
+  return { capability_id: raw.capability_id, version: Number(raw.version), provider_id: raw.provider_id,
+    ...(typeof raw.title === "string" ? { title: raw.title.slice(0, 200) } : {}) };
 }
 
 /** Insert a plugin into gap `gap` (0 = before the first station, stations.length = after the last). */

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -285,7 +285,8 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "fixture-user" });
   }
   catalog.close();
-  server = createMolisWorkWebServer({ homeDirectory: directory, controlToken });
+  await writeFile(join(directory, "result.txt"), "Explicit configured workspace result");
+  server = createMolisWorkWebServer({ homeDirectory: directory, projectRoot: directory, controlToken });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -300,6 +301,16 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
   const imported: Array<{ prefix: string; artifact_id: string; version: number; url: string; reused: boolean; warnings: string[] }> = [];
   for (const project of [alpha, beta]) {
     const prefix = `/projects/${project.project_id}`;
+    for (const locator of ["project://result.txt", "result.txt"]) {
+      const reference = await fetch(origin + prefix + "/api/project-references/" + encodeURIComponent(locator));
+      assert.equal(reference.status, 200);
+      assert.equal(await reference.text(), "Explicit configured workspace result");
+    }
+    for (const locator of ["../result.txt", "https://example.com/result.txt", "file:///etc/passwd"]) {
+      const reference = await fetch(origin + prefix + "/api/project-references/" + encodeURIComponent(locator));
+      assert.equal(reference.status, 400, locator);
+      await reference.text();
+    }
     const response = await post(prefix);
     assert.equal(response.status, 201);
     const result = await response.json() as Omit<(typeof imported)[number], "prefix">;

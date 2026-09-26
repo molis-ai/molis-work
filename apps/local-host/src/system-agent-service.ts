@@ -8,7 +8,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
-const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string }>();
+const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
 
 /** Bind once without opening runtime storage or resolving credentials. Web/MCP may supply their Catalog owner later. */
@@ -57,8 +57,14 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     });
     const unbind = bindPrologueInference(storageHome, service.inference);
     const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
+    owner.release = () => { unbind(); unbindBuilder(); };
     const dispose = service.dispose.bind(service);
-    service.dispose = () => { unbind(); unbindBuilder(); owners.delete(localHost); return dispose(); };
+    service.dispose = () => { owner.release?.(); owners.delete(localHost); return dispose(); };
     return service;
   });
+}
+
+/** A closing Host stops offering its Home's inference at once, so its successor can bind before teardown finishes. */
+export function releaseSystemAgentService(localHost: MolisWorkLocalHost): void {
+  owners.get(localHost)?.release?.();
 }

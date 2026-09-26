@@ -1,4 +1,4 @@
-import { ensureSystemAgentService } from "./system-agent-service.js";
+import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
 import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { homeActionProvider, createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { SessionRuntimeService } from "./session-runtime-resources.js";
@@ -341,6 +341,7 @@ export class MolisWorkLocalHost {
 
   close(): Promise<void> {
     return this.closing ??= (async () => {
+      releaseSystemAgentService(this);
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();

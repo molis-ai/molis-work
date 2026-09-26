@@ -38,10 +38,8 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
           const result = await completeTextRequest(config, before.provider.credential_ref, () => {
             if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
             return apiKey;
-          }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch).catch(error => {
-            if (JSON.stringify(current()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
-            throw error;
-          });
+          }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch,
+          () => JSON.stringify(current()) !== JSON.stringify(before));
           if (JSON.stringify(current()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
           return result;
         };
@@ -84,10 +82,8 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
     const result = await completeTextRequest(config, legacyRef, () => {
       if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw unavailable();
       return key;
-    }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch).catch(error => {
-            if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
-            throw error;
-          });
+    }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch,
+    () => JSON.stringify(legacyState()) !== JSON.stringify(before));
     if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     return result;
   };
@@ -98,8 +94,11 @@ function validatePrompt(prompt: string): void {
 }
 
 async function completeTextRequest(config: TextConfiguration, credentialRef: string, credential: () => string, prompt: string,
-  home: string, signal?: AbortSignal, resolveInference: typeof resolvePrologueInference = resolvePrologueInference, beforeDispatch?: () => void | Promise<void>): Promise<string> {
+  home: string, signal?: AbortSignal, resolveInference: typeof resolvePrologueInference = resolvePrologueInference, beforeDispatch?: () => void | Promise<void>,
+  changed?: () => boolean): Promise<string> {
   signal?.throwIfAborted();
+  // Before dispatch a revoked source keeps its own reason; once sent, a failure after a change is that change.
+  let dispatched = false;
   const boundedSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000);
   let text: string;
   try {
@@ -108,6 +107,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
       boundedSignal.throwIfAborted();
       await beforeDispatch?.();
       credential();
+      dispatched = true;
       return inference.completeText({
         beforeDispatch,
         protocol: prologueProtocolFor(config.api_format), endpoint: modelRequestShape(config, "").url,
@@ -119,6 +119,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
     })(), boundedSignal);
   } catch (error) {
     signal?.throwIfAborted();
+    if (dispatched && changed?.()) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     if (error instanceof ActionError) throw error;
     const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
     throw new Error(typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599

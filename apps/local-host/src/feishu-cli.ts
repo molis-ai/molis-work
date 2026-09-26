@@ -62,7 +62,9 @@ function refreshFeishuCliStatus(): void {
   const file = executable();
   const pending = execFile(file, ["auth", "status", "--json"], STATUS_OPTIONS);
   pending.child.stdin?.end();
-  refreshing = pending.then(({ stdout }) => statusFromOutput(parseJson(stdout)), statusFromFailure)
+  // Output that is not JSON (an empty reply, say) is a failed status like any other: a background refresh must never
+  // reject unhandled, which ends the whole server process.
+  refreshing = pending.then(({ stdout }) => statusFromOutput(parseJson(stdout))).catch(statusFromFailure)
     .then(status => { if (executable() === file) known = { executable: file, status, checked_at: Date.now() }; })
     .finally(() => { refreshing = null; });
 }

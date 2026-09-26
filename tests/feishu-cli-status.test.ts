@@ -61,3 +61,40 @@ console.log(JSON.stringify({ ok: true, identities: { user: { available: user, na
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("a background refresh that gets no JSON back reports the CLI as unavailable instead of ending the server", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "feishu-cli-empty-"));
+  const previous = { home: process.env.MOLIS_WORK_HOME, path: process.env.MOLIS_WORK_FEISHU_CLI_PATH };
+  const mode = join(directory, "mode"), file = join(directory, "lark-cli-empty");
+  await writeFile(file, `#!/usr/bin/env node
+const fs = require("node:fs");
+if (fs.readFileSync(${JSON.stringify(mode)}, "utf8").trim() === "json") console.log(JSON.stringify({ ok: true, identities: { user: { available: true, name: "Ada" } } }));
+`);
+  await chmod(file, 0o755);
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => { unhandled.push(reason); };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    t.mock.timers.enable({ apis: ["Date"], now: 5_000_000 });
+    process.env.MOLIS_WORK_HOME = directory;
+    process.env.MOLIS_WORK_FEISHU_CLI_PATH = file;
+    await writeFile(mode, "json");
+    assert.equal(feishuCliStatus().authorized, true);
+    // The CLI now prints nothing; the next refresh happens in the background.
+    await writeFile(mode, "empty");
+    t.mock.timers.tick(31_000);
+    feishuCliStatus();
+    for (let waited = 0; feishuCliStatus().authorized; waited++) {
+      assert.ok(waited < 200, "the background refresh finished");
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.match(feishuCliStatus().problem ?? "", /状态不可用/);
+    assert.deepEqual(unhandled, [], "no unhandled rejection: before, Node ended the server here");
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+    if (previous.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = previous.home;
+    if (previous.path === undefined) delete process.env.MOLIS_WORK_FEISHU_CLI_PATH; else process.env.MOLIS_WORK_FEISHU_CLI_PATH = previous.path;
+    await rm(directory, { recursive: true, force: true });
+  }
+});

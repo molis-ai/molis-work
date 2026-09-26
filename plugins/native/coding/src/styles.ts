@@ -4,6 +4,15 @@ export const CODING_STYLES = `
 [data-coding-subagents] > details { padding:8px 0; border-top:1px solid var(--line); }
 [data-coding-subagents] summary { cursor:pointer; color:var(--ink); }
 [data-coding-subagents] .coding-turn { font-size:13px; margin-top:12px; color:var(--ink); }
+/* Two columns when there is room for both; a narrow results panel stacks them instead of squeezing. */
+.coding-compare { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+.coding-compare-head { grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.coding-compare-column { min-width:0; display:grid; grid-template-columns:minmax(0, 1fr); align-content:start; gap:4px; padding:8px; border:1px solid var(--line); border-radius:8px; overflow-wrap:anywhere; }
+.coding-compare-column h4 { margin:0; font-size:13px; }
+.coding-compare-column p { margin:0; color:var(--muted); font-size:12px; }
+/* Auto margins would size the conclusion to its content (up to 76ch) instead of the column it sits in. */
+.coding-compare-column .coding-turn { min-width:0; max-width:none; margin:4px 0 0; }
+.coding-compare-column pre { max-width:100%; overflow:auto; }
 [data-coding-subagents] .mw-field { display:grid; gap:4px; margin:12px 0 8px; }
 [data-coding-subagents] textarea { width:100%; resize:vertical; }
 .coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }

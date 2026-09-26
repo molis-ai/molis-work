@@ -10,7 +10,7 @@ import { codingManifest } from "./manifest.js";
 import { codingMethods } from "./methods.js";
 import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiContribution } from "./ui.js";
-import { codingRoutes, type CodingExecutionPorts } from "./routes.js";
+import { codingSurface, type CodingExecutionPorts } from "./routes.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -64,10 +64,12 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       for (const permission of codingManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
+      const surface = codingSurface(context, ports.execution);
       return {
         kind: "app",
         views: [codingUiContribution, codingSettingsContribution],
-        routes: codingRoutes(context, ports.execution),
+        routes: surface.routes,
+        actions: surface.actions,
         // The picker reads current inputs on demand. Upstream changes must not
         // replace private draft selections or any already-frozen Run material.
         onUpstreamReady: () => {},

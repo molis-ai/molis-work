@@ -23,6 +23,7 @@ import { scheduleActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { experimentsActionProvider } from "./experiments-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
+import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -41,6 +42,7 @@ import { GoalProjectApplication } from "./goal-project-application.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities } from "./project-capabilities.js";
 import { ensureProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
+import { configuredModelChoices } from "./configured-models.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -214,6 +216,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(experimentsActionProvider(options.homeDirectory, this.homeActionClient()));
+    if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory));
     registerProjectCapabilities(
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
@@ -294,6 +297,9 @@ export class MolisWorkLocalHost {
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id },
       characterWorkspaces: async () => this.options.workspacesFor ? await this.options.workspacesFor(reference.project_id)
         : this.options.workspaceFor ? [await this.options.workspaceFor(reference.project_id)].filter((value): value is ProjectWorkspaceRef => !!value) : [],
+      // Headless callers reach Coding's actions through the Host's own Agent service; page adapters may still attach theirs.
+      ...(this.agents && this.options.homeDirectory ? { execution: { ready: () => this.agents!.service.ready,
+        models: async () => configuredModelChoices(this.options.homeDirectory!) } } : {}),
     }));
   }
 

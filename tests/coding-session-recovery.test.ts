@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
-import { codingRoutes } from "../plugins/native/coding/src/routes.js";
+import { codingFixtureRoutes as codingRoutes } from "./fixtures/coding-surface.js";
 
 test("one unreadable runtime history does not hide other sessions or lose its draft", async () => {
   const db = new DatabaseSync(":memory:");

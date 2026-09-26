@@ -48,6 +48,7 @@ import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-
 import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
 import { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
+import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
 import { handleConnectorConnectionsHttp } from "./web-connector-connections.js";
 import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
 import { listConnectorConnectionViews } from "./web-connector-connections.js";
@@ -309,7 +310,8 @@ export async function handleLocalCatalogWebRequest(
   }
   if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
-  if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory,
+    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: CONNECTOR_ACCOUNT_PERMISSIONS })))) return;
   if (await handleLocalMcpSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;

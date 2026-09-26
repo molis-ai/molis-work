@@ -94,7 +94,7 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 - Manifest 每条 `views` → `contribution.views`
 - 每条 `routes` → `contribution.routes`
 - 每条 `mcp_exports` → `contribution.mcp`（生产 tools/call 未接就不要声明）
-- 每条 `behaviors` → `contribution.behaviors`
+- 每条 `actions` → `contribution.actions`（缺处理器的声明会让启动失败）
 - 有 `commands` → `commandAvailability` + `executeCommand`
 - 有 `events.subscribes` → `onEvent`
 - 有 `ports.inputs` → `onUpstreamReady` / `onUpstreamUnavailable`

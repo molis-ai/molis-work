@@ -10,7 +10,7 @@
 
 - UI：plugin-stage，来源任务 fold，点行出详情。
 - HTTP：Host `/api/feed/items/:id/(inbox|save|promote|archive|…)`。
-- behaviors：`save` / `promote` / `archive`；`inbox.admit` 是系统项。
+- 动作：`feed.*` 与内容协议 `feed.content.*`；处置按钮由事项动作查询准备，旧 HTTP 只转发。
 - 场景：`feed.capture`。`feed.open` 只映射「留在 Feed」，不是 footer 按钮。打开原文常驻。
 - 不进池：标已读、恢复、来源设置、token、计划。
 - MCP：没有与 Functions 同级的独立 store 入口，不包一层 MCP。

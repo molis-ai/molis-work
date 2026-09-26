@@ -32,13 +32,6 @@ export const feedManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   requires: [],
   action_scenes: [feedCaptureScene],
-  behaviors: [
-    { behavior_id: "open", title: "打开", effect: "read", subject_kinds: ["feed_item"] },
-    { behavior_id: "reauth", title: "重新授权", effect: "write", subject_kinds: ["source"] },
-    { behavior_id: "save", title: "保存为资料", effect: "write", subject_kinds: ["feed_item"] },
-    { behavior_id: "promote", title: "升格为 Goal", effect: "write", subject_kinds: ["feed_item"] },
-    { behavior_id: "archive", title: "忽略", effect: "write", subject_kinds: ["feed_item"] },
-  ],
   judgment_subjects: [
     { subject_kind: "feed_item", title: "Feed 消息" },
     { subject_kind: "source", title: "来源" },

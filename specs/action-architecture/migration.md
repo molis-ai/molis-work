@@ -53,7 +53,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | plugins/native/alchemist | Studio 41 个业务 HTTP/SSE/导出入口、3 项旧演示只读入口 | 44 项插件自有合同 → 生产 Host，复用原 Studio services/repositories/jobs | HTTP 经 Host Kernel；标准 MCP 读取真实持久授权 | 44 项业务、Host/actor、原数据和桌面/窄屏通过；浏览器授权后标准 MCP 真实写入及撤销已验证；全平台生命周期仍待完成 |
 | plugins/native/artifacts | 版本目录/读取/导出、文件/外部导入、来源状态、Goal 引用、项目文件、Runtime SDK 读写 | [src/actions.ts](../../plugins/native/artifacts/src/actions.ts)、[src/plugin-client.ts](../../plugins/native/artifacts/src/plugin-client.ts) → 原 Artifact/Context Ledger/Evidence owner | HTTP、Goal 阅读、项目引用、正式 MCP 的 8 项与 Runtime 同步 SDK 均共用 Kernel；Inputs/Outputs、Characters、Shelf、Coding 保留同步合同 | 公共及受限 SDK 接线已验证；显式来源账号选择和系统整体治理继续 |
 | plugins/native/characters | 原 14 项 Runtime 路由（草稿列表/新建/修改/启停/发布、能力目录、本机 Agent 导入/预览、运行准备/启动/记录） | [src/actions.ts](../../plugins/native/characters/src/actions.ts) 15 项 `characters.*` 由项目 Runtime 实例兑现（1.3.0，兼容 1.0.0–1.2.0），全部与草稿所有者绑定 | 管理界面 Runtime 路由薄转发（保留 403/404/409）；Agent/Character 仍经已发布固定版本消费 | 已迁移并验证（`tests/characters-actions.test.ts`、characters 系列与基线一致）。本机导入、文件预览、启动与运行记录仅限本机界面；旧 1.0.0 安装现可兼容打开（修复原失败的升级 e2e） |
-| plugins/native/coding | [src/manifest.ts](../../plugins/native/coding/src/manifest.ts), [src/routes.ts](../../plugins/native/coding/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
+| plugins/native/coding | 58 条 Runtime 路由中的业务面：概况、会话新建/读取/修改、轮次开始/控制/列表、报告与变更读取/保存/目录、计划读取/保存/确认 | [src/route-actions.ts](../../plugins/native/coding/src/route-actions.ts) 16 项 `coding.*` 由项目 Runtime 实例兑现（1.48.0，兼容 1.30–1.47），与会话所有者绑定；原处理代码不变，路由只转发 | 工作台路由、Host 无页面调用（Host 自带 Agent 执行端口）；开始/控制轮次、改会话与计划仅本机界面 | 业务面已迁移并验证（`tests/coding-actions.test.ts`、51 个 coding 测试与基线一致）。实时流、文件树、符号、任务板、委派、分工目录、检查点、MCP/方法设置等界面内部路由未注册为动作 |
 | plugins/native/cognia | 原知识库 HTTP、两个只读 MCP、首次使用材料导入 | [src/actions.ts](../../plugins/native/cognia/src/actions.ts) → Home 注册；原 Store 与 Prologue owner | HTTP/页面、旧 MCP、标准 MCP、上下文来源扫描及导入/读取共用动作 | 22 项业务接线与 SDK 本机 HTTP 已验证；通用工作流/用途配置、生产 MCP 授权与生命周期仍待完成 |
 | plugins/native/dataset | 原 HTTP、12 个旧 MCP、工作台编辑/CSV/版本/发布 | [src/actions.ts](../../plugins/native/dataset/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、编辑器、旧名与标准 MCP 共用动作；独立 AI 入口 | 13 项业务与桌面/窄屏实操通过；通用工作流/用途、生产授权及生命周期仍随整体推进 |
 | plugins/native/diff | [src/actions.ts](../../plugins/native/diff/src/actions.ts) | 固定差异读取、纯文本比较 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；嵌入可用性由父插件声明 | 业务查询已迁移并验证；通用配置消费待系统收尾 |
@@ -77,12 +77,12 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | plugins/native/work | [src/actions.ts](../../plugins/native/work/src/actions.ts)、原 Session owner | 目录、列表、内容、恢复及普通消息共用动作；Host 统一持有 Registry/Runtime | 网页目录、工作区会话摘要、原内容/恢复 HTTP、正式 MCP | 7 项接通；普通消息后端与 MCP/HTTP 已验证，首页消费及创建/关联/交接/终端待迁移 |
 | plugins/native/workflows | 原 11 项流程/运行 HTTP | [src/actions.ts](../../plugins/native/workflows/src/actions.ts) `workflows.*` → 项目注册；站点经调用者自身授权的内容动作读写 | 工作台 HTTP 薄转发；Agent/MCP 按精确授权使用 | 管理与运行动作已迁移；F4 交接固定身份并先落盘再交付，同步竞争只交付一次、中断重试复用原结果且不重复调模型，Pages/灵光接收按交付键幂等（`tests/workflows-handoff-idempotency.test.ts`）。通用字段映射步骤仍待完成 |
 | 原 plugins/native/workspace（已移除） | 退役的浏览目录选择（state/select 两条 Runtime 路由），生产已不安装 | 由 Host 项目设置 `projects.settings.browsing-workspace.read.v1` 等工作区动作取代 | 无生产消费方；旧选择由 `ProjectBrowsingSettings` 一次性从原私有存储迁入 | 包、依赖声明、锁文件条目、Files/Git 废弃的来源常量与专属测试已删除；旧选择迁移路径保留 |
-| plugins/official-integrations/catalog | [src/index.ts](../../plugins/official-integrations/catalog/src/index.ts), [src/provider.ts](../../plugins/official-integrations/catalog/src/provider.ts), [src/catalog.ts](../../plugins/official-integrations/catalog/src/catalog.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/github | [src/index.ts](../../plugins/official-integrations/github/src/index.ts), [src/provider.ts](../../plugins/official-integrations/github/src/provider.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/gmail | [src/index.ts](../../plugins/official-integrations/gmail/src/index.ts), [src/provider.ts](../../plugins/official-integrations/gmail/src/provider.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/rss | [src/index.ts](../../plugins/official-integrations/rss/src/index.ts), [src/catalog.ts](../../plugins/official-integrations/rss/src/catalog.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/web-query | [src/index.ts](../../plugins/official-integrations/web-query/src/index.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/youtube | [src/index.ts](../../plugins/official-integrations/youtube/src/index.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
+| plugins/official-integrations/catalog | Feed 连接器驱动；设置页账号检查（旧 `whoami` 行为） | 账号检查改为连接器系统动作 `connectors.account.read`（[connector-account-actions.ts](../../apps/local-host/src/connector-account-actions.ts)）；清单删除旧 behaviors 声明 | 设置页账号检查路由薄转发；Agent/MCP 按精确授权 | 账号检查已迁移并验证（`tests/connector-account-actions.test.ts`、connectors 设置 HTTP）；取数仍是 Feed 来源驱动，不是对外动作 |
+| plugins/official-integrations/github | Feed 连接器驱动；设置页账号检查（旧 `whoami` 行为） | 账号检查改为连接器系统动作 `connectors.account.read`（[connector-account-actions.ts](../../apps/local-host/src/connector-account-actions.ts)）；清单删除旧 behaviors 声明 | 设置页账号检查路由薄转发；Agent/MCP 按精确授权 | 账号检查已迁移并验证（`tests/connector-account-actions.test.ts`、connectors 设置 HTTP）；取数仍是 Feed 来源驱动，不是对外动作 |
+| plugins/official-integrations/gmail | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
+| plugins/official-integrations/rss | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
+| plugins/official-integrations/web-query | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
+| plugins/official-integrations/youtube | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
 
 ## 平台与消费方
 
@@ -96,7 +96,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景、使用关系待迁移 |
 | 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 部分完成：系统判断场景、真实事件、初始页/刷新建议及 MCP 已接通；动态动作执行和“说一句”待迁移 |
 | 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身 11 项动作与 F4 幂等交接/中断恢复已完成；通用字段映射步骤待完成 |
-| Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 未迁移 |
+| Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 大部分完成：Agent/Character 精确能力选择经 AgentHost、Prologue 正式工具扩展与原审查队列执行（见“Agent 实际工具执行与 F1–F3 审查修复”）；角色管理本身已是 `characters.*` 动作。浏览器能力选择的最终复跑仍待完成 |
 | 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；编辑器、全量授权/历史待完成 |
 | 生成与开发 | plugins/native/plugin-builder, packages/plugin-sdk, tooling/plugin-cli, skills/molis-plugin-dev | 默认注册能力和消费场景 | 未迁移 |
 

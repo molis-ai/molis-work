@@ -1,3 +1,6 @@
+import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { authorizeMcpActions } from "./mcp-action-client.js";
 import {
   AgentHost,
   CliAgentAdapter,
@@ -11,6 +14,7 @@ import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-w
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
@@ -51,6 +55,8 @@ export interface AgentHostCompositionOptions {
 }
 
 export interface AgentHostComposition {
+  readonly inference: PrologueInferenceClient;
+  createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
   readonly ready: Promise<void>;
   /** Unregisters the Capabilities this composition added. */
@@ -84,22 +90,32 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   let ready: Promise<void> | undefined;
-  const initialize = () => ready ??= options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
+  let disposed = false;
+  let disposal: Promise<void> | undefined;
+  const initialize = (): Promise<void> => {
+    if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
+    return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
       ...options.prologue,
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); });
+    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); }))
+      .catch(error => { ready = undefined; throw error; });
+  };
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
-      register: (definition, handler) => options.localHost.registerCapability(definition, handler),
+      register: (definition, handler) => options.localHost.registerCapability(definition, async (project, input, invocation) => {
+        await initialize();
+        return handler(project, input, invocation);
+      }),
     },
     {
       agentHost: () => agentHost,
-      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.workspacesFor, options.homeDirectory),
+      authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
+      legacyActorId: () => "web-user",
       boardId: (runtime) => runtime.board_id,
     },
   );
-  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input) => {
+  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {
     await initialize();
     if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
     const current = async () => options.workspacesFor ? await options.workspacesFor(project.project_id)
@@ -107,6 +123,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const prepared = await prepareGitIndex(input, current);
     const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
     if (!workspace) throw new Error("工作区已取消授权");
+    await invocation.beforeEffect();
     const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, prepared);
     return { review_id: request.review_id };
@@ -192,10 +209,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     if (!child || child.state !== "completed" || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
     const granted = options.workspacesFor ? await options.workspacesFor(project.project_id)
       : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
-    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === run.frozen.directory.canonical_path);
+    const originalDirectory = run.frozen.directory;
+    if (!originalDirectory) throw new Error("无目录会话不能整合工作区");
+    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === originalDirectory.canonical_path);
     if (!originalParent) throw new Error("原主工作区已取消授权");
     const { grants, parent } = await writerParent(project.project_id, originalParent.workspace_id);
-    if (parent.canonical_path !== run.frozen.directory.canonical_path) throw new Error("原主工作区授权已改变");
+    if (parent.canonical_path !== originalDirectory.canonical_path) throw new Error("原主工作区授权已改变");
     const frozen = run.frozen.subagent_workspaces?.find(w => w.directory.canonical_path === child.workspace_path);
     const writer = frozen && grants.find(g => g.workspace_id === frozen.workspace_id && g.realpath_verified && g.canonical_path === child.workspace_path);
     if (!writer) throw new Error("原子任务目录没有本轮独立写入授权");
@@ -216,7 +235,16 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id };
   });
 
-  return { agentHost, get ready() { return initialize(); }, async dispose() {
+  const inference: PrologueInferenceClient = {
+    async completeText(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeText(input); },
+    async completeTextResult(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeTextResult(input); },
+    async generateImages(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.generateImages(input); },
+    async evaluateTypeSafe(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.evaluateTypeSafe(input); },
+  };
+  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
+  return { agentHost, inference, createBuilderAgent, get ready() { return initialize(); }, dispose() {
+    if (disposal) return disposal;
+    disposed = true;
     unregister();
     unregisterGit();
     unregisterGitResults();
@@ -224,8 +252,10 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     unregisterPrepareWriter();
     unregisterReadIntegration();
     unregisterPrepareIntegration();
-    await ready?.catch(() => undefined);
-    await prologue?.close();
+    return disposal = (async () => {
+      await ready?.catch(() => undefined);
+      await prologue?.close();
+    })();
   } };
 }
 
@@ -241,11 +271,16 @@ async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
   workspaceFor: AgentHostCompositionOptions["workspaceFor"],
+  localHost: MolisWorkLocalHost,
   workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
   homeDirectory?: string,
+  caller?: HostPluginCaller,
 ): Promise<AgentStartAuthority> {
-  const declared = BUILTIN_PLUGIN_AGENTS.get(pluginId);
-  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+  // Plugin declarations come from its actual activation. The bundled lookup is
+  // retained only for trusted Host composition that calls this API directly.
+  const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills }
+    : BUILTIN_PLUGIN_AGENTS.get(pluginId);
+  const manifest = caller?.declaration.manifest ?? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
@@ -255,8 +290,17 @@ async function startAuthority(
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     method_owner: { board_id: runtime.board_id, plugin_id: pluginId },
+    actions: async (runtimeId, validate) => {
+      const reference = { project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path };
+      const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime",
+        project_id: runtime.project_id, audience: "agent", permissions: [], ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); });
+      return {
+        discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
+        invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+      };
+    },
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
-    project_prompts: projectPrompts(runtime),
+    project_prompts: await projectPrompts(runtime, localHost),
   };
 }
 
@@ -272,10 +316,11 @@ async function startAuthority(
  * confirmed — and passing that along would turn "this project has said nothing"
  * into an instruction, which is a different claim.
  */
-function projectPrompts(runtime: MolisWorkProjectRuntime): AgentPromptText[] {
+async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
   let view: ProjectGuidanceView;
   try {
-    view = runtime.coordinator.readProjectGuidance(runtime.board_id);
+    view = await localHost.client({ project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path })
+      .invoke(readProjectGuidanceCapability, { board_id: runtime.board_id });
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.
@@ -286,7 +331,7 @@ function projectPrompts(runtime: MolisWorkProjectRuntime): AgentPromptText[] {
     prompt_id: "project-guidance",
     // The version moves with the content, so a frozen Run records which
     // guidance it actually ran with rather than just that some existed.
-    version: view.entries.length,
+    version: view.revisions.length,
     layer: "project",
     body: view.runtime_prompt_prefix,
   }];

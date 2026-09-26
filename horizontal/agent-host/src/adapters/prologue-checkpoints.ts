@@ -13,7 +13,7 @@ export interface PrologueRewindIntent {
 }
 interface CheckpointIndex {
   owner: { board_id: string; plugin_id: string };
-  attempts: Array<{ frozen: { directory: AgentWorkingDirectory }; run_id?: string }>;
+  attempts: Array<{ frozen: { directory?: AgentWorkingDirectory }; run_id?: string }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">>;
 }
@@ -147,7 +147,8 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
     async list(session) {
       await restore(session.session_id);
       const index = await requireIndex(session.session_id);
-      const directories = new Map(index.attempts.map(attempt => [attempt.frozen.directory.canonical_path, attempt.frozen.directory]));
+      const directories = new Map(index.attempts.flatMap(attempt => attempt.frozen.directory
+        ? [[attempt.frozen.directory.canonical_path, attempt.frozen.directory] as const] : []));
       const result: AgentCheckpoint[] = [];
       for (const directory of directories.values()) {
         const root = await runtime.workspace.authorize({ path: directory.canonical_path });

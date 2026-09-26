@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import { ImagesError } from "./error.js";
-import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageFetch, type ImageProviderRequest } from "./providers.js";
+import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageGeneration, type ImageProviderRequest } from "./providers.js";
 import { ImagesStore, type StoredConnection } from "./store.js";
 
 export interface ImagesSecretPort {
@@ -14,7 +14,14 @@ export interface ImagesSecretPort {
 export interface ImagesServiceOptions {
   homeDirectory: string;
   secrets: ImagesSecretPort;
-  fetch?: ImageFetch;
+  generate?: ImageGeneration;
+  resolveConnectionKey?: (imageConnectionId: string, baseUrl: string) => string | null | undefined;
+  selectConnection?: (imageConnectionId: string, authConnectionId: string) => void;
+  selectedConnectionId?: (imageConnectionId: string) => string | null;
+  clearConnection?: (imageConnectionId: string) => void;
+  /** Metadata only; no credential plaintext or provider requests during discovery. */
+  connectionStatus?: (connection: StoredConnection) => { available: boolean; has_key: boolean; revision: string; reason?: string };
+
 }
 const activeHomes = new Set<string>();
 const REQUEST_TIMEOUT_MS = 180_000;
@@ -50,9 +57,10 @@ export class ImagesService {
     if (input.api_format !== "openai-images" && input.api_format !== "gemini") throw new ImagesError("images.invalid", "请选择受支持的图片 API 协议。");
     const base = normalizeImageBaseUrl(textField(input.base_url, "API 基址", 2048));
     const key = optionalText(input.api_key, "API Key", 8192);
+    const authConnectionId = input.auth_connection_id?.trim();
     if (/[\r\n]/u.test(key)) throw new ImagesError("images.invalid", "API Key 不能包含换行。");
     const changedDestination = previous && (previous.base_url !== base || previous.api_format !== input.api_format);
-    if (changedDestination && !key && !isLocalImageEndpoint(base)) {
+    if (changedDestination && !key && !authConnectionId && !isLocalImageEndpoint(base)) {
       throw new ImagesError("images.key_required", "修改 API 基址或协议时，请重新填写该服务的 API Key。");
     }
     const now = new Date().toISOString();
@@ -67,6 +75,7 @@ export class ImagesService {
       if (key) this.options.secrets.put(reference, key);
       else if (changedDestination) this.options.secrets.delete(reference);
       this.store.saveConnection(connection);
+      if (authConnectionId) this.options.selectConnection?.(id, authConnectionId);
     } catch {
       if (replaceKey) {
         try {
@@ -79,6 +88,21 @@ export class ImagesService {
     return this.publicConnection(connection);
   }
 
+  deleteConnection(id: string): void {
+    this.assertOpen();
+    const connectionId = textField(id, "服务 ID", 128);
+    if (!this.store.getConnection(connectionId)) throw new ImagesError("images.not_found", "找不到要删除的生图服务。", 404);
+    const reference = credentialRef(connectionId);
+    const previousKey = this.options.secrets.get(reference);
+    this.options.secrets.delete(reference);
+    try { this.store.deleteConnection(connectionId); }
+    catch (error) {
+      if (previousKey) this.options.secrets.put(reference, previousKey);
+      throw error;
+    }
+    this.options.clearConnection?.(connectionId);
+  }
+
   listJobs(projectId: string): ImageJob[] {
     this.assertOpen();
     return this.store.listJobs(project(projectId));
@@ -87,6 +111,17 @@ export class ImagesService {
   getJob(projectId: string, id: string): ImageJob {
     this.assertOpen();
     return this.store.getJob(project(projectId), textField(id, "任务 ID", 128));
+  }
+
+  deleteJob(projectId: string, id: string): void {
+    this.assertOpen();
+    const job = this.store.deleteJob(project(projectId), textField(id, "任务 ID", 128));
+    for (const image of job.images) {
+      if (/^[a-f0-9-]+\.(png|jpg|webp)$/u.test(image.filename)) {
+        try { rmSync(join(this.assets, image.filename), { force: true }); }
+        catch { /* The record is already gone; a failed disk cleanup must not claim the delete failed. */ }
+      }
+    }
   }
 
   start(projectId: string, input: ImageGenerateInput): ImageJob {
@@ -106,7 +141,11 @@ export class ImagesService {
     if ((connection.api_format === "gemini" && normalized.size) || (connection.api_format === "openai-images" && normalized.aspect_ratio)) {
       throw new ImagesError("images.invalid", "尺寸参数与当前 API 协议不匹配，请重新选择尺寸或宽高比。");
     }
-    const key = this.options.secrets.get(credentialRef(connection.id)) ?? "";
+    const authorization = this.options.connectionStatus?.(connection);
+    if (authorization && !authorization.available) throw new ImagesError("images.key_required", authorization.reason || "所选图像连接不可用", 409);
+    const selectedKey = this.options.resolveConnectionKey?.(connection.id, connection.base_url);
+    if (selectedKey === null) throw new ImagesError("images.key_required", "所选图像连接不可用", 409);
+    const key = selectedKey === undefined ? this.options.secrets.get(credentialRef(connection.id)) ?? "" : selectedKey ?? "";
     if (!key && !isLocalImageEndpoint(connection.base_url)) throw new ImagesError("images.key_required", "请先为所选生图服务保存 API Key。");
     const job: ImageJob = {
       id: randomUUID(), project_id: projectIdValue, request_id: requestId, connection_id: connection.id,
@@ -114,13 +153,29 @@ export class ImagesService {
       prompt: normalized.prompt, size: normalized.size, aspect_ratio: normalized.aspect_ratio,
       status: "running", images: [], error: "", created_at: new Date().toISOString(), finished_at: null,
     };
-    this.store.insertJob(job, inputHash);
+    const concurrent = this.store.insertJob(job, inputHash);
+    if (concurrent) return concurrent;
     const controller = new AbortController();
     const request: ImageProviderRequest = {
-      api_format: connection.api_format, base_url: connection.base_url, model: connection.model, api_key: key,
+      api_format: connection.api_format, base_url: connection.base_url, model: connection.model, credential_ref: credentialRef(connection.id),
+      resolveCredential: ref => { assertCurrent(); return ref === credentialRef(connection.id) ? key : null; },
       prompt: job.prompt, size: job.size, aspect_ratio: job.aspect_ratio,
     };
-    const promise = Promise.resolve().then(() => this.run(job, request, controller)).finally(() => this.active.delete(job.id));
+    const assertCurrent = () => {
+      const current = this.store.getConnection(connection.id);
+      if (!current || current.base_url !== connection.base_url || current.api_format !== connection.api_format || current.model !== connection.model) {
+        throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+      }
+      const status = this.options.connectionStatus?.(current);
+      if (authorization && (!status?.available || status.revision !== authorization.revision)) {
+        throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+      }
+      // A standalone service uses its original secret port, without Connector metadata.
+      const selected = this.options.resolveConnectionKey?.(current.id, current.base_url);
+      const currentKey = selected === undefined ? this.options.secrets.get(credentialRef(current.id)) ?? "" : selected;
+      if (currentKey === null || currentKey !== key) throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+    };
+    const promise = Promise.resolve().then(() => this.run(job, request, controller, assertCurrent)).finally(() => this.active.delete(job.id));
     this.active.set(job.id, { controller, promise, projectId: projectIdValue });
     return job;
   }
@@ -161,14 +216,24 @@ export class ImagesService {
     return this.closing;
   }
 
-  private async run(job: ImageJob, request: ImageProviderRequest, controller: AbortController): Promise<void> {
+  private async run(job: ImageJob, request: ImageProviderRequest, controller: AbortController, assertCurrent: () => void): Promise<void> {
     const files: string[] = [];
     const timeout = setTimeout(() => controller.abort(new ImagesError("images.timeout", "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。", 504)), REQUEST_TIMEOUT_MS);
     timeout.unref();
+    // Another Host may cancel through the same persistent job. Stop our local
+    // provider wait promptly, even when this process has no open Web page.
+    const observeCancellation = setInterval(() => {
+      try { if (this.store.getJob(job.project_id, job.id).status !== "running") controller.abort(); }
+      catch (error) { if (error instanceof ImagesError && error.code === "images.not_found") controller.abort(); }
+    }, 200);
+    observeCancellation.unref();
     try {
       if (controller.signal.aborted) return;
-      const results = await generateProviderImages(request, controller.signal, this.options.fetch);
+      assertCurrent();
+      if (!this.options.generate) throw new ImagesError("images.runtime_unavailable", "Prologue 图片执行服务尚未接通，请稍后重试。", 503);
+      const results = await generateProviderImages(request, controller.signal, this.options.generate);
       if (controller.signal.aborted || this.store.getJob(job.project_id, job.id).status !== "running") return;
+      assertCurrent();
       const images = results.map((result): GeneratedImage => {
         const id = randomUUID();
         const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[result.mime];
@@ -183,6 +248,7 @@ export class ImagesService {
       this.store.finish(job.project_id, job.id, "failed", [], error instanceof ImagesError ? error.message : "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。");
     } finally {
       clearTimeout(timeout);
+      clearInterval(observeCancellation);
       for (const path of files) {
         try { rmSync(path, { force: true }); } catch { /* Only this failed generation's newly-created files are eligible for cleanup. */ }
       }
@@ -190,7 +256,14 @@ export class ImagesService {
   }
 
   private publicConnection(connection: StoredConnection): ImageConnection {
-    return { ...connection, has_key: Boolean(this.options.secrets.get(credentialRef(connection.id))) };
+    const selected = this.options.selectedConnectionId?.(connection.id) ?? null;
+    const state = this.options.connectionStatus?.(connection);
+    if (state) return { ...connection, has_key: state.has_key, available: state.available,
+      ...(!state.available ? { unavailable_reason: state.reason || "所选图像连接不可用" } : {}),
+      ...(selected ? { auth_connection_id: selected } : {}) };
+    const selectedKey = this.options.resolveConnectionKey?.(connection.id, connection.base_url);
+    return { ...connection, has_key: Boolean(selectedKey === undefined ? this.options.secrets.get(credentialRef(connection.id)) : selectedKey),
+      ...(selected ? { auth_connection_id: selected } : {}) };
   }
   private assertOpen(): void { if (this.closed) throw new ImagesError("images.closed", "图片服务已停止。", 503); }
 }

@@ -2,10 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import {
   FEED_CAPTURE_SCENE_ID,
   FEED_OPEN_BEHAVIOR_ID,
-  FEED_REAUTH_BEHAVIOR_ID,
   FUNCTIONS_DEFAULT_MODEL,
-  HOME_ASK_BEHAVIOR_ID,
-  HOME_CONTINUE_BEHAVIOR_ID,
   HOME_DOCK_SCENE_ID,
   INBOX_ADMIT_BEHAVIOR_ID,
   INBOX_DISMISS_BEHAVIOR_ID,
@@ -19,11 +16,8 @@ import {
 import { hashFunctionConfig } from "./hash.js";
 
 const HOME_DOCK_CRITERIA: readonly ChoiceCriterion[] = [
-  { key: HOME_CONTINUE_BEHAVIOR_ID, description: "接着做，打开原对象" },
   { key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" },
   { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" },
-  { key: FEED_REAUTH_BEHAVIOR_ID, description: "重新授权" },
-  { key: HOME_ASK_BEHAVIOR_ID, description: "问问怎么回事" },
 ];
 
 const INBOX_ADMIT_CRITERIA: readonly ChoiceCriterion[] = [
@@ -39,12 +33,12 @@ const INBOX_NEXT_CRITERIA: readonly ChoiceCriterion[] = [
 export function seedBuiltinFunctions(db: DatabaseSync): void {
   seedChoice(db, {
     id: "builtin-system_pick_home_dock",
-    name: "挑首页按钮",
+    name: "首页事项处理建议",
     function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
-    instructions: "看这件事该显示哪个按钮。",
+    instructions: "根据事项原文，在当前可用动作中推荐完成或忽略，由用户决定是否执行。",
     criteria: HOME_DOCK_CRITERIA,
     scene_id: HOME_DOCK_SCENE_ID,
-    subject_kinds: ["inbox_entry", "feed_item", "source", "session", "home_event"],
+    subject_kinds: ["inbox_entry"],
   });
   seedChoice(db, {
     id: "builtin-system_admit_inbox",

@@ -1,8 +1,14 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
+import { createPrologueInference } from "./prologue-inference.js";
+import type { PrologueInferenceClient } from "../inference.js";
+import { prologueActionTools, agentActionToolName } from "./prologue-action-tools.js";
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { BUILT_IN_ADAPTERS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 import path from "node:path";
+import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 
 import {
   PrologueAgentAdapter,
@@ -84,6 +90,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    * reference that resolves to nothing.
    */
   resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
+  resolveMcpConnection?: (connectionId: string, endpoint: string) => string | null | Promise<string | null>;
 }
 
 // This resource combines base/role/Character/project instructions, selected
@@ -100,16 +107,33 @@ const MAX_COMPOSED_INSTRUCTION_CHARS = 64_000;
  */
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { gitReviews?: PrologueGitReviewPort; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
+  const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
+  try {
+    const adapter = await initializePrologueNodeAdapter(options);
+    const close = adapter.close.bind(adapter);
+    let closing: Promise<void> | undefined;
+    adapter.close = () => closing ??= (async () => {
+      await close();
+      release();
+    })();
+    return adapter;
+  } catch (error) { release(); throw error; }
+}
+
+async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions) {
+  // Async context holds only a trusted denial guard, never serializes it in a Run.
+  const dispatchGuards = new AsyncLocalStorage<() => void | Promise<void>>();
   const host = createNodeHost({
     ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
     resolveHost: resolveModelHostname,
+    beforeModelDispatch: async () => { await dispatchGuards.getStore()?.(); },
   });
   const runtime = await createRuntime({
     app: options.app,
     host,
     preset: "local-agent",
-    config: { tool: { deferToolSchemasBeyond: 20 }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS } },
+    config: { tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000 }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 20 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
@@ -118,9 +142,14 @@ export async function createPrologueNodeAdapter(
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
-  const mcpLibrary = createPrologueMcpLibrary(runtime);
+  const mcpLibrary = createPrologueMcpLibrary(runtime, {
+    resolveConnection: options.resolveMcpConnection,
+    credentialRefFor: (ref) => credentials.prologueRefFor(ref),
+  });
   const registeredMethods = new Map<string, Skill>();
   const sessions = new Map<string, ExactRef<"session">>();
+  const actionToolSessions = new Set<string>();
+  const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
   const activeRuns = new Map<string, { live(): boolean; steer(text: string): Promise<void> }>();
   const reviewEffects = new Map<string, ExactRef<"effect">>();
@@ -213,6 +242,19 @@ export async function createPrologueNodeAdapter(
           return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
             fields: [{ label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
         }
+        if (subject.what === "tool" && subject.name.startsWith("molis-action-")) {
+          if (typeof subject.input !== "string") throw new Error("Action arguments are unavailable");
+          const index = await readIndex(pending.origin!.session!);
+          const attempt = index?.attempts.find(item => item.run_id === pending.origin!.run);
+          const selected = attempt?.action_tool_scope && attempt.frozen.action_tools?.find(ref => agentActionToolName(ref, attempt.action_tool_scope!) === subject.name);
+          if (!selected) throw new Error("Action is outside this run's frozen tools");
+          const args = JSON.parse(subject.input);
+          if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Invalid action arguments");
+          reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+          return { kind: "tool-operation", tool: subject.name, summary: runtime.tools.get(subject.name)?.description ?? selected.capability_id,
+            fields: [{ label: "Capability", value: selected.capability_id }, { label: "Version", value: String(selected.version) },
+              { label: "Provider", value: selected.provider_id }, { label: "Arguments", value: JSON.stringify(args, null, 2) }] };
+        }
         if (subject.what === "tool" && subject.name.startsWith("mcp:")) {
           if (typeof subject.input !== "string") throw new Error("MCP 原始参数不可读，不能批准");
           const index = await readIndex(pending.origin!.session!);
@@ -229,7 +271,7 @@ export async function createPrologueNodeAdapter(
         const root = pending.origin?.run && runRoots.get(pending.origin.run);
         if (!root || review.rootRef?.kind !== root.kind || review.rootRef?.id !== root.id || review.rootRef?.revision !== root.revision) throw new Error("审查工作区与本轮授权不一致");
         const index = pending.origin?.session ? await readIndex(pending.origin.session) : undefined;
-        const childDirectory = index?.parent_run && index.attempts.find(attempt => attempt.run_id === pending.origin?.run)?.frozen.directory.canonical_path;
+        const childDirectory = index?.parent_run && index.attempts.find(attempt => attempt.run_id === pending.origin?.run)?.frozen.directory?.canonical_path;
         if (review.kind === "workspace-command" && review.version === 1
           && typeof review.executable === "string" && Array.isArray(review.argv) && review.argv.every((arg: unknown) => typeof arg === "string")
           && typeof review.cwd === "string" && Number.isFinite(review.timeoutMs) && review.timeoutMs > 0
@@ -346,6 +388,11 @@ export async function createPrologueNodeAdapter(
         || ![value.owner?.board_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
         throw new Error("Coding 会话归属索引损坏，不能当作空会话继续");
       }
+      if (value.workspace !== undefined && value.workspace !== "required" && value.workspace !== "none"
+        || value.attempts.some(attempt => (attempt.frozen.workspace ?? "required") !== (value.workspace ?? "required")
+          || value.workspace === "none" && (attempt.root_ref !== undefined || attempt.frozen.directory !== undefined))) {
+        throw new Error("会话工作区模式索引不一致，不能猜测执行授权");
+      }
       if (value.attempts.some(attempt => attempt.timing !== undefined && !validRunTiming(attempt.timing))) {
         throw new Error("Coding 显示时间索引损坏，不能猜测历史时间");
       }
@@ -393,6 +440,36 @@ export async function createPrologueNodeAdapter(
     host: { writeCredential: (input) => runtime.credentials.write(input) },
     resolve: options.resolveCredential,
   });
+  const inference = createPrologueInference(runtime, async (input, signal, optional) => {
+    const normalize = (value: string | null) => value?.trim() ? value : null;
+    signal.throwIfAborted();
+    await input.beforeDispatch?.();
+    const snapshot = normalize(await input.resolveCredential(input.credential_ref));
+    signal.throwIfAborted();
+    const assertCurrent = async () => {
+      signal.throwIfAborted();
+      if (normalize(await input.resolveCredential(input.credential_ref)) !== snapshot) throw new Error("模型凭据或配置已改变");
+      signal.throwIfAborted();
+    };
+    if (optional && snapshot === null) return { assertCurrent };
+    if (snapshot === null) throw new Error("模型凭据不可用");
+    const ref = await credentials.prologueRefFor(input.credential_ref, async () => { await assertCurrent(); return snapshot; }, signal);
+    return { ref, assertCurrent };
+  }, (guard, operation) => dispatchGuards.run(guard, operation));
+  const builders = new Set<Awaited<ReturnType<typeof createPluginBuilderAgent>>>();
+  let closingBuilders = false;
+  const createBuilderAgent = async (input: PluginBuilderAgentOptions) => {
+    if (closingBuilders) throw new Error("Agent 服务已关闭");
+    const builder = await createPluginBuilderAgent(input, { runtime, writable: Boolean(options.reviewQueue),
+      credentialRefFor: ref => credentials.prologueRefFor(ref, input.resolveCredential),
+      withDispatchGuard: (guard, operation) => dispatchGuards.run(guard, operation) });
+    if (closingBuilders) { await builder.close(); throw new Error("Agent 服务已关闭"); }
+    builders.add(builder);
+    const close = builder.close.bind(builder);
+    builder.close = async () => { try { await close(); } finally { builders.delete(builder); } };
+    return builder;
+  };
+
   const readQuestion = async (run: AgentRunRef, id: string, revision: number) => {
     const pending = await runtime.effects.pendings.read({ kind: "pending", id, revision });
     if (!pending || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
@@ -441,10 +518,11 @@ export async function createPrologueNodeAdapter(
     },
     ...(options.reviewQueue ? { subagents: { workspaces: true as const, ...createPrologueSubagents(runtime, async run => {
       const index = await readIndex(run.session_id), attempt = index?.attempts.find(attempt => attempt.run_id === run.run_id);
-      if (!attempt) throw new Error("原父任务归属不可读取");
+      if (!attempt?.frozen.directory) throw new Error("原父任务没有工作区归属，不能分派目录子任务");
       return { path: attempt.frozen.directory.canonical_path, roles: attempt.subagent_roles ?? [], roots: attempt.subagent_roots,
         errors: { ...attempt.subagent_errors, ...subagentBridgeErrors.get(run.run_id) } };
     }) } } : {}),
+    workspaceNone: true,
     inlineMethods: true,
     compaction: true,
     ...(checkpoints ? { checkpoints } : {}),
@@ -455,6 +533,7 @@ export async function createPrologueNodeAdapter(
         attempt.timing = structuredClone(timing);
       });
     },
+    actionTools: true,
     skillLibrary: createPrologueSkillLibrary(runtime),
     mcpLibrary,
     async readPendingQuestion(run, id, revision) {
@@ -504,8 +583,8 @@ export async function createPrologueNodeAdapter(
     sessions: {
       async create(input) {
         const session = await runtime.sessions.create();
-        await saveIndex({ schema: 1, ref: session.ref, title: input.title,
-          owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id }, attempts: [] });
+        await saveIndex({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
+          owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] });
         sessions.set(session.ref.id, session.ref);
         return session;
       },
@@ -514,7 +593,7 @@ export async function createPrologueNodeAdapter(
         if (!index) return undefined;
         const session = await runtime.sessions.open(index.ref);
         if (!session) throw new Error("SDK 会话已不可读，保留原引用，不能创建新会话替代");
-        await checkpoints?.restore(id);
+        if (index.workspace !== "none") await checkpoints?.restore(id);
         const terminal = await session.terminalRuns();
         const open = await runtime.listOpenWork();
 
@@ -536,15 +615,28 @@ export async function createPrologueNodeAdapter(
             events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
         }
         sessions.set(id, index.ref);
-        return { title: index.title, owner: index.owner, runs,
+        return { title: index.title, owner: index.owner, workspace: index.workspace ?? "required", runs,
           ...(reasons.length ? { recovery: { required: true as const, reason: [...new Set(reasons)].join("；") } } : {}) };
       },
     },
     async startAgentRun(input: PrologueStartInput) {
+      const none = input.workspace === "none";
+      const index = await readIndex(input.session_id);
+      if (!index || (index.workspace ?? "required") !== (input.workspace ?? "required")) throw new Error("会话工作区模式与原始归属不一致");
+      if (none && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined
+        || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
+        || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+        || actionToolSessions.has(input.session_id))) throw new Error("无目录会话不能获得工具或工作区授权");
+      if (!none && !input.root_path) throw new Error("执行缺少已授权工作区");
       const ref = sessions.get(input.session_id);
-      const session = ref === undefined ? undefined : await runtime.sessions.open(ref);
+      const actionController = new AbortController();
+      // None sessions do not construct or adopt any tool pack.
+      const actionTools = none ? undefined : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+      const bindActions = !none && (!!input.actions || actionToolSessions.has(input.session_id));
+      const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors } : undefined);
+      if (bindActions && session) actionToolSessions.add(input.session_id);
       if (session === undefined) throw new Error("agent.session_unknown");
-      const root = await runtime.workspace.authorize({ path: input.root_path });
+      const root = none ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
       // Long instructions travel as a resource reference, not inline in the profile.
       const methods: string[] = [];
       for (const definition of input.skills ?? []) {
@@ -568,7 +660,7 @@ export async function createPrologueNodeAdapter(
       if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
       for (const grant of input.subagent_workspaces ?? []) {
         const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
-        if ([input.root_path, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
+        if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
         const authorized = await runtime.workspace.authorize({ path: grant.directory.canonical_path });
         childRoots.push({ id: grant.workspace_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
       }
@@ -589,11 +681,11 @@ export async function createPrologueNodeAdapter(
       const plan = input.provenance.frozen.execution_plan;
       const stepBoard = plan ? await stepBoards.admit(plan) : undefined;
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
-        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard.ref.id, plan)] : []), await checkpoints?.context(input.session_id) ?? ""].join("\n\n"));
-      const index = await readIndex(input.session_id);
-      if (!index) throw new Error("执行归属不可读");
-      await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
-      await mcpLibrary.validateSources(index.owner,input.mcp_sources ?? []);
+        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard.ref.id, plan)] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
+      if (!none) {
+        await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
+        await mcpLibrary.validateSources(index.owner,input.mcp_sources ?? []);
+      }
       const mcpTools: string[] = [];
       for (const selected of input.mcp_tools ?? []) {
         const conn = runtime.mcp.list().find(item => item.id === mcpConnectionId(selected))!;
@@ -603,7 +695,7 @@ export async function createPrologueNodeAdapter(
         if (at < 0 || !adopted[at]) throw new Error("MCP 工具已变化，请重新选择");
         mcpTools.push(adopted[at]!);
       }
-      const tools = [...input.character.tools.map(prologueToolName), ...mcpTools];
+      const tools = [...input.character.tools.map(prologueToolName), ...mcpTools, ...(actionTools?.names ?? [])];
       const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
       const created = runtime.characters.create({
         // This is a projection of the frozen role, not a user-managed Character.
@@ -620,7 +712,8 @@ export async function createPrologueNodeAdapter(
       // Exchange our reference for one Prologue can resolve, before the Run
       // is started rather than when it first calls out.
       const credentialRef = await credentials.prologueRefFor(input.model.credential_ref);
-      const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, root_ref: root.ref,
+      const attempt: SessionIndex["attempts"][number] = { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
+        ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
         ...(stepBoard ? { step_board: stepBoard.ref } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) };
       let attemptIndex = -1;
       // Persist the intent before the SDK can dispatch a model or tool. A crash
@@ -629,9 +722,18 @@ export async function createPrologueNodeAdapter(
         attemptIndex = index.attempts.length;
         index.attempts.push(attempt);
       });
-      const started = await runtime.startAgentRun({
+      try { await input.beforeStart?.(); }
+      catch (error) {
+        // The SDK has not seen this intent, so it is known not to have dispatched.
+        await updateIndex(input.session_id, saved => {
+          const held = saved.attempts[attemptIndex];
+          if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
+        });
+        throw error;
+      }
+      const started = await dispatchGuards.run(input.beforeDispatch ?? (() => {}), () => runtime.startAgentRun({
         session,
-        rootRef: root.ref,
+        ...(root ? { rootRef: root.ref } : { workspace: "none" as const }),
         history: "session",
         ...(childRoles.size ? { subagents: {
           ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true } : {}),
@@ -646,7 +748,7 @@ export async function createPrologueNodeAdapter(
               parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
               attempts: [{ started_at: new Date().toISOString(), task: "", run_id: childRun.run_id, root_ref: granted.rootRef,
                 frozen: { ...input.provenance.frozen, role_id: role.role_id, role_version: role.version, execution: role.execution,
-                  subagent_workspaces: undefined, character: undefined, compaction: undefined, execution_plan: undefined, directory: { canonical_path: granted.path, realpath_verified: true },
+                  subagent_workspaces: undefined, character: undefined, compaction: undefined, execution_plan: undefined, workspace: "required", directory: { canonical_path: granted.path, realpath_verified: true },
                   host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
                   prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
             runRoots.set(childRun.run_id, granted.rootRef);
@@ -690,6 +792,8 @@ export async function createPrologueNodeAdapter(
           endpoint: input.model.endpoint,
           model: input.model.model,
           credentialRef,
+          ...(input.provenance.frozen.budget?.max_output_tokens === undefined ? {} : { params: { maxOutputTokens: input.provenance.frozen.budget.max_output_tokens } }),
+          ...(input.provenance.frozen.budget?.max_duration_ms === undefined ? {} : { timeoutMs: input.provenance.frozen.budget.max_duration_ms }),
           messages: [{ role: "user", text: input.task }],
           // `off` sends no field, so a Run with caching turned off is byte for
           // byte the request it would have been before caching existed.
@@ -698,7 +802,11 @@ export async function createPrologueNodeAdapter(
             : { promptCache: input.model.prompt_cache }),
         },
         agent: {
-          ...(input.provenance.frozen.budget?.max_turns === undefined ? {} : { budget: { maxTurns: input.provenance.frozen.budget.max_turns } }),
+          ...(input.provenance.frozen.budget ? { budget: {
+            ...(input.provenance.frozen.budget.max_turns === undefined ? {} : { maxTurns: input.provenance.frozen.budget.max_turns }),
+            ...(input.provenance.frozen.budget.max_total_tokens === undefined ? {} : { maxTokens: input.provenance.frozen.budget.max_total_tokens }),
+            ...(input.provenance.frozen.budget.max_duration_ms === undefined ? {} : { maxWallClockMs: input.provenance.frozen.budget.max_duration_ms }),
+          } } : {}),
           idempotencyKey: `molis-work-${input.session_id}-${randomUUID()}`,
           mode: input.mode,
           toolNames: runTools,
@@ -706,10 +814,11 @@ export async function createPrologueNodeAdapter(
           characterRef: character.ref,
           ...(textResources.length ? { mount: { textResources } } : {}),
         },
-      });
-      runRoots.set(started.run.ref.id, root.ref);
+      }));
+      if (root) runRoots.set(started.run.ref.id, root.ref);
       try { await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.run_id = started.run.ref.id; }); }
-      catch (error) { started.control.stop("cancelled"); throw error; }
+      catch (error) { actionController.abort(); started.control.stop("cancelled"); throw error; }
+      if (actionTools?.names.length) actionControllers.set(started.run.ref.id, actionController);
       let stopping: Promise<void> | undefined;
       activeRuns.set(started.run.ref.id, { live: () => started.run.state === "running" && stopping === undefined,
         steer: text => started.control.steer({ text }) });
@@ -719,6 +828,9 @@ export async function createPrologueNodeAdapter(
           ref: { id: started.run.ref.id },
           subscribe: (listener: (event: PrologueEvent) => void) =>
             started.run.subscribe((event) => {
+              if (["completed", "failed", "cancelled"].includes(event.type)) {
+                actionController.abort(); actionControllers.delete(started.run.ref.id);
+              }
               if (event.type === "command-receipt") {
                 const events = commandEvents.get(started.run.ref.id) ?? [];
                 if (!events.some(saved => sameRef(saved.receiptRef, event.receiptRef))) events.push(event);
@@ -729,7 +841,7 @@ export async function createPrologueNodeAdapter(
                 listener({ ...event, receipt });
               } else listener(event);
             }),
-          cancel: () => started.run.cancel(),
+          cancel: () => { actionController.abort(); return started.run.cancel(); },
         },
         control: {
           get state() { return control.state; },
@@ -739,6 +851,7 @@ export async function createPrologueNodeAdapter(
             // the run actually ends. Repeated clicks reuse the first request.
             return stopping ??= (async () => {
               await updateIndex(input.session_id, index => { index.attempts[attemptIndex]!.stop_intent = reason; });
+              actionController.abort();
               control.stop(reason);
             })().catch(error => { stopping = undefined; throw error; });
           },
@@ -747,7 +860,7 @@ export async function createPrologueNodeAdapter(
         },
       };
     },
-    shutdown: async () => { stepBoards.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
+    shutdown: async () => { closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
   };
 
   return Object.assign(new PrologueAgentAdapter({
@@ -770,7 +883,7 @@ export async function createPrologueNodeAdapter(
         await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
       }
     },
-  }), { gitReviews, async assertDirectoriesIdle(paths: readonly string[]) {
+  }), { inference, createBuilderAgent, gitReviews, async assertDirectoriesIdle(paths: readonly string[]) {
     const open = await runtime.listOpenWork();
     if (open.unavailable.length) throw new Error("未能查清未结束执行，暂不能整合工作区");
     for (const item of open.items) {
@@ -778,7 +891,7 @@ export async function createPrologueNodeAdapter(
       const index = await readIndex(item.origin.session);
       if (!index) throw new Error("未结束执行缺少目录归属，暂不能整合");
       const attempts = index.attempts.filter(attempt => !item.origin.run || attempt.run_id === item.origin.run);
-      if (!attempts.length || attempts.some(attempt => attempt.frozen.execution !== "read-only" && paths.includes(attempt.frozen.directory.canonical_path)
+      if (!attempts.length || attempts.some(attempt => attempt.frozen.execution !== "read-only" && attempt.frozen.directory && paths.includes(attempt.frozen.directory.canonical_path)
         || attempt.subagent_roots?.some(root => paths.includes(root.path)))) throw new Error(`“${index.title}”仍有涉及此目录的写入执行、待审或未知结果，请先核对原任务`);
     }
   } });
@@ -801,12 +914,14 @@ function validRunTiming(value: unknown): value is PrologueRunTiming {
 
 interface SessionIndex {
   schema: 1;
+  /** Missing on historical rooted sessions. Never infer none from an absent directory. */
+  workspace?: "required" | "none";
   parent_run?: AgentRunRef;
   ref: ExactRef<"session">;
   title: string;
   owner: PrologueRestoredSession["owner"];
   /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
-  attempts: Array<PrologueStartInput["provenance"] & { step_board?: ExactRef<"task-board">; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
+  attempts: Array<PrologueStartInput["provenance"] & { action_tool_scope?: string; step_board?: ExactRef<"task-board">; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> & { requested_at?: string; expires_at?: string | null }>;
 }
@@ -840,27 +955,39 @@ export class PrologueCredentialBridge {
     this.#resolve = input.resolve;
   }
 
-  async prologueRefFor(credentialRef: string): Promise<ExactRef<"credential">> {
-    if (this.#resolve === undefined) {
+  async prologueRefFor(credentialRef: string, resolve = this.#resolve, signal?: AbortSignal): Promise<ExactRef<"credential">> {
+    if (resolve === undefined) {
       throw new Error(
         `没有配置凭据解析，${credentialRef} 在 Prologue 那边解析不了：`
         + "两边的密钥库是分开的，密钥必须交接一次",
       );
     }
-    const plaintext = await this.#resolve(credentialRef);
+    signal?.throwIfAborted();
+    const plaintext = await resolve(credentialRef);
+    signal?.throwIfAborted();
     if (plaintext === null || plaintext.trim() === "") {
       throw new Error(`密钥库里没有 ${credentialRef} 对应的密钥`);
     }
     const digest = createHash("sha256").update(plaintext).digest("hex");
     const cached = this.#exchanged.get(credentialRef);
-    if (cached?.digest === digest) return cached.result;
+    if (cached?.digest === digest) {
+      const ref = await cached.result;
+      signal?.throwIfAborted();
+      if (await resolve(credentialRef) !== plaintext) throw new Error("模型凭据在交接期间已改变");
+      signal?.throwIfAborted();
+      return ref;
+    }
     const bytes = new TextEncoder().encode(plaintext);
     const result = this.#host.writeCredential({ label: credentialRef, secret: { plaintext: bytes } })
       .then((snapshot) => snapshot.ref)
       .finally(() => bytes.fill(0));
     this.#exchanged.set(credentialRef, { digest, result });
     try {
-      return await result;
+      const ref = await result;
+      signal?.throwIfAborted();
+      if (await resolve(credentialRef) !== plaintext) throw new Error("模型凭据在交接期间已改变");
+      signal?.throwIfAborted();
+      return ref;
     } catch (error) {
       if (this.#exchanged.get(credentialRef)?.result === result) this.#exchanged.delete(credentialRef);
       throw error;

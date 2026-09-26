@@ -347,16 +347,28 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         detail.inert = true;
         showPrototypeStatus(detail, L("正在保存来源配置…"));
         try {
-          await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "PATCH", {
-            name: readField("name"),
+          const saved = await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "PATCH", {
+            name: readField("name") === detail.querySelector('[data-source-config-field="name"]')?.defaultValue ? undefined : readField("name"),
             description: readField("description"),
             scope: detail.querySelector('[data-source-config-field="scope"]') ? readField("scope") : undefined,
             feed_url: readField("feed_url") || undefined,
+            connection_id: (() => {
+              const field = detail.querySelector('[data-source-config-field="connection_id"]');
+              return field && !field.disabled && field.value && field.value !== [...field.options].find(option => option.defaultSelected)?.value ? field.value : undefined;
+            })(),
           });
-          showPrototypeStatus(detail, L("任务配置已保存。"));
+          detail.querySelectorAll("[data-source-config-field]").forEach(field => {
+            if (field.tagName === "SELECT") [...field.options].forEach(option => option.defaultSelected = option.selected);
+            else field.defaultValue = field.value;
+          });
+          showPrototypeStatus(detail, L("来源资料已保存。"));
           if (await refreshFeedStage()) {
-            if (sourceConfigSave.matches("[data-feed-config-submit]")) feedSourcesDialog?.close();
-            showToast(L("任务配置已保存。"));
+            if (saved.source?.source_id && saved.source.source_id !== sourceId) {
+              modal?.removeAttribute("aria-busy");
+              setFeedTask(saved.source.source_id);
+              showFeedView("settings");
+            }
+            showToast(L("来源资料已保存。"));
           }
         } catch (error) {
           showPrototypeStatus(detail, error.message || L("来源配置保存失败，请检查后重试。"));
@@ -443,7 +455,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         try {
           await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId), "DELETE", { history_decision: historyDecision });
           showPrototypeStatus(sourceDelete, historyDecision === "delete_local_history" ? L("来源与本地历史已删除。") : L("来源已删除，历史已保留。"));
-          feedSourcesDialog?.close();
+          setFeedAddOpen(false);
           await refreshFeedStage();
         } catch (error) {
           showPrototypeStatus(sourceDelete, error.message || L("删除来源失败，请重试。"));
@@ -589,20 +601,29 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
         filterFeedItems(false);
         return;
       }
+      const feedView = target.closest("button[data-feed-view]");
+      if (feedView) { showFeedView(feedView.dataset.feedView); return; }
+      if (target.closest("[data-feed-rail-toggle]")) {
+        const open = feedWorkbench.dataset.railOpen !== "true";
+        feedWorkbench.dataset.railOpen = String(open);
+        target.closest("[data-feed-rail-toggle]").setAttribute("aria-expanded", String(open)); return;
+      }
+      if (await handleFeedRuleAction(target)) return;
       const feedChoice = target.closest("[data-feed-choose-kind], [data-feed-connect-kind]");
       if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind || feedChoice.dataset.feedConnectKind); return; }
       const feedConfig = target.closest("[data-feed-task-config-open]");
       if (feedConfig) {
         event.stopPropagation();
-        showFeedSetup("config", feedConfig.dataset.feedTaskConfigOpen);
+        setFeedTask(feedConfig.dataset.feedTaskConfigOpen);
+        showFeedView("settings");
         return;
       }
       if (target.closest("[data-feed-sources-open], [data-feed-setup-back]")) { showFeedSetup(); return; }
       if (target.closest("[data-feed-sources-close]")) {
         if (feedSourcesDialog?.getAttribute("aria-busy") === "true" || feedSourcesDialog?.querySelector('[data-feed-add-form][aria-busy="true"]')) return;
         const config = feedSourcesDialog?.querySelector("[data-feed-task-config]:not([hidden])");
-        if (config) resetFeedFields(config);
-        feedSourcesDialog?.close(); return;
+        if (config && feedConfigView === "settings") config.querySelectorAll('[data-feed-config-section="settings"]').forEach(resetFeedFields);
+        setFeedAddOpen(false); return;
       }
       const sourceRegister = target.closest("[data-feed-source-register]");
       if (sourceRegister) {
@@ -631,7 +652,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           inlineError.textContent = "";
         }
         setFeedSourceFeedback(L("正在添加来源…"));
-        let phase = "source";
         try {
           let sourceId = form?.dataset.createdSourceId;
           if (!sourceId) {
@@ -640,10 +660,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
             if (form) form.dataset.createdSourceId = sourceId;
           }
           const minutes = Number(form?.querySelector("[data-feed-create-frequency]")?.value || 0);
-          phase = "schedule";
           if (minutes) await feedApi("/api/feed/sources/" + encodeURIComponent(sourceId) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes });
-          phase = "out-rule";
-          await saveFeedAddOutRule(form, sourceId);
           selectedFeedTask = sourceId;
           document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: sourceId } }));
           saveUiState();
@@ -651,9 +668,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           setFeedAddOpen(false);
           if (await refreshFeedStage()) setFeedTask(sourceId);
         } catch (error) {
-          const retryCopy = phase === "out-rule"
-            ? L("任务已创建，捕捉规则未保存。请重试，不会重复创建任务。")
-            : form?.dataset.createdSourceId
+          const retryCopy = form?.dataset.createdSourceId
               ? L("任务已创建，拉取计划未保存。请重试，不会重复创建任务。")
               : "";
           const message = retryCopy
@@ -691,31 +706,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           setFeedSourceFeedback(L("规则处理完成；请在 Inbox 查看筛选结果与待复核项。"));
         } catch (error) { setFeedSourceFeedback(error.message, true); }
         finally { evaluateRules.disabled = false; }
-        return;
-      }
-      const createOutRule = target.closest("[data-feed-out-rule-create]");
-      if (createOutRule) {
-        const section = createOutRule.closest("[data-feed-out-rules]");
-        const sourceId = section?.dataset.feedOutRules;
-        const name = section?.querySelector("[data-feed-out-rule-name]")?.value?.trim();
-        const contains = section?.querySelector("[data-feed-out-rule-contains]")?.value?.trim();
-        const functionKey = section?.querySelector("[data-feed-out-rule-function-key]")?.value?.trim();
-        if (!sourceId) return;
-        if (!name && !contains) {
-          setFeedSourceFeedback(L("请填写规则名称或包含关键字"), true);
-          return;
-        }
-        createOutRule.disabled = true;
-        setFeedSourceFeedback(L("正在添加捕捉规则…"));
-        try {
-          await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, admission: section?.querySelector("[data-feed-out-rule-admission]")?.value || "suggest", ...(functionKey ? { function_key: functionKey } : {}) });
-          saveUiState();
-          await refreshFeedStage();
-          createOutRule.disabled = false;
-        } catch (error) {
-          setFeedSourceFeedback(error.message || L("添加捕捉规则失败"), true);
-          createOutRule.disabled = false;
-        }
         return;
       }
       const toggleOutRule = target.closest("[data-feed-out-rule-toggle]");

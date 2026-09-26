@@ -45,6 +45,8 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     display: flex; flex: 1; flex-direction: column; align-items: center; gap: 2px; min-height: 0;
     overflow: auto; scrollbar-width: none;
   }
+  body.immersive-workbench .plugin-rail [data-plugin-id="market"] { position: relative; }
+  body.immersive-workbench .plugin-rail-update-count { position: absolute; top: 0; right: -1px; min-width: 14px; height: 14px; box-sizing: border-box; padding: 0 3px; border-radius: 8px; background: var(--accent, #b75337); color: white; font-size: 9px; line-height: 14px; text-align: center; font-weight: 600; }
   body.immersive-workbench .plugin-rail-items::-webkit-scrollbar { width: 0; height: 0; }
   body.immersive-workbench .plugin-rail-rule {
     flex: none; width: 16px; height: 1px; margin: 4px 0; border: 0; border-radius: 1px; background: var(--line);
@@ -226,7 +228,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .tree-item { margin: 0; padding: 0; border: 0; }
   body.immersive-workbench .tree-row { display: flex; align-items: flex-start; gap: 2px; padding: 2px 0; margin: 0; }
   body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry { min-width: 0; flex: 1; display: flex; align-items: center; padding: 0; border: 0; border-radius: 5px; background: transparent; }
-  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry.is-selected { background: var(--nav-active); }
+  body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry.is-selected { background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, transparent); }
   body.immersive-workbench .immersive-workspace .desktop-goal-directory .tree-entry .tree-title-line strong { color: var(--ink); }
   body.immersive-workbench .tree-node { flex: 1; min-width: 0; min-height: 31px; padding: 6px 7px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); }
   body.immersive-workbench .tree-node.is-selected { background: transparent; }
@@ -377,7 +379,7 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-market-installed-item { appearance: none; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--nav-bg); color: var(--ink); display: grid; place-items: center; cursor: pointer; transition: background .16s ease; }
   body.immersive-workbench .plugin-market-installed-item:hover { background: var(--nav-active); }
   body.immersive-workbench .plugin-market-installed-item .plugin-market-icon { width: 100%; height: 100%; background: transparent; }
-  body.immersive-workbench .plugin-market-scope { display: flex; gap: 8px; margin-top: 28px; }
+  body.immersive-workbench .plugin-market-body > .plugin-market-scope { width: fit-content; margin-top: 28px; margin-inline: max(0px, calc((100% - 720px) / 2)); }
   body.immersive-workbench .plugin-market-catalog { margin-top: 22px; }
   body.immersive-workbench .plugin-market-list { display: grid; grid-template-columns: 1fr 1fr; column-gap: 28px; row-gap: 2px; }
   body.immersive-workbench .plugin-market-list article { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px; border-radius: 10px; }
@@ -388,9 +390,10 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .plugin-market-list h2, body.immersive-workbench .plugin-market-list p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body.immersive-workbench .plugin-market-list h2 { margin: 0; font-size: 14px; font-weight: 400; }
   body.immersive-workbench .plugin-market-list p { margin: 2px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
-  body.immersive-workbench .plugin-market-list [data-market-add] { appearance: none; flex: none; min-height: 32px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; cursor: pointer; }
-  body.immersive-workbench .plugin-market-list [data-market-add]:hover:not(:disabled) { background: var(--nav-active); }
-  body.immersive-workbench .plugin-market-list [data-market-add]:disabled { color: var(--muted); opacity: 1; }
+  body.immersive-workbench .plugin-market-list .plugin-market-version { display: block; margin-top: 3px; color: var(--ink); font-size: 11px; line-height: 1.3; }
+  body.immersive-workbench .plugin-market-list :is([data-market-add], [data-market-upgrade]) { appearance: none; flex: none; min-height: 32px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; cursor: pointer; }
+  body.immersive-workbench .plugin-market-list :is([data-market-add], [data-market-upgrade]):hover:not(:disabled) { background: var(--nav-active); }
+  body.immersive-workbench .plugin-market-list :is([data-market-add], [data-market-upgrade]):disabled { color: var(--muted); opacity: 1; }
   body.immersive-workbench .plugin-market-empty, body.immersive-workbench .plugin-market-note { margin-top: 22px; font-size: 12px; color: var(--muted); }
   body.immersive-workbench .plugin-market-note { margin-top: 36px; }
   body.immersive-workbench [data-artifact-directory] { flex: none; height: auto; min-height: 0; overflow: visible; }
@@ -547,4 +550,38 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
 
   body.immersive-workbench .feed-source-directory > header { justify-content: flex-end; height: 30px; }
   body.immersive-workbench .feed-source-directory > header > strong { display: none; }
+
+  body.immersive-workbench .navigation-labels-toggle {
+    flex: none; align-self: stretch; margin: 0 4px; padding: 0 6px; min-height: 28px;
+    color: var(--muted); justify-content: center; font-size: 12px;
+  }
+  .navigation-labels-toggle svg { width: 16px; height: 16px; flex: none; }
+  .navigation-labels-toggle > span { display: none; }
+  .global-search-scope { margin: 0; padding: 4px 16px 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  @media (min-width: 761px) {
+    body.immersive-workbench[data-navigation-labels=true] { --plugin-rail-width: 160px; }
+    body.immersive-workbench[data-navigation-labels=true] .navigation-labels-toggle { justify-content: flex-start; gap: 9px; }
+    body.immersive-workbench[data-navigation-labels=true] .navigation-labels-toggle > span { display: inline; }
+    body.immersive-workbench[data-navigation-labels=true] :is(.plugin-rail, .assistant-island) .plugin-rail-item {
+      width: 100%; justify-content: flex-start; gap: 10px; padding: 0 10px; height: 34px; min-height: 34px;
+    }
+    body.immersive-workbench[data-navigation-labels=true] :is(.plugin-rail, .assistant-island) .plugin-rail-item > span {
+      position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: hidden; text-overflow: ellipsis; font-size: 12px;
+    }
+    body.immersive-workbench[data-navigation-labels=true] .plugin-rail .personal-sidebar-footer { align-items: stretch; }
+    body.immersive-workbench[data-navigation-labels=true] .workspace-chrome .navigator-project-primary { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; }
+    body.immersive-workbench[data-navigation-labels=true] .workspace-chrome .navigator-project-menu { width: 100%; }
+    body.immersive-workbench[data-navigation-labels=true] .immersive-workspace .navigator-project-selector { width: 100%; justify-content: flex-start; gap: 8px; padding: 0 10px; }
+    body.immersive-workbench[data-navigation-labels=true] .navigator-project-selector strong { position: static; width: auto; height: auto; margin: 0; clip: auto; flex: 1; text-align: left; }
+    body.immersive-workbench[data-navigation-labels=true] .navigator-project-selector > svg:last-child { position: static; width: 11px; height: 11px; margin: 0; clip: auto; }
+    body.immersive-workbench[data-navigation-labels=true] .plugin-rail .personal-account { width: 100%; justify-content: flex-start; gap: 10px; padding: 0 10px; }
+    body.immersive-workbench[data-navigation-labels=true] .plugin-rail .personal-account-copy { display: block; min-width: 0; overflow: hidden; text-align: left; }
+
+  }
+  @media (max-width: 760px) { body.immersive-workbench .navigation-labels-toggle { display: none; } }
+
+  body.immersive-workbench .plugin-market-copy p { white-space:normal; overflow:visible; text-overflow:clip; line-height:1.6; }
+  body.immersive-workbench .plugin-market-list > article { min-height:84px; align-items:center; }
+  body.immersive-workbench .plugin-market-list [data-market-open] { flex:none; }
+  @media(max-width: 600px) { body.immersive-workbench .plugin-market-list > article { min-height:96px; } }
 `;

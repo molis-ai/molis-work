@@ -12,11 +12,9 @@ export interface SettingsDirectoryPrimitives {
 }
 
 const SETTINGS_SECTIONS = [
-  { id: "appearance", label: "外观", icon: "sun" },
-  { id: "models", label: "模型设置", icon: "settings" },
+  { id: "appearance", label: "界面与语言", icon: "sun" },
+  { id: "models", label: "模型设置", icon: "key" },
   { id: "runtimes", label: "AI 与执行工具", icon: "terminal" },
-  { id: "mcp", label: "MCP", icon: "settings" },
-  { id: "connectors", label: "Connectors", icon: "link" },
   { id: "diagnostics", label: "诊断", icon: "bug" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
 
@@ -33,6 +31,7 @@ function globalSettingsSections(enabled?: readonly string[], hidden?: readonly s
 
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
+  { id: "workspaces", label: "工作目录", icon: "folder" },
   { id: "guidance", label: "项目说明", icon: "book" },
 ] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
 

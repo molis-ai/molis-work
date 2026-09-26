@@ -28,10 +28,7 @@ export function createWorkbenchInboxProjectionRenderer(primitives: {
       route_prefix: view.route_prefix,
       entries: buildInboxUiEntries(records, (entry) => resolveSubject(entry, view, L), L),
       filter: "active",
-      judgment: view.function_scenes ? {
-        function_key: view.function_scenes.inbox_next,
-        name: view.function_scenes.inbox_next_functions.find(fn => fn.function_key === view.function_scenes?.inbox_next)?.name ?? null,
-      } : undefined,
+      judgment: view.inbox_judgment,
       primitives: inboxUiPrimitives,
     };
   }

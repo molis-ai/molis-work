@@ -83,20 +83,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           function_key: "inbox_filter_" + crypto.randomUUID().replaceAll("-", "") })).function;
       }
       record = (await feedApi("/api/functions/" + encodeURIComponent(record.id), "POST", {
-        expected_updated_at: record.updated_at, instructions: action.instructions,
+        updated_at: record.updated_at, instructions: action.instructions,
         criteria: [{ key: "inbox.admit", description: "符合规则，需要继续处理，进入 Inbox" }, { key: "feed.open", description: "不符合规则，留在 Feed" }],
         scene_id: "feed.capture", subject_kinds: ["feed_item"], scene_map: { "inbox.admit": "inbox.admit", "feed.open": "feed.open" },
       })).function;
       note(L("试跑样本") + "：" + sample.title);
       record = (await feedApi("/api/functions/" + encodeURIComponent(record.id) + "/preview", "POST", {
-        expected_updated_at: record.updated_at, input: [sample.title, sample.summary, sample.body || ""].join("\n\n"),
+        updated_at: record.updated_at, input: [sample.title, sample.summary, sample.body || ""].join("\n\n"),
       })).function;
       const preview = record.last_preview;
       note(L("实际试跑结果") + "：" + L(preview?.outcome === "needs_review" ? "需要人工复核" : preview?.choice === "inbox.admit" ? "进入 Inbox" : "留在 Feed") + " · " + (preview?.model || "Jev"));
       button.textContent = L("草稿已创建并试跑");
-      actionButton("到 Functions 检查或修改", () => { composer.hidePopover(); host.openItem("functions", record.id, record.name); });
+      actionButton("检查或修改判断规则", () => { composer.hidePopover(); const next = new URL("/capabilities/rules", location.origin); next.searchParams.set("rule", record.id); const projectId = document.body.dataset.projectId; if (projectId) next.searchParams.set("project", projectId); if (new URL(location.href).searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1"); location.href = next.pathname + next.search; });
       actionButton("启用规则，处理最近 20 条消息", async enable => {
-        if (record.status !== "published") record = (await feedApi("/api/functions/" + encodeURIComponent(record.id) + "/publish", "POST", { expected_updated_at: record.updated_at })).function;
+        if (record.status !== "published") record = (await feedApi("/api/functions/" + encodeURIComponent(record.id) + "/publish", "POST", { updated_at: record.updated_at })).function;
         const existing = (await feedApi("/api/feed/out-rules", "GET")).rules;
         if (!existing.some(rule => rule.enabled && rule.function_key === record.function_key && rule.match.source_id === action.source_id && rule.admission === "inbox")) {
           await feedApi("/api/feed/out-rules", "POST", { name: action.name, source_id: action.source_id, function_key: record.function_key, admission: "inbox" });

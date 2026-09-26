@@ -17,7 +17,8 @@ export const PLUGIN_STAGE_STYLES = `
     width: max-content; max-width: calc(100% - 40px);
     background: transparent; isolation: isolate; pointer-events: auto;
   }
-  .plugin-stage-chrome .tree-create { flex: none; width: auto; }
+  .plugin-stage-chrome .tree-create,
+  body.immersive-workbench .plugin-stage-chrome .tree-create { flex: none; width: auto; }
   .plugin-stage-list .goal-collection-fold { margin: 0 0 10px; border: 0; }
   .plugin-stage-list .goal-collection-fold > summary {
     display: flex; align-items: center; gap: 8px; height: 32px; min-height: 32px;
@@ -123,7 +124,9 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-detail-bar :is([data-dataset-delete], [data-form-delete], [data-pages-delete], [data-ppt-delete], [data-functions-delete], [data-lingguang-discard-current], [data-alchemist-delete]):hover {
     background: color-mix(in srgb, var(--red) 8%, transparent); color: var(--red);
   }
-  .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
+  .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
+  .plugin-stage-list a.feed-stage-entry,
+  .plugin-stage-list a.directory-list-row { color: inherit; text-decoration: none; }
   .plugin-stage-chrome .tree-create svg { width: 14px; height: 14px; }
   .artifact-detail > .plugin-stage-detail-bar { border-bottom: 1px solid var(--line); }
   body.immersive-workbench .plugin-stage-detail-bar > .feed-detail-kicker { margin: 0; }
@@ -137,6 +140,10 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-detail-bar[data-stage-back-only] .plugin-stage-back { pointer-events: auto; }
   .feed-stage-detail > .plugin-stage-detail-bar[data-stage-back-only] + .feed-stage-item-detail .feed-detail-header {
     padding-top: 4px;
+  }
+  /* The kicker shares the back button's row, so it starts after the button like a breadcrumb. */
+  .feed-stage-detail > .plugin-stage-detail-bar[data-stage-back-only] + .feed-stage-item-detail .feed-detail-kicker {
+    margin-left: 14px;
   }
   @media (max-width: 760px) {
     .plugin-stage-list { padding-top: 72px; }
@@ -195,5 +202,24 @@ export const PLUGIN_STAGE_STYLES = `
   body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-header :is(h1, .feed-detail-kicker, p, time) { display: revert; }
   body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-body {
     max-height: none; overflow: visible; padding: 0;
+  }
+
+  .plugin-stage-list .mw-empty { padding-top: 24px; max-width: min(100%, 38em); }
+  .plugin-stage-list .mw-empty > strong { font-size: 18px; font-weight: 500; line-height: 1.4; letter-spacing: -.02em; }
+  .plugin-stage-list .mw-empty > p { font-size: 13px; line-height: 1.75; }
+  .plugin-stage-list .mw-empty > .mw-btn { margin-top: 12px; width: fit-content; }
+  .plugin-stage-more { position: relative; flex: none; }
+  .plugin-stage-more > summary { list-style: none; cursor: pointer; gap: 5px; }
+  .plugin-stage-more > summary::-webkit-details-marker { display: none; }
+  .plugin-stage-more[open] > summary { background: var(--nav-hover); }
+  .plugin-stage-more-actions { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; min-width: 160px; max-height: min(300px, 60dvh); overflow: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+  .plugin-stage-more-actions > .mw-btn { width: 100%; justify-content: flex-start; margin: 0; min-height: 34px; }
+  [data-lingguang-save-status] { color: var(--muted); font-size: 12px; }
+  [data-lingguang-save-status][data-failed=true] { color: var(--red); }
+  @media(max-width: 600px) {
+    .plugin-stage-list .mw-empty { padding-top: 20px; }
+    .plugin-stage-more-actions > .mw-btn { min-height: 44px; }
+    .plugin-stage-more > summary { min-height: 40px; }
+    [data-lingguang-save-status] { order: 2; flex-basis: 100%; }
   }
 `;

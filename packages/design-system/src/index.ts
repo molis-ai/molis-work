@@ -27,6 +27,8 @@ export {
   INTERACTION_TEXTURE_STYLES,
   MICRO_INTERACTION_CLIENT_SCRIPT,
   MICRO_INTERACTION_STYLES,
+  CRAFT_FINISH_STYLES,
+  CRAFT_FINISH_CLIENT_SCRIPT,
   type MolisWorkDensity,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,
@@ -43,6 +45,7 @@ export {
   notoSansScFontFilePath,
 } from "./typeface.js";
 
+export { projectMonogram, renderProjectMonogram, type ProjectMonogramHue } from "./monogram.js";
 export { icon, renderIconSprite, ICON_LIBRARY, listedIconNames, registeredIconNames, type MolisWorkIcon } from "./icons.js";
 export {
   MW_CONTENT_MARKS,
@@ -58,4 +61,5 @@ export {
 } from "./palette.js";
 export * from "./primitives/index.js";
 export { renderPluginStageShell } from "./plugin-stage-shell.js";
-
+export * from './plugin-components.js';
+export * from './plugin-component-client.js';

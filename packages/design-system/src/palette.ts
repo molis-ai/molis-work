@@ -98,13 +98,13 @@ export const MW_PLUGINS = [
   { id: "shelf", label: "Shelf", hue: "slate" as const },
   { id: "lingguang", label: "灵光", hue: "yellow" as const },
   { id: "experiments", label: "实验", hue: "purple" as const },
-  { id: "functions", label: "Functions", hue: "indigo" as const },
   { id: "characters", label: "Characters", hue: "purple" as const },
   { id: "pages", label: "Pages", hue: "cyan" as const },
   { id: "form", label: "Forms", hue: "orange" as const },
   { id: "dataset", label: "Dataset", hue: "green" as const },
   { id: "ppt", label: "PPT", hue: "red" as const },
   { id: "alchemist", label: "炼金术士", hue: "purple" as const },
+  { id: "workflows", label: "工作流程", hue: "orange" as const },
   { id: "artifacts", label: "Artifacts", hue: "pink" as const },
   { id: "coding", label: "Coding", hue: "cyan" as const },
   { id: "workspace", label: "Workspace", hue: "slate" as const },
@@ -260,7 +260,7 @@ export function renderPluginTintBindings(): string {
       ? ", [data-settings-section=\"project-settings\"], [data-directory-panel=\"project-settings\"]"
       : "";
     const surfaces = plugin.id === "goals"
-      ? `[data-work-surface="${plugin.id}"], [data-work-surface="goal"]`
+      ? `[data-work-surface="${plugin.id}"], [data-work-surface="goal"], [data-goal-canvas-shell]`
       : `[data-work-surface="${plugin.id}"]`;
     return [
       `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], .assistant-island [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"], [data-market-plugin="${plugin.id}"], [data-market-focus="${plugin.id}"], ${surfaces}, .tab-item[data-plugin="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,

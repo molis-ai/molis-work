@@ -1,3 +1,4 @@
+import { pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs, pluginTabTitles } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps } from "../../tab-workspace-ops.js";
@@ -32,15 +33,17 @@ export function placeLayoutMenu(
 
 /** Cross-plugin tabs and split panes. Goals canvas/kanban/Frame chrome stays in frame-container. */
 export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
-  const { showGoalFrame, setFeedAddOpen, setFeedTask, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
+  const { showToast, showGoalFrame, setFeedAddOpen, setFeedTask, translate: L, getSurface, setWorkSurface, setDirectory, setWorkspaceMode, setMobileView,
     applySelection, loadGoalDocument, getDocumentGoalId, locateGraphNode, selectFeedItem, selectInboxEntry, getProjectId, visibleGoals, showCanvas, restoreBoard, releaseFrame, isFrameTabActive } = host;
   const root = document.querySelector("[data-tab-workspace]");
   const panesEl = document.querySelector("[data-tab-panes]");
   const pool = document.querySelector("[data-surface-pool]");
-  if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openItem() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
+  if (!root || !panesEl || !pool) return { apply() {}, openPlugin() {}, openPluginRecord() {}, openItem() {}, setExclusive() {}, restore() {}, isExclusive() { return false; } };
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
   const PLUGIN_TAB_TITLES = ${JSON.stringify({ home: "项目首页", ...pluginTabTitles() })};
+  // Plugins installed at run time (built in the studio) name their own stage.
+  document.querySelectorAll("[data-work-surface][data-installed-plugin]").forEach((surface) => { PLUGIN_TAB_TITLES[surface.dataset.workSurface] = surface.dataset.workSurfaceLabel; PLUGIN_TAB_ICON[surface.dataset.workSurface] = "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
   const ops = (${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES);
   const TAB_SPLIT_EDGE_X = ${TAB_SPLIT_EDGE_X};
@@ -81,7 +84,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const narrow = () => matchMedia("(max-width: 760px)").matches;
   let state = ops.create();
   const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {} };
-  const restore = () => {
+  const restore = (requestedGoalId = "") => {
     if (embedded) {
       state = ops.create();
       const pane = ops.focused(state);
@@ -128,13 +131,27 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle");
       history.replaceState(history.state, "", returnedUrl);
     }
-    rewriteRetiredTaskTabs();
+    // Resolve an explicit Goal link before applying saved tabs; applying the old
+    // active item first can enqueue a stale document read over the requested Goal.
+    if (requestedGoalId) {
+      ops.setExclusive(state, null);
+      ops.openItem(state, "goals", requestedGoalId, titleForItem("goals", requestedGoalId));
+      setDirectory("goals", false, false);
+    }
+    rewriteRetiredTabs();
     apply();
     persist();
   };
-  const rewriteRetiredTaskTabs = () => {
+  const rewriteRetiredTabs = () => {
     for (const pane of state.panes || []) {
+      // Only obsolete view state is removed. Rules live in the system editor;
+      // saved public links are redirected by the Host with their record ID.
+      if (pane.viewPlugin === "functions" || pane.tabs?.some(tab => tab.plugin === "functions" && tab.id === pane.activeTabId)) {
+        pane.viewPlugin = "home";
+        pane.activeTabId = null;
+      }
       pane.tabs = (pane.tabs || []).filter((tab) => {
+        if (tab.plugin === "functions") return false;
         if (tab.plugin !== "task") return true;
         if (tab.kind !== "item" || !tab.goalId) return false;
         tab.plugin = "goals";
@@ -186,7 +203,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       return;
     }
     collapsePluginStage(plugin);
-    if (plugin === "feed") setFeedTask?.("all", false);
+    if (plugin === "feed") setFeedTask?.(topLevelSurface(plugin)?.dataset.selectedSource || "all", false);
   };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
@@ -222,23 +239,22 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.plugin === "feed" && tab.kind === "item" && tab.itemId) selectFeedItem?.(tab.itemId, false, true, false);
     if (tab.plugin === "inbox" && tab.kind === "item" && tab.itemId) selectInboxEntry?.(tab.itemId, false);
     if (tab.plugin === "sessions" && tab.kind === "item" && tab.itemId) {
+      // Select directly: a synthetic row click re-enters openItem through the capture listener and loops apply().
       const surface = topLevelSurface("sessions");
-      const row = document.querySelector('[data-operation-directory="sessions"] [data-record-id="' + CSS.escape(tab.itemId) + '"]');
-      if (row && !row.classList.contains("is-selected")) row.click();
-      else {
-        surface?.setAttribute("data-expanded", "true");
-        const workspace = surface?.querySelector("[data-session-stage-workspace]");
-        if (workspace) workspace.hidden = false;
-        surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => {
-          detail.hidden = detail.dataset.detailId !== tab.itemId;
-        });
-        document.querySelectorAll('[data-operation-directory="sessions"] [data-operation-row]').forEach((row) => {
-          const active = row.dataset.recordId === tab.itemId;
-          row.classList.toggle("is-selected", active);
-          row.setAttribute("aria-selected", String(active));
-        });
-        surface?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();
-      }
+      surface?.setAttribute("data-expanded", "true");
+      const workspace = surface?.querySelector("[data-session-stage-workspace]");
+      if (workspace) workspace.hidden = false;
+      surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => {
+        detail.hidden = detail.dataset.detailId !== tab.itemId;
+      });
+      document.querySelectorAll('[data-operation-directory="sessions"] [data-operation-row]').forEach((row) => {
+        const active = row.dataset.recordId === tab.itemId;
+        row.classList.toggle("is-selected", active);
+        row.setAttribute("aria-selected", String(active));
+        const button = row.matches("[data-operation-select]") ? row : row.querySelector("[data-operation-select]");
+        if (button) button.tabIndex = active ? 0 : -1;
+      });
+      surface?.querySelector('[data-operation-detail]:not([hidden]) [data-session-content-load]')?.click();
     }
   };
   const mount = (pane, node) => {
@@ -460,6 +476,35 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       appendTab(scrollArea, pane, tab);
       index += 1;
     }
+    if (pane.viewPlugin && !embedded) {
+      // Where am I: the plugin whose page this pane shows. Current while no item tab is; otherwise it returns there.
+      const chip = document.createElement("button");
+      chip.type = "button"; chip.className = "tab-view-chip"; chip.dataset.tabView = pane.viewPlugin; chip.dataset.plugin = pane.viewPlugin;
+      const title = ops.pluginTitle(pane.viewPlugin);
+      const glyph = document.querySelector('.plugin-stack [data-plugin-id="' + CSS.escape(pane.viewPlugin) + '"] svg');
+      if (glyph) chip.append(glyph.cloneNode(true));
+      const label = document.createElement("span"); label.textContent = title; chip.append(label);
+      const onPage = !pane.activeTabId && !state.exclusive;
+      if (onPage) chip.setAttribute("aria-current", "page");
+      chip.title = onPage ? title : L("返回插件首页") + " · " + title;
+      chip.setAttribute("aria-label", chip.title);
+      const divider = document.createElement("span"); divider.className = "tab-view-divider"; divider.setAttribute("aria-hidden", "true");
+      fragment.prepend(chip, divider);
+    }
+    if (state.exclusive && !embedded && (strip.hasAttribute("data-titlebar-tabs") || pane.id === state.focusedPaneId)) {
+      // Market and settings cover the panes; say so where the tabs are.
+      const cover = document.createElement("span");
+      cover.className = "tab-view-chip is-exclusive"; cover.setAttribute("aria-current", "page");
+      const source = state.exclusive === "market" ? '.plugin-stack [data-plugin-id="market"] svg'
+        : state.exclusive === "project-settings" ? ".plugin-stack .navigator-project-settings svg" : ".plugin-stack .personal-settings svg";
+      const glyph = document.querySelector(source);
+      if (glyph) cover.append(glyph.cloneNode(true));
+      const label = document.createElement("span");
+      label.textContent = state.exclusive === "market" ? L("插件市场") : state.exclusive === "project-settings" ? L("项目设置") : state.exclusive === "settings" ? L("设置") : ops.pluginTitle(state.exclusive);
+      cover.append(label);
+      const divider = document.createElement("span"); divider.className = "tab-view-divider"; divider.setAttribute("aria-hidden", "true");
+      fragment.prepend(cover, divider);
+    }
     const pad = document.createElement("span");
     pad.dataset.tabScrollPad = "";
     pad.setAttribute("aria-hidden", "true");
@@ -638,7 +683,13 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     try {
     if (state.exclusive) {
       root.dataset.exclusive = state.exclusive;
-      if (titlebarStrip) titlebarStrip.hidden = true;
+      if (titlebarStrip) {
+        // The strip stays readable under a cover: it names the cover and keeps the way back.
+        const chromeTabs = !embedded && state.panes.length < 2;
+        titlebarStrip.hidden = !chromeTabs;
+        const coveredPane = ops.focused(state);
+        if (chromeTabs && coveredPane) { titlebarStrip.dataset.chromePane = coveredPane.id; renderStrip(coveredPane, titlebarStrip); }
+      }
       const node = [...document.querySelectorAll('[data-work-surface="' + state.exclusive + '"]')]
         .find((candidate) => !candidate.closest("[data-goal-canvas-shell]"));
       if (exclusiveEl) {
@@ -848,6 +899,39 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     apply();
     persist();
   };
+  // Search keeps owner-specific save/select behavior, including inside a split pane.
+  const SEARCH_ROWS = ${JSON.stringify([...pluginSearchRows(), ["feed", "[data-feed-task-toggle]", "feedTaskToggle"]])};
+  let cancelRecordJump = null;
+  const openPluginRecord = (plugin, itemId) => {
+    const spec = SEARCH_ROWS.find(([id]) => id === plugin);
+    if (!spec || typeof itemId !== 'string' || !itemId) return;
+    if (embedded) { notifyParent('workbench-pane-open', { plugin, recordId: itemId }); return; }
+    cancelRecordJump?.();
+    openPlugin(plugin);
+    const pane = ops.focused(state), key = paneFrameKey(pane);
+    const frame = key && panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(key) + '"]');
+    const current = () => !state.exclusive && ops.focused(state) === pane && pane.viewPlugin === plugin && !pane.activeTabId && (!frame || (frame.isConnected && !frame.hidden && frame.dataset.paneOwner === pane.id));
+    let observer = null, timer = null, done = false;
+    const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
+    const check = () => {
+      if (done) return;
+      if (!current()) { finish(); return; }
+      const doc = frame ? frame.contentDocument : document;
+      if (!doc || (frame && !doc.body?.hasAttribute('data-pane-embedded'))) return;
+      const row = [...doc.querySelectorAll(spec[1])].find(el => el.dataset[spec[2]] === itemId);
+      if (!row) return;
+      finish(); row.click(); row.scrollIntoView({block:'nearest', behavior:'instant'});
+    };
+    const watch = () => {
+      observer?.disconnect();
+      const doc = frame ? frame.contentDocument : document;
+      if (doc?.documentElement) { observer = new MutationObserver(check); observer.observe(doc.documentElement, {childList:true, subtree:true}); }
+      check();
+    };
+    cancelRecordJump = finish;
+    timer = setTimeout(() => { const stillCurrent = current(); finish(); if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true); }, 10000);
+    frame?.addEventListener('load', watch); watch();
+  };
   const openItem = (plugin, itemId, title, goalView) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), goalView }); return; }
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
@@ -1048,6 +1132,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       persist();
       const label = strip?.querySelector('[data-tab-group-toggle="' + CSS.escape(toggle.dataset.tabGroupToggle) + '"]');
       label?.focus({ preventScroll: true });
+      return true;
+    }
+    const viewChip = event.target.closest("[data-tab-view]");
+    if (viewChip) {
+      const pane = state.panes.find((candidate) => candidate.id === paneId);
+      if (!pane || (!pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive)) return true;
+      state.focusedPaneId = paneId;
+      const railButton = document.querySelector('.plugin-stack [data-plugin-id="' + CSS.escape(viewChip.dataset.tabView) + '"]');
+      if (railButton) railButton.click();
+      else { pane.activeTabId = null; state.exclusive = null; apply(); persist(); }
       return true;
     }
     const tab = event.target.closest("[data-tab-id]");
@@ -1339,7 +1433,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       if (state.focusedPaneId !== pane.id) { state.focusedPaneId = pane.id; apply(); persist(); }
     } else {
       state.focusedPaneId = pane.id;
-      if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.goalView); else openPlugin(event.data.plugin);
+      if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
+      else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.goalView); else openPlugin(event.data.plugin);
     }
   });
   document.addEventListener("click", (event) => {
@@ -1373,5 +1468,5 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openItem, openGoalWork, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
+  return { apply, openPlugin, openPluginRecord, openItem, openGoalWork, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

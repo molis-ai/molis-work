@@ -24,7 +24,7 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, expandDirectory } = host;
+  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -50,6 +50,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const limit = q ? 12 : 8;
     const take = (items) => takeSearchHits(items, q, limit);
     const groups = [];
+    const tools = [...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id]')]
+      .filter((el) => !['home', 'market', 'settings'].includes(el.dataset.pluginId))
+      .map((el) => ({ kind: 'plugin', id: el.dataset.pluginId, title: el.querySelector('span')?.textContent?.trim() || el.title, plugin: L('工具'), search: (el.textContent + ' ' + el.dataset.pluginId).toLowerCase() }))
+      .filter((item) => !q || item.search.includes(q));
+    if (q && tools.length) groups.push({ label: L('工具'), items: tools });
     if (pluginEnabled("goals")) {
       const items = take([...document.querySelectorAll("[data-tree-item]")].map((item) => ({
         kind: "goal",
@@ -148,7 +153,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       { kind: "action", id: "settings", title: L("设置"), plugin: L("快捷操作"), search: "设置 settings", selector: '[data-plugin-id="settings"]' },
       { kind: "action", id: "market", title: L("插件市场"), plugin: L("快捷操作"), search: "插件市场 market", selector: '[data-plugin-id="market"]' },
     ].filter((item) => document.querySelector(item.selector) && (!q || item.search.includes(q)));
-    if (actions.length) groups.push({ label: L("快捷操作"), items: actions });
+    if (actions.length) {
+      if (q) groups.push({ label: L("快捷操作"), items: actions });
+      else groups.unshift({ label: L("快捷操作"), items: actions });
+    }
+    if (!q && tools.length) groups.splice(actions.length ? 1 : 0, 0, { label: L('工具'), items: tools });
     return groups;
   };
   const paintSelection = () => {
@@ -188,6 +197,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     if (!hit) return;
     close();
     const openItem = () => {
+      if (hit.kind === 'plugin') {
+        openPlugin?.(hit.id);
+        if (matchMedia('(max-width: 600px)').matches) setMobileView('document');
+        return;
+      }
       if (hit.kind === "action") {
         document.querySelector(hit.selector)?.click();
         return;
@@ -202,7 +216,18 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         const plugin = { session: "sessions", inbox: "inbox", feed: "feed", artifact: "artifacts", source: "feed" }[hit.kind] || (PERSONAL_PLUGIN_IDS.includes(hit.kind) ? hit.kind : "");
         if (plugin) {
           expandDirectory?.(plugin);
-          openTabItem?.(plugin, hit.id, hit.title);
+          if (hit.kind === 'source' || (PERSONAL_SEARCH_ROWS.some(([id]) => id === plugin) && !['pages', 'lingguang'].includes(plugin))) {
+            openPluginRecord?.(plugin, hit.id);
+            if (matchMedia('(max-width: 600px)').matches) setMobileView('document');
+            return;
+          }
+          if (hit.kind === 'artifact' && hit.element?.pathname) {
+            openTabItem?.('artifacts', hit.element.pathname, hit.title);
+            if (matchMedia('(max-width: 600px)').matches) setMobileView('document');
+            return;
+          }
+          if (['sessions', 'inbox', 'feed', 'pages', 'lingguang'].includes(plugin) && hit.kind !== 'source') openTabItem?.(plugin, hit.id, hit.title);
+          else openPlugin?.(plugin);
         }
         if (hit.directory) setDirectory(hit.directory);
         if (hit.surface && !plugin) setWorkSurface(hit.surface);

@@ -39,7 +39,8 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${EDITOR_PANEL} .operation-confirm-check { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.6; }
   ${EDITOR_PANEL} .operation-confirm-check input { flex: none; width: 17px; height: 17px; margin: 2px 0 0; }
   ${EDITOR_PANEL} [data-session-add-toggle] { min-height: 36px; font-size: 12px; }
-  ${EDITOR_PANEL} header button[data-dialog-close] { flex: none; width: 40px; height: 40px; border: 0; border-radius: var(--radius-control); background: var(--nav-bg); }
+  ${EDITOR_PANEL} header button[data-dialog-close] { flex: none; width: 40px; height: 40px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); }
+  ${EDITOR_PANEL} header button[data-dialog-close]:hover { background: var(--nav-hover); color: var(--ink); }
   ${EDITOR_PANEL} header button[data-dialog-close] svg { width: 16px; height: 16px; }
   ${EDITOR_PANEL} .dialog-icon { display: none; }
   ${EDITOR_PANEL} :is(h2, .feed-task-dialog-shell h2) { font-size: 18px; font-weight: 400; line-height: 1.4; letter-spacing: -.015em; }
@@ -49,8 +50,6 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${EDITOR_PANEL} .frame-picker-list { flex: 1; }
   ${EDITOR_PANEL} .form-disclosure { margin-top: 4px; padding-top: 0; }
   ${EDITOR_PANEL} .form-disclosure > summary { min-height: 44px; display: flex; align-items: center; padding-block: 8px; }
-  ${EDITOR_PANEL} .form-disclosure > summary::before { content: ""; width: 6px; height: 6px; margin-right: 8px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(-45deg); flex: none; }
-  ${EDITOR_PANEL} .form-disclosure[open] > summary::before { transform: rotate(45deg); }
   ${EDITOR_PANEL} .feed-task-dialog-body { padding: 12px 20px 20px; }
   ${EDITOR_PANEL} .feed-task-dialog-body label { margin-block: 12px; }
   /* Creation reads as writing, not as filling a form: two borderless lines and one quiet

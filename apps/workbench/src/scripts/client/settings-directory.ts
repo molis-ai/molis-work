@@ -144,6 +144,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (!projectPrefix || !pathname.startsWith(projectPrefix + "/settings")) return "";
     const rest = pathname.slice((projectPrefix + "/settings").length).replace(/\\/+$/, "") || "";
     if (!rest || rest === "/general") return "general";
+    if (rest === "/workspaces") return "workspaces";
     if (rest.startsWith("/guidance")) return "guidance";
     if (rest.startsWith("/rules")) return "rules";
     if (rest.startsWith("/planning")) return "planning";

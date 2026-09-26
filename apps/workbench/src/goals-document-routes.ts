@@ -22,7 +22,7 @@ export interface WorkbenchGoalPageSelection {
 
 /** Page composition only; the Host retains scoped reads and the asynchronous Project operations provider. */
 export async function renderWorkbenchGoalsPageRequest<TView extends GoalsPageCollections>(
-  method: string | undefined, pathname: string, readView: () => TView,
+  method: string | undefined, pathname: string, readView: () => TView | Promise<TView>,
   render: (view: TView, selection: WorkbenchGoalPageSelection) => string | Promise<string>,
 ): Promise<HtmlResult | null> {
   if (method !== "GET") return null;
@@ -31,7 +31,7 @@ export async function renderWorkbenchGoalsPageRequest<TView extends GoalsPageCol
   const parsed = resolveGoalsPageRoute(pathname);
   if (parsed && "error" in parsed) return parsed;
   if (!parsed && !decisionView) return null;
-  const view = readView();
+  const view = await readView();
   const resolved = parsed ? resolveGoalsPageCollection(parsed.route, view) : { route: { collection: "current" as const } };
   if ("error" in resolved) return resolved;
   return { status: 200, html: await render(view, {

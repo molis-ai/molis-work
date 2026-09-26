@@ -94,7 +94,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     else notice='决定已记录，执行结果尚未确认，请查看下方操作记录。';
     // A commit, branch, push or PR decided here reads as that operation, never as an index change.
     if(lastPrepared){
-      const done=receipt?.effect_settled,label={commit:'提交','branch-create':'新建分支','branch-switch':'切换分支',push:'推送','pr-create':'建 PR'}[lastPrepared] || 'Git 操作';
+      const done=receipt?.effect_settled,label={commit:'提交','branch-create':'新建分支','branch-switch':'切换分支',push:'推送','pr-create':'建 PR',merge:'合并',pull:'拉取',resolve:'解决冲突','merge-abort':'放弃合并'}[lastPrepared] || 'Git 操作';
       if(lastPrepared==='commit' && done){message.value='';try{sessionStorage.removeItem('molis-commit-draft:'+scWorkspace);}catch{}}
       scStatus.textContent=outcome.error?'本次请求未取得执行回执：'+outcome.error:receipt?.status==='rejected'?'已拒绝「'+label+'」，仓库没有改变。':receipt?.effect_error?'「'+label+'」没有完成：'+receipt.effect_error:done?'「'+label+'」已完成，结果见下方记录。':'决定已记录，结果尚未确认。';
       lastPrepared='';q('[data-git-notice]').textContent=scStatus.textContent;await refresh();return;
@@ -122,7 +122,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const sc=directory.querySelector('[data-git-sc]'),message=sc.querySelector('[data-git-commit-message]'),scStatus=sc.querySelector('[data-git-sc-status]'),operations=sc.querySelector('[data-git-operations]');
   let summary=null,draft='',scWorkspace='',busy=false,lastPrepared='';
   const OUTCOME={pending:'等你审查',running:'执行中',succeeded:'已完成',failed:'未完成',denied:'已拒绝',cancelled:'已撤回',expired:'已过期',unknown:'结果待核对'};
-  const TOOL={'git-commit':'提交','git-branch-create':'新建分支','git-branch-switch':'切换分支','git-push':'推送','git-pr-create':'建 PR'};
+  const TOOL={'git-commit':'提交','git-branch-create':'新建分支','git-branch-switch':'切换分支','git-push':'推送','git-pr-create':'建 PR','git-merge':'合并','git-pull':'拉取','git-resolve':'解决冲突','git-merge-abort':'放弃合并'};
   const options=(select,values,keep)=>{select.replaceChildren(...values.map(value=>{const option=document.createElement('option');option.value=value;option.textContent=value;return option;}));if(keep && values.includes(keep))select.value=keep;};
   async function loadOperations(){try{const value=await request('/operations');operations.replaceChildren(...value.operations.slice(0,6).map(op=>{const item=document.createElement('li');item.dataset.outcome=op.outcome;const text=(TOOL[op.tool]||op.tool)+' · '+(OUTCOME[op.outcome]||op.outcome)+' · '+(op.detail||op.failure_reason||op.summary);
       // An address in the result (the PR that was opened) is a link; in the desktop app it opens in the system browser.
@@ -151,6 +151,10 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
       // switched to here nor a sensible PR target, so they are not offered.
       const others=summary.branches.filter(branch=>branch!==summary.branch && !branch.startsWith('molis-work/writer/'));
       options(sc.querySelector('[data-git-branch-choice]'),others,sc.querySelector('[data-git-branch-choice]').value);
+      options(sc.querySelector('[data-git-merge-choice]'),others,sc.querySelector('[data-git-merge-choice]').value);
+      const pull=sc.querySelector('[data-git-pull]');pull.disabled=!summary.upstream || summary.merging;
+      pull.textContent=!summary.upstream?'没有远端跟踪分支':summary.behind?'拉取 '+summary.behind+' 个提交…':'拉取…';
+      renderConflicts();
       // The PR target follows the repository's main branch unless the person picked one; a value left over from the
       // branch previously checked out is not a choice.
       const base=sc.querySelector('[data-git-pr-base]');if(!base.dataset.watched){base.dataset.watched='true';base.addEventListener('change',()=>{base.dataset.chosen='true';});}
@@ -170,6 +174,48 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
     }catch(error){scStatus.textContent=error.message;await loadSource();}
     finally{busy=false;}
   }
+  // Merge conflicts: each conflicted file opens with its markers; pick a side per conflict or edit it, then resolve it
+  // through a Host review. Resolving is refused while any marker is left; the commit above then finishes the merge.
+  const conflicts=sc.querySelector('[data-git-conflicts]'),conflictEditor=sc.querySelector('[data-git-conflict-editor]'),conflictText=sc.querySelector('[data-git-conflict-text]');
+  let conflictPath='',conflictSides={ours:'当前',theirs:'合并进来的'};
+  const MARKS=['<<<<<<<','|||||||','=======','>>>>>>>'];
+  const isMark=(line)=>MARKS.some(mark=>line===mark || line.startsWith(mark+' '));
+  const blocksOf=(text)=>{const blocks=[];let block=null,part='';
+    text.split('\\n').forEach((line,index)=>{
+      if(line.startsWith('<<<<<<<')){block={start:index,ours:[],base:[],theirs:[]};part='ours';return;}
+      if(!block)return;
+      if(line.startsWith('|||||||')){part='base';return;}
+      if(line.startsWith('=======')){part='theirs';return;}
+      if(line.startsWith('>>>>>>>')){block.end=index;blocks.push(block);block=null;return;}
+      block[part].push(line);});
+    return blocks;};
+  const syncConflict=()=>{const blocks=blocksOf(conflictText.value),left=conflictText.value.split('\\n').some(isMark);
+    const picks=sc.querySelector('[data-git-conflict-picks]');picks.replaceChildren();
+    blocks.forEach((block,index)=>{const row=document.createElement('div');row.className='git-sc-pick';row.append(document.createTextNode('第 '+(index+1)+' 处（第 '+(block.start+1)+' 行）'));
+      for(const [side,label] of [['ours','用「'+conflictSides.ours+'」'],['theirs','用「'+conflictSides.theirs+'」'],['both','两边都保留']]){
+        const pick=document.createElement('button');pick.type='button';pick.className='mw-btn mw-btn--ghost';pick.textContent=label;
+        pick.addEventListener('click',()=>{const lines=conflictText.value.split('\\n'),now=blocksOf(conflictText.value)[index];if(!now)return;
+          lines.splice(now.start,now.end-now.start+1,...(side==='ours'?now.ours:side==='theirs'?now.theirs:[...now.ours,...now.theirs]));conflictText.value=lines.join('\\n');syncConflict();});
+        row.append(pick);}
+      picks.append(row);});
+    sc.querySelector('[data-git-conflict-state]').textContent=left?'还有冲突标记（<<<<<<< / ======= / >>>>>>>）：选好内容并删掉标记后才能标记为已解决。':'冲突标记都已去掉，可以标记为已解决。';
+    sc.querySelector('[data-git-conflict-resolve]').disabled=left;};
+  conflictText.addEventListener('input',syncConflict);
+  const openConflict=async(path)=>{conflictEditor.hidden=false;sc.querySelector('[data-git-conflict-state]').textContent='正在读取 '+path+'…';
+    try{const file=await request('/conflict?path='+encodeURIComponent(path));if(file.outcome!=='conflict-file')throw new Error(file.message || '读不到这个冲突文件');
+      conflictPath=path;conflictSides={ours:file.ours,theirs:file.theirs};
+      sc.querySelector('[data-git-conflict-file]').textContent=path+' · '+file.conflicts+' 处冲突 · 当前一方「'+file.ours+'」，合并进来的一方「'+file.theirs+'」';
+      conflictText.value=file.text;syncConflict();conflictText.focus();}
+    catch(error){sc.querySelector('[data-git-conflict-state]').textContent=error.message;}};
+  function renderConflicts(){const merging=Boolean(summary && (summary.merging || summary.conflicted.length));conflicts.hidden=!merging;
+    if(!merging){conflictEditor.hidden=true;conflictPath='';return;}
+    sc.querySelector('[data-git-conflict-note]').textContent=summary.conflicted.length?'合并进行中：'+summary.conflicted.length+' 个文件有冲突。逐个解决后，用上面的提交完成合并；也可以放弃这次合并。':'冲突都已解决。写好提交说明后提交，即可完成合并。';
+    sc.querySelector('[data-git-conflict-list]').replaceChildren(...summary.conflicted.map(path=>{const item=document.createElement('li'),open=document.createElement('button');open.type='button';open.className='mw-btn mw-btn--ghost';open.textContent='解决 '+path+'…';open.addEventListener('click',()=>void openConflict(path));item.append(open);return item;}));
+    if(conflictPath && !summary.conflicted.includes(conflictPath)){conflictEditor.hidden=true;conflictPath='';}}
+  sc.querySelector('[data-git-conflict-resolve]').addEventListener('click',event=>{if(!conflictPath || conflictText.value.split('\\n').some(isMark))return;void prepare({action:'resolve',path:conflictPath,content:conflictText.value},'解决冲突：'+conflictPath,event.currentTarget);});
+  sc.querySelector('[data-git-merge-abort]').addEventListener('click',event=>void prepare({action:'merge-abort'},'放弃合并',event.currentTarget));
+  sc.querySelector('[data-git-merge]').addEventListener('click',event=>{const branch=sc.querySelector('[data-git-merge-choice]').value;if(branch)void prepare({action:'merge',branch},'把「'+branch+'」合并进来',event.currentTarget);});
+  sc.querySelector('[data-git-pull]').addEventListener('click',event=>void prepare({action:'pull'},'拉取',event.currentTarget));
   const toggle=(button,form)=>button.addEventListener('click',()=>{const open=form.hidden;form.hidden=!open;button.setAttribute('aria-expanded',String(open));if(open)form.querySelector('input,select,textarea')?.focus();});
   toggle(sc.querySelector('[data-git-branch-toggle]'),sc.querySelector('[data-git-branch-form]'));
   const prForm=sc.querySelector('[data-git-pr-form]'),prToggle=sc.querySelector('[data-git-pr-toggle]');toggle(prToggle,prForm);

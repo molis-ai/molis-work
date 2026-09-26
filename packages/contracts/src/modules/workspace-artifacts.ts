@@ -26,11 +26,14 @@ export type WorkspaceGitQuery = { workspace_id: string } & (
   /** Whether a pull request can be opened from here (GitHub CLI installed and signed in). Reads only. */
   | { kind: "pr-support" }
   | { kind: "diff"; path: readonly string[]; side: "index" | "worktree" }
+  /** A file left conflicted by a merge or pull: its current text with the conflict markers. Reads only. */
+  | { kind: "conflict"; path: string }
 );
 export type WorkspaceGitResult =
   | { outcome: "status"; porcelain: string; head_commit: string | null }
   | WorkspaceGitSummary
   | { outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string }
+  | { outcome: "conflict-file"; path: string; text: string; conflicts: number; ours: string; theirs: string; revision: string }
   | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
       before_exists: boolean; after_exists: boolean; before: string; after: string;
       before_mode: GitFileMode | null; after_mode: GitFileMode | null; revision: string }
@@ -60,7 +63,14 @@ export type GitOperation =
   | { action: "branch-create"; name: string; checkout: boolean }
   | { action: "branch-switch"; name: string }
   | { action: "push"; remote: string; set_upstream: boolean }
-  | { action: "pr-create"; base: string; title: string; body: string; draft: boolean };
+  | { action: "pr-create"; base: string; title: string; body: string; draft: boolean }
+  /** Merge a local branch into the current one; conflicts stop it for resolving, file by file. */
+  | { action: "merge"; branch: string }
+  /** Fetch and merge the current branch's upstream (never rebase); conflicts stop it the same way. */
+  | { action: "pull" }
+  /** Write one conflicted file as resolved (no markers left) and stage it. */
+  | { action: "resolve"; path: string; content: string }
+  | { action: "merge-abort" };
 export const prepareGitOperationCapability = {
   capability_id: "projects.workspace.git.operation.prepare.v1", version: 1, operation: "command",
 } as HostCapabilityDefinition<{ workspace_id: string; operation_id: string; revision: string; operation: GitOperation }, { review_id: string }>;

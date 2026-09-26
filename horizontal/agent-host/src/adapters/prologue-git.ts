@@ -10,7 +10,7 @@ type GitReviewIntent = { board_id: string; workspace_id: string; operation_id: s
   /** Commit, branch, push or pull request: one reviewed operation on the person's repository. */
   | { operation_kind: "git-operation"; document: AgentToolOperationReviewDocument }
 );
-const GIT_OPERATION_TOOLS = /^git-(commit|branch-create|branch-switch|push|pr-create)$/;
+const GIT_OPERATION_TOOLS = /^git-(commit|branch-create|branch-switch|push|pr-create|merge|pull|resolve|merge-abort)$/;
 type StoredReview = GitReviewIntent & { kind: "molis-git-index-review"; requested_at: string };
 type Decision = Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note" | "reconciliation"> & { failure_reason?: string };
 export interface PrologueGitReviewPort {

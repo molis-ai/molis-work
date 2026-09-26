@@ -90,7 +90,36 @@ export interface PreparedGitOperation {
   execute(): Promise<string>;
 }
 
-const ACTION_TOOL: Record<GitOperation["action"], string> = { commit: "git-commit", "branch-create": "git-branch-create", "branch-switch": "git-branch-switch", push: "git-push", "pr-create": "git-pr-create" };
+const ACTION_TOOL: Record<GitOperation["action"], string> = { commit: "git-commit", "branch-create": "git-branch-create", "branch-switch": "git-branch-switch", push: "git-push", "pr-create": "git-pr-create",
+  merge: "git-merge", pull: "git-pull", resolve: "git-resolve", "merge-abort": "git-merge-abort" };
+const CONFLICT_MARKER = /^(<{7}|={7}|>{7}|\|{7})(\s|$)/m, CONFLICT_FILE_LIMIT = 1024 * 1024;
+
+/** A conflicted file as it stands, markers included, with the two sides' names. Reads only. */
+export async function readConflictFile(workspace: ProjectWorkspaceRef, file: string): Promise<{ outcome: "conflict-file"; path: string; text: string; conflicts: number; ours: string; theirs: string; revision: string }> {
+  const root = await repositoryRoot(workspace), summary = await readGitSummary(workspace);
+  if (!summary.conflicted.includes(file)) throw new Error("这个文件没有未解决的冲突");
+  const absolute = path.join(root, ...file.split("/"));
+  if (!absolute.startsWith(root + path.sep) || file.split("/").includes("..")) throw new Error("文件路径无效");
+  const stat = await fs.lstat(absolute);
+  if (!stat.isFile()) throw new Error("冲突的不是普通文件（可能被删除或是链接），请在终端处理");
+  if (stat.size > CONFLICT_FILE_LIMIT) throw new Error("文件太大，请在编辑器里解决冲突");
+  const text = await fs.readFile(absolute, "utf8");
+  const merging = await optional(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
+  const theirs = merging ? (await optional(root, ["name-rev", "--name-only", "--no-undefined", merging])) ?? merging.slice(0, 8) : "合并进来的一方";
+  return { outcome: "conflict-file", path: file, text, conflicts: (text.match(/^<{7}(\s|$)/gm) ?? []).length, ours: summary.branch ?? "当前", theirs, revision: summary.revision };
+}
+
+/** A merge or pull that stopped on conflicts did its part: it says which files wait for the person, not that it failed. */
+async function mergeOutcome(workspace: ProjectWorkspaceRef, run: () => Promise<unknown>, done: string): Promise<string> {
+  try { await run(); return done; }
+  catch (error) {
+    const after = await readGitSummary(workspace).catch(() => null);
+    if (after?.merging && after.conflicted.length) {
+      return `有 ${after.conflicted.length} 个文件冲突：${after.conflicted.slice(0, 8).join("、")}${after.conflicted.length > 8 ? " 等" : ""}。在 Git 面板逐个解决并提交，或放弃这次合并。`;
+    }
+    throw error;
+  }
+}
 export const GIT_OPERATION_TOOLS = new Set(Object.values(ACTION_TOOL));
 
 /** Checks the operation against the repository as reviewed and returns what the Host review shows and runs. */
@@ -99,7 +128,11 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
   if (summary.revision !== revision) throw new Error("仓库在你查看之后变化了（分支、提交或暂存内容），请刷新后重新操作");
   const check = async () => { const now = await readGitSummary(workspace); if (now.revision !== revision) throw new Error("仓库在审查期间变化了，原操作未执行；请刷新后重新发起"); };
   const where = [{ label: "仓库", value: root }, { label: "当前分支", value: summary.branch ?? `（分离的 HEAD ${summary.head_commit?.slice(0, 8) ?? ""}）` }];
-  if (summary.conflicted.length && operation.action !== "commit") throw new Error("仓库有未解决的冲突，请先处理");
+  if (summary.conflicted.length && !["commit", "resolve", "merge-abort"].includes(operation.action)) throw new Error("仓库有未解决的冲突，请先处理");
+  // Merging needs a clean start: Git refuses when local changes would be overwritten, and a half-merged state is harder to read.
+  // Untracked files do not count: Git merges around them, and refuses by itself if one would be overwritten.
+  const clean = async () => { if (summary.merging) throw new Error("上一次合并还没完成：先解决冲突并提交，或放弃合并");
+    if (summary.staged.length || (await gitText(root, ["status", "--porcelain", "--untracked-files=no"])).trim()) throw new Error("工作区有未提交的改动，先提交或处理后再合并"); };
   switch (operation.action) {
     case "commit": {
       const message = operation.message.replace(/\r\n/g, "\n").trim();
@@ -158,6 +191,44 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
           { label: "执行范围", value: `经 GitHub CLI 在 ${support.host} 建 PR，使用它已有的登录；不改动本地仓库。` }],
         async execute() { await check(); const out = await operationRun("gh", root, ["pr", "create", "--base", base, "--head", summary.branch!, "--title", title, "--body", body, ...(operation.draft ? ["--draft"] : [])]);
           const url = out.stdout.split("\n").map(line => line.trim()).find(line => /^https?:\/\//.test(line)); return url ? `已建 PR：${url}` : "已建 PR"; } };
+    }
+    case "merge": {
+      const branch = operation.branch.trim();
+      if (!summary.branch) throw new Error("分离的 HEAD 不能合并，先切到一个分支");
+      if (!summary.branches.includes(branch)) throw new Error(`没有本地分支「${branch}」`);
+      if (branch === summary.branch) throw new Error("不能把分支合并到它自己");
+      await clean();
+      return { tool: ACTION_TOOL.merge, summary: `把「${branch}」合并到「${summary.branch}」`, check,
+        fields: [...where, { label: "合并进来的分支", value: branch },
+          { label: "执行范围", value: "在本地合并，能快进时快进，否则生成合并提交；有冲突时停下，冲突文件留给你在面板里逐个解决。不推送远端。" }],
+        async execute() { await check(); return mergeOutcome(workspace, () => operationRun("git", root, ["merge", "--no-edit", branch]), `已把「${branch}」合并到「${summary.branch}」`); } };
+    }
+    case "pull": {
+      if (!summary.branch || !summary.upstream) throw new Error("这个分支还没有远端跟踪分支，先推送并设置跟踪");
+      await clean();
+      return { tool: ACTION_TOOL.pull, summary: `从 ${summary.upstream} 拉取并合并到「${summary.branch}」`, check,
+        fields: [...where, { label: "远端跟踪分支", value: summary.upstream },
+          { label: "执行范围", value: "使用这台电脑上已有的 Git 凭据取回远端，再合并（不变基）；有冲突时停下，冲突文件留给你逐个解决。不推送。" }],
+        async execute() { await check(); return mergeOutcome(workspace, () => operationRun("git", root, ["pull", "--no-rebase", "--no-edit"]), `已从 ${summary.upstream} 拉取并合并`); } };
+    }
+    case "resolve": {
+      const file = operation.path.trim(), content = operation.content.replace(/\r\n/g, "\n");
+      if (!summary.conflicted.includes(file)) throw new Error("这个文件没有未解决的冲突");
+      if (CONFLICT_MARKER.test(content)) throw new Error("内容里还有冲突标记（<<<<<<< / ======= / >>>>>>>），选好内容并删掉标记后再提交");
+      if (content.length > CONFLICT_FILE_LIMIT) throw new Error("内容太长，请在编辑器里解决");
+      const absolute = path.join(root, ...file.split("/"));
+      if (!absolute.startsWith(root + path.sep) || file.split("/").includes("..")) throw new Error("文件路径无效");
+      return { tool: ACTION_TOOL.resolve, summary: `解决冲突：${file}`, check,
+        fields: [...where, { label: "文件", value: file }, { label: "解决后的内容", value: content.length > 20_000 ? content.slice(0, 20_000) + "\n…（其余未显示，将按你编辑的全文写入）" : content },
+          { label: "执行范围", value: "把这个文件写成上面的内容并暂存，标记冲突已解决；其他文件不动，不提交。" }],
+        async execute() { await check(); const now = await readGitSummary(workspace); if (!now.conflicted.includes(file)) throw new Error("这个文件已经不在冲突中，原操作未执行");
+          await fs.writeFile(absolute, content); await operationRun("git", root, ["add", "--", file]); return `已解决并暂存 ${file}`; } };
+    }
+    case "merge-abort": {
+      if (!summary.merging) throw new Error("没有进行中的合并");
+      return { tool: ACTION_TOOL["merge-abort"], summary: "放弃这次合并", check,
+        fields: [...where, { label: "执行范围", value: "回到合并开始前的状态：冲突文件和已暂存的合并结果都撤回；合并前已提交的内容不受影响。" }],
+        async execute() { await check(); await operationRun("git", root, ["merge", "--abort"]); return "已放弃这次合并"; } };
     }
   }
 }

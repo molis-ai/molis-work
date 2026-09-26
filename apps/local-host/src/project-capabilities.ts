@@ -19,7 +19,7 @@ import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef 
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { readWorkspaceFileCapability, readWorkspaceGitCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { readGitSummary, readPullRequestSupport } from "./git-operations.js";
+import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
@@ -77,10 +77,10 @@ export function registerProjectCapabilities(
   if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceGitCapability, async (runtime, query) => {
     const current = async () => ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     // Where committing, branching, pushing or a PR starts from; reads only.
-    if (query.kind === "summary" || query.kind === "pr-support") {
+    if (query.kind === "summary" || query.kind === "pr-support" || query.kind === "conflict") {
       const workspace = (await current()).find(item => item.workspace_id === query.workspace_id && item.realpath_verified);
       if (!workspace) return { outcome: "denied", message: "此工作区不属于当前项目或已取消授权" };
-      try { return query.kind === "summary" ? await readGitSummary(workspace) : await readPullRequestSupport(workspace); }
+      try { return query.kind === "summary" ? await readGitSummary(workspace) : query.kind === "conflict" ? await readConflictFile(workspace, query.path) : await readPullRequestSupport(workspace); }
       catch (error) { return { outcome: /not a git repository/i.test(String((error as { stderr?: unknown }).stderr ?? (error as Error).message)) ? "not-a-repository" : "error", message: error instanceof Error ? error.message : "读取 Git 失败" }; }
     }
     const granted = await current(), result = await readWorkspaceGit(query, granted);

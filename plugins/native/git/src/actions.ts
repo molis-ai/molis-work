@@ -27,6 +27,10 @@ function gitOperation(value: unknown): GitOperation {
     case "branch-switch": return { action: "branch-switch", name: text("name", 200) };
     case "push": return { action: "push", remote: text("remote", 200), set_upstream: input.set_upstream === true };
     case "pr-create": return { action: "pr-create", base: text("base", 200), title: text("title", 256), body: text("body", 20_000), draft: input.draft === true };
+    case "merge": return { action: "merge", branch: text("branch", 200) };
+    case "pull": return { action: "pull" };
+    case "resolve": return { action: "resolve", path: text("path", 1000), content: text("content", 1024 * 1024) };
+    case "merge-abort": return { action: "merge-abort" };
     default: throw new Error("不支持的 Git 操作");
   }
 }
@@ -113,6 +117,12 @@ export function gitActionHandlers(context: PluginStartContext, onReady: (ready: 
     bindOwnerPluginAction(context, gitActions.prSupport, async () => {
       const current = await workspace();
       return (await read({ workspace_id: current.workspace_id, kind: "pr-support" })).result;
+    }, reading),
+    // A file a merge or pull left conflicted, markers included, so the person can pick and edit before resolving.
+    bindOwnerPluginAction(context, gitActions.conflict, async (input) => {
+      const current = await workspace();
+      if (!input || typeof input.path !== "string" || !input.path) throw new Error("请选择冲突文件");
+      return (await read({ workspace_id: current.workspace_id, kind: "conflict", path: input.path })).result;
     }, reading),
     bindOwnerPluginAction(context, gitActions.operations, async () => {
       const current = await workspace();

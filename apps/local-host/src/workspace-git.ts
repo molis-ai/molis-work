@@ -10,7 +10,7 @@ import { readWorkspaceFile } from "./workspace-files.js";
 
 const run = promisify(execFile), TEXT_LIMIT = 256 * 1024;
 class GitReadError extends Error {
-  constructor(readonly outcome: Exclude<WorkspaceGitResult["outcome"], "status" | "diff" | "summary" | "pr-support">, message: string) { super(message); }
+  constructor(readonly outcome: Exclude<WorkspaceGitResult["outcome"], "status" | "diff" | "summary" | "pr-support" | "conflict-file">, message: string) { super(message); }
 }
 function failure(outcome: GitReadError["outcome"], message: string): never { throw new GitReadError(outcome, message); }
 export async function runWorkspaceGit(root: string, args: string[], maxBuffer = 8 * 1024 * 1024,

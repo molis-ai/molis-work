@@ -18,6 +18,7 @@ export function gitRoutes(context: PluginStartContext): PluginRouteBinding[] {
     // Source control: the repository's state, whether a PR can be opened, the operations asked for, and a new one.
     bindPluginActionRoute(context, gitActions.summary, () => ({})),
     bindPluginActionRoute(context, gitActions.prSupport, () => ({})),
+    bindPluginActionRoute(context, gitActions.conflict, request => ({ path: String(request.query?.path ?? "") })),
     bindPluginActionRoute(context, gitActions.operations, () => ({})),
     bindPluginActionRoute(context, gitActions.prepareOperation, request => request.body as InputOf<typeof gitActions.prepareOperation>)];
 }

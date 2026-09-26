@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { mkdtemp, writeFile, readFile, rm, realpath, chmod, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { readGitSummary, prepareGitOperation, readPullRequestSupport } from "../apps/local-host/src/git-operations.js";
+import { readGitSummary, prepareGitOperation, readPullRequestSupport, readConflictFile } from "../apps/local-host/src/git-operations.js";
 const exec = promisify(execFile);
 
 test("commit, branch, push and PR run only as reviewed, against the repository as it was when prepared", { timeout: 60_000 }, async () => {
@@ -69,4 +69,70 @@ test("commit, branch, push and PR run only as reviewed, against the repository a
     assert.equal(await pr.execute(), "已建 PR：https://github.com/acme/demo/pull/7");
     assert.match(await readFile(calls, "utf8"), /pr create --base main --head feature\/x --title Add a second line --body Why and what --draft/);
   } finally { process.env.PATH = originalPath; await rm(home, { recursive: true, force: true }); }
+});
+
+test("merge and pull stop on conflicts for the person to resolve file by file; resolving, finishing and aborting are each reviewed", { timeout: 60_000 }, async () => {
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), "git-merge-"))), root = path.join(home, "repo"), other = path.join(home, "other"), bare = path.join(home, "remote.git");
+  await mkdir(root);
+  const git = (...args: string[]) => exec("git", args, { cwd: root });
+  await exec("git", ["init", "-q", "--bare", bare]);
+  await git("init", "-q", "-b", "main"); await git("config", "user.name", "Fixture"); await git("config", "user.email", "fixture@example.invalid");
+  await writeFile(path.join(root, "a.txt"), "shared\nline\n"); await git("add", "."); await git("commit", "-qm", "base");
+  await git("remote", "add", "origin", bare); await git("push", "-q", "-u", "origin", "main");
+  const workspace = { workspace_id: "w", canonical_path: root, realpath_verified: true, display_name: "repo" } as never;
+  try {
+    // Two branches change the same line.
+    await git("switch", "-q", "-c", "topic"); await writeFile(path.join(root, "a.txt"), "shared\ntopic line\n"); await git("commit", "-qam", "topic");
+    await git("switch", "-q", "main"); await writeFile(path.join(root, "a.txt"), "shared\nmain line\n"); await git("commit", "-qam", "main");
+    let summary = await readGitSummary(workspace);
+    await assert.rejects(prepareGitOperation(workspace, summary.revision, { action: "merge", branch: "main" }), /合并到它自己/);
+    await assert.rejects(prepareGitOperation(workspace, summary.revision, { action: "merge", branch: "nope" }), /没有本地分支/);
+    const merge = await prepareGitOperation(workspace, summary.revision, { action: "merge", branch: "topic" });
+    assert.equal(merge.tool, "git-merge");
+    assert.match(await merge.execute(), /^有 1 个文件冲突：a\.txt。在 Git 面板逐个解决并提交/, "a merge that stops on conflicts says so rather than failing");
+    summary = await readGitSummary(workspace);
+    assert.equal(summary.merging, true); assert.deepEqual(summary.conflicted, ["a.txt"]);
+    await assert.rejects(prepareGitOperation(workspace, summary.revision, { action: "branch-switch", name: "topic" }), /未解决的冲突/);
+    const conflict = await readConflictFile(workspace, "a.txt");
+    assert.equal(conflict.conflicts, 1); assert.equal(conflict.ours, "main"); assert.match(conflict.text, /<<<<<<< HEAD\nmain line\n=======\ntopic line\n>>>>>>> topic/);
+    await assert.rejects(readConflictFile(workspace, "missing.txt"), /没有未解决的冲突/);
+    // A resolution with a marker left is refused; one without is written and staged, and only then can the merge be committed.
+    await assert.rejects(prepareGitOperation(workspace, summary.revision, { action: "resolve", path: "a.txt", content: conflict.text }), /还有冲突标记/);
+    const resolve = await prepareGitOperation(workspace, summary.revision, { action: "resolve", path: "a.txt", content: "shared\nmain line\ntopic line\n" });
+    assert.equal(resolve.tool, "git-resolve"); assert.match(resolve.fields.find(field => field.label === "解决后的内容")!.value, /topic line/);
+    assert.equal(await resolve.execute(), "已解决并暂存 a.txt");
+    summary = await readGitSummary(workspace);
+    assert.deepEqual(summary.conflicted, []); assert.equal(summary.merging, true);
+    assert.match(await (await prepareGitOperation(workspace, summary.revision, { action: "commit", message: "Merge topic" })).execute(), /^已提交 [0-9a-f]+ Merge topic$/);
+    assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "shared\nmain line\ntopic line\n");
+    assert.equal((await readGitSummary(workspace)).merging, false);
+
+    // Aborting returns to before the merge.
+    await git("switch", "-q", "-c", "topic2", "HEAD~1"); await writeFile(path.join(root, "a.txt"), "shared\nother line\n"); await git("commit", "-qam", "topic2"); await git("switch", "-q", "main");
+    summary = await readGitSummary(workspace);
+    await assert.rejects(prepareGitOperation(workspace, summary.revision, { action: "merge-abort" }), /没有进行中的合并/);
+    await (await prepareGitOperation(workspace, summary.revision, { action: "merge", branch: "topic2" })).execute();
+    summary = await readGitSummary(workspace);
+    assert.equal(await (await prepareGitOperation(workspace, summary.revision, { action: "merge-abort" })).execute(), "已放弃这次合并");
+    summary = await readGitSummary(workspace);
+    assert.equal(summary.merging, false); assert.equal(await readFile(path.join(root, "a.txt"), "utf8"), "shared\nmain line\ntopic line\n");
+
+    // Pull: someone else pushed a conflicting change; the pull stops on the conflict the same way.
+    await git("push", "-q", "origin", "main");
+    await exec("git", ["clone", "-q", "-b", "main", bare, other]);
+    const otherGit = (...args: string[]) => exec("git", args, { cwd: other });
+    await otherGit("config", "user.name", "Other"); await otherGit("config", "user.email", "other@example.invalid");
+    await writeFile(path.join(other, "a.txt"), "shared\nremote line\n"); await otherGit("commit", "-qam", "remote"); await otherGit("push", "-q", "origin", "main");
+    await writeFile(path.join(root, "a.txt"), "shared\nlocal line\n"); await git("commit", "-qam", "local"); await git("fetch", "-q");
+    summary = await readGitSummary(workspace);
+    // A tracked change blocks it; an untracked file does not.
+    await writeFile(path.join(root, "a.txt"), "shared\nlocal line\nedited\n");
+    await assert.rejects(prepareGitOperation(workspace, (await readGitSummary(workspace)).revision, { action: "pull" }), /未提交的改动/);
+    await git("checkout", "--", "a.txt"); await writeFile(path.join(root, "notes.txt"), "untracked\n");
+    summary = await readGitSummary(workspace);
+    const pull = await prepareGitOperation(workspace, summary.revision, { action: "pull" });
+    assert.equal(pull.tool, "git-pull");
+    assert.match(await pull.execute(), /^有 1 个文件冲突：a\.txt/);
+    assert.deepEqual((await readGitSummary(workspace)).conflicted, ["a.txt"]);
+  } finally { await rm(home, { recursive: true, force: true }); }
 });

@@ -21,11 +21,13 @@ export function renderGitBrowserDirectory(): string {
         <label class="mw-field"><span class="mw-field__label">新建分支</span><input class="mw-input" data-git-branch-name placeholder="例如 feature/checkin-count" autocomplete="off" spellcheck="false"></label>
         <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-branch-checkout checked><span>建好后切换过去</span></label>
         <button class="mw-btn mw-btn--secondary" type="button" data-git-branch-create>新建…</button>
+        <label class="mw-field"><span class="mw-field__label">合并到当前分支</span><select class="mw-select" data-git-merge-choice aria-label="合并进来的分支"></select></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-merge>合并…</button>
       </form>
       <label class="mw-sr-only" for="git-commit-message">提交说明</label>
       <textarea class="mw-textarea git-sc-message" id="git-commit-message" data-git-commit-message rows="3" placeholder="提交说明（第一行是标题）" spellcheck="false"></textarea>
       <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-commit-draft>按暂存内容生成</button><button class="mw-btn mw-btn--primary" type="button" data-git-commit disabled>提交…</button></div>
-      <div class="git-sc-actions"><button class="mw-btn mw-btn--secondary" type="button" data-git-push disabled>推送…</button><button class="mw-btn mw-btn--ghost" type="button" data-git-pr-toggle aria-expanded="false">建 PR…</button></div>
+      <div class="git-sc-actions"><button class="mw-btn mw-btn--secondary" type="button" data-git-pull disabled>拉取…</button><button class="mw-btn mw-btn--secondary" type="button" data-git-push disabled>推送…</button><button class="mw-btn mw-btn--ghost" type="button" data-git-pr-toggle aria-expanded="false">建 PR…</button></div>
       <form class="git-sc-form" data-git-pr-form hidden>
         <p class="git-sc-note" data-git-pr-support></p>
         <label class="mw-field"><span class="mw-field__label">合并到</span><select class="mw-select" data-git-pr-base aria-label="PR 目标分支"></select></label>
@@ -34,6 +36,18 @@ export function renderGitBrowserDirectory(): string {
         <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-pr-draft><span>作为草稿</span></label>
         <button class="mw-btn mw-btn--secondary" type="button" data-git-pr-create>建 PR…</button>
       </form>
+      <section class="git-sc-conflicts" data-git-conflicts aria-label="合并冲突" hidden>
+        <p class="git-sc-note" data-git-conflict-note></p>
+        <ul class="git-sc-conflict-list" data-git-conflict-list></ul>
+        <div class="git-sc-conflict-editor" data-git-conflict-editor hidden>
+          <p class="git-sc-note" data-git-conflict-file></p>
+          <div class="git-sc-picks" data-git-conflict-picks></div>
+          <textarea class="mw-textarea git-sc-conflict-text" rows="14" data-git-conflict-text spellcheck="false" aria-label="冲突文件内容，可直接编辑"></textarea>
+          <p class="git-sc-note" data-git-conflict-state role="status"></p>
+          <div class="git-sc-actions"><button class="mw-btn mw-btn--primary" type="button" data-git-conflict-resolve disabled>标记为已解决…</button></div>
+        </div>
+        <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-merge-abort>放弃合并…</button></div>
+      </section>
       <p class="git-sc-note" data-git-sc-status role="status"></p>
       <ol class="git-sc-log" data-git-operations aria-label="最近的 Git 操作"></ol>
     </section>

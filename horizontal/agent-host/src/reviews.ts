@@ -125,7 +125,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       || operation.kind === "git-index" && operation.workspace_id && request.kind === "git-index" && request.document.kind === "git-index" && request.plugin_id === "io.molis.work.git"
       || operation.kind === "git-integration" && operation.workspace_id && request.kind === "git-integration" && request.document.kind === "git-integration" && request.plugin_id === "io.molis.work.coding"
       || operation.kind === "git-worktree" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && request.document.tool === "git-worktree-create" && request.plugin_id === "io.molis.work.coding"
-      || operation.kind === "git-operation" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && /^git-(commit|branch-create|branch-switch|push|pr-create)$/.test(request.document.tool) && request.plugin_id === "io.molis.work.git");
+      || operation.kind === "git-operation" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && /^git-(commit|branch-create|branch-switch|push|pr-create|merge|pull|resolve|merge-abort)$/.test(request.document.tool) && request.plugin_id === "io.molis.work.git");
     if ((request.run === null) !== Boolean(operation) || operation && !manual) {
       throw new AgentReviewError("agent.review_unknown", "审查必须属于实际轮次或明确的宿主操作");
     }

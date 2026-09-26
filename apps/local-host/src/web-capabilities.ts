@@ -57,6 +57,7 @@ export async function capabilitiesView(options: {
     };
   }
   if (section === "history") {
+    model.calls = host.callLog?.list(project ? project.project_id : null) ?? [];
     const store = openFunctionsStore(homeDirectory);
     try {
       // Existing scene records use board_id; direct action invocations use canonical project_id.

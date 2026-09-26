@@ -18,6 +18,8 @@ export interface CapabilitiesView {
   reported_usages?: readonly { usage_id: string; title: string; detail?: string; enabled: boolean; href?: string; reporter: string }[];
   usage_issues?: readonly string[];
   history?: readonly JudgmentRecord[];
+  /** Recent commands in this scope: what ran, for whom, how it ended. No inputs are kept. */
+  calls?: readonly { at: string; capability_id: string; version: number; provider_title: string; title: string; actor_id: string; audience: string; ok: boolean; code?: string; message?: string }[];
   query: string;
   kind: string;
   /** Synthetic content is only supplied by the preview fixture. */
@@ -75,8 +77,17 @@ export function createCapabilitiesRenderer(p: SettingsRenderPrimitives, model: C
     const actions = model.actions.filter(item => (!model.kind || item.action.kind === model.kind) && (!needle || `${item.action.title} ${item.action.description} ${item.provider.title} ${item.capability_id}`.toLocaleLowerCase().includes(needle)));
     return `<section class="capability-library${(model.selected || model.selection_error) ? " has-selection" : ""}"><header class="capability-heading"><h1>${L("能力库")}</h1><a class="capability-rules-link" href="${href("library").replace("/capabilities/library", "/capabilities/rules")}">${L("编辑判断规则")}</a><p>${L("查看能做什么，以及当前使用条件。")}</p>${model.preview ? `<p role="status">${L("交互预览 · 示例数据，不会执行真实操作")}</p>` : ""}${scopeForm()}</header><div class="capability-browser"><section class="capability-index" aria-label="${L("能力列表")}"><p class="capability-count" role="status">${L("共 {count} 项", { count: actions.length })}</p><nav>${actions.map(action => `<a class="capability-row" href="${href("library", { ...filters, action: action.capability_id, version: String(action.version) })}"${action.capability_id === model.selected?.capability_id && action.version === model.selected.version ? ' aria-current="true"' : ""}><span><strong>${e(action.action.title)}</strong><small>${e(action.provider.title)} · ${L(kinds[action.action.kind]!)} · v${action.version}</small></span>${status(action)}</a>`).join("")}</nav>${actions.length ? "" : `<div class="settings-empty"><strong>${L(model.actions.length ? "没有符合条件的能力" : "当前范围还没有能力")}</strong><span>${L("尝试其他搜索条件，或切换项目范围。")}</span></div>`}</section>${model.selected ? detail(model.selected) : `<div class="capability-empty">${model.selection_error ? `<a class="capability-back" href="${href("library", filters)}">${L("返回能力列表")}</a>` : ""}<h2>${L(model.selection_error ? "能力已不可访问" : "选择一项能力")}</h2><p>${e(L(model.selection_error ?? "查看用途、所需输入和实际使用位置。"))}</p></div>`}</div></section>`;
   }
+  const CALLER: Record<string, string> = { user: "你", agent: "内置 Agent", workflow: "工作流程", mcp: "MCP 客户端", plugin: "插件" };
   function history(): string {
-    return `<section class="settings-document"><header class="settings-heading"><h1>${L("调用记录")}</h1><p>${L("当前显示已保存的判断记录，其他能力的调用记录尚未接入。")}</p>${scopeForm()}</header><div class="capability-history">${model.history?.length ? model.history.map(row => `<article><header><strong>${e(row.function_key)} · v${row.function_version}</strong><span>${e(row.outcome)}</span></header><p>${e(row.scene_id ?? L("直接调用"))} · ${e(row.subject.id)}</p><time datetime="${e(row.created_at)}">${e(row.created_at)}</time>${row.error_code ? `<p>${L("失败原因")}：${e(row.error_code)}</p>` : ""}${row.suggested_behavior_ids.length ? `<p>${L("建议")}：${e(row.suggested_behavior_ids.join(", "))}</p>` : ""}</article>`).join("") : `<div class="settings-empty"><strong>${L("当前范围没有判断记录")}</strong><span>${L("规则执行并保存结果后，会显示在这里。")}</span></div>`}</div></section>`;
+    const calls = model.calls ?? [];
+    const callList = calls.length ? `<div class="capability-history">${calls.map(row => `<article><header><strong>${e(row.title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${L(row.ok ? "成功" : "失败")}</span></header>`
+      + `<p>${e(row.provider_title)} · ${L(CALLER[row.audience] ?? row.audience)}${row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : ""} · <code>${e(row.capability_id)}@${row.version}</code></p>`
+      + `<time datetime="${e(row.at)}">${e(row.at)}</time>${row.ok ? "" : `<p>${L("失败原因")}：${e(row.message ?? row.code ?? "")}</p>`}</article>`).join("")}</div>`
+      : `<div class="settings-empty"><strong>${L("当前范围还没有执行过的操作")}</strong><span>${L("通过界面、首页、工作流程、Agent 或 MCP 执行操作后，会显示在这里。")}</span></div>`;
+    const judgments = model.history?.length ? `<div class="capability-history">${model.history.map(row => `<article><header><strong>${e(row.function_key)} · v${row.function_version}</strong><span>${e(row.outcome)}</span></header><p>${e(row.scene_id ?? L("直接调用"))} · ${e(row.subject.id)}</p><time datetime="${e(row.created_at)}">${e(row.created_at)}</time>${row.error_code ? `<p>${L("失败原因")}：${e(row.error_code)}</p>` : ""}${row.suggested_behavior_ids.length ? `<p>${L("建议")}：${e(row.suggested_behavior_ids.join(", "))}</p>` : ""}</article>`).join("")}</div>`
+      : `<div class="settings-empty"><strong>${L("当前范围没有判断记录")}</strong><span>${L("规则执行并保存结果后，会显示在这里。")}</span></div>`;
+    return `<section class="settings-document"><header class="settings-heading"><h1>${L("调用记录")}</h1><p>${L("最近执行的操作和已保存的判断。只记录谁在何时调用了什么、结果如何；不保存输入与返回内容，失败时保留错误说明。查询类能力不记录。")}</p>${scopeForm()}</header>`
+      + `<section><h2>${L("操作")}</h2>${callList}</section><section><h2>${L("判断记录")}</h2>${judgments}</section></section>`;
   }
   return { navigation, library, history };
 }

@@ -97,7 +97,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 事项按合同类型动态发现；动作按 offers 合同由各插件准备、首页复核后执行（Feed 消息、Inbox 事项、未知插件）；“说一句”按对象上下文选择会话并真实发送（见下文专节）。本地网页调用者的原生权限改由原生清单派生，不再手写 |
 | 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身动作与 F4 幂等交接/中断恢复已完成；判断规则交接与通用字段映射动作步骤已完成 |
 | Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 大部分完成：Agent/Character 精确能力选择经 AgentHost、Prologue 正式工具扩展与原审查队列执行（见“Agent 实际工具执行与 F1–F3 审查修复”）；角色管理本身已是 `characters.*` 动作。浏览器能力选择的最终复跑仍待完成 |
-| 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；能力库对每项能力显示「可用在哪」（调用方、首页事项、判断场景）与「已用在哪」（场景绑定 + 各使用方上报）；全量授权/调用历史待完成 |
+| 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；能力库对每项能力显示「可用在哪」（调用方、首页事项、判断场景）与「已用在哪」（场景绑定 + 各使用方上报）；调用记录显示最近执行的操作（元数据，不含输入/结果）与判断记录；四个分区桌面/窄屏已实操 |
 | 生成与开发 | plugins/native/plugin-builder, packages/plugin-sdk, tooling/plugin-cli, skills/molis-plugin-dev | 默认注册能力和消费场景 | 未迁移 |
 
 ## 验证
@@ -1449,3 +1449,9 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 来源服务按每次调用构建，拉取带来的新消息所触发的捕捉、首页和 Inbox 判断使用该调用者的身份与权限（固定到发起它的 Feed 动作），与网页路径对本地用户的做法一致，不再借用固定身份。
 - 仍在设置页、不作为动作：连接器令牌、GitHub 设备码、Gmail OAuth 回调——这些流程携带密钥，属于「服务连接」本机设置。
 - 验证：`tests/feed-source-actions.test.ts`（添加/重复添加/缺字段、改名、计划与非法计划、暂停、公开来源拒绝断开、MCP 看不到断开、旧路由 201/200/400/404 与删除必须选择历史处理）；Feed/来源/连接器/首页相关 212 项中 206 项通过，6 项失败中 5 项在 main 上同样失败，1 项为本分支早先移除 behaviors 后遗留的过时断言，已改为检查清单不再声明 behaviors。浏览器实操（1280）：Feed「添加来源」→ POST 201；改名保存 → PATCH 200；暂停 → 200，界面显示已暂停。
+
+## 调用记录覆盖所有操作（2026-09-26）
+
+- Kernel 的执行包装在处理器结束后报告「哪个能力、谁调用、成功或失败」，从不携带输入与结果；报告失败不影响调用本身。Local Host 通过 `actionSettled` 转交给 Home 的 `logs/action-calls.jsonl`，只记录 `operation: command`（查询被页面持续轮询、且不改变任何东西），最多保留约 1000–2000 条并原子重写。
+- 「调用记录」页按项目/全局显示最近操作（能力名称、提供方、调用方：你/内置 Agent/工作流程/MCP 客户端/插件、能力身份、时间、成功或失败及错误说明），与原判断记录并列；页面文案说明不保存输入与返回内容、失败时保留错误说明。嵌套调用各自记录（例如首页执行事项动作与其实际执行的 Feed 动作）。
+- 验证：`tests/action-call-log.test.ts`（成功/失败命令都记录，查询不记录，其他范围看不到，输入文本不会写入文件）；核心动作/Host/Runtime/MCP 相关 47 项通过。浏览器：首页执行「恢复到 Feed」后，调用记录显示「执行事项动作」与「恢复到 Feed」两条成功记录；服务重启后仍在；1280 与 390 下四个分区（能力库、服务连接、对外接入、调用记录）均实操，无横向溢出。

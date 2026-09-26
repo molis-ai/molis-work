@@ -33,6 +33,9 @@ export interface LocalHostOptions<Runtime> {
     before(runtime: Runtime, reference: LocalHostProjectReference, capability: HostCapabilityDefinition, input: unknown, caller: ActionCallContext): unknown;
     after(runtime: Runtime, ticket: unknown, result: unknown, threw: boolean): void;
   };
+  /** Every action handler that ran, with its caller and outcome; never its input or result. */
+  actionSettled?(caller: ActionCallContext, action: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference & { operation: string; title: string; provider_title: string },
+    outcome: { ok: true } | { ok: false; code?: string; message: string }): void;
 }
 
 /** How long one queued project operation may hold everything else of the project before the log names it. */
@@ -96,7 +99,7 @@ export class LocalHost<Runtime> {
     assertActive();
     await this.checkActionAvailability(caller, reference);
     assertActive();
-  } });
+  }, settled: (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome) });
   private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
   /** A restriction on legacy SDK adapters, independent of their existing action audience. */
   private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();

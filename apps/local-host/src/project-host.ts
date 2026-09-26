@@ -24,6 +24,7 @@ import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions
 import { experimentsActionProvider } from "./experiments-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
+import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
@@ -115,12 +116,16 @@ export class MolisWorkLocalHost {
   private agents?: { home: string; service: AgentHostComposition };
   private closing?: Promise<void>;
   private readonly sessions: SessionRuntimeService;
+  /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
+  readonly callLog?: ActionCallLog;
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     this.sessions = new SessionRuntimeService(options);
     this.personalPlanningHome = options.homeDirectory ? path.resolve(options.homeDirectory) : undefined;
+    if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
+      actionSettled: (caller, action, outcome) => this.callLog?.record(caller, action, outcome),
       actionAvailability: options.actionAvailability,
       sceneAvailability: options.sceneAvailability,
       observation: {

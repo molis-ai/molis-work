@@ -1,5 +1,6 @@
 import type { RunStage, RunStatus } from "../kernel/run.js";
 import type { ResearchBudget } from "./budget.js";
+import type { ReuseSnapshot } from "../../../work-reuse/contracts.js";
 
 export const lensKinds = ["market_space", "build_cost"] as const;
 export type LensKind = (typeof lensKinds)[number];
@@ -33,6 +34,7 @@ export interface ResearchPlan {
   estimatedDuration: { minMinutes: number; maxMinutes: number };
   budget: ResearchBudget;
   appliedPlaybookRuleIds: readonly string[];
+  reuse?: ReuseSnapshot;
   createdAt: string;
 }
 

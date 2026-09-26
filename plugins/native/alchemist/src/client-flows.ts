@@ -5,14 +5,20 @@ export const ALCHEMIST_FLOWS = String.raw`
   function show(title,html,label,submit){returnFocus=document.activeElement;dialog.querySelector('h2').textContent=L(title);dialogBody.innerHTML=html;formError('');dialogSubmit.textContent=L(label);dialogSubmit.hidden=false;onSubmit=submit;if(!dialog.open)dialog.showModal();dialogBody.querySelector('textarea,input')?.focus();}
   function closeDialog(){if(formBusy)return;dialog.close();onSubmit=null;returnFocus?.isConnected&&returnFocus.focus();}
   async function plan(){
-    runtime=await api('/settings/runtime');const chosen={...current},lens=chosen.panel==='market'?'market_space':'build_cost';
-    show('确认研究范围',modelChoices()+field('调用上限','limit',{type:'number',value:runtime.defaultBudgets[lens==='market_space'?'marketSpace':'buildCost'].limit,required:true})+'<p class="alc-muted">'+tx('一次搜索（含最多 3 个网页提取）或一次模型请求，各计 1 次。费用由供应商收取。')+'</p>'+(!runtime.configured?modelSettingsLink():''),'生成研究计划',async f=>{
+    const chosen={...current},lens=chosen.panel==='market'?'market_space':'build_cost';
+    show('确认研究范围',paragraphs(L('正在读取可沿用的成果与方法…')),'生成研究计划',null);dialogSubmit.hidden=true;
+    runtime=await api('/settings/runtime');
+    reuseContext={intent:(model.title+' '+(model.problem||'')).slice(0,2000),directionId:data.ideas.find(i=>i.id===chosen.id)?.directionId,...(research?.lenses[lens]?.report?{reportId:research.lenses[lens].report.id}:{})};
+    reuseChoices=await api('/reuse/candidates',reuseContext);if(!dialog.open||!sameCurrent(chosen))return;if(lens!=='market_space')reuseChoices.methods=[];
+    reuseDraftKey=persistenceKey+':reuse:'+chosen.id+':'+chosen.version+':'+lens;
+    show('确认研究范围',modelChoices()+field('调用上限','limit',{type:'number',value:runtime.defaultBudgets[lens==='market_space'?'marketSpace':'buildCost'].limit,required:true})+'<p class="alc-muted">'+tx('一次搜索（含最多 3 个网页提取）或一次模型请求，各计 1 次。预算允许时，格式无效可纠错一次；仍无效就停止。费用由供应商收取。')+'</p>'+renderReuseChoices(reuseChoices,esc,L)+(!runtime.configured?modelSettingsLink():''),'生成研究计划',async f=>{
       if(!runtime.models.length)throw new Error(L('请先在宿主设置里配置模型。'));const selected=f.get('model');if(!selected)throw new Error(L('请选择研究模型。'));
-      const r=await api('/ideas/'+enc(chosen.id)+'/lenses/'+lens+'/plans',{ideaVersion:chosen.version,modelPolicy:selected==='auto'?'auto':'fixed',...(selected==='auto'?{}:{modelId:selected}),budget:{kind:'calls',limit:Number(f.get('limit'))}});
-      const p=r.plan;show('确认开始研究',paragraphs(p.scopeSummary)+section('研究模型',runtime.models.find(m=>m.id===p.modelId)?.label||L('使用可用模型'))+section('调用上限',String(p.budget.limit))+paragraphs(L('应用研究方法')+' · '+p.appliedPlaybookRuleIds.length),'开始研究',async()=>{await api('/ideas/'+enc(chosen.id)+'/lenses/'+lens+'/runs',{planId:p.id});closeAfterSubmit();await load();if(sameCurrent(chosen))await open(chosen,false);});
-    });
+      const reuse=selectedReuse(f);if(reuse.artifacts.some(a=>!a.reason))throw new Error(L('请说明沿用理由与仍需重核的内容。'));
+      const r=await api('/ideas/'+enc(chosen.id)+'/lenses/'+lens+'/plans',{ideaVersion:chosen.version,modelPolicy:selected==='auto'?'auto':'fixed',...(selected==='auto'?{}:{modelId:selected}),budget:{kind:'calls',limit:Number(f.get('limit'))},reuse});
+      try{sessionStorage.removeItem(reuseDraftKey)}catch{}await startPrepared(r.plan,chosen);
+    });restoreReuseDraft();
   }
-  async function sources(){const r=await api('/pulse/sources');show('市场脉搏来源','<fieldset class="alc-radios">'+r.sources.map(s=>'<label><input class="mw-checkbox" type="checkbox" name="'+esc(s.sourceId)+'" '+(s.enabled?'checked':'')+'><span>'+esc(s.label)+'<br><small>'+esc(s.capability)+' '+esc(s.limitation)+'</small></span></label>').join('')+'</fieldset>','保存来源',async f=>{for(const s of r.sources)if(s.enabled!==f.has(s.sourceId))await api('/pulse/sources/'+enc(s.sourceId),{enabled:f.has(s.sourceId)},'PATCH');closeAfterSubmit();notice(L('来源设置已保存。'));});}
+  async function sources(){const r=await api('/pulse/sources');show('市场脉搏来源','<fieldset class="alc-radios">'+r.sources.map(s=>'<label><input class="mw-check" type="checkbox" name="'+esc(s.sourceId)+'" '+(s.enabled?'checked':'')+'><span>'+esc(s.label)+'<br><small>'+esc(s.capability)+' '+esc(s.limitation)+'</small></span></label>').join('')+'</fieldset>','保存来源',async f=>{for(const s of r.sources)if(s.enabled!==f.has(s.sourceId))await api('/pulse/sources/'+enc(s.sourceId),{enabled:f.has(s.sourceId)},'PATCH');closeAfterSubmit();notice(L('来源设置已保存。'));});}
   async function runtimeForm(){runtime=await api('/settings/runtime');show('模型与预算',modelChoices()+field('市场空间默认调用上限','market',{type:'number',value:runtime.defaultBudgets.marketSpace.limit,required:true})+field('实现成本默认调用上限','cost',{type:'number',value:runtime.defaultBudgets.buildCost.limit,required:true})+modelSettingsLink(),'保存',async f=>{const m=f.get('model');if(!m)throw new Error(L('请选择研究模型。'));runtime=await api('/settings/runtime',{modelPolicy:m==='auto'?'auto':'fixed',modelId:m==='auto'?'':m,defaultBudgets:{marketSpace:{kind:'calls',limit:Number(f.get('market'))},buildCost:{kind:'calls',limit:Number(f.get('cost'))}}},'PUT');closeAfterSubmit();await open({kind:'settings'},false);});}
   function calibration(id){show('校准研究方法',field('以后具体怎样研究或判断','method',{area:true,required:true,max:2000})+field('正例（每行一条）','positive',{area:true})+field('反例（每行一条）','negative',{area:true})+'<fieldset class="alc-radios"><legend>'+tx('作用范围')+'</legend>'+[['report','仅本报告'],['direction','当前方向'],['global_market_space','所有后续市场研究']].map(([v,label])=>'<label><input class="mw-radio" type="radio" name="scope" value="'+v+'" required>'+tx(label)+'</label>').join('')+'</fieldset>','预览变更',async f=>{const r=await api('/annotations/'+enc(id)+'/playbook-proposals',{methodChange:f.get('method'),positiveExamples:lines(f.get('positive')),negativeExamples:lines(f.get('negative')),scopeKind:f.get('scope')});show('确认研究方法',paragraphs(r.proposal.summary)+r.proposal.diff.map(d=>section(d.field,d.after)).join('')+paragraphs(r.proposal.versionImpact)+paragraphs(r.proposal.costImpact)+paragraphs(r.proposal.memoryImpact),'确认保存方法',async()=>{await api('/action-proposals/'+enc(r.proposal.id)+'/apply',{});closeAfterSubmit();await showSide('annotations');});});}
   async function showSide(mode){
@@ -35,16 +41,37 @@ export const ALCHEMIST_FLOWS = String.raw`
     if(name==='close'){closeDialog();return;}
     if(name==='side-close'){side.hidden=true;sideMode='';if(current?.kind==='idea'&&['market','cost'].includes(current.panel)&&research&&JSON.stringify(research)!==detailSignature){const scroll=content.scrollTop;renderResearch(research);content.scrollTop=scroll;detailSignature=JSON.stringify(research);$('[data-alc-action=annotations]').hidden=!target;}return;}
     if(name==='reload'){await load();if(current)await open(current,false);notice('');return;}
+    if(name==='archived-toggle'){showArchived=!showArchived;renderList();return;}
     if(name==='new'){let created=null;show('新建方向',field('你想探索的问题','description',{area:true,rows:5,required:true,max:4000})+'<p class="alc-muted">'+tx('从一个具体的人和场景开始，AI 会给出不同的候选机制。')+'</p>','保存并炼化',async f=>{const r=created||(created=await api('/directions',{description:f.get('description')}));await api('/directions/'+enc(r.direction.id)+'/explorations',{});closeAfterSubmit();collection='directions';await load();await open({kind:'direction',id:r.direction.id});});return;}
     if(name==='settings'){await open({kind:'settings'});return;}
     if(name==='runtime'){await runtimeForm();return;}
     if(name==='sources'){await sources();return;}
     if(name==='pulse-start'){await api('/pulse/runs',{});collection='pulse';await load();notice(L('正在采集，完成后会出现在报告列表中。'));return;}
     if(name==='explore'){await api('/directions/'+enc(current.id)+'/explorations',{});await load();await open(current,false);return;}
+    if(name==='edit-direction'){
+      const d=data.directions.find(item=>item.id===current?.id);if(!d)return;
+      show('编辑方向',field('标题','title',{required:true,value:d.title})+field('探索描述','description',{area:true,rows:5,required:true,max:4000,value:d.description}),'保存',async f=>{
+        await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('description')},'PATCH');closeAfterSubmit();await load();await open(current,false);
+      });return;
+    }
+    if(name==='archive-direction'||name==='restore-direction'){
+      const archived=name==='archive-direction';
+      if(archived&&!confirm(L('归档这个方向？相关点子和研究记录会保留。')))return;
+      await api('/directions/'+enc(current.id)+'/status',{status:archived?'archived':'active'},'PATCH');
+      await load();closeDetail();return;
+    }
     if(name==='card'){await open({kind:'card',id:el.dataset.id});return;}
     if(name==='keep'){const r=await api('/idea-cards/'+enc(current.id)+'/keep',{});await load();collection='ideas';await open({kind:'idea',id:r.idea.id,version:r.version.revision.version,panel:'brief'});return;}
     if(name==='discard'||name==='restore'){await api('/idea-cards/'+enc(current.id)+'/'+name,{});await load();await open(current,false);return;}
     if(['brief','market','cost','decision'].includes(name)){await open({...current,panel:name});return;}
+    if(name==='reuse-pending'){await pendingMethods();return;}
+    if(name==='reuse-apply-proposal'||name==='reuse-reject-proposal'){await api('/action-proposals/'+enc(el.dataset.id)+(name==='reuse-apply-proposal'?'/apply':'/reject'),{});await pendingMethods();return;}
+    if(name==='reuse-assess'){await assessReuse();return;}
+    if(name==='reuse-publish'){const r=await api('/reuse/publish',{reportId:el.dataset.report});notice(L('已保存固定版本')+' · v'+r.reference.version);return;}
+    if(name==='reuse-receipt'){await reuseReceipt(el.dataset.plan);return;}
+    if(name==='reuse-reconcile'){await api('/reuse/receipts/'+enc(el.dataset.plan)+'/reconcile',{});await reuseReceipt(el.dataset.plan);return;}
+    if(name==='revise-playbook'){await revisePlaybook(el.dataset.id);return;}
+    if(name==='resume-plan'){await startPrepared(research.lenses[current.panel==='market'?'market_space':'build_cost'].plan,{...current});return;}
     if(name==='plan'){await plan();return;}
     if(name==='cancel'){await api('/runs/'+enc(el.dataset.job)+'/cancel',{});await load();await open(current,false);return;}
     if(name==='decide'){const chosen={...current},outcome=el.dataset.outcome;show('记下决定',paragraphs(L(states[outcome]))+field('决策理由','reason',{area:true,required:true,max:1000})+field('下一步或回看条件','revisit',{area:true,max:1000}),'确认决定',async f=>{await api('/ideas/'+enc(chosen.id)+'/versions/'+chosen.version+'/decision',{outcome,reason:f.get('reason'),revisitCondition:f.get('revisit')});closeAfterSubmit();await load();if(sameCurrent(chosen))await open(chosen,false);});return;}

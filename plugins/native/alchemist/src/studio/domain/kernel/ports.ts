@@ -6,6 +6,8 @@ export interface StructuredGenerationRequest<Result> {
   jsonSchema: Record<string, unknown>;
   parse(value: unknown): Result;
   signal?: AbortSignal;
+  /** Repeatable revocation check; Host must compose it at the final model dispatch boundary. */
+  beforeModelDispatch?: () => Promise<void>;
 }
 
 export interface GenerationResult<Result> {

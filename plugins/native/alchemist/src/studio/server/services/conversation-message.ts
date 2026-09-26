@@ -1,41 +1,25 @@
-import type { Hono } from "hono";
 import { z } from "zod";
-import { createConversationMessageSchema } from "../../shared/contracts/conversation.js";
+import type { AlchemistOperationInput } from "../../shared/contracts/actions.js";
 import type { ConversationContext } from "../../domain/conversation/context.js";
 import { buildLensCompatibilityKey, marketLensCompatibilityKey } from "../../domain/research/lens.js";
-import type { ApiDependencies } from "./dependencies.js";
+import type { ApiDependencies } from "../api/dependencies.js";
+import { AlchemistOperationError } from "./action-error.js";
 
-export function registerConversationRoutes(app: Hono, dependencies: ApiDependencies): void {
-  app.get("/api/v1/conversation/messages", (context) =>
-    context.json({ messages: dependencies.conversations.list(dependencies.workspaceId) }),
-  );
-
-  app.post("/api/v1/conversation/messages", async (context) => {
-    const body = await context.req.json().catch(() => undefined);
-    const parsed = createConversationMessageSchema.safeParse(body);
-    if (!parsed.success) {
-      return context.json(
-        {
-          code: "CONVERSATION_MESSAGE_INVALID",
-          message: "消息或当前讨论上下文不完整。",
-          recovery: "保留当前页面，重新输入消息后再发送。",
-        },
-        400,
-      );
-    }
-    const object = resolveContext(parsed.data.context, dependencies);
-    if (object === undefined) return context.json({ code: "CONVERSATION_CONTEXT_NOT_FOUND", message: "当前讨论对象已不可读取，请重新选择。" }, 404);
+export async function sendConversationMessage(dependencies: ApiDependencies, input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal) {
+    const object = resolveContext(input.context, dependencies);
+    if (object === undefined) throw new AlchemistOperationError("CONVERSATION_CONTEXT_NOT_FOUND", "当前讨论对象已不可读取，请重新选择。", 404);
     const history = dependencies.conversations.list(dependencies.workspaceId)
-      .filter(item => contextKey(item.context) === contextKey(parsed.data.context) && item.responseState === "complete")
+      .filter(item => contextKey(item.context) === contextKey(input.context) && item.responseState === "complete")
       .slice(-20).map(item => ({ role: item.author, text: item.body }));
     const realRuntime = await dependencies.runtimeSettings.isRealEnabled();
+    signal?.throwIfAborted();
     const message = dependencies.conversations.create({
       id: dependencies.idFactory.next("message"),
       workspaceId: dependencies.workspaceId,
       actorId: dependencies.actorId,
       author: "user",
-      body: parsed.data.body,
-      context: parsed.data.context,
+      body: input.body,
+      context: input.context,
       responseState: realRuntime ? "complete" : "runtime_unavailable",
       createdAt: dependencies.clock.now(),
     });
@@ -47,26 +31,27 @@ export function registerConversationRoutes(app: Hono, dependencies: ApiDependenc
           purpose: "围绕当前 Direction、Idea 或报告与创始人继续讨论",
           systemPrompt:
             "你是炼金术士的 Founder Copilot。围绕给定对象正文与此前讨论直接回应用户，区分证据、推断与未知。Founder Taste 是有适用范围与例外的个人偏好，不是市场证据。不要静默修改业务对象或长期 Memory。",
-          userPrompt: JSON.stringify({ context: parsed.data.context, object, history, message: parsed.data.body,
+          userPrompt: JSON.stringify({ context: input.context, object, history, message: input.body,
             founderTaste: dependencies.memory.listTasteRules(dependencies.workspaceId).filter(rule => rule.status === "active")
               .map(rule => ({ title: rule.title, statement: rule.statement, appliesTo: rule.appliesTo, exceptions: rule.exceptions })) }),
           jsonSchema: z.toJSONSchema(schema) as Record<string, unknown>,
           parse: (value) => schema.parse(value),
-          signal: context.req.raw.signal,
+          signal,
         });
+        signal?.throwIfAborted();
         const assistantMessage = dependencies.conversations.create({
           id: dependencies.idFactory.next("message"),
           workspaceId: dependencies.workspaceId,
           actorId: dependencies.actorId,
           author: "assistant",
           body: result.value.reply,
-          context: parsed.data.context,
+          context: input.context,
           responseState: "complete",
           parentMessageId: message.id,
           runtimeLabel: result.runtimeLabel,
           createdAt: dependencies.clock.now(),
         });
-        return context.json({ message, assistantMessage }, 201);
+        return { message, assistantMessage };
       } catch {
         const assistantMessage = dependencies.conversations.create({
           id: dependencies.idFactory.next("message"),
@@ -74,25 +59,21 @@ export function registerConversationRoutes(app: Hono, dependencies: ApiDependenc
           actorId: dependencies.actorId,
           author: "assistant",
           body: "真实 AI 运行时暂时失败；你的消息和上下文已经保存，可以重试。",
-          context: parsed.data.context,
+          context: input.context,
           responseState: "failed",
           parentMessageId: message.id,
           createdAt: dependencies.clock.now(),
         });
-        return context.json({ message, assistantMessage }, 201);
+        return { message, assistantMessage };
       }
     }
-    return context.json(
-      {
+    return {
         message,
         assistant: {
           state: "runtime_unavailable",
           message: "真实 AI 运行时尚未接入；你的消息和上下文已经保存。",
         },
-      },
-      201,
-    );
-  });
+    };
 }
 
 function contextKey(context: ConversationContext): string {

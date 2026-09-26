@@ -8,7 +8,7 @@ import { DISCOVERY_PULSE_JOB, type DiscoveryPulseJobInput } from "../services/st
 import { JobExecutionError, type JobHandler, type JobHandlerControl } from "./local-worker.js";
 import type { PersistedJob } from "./sqlite-job-runner.js";
 
-const inputSchema = z.object({ pulseRunId: z.string().min(1), periodStart: z.string().datetime() }).strict();
+const inputSchema = z.object({ pulseRunId: z.string().min(1), periodStart: z.string().datetime(), actorId: z.string().min(1).optional() }).strict();
 
 type PulseCheckpoint =
   | { stage: "planning_complete" }
@@ -45,19 +45,19 @@ async function handlePulseJob(
     input = inputSchema.parse(job.input);
     let run = dependencies.repository.getRun(input.pulseRunId);
     if (!run || run.jobId !== job.id) throw new Error("PULSE_RUN_INPUT_INVALID");
-    dependencies.repository.updateRun(run.id, {
+    control.commit(() => dependencies.repository.updateRun(run!.id, {
       status: "running",
-      stage: run.stage,
+      stage: run!.stage,
       now: dependencies.clock.now(),
-    });
+    }));
     let checkpoint = parseCheckpoint(job.checkpoint);
     if (!checkpoint) {
       checkpoint = { stage: "planning_complete" };
       saveStage(control, checkpoint, "planning");
-      run = dependencies.repository.updateRun(run.id, {
+      run = control.commit(() => dependencies.repository.updateRun(run!.id, {
         stage: "collecting",
         now: dependencies.clock.now(),
-      });
+      }));
     }
     if (checkpoint.stage === "planning_complete" || checkpoint.stage === "collecting") {
       const collected = new Set(
@@ -70,21 +70,21 @@ async function handlePulseJob(
           ? await collectSafely(source, { since: input.periodStart, limit: 20 })
           : missingAdapter(sourceId, dependencies.clock.now());
         if (control.isCancelled()) return;
-        dependencies.repository.saveSourceCollection(
-          run.id,
+        control.commit(() => dependencies.repository.saveSourceCollection(
+          run!.id,
           dependencies.idFactory.next("source_fetch"),
           result,
-        );
+        ));
         collected.add(sourceId);
         checkpoint = { stage: "collecting", completedSourceIds: [...collected] };
         control.saveCheckpoint(checkpoint);
       }
       checkpoint = { stage: "collecting_complete" };
       saveStage(control, checkpoint, "collecting");
-      run = dependencies.repository.updateRun(run.id, {
+      run = control.commit(() => dependencies.repository.updateRun(run!.id, {
         stage: "cross_checking",
         now: dependencies.clock.now(),
-      });
+      }));
     }
     if (checkpoint.stage === "collecting_complete") {
       const collections = dependencies.repository.listSourceCollections(run.id);
@@ -106,40 +106,42 @@ async function handlePulseJob(
         opportunities: [...synthesis.opportunities],
       };
       saveStage(control, checkpoint, "cross_checking");
-      run = dependencies.repository.updateRun(run.id, {
+      run = control.commit(() => dependencies.repository.updateRun(run!.id, {
         stage: "synthesizing",
         now: dependencies.clock.now(),
-      });
+      }));
     }
     if (checkpoint.stage === "cross_checking_complete") {
-      dependencies.repository.saveReport({
-        report: checkpoint.report,
-        opportunities: checkpoint.opportunities as Parameters<
+      const result = checkpoint;
+      control.commit(() => dependencies.repository.saveReport({
+        report: result.report,
+        opportunities: result.opportunities as Parameters<
           SqlitePulseRepository["saveReport"]
         >[0]["opportunities"],
-      });
+      }));
       checkpoint = { stage: "ready_to_persist", reportId: checkpoint.report.id };
       saveStage(control, checkpoint, "synthesizing");
     }
     if (checkpoint.stage === "ready_to_persist") {
       const report = dependencies.repository.getReport(checkpoint.reportId);
       if (!report) throw new Error("PULSE_REPORT_NOT_FOUND");
-      dependencies.repository.updateRun(run.id, {
+      control.commit(() => dependencies.repository.updateRun(run!.id, {
         status: report.status,
         stage: "synthesizing",
         now: dependencies.clock.now(),
-      });
+      }));
     }
   } catch (error) {
+    if (control.isCancelled()) return;
     const code = classifyError(error);
     if (input) {
       const run = dependencies.repository.getRun(input.pulseRunId);
       if (run) {
-        dependencies.repository.updateRun(run.id, {
+        control.commit(() => dependencies.repository.updateRun(run.id, {
           status: "failed",
           errorCode: code,
           now: dependencies.clock.now(),
-        });
+        }));
       }
     }
     throw new JobExecutionError(code);

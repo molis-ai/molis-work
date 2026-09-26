@@ -33,9 +33,9 @@ export function createStartLensRunService(dependencies: Dependencies) {
     if (plan.key.ideaId !== input.ideaId || plan.key.lens !== input.lens) {
       throw new StartLensRunError("RESEARCH_PLAN_MISMATCH");
     }
-    if (dependencies.research.getRunForPlan(plan.id)) throw new StartLensRunError("LENS_RUN_EXISTS");
     const now = dependencies.clock.now();
     return dependencies.database.transaction(() => {
+      if (dependencies.research.getRunForPlan(plan.id)) throw new StartLensRunError("LENS_RUN_EXISTS");
       const runId = dependencies.idFactory.next("lens_run");
       const job = dependencies.jobs.enqueue({
         kind: RESEARCH_LENS_JOB,
@@ -51,7 +51,7 @@ export function createStartLensRunService(dependencies: Dependencies) {
         jobId: job.id,
         now,
       });
-    })();
+    }).immediate();
   };
 }
 

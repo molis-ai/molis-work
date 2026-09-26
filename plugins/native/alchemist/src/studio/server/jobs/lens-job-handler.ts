@@ -14,7 +14,7 @@ import { RESEARCH_LENS_JOB, type ResearchLensJobInput } from "../services/start-
 import { JobExecutionError, type JobHandler, type JobHandlerControl } from "./local-worker.js";
 import type { PersistedJob } from "./sqlite-job-runner.js";
 
-const inputSchema = z.object({ lensRunId: z.string().min(1), planId: z.string().min(1) }).strict();
+const inputSchema = z.object({ lensRunId: z.string().min(1), planId: z.string().min(1), actorId: z.string().min(1).optional() }).strict();
 const checkpointSchema = z.discriminatedUnion("stage", [
   z.object({ stage: z.literal("planning_complete") }).strict(),
   z.object({ stage: z.literal("collecting_complete"), evidence: z.array(evidenceSchema) }).strict(),
@@ -23,6 +23,7 @@ const checkpointSchema = z.discriminatedUnion("stage", [
       stage: z.literal("cross_checking_complete"),
       evidence: z.array(evidenceSchema),
       claims: z.array(claimSchema),
+      callsUsed: z.number().int().min(2).max(3).optional(),
     })
     .strict(),
   z
@@ -34,7 +35,10 @@ const checkpointSchema = z.discriminatedUnion("stage", [
     .strict(),
 ]);
 
+import type { WorkReuseService } from "../../../work-reuse/service.js";
+
 export interface LensJobDependencies {
+  workReuse?: WorkReuseService;
   repository: SqliteResearchRepository;
   ideas: SqliteIdeaRepository;
   runtime: ResearchExecutionRuntimePort;
@@ -65,23 +69,24 @@ async function handleLensJob(
     if (!run || !plan || run.planId !== plan.id) throw new Error("LENS_RUN_INPUT_INVALID");
     const ideaVersion = dependencies.ideas.getVersion(plan.key.ideaId, plan.key.ideaVersion);
     if (!ideaVersion) throw new Error("IDEA_VERSION_NOT_FOUND");
+    await dependencies.workReuse?.validate(plan, control.signal);
     if (control.isCancelled()) return;
     // A crash after dispatch can have incurred a charge even without a result.
     // Retain the marker and fail visibly; a fresh user-approved plan is required.
     if ((job.checkpoint as { stage?: string } | undefined)?.stage === "call_dispatched") throw new Error("RESEARCH_CALL_INTERRUPTED");
     if (plan.budget.kind !== "calls" || !Number.isInteger(plan.budget.limit) || plan.budget.limit < 1) throw new Error("RESEARCH_BUDGET_INVALID");
-    dependencies.repository.updateRun(run.id, {
+    control.commit(() => dependencies.repository.updateRun(run.id, {
       status: "running",
       stage: run.stage,
       now: dependencies.clock.now(),
-    });
+    }));
     let checkpoint = job.checkpoint
       ? (checkpointSchema.parse(job.checkpoint) as LensExecutionCheckpoint)
       : undefined;
     if (!checkpoint) {
       checkpoint = { stage: "planning_complete" };
       saveStage(control, checkpoint, "planning");
-      dependencies.repository.updateRun(run.id, { stage: "collecting", now: dependencies.clock.now() });
+      control.commit(() => dependencies.repository.updateRun(run.id, { stage: "collecting", now: dependencies.clock.now() }));
     }
     if (checkpoint.stage === "planning_complete") {
       beginCall(control, "collecting", 1, plan.budget.limit, checkpoint);
@@ -89,7 +94,7 @@ async function handleLensJob(
       if (control.isCancelled()) return;
       checkpoint = { stage: "collecting_complete", evidence };
       saveStage(control, checkpoint, "collecting");
-      dependencies.repository.updateRun(run.id, { stage: "cross_checking", now: dependencies.clock.now() });
+      control.commit(() => dependencies.repository.updateRun(run.id, { stage: "cross_checking", now: dependencies.clock.now() }));
     }
     if (checkpoint.stage === "collecting_complete") {
       if (plan.budget.limit === 1) {
@@ -103,21 +108,31 @@ async function handleLensJob(
         saveStage(control, checkpoint, "synthesizing");
       } else {
         beginCall(control, "cross_checking", 2, plan.budget.limit, checkpoint);
+        let callsUsed = 2;
+        const beforeCorrection = plan.budget.limit >= 4 ? async () => {
+          if (callsUsed !== 2) throw new Error("RESEARCH_BUDGET_INVALID");
+          await dependencies.workReuse?.validate(plan, control.signal);
+          beginCall(control, "cross_checking_format_correction", 3, plan.budget.limit, checkpoint!);
+          callsUsed = 3;
+        } : undefined;
         const claims = await dependencies.runtime.crossCheck({
           ...runtimeInput(plan, ideaVersion, dependencies, control),
           evidence: checkpoint.evidence,
+          beforeCorrection,
         });
         if (control.isCancelled()) return;
-        checkpoint = { stage: "cross_checking_complete", evidence: checkpoint.evidence, claims };
+        await dependencies.workReuse?.validate(plan, control.signal);
+        control.commit(() => dependencies.workReuse?.recordConsumed(plan, run.id));
+        checkpoint = { stage: "cross_checking_complete", evidence: checkpoint.evidence, claims, callsUsed };
         saveStage(control, checkpoint, "cross_checking");
-        dependencies.repository.updateRun(run.id, {
+        control.commit(() => dependencies.repository.updateRun(run.id, {
           stage: "synthesizing",
           now: dependencies.clock.now(),
-        });
+        }));
       }
     }
     if (checkpoint.stage === "cross_checking_complete") {
-      if (plan.budget.limit > 2) beginCall(control, "synthesizing", 3, plan.budget.limit, checkpoint);
+      if (plan.budget.limit > 2) beginCall(control, "synthesizing", (checkpoint.callsUsed ?? 2) + 1, plan.budget.limit, checkpoint);
       const report =
         plan.budget.limit === 2
           ? createPartialReport({
@@ -139,10 +154,14 @@ async function handleLensJob(
     }
     if (checkpoint.stage === "ready_to_persist") {
       if (control.isCancelled()) return;
-      dependencies.repository.saveReport({
-        report: lensReportSchema.parse(checkpoint.report),
-        evidence: checkpoint.evidence.map((item) => evidenceSchema.parse(item)),
-      });
+      await dependencies.workReuse?.validate(plan, control.signal);
+      const result = checkpoint;
+      control.commit(() => dependencies.repository.saveReport({
+        report: lensReportSchema.parse(result.report),
+        evidence: result.evidence.map((item) => evidenceSchema.parse(item)),
+      }));
+      // Repairing missing relations never repeats a model call. The persisted receipt exposes pending links.
+      await dependencies.workReuse?.reconcile(plan.id, control.signal).catch(() => undefined);
     }
   } catch (error) {
     if (control.isCancelled()) return;
@@ -150,11 +169,11 @@ async function handleLensJob(
     if (input) {
       const current = dependencies.repository.getRun(input.lensRunId);
       if (current) {
-        dependencies.repository.updateRun(current.id, {
+        control.commit(() => dependencies.repository.updateRun(current.id, {
           status: "failed",
           errorCode: code,
           now: dependencies.clock.now(),
-        });
+        }));
       }
     }
     throw new JobExecutionError(code);
@@ -182,6 +201,7 @@ function saveStage(
 function classifyError(error: unknown): string {
   if (error instanceof Error) {
     const hostCode = (error as Error & { code?: unknown }).code;
+    if (typeof hostCode === "string" && hostCode.startsWith("REUSE_")) return hostCode;
     if (typeof hostCode === "string" && (hostCode === "RESEARCH_NO_SOURCES" || /^RESEARCH_SEARCH_[A-Z0-9_]{1,80}$/u.test(hostCode))) return hostCode;
     if (["LENS_RUN_INPUT_INVALID", "IDEA_VERSION_NOT_FOUND", "AI_OUTPUT_INVALID", "RESEARCH_CALL_INTERRUPTED", "RESEARCH_NO_SOURCES", "RESEARCH_BUDGET_INVALID", "RUNTIME_MODEL_UNAVAILABLE", "RUNTIME_NOT_CONFIGURED", "RUNTIME_SHUTDOWN"].includes(error.message)) {
       return error.message;

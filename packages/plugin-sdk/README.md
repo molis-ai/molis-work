@@ -147,7 +147,11 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 工作流从统一目录自动发现这些角色，使用同一执行服务，不增加 Host 支持名单或逐插件分支。读写权限须由安装 grant 和调用者同时满足。`receive` 返回该站点的实际内容引用；`list` 返回完整可选内容；不要把无结构输出或另一种业务对象冒充此内容合同。新增版本应保留或明确迁移旧引用，不能靠同名替换。
 
-此协议覆盖内容交接，不代替任意输入输出的工作流步骤映射。系统判断、模板转换、AI 整理和人工交接是不同机制。
+此协议覆盖内容交接。流程里的其他一步用「动作步骤」：任何 `operation: "command"`、`audiences` 含 `workflow`、输入为平铺字段（字符串、数字、布尔、枚举）的动作会自动出现在流程编辑器的「加一步动作」里，按提供方分组；用户为每个字段选择交过来的标题/正文/来源/链接/日期或固定值，保存和每次运行都按当前输入合同校验。动作步骤没有交付键：若调用已开始但结果未确认，流程停在「结果未确认」，需要人核对后明确重新执行，所以命令应自己接受幂等键（如 `request_id`）或期望版本。系统判断、模板转换、AI 整理和人工交接是交接方式，与站点是不同机制。
+
+### 使用位置
+
+插件若保存了对其他能力的引用（例如自己的配置、角色或规则），用 `defineActionUsagesAction(capabilityId, title, permissions)` 声明一个只读查询：接收 `{ action: { capability_id, version, provider_id } }`，用 `referencesAction(saved, action)` 比较，返回 `{ usages: [{ usage_id, title, detail?, enabled, href? }] }`。能力库的「已用在哪」、Agent 与 MCP 共用的 `actions.usages.read` 会按合同类型自动发现这些查询，不需要 Host 名单；工作流程（动作步骤、判断交接、内容站）、角色范围和对外 MCP 授权都已这样上报。`title` 用使用方自己的说法，`enabled` 表示那里现在会不会调用；读不到的来源在结果的 `issues` 中列出，而不是当作没有使用。
 
 可信动作上下文可携带 `runtime_session_id`，用于保留由 Host 识别的原会话来源；它不属于插件业务输入，也不授予权限。`user_action` 的整组确认与主体引用由受保护用户入口提供，不能从模型自报的确认字段生成。目标树审批与事件用户决定都走 host_only 兼容桥，普通插件通过目录只发现获准调用的能力。
 

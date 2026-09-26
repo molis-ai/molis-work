@@ -1,4 +1,4 @@
-import type { ActionAudience, ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineActionUsagesAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { CharacterDraft, CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
 
@@ -46,6 +46,8 @@ export const charactersActions = {
     { type: "object", required: ["reference"] }, { type: "object" }, ["artifact:read"], LOCAL),
   execution: define<{ reference: ArtifactReference }, unknown>("execution", "角色运行准备", "读取用本机 Agent 运行此发布版本所需的程序与工作目录",
     "query", object({ reference }), { type: "object" }, ["artifact:read"], LOCAL),
+  /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
+  usages: defineActionUsagesAction("characters.usages", "角色里的使用位置", []),
   launch: define<Record<string, unknown>, unknown>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
     { type: "object", required: ["reference", "workspace_id", "task", "request_id"] }, { type: "object" }, ["artifact:read"], LOCAL),
 };

@@ -4,6 +4,7 @@ import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_I
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_COLLECTION_SCHEMA } from "./home-events.js";
 export * from "./home-events.js";
 export * from "./action-offers.js";
+export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
 import type { WorkflowContentStation } from "./workflow-content.js";

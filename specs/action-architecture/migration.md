@@ -97,7 +97,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 事项按合同类型动态发现；动作按 offers 合同由各插件准备、首页复核后执行（Feed 消息、Inbox 事项、未知插件）；“说一句”按对象上下文选择会话并真实发送（见下文专节）。本地网页调用者的原生权限改由原生清单派生，不再手写 |
 | 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身动作与 F4 幂等交接/中断恢复已完成；判断规则交接与通用字段映射动作步骤已完成 |
 | Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 大部分完成：Agent/Character 精确能力选择经 AgentHost、Prologue 正式工具扩展与原审查队列执行（见“Agent 实际工具执行与 F1–F3 审查修复”）；角色管理本身已是 `characters.*` 动作。浏览器能力选择的最终复跑仍待完成 |
-| 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；编辑器、全量授权/历史待完成 |
+| 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；能力库对每项能力显示「可用在哪」（调用方、首页事项、判断场景）与「已用在哪」（场景绑定 + 各使用方上报）；全量授权/调用历史待完成 |
 | 生成与开发 | plugins/native/plugin-builder, packages/plugin-sdk, tooling/plugin-cli, skills/molis-plugin-dev | 默认注册能力和消费场景 | 未迁移 |
 
 ## 验证
@@ -1435,3 +1435,10 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 首页与 Feed 网页调用者的原生权限由原生清单派生（`NATIVE_CONTENT_PERMISSIONS`），不再在 Host 手写权限名单；因此 Inbox 自己的「整理成文稿」在首页出现，并如实显示「请先配置文字模型」这类不可用原因。
 - 验证：`tests/feed-item-actions.test.ts`（真实 Host：首页准备/执行、旧选项拒绝、直接调用版本冲突、加入 Inbox、升格 Goal、缺写权限不可执行、旧路由转发与 404/409）；Feed/Home/Inbox/能力相关 39 个文件 179 项中 177 项通过，失败 2 项在 main 上同样失败或已随本次修正（`functions-system-capability` 断言改为检查真实动作声明）；home-offers e2e 按新增的 Feed 选项更新后通过（main 上原本失败）；`project-home-start`、`workbench-pane-feed` 各 1 项在 main 上同样失败。浏览器实操（1280）：首页执行「保存为资料」→ Feed 详情显示「已保存为资料」→ 在 Feed 点「忽略」经转发路由 200 并从列表移除。
 - 仍直连：Feed 来源管理（新建/修改/删除/计划/暂停/同步）与连接器授权流程；Feed 快照与工作台渲染仍是读取页面。用户本人验收未进行。
+
+## 能力的「可用在哪 / 已用在哪」来自同一目录与各使用方（2026-09-26）
+
+- Contracts/SDK 新增使用位置合同 `molis.action-usages.*`：保存了能力引用的一方用 `defineActionUsagesAction` 声明只读查询，返回自己的使用位置（标题、方式、是否启用、可选链接）。Host 的 `actions.usages.read` 在 Home 注册一次，按调用者项目或 Home 目录按合同类型发现这些查询并汇总，不维护使用方名单；目录里可见但拒绝该调用者的一方写入 `issues`，不会当成「没有使用」。Agent、MCP 与能力库共用这个查询。
+- 已上报的使用方：工作流程（动作步骤及字段映射、判断交接及放行结果、已固定的内容站）、Characters（本人草稿与最新发布版本的动作范围，Runtime 实例兑现，Manifest 1.4.0 兼容 1.0.0–1.3.0）、对外 MCP 授权（逐客户端/项目，仅本人可读，链接到对外接入页）。
+- 能力库对所有能力显示「可用在哪」：按声明的调用方（界面与首页、内置 Agent 与角色、工作流程、对外 MCP、其他插件）、声明了该能力的首页事项动作、以及判断能力的兼容场景；「已用在哪」合并场景绑定与上报结果。
+- 验证：`tests/action-usages.test.ts`（真实 Host：工作流动作步骤、角色范围与 MCP 授权三方上报，版本/能力不同不混淆，无读取权限时不出现，另一身份被角色拒绝时列入 issues，删除流程后该位置消失）；能力页、Characters（42 项）、工作流、MCP/Agent 相关 101 项中 100 项通过，唯一失败 `agent-action-tools-prologue` 在 main 上同样失败；Characters 升级 e2e 通过。浏览器：1280 下「记下灵光」显示两条流程步骤及字段映射；390 下「加入 Inbox」显示首页事项来源，无横向溢出。

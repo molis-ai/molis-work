@@ -12,6 +12,11 @@ export interface CapabilitiesView {
   selection_error?: string;
   scenes?: readonly ActionSceneView[];
   usages?: readonly ActionSceneUsage[];
+  /** Home event actions that offer this capability. */
+  offered_in?: readonly { provider: string; title: string }[];
+  /** Saved references reported by their owners (workflow steps, Character scopes, client grants). */
+  reported_usages?: readonly { usage_id: string; title: string; detail?: string; enabled: boolean; href?: string; reporter: string }[];
+  usage_issues?: readonly string[];
   history?: readonly JudgmentRecord[];
   query: string;
   kind: string;
@@ -39,13 +44,30 @@ export function createCapabilitiesRenderer(p: SettingsRenderPrimitives, model: C
   function status(action: ActionView): string {
     return `<span class="capability-status${action.availability.available ? "" : " is-unavailable"}">${L(action.availability.available ? "可使用" : "不可用")}</span>`;
   }
+  const AUDIENCE: Record<string, string> = { user: "你在界面、首页里直接使用", agent: "内置 Agent 和角色可以选用", workflow: "工作流程可以调用", mcp: "对外 MCP 客户端获授权后可以调用", plugin: "其他插件可以调用" };
+  const link = (title: string, target?: string) => target?.startsWith("/") && !target.startsWith("//") ? `<a href="${e(desktop ? p.withDesktopQuery(target) : target)}">${e(title)}</a>` : e(title);
+  function uses(action: ActionView): string {
+    const available = [
+      ...action.action.audiences.filter(audience => AUDIENCE[audience]).map(audience => `<li><strong>${L(AUDIENCE[audience]!)}</strong></li>`),
+      ...(model.offered_in ?? []).map(offer => `<li><strong>${L("首页事项")} · ${e(offer.title)}</strong><span>${e(offer.provider)}</span></li>`),
+      ...(action.action.kind === "judgment" ? (model.scenes ?? []).map(scene => `<li><strong>${e(scene.definition.title)}</strong><span>${e(scene.definition.trigger)}</span><span>${!scene.compatible ? e(scene.reason ?? L("输入输出不兼容")) : !scene.availability.available ? e(scene.availability.reason) : L("合同兼容")}</span></li>`) : []),
+    ];
+    const used = [
+      ...(model.usages ?? []).map(usage => `<li><strong>${link(usage.title, usage.href)}</strong><span>${L(usage.enabled ? "已启用" : "已停用")}${!usage.availability.available ? ` · ${e(usage.availability.reason)}` : ""}</span></li>`),
+      ...(model.reported_usages ?? []).map(usage => `<li><strong>${link(usage.title, usage.href)}</strong>${usage.detail ? `<span>${e(usage.detail)}</span>` : ""}<span>${e(usage.reporter)} · ${L(usage.enabled ? "已启用" : "已停用")}</span></li>`),
+    ];
+    const noScenes = action.action.kind === "judgment" && !model.scenes?.length ? `<p>${L("当前范围还没有注册的消费场景。可切换到项目查看。")}</p>` : "";
+    return `<section><h3>${L("可用在哪")}</h3>${available.length ? `<ul class="capability-uses">${available.join("")}</ul>` : `<p>${L("这项能力只供它自己的插件内部使用。")}</p>`}${noScenes}`
+      + `<h3>${L("已用在哪")}</h3>${used.length ? `<ul class="capability-uses">${used.join("")}</ul>` : `<p>${L("当前范围还没有保存的使用位置。")}</p>`}`
+      + (model.usage_issues ?? []).map(issue => `<p class="capability-unavailable" role="status">${e(issue)}</p>`).join("") + `</section>`;
+  }
   function detail(action: ActionView): string {
     const properties = action.action.input_schema.properties as Record<string, Record<string, unknown>> | undefined;
     const required = action.action.input_schema.required as readonly string[] | undefined;
     const schema = (label: string, value: unknown) => `<details class="capability-contract"><summary>${L(label)}</summary><pre>${e(JSON.stringify(value, null, 2))}</pre></details>`;
     return `<article class="capability-detail"><a class="capability-back" href="${href("library", filters)}">${icon("back")}${L("返回能力列表")}</a><header><div class="capability-detail-meta">${e(action.provider.title)} · ${L(kinds[action.action.kind]!)} ${status(action)}</div><h2>${e(action.action.title)}</h2><p>${e(action.action.description)}</p></header>${!action.availability.available ? `<p class="capability-unavailable" role="status">${e(action.availability.reason)}</p>` : ""}
       <section><h3>${L("需要提供什么")}</h3>${properties && Object.keys(properties).length ? `<dl class="capability-fields">${Object.entries(properties).map(([name, field]) => `<div><dt><code>${e(name)}</code><small>${L(required?.includes(name) ? "必填" : "可选")}</small></dt><dd>${e(field.description ?? field.title ?? field.type ?? L("结构化输入"))}</dd></div>`).join("")}</dl>` : `<p>${L("查看输入合同，按调用场景提供参数。")}</p>`}${schema("查看输入合同", action.action.input_schema)}${action.action.output_schema ? schema("查看返回结果合同", action.action.output_schema) : `<p>${L("此能力未声明固定的结果结构。")}</p>`}</section>
-      ${action.action.kind === "judgment" ? `<section><h3>${L("可用在哪")}</h3>${model.scenes?.length ? `<ul class="capability-uses">${model.scenes.map(scene => `<li><strong>${e(scene.definition.title)}</strong><span>${e(scene.definition.trigger)}</span><span>${!scene.compatible ? e(scene.reason ?? L("输入输出不兼容")) : !scene.availability.available ? e(scene.availability.reason) : L("合同兼容")}</span></li>`).join("")}</ul>` : `<p>${L("当前范围还没有注册的消费场景。可切换到项目查看。")}</p>`}<h3>${L("已用在哪")}</h3>${model.usages?.length ? `<ul class="capability-uses">${model.usages.map(usage => `<li><strong>${usage.href?.startsWith("/") && !usage.href.startsWith("//") ? `<a href="${e(desktop ? p.withDesktopQuery(usage.href) : usage.href)}">${e(usage.title)}</a>` : e(usage.title)}</strong><span>${L(usage.enabled ? "已启用" : "已停用")}${!usage.availability.available ? ` · ${e(usage.availability.reason)}` : ""}</span></li>`).join("")}</ul>` : `<p>${L("当前范围没有使用绑定。")}</p>`}</section>` : ""}
+      ${uses(action)}
       <section><h3>${L("调用条件")}</h3><p>${L("作用范围")}：${L(action.action.scope === "home" ? "全局" : "项目")}</p><p>${L("所需权限")}：${e(action.action.permissions.join(", ") || L("无额外权限"))}</p><details class="capability-contract"><summary>${L("能力身份")}</summary><p><code>${e(action.capability_id)}@${action.version}</code></p></details></section></article>`;
   }
   function library(): string {

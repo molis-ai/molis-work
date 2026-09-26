@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS,
@@ -172,6 +172,8 @@ export const workflowsActions = {
     object({ actions: { type: "array" }, fields: { type: "array", items: text } }), read),
   judgments: define<Record<string, never>, { judgments: WorkflowJudgmentChoice[] }>("judgments.list", "可用的判断规则",
     "列出可以放在一段交接上的已发布 Choice 判断规则及其可选结果", "query", object({}), object({ judgments: { type: "array" } }), read),
+  /** Saved references to a capability: action steps, judgment links and pinned content stations. */
+  usages: defineActionUsagesAction("workflows.usages", "流程里的使用位置", read),
   stop: define<{ id: string }, { instance: WorkflowInstance }>("instances.stop", "结束一次运行", "结束还在进行的一次运行，已交接的内容保留", "command",
     object({ id }), object({ instance }), write),
 };
@@ -404,6 +406,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         throw error;
       }
     }),
+    bind(workflowsActions.usages, async input => ({ usages: await ports.withStore(store => store.list(projectId)).then(rows => rows.flatMap(flow => workflowUsages(flow, input.action))) })),
     bind(workflowsActions.stop, async input => changed({ instance: await ports.withStore(store => store.stopInstance(input.id, projectId)) })),
     bind(workflowsActions.actionSteps, async (_input, _content, caller) => ({ actions: workflowActionChoices(await ports.actions({ ...caller, audience: "workflow" }).discover()), fields: WORKFLOW_PAYLOAD_FIELDS })),
     bind(workflowsActions.judgments, async (_input, _content, caller) => ({ judgments: workflowJudgmentChoices(await ports.actions({ ...caller, audience: "workflow" }).discover()) })),
@@ -413,6 +416,31 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
 /** Refusals the directory makes before handing the call to any provider: the action did not run. */
 const REFUSED_BEFORE_RUNNING = new Set(["actions.missing", "actions.provider_changed", "actions.forbidden", "actions.owner_mismatch", "actions.input_invalid",
   "actions.scope_mismatch", "actions.async_required", "actions.unredeemed", "kernel.capability_missing", "workflows.unavailable"]);
+
+const CONTENT_ROLE: Readonly<Record<string, string>> = { list: "列出内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" };
+const FIELD_NAME: Readonly<Record<string, string>> = { title: "标题", body: "正文", source: "来源", url: "链接", date: "日期" };
+/** Every place in one workflow that names this capability, in the words the editor uses. */
+export function workflowUsages(flow: Pick<Workflow, "workflow_id" | "title" | "stations" | "links">, action: ActionReference): ActionUsage[] {
+  const usages: ActionUsage[] = [];
+  flow.stations.forEach((station, index) => {
+    if (station.action && referencesAction(station.action.ref, action)) {
+      const fields = Object.entries(station.action.mapping).map(([name, source]) => "from" in source ? `${name} ← ${FIELD_NAME[source.from] ?? source.from}` : `${name} = ${String(source.value)}`);
+      usages.push({ usage_id: `${flow.workflow_id}:step:${station.station_id}`, title: `流程「${flow.title}」第 ${index + 1} 步`, enabled: true,
+        detail: fields.length ? `执行这个动作；${fields.join("，")}` : "执行这个动作，不传入字段" });
+    }
+    for (const [role, ref] of Object.entries(station.content?.actions ?? {})) {
+      if (ref && referencesAction(ref, action)) usages.push({ usage_id: `${flow.workflow_id}:station:${station.station_id}:${role}`, title: `流程「${flow.title}」第 ${index + 1} 站`,
+        detail: `这一站用它${CONTENT_ROLE[role] ?? role}`, enabled: true });
+    }
+  });
+  flow.links.forEach((link, index) => {
+    if (link.kind !== "judgment" || !link.judgment || !referencesAction(link.judgment, action)) return;
+    const pass = link.pass ?? [];
+    usages.push({ usage_id: `${flow.workflow_id}:link:${index}`, title: `流程「${flow.title}」第 ${index + 1} → ${index + 2} 步的交接`, enabled: pass.length > 0,
+      detail: pass.length ? `判断结果为 ${pass.join("、")} 时交给下一站` : "还没选哪些结果可以交过去" });
+  });
+  return usages;
+}
 
 function handoffIndex(current: WorkflowInstance, raw: unknown): number {
   const from = Number(raw ?? current.current);

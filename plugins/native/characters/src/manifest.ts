@@ -6,7 +6,7 @@ import { CHARACTERS_ACTIONS } from "./actions.js";
 
 export const CHARACTERS_PROJECT_PLUGIN_ID = "characters";
 export const charactersManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.3.0", upgrade_compatibility: { compatible_from_versions: ["1.2.0", "1.1.0", "1.0.0"] }, name: "Characters", kind: "app",
+  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.4.0", upgrade_compatibility: { compatible_from_versions: ["1.3.0", "1.2.0", "1.1.0", "1.0.0"] }, name: "Characters", kind: "app",
   publisher: { publisher_id: "molis", signature: CHARACTER_PUBLISHER_SIGNATURE },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

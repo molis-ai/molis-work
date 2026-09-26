@@ -23,6 +23,7 @@ import { scheduleActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { experimentsActionProvider } from "./experiments-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
+import { actionUsagesProvider } from "./action-usage-actions.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
@@ -217,6 +218,11 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(experimentsActionProvider(options.homeDirectory, this.homeActionClient()));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory));
+    this.host.actionRegistry().registerProvider(actionUsagesProvider(caller => {
+      const project = caller.project_id ? this.host.status().projects.find(row => row.project_id === caller.project_id) : undefined;
+      if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
+      return project ? this.actionClient(project) : this.homeActionClient();
+    }, options.homeDirectory));
     registerProjectCapabilities(
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },

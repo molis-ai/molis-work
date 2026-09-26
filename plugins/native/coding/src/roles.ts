@@ -36,13 +36,13 @@ export type CodingRoleId = (typeof CODING_ROLE_IDS)[number];
 
 export const codingAgentManifest: AgentManifest = {
   characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader", "planner", "reviewer", "writer", "builder"] },
-  // A child's Character tools must fit inside the tool list its parent passes at dispatch, so they are kept to what the
-  // child cannot work without: a parent that leaves out an optional tool must not make the whole dispatch fail.
+  // A named child role brings the tools it declares, as far as its parent holds them (the user's "just give the tools"):
+  // a parent that leaves one out of its dispatch list no longer fails the dispatch, and a child never exceeds its parent.
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [
-    { role_id: "coding-reader", version: 2, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "search"] },
+    { role_id: "coding-reader", version: 4, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "list", "search"] },
     // The independent reviewer may run checks such as tests in the main workspace; each command is a Host review and it has no file-writing tool.
     { role_id: "coding-reviewer", version: 3, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command"] },
-    { role_id: "coding-builder", version: 4, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "search", "write", "edit-file", "run-command"] },
+    { role_id: "coding-builder", version: 5, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
@@ -117,10 +117,10 @@ export const codingAgentManifest: AgentManifest = {
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
     { prompt_id: "coding-base", version: 9, layer: "base" },
-    { prompt_id: "coding-reader", version: 2 },
+    { prompt_id: "coding-reader", version: 4 },
     { prompt_id: "coding-writer", version: 3 },
     { prompt_id: "coding-reviewer", version: 3 },
-    { prompt_id: "coding-builder", version: 4 },
+    { prompt_id: "coding-builder", version: 5 },
     { prompt_id: "coding-coordinator", version: 4 },
     { prompt_id: "coding-writers", version: 5 },
   ],
@@ -169,7 +169,7 @@ export const codingPrompts: readonly AgentPromptText[] = [
   },
   {
     prompt_id: "coding-reader",
-    version: 2,
+    version: 4,
     body: [
       "这一轮你只读不改。给出的是建议，不是已经发生的改动。",
       "不要说「我已经修好了」——你没有写入权限，这么说是不准确的。",
@@ -195,7 +195,7 @@ export const codingPrompts: readonly AgentPromptText[] = [
   },
   {
     prompt_id: "coding-builder",
-    version: 4,
+    version: 5,
     body: [
       "这一轮你可以改文件、也可以跑命令，但每一处写入和每一条命令都要经用户批准。",
       "用户要求执行时，先调用对应工具形成固定提案；工具会在真正执行前等待宿主批准。不要只在对话中说等批准：尚未调用工具就没有用户可以批准的提案，也不要另加一次聊天确认。",

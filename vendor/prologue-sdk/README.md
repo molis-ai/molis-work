@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-character-precheck.tgz`。在子任务中断轮次结束即有终态之上，**派出子任务时写错角色版本，在审查之前就拒**：预演中 MiniMax 两次把子角色写成不存在的版本，人批准派出之后才报错，白审两次。现在工具调用器在进审查前核对 `character`：登记表里没有这个 `id@version` 时直接失败（`CHARACTER_NOT_FOUND`），并列出同名的现有版本，什么也没派出。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-role-tools.tgz`。在写错角色版本审查前就拒之上，**点名的子角色带着它声明的工具去**（用户拍板"就给工具"）：原来子角色声明的工具必须全部出现在父任务这次派出的工具名单里，父任务漏写一个（比如只读的 list），整次派出就以 CHARACTER_ESCALATION 失败，所以子角色只能不声明 list，子任务只好一条条 ls 请人审查。现在派出时把角色声明、且父任务这一轮本身就有的工具补进名单；父任务没有的工具仍然整次失败，孩子永远拿不到父亲没有的东西。每次写入和命令照旧经宿主审查。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[role-tools.patch](role-tools.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`8e544ec408c6f6ea5c6321d20080c6f7001a91c41fe7163f4d61249a3bcb99b2`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/role-tools.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-role-tools.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；SDK 全量 3268 项通过、0 失败（改写定向：角色声明、父亲也有的工具直接给上；父亲没有的仍整次失败、孩子不上线）。未发布 npm，未替换正式安装版。
+
+## 上一依赖：写错角色版本审查前就拒
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-character-precheck.tgz`。在子任务中断轮次结束即有终态之上，**派出子任务时写错角色版本，在审查之前就拒**：预演中 MiniMax 两次把子角色写成不存在的版本，人批准派出之后才报错，白审两次。现在工具调用器在进审查前核对 `character`：登记表里没有这个 `id@version` 时直接失败（`CHARACTER_NOT_FOUND`），并列出同名的现有版本，什么也没派出。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

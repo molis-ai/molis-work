@@ -26,7 +26,7 @@ test("packed SDK: a subagent dispatched without maxTurns may take 20 turns", { t
     if (child) { childCalls++; return response("", { name: "read", input: { path: "sample.txt" } }); }
     parentCalls++;
     if (parentCalls === 1) {
-      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@2/)?.[0]; assert.ok(character);
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0]; assert.ok(character);
       return response("", { name: "dispatch-subagent", input: { instruction: "KEEP_READING sample.txt until told otherwise.", tools: ["read", "search"], character, idempotencyKey: "turns-child" } });
     }
     const messages = JSON.stringify(body.messages), ref = messages.match(/sub-[a-z0-9-]+/)?.[0];

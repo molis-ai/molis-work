@@ -224,7 +224,7 @@ test("production writers role runs two isolated children concurrently with indep
     assert.ok(!body.tools.some((tool: any) => ["write", "edit", "run-command"].includes(tool.name)), "production parent is read-only");
     parentCalls++;
     if (parentCalls <= 2) {
-      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0]; assert.ok(character);
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@5/)?.[0]; assert.ok(character);
       const index = parentCalls - 1;
       return toolResponse("dispatch-subagent", { instruction: `PRODUCTION_CHILD_${index}: read and then replace sample.txt in your own root; report the actual receipt.`, tools: ["read", "search", "context-remaining", "write", "edit", "run-command"], character, workspace: `writer-${index}`, idempotencyKey: `writer-${index}`, background: true, maxTurns: 3 }, String(index));
     }

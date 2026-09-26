@@ -1,6 +1,6 @@
 # Molis Work 架构 SSOT 索引
 
-2026-09-08 Cutover：现有产品实现已退出旧混合目录，正式调用链位于 39 个实际 workspace 包；产品启动器已归 apps/desktop/launchers，0.1.x SDK 兼容出口已归 apps/local-host/sdk。完整用户验收与当前证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
+2026-09-08 Cutover 后，现有产品实现已退出旧混合目录；正式调用链位于实际 workspace 包，当前清单以 [`scripts/workspace-packages.mjs`](../scripts/workspace-packages.mjs) 为准，数量由 `pnpm boundary:check` 的 `packageCount` 输出。产品启动器已归 apps/desktop/launchers，0.1.x SDK 兼容出口已归 apps/local-host/sdk。历史验收证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)，不能替代后续变更的验收。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
 
 权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 
@@ -115,7 +115,7 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料 | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/feed-inbox-pages-loop/validation.md` |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/archive/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |
-| `plugins/native/functions` | Functions 一级入口：写、试跑、发布、配 Key | 看什么/函数/用在哪三栏；选项和动作库随看来源与去向更新，自定义答案不覆盖；事件去向用映射；库和判断记录在 Module | `partial` | `specs/archive/functions-system-capability/spec.md`；`specs/archive/functions-product-authoring/spec.md`；`specs/functions-independent-authoring/spec.md` |
+| `apps/workbench/src/functions` | 系统能力服务的判断编辑器：写、试跑、发布 | 通过 Host 系统动作调用 modules/functions；连接与凭据复用服务连接；旧 Feed/Home 用途仍在迁移 | `partial` | `specs/action-architecture/spec.md`；`specs/functions-independent-authoring/spec.md` |
 | `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、挂 Goal 与 Promote；外部文件预览/批量导入与幂等收据；Host 注入真实写作模型，材料快照与幂等生成收据归 Pages；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；出题为本地 stub；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
 | `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |

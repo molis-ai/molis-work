@@ -82,8 +82,6 @@ Adapter 只翻译 Port 与具体技术调用，不拥有业务事实。只有形
 
 F3 已建立自动门禁，覆盖：public entrypoint、禁止 deep import、Module/Plugin/App 依赖禁区、Contract 清单一致性、package 独立 typecheck/build、循环依赖、README/状态矩阵存在。门禁通过不等于功能实现完成；行为还需由对应垂直 Goal 的兼容与端到端测试证明。
 
-## 自动门禁
-
 本地使用：
 
 ```bash
@@ -92,11 +90,15 @@ pnpm boundary:check  # 扫描当前实际 workspace package
 pnpm workspace:verify # 门禁 + 所有目标 package 的 typecheck/build
 ```
 
-`.github/workflows/ci.yml` 在 pull request 和 `main` push 上运行同一条 `workspace:verify`。当前 legacy 产品全量测试仍按原计划暂停，但 package 边界检查不是暂停状态。
+`.github/workflows/ci.yml` 在 pull request 和 `main` push 上运行同一条 `workspace:verify`，并运行 Goal Query/Storage 边界变异回归、真实存储迁移及发布资产选择测试。当前 legacy 产品全量测试仍按原计划暂停，但这些定向行为回归和 package 边界检查持续执行。
 
 门禁由两层组成：
 
 - `packages/test-kit` 提供纯规则：输入“谁在 import 谁”，返回具体违规；不读取数据库，也不复制业务判断。
 - `scripts/check-package-boundaries.mjs` 读取 workspace manifest 与源码 import，把实际仓库信息交给纯规则，并检查依赖环和 Contract/README 清单。
 
-当前旧 `src/` 仍承载可工作的产品，不假装已经符合新包规则。超过 1,000 行的旧文件以及根 public facade 必须逐个登记在 `tooling/boundaries/compatibility-allowlist.json`，写明迁移 Goal、移除 owner 和移除条件；任何新目标 package 都不能进入这份豁免名单，新增未登记 Huge File 会直接失败。
+旧根 `src/` 已退出产品实现，兼容出口位于 `apps/local-host/sdk`。`tooling/boundaries/compatibility-allowlist.json` 当前为空；旧目录中恢复超过 1,000 行的文件仍会要求显式迁移登记。门禁的 `legacyHugeFiles` 仅统计旧根 `src/`，不代表各 workspace package 的大文件已经拆分完成；包内按职责评审，不以这一计数证明清理完成。
+
+Goal 的 typed compatibility capability 可保留为统一 Action 的薄适配，门禁检查其实际返回 `goalAction` 的结果。CLI 的 snapshot 仍消费该适配，标准 MCP 按 Action 目录发现，不要求恢复已退出的旧 MCP snapshot 分支。两者仍不得越过 Host 直接读写领域 owner。
+
+Repository 仅内部可见是目标约束；当前 Goals/Artifacts 等 public entrypoint 仍导出构造类型，尚待将 Host 装配与普通消费者接口分清。不能将现有导出视为任意调用 Store 的许可，也不能通过删除此约束宣称边界已完成收口。

@@ -69,10 +69,14 @@ Plugin 只能在 Manifest 上限和用户实际 grant 的交集内调用；Secre
 
 ## 7. 当前实现边界
 
-v2 已在 Coding 及 Workspace、Files、Diff、Git、Text Stats 的正式宿主装配中运行，
+v2 已在 Coding 及 Files、Diff、Git、Text Stats 的正式宿主装配中运行，
 复用 `createPluginPlatform` 的生命周期、Artifact、连线、事件及能力合同；真实 SQLite 重启路径有工程验证。
 其他仍标为 `native` 的插件继续由构建期组合装配，不能据 Coding 的接通宣称所有内置插件已迁移。
 每个插件的具体产品完成度以自身需求书和正式运行证据为准。
+
+Runtime 以稳定 `install_id` 关联安装记录和私有数据。启动只恢复已安装版本，不会因 Host 提供了较新 Manifest 就改写版本或授权。Manifest 可用 `upgrade_compatibility.compatible_from_versions` 声明新实现可直接兼容的精确来源版本，或用 `migratable_from_versions` 声明仅可经用户手动升级的数据来源；可迁移升级要求插件提供只能读 `storage:private.get` 的 `validateUpgrade` 预检。Host 不做数据迁移；预检通过后目标实现必须直接使用原数据。项目插件市场展示当前项目的候选版本与新旧版本，用户触发升级后 Runtime 校验来源声明、权限保留和数据预检，再切换版本。更高版本升级仍需提高版本号；同版本 Manifest 变更仅在声明兼容当前精确版本时允许继续运行，安装记录指纹保持不变，也不会产生市场候选。
+
+Runtime 管理的首方 Native 插件会把其工厂实现打成单文件模块，保存在该项目现有 SQLite 的 `plugin_runtime_release_artifacts` 表中，以插件 ID、发布者签名、版本和 Manifest 指纹绑定。Host 重启后若当前候选不兼容已安装版本，就从该表恢复精确旧版，或恢复明确声明兼容该安装版本的已留存实现；兼容候选可以直接运行，但安装记录不变。首次安装、首次运行兼容实现和用户手动升级前都会保存对应发行物。项目关闭、Host 启动和发布新版本都不会升级安装记录；用户手动升级才调用 Runtime 的预检、切换和回滚路径。发行物不进入插件私有数据，也不另建目录。Plugin Builder 本体也保留 Native 实现；Builder 创建的每个不可变插件发布仍随 Builder 私有数据保存，Host 重启时按 Runtime 安装记录恢复对应发布；发布新版只登记候选，库页手动升级才调用相同的 Runtime 路径。作者约定见 [插件版本升级](PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
 ## 8. FD3 历史实现边界
 
@@ -82,4 +86,10 @@ v2 已在 Coding 及 Workspace、Files、Diff、Git、Text Stats 的正式宿主
 - 同一 `plugin_id + version + signature` 的 Manifest 内容不能静默变化；代码变化必须由 Plugin 自己递增 version。
 - Runtime 不理解 GitHub/Gmail payload，也不拥有 Source、Signal、Feed 或 Attention 数据。
 - Plugin crash 会撤销当前 contribution，可在上限内恢复；uninstall 撤销代码 contribution，但不删除已经形成的 Signal。
-- 现阶段 Runtime repository/executor 是可替换的本地参考实现。持久安装目录、独立进程/沙箱、升级回滚 UI 和 Server entrypoint 仍是后续实现，不能从 FD3 的 in-process 测试推断为已上线。
+- 项目 Runtime SQLite 保留 Runtime 管理的首方 Native 发行物，支持 Host 重启后恢复当前安装实现；其他仍由构建期组合装配的 Native 插件不因此获得版本恢复。已有安装若从未保存过精确发行物，Host 只能在当前候选明确兼容该安装版本时安全接续并归档当前实现；不兼容且没有历史发行物时会保留安装记录并报告不可恢复，不会执行候选代码。Plugin 仍是可信 Host 进程内代码，不提供任意 JavaScript 的独立进程或沙箱隔离；Server entrypoint 仍是后续实现。
+
+当前项目目录通过按项声明的 [项目设置能力](PROJECT-SETTINGS.md) 读取；Workspace 已退出产品导航和运行图。设置槽、项目说明和私有存储保持各自边界。
+
+兼容启动时，`PluginStartContext.version` 表示 Runtime 实际选中的实现版本，供 UI、Artifact 和私有存储客户端验证身份。`install_id` 与 grants 仍来自原安装；安装记录的版本和 Manifest 指纹只在显式升级时改变。崩溃恢复遵循同样规则，停止或崩溃仍撤销该次执行上下文。
+
+首方工作区插件可通过受控制令牌保护的 `POST /api/plugins/:pluginId/restart` 显式重试。达到恢复上限的插件继续隔离，普通重试和页面重开不解除。用户明确选择解除隔离时，Host 通过 `POST /api/plugins/:pluginId/release-quarantine` 发起一次受控恢复；启动成功才解除并重置恢复预算，失败仍隔离。两种操作均不改变安装版本、身份或 grants。

@@ -2,7 +2,11 @@
 
 这个目录不在 production workspace，也不进入产品发布链。它只导入公开 SDK，不读取仓库内部源码、用户文件或 Runtime 配置；不会请求网络或自动向 Team 分享。
 
-每次 poll 会生成一个个人 Artifact 版本、按 type/schema 读回该版本，并保存私人计数。UI 显示已保存数量。崩溃后恢复原计数；卸载移除 UI，已交换的 Artifact 不删除。
+v2 Manifest 注册三项动作：`health` 提供公开健康查询；`results.read` 读取本地用户的私人计数与最新个人 Artifact；`results.publish` 保存下一个版本。处理器直接使用 Manifest 中的同一份合同，调用前后经过共同服务和安装权限校验。
+
+每次 poll 调用同一个注册的 `results.publish`，按 type/schema 读回具体版本并保存原私人计数。UI 显示已保存数量。崩溃后恢复原计数；卸载撤回动作和 UI，已交换的 Artifact 不删除。
+
+健康查询可以单独授权给 MCP/工作流。个人结果的两项动作仅允许本地用户入口，并通过 `bindOwnerPluginAction` 检查真实调用者，不能用外部客户端身份借用启动用户的个人数据。这个样例不宣称已解决跨调用者的个人 Artifact 归属。
 
 `manifest.json` 中的 `local-development-binding` 仅用于明确本地开发身份，不是官方审核、密码学签名或发布证明。不要将本样例冒充官方可安装发行物。
 

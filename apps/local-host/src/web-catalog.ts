@@ -55,6 +55,7 @@ import { listMcpSettingsEntries } from "./mcp-catalog.js";
 import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
+import { codingBackgroundTasks } from "./coding-background-tasks.js";
 import type { ProjectDeletionWebPorts } from "./web-project-settings.js";
 
 export async function handleLocalCatalogWebRequest(
@@ -308,6 +309,11 @@ export async function handleLocalCatalogWebRequest(
   if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {
     servePtyClient(request, response);
+    return;
+  }
+  // Coding sessions running or waiting on the person in any project, for the project directory and the title bar.
+  if (request.method === "GET" && url.pathname === "/api/background-tasks") {
+    sendJson(response, 200, { tasks: codingBackgroundTasks(projects) });
     return;
   }
   if (request.method === "GET" && url.pathname === "/health") {

@@ -276,7 +276,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
           ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
-          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}${renderButton({label:"归档会话",variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
+          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"并排打开会话",icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:"在右侧并排打开另一个会话（也可以按住 ⌘ 或 Ctrl 点会话）"}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}${renderButton({label:"归档会话",variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
           <div class="coding-composer-shell">
             <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
             <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…（输入 / 查看命令）" aria-describedby="coding-slash-help" disabled></textarea>

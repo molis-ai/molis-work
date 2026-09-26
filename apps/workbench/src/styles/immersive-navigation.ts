@@ -1,3 +1,4 @@
+import { BACKGROUND_TASKS_MENU_STYLES } from "./background-tasks.js";
 /** Approved project/plugin chrome. Scoped to the workbench, so settings retain their own layout. */
 export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench {
@@ -284,6 +285,11 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .workspace-history-button:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
   body.immersive-workbench .immersive-titlebar [data-titlebar-tabs] { order: 2; flex: 1; min-width: 0; z-index: 0; overflow: hidden; }
   body.immersive-workbench .immersive-titlebar .desktop-titlebar-drag { order: 3; }
+  body.immersive-workbench .immersive-titlebar .background-tasks-button { order: 4; flex: none; gap: 4px; height: var(--desktop-titlebar-control-height); padding: 0 8px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  body.immersive-workbench .immersive-titlebar .background-tasks-button svg { width: 14px; height: 14px; }
+  body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"] { color: var(--ink); }
+  body.immersive-workbench .immersive-titlebar .background-tasks-button[data-background-tasks-waiting="true"]::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, currentColor); }
+  ${BACKGROUND_TASKS_MENU_STYLES}
   body.immersive-workbench .immersive-titlebar [data-titlebar-tabs]:not([hidden]) ~ .desktop-titlebar-drag { flex: 0 0 0; min-width: 0; width: 0; overflow: hidden; }
   html[data-native-desktop="true"] body.immersive-workbench .immersive-titlebar,
   body.immersive-workbench[data-native-desktop="true"] .immersive-titlebar {

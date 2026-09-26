@@ -1249,7 +1249,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){const intent=q('[data-coding-intent]'),wanted=[...intent.options].find(option=>option.value===target.dataset.codingPromptIntent && !option.disabled);if(wanted){intent.value=wanted.value;intent.dispatchEvent(new Event('change',{bubbles:true}));}input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(input.value.length,input.value.length);}
       if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=true; try { await create(); } finally { target.disabled=false; } }
       // The first list is drawn by the server, so a row can be clicked before the directory read has arrived.
-      if(target.matches('[data-coding-session]')) { event.preventDefault(); const id=target.dataset.codingSession,session=state.sessions.find(item=>item.session_id===id);host.openItem('coding',id,session?.title || (target.querySelector('.coding-session-title,strong,.mw-dir-row__title')?.textContent || '').trim());await select(id); }
+      // ⌘/Ctrl-click opens the session in the pane beside this one; this pane keeps the session it shows.
+      if(target.matches('[data-coding-session]')) { event.preventDefault(); const id=target.dataset.codingSession,session=state.sessions.find(item=>item.session_id===id),title=session?.title || (target.querySelector('.coding-session-title,strong,.mw-dir-row__title')?.textContent || '').trim();
+        if((event.metaKey || event.ctrlKey) && host.openBeside){host.openBeside('coding',id,title);return;}
+        host.openItem('coding',id,title);await select(id); }
+      if(target.matches('[data-coding-open-beside]')) { host.openBeside?.('coding'); return; }
       if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>{item.setAttribute('aria-pressed',String(item===target));}); renderDirectory(); }
       if(target.matches('[data-coding-face]')) {
         const face=target.dataset.codingFace;

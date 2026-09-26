@@ -1,3 +1,4 @@
+import { BACKGROUND_TASKS_MENU_STYLES } from "./background-tasks.js";
 export const PROJECT_INDEX_STYLES = `
   html:has(> body.project-index-page), body.project-index-page { height: 100dvh; max-height: 100dvh; overflow: hidden; overscroll-behavior: none; background: var(--page); }
   body.project-index-page {
@@ -270,4 +271,7 @@ export const PROJECT_INDEX_STYLES = `
     .project-card:hover { transform: none; }
     .project-card:hover footer svg { transform: none; }
   }
+  body.project-index-page .background-tasks-button { gap: 6px; font-variant-numeric: tabular-nums; }
+  body.project-index-page .background-tasks-button [data-background-tasks-count] { color: var(--muted); }
+  ${BACKGROUND_TASKS_MENU_STYLES}
 `;

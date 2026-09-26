@@ -197,6 +197,28 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }
     return groups;
   };
+  // A round started here is followed until it settles, so the session's recorded state — which the directory and the
+  // cross-project background list read — stays right while no page is open. One follower per session; a newer round
+  // replaces it, and a Host that stops answering (the plugin closing) ends it.
+  const following = new Map<string, symbol>();
+  const follow = (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts,
+    sessionId: string, session: { runtime_id: string; session_id: string }, run: { session_id: string; run_id: string }) => {
+    const token = Symbol(sessionId);
+    following.set(sessionId, token);
+    const current = () => following.get(sessionId) === token;
+    void (async () => {
+      let since: string | null = null;
+      while (current()) {
+        const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000]);
+        if (!current()) return;
+        const view = waited.view;
+        since = waited.version;
+        const record = execution.sessions.get(boardId, sessionId), next = sessionState(view);
+        if (next !== record.state) execution.sessions.setState(boardId, sessionId, next, record.updated_at);
+        if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) break;
+      }
+    })().catch(() => undefined).finally(() => { if (current()) following.delete(sessionId); });
+  };
   // The directory a page shows: every session's current state, with what a new round needs. Read by coding.state.
   let stateRead: Promise<unknown> | null = null, stateNext: Promise<unknown> | null = null;
   const readState = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts) => {
@@ -1043,6 +1065,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         // A session named by default takes its name from the first task, the way a person would label it.
         if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
+        follow(api!, execution, record.session_id, session, run.ref);
         return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
           ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
       } finally { busy.delete(record.session_id); }

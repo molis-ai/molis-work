@@ -1,9 +1,10 @@
 import { CONTROL_CLIENT_SCRIPT, PROJECT_INDEX_CLIENT_SCRIPT } from "./browser-assets.js";
+import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./scripts/client/background-tasks.js";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 export interface ProjectDirectoryPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "arrow" | "brand" | "settings" | "search" | "plus" | "sparkles"): string;
+  icon(name: "database" | "arrow" | "brand" | "settings" | "search" | "plus" | "sparkles" | "activity"): string;
   withDesktopQuery(path: string): string;
   htmlLang(): string;
   renderIconSprite(): string;
@@ -50,6 +51,7 @@ function renderMolisWorkProjectIndex(
   <header class="topbar project-directory-topbar"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}>
     <a class="brand" href="${href("/")}" aria-label="${L("Molis Work 项目目录")}">${icon("brand")}<strong>Molis Work</strong></a>
     <div class="top-spacer"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}></div>
+    <button class="top-action background-tasks-button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span>${L("后台任务")}</span><span data-background-tasks-count>0</span></button>
     <a class="top-action" href="${href("/capabilities/library")}" aria-label="${L("打开能力服务")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <a class="top-action" href="${href("/settings/appearance")}" aria-label="${L("打开系统设置")}">${icon("settings")}<span>${L("系统设置")}</span></a>
   </header>
@@ -62,7 +64,7 @@ function renderMolisWorkProjectIndex(
       <p class="project-index-note">${L("项目和文档保存在这台电脑。")}</p>
     </section>
   </main>
-  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_INDEX_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${CONTROL_CLIENT_SCRIPT}${PROJECT_INDEX_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}(${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: null, openItem: () => {} });</script>
 </body>
 </html>`;
 }

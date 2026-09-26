@@ -60,6 +60,7 @@ import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.
 import { handleInformationAssistantHttp } from "./assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
+import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { shelfProjectMaterials } from "./shelf-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
@@ -407,8 +408,7 @@ export async function handleMolisWorkWebRequest(
           invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleScheduleNativePluginHttp(request, response, url, {
-          db: store.db,
-          schedule: feedSchedulers.get(options.databasePath)?.schedule ?? scheduleServiceFor(store.db),
+          actions: bindLocalWebActions(localHost, hostReference, SCHEDULE_ACTION_PERMISSIONS),
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           renderer: workbenchRenderer,
           readWebView,

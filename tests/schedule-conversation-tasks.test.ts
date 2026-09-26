@@ -12,7 +12,7 @@ import {
   SchedulePluginRouteTable,
   bindScheduleConversationJob,
   createScheduleConversationTask,
-  createScheduleRouteHandlerPorts,
+  createScheduleActionPorts,
   createScheduleRouteHandlers,
   getScheduleConversationTask,
   handleScheduleTaskWakeup,
@@ -24,6 +24,7 @@ import {
   rescheduleEnabledConversationTasks,
   scheduleRouteErrorResponse,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { directScheduleActions } from "./schedule-direct-actions.js";
 
 test("本地日历日：过了当天时刻就排到明天", () => {
   const from = new Date(2026, 8, 20, 10, 0, 0);
@@ -159,13 +160,13 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
     wakeupIndex,
     now: () => new Date("2026-09-20T00:50:00.000Z"),
   });
-  const ports = createScheduleRouteHandlerPorts({
+  const ports = createScheduleActionPorts({
     db,
     schedule,
     now: () => new Date("2026-09-20T00:50:00.000Z"),
   });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({
-    ...ports,
+    actions: directScheduleActions(ports),
     changed: () => undefined,
   }));
   const created = await routes.handle({
@@ -207,8 +208,8 @@ test("对话任务编辑会重新排期；归档后不在列表且不会再唤�
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
   const now = () => new Date("2026-09-20T00:50:00.000Z");
   const schedule = createScheduleService(db, { wakeupIndex, now });
-  const ports = createScheduleRouteHandlerPorts({ db, schedule, now });
-  const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ ...ports, changed() {} }));
+  const ports = createScheduleActionPorts({ db, schedule, now });
+  const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({ actions: directScheduleActions(ports), changed() {} }));
   const call = (pathname: string, body: Record<string, unknown>) => routes.handle({ method: "POST", pathname, query: new URLSearchParams(), body });
   const created = await call("/api/schedule/tasks", { title: "旧任务", instructions: "读旧说明", time: "09:00" });
   const id = (created?.body as { task: { task_id: string } }).task.task_id;

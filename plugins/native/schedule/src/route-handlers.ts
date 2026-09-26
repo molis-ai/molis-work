@@ -1,178 +1,55 @@
-import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
+import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SchedulePluginRouteHandler, SchedulePluginRouteResponse } from "./routes.js";
-import { parseClockTime } from "./calendar.js";
-import { ScheduleTaskError } from "./task-error.js";
-import {
-  archiveScheduleConversationTask,
-  bindScheduleConversationJob,
-  createScheduleConversationTask,
-  getScheduleConversationTask,
-  listScheduleConversationTasks,
-  openScheduleConversationTask,
-  toScheduleConversationTaskView,
-  updateScheduleConversationTask,
-  type ScheduleConversationTaskRecord,
-  type ScheduleConversationTaskView,
-  type ScheduleTaskDatabase,
-} from "./tasks.js";
-import {
-  isScheduleConversationJob,
-  ownedScheduleJobs,
-  pauseOrResumeConversationTask,
-  registerConversationJob,
-  type ScheduleJobPort,
-} from "./wakeup.js";
+import { scheduleActions, type ScheduleTaskInput } from "./actions.js";
 
 export interface ScheduleRouteHandlerPorts {
-  listJobs(): readonly ScheduleJobRecord[];
-  setEnabled(jobId: string, enabled: boolean): ScheduleJobRecord;
-  listTasks(): readonly ScheduleConversationTaskView[];
-  createTask(input: {
-    title: string;
-    instructions: string;
-    hour: number;
-    minute: number;
-    notify_important: boolean;
-  }): ScheduleConversationTaskView;
-  updateTask(taskId: string, input: {
-    title: string; instructions: string; hour: number; minute: number; notify_important: boolean;
-  }): ScheduleConversationTaskView;
-  archiveTask(taskId: string): void;
-  setTaskEnabled(taskId: string, enabled: boolean): ScheduleConversationTaskView;
-  openTask(taskId: string): ScheduleConversationTaskView;
+  readonly actions: BoundActionClient;
   changed(): void;
   renderWorkbench?(): string | Promise<string>;
 }
 
-export function createScheduleRouteHandlerPorts(options: {
-  db: ScheduleTaskDatabase;
-  schedule: ScheduleJobPort;
-  now?: () => Date;
-}): Omit<ScheduleRouteHandlerPorts, "changed"> {
-  const now = options.now ?? (() => new Date());
-  const viewOf = (task: ScheduleConversationTaskRecord): ScheduleConversationTaskView => {
-    const job = task.job_id ? options.schedule.get(task.job_id) : null;
-    return toScheduleConversationTaskView(task, job?.next_due_at ?? null);
-  };
-  const asView = (taskId: string): ScheduleConversationTaskView => {
-    const task = getScheduleConversationTask(options.db, taskId);
-    if (!task) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
-    return viewOf(task);
-  };
-  return {
-    listJobs: () => ownedScheduleJobs(options.schedule.list()),
-    setEnabled: (jobId, enabled) => {
-      const job = options.schedule.get(jobId);
-      if (job && isScheduleConversationJob(job)) {
-        throw new ScheduleTaskError("schedule_task_invalid", "对话任务请用任务自己的开关");
-      }
-      return options.schedule.setEnabled(jobId, enabled);
-    },
-    listTasks: () => listScheduleConversationTasks(options.db).map(viewOf),
-    createTask(input) {
-      const created = createScheduleConversationTask(options.db, input, now);
-      const job = registerConversationJob(options.schedule, created, now());
-      bindScheduleConversationJob(options.db, created.task_id, job.job_id, now);
-      return asView(created.task_id);
-    },
-    updateTask(taskId, input) {
-      options.db.transaction(() => {
-        const task = updateScheduleConversationTask(options.db, taskId, input, now);
-        if (task.enabled) {
-          const job = registerConversationJob(options.schedule, task, now());
-          bindScheduleConversationJob(options.db, task.task_id, job.job_id, now);
-        }
-      }).immediate();
-      return asView(taskId);
-    },
-    archiveTask(taskId) {
-      options.db.transaction(() => {
-        const task = getScheduleConversationTask(options.db, taskId);
-        if (!task || task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
-        archiveScheduleConversationTask(options.db, taskId, now);
-        if (task.job_id && options.schedule.get(task.job_id)) options.schedule.cancel(task.job_id);
-      }).immediate();
-    },
-    setTaskEnabled: (taskId, enabled) => {
-      pauseOrResumeConversationTask(options.db, options.schedule, taskId, enabled, now);
-      return asView(taskId);
-    },
-    openTask: (taskId) => {
-      openScheduleConversationTask(options.db, taskId, now);
-      return asView(taskId);
-    },
-  };
-}
-
+/** HTTP adapts presentation and legacy parameters; validation and business work belong to actions. */
 export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts): Record<string, SchedulePluginRouteHandler> {
+  const run = async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, status = 200): Promise<SchedulePluginRouteResponse> => {
+    const body = await options.actions.invoke(definition, input);
+    if (definition.operation === "command") options.changed();
+    return { status, body };
+  };
+  const task = (body: Readonly<Record<string, unknown>>): ScheduleTaskInput => {
+    const clock = body.time ?? body.clock;
+    return {
+      title: typeof body.title === "string" ? body.title : "",
+      instructions: typeof body.instructions === "string" ? body.instructions : "",
+      time: typeof clock === "string" ? clock : "",
+      notify_important: body.notify_important !== false,
+    };
+  };
+  const enabled = (body: Readonly<Record<string, unknown>>) => typeof body.enabled === "boolean" ? body.enabled : null;
   return {
-    "schedule.list": () => ({
-      status: 200,
-      body: { jobs: options.listJobs(), tasks: options.listTasks() },
-    }),
-    "schedule.workbench": async () => options.renderWorkbench
-      ? { status: 200, html: await options.renderWorkbench() }
-      : { status: 501, body: { error: "Schedule 工作区不可用" } },
+    "schedule.list": () => run(scheduleActions.list, {}),
+    "schedule.workbench": async () => {
+      if (!options.renderWorkbench) return { status: 501, body: { error: "Schedule 工作区不可用" } };
+      await options.actions.invoke(scheduleActions.list, {});
+      return { status: 200, html: await options.renderWorkbench() };
+    },
     "schedule.job.enabled": ({ params, request }) => {
-      const enabled = request.body.enabled;
-      if (typeof enabled !== "boolean") {
-        return { status: 400, body: { error: "请指定是否启用" } };
-      }
-      const jobId = params.job_id;
-      if (!jobId) return { status: 404, body: { error: "定时任务不存在", code: "schedule_job_not_found" } };
-      const job = options.setEnabled(jobId, enabled);
-      options.changed();
-      return { status: 200, body: { job } };
+      const value = enabled(request.body);
+      if (value === null) return { status: 400, body: { error: "请指定是否启用" } };
+      if (!params.job_id) return { status: 404, body: { error: "定时任务不存在", code: "schedule_job_not_found" } };
+      return run(scheduleActions.setJobEnabled, { job_id: params.job_id, enabled: value });
     },
-    "schedule.task.create": ({ request }) => {
-      const title = typeof request.body.title === "string" ? request.body.title : "";
-      const instructions = typeof request.body.instructions === "string" ? request.body.instructions : "";
-      const notifyImportant = request.body.notify_important !== false;
-      const clock = parseClockTime(request.body.time ?? request.body.clock);
-      const task = options.createTask({
-        title,
-        instructions,
-        hour: clock.hour,
-        minute: clock.minute,
-        notify_important: notifyImportant,
-      });
-      options.changed();
-      return { status: 201, body: { task } };
-    },
-    "schedule.task.update": ({ params, request }) => {
-      const clock = parseClockTime(request.body.time ?? request.body.clock);
-      const task = options.updateTask(params.task_id ?? "", {
-        title: typeof request.body.title === "string" ? request.body.title : "",
-        instructions: typeof request.body.instructions === "string" ? request.body.instructions : "",
-        hour: clock.hour,
-        minute: clock.minute,
-        notify_important: request.body.notify_important !== false,
-      });
-      options.changed();
-      return { status: 200, body: { task } };
-    },
-    "schedule.task.archive": ({ params }) => {
-      options.archiveTask(params.task_id ?? "");
-      options.changed();
-      return { status: 200, body: { archived: true } };
-    },
+    "schedule.task.create": ({ request }) => run(scheduleActions.createTask, task(request.body), 201),
+    "schedule.task.update": ({ params, request }) => run(scheduleActions.updateTask, { ...task(request.body), task_id: params.task_id ?? "" }),
+    "schedule.task.archive": ({ params }) => run(scheduleActions.archiveTask, { task_id: params.task_id ?? "" }),
     "schedule.task.enabled": ({ params, request }) => {
-      const enabled = request.body.enabled;
-      if (typeof enabled !== "boolean") {
-        return { status: 400, body: { error: "请指定是否启用" } };
-      }
-      const taskId = params.task_id;
-      if (!taskId) return { status: 404, body: { error: "定时任务不存在", code: "schedule_task_not_found" } };
-      const task = options.setTaskEnabled(taskId, enabled);
-      options.changed();
-      return { status: 200, body: { task } };
+      const value = enabled(request.body);
+      if (value === null) return { status: 400, body: { error: "请指定是否启用" } };
+      if (!params.task_id) return { status: 404, body: { error: "定时任务不存在", code: "schedule_task_not_found" } };
+      return run(scheduleActions.setTaskEnabled, { task_id: params.task_id, enabled: value });
     },
     "schedule.task.open": ({ params }) => {
-      const taskId = params.task_id;
-      if (!taskId) return { status: 404, body: { error: "定时任务不存在", code: "schedule_task_not_found" } };
-      const task = options.openTask(taskId);
-      options.changed();
-      return { status: 200, body: { task } };
+      if (!params.task_id) return { status: 404, body: { error: "定时任务不存在", code: "schedule_task_not_found" } };
+      return run(scheduleActions.openTask, { task_id: params.task_id });
     },
   };
 }
@@ -182,8 +59,10 @@ export function scheduleRouteErrorResponse(error: unknown): SchedulePluginRouteR
     ? error.code
     : "";
   const message = error instanceof Error ? error.message : String(error);
-  if (code === "schedule_job_not_found" || code === "schedule_task_not_found") {
+  if (code === "schedule_job_not_found" || code === "schedule_task_not_found" || code === "actions.missing") {
     return { status: 404, body: { error: message, code } };
   }
+  if (["actions.forbidden", "actions.scope_mismatch", "actions.owner_mismatch"].includes(code)) return { status: 403, body: { error: message, code } };
+  if (code === "actions.unredeemed") return { status: 503, body: { error: message, code } };
   return { status: 400, body: { error: message, ...(code ? { code } : {}) } };
 }

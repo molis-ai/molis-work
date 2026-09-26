@@ -1,18 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   SchedulePluginRouteTable,
-  createScheduleRouteHandlerPorts,
   createScheduleRouteHandlers,
   scheduleRouteErrorResponse,
   type SchedulePluginRouteResponse,
-  type ScheduleTaskDatabase,
 } from "@molis-ai/molis-work-plugin-schedule";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
-import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 
 export interface ScheduleNativePluginHttpOptions {
-  readonly db: ScheduleTaskDatabase;
-  readonly schedule: ScheduleService;
+  readonly actions: BoundActionClient;
   readonly invalidateWebView: () => void;
   readonly renderer?: Pick<WorkbenchRenderer, "renderScheduleWorkbenchFragment">;
   readonly readWebView?: () => MolisWorkWebView | Promise<MolisWorkWebView>;
@@ -28,12 +25,8 @@ export async function handleScheduleNativePluginHttp(
   const method = request.method;
   if (!method || !["GET", "POST"].includes(method)) return false;
   const body = method === "GET" ? await readOptionalBody(request) : await readBody(request);
-  const ports = createScheduleRouteHandlerPorts({
-    db: options.db,
-    schedule: options.schedule,
-  });
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({
-    ...ports,
+    actions: options.actions,
     changed: () => options.invalidateWebView(),
     renderWorkbench: options.renderer && options.readWebView
       ? async () => options.renderer!.renderScheduleWorkbenchFragment(await options.readWebView!())

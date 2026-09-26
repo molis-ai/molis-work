@@ -46,7 +46,8 @@
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "shelf.ui-contribution.v1",
-      "shelf.http-routes.v1"
+      "shelf.http-routes.v1",
+      "shelf.actions.v1"
     ]
   }
 }

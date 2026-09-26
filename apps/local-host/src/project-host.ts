@@ -21,6 +21,7 @@ import { jellyActionProvider } from "./jelly-actions.js";
 import { lingguangActionProvider } from "./lingguang-actions.js";
 import { scheduleActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
+import { experimentsActionProvider } from "./experiments-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -210,6 +211,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
+    if (options.homeDirectory) this.host.actionRegistry().registerProvider(experimentsActionProvider(options.homeDirectory, this.homeActionClient()));
     registerProjectCapabilities(
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },

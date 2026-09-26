@@ -38,7 +38,8 @@
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "experiments.ui-contribution.v1",
-      "experiments.offline-comparison.v1"
+      "experiments.offline-comparison.v1",
+      "experiments.actions.v1"
     ]
   }
 }

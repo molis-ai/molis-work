@@ -22,15 +22,17 @@ export function compactionSelection(text: string, older: readonly ContextCompact
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw invalid("整理结果不是有效的选择记录"); }
   if (!value || typeof value !== "object" || !("selections" in value) || !Array.isArray(value.selections)) throw invalid("整理结果缺少原文选择");
-  return { excerpts: value.selections.map((item: unknown) => {
+  return { excerpts: value.selections.flatMap((item: unknown) => {
     if (!item || typeof item !== "object") throw invalid("原文选择格式无效");
     const { record, startPart, endPart } = item as Record<string, unknown>;
     if (typeof record !== "number" || !Number.isSafeInteger(record) || record < 0 || record >= older.length
       || typeof startPart !== "number" || !Number.isSafeInteger(startPart) || startPart < 1
       || typeof endPart !== "number" || !Number.isSafeInteger(endPart) || endPart < startPart) throw invalid("原文选择范围无效");
     const original = parts(older[record]!.text);
+    // An empty record has nothing to keep: a pick on it selects nothing and invents nothing, so it is dropped.
+    if (!original.length) return [];
     if (endPart > original.length) throw invalid(`原文选择超出记录范围：记录 ${record} 只有 ${original.length} 个片段，返回了 ${startPart}–${endPart}`);
-    return { record, text: original.slice(startPart - 1, endPart).join("") };
+    return [{ record, text: original.slice(startPart - 1, endPart).join("") }];
   }) };
 }
 

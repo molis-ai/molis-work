@@ -77,6 +77,9 @@ function fixture(events: unknown[] = []) {
 test("compaction copies original Unicode and line endings, rejects invented or out-of-range coordinates", () => {
   assert.deepEqual(compactionSelection('{"selections":[{"record":0,"startPart":1,"endPart":2}]}', older), { excerpts: [{ record: 0, text: "未执行\r\n已批准 ≠ 已发生\n" }] });
   assert.deepEqual(compactionSelection('{"selections":[]}', older), { excerpts: [] });
+  // MiniMax once picked part 1 of an empty record: there is nothing to keep, so that pick is dropped rather than failing the round.
+  assert.deepEqual(compactionSelection('{"selections":[{"record":1,"startPart":1,"endPart":1},{"record":0,"startPart":1,"endPart":1}]}', [...older, { role: "assistant", text: "" }]),
+    { excerpts: [{ record: 0, text: "未执行\r\n" }] });
   for (const invalid of ['summary', '{}', '{"selections":[{"record":0,"startPart":0,"endPart":2}]}', '{"selections":[{"record":1,"startPart":1,"endPart":1}]}', '{"selections":[{"record":0,"startPart":1,"endPart":4}]}']) {
     assert.throws(() => compactionSelection(invalid, older));
   }

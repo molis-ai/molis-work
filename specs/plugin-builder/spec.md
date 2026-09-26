@@ -1,6 +1,6 @@
 # 插件创作工作台：主线设计驱动 UI 与功能协同构建
 
-状态：2026-09-23 已实现本地数据插件的正式闭环，使用 Host AgentHost 的 Prologue 角色、PluginPlatform 和隔离的 SQLite 私有存储。定向工程与浏览器验证通过；真实模型/Jev 联调和最终用户验收未完成，尚不声明内部完整。当前实现边界与证据见 [Prologue 执行需求](work-items/prologue-runtime/spec.md)。下文保留完整产品方向；多页面、任意代码、外部分发仍未实现。
+状态：2026-09-23 已实现本地数据插件的正式闭环，使用 Host AgentHost 的 Prologue 角色、PluginPlatform 和隔离的 SQLite 私有存储。定向工程与浏览器验证通过；真实模型/Jev 联调和最终用户验收未完成，尚不声明内部完整。当前实现边界与证据见 [Prologue 执行需求](work-items/prologue-runtime/spec.md)。构建过程的可视化协作、规格板 + Jev 零件选择、逐个接通与指着修改见 [看得见的协作构建](work-items/live-collaboration/spec.md)。下文保留完整产品方向；多页面、任意代码、外部分发仍未实现。
 
 规划阶段历史：新建 `codex/plugin-builder-plan` 分支并形成方案。本次在隔离分支 `codex/plugin-builder-ui` 落地[高保真演示](ui/README.md)，产品完整范围保持不变。代码核对基线为 `721e13198611e220b91461699c52be0e755b91f6`。本文是本功能的需求与验收依据；实现接缝见 [技术设计](design.md)。方案中的“采用”“需要”表示拟议决定，不表示现有能力。
 

@@ -1,15 +1,16 @@
 import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import {agentHostCapabilities as agent} from '@molis-ai/molis-work-contracts/services/agent-host';
-import {projectsCapabilities} from '@molis-ai/molis-work-contracts/modules/projects';
+import {projectSettingsCapabilities} from '@molis-ai/molis-work-contracts/modules/projects';
 import {builderAgentManifest} from './roles.js';
 export const BUILDER_PLUGIN_ID='io.molis.work.plugin-builder';
 export const BUILDER_PROJECT_PLUGIN_ID='plugin-builder';
 export const BUILDER_UI_ID='io.molis.work.plugin-builder.ui.v1';
 export const builderManifest:PluginManifest={
- schema_version:2,host_api_version:2,plugin_id:BUILDER_PLUGIN_ID,version:'1.0.0',name:'插件创作工作台',kind:'app',
+ schema_version:2,host_api_version:2,plugin_id:BUILDER_PLUGIN_ID,version:'1.2.0',name:'插件创作工作台',kind:'app',
+ upgrade_compatibility:{compatible_from_versions:['1.0.0','1.1.0']},
  publisher:{publisher_id:'molis',signature:'official-plugin-builder-binding'},entrypoints:[{deployment:'local',entrypoint:'./index.js'}],
  permissions:[{permission:'storage:private',required:true,reason:'保存创作草稿、已发布定义和隔离的试用数据'}],
- capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectsCapabilities.listWorkspaces].map(x=>x.capability_id)},
+ capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectSettingsCapabilities.workspaces].map(x=>x.capability_id)},
  artifacts:{produces:[],consumes:[]},agent:builderAgentManifest,
  routes:[
   {route_id:'builder.inspiration-asset',method:'GET',path:'/assets/inspiration-atlas.png'},

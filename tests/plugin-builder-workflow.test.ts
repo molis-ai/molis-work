@@ -4,8 +4,8 @@ import Database from "better-sqlite3";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest, type PluginCapabilityClient, type PluginRouteRequest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunControl, type AgentRunHandle, type AgentRunRef, type AgentRunView, type AgentSessionRef, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BuilderWorkflow, type BuilderPorts } from "../plugins/native/plugin-builder/src/workflow.js";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { BuilderWorkflow, type BuilderPorts, type ChoiceQuestion } from "../plugins/native/plugin-builder/src/workflow.js";
 import { builderManifest } from "../plugins/native/plugin-builder/src/manifest.js";
 import { builderPrompts } from "../plugins/native/plugin-builder/src/roles.js";
 import { builderRoutes } from "../plugins/native/plugin-builder/src/routes.js";
@@ -54,7 +54,7 @@ class FakeRuntime implements PluginCapabilityClient {
     this.calls.push(definition.capability_id);
     assert.ok(builderManifest.capabilities.consumes.includes(definition.capability_id), "workflow must only invoke manifest-declared capabilities");
     const input = args as unknown as unknown[];
-    if (definition.capability_id === projectsCapabilities.listWorkspaces.capability_id) return structuredClone(this.workspaces) as Output;
+    if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return structuredClone(this.workspaces) as Output;
     if (definition.capability_id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue" }] as Output;
     if (definition.capability_id === agent.createSession.capability_id) {
       assert.equal(input[0], "prologue");
@@ -91,16 +91,24 @@ class FakeRuntime implements PluginCapabilityClient {
   complete(runId: string, text: string) { const view = this.views.get(runId); assert.ok(view); this.views.set(runId, this.view(view.ref, "completed", text)); }
 }
 
-function fixture() {
+function fixture(jev?: { answers: Array<string | Error>; available?: boolean; gates?: Gate<void>[] }) {
   const db = new Database(":memory:"), runtime = new FakeRuntime();
   const baseContext = { board_id: "test-board", plugin_id: builderManifest.plugin_id, version: builderManifest.version, install_id: "test-install", requireGrant(permission: string) { assert.equal(permission, "storage:private"); } } as PluginStartContext;
   const storage = new SqlitePluginPrivateStorage(db).forPlugin(baseContext, builderManifest);
   const context: PluginStartContext = { ...baseContext, services: { storage, capabilities: runtime } as unknown as PluginStartContext["services"] };
   let models = [{ provider_id: config.provider_id, model_id: config.model_id, label: "Fixture configured model" }];
-  const ports: BuilderPorts = { async ready() {}, async models() { return models; }, selectionAvailable() { return false; } };
-  return { db, runtime, context, storage, ports, workflow: new BuilderWorkflow(context, ports), clearModels() { models = []; } };
+  const questions: ChoiceQuestion[] = [];
+  const ports: BuilderPorts = { async ready() {}, async models() { return models; }, selectionAvailable() { return jev?.available ?? Boolean(jev); },
+    ...(jev ? { async choose(question: ChoiceQuestion) {
+      questions.push(structuredClone(question));
+      const pending = jev.gates?.shift(); if (pending) { pending.entered.resolve(); await pending.result.promise; }
+      const answer = jev.answers.shift(); if (answer instanceof Error) throw answer;
+      return { choice: answer ?? null, model: "fixture-jev", elapsedMs: 12, confidence: 0.8 };
+    } } : {}) };
+  return { db, runtime, context, storage, ports, questions, workflow: new BuilderWorkflow(context, ports), clearModels() { models = []; } };
 }
-async function uiRun(f: ReturnType<typeof fixture>) {
+/** Design → choose → resume: assembly starts and the behavior role runs in parallel. */
+async function assemblyRun(f: ReturnType<typeof fixture>) {
   let doc = f.workflow.store.create("记录库存并自动计算价值");
   doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor");
   f.runtime.complete(doc.active!.run_id!, designResponse);
@@ -109,73 +117,157 @@ async function uiRun(f: ReturnType<typeof fixture>) {
   return f.workflow.resume(doc.id, doc.revision, config, "actor");
 }
 const routeRequest = (id: string): PluginRouteRequest => ({ method: "GET", pathname: `/builds/${id}`, params: { id }, query: {}, body: undefined, actor_id: "actor" });
+const kinds = (doc: { nodes: { kind: string }[] }) => doc.nodes.map(node => node.kind);
 
-test("Prologue workflow selects a candidate, persists UI parts incrementally, connects behavior and produces usable records", async () => {
-  const f = fixture();
+test("Jev chooses each next part from the spec board's legal candidates while the function agent wires parts one at a time", async () => {
+  const f = fixture({ answers: ["form", "search", "collection", "summary", "actions", "finish"] });
   try {
-    let doc = await uiRun(f);
-    assert.equal(doc.phase, "building"); assert.equal(doc.active!.stage, "ui");
-    assert.equal(doc.selection!.source, "manual");
-    assert.deepEqual(doc.design, selected);
-    f.runtime.complete(doc.active!.run_id!, uiResponse);
+    let doc = await assemblyRun(f);
+    assert.equal(doc.phase, "building"); assert.equal(doc.assembling, true); assert.equal(doc.active!.stage, "behavior");
+    assert.deepEqual(f.runtime.starts.map(start => [start.runtime, start.request.role_id]), [["prologue", "design"], ["prologue", "behavior"]]);
+    // The heading is the only legal first part, so no model is asked and the step says so.
     doc = await f.workflow.advance(doc.id, "actor");
-    assert.deepEqual(doc.nodes.map(node => node.id), ["heading"]);
-    assert.deepEqual(doc.pendingNodes.map(node => node.id), ["entry", "find", "items", "operations", "totals"]);
-    assert.equal(doc.active!.stage, "behavior"); assert.equal(doc.behavior, null);
-    // A page read only observes; refresh must never move a part or bump the revision.
-    const read = builderRoutes(f.context, f.workflow).find(route => route.route_id === "builder.read")!;
-    const beforeRead = f.workflow.require(doc.id);
-    assert.equal((await read.handle(routeRequest(doc.id))).status, 200);
-    assert.deepEqual(f.workflow.require(doc.id), beforeRead);
-    // Recreate the workflow owner to demonstrate persisted stage/configuration recovery.
-    const recovered = new BuilderWorkflow(f.context, f.ports);
+    assert.deepEqual(kinds(doc), ["heading"]); assert.equal(f.questions.length, 0);
+    assert.deepEqual(doc.steps!.at(-1)!.selection, { source: "rule", candidates: ["heading"], choice: "heading", reason: "唯一合法候选" });
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.deepEqual(kinds(doc), ["heading", "form"]);
+    // No tags field, so the spec board never offers the tag filter; finish is not offered while required parts are missing.
+    assert.deepEqual(f.questions[0].candidates.map(c => c.key), ["form", "collection", "search", "summary", "actions"]);
+    const placed = doc.steps!.find(step => step.target === "form" && step.action === "place")!;
+    assert.equal(placed.selection!.source, "jev"); assert.equal(placed.selection!.model, "fixture-jev"); assert.equal(placed.status, "done");
+    // A part only works once wired: the preview route refuses saving until the behavior exists and reaches the form.
+    const recordRoute = builderRoutes(f.context, f.workflow).find(route => route.route_id === "builder.record")!;
+    const save = (id: string) => recordRoute.handle({ ...routeRequest(id), method: "POST", pathname: `/builds/${id}/records`, body: { action: "save", values: { name: "马克杯", quantity: 4, price: 12.5 } } });
+    assert.equal((await save(doc.id)).status, 400);
     f.runtime.complete(doc.active!.run_id!, behaviorResponse);
-    doc = await recovered.advance(doc.id, "actor");
-    assert.equal(doc.phase, "building"); assert.equal(doc.active, null); assert.ok(doc.behavior);
-    assert.deepEqual(doc.nodes.map(node => node.id), ["heading", "entry"]);
-    for (let count = 0; count < 4; count += 1) doc = await recovered.advance(doc.id, "actor");
-    assert.equal(doc.phase, "ready"); assert.deepEqual(doc.pendingNodes, []);
-    assert.deepEqual(doc.nodes.map(node => node.id), ["heading", "entry", "find", "items", "operations", "totals"]);
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.ok(doc.behavior); assert.deepEqual(doc.connected, ["form"]);
+    assert.equal((await save(doc.id)).status, 200);
+    const exported = await recordRoute.handle({ ...routeRequest(doc.id), method: "POST", pathname: `/builds/${doc.id}/records`, body: { action: "export" } });
+    assert.equal(exported.status, 400); assert.match(String((exported.body as { error: string }).error), /导入导出.*接通/);
+    for (let count = 0; count < 12 && doc.phase !== "ready"; count += 1) doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.phase, "ready"); assert.equal(doc.assembling, false);
+    assert.deepEqual(kinds(doc), ["heading", "form", "search", "collection", "summary", "actions"]);
+    assert.deepEqual(new Set(doc.connected), new Set(["form", "search", "collection", "summary", "actions"]));
+    // Jev is asked only when there is a real choice; the last required part and "finish" were single legal candidates.
+    assert.equal(f.questions.length, 4); assert.deepEqual(f.questions.at(-1)!.candidates.map(c => c.key), ["summary", "actions"]);
+    assert.ok(f.questions.every(question => question.state.includes("库存记录") && !question.state.includes("马克杯")), "Jev sees the design, never the records");
+    const verify = doc.steps!.find(step => step.action === "verify" && step.agent === "host")!;
+    assert.equal(verify.status, "done"); assert.match(verify.detail!, /6 个零件、5 项操作已接通 · 1 条预览记录可计算/);
     const records = new RecordStore(f.storage, `preview:${doc.id}`, doc.design!, doc.behavior!);
-    assert.equal(records.save({ name: "马克杯", quantity: 4, price: 12.5 }).values.value, 50);
-    assert.deepEqual(records.summary(), { count: 1, totals: { quantity: 4, price: 12.5, value: 50 } });
-    assert.deepEqual(f.runtime.starts.map(start => [start.runtime, start.request.role_id]), [["prologue", "design"], ["prologue", "ui"], ["prologue", "behavior"]]);
-    for (const start of f.runtime.starts) {
-      assert.deepEqual(start.request.model_selection, { provider_id: "configured-provider", model_id: "configured-model" });
-      assert.deepEqual(start.request.directory, { canonical_path: "/approved/project", realpath_verified: true });
-      assert.equal(start.request.board_id, "test-board"); assert.equal(start.request.install_id, "test-install");
-    }
-    assert.deepEqual(JSON.parse(f.runtime.starts[2].request.task).design, selected);
-    assert.equal((await recovered.state()).selectionAvailable, false);
+    assert.equal(records.list()[0].values.value, 50);
+    assert.equal((await f.workflow.state()).selectionAvailable, true);
   } finally { f.db.close(); }
 });
 
-test("manifest carries private storage, declared capabilities and three read-only roles with resolvable prompts", () => {
+test("an out-of-list Jev answer places nothing and hands the choice to the user; resuming retries Jev", async () => {
+  const f = fixture({ answers: ["banana", "collection"] });
+  try {
+    let doc = await assemblyRun(f);
+    doc = await f.workflow.advance(doc.id, "actor");
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.deepEqual(kinds(doc), ["heading"]);
+    const decision = doc.steps!.find(step => step.action === "decide" && step.status === "waiting")!;
+    assert.equal(decision.agent, "ui"); assert.match(decision.detail!, /候选之外的「banana」/);
+    assert.deepEqual(decision.selection!.candidates, ["form", "collection", "search", "summary", "actions"]);
+    // While the user decides, advancing never asks Jev again.
+    doc = await f.workflow.advance(doc.id, "actor"); assert.equal(f.questions.length, 1);
+    await assert.rejects(f.workflow.pickPart(doc.id, doc.revision, "filter"), /现在不能放入/);
+    doc = await f.workflow.pickPart(doc.id, doc.revision, "search");
+    assert.deepEqual(kinds(doc), ["heading", "search"]);
+    assert.equal(doc.steps!.find(step => step.target === "search")!.selection!.source, "user");
+    assert.equal(doc.steps!.some(step => step.action === "decide" && step.status === "waiting"), false);
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.deepEqual(kinds(doc), ["heading", "search", "collection"]); assert.equal(f.questions.length, 2);
+  } finally { f.db.close(); }
+});
+
+test("without Jev the spec-board rule places required parts first and is labeled as rule selection", async () => {
+  const f = fixture();
+  try {
+    let doc = await assemblyRun(f);
+    for (let count = 0; count < 5; count += 1) doc = await f.workflow.advance(doc.id, "actor");
+    // The design has calculations, so the summary that shows their totals is required too.
+    assert.deepEqual(kinds(doc), ["heading", "form", "collection", "summary", "actions"]);
+    const picks = doc.steps!.filter(step => step.agent === "ui" && step.action === "place").map(step => step.selection!);
+    assert.ok(picks.every(pick => pick.source === "rule" && !pick.model));
+    assert.equal(picks[1].reason, "Jev 未配置，按规格板顺序");
+    assert.equal((await f.workflow.state()).selectionAvailable, false);
+  } finally { f.db.close(); }
+});
+
+test("a Jev answer that arrives after pause is dropped and recorded as not adopted", async () => {
+  const late = gate<void>();
+  const f = fixture({ answers: ["form"], gates: [late] });
+  try {
+    let doc = await assemblyRun(f);
+    doc = await f.workflow.advance(doc.id, "actor");
+    const choosing = f.workflow.advance(doc.id, "actor"); await late.entered.promise;
+    assert.equal(f.workflow.require(doc.id).steps!.at(-1)!.status, "active");
+    await f.workflow.pause(doc.id);
+    late.result.resolve(); doc = await choosing;
+    assert.deepEqual(kinds(f.workflow.require(doc.id)), ["heading"]);
+    const step = f.workflow.require(doc.id).steps!.find(item => item.label === "Jev 正在选择下一个零件")!;
+    assert.equal(step.status, "cancelled"); assert.match(step.detail!, /未采用/);
+  } finally { f.db.close(); }
+});
+
+test("a revision keeps parts, wiring and records when only presentation changes, and redoes behavior when fields change", async () => {
+  const f = fixture();
+  try {
+    let doc = await assemblyRun(f);
+    f.runtime.complete(doc.active!.run_id!, behaviorResponse);
+    for (let count = 0; count < 12 && doc.phase !== "ready"; count += 1) doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.phase, "ready");
+    const wired = [...doc.connected!];
+    doc = await f.workflow.revise(doc.id, doc.revision, "换成卡片", "collection", config, "actor");
+    assert.equal(doc.active!.stage, "design"); assert.deepEqual(doc.revising!.target, { id: "collection", kind: "collection", label: "记录表格" });
+    const task = JSON.parse(f.runtime.starts.at(-1)!.request.task);
+    assert.equal(task.mode, "revise"); assert.equal(task.target.id, "collection"); assert.equal(task.currentDesign.layout, "table");
+    f.runtime.complete(doc.active!.run_id!, JSON.stringify({ summary: "换成卡片，其余不变", design: { ...selected, layout: "cards" } }));
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.design!.layout, "cards"); assert.deepEqual(doc.connected, wired); assert.ok(doc.behavior);
+    assert.equal(doc.nodes.find(node => node.kind === "collection")!.label, "卡片集合");
+    assert.ok(doc.steps!.some(step => step.label === "调整卡片集合" && step.target === "collection"));
+    doc = await f.workflow.advance(doc.id, "actor"); assert.equal(doc.phase, "ready");
+    // Adding a field changes the data contract, so the function agent redoes behavior and rewires every part.
+    doc = await f.workflow.revise(doc.id, doc.revision, "加一个标签字段", undefined, config, "actor");
+    f.runtime.complete(doc.active!.run_id!, JSON.stringify({ summary: "新增标签", design: { ...selected, layout: "cards", fields: [...selected.fields, { id: "tags", label: "标签", type: "tags", required: false }] } }));
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.behavior, null); assert.deepEqual(doc.connected, []); assert.equal(doc.assembling, true);
+    // The new tags field makes the filter legal; the selector (a labeled rule here) decides to add it, and behavior restarts.
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(f.runtime.starts.at(-1)!.request.role_id, "behavior"); assert.equal(doc.active!.stage, "behavior");
+    assert.ok(kinds(doc).includes("filter"));
+    assert.match(doc.steps!.find(step => step.label === "修订主线设计" && step.detail?.includes("标签"))!.detail!, /新增字段 标签/);
+    assert.equal(f.workflow.store.undo(doc.id, doc.revision).design!.fields.length, 3);
+  } finally { f.db.close(); }
+});
+
+test("manifest carries private storage, declared capabilities and two read-only roles with resolvable prompts", () => {
   const parsed = parsePluginManifest(builderManifest);
   assert.deepEqual(parsed.permissions.map(permission => permission.permission), ["storage:private"]);
-  assert.deepEqual(parsed.agent!.roles.map(role => [role.role_id, role.execution]), [["design", "read-only"], ["ui", "read-only"], ["behavior", "read-only"]]);
+  assert.deepEqual(parsed.agent!.roles.map(role => [role.role_id, role.execution]), [["design", "read-only"], ["behavior", "read-only"]]);
   for (const role of parsed.agent!.roles) for (const id of role.prompts ?? []) assert.ok(builderPrompts.some(prompt => prompt.prompt_id === id && prompt.body.length > 0));
   assert.ok(parsed.capabilities.consumes.includes("agent.run.start.v1"));
   assert.ok(parsed.capabilities.consumes.includes("agent.run.control.v1"));
 });
 
-test("paused readRun completion cannot place UI; resume allows the original run to finish", async () => {
+test("paused readRun completion cannot apply the design; resume lets the original run finish", async () => {
   const f = fixture();
   try {
-    let doc = await uiRun(f); const run = doc.active!;
+    let doc = f.workflow.store.create("记录库存");
+    doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor"); const run = doc.active!;
     const delayed = gate<AgentRunView>(); f.runtime.readGates.push(delayed);
     const advancing = f.workflow.advance(doc.id, "actor"); await delayed.entered.promise;
-    doc = await f.workflow.pause(doc.id, doc.revision);
-    delayed.result.resolve(f.runtime.view({ session_id: run.session_id!, run_id: run.run_id! }, "completed", uiResponse));
+    doc = await f.workflow.pause(doc.id);
+    delayed.result.resolve(f.runtime.view({ session_id: run.session_id!, run_id: run.run_id! }, "completed", designResponse));
     await advancing;
-    assert.equal(f.workflow.require(doc.id).phase, "paused");
-    assert.deepEqual(f.workflow.require(doc.id).nodes, []); assert.deepEqual(f.workflow.require(doc.id).pendingNodes, []);
-    assert.deepEqual(f.runtime.controls.map(control => control.control.kind), ["pause"]);
-    assert.equal(f.runtime.starts.length, 2);
+    assert.equal(f.workflow.require(doc.id).phase, "paused"); assert.deepEqual(f.workflow.require(doc.id).candidates, []);
     doc = await f.workflow.resume(doc.id, f.workflow.require(doc.id).revision, config, "actor");
-    f.runtime.complete(run.run_id!, uiResponse);
+    f.runtime.complete(run.run_id!, designResponse);
     doc = await f.workflow.advance(doc.id, "actor");
-    assert.deepEqual(doc.nodes.map(node => node.id), ["heading"]);
+    assert.equal(doc.phase, "choosing"); assert.equal(doc.candidates.length, 2);
     assert.deepEqual(f.runtime.controls.map(control => control.control.kind), ["pause", "resume"]);
   } finally { f.db.close(); }
 });
@@ -183,14 +275,14 @@ test("paused readRun completion cannot place UI; resume allows the original run 
 test("stopped run cannot overwrite a newly resumed revision when its old read arrives late", async () => {
   const f = fixture();
   try {
-    let doc = await uiRun(f); const old = doc.active!;
+    let doc = await assemblyRun(f); const old = doc.active!;
     const delayed = gate<AgentRunView>(); f.runtime.readGates.push(delayed);
     const advancing = f.workflow.advance(doc.id, "actor"); await delayed.entered.promise;
-    doc = await f.workflow.stop(doc.id, doc.revision);
+    doc = await f.workflow.stop(doc.id);
     doc = await f.workflow.resume(doc.id, doc.revision, config, "actor");
     const newer = structuredClone(doc);
     assert.notEqual(doc.active!.token, old.token);
-    delayed.result.resolve(f.runtime.view({ session_id: old.session_id!, run_id: old.run_id! }, "completed", uiResponse));
+    delayed.result.resolve(f.runtime.view({ session_id: old.session_id!, run_id: old.run_id! }, "completed", behaviorResponse));
     await advancing;
     assert.deepEqual(f.workflow.require(doc.id), newer, "late output must leave the entire newer persisted revision unchanged");
     assert.deepEqual(f.runtime.controls.map(control => [control.ref.run_id, control.control.kind]), [[old.run_id, "cancel"]]);
@@ -203,7 +295,7 @@ test("stop during a pending start cancels the late run handle and never reattach
     const doc = f.workflow.store.create("保留这条需求");
     const delayed = gate<void>(); f.runtime.startGates.push(delayed);
     const starting = f.workflow.start(doc.id, doc.revision, "design", config, "actor"); await delayed.entered.promise;
-    const stopped = await f.workflow.stop(doc.id, f.workflow.require(doc.id).revision);
+    const stopped = await f.workflow.stop(doc.id);
     delayed.result.resolve(); await starting;
     const recovered = new BuilderWorkflow(f.context, f.ports).require(doc.id);
     assert.equal(recovered.active, null); assert.equal(recovered.phase, "paused");
@@ -217,7 +309,7 @@ test("persisted pending UI resumes placement and starts behavior in a fresh Work
   const f = fixture();
   try {
     let doc = f.workflow.store.create("重启后继续装配库存工具");
-    // This is the durable boundary after valid UI output is saved, before the next runtime starts.
+    // This is the durable boundary after valid parts are saved, before the next runtime starts.
     doc = f.workflow.store.update(doc.id, doc.revision, draft => {
       draft.design = structuredClone(selected); draft.phase = "building"; draft.configuration = { ...config };
       draft.pendingNodes = JSON.parse(uiResponse); draft.active = null; draft.behavior = null;
@@ -229,10 +321,9 @@ test("persisted pending UI resumes placement and starts behavior in a fresh Work
     assert.equal(doc.active!.stage, "behavior"); assert.equal(doc.phase, "building");
     assert.deepEqual(f.runtime.starts.map(start => [start.runtime, start.request.role_id, start.request.model_selection]), [["prologue", "behavior", { provider_id: "configured-provider", model_id: "configured-model" }]]);
     assert.equal(f.runtime.starts[0].request.actor_id, "restart-actor");
-    assert.equal(doc.runs!.at(-1)!.session_id, "session-1"); assert.equal(doc.runs!.at(-1)!.run_id, "run-1");
     f.runtime.complete(doc.active!.run_id!, behaviorResponse);
-    while (doc.phase !== "ready") doc = await recovered.advance(doc.id, "restart-actor");
-    assert.equal(doc.behavior!.calculations[0].id, "value");
+    for (let count = 0; count < 14 && doc.phase !== "ready"; count += 1) doc = await recovered.advance(doc.id, "restart-actor");
+    assert.equal(doc.phase, "ready"); assert.equal(doc.behavior!.calculations[0].id, "value");
     assert.equal(recovered.require(doc.id).runs!.at(-1)!.phase, "completed");
   } finally { f.db.close(); }
 });
@@ -251,7 +342,7 @@ test("an interrupted active start is visibly failed after restart and keeps the 
     assert.equal(doc.phase, "failed"); assert.match(doc.error!, /启动被中断.*停止本轮/);
     assert.equal(doc.brief, "运行开始时退出进程"); assert.equal(doc.active!.token, "interrupted-start");
     assert.equal(f.runtime.starts.length, 0); assert.equal(f.runtime.calls.includes(agent.readRun.capability_id), false);
-    doc = await recovered.stop(doc.id, doc.revision);
+    doc = await recovered.stop(doc.id);
     doc = await recovered.resume(doc.id, doc.revision, config, "restart-actor");
     assert.equal(doc.active!.stage, "design"); assert.ok(doc.active!.run_id); assert.equal(doc.error, null);
   } finally { f.db.close(); }
@@ -267,7 +358,6 @@ test("pending UI without saved model configuration pauses visibly and can resume
     assert.equal(doc.phase, "paused"); assert.match(doc.error!, /选择工作区和模型/); assert.equal(f.runtime.starts.length, 0);
     const previousIds = doc.nodes.map(node => node.id);
     doc = await recovered.resume(doc.id, doc.revision, config, "restart-actor");
-    doc = await recovered.advance(doc.id, "restart-actor");
     assert.equal(doc.active!.stage, "behavior"); assert.equal(doc.error, null);
     assert.deepEqual(doc.nodes.slice(0, previousIds.length).map(node => node.id), previousIds);
   } finally { f.db.close(); }
@@ -279,7 +369,7 @@ test("pause during a pending start forwards the pause to the late run handle", a
     const doc = f.workflow.store.create("暂停应当停止模型继续工作");
     const delayed = gate<void>(); f.runtime.startGates.push(delayed);
     const starting = f.workflow.start(doc.id, doc.revision, "design", config, "actor"); await delayed.entered.promise;
-    await f.workflow.pause(doc.id, f.workflow.require(doc.id).revision);
+    await f.workflow.pause(doc.id);
     delayed.result.resolve(); await starting;
     const persisted = f.workflow.require(doc.id);
     assert.equal(persisted.phase, "paused"); assert.deepEqual(persisted.nodes, []);
@@ -287,41 +377,43 @@ test("pause during a pending start forwards the pause to the late run handle", a
   } finally { f.db.close(); }
 });
 
-test("invalid model JSON fails visibly while preserving the selected design and previously saved draft", async () => {
+test("invalid model JSON fails visibly while preserving the selected design and placed parts", async () => {
   const f = fixture();
   try {
-    let doc = await uiRun(f);
+    let doc = await assemblyRun(f);
+    doc = await f.workflow.advance(doc.id, "actor");
     const before = structuredClone(doc);
+    // A rejected answer goes back to the same role with the reason, twice; the third rejection fails visibly.
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      f.runtime.complete(doc.active!.run_id!, "<script>runAnything()</script>");
+      doc = await f.workflow.advance(doc.id, "actor");
+      assert.equal(doc.active!.stage, "behavior"); assert.equal(doc.repair!.attempt, attempt);
+      assert.match(JSON.parse(f.runtime.starts.at(-1)!.request.task).repair.validationError, /完整 JSON/);
+    }
     f.runtime.complete(doc.active!.run_id!, "<script>runAnything()</script>");
     doc = await f.workflow.advance(doc.id, "actor");
     assert.equal(doc.phase, "failed"); assert.match(doc.error!, /完整 JSON/); assert.equal(doc.active, null);
-    assert.deepEqual(doc.design, before.design); assert.deepEqual(doc.messages, before.messages); assert.equal(doc.brief, before.brief);
-    assert.deepEqual(doc.nodes, []); assert.deepEqual(doc.pendingNodes, []);
-    assert.equal(f.runtime.starts.length, 2, "invalid UI must never start the behavior role");
+    assert.deepEqual(doc.design, before.design); assert.deepEqual(doc.nodes, before.nodes); assert.equal(doc.behavior, null);
+    assert.equal(doc.steps!.find(step => step.id === `run:${before.active!.token}`)!.status, "failed");
+    assert.equal(f.runtime.starts.filter(start => start.request.role_id === "behavior").length, 3);
     const snapshot = f.workflow.require(doc.id);
     await f.workflow.advance(doc.id, "actor"); assert.deepEqual(f.workflow.require(doc.id), snapshot);
   } finally { f.db.close(); }
 });
 
-test("two overlapping advances accept UI completion once and start exactly one behavior run", async () => {
+test("two overlapping advances accept the behavior completion once", async () => {
   const f = fixture();
   try {
-    const doc = await uiRun(f), run = doc.active!;
+    const doc = await assemblyRun(f), run = doc.active!;
     const first = gate<AgentRunView>(), second = gate<AgentRunView>(); f.runtime.readGates.push(first, second);
     const advanceFirst = f.workflow.advance(doc.id, "actor"), advanceSecond = f.workflow.advance(doc.id, "actor");
     await Promise.all([first.entered.promise, second.entered.promise]);
-    const completed = f.runtime.view({ session_id: run.session_id!, run_id: run.run_id! }, "completed", uiResponse);
-    // Resolve the second HTTP request first, keeping behavior creation in flight.
-    const behaviorStart = gate<void>(); f.runtime.startGates.push(behaviorStart);
-    second.result.resolve(completed); await behaviorStart.entered.promise;
+    const completed = f.runtime.view({ session_id: run.session_id!, run_id: run.run_id! }, "completed", behaviorResponse);
+    second.result.resolve(completed); await advanceSecond;
     first.result.resolve(completed); await advanceFirst;
-    assert.equal(f.runtime.starts.filter(start => start.request.role_id === "behavior").length, 1);
-    behaviorStart.result.resolve(); await advanceSecond;
     const saved = f.workflow.require(doc.id);
-    assert.deepEqual(saved.nodes.map(node => node.id), ["heading"]);
-    assert.deepEqual(saved.pendingNodes.map(node => node.id), ["entry", "find", "items", "operations", "totals"]);
-    assert.equal(saved.messages.filter(message => message.text.startsWith("UI 方案已校验")).length, 1);
-    assert.equal(saved.phase, "building"); assert.equal(saved.active!.stage, "behavior");
+    assert.equal(saved.messages.filter(message => message.text.startsWith("数据与操作已通过校验")).length, 1);
+    assert.equal(f.runtime.starts.filter(start => start.request.role_id === "behavior").length, 1);
   } finally { f.db.close(); }
 });
 
@@ -344,13 +436,90 @@ test('local component label and order edits remain revisioned and undo restores 
  const f=fixture();
  try{
   let doc=f.workflow.store.create('可调整零件');
-  doc=f.workflow.store.update(doc.id,doc.revision,d=>{d.design=structuredClone(selected);d.nodes=JSON.parse(uiResponse);d.behavior=JSON.parse(behaviorResponse);d.phase='ready';});
+  doc=f.workflow.store.update(doc.id,doc.revision,d=>{d.design=structuredClone(selected);d.nodes=JSON.parse(uiResponse);d.behavior=JSON.parse(behaviorResponse);d.connected=d.nodes.map(n=>n.id);d.phase='ready';});
   const before=structuredClone(doc.nodes);
   const binding=builderRoutes(f.context,f.workflow).find(route=>route.route_id==='builder.action')!;
-  const result=await binding.handle({...routeRequest(doc.id),method:'POST',body:{action:'node',revision:doc.revision,nodeId:'find',label:'查找库存',direction:1}});
+  const result=await binding.handle({...routeRequest(doc.id),method:'POST',body:{action:'node',revision:doc.revision,nodeId:'entry',label:'新增库存',direction:-1}});
   assert.equal(result.status,200);doc=f.workflow.require(doc.id);
-  assert.deepEqual(doc.nodes.map(node=>node.id),['heading','entry','items','find','operations','totals']);
-  assert.equal(doc.nodes[3]!.label,'查找库存');assert.deepEqual(doc.behavior,JSON.parse(behaviorResponse));
-  assert.deepEqual(f.workflow.store.undo(doc.id,doc.revision).nodes,before);
+  assert.deepEqual(doc.nodes.map(node=>node.id),['entry','heading','find','items','operations','totals']);
+  assert.equal(doc.nodes[0]!.label,'新增库存');assert.deepEqual(doc.behavior,JSON.parse(behaviorResponse));
+  const across=await binding.handle({...routeRequest(doc.id),method:'POST',body:{action:'node',revision:doc.revision,nodeId:'find',direction:1}});
+  assert.equal(across.status,400,'a swap may not carry a part into another page area');
+  const undone=f.workflow.store.undo(doc.id,doc.revision);
+  assert.deepEqual(undone.nodes.map(node=>node.id),before.map(node=>node.id));assert.equal(undone.phase,'ready');assert.deepEqual(undone.connected,before.map(n=>n.id));
+  // Dragging lands a part before another part of the same page area; crossing areas is refused.
+  const drag=async(nodeId:string,target:string|null)=>binding.handle({...routeRequest(doc.id),method:'POST',body:{action:'node',revision:f.workflow.require(doc.id).revision,nodeId,before:target}});
+  const first=await drag('operations','entry');assert.equal(first.status,200,JSON.stringify(first.body));
+  assert.deepEqual(f.workflow.require(doc.id).nodes.map(node=>node.id),['heading','operations','entry','find','items','totals']);
+  assert.equal((await drag('operations',null)).status,200);
+  assert.deepEqual(f.workflow.require(doc.id).nodes.map(node=>node.id),['heading','entry','operations','find','items','totals']);
+  const crossing=await drag('find','items');assert.equal(crossing.status,400);assert.match(String((crossing.body as {error:string}).error),/同一区域/);
  }finally{f.db.close();}
+});
+
+test("a design answer the host rejects is returned to the design role with the reason and the corrected answer is used", async () => {
+  const f = fixture();
+  try {
+    let doc = f.workflow.store.create("读书清单，按状态筛选");
+    doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor");
+    const unread = { id: "unread", label: "未读", expression: { op: "equal", left: { op: "field", id: "name" }, right: { op: "literal", value: 0 } } };
+    const wrong = JSON.stringify({ summary: "两个方案", candidates: [{ ...selected, rationale: "表格" }, { ...selected, id: "b", layout: "cards", calculations: [unread], rationale: "卡片" }] });
+    f.runtime.complete(doc.active!.run_id!, wrong);
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.phase, "clarifying"); assert.equal(doc.repair!.attempt, 1);
+    const task = JSON.parse(f.runtime.starts.at(-1)!.request.task);
+    assert.equal(task.repair.previousAnswer, wrong); assert.match(task.repair.validationError, /^候选 2：计算字段「未读」：equal 两侧必须类型相同/);
+    assert.match(doc.steps!.find(step => step.status === "failed")!.detail!, /校验未通过/);
+    assert.equal(doc.steps!.at(-1)!.label, "根据校验结果修正（第 1 次）");
+    f.runtime.complete(doc.active!.run_id!, designResponse);
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.phase, "choosing"); assert.equal(doc.candidates.length, 2); assert.equal(doc.repair, undefined);
+    // A display hint that cannot fit its field is dropped and reported instead of rejecting the proposal.
+    doc = await f.workflow.store.update(doc.id, doc.revision, draft => { draft.phase = "draft"; draft.candidates = []; });
+    doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor");
+    f.runtime.complete(doc.active!.run_id!, JSON.stringify({ summary: "两个方案", candidates: [{ ...selected, presentation: { title: "name", tags: "name", metadata: "quantity" }, rationale: "表格" }, { ...selected, id: "b", layout: "cards", rationale: "卡片" }] }));
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.phase, "choosing"); assert.deepEqual(doc.candidates[0].presentation, { title: "name" });
+    assert.match(doc.steps!.find(step => step.action === "propose" && step.detail?.includes("已忽略"))!.detail!, /「tags」不能显示text 类型的字段 name；候选 1 的「metadata」不能显示number 类型的字段 quantity/);
+  } finally { f.db.close(); }
+});
+
+test("answering clarification closes the question round and tells the design role how many rounds were answered", async () => {
+  const f = fixture();
+  try {
+    let doc = f.workflow.store.create("读书清单");
+    doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor");
+    assert.equal(JSON.parse(f.runtime.starts.at(-1)!.request.task).clarificationRounds, 0);
+    f.runtime.complete(doc.active!.run_id!, JSON.stringify({ summary: "先确认", questions: ["评分用几分制？"] }));
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.steps!.find(step => step.action === "decide")!.status, "waiting");
+    const action = builderRoutes(f.context, f.workflow).find(route => route.route_id === "builder.action")!;
+    assert.equal((await action.handle({ ...routeRequest(doc.id), method: "POST", body: { action: "message", revision: doc.revision, message: "1-5 星" } })).status, 200);
+    doc = f.workflow.require(doc.id);
+    assert.deepEqual(doc.steps!.filter(step => step.action === "decide").map(step => [step.status, step.label]), [["done", "你补充了说明"]]);
+    doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor");
+    assert.equal(JSON.parse(f.runtime.starts.at(-1)!.request.task).clarificationRounds, 1);
+  } finally { f.db.close(); }
+});
+
+test("a compact proposal writes shared fields and samples once and expands into complete, strictly parsed candidates", async () => {
+  const f = fixture();
+  try {
+    let doc = f.workflow.store.create("库存");
+    doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor");
+    const { id: _id, layout: _layout, ...base } = selected;
+    f.runtime.complete(doc.active!.run_id!, JSON.stringify({ summary: "两种方式", base, samples: [{ name: "马克杯", quantity: 2, price: 10 }], candidates: [
+      { id: "stock-table", layout: "table", rationale: "对照数值" },
+      { id: "stock-cards", layout: "cards", title: "库存卡片", rationale: "逐项查看", extraFields: [{ id: "note", label: "备注", type: "text", required: false }] },
+    ] }));
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.equal(doc.phase, "choosing");
+    assert.deepEqual(doc.candidates.map(c => [c.id, c.layout, c.title, c.fields.map(field => field.id).join(",")]), [["stock-table", "table", "库存记录", "name,quantity,price"], ["stock-cards", "cards", "库存卡片", "name,quantity,price,note"]]);
+    assert.equal(doc.candidates[1].calculations[0].id, "value"); assert.equal(doc.candidates[0].samples!.length, 1);
+    doc = f.workflow.store.update(doc.id, doc.revision, draft => { draft.phase = "draft"; draft.candidates = []; });
+    doc = await f.workflow.start(doc.id, doc.revision, "design", config, "actor");
+    f.runtime.complete(doc.active!.run_id!, JSON.stringify({ summary: "x", base: { ...base, layout: "table" }, candidates: [{ id: "a", layout: "table", rationale: "a" }, { id: "b", layout: "cards", rationale: "b" }] }));
+    doc = await f.workflow.advance(doc.id, "actor");
+    assert.match(doc.repair!.error, /共享设计 包含不支持的属性 layout/, "layout belongs to each candidate, not the shared base");
+  } finally { f.db.close(); }
 });

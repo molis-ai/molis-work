@@ -12,3 +12,12 @@ export * from './ui.js';
 export * from './styles.js';
 export * from './client.js';
 export * from './record-client.js';
+
+export * from './agent-model.js';
+export * from './agent-store.js';
+export * from './agent-prompts.js';
+export * from './agent-validation.js';
+export * from './agent-workflow.js';
+export * from './agent-studio.js';
+export * from './agent-authoring.js';
+export * from './agent-capabilities.js';

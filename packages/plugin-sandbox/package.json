@@ -1,0 +1,25 @@
+{
+  "name": "@molis-ai/molis-work-plugin-sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "description": "macOS process isolation and asynchronous host mediation for generated plugins.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=24" },
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": { "@molis-ai/molis-work-contracts": "workspace:*" },
+  "molis-work": {
+    "path": "packages/plugin-sandbox",
+    "kind": "foundation",
+    "maturity": "partial",
+    "migrationGoals": ["goal-reorg-f2"],
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin-sandbox",
+    "ssot": "docs/SSOT-MATRIX.md"
+  }
+}

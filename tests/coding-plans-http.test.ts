@@ -125,6 +125,10 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const labelled=(await request()).body.runs.find((run:any)=>run.ref.run_id==="labelled").turns.find((turn:any)=>turn.kind==="assistant");
     assert.doesNotMatch(labelled.html,/retained/,"the SDK's compaction label a model copied is not shown to the person");assert.match(labelled.html,/边界已核对/);
     assert.match(labelled.text,/^\[retained assistant/,"the answer as the model wrote it is kept");
+    // The newer labels, several in a row, go too; a bracket later in the answer is the answer's own and stays.
+    runs.push(makeRun("stacked","reader","[retained current assistant run:4-1ab] [historical assistant run:2-9cd]\n[retained tool-result call:7]\n结论：见 [附注] 一节。"));
+    const stacked=(await request()).body.runs.find((run:any)=>run.ref.run_id==="stacked").turns.find((turn:any)=>turn.kind==="assistant");
+    assert.doesNotMatch(stacked.html,/retained|historical/);assert.match(stacked.html,/结论：见 \[附注\] 一节/);
     assert.equal((await request("", "GET", undefined, "other")).body.taskboard_plans.length,0);
     assert.equal(starts[0].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     assert.notEqual(starts[1].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);

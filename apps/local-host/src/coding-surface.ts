@@ -228,10 +228,11 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
     // A digest round's opening is drawn by the page from its text; rendering it as well would double what travels.
-    // After the SDK compacts context, earlier replies reach the model labelled "[retained assistant …]" and it sometimes
-    // copies that label into its answer. The label is the SDK's bookkeeping, not something said to the person.
+    // After the SDK compacts context, earlier replies reach the model labelled "[retained assistant …]" or
+    // "[historical … run:…]", and it sometimes opens its answer with one or several of them. They are the SDK's
+    // bookkeeping, not something said to the person; only labels at the very start are dropped.
     for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
-      html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^\[retained (?:assistant|user|tool)[^\]\n]*\]\n?/, "") : turn.text) });
+      html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
       questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
         text: value => value, formatDate: value => value },

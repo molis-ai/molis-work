@@ -42,7 +42,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
             .join("");
         return `<dialog class="create-dialog mw-dialog mw-dialog--form" data-create-dialog aria-labelledby="create-dialog-title">
     <form method="dialog" class="dialog-shell mw-form mw-dialog__shell" data-create-form>
-      <header class="mw-form__header"><h2 id="create-dialog-title">${L("新建目标")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-create aria-label="${L("关闭")}">${icon("x")}</button></header>
+      <header class="mw-form__header"><h2 id="create-dialog-title">${L("新建 Goal")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-close-create aria-label="${L("关闭")}">${icon("x")}</button></header>
       <div class="dialog-body mw-form__body">
         <div class="create-compose">
           <input class="create-compose-title" data-plain-field name="title" required maxlength="120" autocomplete="off" placeholder="${L("你想让什么变成现实？")}" aria-label="${L("目标名称")}">

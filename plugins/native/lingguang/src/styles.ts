@@ -8,7 +8,7 @@ export const LINGGUANG_STYLES = `
     margin: 0 4px 0 2px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
   }
   .lingguang-selection-bar .mw-btn { flex: none; width: auto; }
-  .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
+  .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   [data-lingguang="directory"] [data-lingguang-rows] { max-width: 40rem; }
   body.immersive-workbench .plugin-stage-shell:not([data-expanded="true"]) [data-lingguang="directory"] .feed-stage-entry {
     width: 100%;

@@ -6,10 +6,10 @@ export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Rec
   const feed = () => options.feed();
   const changed = () => options.changed();
   return {
-    "feed.item.detail": ({ params, request }) => {
+    "feed.item.detail": async ({ params, request }) => {
       const itemId = requireParam(params.item_id, "Feed Item 不存在");
       const store = feed();
-      const item = options.hydrateItem(store.getFeedItem(options.boardId, itemId));
+      const item = await options.hydrateItem(store.getFeedItem(options.boardId, itemId));
       const inboxActive = store.listInboxEntries(options.boardId).some((entry) =>
         entry.subject_type === "feed_item"
         && entry.subject_id === itemId

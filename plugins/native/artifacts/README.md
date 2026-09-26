@@ -25,7 +25,24 @@
 
 ## 一次典型调用
 
-readArtifactBrowser 读取浏览模型，UI contribution 渲染目录/版本；openArtifactProjectReference 解析项目引用。createPluginArtifactClient 在 Host context 下调用 Artifact 公开服务，publish/read 使用同一权限边界。
+网页、Goal 成果嵌入和标准 MCP 通过 Host 的统一动作客户端调用；插件声明合同并提供处理器，原 Artifacts Module 继续拥有数据。浏览模型由 `readArtifactBrowser` 生成，项目引用由 `openArtifactProjectReference` 使用受限文件读取器打开。
+
+| 动作 | 输入与结果 |
+| --- | --- |
+| `artifacts.browse` | 可选精确引用与支持类型，返回版本目录、所选版本和兼容状态 |
+| `artifacts.read` | `reference: { artifact_id, version }`，返回固定版本；不存在时保留请求引用 |
+| `artifacts.export` | 精确引用，返回原记录的 JSON 文本、文件名和 MIME |
+| `artifacts.import.file` | 文件名、UTF-8 正文、可选标题，保存或复用个人快照 |
+| `artifacts.import.external` | 来源与文档链接，读取当前 Home 已连接账号并保存快照 |
+| `artifacts.import.sources` | 返回支持来源的连接布尔状态，不返回凭据 |
+| `artifacts.goals.embeds` | Goal ID，读取 Ledger 明确关联的固定输入/输出版本 |
+| `artifacts.references.open` | `project://` 或历史相对路径引用及可选 Evidence ID，返回有界文件内容的 base64 |
+
+以上动作使用 `artifacts:read`；导入另需 `artifacts:write`，外部抓取另需 `connectors:document:read`，项目文件读取另需 `workspace:read`。Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。外部读取完成后再次检查授权、插件状态与取消状态，再写入。生产 MCP 客户端须在系统「对外接入」中按项目和具体能力授权。
+
+`PluginArtifactClient.publish/read` 保留同步作者接口，通过同一 Kernel 执行。Host 在每个安装实例启动前自动注册 `sdk.artifacts.<install_id>.read/publish`，停止或启动失败时释放；仅供 `plugin` audience，不能作为用户/MCP 工具冒充其他生产者。输入输出共用成果记录合同，身份由 Host 绑定，继续检查 `artifact:read/write`、Manifest type/schema、个人 owner 和实时运行授权。旧客户端在崩溃恢复后仍失效。
+
+同步是角色发布事务的要求：检查草稿修订与保存成果之间不能插入异步等待。只有明确声明同步执行的处理器可被同步调用；异步授权或 Host 策略会拒绝此次调用，不会跳过检查。Host 装配必须显式提供当前项目共享的动作注册和调用端口。SDK 作者及 Inputs/Outputs、Characters、Shelf、Coding 消费者不需要改成 Promise。公共网页权限仍与插件 SDK 权限分别校验；显式来源账号选择及其余服务迁移继续。
 
 ## 从哪里读代码
 
@@ -34,6 +51,7 @@ readArtifactBrowser 读取浏览模型，UI contribution 渲染目录/版本；o
 | 文件 | 用途 |
 | --- | --- |
 | [src/browser.ts](src/browser.ts) | 浏览、版本与导出 |
+| [src/actions.ts](src/actions.ts) | 统一动作合同与业务处理器 |
 | [src/project-reference.ts](src/project-reference.ts) | 项目引用打开 |
 | [src/plugin-client.ts](src/plugin-client.ts) | Plugin Artifact 客户端 |
 | [src/goal-context.ts](src/goal-context.ts) | 目标中的 Artifact 引用 |

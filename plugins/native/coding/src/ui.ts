@@ -142,8 +142,9 @@ function renderGroup(
   </section>`;
 }
 
-function renderEmpty(p: CodingUiPrimitives): string {
-  return `<div class="mw-empty" data-coding-empty>${p.icon("code")}<strong>从一个具体问题开始</strong><p>新建会话，讨论代码、整理计划或审查改动。</p><button class="mw-btn mw-btn--primary" type="button" data-coding-new>新建编码会话</button></div>`;
+// Matches the client's directory empty state; the add row below and the stage own the create action.
+function renderEmpty(_p: CodingUiPrimitives): string {
+  return `<div class="mw-empty" data-coding-empty><p>还没有编码会话</p></div>`;
 }
 
 export function renderCodingWorkbench(model: CodingUiModel): string {
@@ -180,6 +181,12 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <label class="mw-field"><span><input type="checkbox" data-coding-workspace-confirm> 确认把新目录关联到当前项目，作为任务工作区。</span></label>
       <p>选择用于下一轮；正在执行的任务继续使用原工作区。</p><p data-coding-workspace-error role="alert"></p></section>
       <footer class="mw-form__footer"><button class="mw-btn mw-btn--primary" type="submit">使用这个工作区</button></footer>
+    </form></dialog>
+    <dialog class="mw-dialog mw-dialog--form" data-coding-actions-dialog aria-label="选择动作能力"><form class="mw-form mw-dialog__shell" data-coding-actions-form>
+      <header class="mw-form__header"><h2>下一轮使用的能力</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-actions-close":""}})}</header>
+      <section class="mw-form__body"><p>从当前授权目录选择；Character 可以进一步限制范围。查询用于读取，判断和操作需要选择执行方式，调用时仍会检查权限。</p>
+      <p><a href="/capabilities/access?client=agent%3Aprologue">管理内置 Agent 授权</a></p><div data-coding-actions-list></div><p role="alert" data-coding-actions-error></p></section>
+      <footer class="mw-form__footer">${renderButton({label:"保存能力选择",type:"submit",attrs:{"data-coding-actions-save":""}})}</footer>
     </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-mcp-dialog aria-label="选择 MCP 工具与资料"><form class="mw-form mw-dialog__shell" data-coding-mcp-form>
       <header class="mw-dialog__header"><h2>选择 MCP 工具与资料</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-mcp-close":""}})}</header>
@@ -252,7 +259,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
           ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
-          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}<small data-coding-goal-label></small></div>
+          ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}${renderButton({label:"归档会话",variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
           <div class="coding-composer-shell">
             <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
             <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…" disabled></textarea>
@@ -261,7 +268,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
                 <select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">只读协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
                 <select class="mw-select" data-coding-model aria-label="下一轮使用的模型"></select>
                 <span class="coding-composer-sep" aria-hidden="true"></span>
-                <div class="coding-composer-context" aria-label="补充上下文">${renderButton({label:"材料",icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"方法",icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"MCP",icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}</div>
+                <div class="coding-composer-context" aria-label="补充上下文">${renderButton({label:"材料",icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":"选择固定材料"}})}${renderButton({label:"角色",icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":"选择角色"}})}${renderButton({label:"方法",icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":"选择方法"}})}${renderButton({label:"能力",icon:"workflow",variant:"ghost",attrs:{"data-coding-actions-open":"","aria-label":"选择动作能力"}})}${renderButton({label:"MCP",icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":"选择 MCP 工具与资料"}})}</div>
                 <span class="coding-composer-sep" aria-hidden="true"></span>
                 ${renderButton({label:"会话设置",icon:"tune",iconOnly:true,variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:"工作区与目标"}})}
                 <button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button>
@@ -428,8 +435,8 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
           </div>
           <div data-mcp-http class="mw-form-stack" hidden>
             <label class="mw-field">服务地址<input class="mw-input" name="endpoint" aria-label="MCP 地址" placeholder="https://example.com/mcp"></label>
-            <label class="mw-field">认证<select class="mw-select" name="auth" aria-label="MCP 认证"><option value="none">无认证</option><option value="keep-existing">保留原凭据</option><option value="replace-secret">使用新 Bearer 凭据</option></select></label>
-            <label class="mw-field">新凭据<input class="mw-input" type="password" name="secret" autocomplete="off" aria-label="MCP 新凭据"></label>
+            <label class="mw-field">认证<select class="mw-select" name="auth" aria-label="MCP 认证"><option value="none">无认证</option><option value="connection">选择 Connector 连接</option><option value="keep-existing">保留原凭据</option></select></label>
+            <label class="mw-field">账号连接<select class="mw-select" name="auth_connection_id" aria-label="MCP 账号连接"><option value="">选择连接</option></select></label><a href="/settings/connectors?connector=mcp-bearer">在 Connectors 管理 Bearer 凭据</a>
           </div>
           <label class="mw-field">请求超时（毫秒）<input class="mw-input" type="number" name="timeout" value="30000" min="1000" max="600000" aria-label="MCP 超时"></label>
           <label class="mw-check-row"><input class="mw-check" type="checkbox" name="enabled" checked>启用此配置</label>

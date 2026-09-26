@@ -13,6 +13,6 @@ export interface ImportEntry { path: string; status: "new" | "update" | "unchang
 export interface Preview { id: string; source: Source; entries: ImportEntry[]; expires_at: number }
 export interface Receipt { id: string; source_id: string; added: number; updated: number; unchanged: number; skipped: number; material_ids: string[]; entries: ImportEntry[] }
 export interface Link { target: string; label: string; status: "resolved" | "missing" | "ambiguous" | "external" | "unsafe"; material_id?: string }
-export class CogniaError extends Error { constructor(message: string, public readonly status = 400) { super(message); } }
+export class CogniaError extends Error { readonly code: string; constructor(message: string, public readonly status = 400) { super(message); this.code = status === 404 ? "cognia.not_found" : status === 409 ? "cognia.conflict" : status === 499 ? "cognia.cancelled" : "cognia.invalid"; } }
 export function requireCognia(condition: unknown, message: string, status = 400): asserts condition { if (!condition) throw new CogniaError(message, status); }
 export function stringField(value: unknown, label: string, max = 500): string { requireCognia(typeof value === "string" && value.trim().length > 0 && value.length <= max, label); return value.trim(); }

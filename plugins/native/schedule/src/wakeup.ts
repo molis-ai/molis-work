@@ -25,6 +25,7 @@ export interface ScheduleJobPort {
   list(): readonly ScheduleJobRecord[];
   get(jobId: string): ScheduleJobRecord | null;
   setEnabled(jobId: string, enabled: boolean): ScheduleJobRecord;
+  cancel(jobId: string): { cancelled: boolean };
   register(input: ScheduleRegisterInput): ScheduleJobRecord;
 }
 
@@ -43,7 +44,7 @@ export async function handleScheduleTaskWakeup(
   now = () => new Date(),
 ): Promise<{ detail?: string }> {
   const task = getScheduleConversationTask(db, objectRef);
-  if (!task || !task.enabled) return { detail: "任务已停" };
+  if (!task || !task.enabled || task.archived) return { detail: "任务已停" };
   const history = task.turns.map((turn) => ({ kind: turn.kind, text: turn.text }));
   try {
     const raw = await runner.run({

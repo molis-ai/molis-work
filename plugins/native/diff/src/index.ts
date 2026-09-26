@@ -77,3 +77,5 @@ export {
 export { createDiffPlugin, type DiffPluginPorts } from "./plugin.js";
 
 export { DIFF_STYLES } from "./styles.js";
+
+export { diffActions, DIFF_ACTIONS } from "./actions.js";

@@ -1,3 +1,4 @@
+import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type {
@@ -36,6 +37,7 @@ export interface FeedOutRuleWrite {
   match: FeedOutRuleMatch;
   enabled?: boolean;
   function_key?: string | null;
+  judgment?: ActionReference | null;
   admission?: "suggest" | "inbox";
 }
 
@@ -63,6 +65,11 @@ export function migrateFeedOutRules(db: FeedPluginSqliteDatabase): void {
   if (!columns.some((column) => column.name === "admission")) {
     db.exec("ALTER TABLE feed_out_rules ADD COLUMN admission TEXT NOT NULL DEFAULT 'suggest'");
   }
+  if (!columns.some(column => column.name === "judgment_json")) db.exec("ALTER TABLE feed_out_rules ADD COLUMN judgment_json TEXT");
+  if (!columns.some(column => column.name === "revision")) db.exec("ALTER TABLE feed_out_rules ADD COLUMN revision TEXT");
+  for (const row of db.prepare("SELECT board_id, rule_id FROM feed_out_rules WHERE revision IS NULL").all() as Row[]) {
+    db.prepare("UPDATE feed_out_rules SET revision = ? WHERE board_id = ? AND rule_id = ? AND revision IS NULL").run(randomUUID(), row.board_id, row.rule_id);
+  }
 }
 
 export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
@@ -88,7 +95,7 @@ export class FeedOutRuleStore {
     return mapOutRule(row);
   }
 
-  create(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+  prepareCreate(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
     const at = new Date().toISOString();
     const record: FeedOutRuleRecord = {
       board_id: boardId,
@@ -97,14 +104,21 @@ export class FeedOutRuleStore {
       enabled: input.enabled !== false,
       match: normalizeMatch(input.match),
       function_key: normalizeFunctionKey(input.function_key),
+      judgment: input.judgment ?? null,
+      revision: randomUUID(),
       admission: normalizeAdmission(input.admission),
       created_at: at,
       updated_at: at,
     };
+    return record;
+  }
+
+  saveCreate(record: FeedOutRuleRecord): FeedOutRuleRecord {
+    record = { ...record, function_key: compatibleFunctionKey(record.judgment, record.function_key) };
     this.db.prepare(`
       INSERT INTO feed_out_rules (
-        board_id, rule_id, name, enabled, match_json, function_key, created_at, updated_at, admission
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        board_id, rule_id, name, enabled, match_json, function_key, created_at, updated_at, admission, judgment_json, revision
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       record.board_id,
       record.rule_id,
@@ -115,11 +129,17 @@ export class FeedOutRuleStore {
       record.created_at,
       record.updated_at,
       record.admission,
+      JSON.stringify(record.judgment),
+      record.revision,
     );
     return record;
   }
 
-  update(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
+  create(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+    return this.saveCreate(this.prepareCreate(boardId, input));
+  }
+
+  prepareUpdate(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
     const current = this.get(boardId, ruleId);
     const next: FeedOutRuleRecord = {
       ...current,
@@ -128,12 +148,19 @@ export class FeedOutRuleStore {
       match: patch.match != null ? normalizeMatch({ ...current.match, ...patch.match }) : current.match,
       function_key: patch.function_key !== undefined ? normalizeFunctionKey(patch.function_key) : current.function_key,
       admission: patch.admission !== undefined ? normalizeAdmission(patch.admission) : current.admission,
+      judgment: patch.judgment !== undefined ? patch.judgment : current.judgment,
+      revision: randomUUID(),
       updated_at: new Date().toISOString(),
     };
-    this.db.prepare(`
+    return next;
+  }
+
+  saveUpdate(next: FeedOutRuleRecord, expectedRevision?: string): FeedOutRuleRecord {
+    next = { ...next, function_key: compatibleFunctionKey(next.judgment, next.function_key) };
+    const result = this.db.prepare(`
       UPDATE feed_out_rules
-      SET name = ?, enabled = ?, match_json = ?, function_key = ?, updated_at = ?, admission = ?
-      WHERE board_id = ? AND rule_id = ?
+      SET name = ?, enabled = ?, match_json = ?, function_key = ?, updated_at = ?, admission = ?, judgment_json = ?, revision = ?
+      WHERE board_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
     `).run(
       next.name,
       next.enabled ? 1 : 0,
@@ -141,9 +168,14 @@ export class FeedOutRuleStore {
       next.function_key,
       next.updated_at,
       next.admission,
-      boardId,
-      ruleId,
+      next.judgment === undefined ? null : JSON.stringify(next.judgment),
+      next.revision,
+      next.board_id,
+      next.rule_id,
+      expectedRevision ?? null,
+      expectedRevision ?? null,
     );
+    if (!result.changes) throw new FeedStoreError("feed_revision_conflict", "规则已变化，请刷新后再保存");
     return next;
   }
 
@@ -222,7 +254,8 @@ export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): 
   return {
     ...(typeof body.name === "string" ? { name: body.name } : { name: "" }),
     enabled: typeof body.enabled === "boolean" ? body.enabled : undefined,
-    function_key: typeof body.function_key === "string" || body.function_key === null ? body.function_key : undefined,
+    ...(typeof body.function_key === "string" || body.function_key === null ? { function_key: body.function_key } : {}),
+    ...("judgment" in body ? { judgment: body.judgment as ActionReference | null } : {}),
     admission: normalizeAdmission(body.admission),
     match: {
       ...(typeof body.contains === "string" ? { contains: body.contains } : {}),
@@ -234,6 +267,7 @@ export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): 
 
 export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): Partial<FeedOutRuleWrite> {
   const patch: Partial<FeedOutRuleWrite> = {};
+  if ("judgment" in body) patch.judgment = body.judgment as ActionReference | null;
   if ("admission" in body) patch.admission = normalizeAdmission(body.admission);
   if (typeof body.name === "string") patch.name = body.name;
   if (typeof body.enabled === "boolean") patch.enabled = body.enabled;
@@ -254,6 +288,13 @@ export function parseFeedOutRulePatch(body: Readonly<Record<string, unknown>>): 
   }
   if (hasMatch) patch.match = match;
   return patch;
+}
+
+/** The legacy display key is derived once an exact reference exists; only unresolved old rows own a bare key. */
+function compatibleFunctionKey(reference: ActionReference | null | undefined, legacy: string | null): string | null {
+  if (!reference) return legacy;
+  return reference.provider_id === "system.functions" && reference.capability_id.startsWith("functions.published.")
+    ? reference.capability_id.slice("functions.published.".length) : null;
 }
 
 function normalizeFunctionKey(value: string | null | undefined): string | null {
@@ -300,6 +341,8 @@ function mapOutRule(row: Row): FeedOutRuleRecord {
     enabled: Number(row.enabled) === 1,
     match: parseMatch(row.match_json),
     function_key: typeof row.function_key === "string" && row.function_key.trim() ? row.function_key.trim() : null,
+    ...(row.judgment_json == null ? {} : { judgment: JSON.parse(String(row.judgment_json)) as ActionReference | null }),
+    revision: String(row.revision),
     admission: row.admission === "inbox" ? "inbox" : "suggest",
     created_at: String(row.created_at ?? ""),
     updated_at: String(row.updated_at ?? ""),

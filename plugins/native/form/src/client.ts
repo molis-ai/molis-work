@@ -25,7 +25,18 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   let selected = null;
   let tab = "editor";
   let saveTimer = 0;
-  let saveSeq = 0;
+  let editRevision = 0;
+  let savedRevision = 0;
+  let savePromise = null;
+  let saveError = null;
+  let busy = false;
+  let aiAvailable = false;
+  let aiUnavailableReason = "";
+  let previewVersion = null;
+  let previewQuestions = [];
+  let answerDirty = false;
+  let submissionAttempt = null;
+  let noteScope = "";
   let resultsSeq = 0;
   let listSeq = 0;
   const keepListScroll = (paint) => {
@@ -69,14 +80,20 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || L("问卷请求失败"));
+    if (!response.ok) {
+      const error = new Error(payload.code === "form.conflict" ? L("问卷已在别处修改，当前输入已保留。请复制需要保留的内容，再重新读取。") : payload.error || L("问卷请求失败"));
+      error.code = payload.code;
+      throw error;
+    }
     return payload;
   };
-  const showNote = (text, isError) => {
+  const showNote = (text, isError, scope = "") => {
+    noteScope = text ? scope : "";
     if (!note) return;
     note.hidden = !text;
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
+    if (isError && text) note.scrollIntoView({ block: "nearest" });
   };
   const arrive = (node) => {
     if (!node) return node;
@@ -87,8 +104,11 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const paintStatus = (record) => {
     const published = record.status === "published";
-    statusEl.className = "mw-status mw-status--" + (published ? "done" : "quiet");
-    statusEl.textContent = published ? L("已发布") : L("草稿");
+    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : published ? "done" : "quiet");
+    statusEl.textContent = saveError ? L("保存失败") : savePromise ? L("保存中") : editRevision > savedRevision ? L("尚未保存") : busy ? L("处理中") : published ? L("已发布") : L("已保存");
+    const pending = workbench.querySelector("[data-form-publication-note]");
+    pending.hidden = !record.publication_pending;
+    pending.textContent = record.publication_pending ? L("上次 Artifact 发布尚未完成。恢复使用上次固定内容，后续编辑可另存一版。") : "";
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -126,15 +146,15 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const input = document.createElement("input");
     input.className = "mw-input";
     input.dataset.optionLabel = "true";
-    input.dataset.optionId = option?.id || "";
+    input.dataset.optionId = option?.id || crypto.randomUUID();
     input.value = option?.label || "";
     input.placeholder = L("选项");
     const remove = document.createElement("button");
     remove.type = "button";
-    remove.className = "mw-btn mw-btn--ghost";
+    remove.className = "mw-btn mw-btn--ghost mw-btn--icon-only";
     remove.dataset.optionRemove = "true";
     remove.setAttribute("aria-label", L("删选项"));
-    remove.textContent = "×";
+    remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     row.append(input, remove);
     container.append(row);
   };
@@ -169,10 +189,10 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       + '</select>'
       + '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-question-required><span>' + L("必填") + '</span></label>'
       + '<span class="form-question-move">'
-      + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("上移") + '">↑</button>'
-      + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("下移") + '">↓</button>'
+      + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("上移") + '"><svg aria-hidden="true"><use href="#icon-chevron-up"></use></svg></button>'
+      + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("下移") + '"><svg aria-hidden="true"><use href="#icon-chevron-down"></use></svg></button>'
       + '</span>'
-      + '<button class="mw-btn mw-btn--ghost" type="button" data-question-remove>×</button>'
+      + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-question-remove aria-label="' + L("删题") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button>'
       + '<div class="form-question-options" data-question-options></div>';
     row.querySelector("[data-question-title]").placeholder = L("题目");
     row.querySelector("[data-question-title]").value = question.title || "";
@@ -198,6 +218,10 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const renderPreview = (record) => {
+    previewVersion = record.version;
+    previewQuestions = record.questions || [];
+    answerDirty = false;
+    submissionAttempt = null;
     previewEl.replaceChildren();
     const submitBtn = previewForm.querySelector("[data-form-submit]");
     if (submitBtn) submitBtn.hidden = !(record.questions || []).length;
@@ -301,9 +325,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const fillEditor = (record) => {
     clearTimeout(saveTimer);
-    saveSeq += 1;
+    editRevision = savedRevision = 0;
+    saveError = null;
+    answerDirty = false;
+    submissionAttempt = null;
     resultsSeq += 1;
     selected = record;
+    showNote("", false);
     const opening = workspace.hidden;
     workbench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
@@ -318,7 +346,10 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
-    saveSeq += 1;
+    editRevision = savedRevision = 0;
+    saveError = null;
+    answerDirty = false;
+    submissionAttempt = null;
     resultsSeq += 1;
     selected = null;
     workbench.setAttribute("data-expanded", "false");
@@ -327,7 +358,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderList = () => {
     keepListScroll(() => paintList());
   };
-  const artifactLabel = (record) => record && record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+  const artifactLabel = (record) => record?.publication_pending ? L("恢复发布") : record && record.artifact_version > 0 ? L("再存一版") : L("保存成果版本");
   const artifactControl = (record, key) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -379,34 +410,81 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (seq !== listSeq) return;
     records = payload.forms || [];
     renderList();
-    if (selected) {
-      const next = records.find((item) => item.id === selected.id);
-      if (next) remember(next, false);
-      else closeEditor();
-    }
+    aiAvailable = payload.ai_available === true;
+    aiUnavailableReason = payload.ai_unavailable_reason || "";
+    const button = workbench.querySelector("[data-form-generate-ai]");
+    button.disabled = !aiAvailable;
+    const reason = workbench.querySelector("[data-form-ai-reason]");
+    reason.hidden = aiAvailable;
+    reason.textContent = aiUnavailableReason || L("当前没有可用的文字模型，请检查模型设置和服务连接。");
   };
-  const save = async () => {
-    if (!selected) return selected;
-    const seq = ++saveSeq;
-    const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id), {
-      title: titleInput.value,
-      description: descriptionInput.value,
-      questions: questionsFromDom(),
+  const draftFromDom = () => ({ title: titleInput.value, description: descriptionInput.value, questions: questionsFromDom() });
+  const save = () => {
+    clearTimeout(saveTimer);
+    if (savePromise) return savePromise;
+    const drain = async () => {
+      if (saveError) throw saveError;
+      while (selected && savedRevision < editRevision) {
+        const revision = editRevision;
+        const draft = draftFromDom();
+        try {
+          const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id), {
+            ...draft, expected_version: selected.version,
+          });
+          // Preserve edits made while the previous request was in flight.
+          const laterDraft = editRevision > revision ? draftFromDom() : null;
+          savedRevision = revision;
+          remember(laterDraft ? { ...payload.form, ...laterDraft } : payload.form, false);
+          if (noteScope === "save" || (noteScope === "publication" && selected.publication_pending)) showNote("", false);
+        } catch (error) {
+          saveError = error;
+          throw error;
+        }
+      }
+      return selected;
+    };
+    savePromise = drain().finally(() => {
+      savePromise = null;
+      if (selected) paintStatus(selected);
     });
-    if (seq !== saveSeq) return selected;
-    remember(payload.form, false);
-    if (document.activeElement !== titleInput) titleInput.value = payload.form.title;
-    return selected;
+    if (selected) paintStatus(selected);
+    return savePromise;
   };
   const queueSave = () => {
+    if (saveError && ["form.invalid", "actions.input_invalid"].includes(saveError.code)) saveError = null;
+    editRevision += 1;
+    if (selected) paintStatus(selected);
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
+    if (!saveError) saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true, "save")); }, 400);
+  };
+  const setBusy = (value) => {
+    busy = value;
+    // Keep confirmation dialogs usable while preventing competing editor commands.
+    workspace.inert = value;
+    list.inert = value;
+    workbench.setAttribute("aria-busy", String(value));
+    if (selected) paintStatus(selected);
   };
 
   workbench.addEventListener("click", async (event) => {
+    const button = event.target.closest("button");
+    if (!button || button.type === "submit" || button.closest("dialog") || button.disabled || busy) return;
+    setBusy(true);
     try {
+      if (button.closest("[data-form-reload]") && selected) {
+        clearTimeout(saveTimer);
+        if (savePromise) await savePromise.catch(() => {});
+        if ((saveError || editRevision > savedRevision || answerDirty) && !await ask(L("重新读取会丢弃未保存的编辑和填写内容。继续吗？"), L("重新读取"))) return;
+        const payload = await request("GET", "/api/plugins/form/" + encodeURIComponent(selected.id));
+        fillEditor(payload.form);
+        await loadList();
+        if (tab === "results") await loadResults();
+        return;
+      }
       const create = event.target.closest("[data-form-new]");
       if (create) {
+        await save();
+        if (answerDirty && !await ask(L("离开会丢弃未提交的填写内容。继续吗？"), L("继续"))) return;
         const payload = await request("POST", "/api/plugins/form", {});
         await loadList();
         setTab("editor");
@@ -418,37 +496,55 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         const id = artifact.dataset.formArtifact || (selected && selected.id);
         if (!id) return;
         if (selected && selected.id === id) {
-          await save().catch((error) => showNote(error.message || L("保存失败"), true));
+          await save();
         }
-        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(id) + "/promote", {});
-        showNote(L("已存成 Artifact"), false);
+        const record = selected?.id === id ? selected : records.find((item) => item.id === id);
+        let payload;
+        try {
+          payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(id) + "/promote", { expected_version: record.version });
+        } catch (error) {
+          if (error.code !== "form.conflict") {
+            // Publication may have reached Artifact storage before association failed.
+            const fresh = await request("GET", "/api/plugins/form/" + encodeURIComponent(id)).catch(() => null);
+            if (fresh && selected?.id === id) remember(fresh.form, false);
+            await loadList().catch(() => {});
+          }
+          throw error;
+        }
+        showNote(L("已保存成果版本"), false);
         await loadList();
         if (payload.form && selected && selected.id === payload.form.id) remember(payload.form, false);
         return;
       }
       const row = event.target.closest("[data-form-id]");
       if (row) {
-        const record = records.find((item) => item.id === row.dataset.formId);
-        if (record) { setTab("editor"); fillEditor(record); }
+        await save();
+        if (answerDirty && !await ask(L("离开会丢弃未提交的填写内容。继续吗？"), L("继续"))) return;
+        const payload = await request("GET", "/api/plugins/form/" + encodeURIComponent(row.dataset.formId));
+        setTab("editor"); fillEditor(payload.form);
         return;
       }
       if (event.target.closest("[data-form-back]")) {
-        await save().catch((error) => showNote(error.message || L("保存失败"), true));
+        await save();
+        if (answerDirty && !await ask(L("离开会丢弃未提交的填写内容。继续吗？"), L("继续"))) return;
         closeEditor();
         await loadList();
         return;
       }
       const tabButton = event.target.closest("[data-form-tab]");
       if (tabButton && selected) {
+        if (tabButton.dataset.formTab === tab) return;
         await save();
+        if (answerDirty && !await ask(L("离开会丢弃未提交的填写内容。继续吗？"), L("继续"))) return;
+        answerDirty = false;
         setTab(tabButton.dataset.formTab);
-        if (tabButton.dataset.formTab === "preview") renderPreview({ ...selected, questions: questionsFromDom() });
+        if (tabButton.dataset.formTab === "preview") renderPreview(selected);
         if (tabButton.dataset.formTab === "results") await loadResults();
         return;
       }
       if (event.target.closest("[data-form-add-question]") && selected) {
         const row = renderQuestion({
-          id: "q-" + Date.now(),
+          id: "q-" + crypto.randomUUID(),
           type: typeSelect.value,
           title: "",
           required: false,
@@ -489,10 +585,10 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         queueSave();
         return;
       }
-      if (event.target.closest("[data-form-generate]") && selected) {
+      if (event.target.closest("[data-form-generate], [data-form-generate-ai]") && selected) {
         await save();
-        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/generate-questions", {
-          prompt: aiPrompt.value,
+        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + (button.matches("[data-form-generate-ai]") ? "/generate-ai-question" : "/generate-questions"), {
+          prompt: aiPrompt.value, expected_version: selected.version,
         });
         fillEditor(payload.form);
         aiPrompt.value = "";
@@ -501,7 +597,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-form-publish]") && selected) {
         await save();
-        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/publish");
+        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/publish", { expected_version: selected.version });
         remember(payload.form, false);
         await loadList();
         showNote(L("已发布"), false);
@@ -509,20 +605,33 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-form-delete]") && selected) {
         if (!await ask(L("删除这份问卷？答卷也会一起删掉。"), L("删除"))) return;
-        await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/delete");
+        await save();
+        await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/delete", { expected_version: selected.version });
         closeEditor();
         await loadList();
       }
     } catch (error) {
-      showNote(error.message || L("问卷请求失败"), true);
-    }
+      if (error.code === "form.conflict") saveError = error;
+      showNote(error.message || L("问卷请求失败"), true, saveError ? "save" : button.matches("[data-form-artifact]") ? "publication" : "");
+    } finally { setBusy(false); }
   });
+  const markAnswersChanged = () => {
+    answerDirty = true;
+    if (noteScope === "required") {
+      const answers = collectAnswers();
+      if (!previewQuestions.some(question => question.required && !String(answers[question.id] || "").trim())) showNote("", false);
+    }
+  };
   workbench.addEventListener("input", (event) => {
+    if (busy) return;
+    if (event.target.closest("[data-form-pane=preview]")) { markAnswersChanged(); return; }
     if (event.target.closest("[data-form-ai-prompt]")) return;
     if (event.target.closest("[data-form-title], [data-form-description], [data-form-question]")) queueSave();
   });
   workbench.addEventListener("change", (event) => {
-    if (event.target.closest("[data-form-pane=editor]")) queueSave();
+    if (busy) return;
+    if (event.target.closest("[data-form-pane=preview]")) { markAnswersChanged(); return; }
+    if (event.target.closest("[data-form-question]")) queueSave();
     if (event.target.matches("[data-question-type]")) {
       const row = event.target.closest("[data-form-question]");
       const existing = [...row.querySelectorAll("[data-option-label]")].map((input) => ({
@@ -543,7 +652,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (seq !== resultsSeq || selected?.id !== id) return;
     const count = payload.analysis?.submission_count || 0;
     summaryEl.textContent = count ? count + " " + L("份答卷") : L("还没有答卷");
-    const questions = questionsFromDom().length ? questionsFromDom() : (selected.questions || []);
+    const questions = selected.questions || [];
     resultListEl.replaceChildren();
     (payload.submissions || []).forEach((submission, index) => {
       const card = document.createElement("article");
@@ -552,12 +661,17 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const when = submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : "";
       head.textContent = L("答卷") + " " + (index + 1) + (when ? " · " + when : "");
       card.append(head);
-      questions.forEach((question) => {
+      if (!submission.questions) {
+        const legacy = document.createElement("p"); legacy.className = "form-result-legacy"; legacy.textContent = L("历史答卷未保存题目快照；名称参考当前问卷，未知题目保留原题号。"); card.append(legacy);
+      }
+      const submittedQuestions = submission.questions || questions;
+      const labels = new Map(submittedQuestions.map(question => [question.id, question.title]));
+      Object.entries(submission.answers || {}).forEach(([questionId, answer]) => {
         const row = document.createElement("p");
         const label = document.createElement("span");
-        label.textContent = question.title || question.id;
+        label.textContent = labels.get(questionId) || questionId;
         const value = document.createElement("span");
-        const raw = submission.answers?.[question.id];
+        const raw = answer;
         value.textContent = raw ? String(raw).replace(/\\n/g, "、") : "—";
         row.append(label, value);
         card.append(row);
@@ -568,23 +682,26 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   previewForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || busy) return;
+    setBusy(true);
     try {
-      const questions = questionsFromDom().length ? questionsFromDom() : (selected.questions || []);
       const answers = collectAnswers();
-      const missing = questions.find((question) => question.required && !String(answers[question.id] || "").trim());
-      if (missing) {
-        showNote(L("还有必填题没填"), true);
-        const node = previewEl.querySelector('[data-answer-id="' + missing.id + '"]');
-        (node && node.matches("input, select") ? node : node?.querySelector("input"))?.focus();
-        return;
-      }
-      await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/submit", { answers });
+      const missing = previewQuestions.find((question) => question.required && !String(answers[question.id] || "").trim());
+      if (missing) { showNote(L("还有必填题没填"), true, "required"); return; }
+      const input = { id: selected.id, expected_version: previewVersion, answers };
+      const fingerprint = JSON.stringify(input);
+      if (!submissionAttempt || submissionAttempt.fingerprint !== fingerprint) submissionAttempt = { fingerprint, request_id: crypto.randomUUID() };
+      await request("POST", "/api/plugins/form/" + encodeURIComponent(selected.id) + "/submit", { answers, expected_version: previewVersion, request_id: submissionAttempt.request_id });
+      answerDirty = false;
       await loadResults();
       setTab("results");
       showNote(L("已提交"), false);
-    } catch (error) {
-      showNote(error.message, true);
+    } catch (error) { showNote(error.message, true); }
+    finally { setBusy(false); }
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if (selected && (saveError || editRevision > savedRevision || answerDirty)) {
+      event.preventDefault(); event.returnValue = "";
     }
   });
   void loadList().catch((error) => showNote(error.message, true));

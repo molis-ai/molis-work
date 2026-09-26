@@ -24,7 +24,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         respond( 400, { error: "请选择目标 Runtime" });
         return true;
       }
-      const contract = readGoalContract(source.current_goal_id);
+      const contract = await readGoalContract(source.current_goal_id);
       const result = await resources.handoff.prepare({
         source_session_id: source.session_id,
         project_id: projectOptions.project!.project_id,

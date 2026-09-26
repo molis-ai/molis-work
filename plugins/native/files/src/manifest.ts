@@ -1,5 +1,6 @@
+import { FILES_ACTIONS } from "./actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_FILE_CHANGED_EVENT,
   CODING_WORKSPACE_INVALIDATED_EVENT,
@@ -10,8 +11,6 @@ import {
   FILE_TEXT_SELECTION_SCHEMA_VERSION,
   FILE_TEXT_SELECTION_TYPE,
   GIT_FILE_CHANGED_EVENT,
-  WORKSPACE_REF_SCHEMA_VERSION,
-  WORKSPACE_REF_TYPE,
   readWorkspaceFileCapability,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { FILES_UI_CONTRIBUTION_ID } from "./ui.js";
@@ -43,9 +42,10 @@ export const filesManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: FILES_PLUGIN_ID,
-  version: "1.1.0",
+  version: "1.4.0",
   name: "Files",
   kind: "app",
+  upgrade_compatibility: { compatible_from_versions: ["1.3.0", "1.2.0", "1.1.0"] },
   publisher: { publisher_id: "molis", signature: "official-files-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -55,24 +55,19 @@ export const filesManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectsCapabilities.readWorkspace.capability_id, readWorkspaceFileCapability.capability_id],
+    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, readWorkspaceFileCapability.capability_id],
   },
+  actions: FILES_ACTIONS,
   artifacts: {
     produces: [
       { artifact_type_id: FILES_COLLECTION_TYPE, schema_version: FILES_COLLECTION_SCHEMA_VERSION },
       { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION },
       { artifact_type_id: FILE_TEXT_SELECTION_TYPE, schema_version: FILE_TEXT_SELECTION_SCHEMA_VERSION },
     ],
-    consumes: [{ artifact_type_id: WORKSPACE_REF_TYPE, schema_version: WORKSPACE_REF_SCHEMA_VERSION }],
+    consumes: [],
   },
   ports: {
-    inputs: [
-      {
-        port: FILES_WORKSPACE_INPUT_PORT,
-        artifact_type_id: WORKSPACE_REF_TYPE,
-        schema_version: WORKSPACE_REF_SCHEMA_VERSION,
-      },
-    ],
+    inputs: [],
     outputs: [
       {
         port: FILES_COLLECTION_OUTPUT_PORT,
@@ -123,6 +118,7 @@ export const filesManifest: PluginManifest = {
     { route_id: "files.capture", method: "POST", path: "/capture" },
   ],
   ui: {
+    embedded_plugins: ["io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [FILES_UI_CONTRIBUTION_ID],
     commands: [
       {
@@ -146,13 +142,7 @@ export const filesManifest: PluginManifest = {
   },
 };
 
-/**
- * The binding the Host creates by default.
- *
- * Named as plain ids rather than imported from those Plugins: a default is a
- * suggestion about wiring, not a dependency on the other Plugin's code, and
- * Files stays useful if Workspace is not installed.
- */
+/** @deprecated Historical binding only. Read projectSettingsCapabilities.browsingWorkspace. */
 export const FILES_WORKSPACE_SOURCE = {
   source_plugin_id: "io.molis.work.workspace",
   source_port: "workspace",

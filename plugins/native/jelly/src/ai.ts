@@ -14,7 +14,7 @@ export interface JellyAiPorts {
 export interface JellyAiInput {
   kind: "decompose" | "digest";
   source_type: "note" | "inspiration" | "text";
-  source_id?: string; text?: string; instructions?: string; today?: string; start_time?: number; manual?: boolean;
+  source_id?: string | null; text?: string; instructions?: string; today?: string; start_time?: number; manual?: boolean;
   selection?: { block_ids: string[]; text: string };
 }
 function sourceText(state: JellyWorkspace, input: JellyAiInput): string {

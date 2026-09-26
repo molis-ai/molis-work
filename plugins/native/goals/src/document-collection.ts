@@ -1,12 +1,11 @@
 import { GOALS_PRESENTATION_STATES, type GoalsCoverageItem, type GoalsInputBinding } from "./document-view.js";
 import type { GoalsPolicyBinding } from "./policy-ui-model.js";
 import type { GoalPresentationState } from "./tree-order.js";
-import type { GoalStatusTranslate } from "./goal-state-explanation.js";
 import type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 import { createGoalDocumentIndex } from "./document-index.js";
 import { projectGoalDocument } from "./document-projection.js";
 
-export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boardId: string, _translate: GoalStatusTranslate) {
+export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boardId: string) {
   const snapshot = ports.snapshot(boardId);
   const coverage: GoalsCoverageItem[] = ports.goals.listLegacyCoverage(boardId);
   const inputBindings = ports.inputs.list(boardId)
@@ -37,3 +36,5 @@ export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, boar
     counts, coverage, input_bindings: inputBindings, policy_bindings: policyBindings, events,
   };
 }
+
+export type GoalsDocumentCollectionView = ReturnType<typeof buildGoalsDocumentCollection>;

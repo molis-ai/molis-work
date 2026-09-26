@@ -1,3 +1,4 @@
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
@@ -5,9 +6,6 @@ import { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { AttentionError } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import {
-  FEED_CAPTURE_SCENE_ID,
-  HOME_DOCK_SCENE_ID,
-  INBOX_NEXT_SCENE_ID,
   type JudgmentRecord,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FeedStoreError, assertSourceHistoryDecision } from "./application-errors.js";
@@ -22,9 +20,11 @@ import {
 /** Product operations over module facts; connection and lifecycle are supplied by the host. */
 export class FeedApplication {
   private pendingFeedJudgments: FeedItemRecord[] = [];
-  private pendingInboxJudgments: InboxEntryRecord[] = [];
+  private readonly pendingInboxJudgments = new Map<string, { board_id: string; entry_id: string }>();
 
-  constructor(private readonly ports: FeedApplicationPorts) {}
+  constructor(private readonly ports: FeedApplicationPorts) {
+    ports.subscribeInboxCreated(entry => this.pendingInboxJudgments.set(JSON.stringify([entry.board_id, entry.entry_id]), entry));
+  }
 
   snapshot(boardId: string): FeedSnapshot {
     const sources = this.ports.sources.query.list(boardId).map((source) => this.compatibleSource(source));
@@ -173,7 +173,6 @@ export class FeedApplication {
       at: input.at,
     }));
     const entry = toLegacyAttentionEntry(result.entry);
-    if (result.created) this.pendingInboxJudgments.push(entry);
     return { entry, created: result.created };
   }
 
@@ -187,7 +186,6 @@ export class FeedApplication {
       () => this.ports.attention.commands.ensureFeedItem(boardId, itemId, reason, detail),
     );
     const entry = toLegacyAttentionEntry(result.entry);
-    if (result.created) this.pendingInboxJudgments.push(entry);
     return { entry, created: result.created };
   }
 
@@ -295,105 +293,55 @@ export class FeedApplication {
       } catch (error) {
         this.recordArtifactOutFailure(item, [], [errorCode(error)]);
       }
-      if (this.ports.judgments) this.pendingFeedJudgments.push(item);
+      if (this.ports.captureJudgment || this.ports.homeJudgment) this.pendingFeedJudgments.push(item);
     }
     return { item, created: result.created, updated: result.updated };
   }
 
-  async evaluateItems(boardId: string, itemIds: readonly string[]): Promise<{ evaluated: number }> {
+  async evaluateItems(boardId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
     if (!itemIds.length || itemIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条消息试跑规则");
     const items = [...new Set(itemIds)].map((id) => this.getFeedItem(boardId, id));
     for (const item of items) this.captureAfterIngest(item);
     this.pendingFeedJudgments.push(...items);
-    await this.flushPendingJudgments();
+    await this.flushPendingJudgments(caller);
     return { evaluated: items.length };
   }
 
-  async evaluateInboxEntries(boardId: string, entryIds: readonly string[]): Promise<{ judgments: JudgmentRecord[] }> {
-    const port = this.ports.judgments;
-    const binding = port?.sceneBinding(INBOX_NEXT_SCENE_ID, boardId);
-    if (!port || !binding) throw new FeedStoreError("feed_invalid_transition", "请先在 Functions 发布规则并用在 Inbox");
-    if (!entryIds.length || entryIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条待处理事项");
-    // Resolve the entire selection before calling the provider, including project ownership.
-    const entries = [...new Set(entryIds)].map(id => this.getInboxEntry(boardId, id));
-    if (entries.some(entry => entry.status !== "open" && entry.status !== "in_progress")) {
-      throw new FeedStoreError("feed_invalid_transition", "已完成或已忽略的事项请先重新打开");
+  recordInboxJudgmentEvent(boardId: string, judgment: JudgmentRecord): void {
+    if (judgment.subject.kind !== "inbox_entry" || judgment.subject.board_id !== boardId) {
+      throw new FeedStoreError("feed_invalid_transition", "判断结果与当前 Inbox 项目不符");
     }
-    const judgments: JudgmentRecord[] = [];
-    for (const entry of entries) {
-      const subject = entry.subject_type === "feed_item" ? this.getFeedItem(boardId, entry.subject_id) : null;
-      const input = [entry.reason, subject?.title, subject?.summary, subject?.body, JSON.stringify(entry.detail)].filter(Boolean).join("\n");
-      const judgment = await port.judge({ function_key: binding.function_key, input,
-        subject: { kind: "inbox_entry", id: entry.entry_id, board_id: boardId }, scene_id: INBOX_NEXT_SCENE_ID,
-        offered_behavior_ids: this.ports.offeredBehaviorsForScene?.(INBOX_NEXT_SCENE_ID, ["inbox_entry"]) ?? this.ports.offered_behavior_ids ?? [] });
-      judgments.push(judgment);
-      this.ports.appendEvent(boardId, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
-        { judgment_id: judgment.judgment_id }, judgment.created_at);
-    }
-    return { judgments };
+    this.getInboxEntry(boardId, judgment.subject.id);
+    this.ports.appendEvent(boardId, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
+      { judgment_id: judgment.judgment_id }, judgment.created_at);
   }
 
-  async flushPendingJudgments(): Promise<void> {
-    const judgments = this.ports.judgments;
-    if (!judgments) {
-      this.pendingFeedJudgments = [];
-      this.pendingInboxJudgments = [];
-      return;
-    }
-    const offered = this.ports.offered_behavior_ids ?? [];
-    const sceneOffered = (sceneId: string, subjects: readonly string[]) =>
-      this.ports.offeredBehaviorsForScene?.(sceneId, subjects) ?? offered;
+  async flushPendingJudgments(caller?: ActionCallContext): Promise<void> {
     const feedItems = this.pendingFeedJudgments.splice(0);
-    for (const item of feedItems) {
-      const rules = (this.ports.outRules?.list(item.board_id) ?? []).filter((rule) =>
-        Boolean(rule.function_key) && feedOutRuleMatches(rule, item),
-      );
-      const input = [item.title, item.summary, item.body ?? ""].filter(Boolean).join("\n");
-      const captureOffered = sceneOffered(FEED_CAPTURE_SCENE_ID, ["feed_item"]);
-      for (const rule of rules) {
-        const judgment = await judgments.judge({
-          function_key: rule.function_key!,
-          input,
-          subject: { kind: "feed_item", id: item.item_id, board_id: item.board_id },
-          scene_id: FEED_CAPTURE_SCENE_ID,
-          offered_behavior_ids: captureOffered,
-        });
-        if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))) {
-          this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", {
-            rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
-            function_key: rule.function_key, function_version: judgment.function_version,
-            needs_review: judgment.outcome === "needs_review",
-          });
-        }
-        this.ports.appendEvent(
-          item.board_id,
-          "judgment",
-          judgment.judgment_id,
-          "judgment_completed",
-          judgment.outcome,
-          { judgment_id: judgment.judgment_id },
-          judgment.created_at,
-        );
-      }
-      await this.judgeScene(judgments, HOME_DOCK_SCENE_ID, item.board_id, {
-        kind: "feed_item",
-        id: item.item_id,
-        board_id: item.board_id,
-      }, input, sceneOffered(HOME_DOCK_SCENE_ID, ["feed_item"]));
+    for (const queued of feedItems) {
+      let item: FeedItemRecord;
+      try { item = this.getFeedItem(queued.board_id, queued.item_id); }
+      catch (error) { if (error instanceof FeedStoreError && error.code === "feed_item_not_found") continue; throw error; }
+      const ruleIds = this.listOutRules(item.board_id).filter(rule => (rule.judgment || rule.function_key) && feedOutRuleMatches(rule, item)).map(rule => rule.rule_id);
+      await this.ports.captureJudgment?.({ board_id: item.board_id, item_id: item.item_id, rule_ids: ruleIds }, caller);
+      await this.ports.homeJudgment?.({ kind: "feed_item", id: item.item_id, board_id: item.board_id }, caller);
     }
-    for (const entry of this.pendingInboxJudgments.splice(0)) {
-      const subject = entry.subject_type === "feed_item" ? this.getFeedItem(entry.board_id, entry.subject_id) : null;
-      const input = [entry.reason, subject?.title, subject?.summary, subject?.body, JSON.stringify(entry.detail)].filter(Boolean).join("\n");
-      await this.judgeScene(judgments, INBOX_NEXT_SCENE_ID, entry.board_id, {
-        kind: "inbox_entry",
-        id: entry.entry_id,
-        board_id: entry.board_id,
-      }, input, sceneOffered(INBOX_NEXT_SCENE_ID, ["inbox_entry"]));
-      await this.judgeScene(judgments, HOME_DOCK_SCENE_ID, entry.board_id, {
-        kind: "inbox_entry",
-        id: entry.entry_id,
-        board_id: entry.board_id,
-      }, input, sceneOffered(HOME_DOCK_SCENE_ID, homeDockSubjectsForInbox(entry)));
+    await this.flushPendingInboxJudgments(caller);
+  }
+
+  async flushPendingInboxJudgments(caller?: ActionCallContext, entryIds?: readonly string[]): Promise<void> {
+    // A composed user operation owns only its newly created entry; it cannot drain another producer's queued events with its identity.
+    const selected = entryIds ? new Set(entryIds) : null;
+    const inboxEvents = [...this.pendingInboxJudgments.values()].filter(event => !selected || selected.has(event.entry_id));
+    for (const event of inboxEvents) this.pendingInboxJudgments.delete(JSON.stringify([event.board_id, event.entry_id]));
+    for (const event of inboxEvents) {
+      // Module events can occur inside a transaction that is later rolled back.
+      let entry: InboxEntryRecord;
+      try { entry = this.getInboxEntry(event.board_id, event.entry_id); }
+      catch (error) { if (error instanceof FeedStoreError && error.code === "inbox_entry_not_found") continue; throw error; }
+      if (entry.status !== "open" && entry.status !== "in_progress") continue;
+      await this.ports.inboxJudgment?.(entry, caller);
+      await this.ports.homeJudgment?.({ kind: "inbox_entry", id: entry.entry_id, board_id: entry.board_id }, caller);
     }
   }
 
@@ -401,33 +349,49 @@ export class FeedApplication {
     return this.ports.outRules?.list(boardId) ?? [];
   }
 
+  prepareOutRuleCreate(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
+    return this.requireOutRules().prepareCreate(boardId, input);
+  }
+
+  saveOutRuleCreate(rule: FeedOutRuleRecord): FeedOutRuleRecord {
+    if (rule.function_key && !rule.judgment) throw new FeedStoreError("feed_invalid_transition", "请通过动作服务选择可用的判断能力");
+    return this.requireOutRules().saveCreate(rule);
+  }
+
   createOutRule(boardId: string, input: FeedOutRuleWrite): FeedOutRuleRecord {
-    const rule = this.requireOutRules().create(boardId, input);
-    if (!rule.function_key) return rule;
-    try {
-      this.ports.judgments?.bindScene(FEED_CAPTURE_SCENE_ID, rule.function_key, boardId, rule.rule_id);
-      return rule;
-    } catch (error) {
-      this.requireOutRules().delete(boardId, rule.rule_id);
-      throw error;
-    }
+    return this.saveOutRuleCreate(this.prepareOutRuleCreate(boardId, input));
+  }
+
+  prepareOutRuleUpdate(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
+    return this.requireOutRules().prepareUpdate(boardId, ruleId, patch);
+  }
+
+  saveOutRuleUpdate(rule: FeedOutRuleRecord, expectedRevision?: string): FeedOutRuleRecord {
+    return this.requireOutRules().saveUpdate(rule, expectedRevision);
   }
 
   updateOutRule(boardId: string, ruleId: string, patch: Partial<FeedOutRuleWrite>): FeedOutRuleRecord {
-    if (patch.function_key) {
-      this.ports.judgments?.bindScene(FEED_CAPTURE_SCENE_ID, patch.function_key, boardId, ruleId);
-    }
-    const rule = this.requireOutRules().update(boardId, ruleId, patch);
-    if (!rule.function_key) {
-      this.ports.judgments?.unbindScene(FEED_CAPTURE_SCENE_ID, boardId, rule.rule_id);
-    }
-    return rule;
+    if (patch.function_key && !patch.judgment) throw new FeedStoreError("feed_invalid_transition", "请通过动作服务选择可用的判断能力");
+    const current = this.requireOutRules().get(boardId, ruleId);
+    return this.saveOutRuleUpdate(this.prepareOutRuleUpdate(boardId, ruleId, patch), current.revision);
   }
 
   deleteOutRule(boardId: string, ruleId: string): FeedOutRuleRecord {
-    const rule = this.requireOutRules().delete(boardId, ruleId);
-    this.ports.judgments?.unbindScene(FEED_CAPTURE_SCENE_ID, boardId, rule.rule_id);
-    return rule;
+    return this.requireOutRules().delete(boardId, ruleId);
+  }
+
+  recordCaptureJudgment(item: FeedItemRecord, rule: FeedOutRuleRecord, judgment: JudgmentRecord): void {
+    if (judgment.subject.kind !== "feed_item" || judgment.subject.id !== item.item_id || judgment.subject.board_id !== item.board_id) {
+      throw new FeedStoreError("feed_invalid_transition", "判断结果与当前 Feed 消息不符");
+    }
+    if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))) {
+      this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", {
+        rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
+        function_key: rule.function_key, function_version: judgment.function_version, needs_review: judgment.outcome === "needs_review",
+      });
+    }
+    this.ports.appendEvent(item.board_id, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
+      { judgment_id: judgment.judgment_id }, judgment.created_at);
   }
 
   setDisposition(
@@ -478,7 +442,7 @@ export class FeedApplication {
     const matched = rules.filter((rule) => feedOutRuleMatches(rule, item));
     if (matched.length === 0) return;
     for (const rule of matched) {
-      if (rule.admission === "inbox" && !rule.function_key) {
+      if (rule.admission === "inbox" && !rule.function_key && !rule.judgment) {
         this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", { rule_id: rule.rule_id, rule_name: rule.name });
       }
     }
@@ -503,33 +467,7 @@ export class FeedApplication {
     this.completeArtifactOutFailure(item);
   }
 
-  private async judgeScene(
-    judgments: NonNullable<FeedApplicationPorts["judgments"]>,
-    sceneId: string,
-    boardId: string,
-    subject: { kind: "feed_item" | "inbox_entry"; id: string; board_id: string },
-    input: string,
-    offered: readonly string[],
-  ): Promise<void> {
-    const binding = judgments.sceneBinding(sceneId, boardId);
-    if (!binding) return;
-    const judgment = await judgments.judge({
-      function_key: binding.function_key,
-      input,
-      subject,
-      scene_id: sceneId,
-      offered_behavior_ids: offered,
-    });
-    this.ports.appendEvent(
-      boardId,
-      "judgment",
-      judgment.judgment_id,
-      "judgment_completed",
-      judgment.outcome,
-      { judgment_id: judgment.judgment_id },
-      judgment.created_at,
-    );
-  }
+
 
   private recordArtifactOutFailure(item: FeedItemRecord, ruleIds: string[], errorCodes: string[]): void {
     try {
@@ -540,7 +478,6 @@ export class FeedApplication {
         reason: "artifact_out_failed",
         detail: { rule_ids: ruleIds, error_codes: errorCodes },
       }));
-      this.pendingInboxJudgments.push(toLegacyAttentionEntry(entry));
       if (entry.status === "done" || entry.status === "dismissed") {
         this.setInboxEntryStatus(item.board_id, entry.entry_id, "open");
       }
@@ -623,10 +560,4 @@ function errorCode(error: unknown): string {
     return error.code;
   }
   return "feed_artifact_register_failed";
-}
-
-function homeDockSubjectsForInbox(entry: InboxEntryRecord): string[] {
-  if (entry.subject_type === "feed_item") return ["inbox_entry", "feed_item"];
-  if (entry.subject_type === "source_fault") return ["inbox_entry", "source"];
-  return ["inbox_entry"];
 }

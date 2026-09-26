@@ -30,7 +30,6 @@ export interface InboxEntryRecord extends Omit<AttentionEntryRecord, "project_id
   board_id: string;
   next_judgment?: import("@molis-ai/molis-work-contracts/modules/functions").JudgmentRecord | null;
   suggested_behavior_ids?: readonly string[];
-  home_dock_suggested_behavior_ids?: readonly string[];
 }
 export interface FeedMaterialRecord extends Omit<CanonicalFeedMaterial, "project_id"> {
   board_id: string;
@@ -42,7 +41,6 @@ export interface FeedItemRecord extends Omit<CanonicalFeedItem, "project_id" | "
   item_type: FeedItemType;
   materials: FeedMaterialRecord[];
   suggested_behavior_ids?: readonly string[];
-  home_dock_suggested_behavior_ids?: readonly string[];
 }
 
 export interface FeedOutRuleMatch {
@@ -58,6 +56,9 @@ export interface FeedOutRuleRecord {
   enabled: boolean;
   match: FeedOutRuleMatch;
   function_key: string | null;
+  /** undefined only for a pre-migration row; null preserves an unresolved legacy key. */
+  judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
+  revision?: string;
   admission?: "suggest" | "inbox";
   created_at: string;
   updated_at: string;

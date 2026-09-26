@@ -5,6 +5,8 @@ import { charactersManifest } from "./manifest.js";
 import { charactersUiContribution } from "./ui.js";
 import type { CharactersImportPorts } from "./imports.js";
 import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface CharactersPluginPorts {
   imports?: CharactersImportPorts;
@@ -44,6 +46,22 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       }
     } });
     const imports = () => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
+    const actionCatalog = async () => {
+      const api = context.services?.capabilities;
+      if (!api) throw new Error("内置 Agent 能力目录尚未接通");
+      const runtimes = await api.invoke(agentHostCapabilities.listRuntimes, []);
+      if (!runtimes.some(runtime => runtime.runtime_id === "prologue" && runtime.supports_action_tools)) return [];
+      return api.invoke(agentHostCapabilities.listActions, ["prologue", context.plugin_id]);
+    };
+    const validateActions = async (refs?: ExactActionReference[] | null) => {
+      if (!refs?.length) return;
+      const catalog = await actionCatalog();
+      for (const ref of refs) {
+        const view = catalog.find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
+        if (!view || !view.action.audiences.includes("agent")) throw new Error(`原能力 ${ref.capability_id} · v${ref.version} 不可用或尚未授权给内置 Agent；草稿引用已保留`);
+        if (!view.availability.available) throw new Error(view.availability.reason);
+      }
+    };
     const publication = (request: PluginRouteRequest, requireActive = true) => {
       const input = body(request), ref = input.reference as ArtifactReference | undefined;
       const record = publications().find(item => item.artifact_id === ref?.artifact_id && item.version === ref.version);
@@ -53,6 +71,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
     };
     return { kind: "app", views: [charactersUiContribution], routes: [
+      route("characters.actions", async () => ({ actions: await actionCatalog() })),
       route("characters.discover", request => ({ candidates: imports().discover(body(request)).map(candidate => ({ ...candidate, snapshot: characterSnapshotPreview(candidate.snapshot) })) })),
       route("characters.import-file", request => { const input = body(request); return imports().previewFile(input.candidate_id as string, input); }),
       route("characters.draft-file", request => characterFilePreview(ports.drafts.get(request.params.id ?? "")?.import_snapshot, body(request))),
@@ -74,15 +93,20 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         const input = body(request);
         return { draft: characterBrowserPreview(ports.drafts.update(request.params.id ?? "", input.expected_revision as number, {
           title: input.title as string, instructions: input.instructions as string, host_tools: input.host_tools as string[] | null,
+          ...(input.action_tools === undefined ? {} : { action_tools: input.action_tools as import("@molis-ai/molis-work-contracts/modules/characters").CharacterDraftPatch["action_tools"] }),
         })) };
       }),
-      route("characters.state", request => {
+      route("characters.state", async request => {
         const input = body(request);
+        if (input.state === "active") await validateActions(ports.drafts.get(request.params.id ?? "")?.action_tools);
         return { draft: characterBrowserPreview(ports.drafts.setState(request.params.id ?? "", input.expected_revision as number,
           input.state as "active" | "disabled" | "tombstoned")) };
       }),
-      route("characters.publish", request => {
+      route("characters.publish", async request => {
         const input = body(request);
+        const draft = ports.drafts.get(request.params.id ?? "");
+        if (!draft || draft.revision !== input.expected_revision) throw Object.assign(new Error("草稿已变化，请重新读取后发布"), { code: "character.conflict" });
+        await validateActions(draft.action_tools);
         const result = ports.publish(request.params.id ?? "", input.expected_revision as number, content => {
           const artifact_id = `character:${boardId}:${content.character_id}`;
           const existing = publications().filter(record => record.artifact_id === artifact_id).sort((a, b) => b.version - a.version);

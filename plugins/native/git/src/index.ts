@@ -81,3 +81,5 @@ export { createGitPlugin, type GitPluginPorts } from "./plugin.js";
 export { renderGitBrowserDirectory, renderGitBrowserResult } from "./ui.js";
 export { GIT_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { GIT_STYLES } from "./styles.js";
+
+export { gitActions, GIT_ACTIONS } from "./action-definitions.js";

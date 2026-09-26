@@ -61,12 +61,13 @@ export function renderFormWorkbench(model: FormUiModel): string {
         <strong>${p.text("还没有问卷")}</strong>
         <p>${p.text("先建一份，再加题目。预览里可以自己填一遍，看结果。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <button class="mw-btn mw-btn--primary" type="button" data-form-new>${icon("plus")}<span>${p.text("新建问卷")}</span></button>
       </div>
       <div data-form-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-form-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-form-back aria-label="${p.text("返回问卷列表")}" title="${p.text("返回问卷列表")}">${icon("arrow")}</button>
+        <button class="plugin-stage-back" type="button" data-form-back aria-label="${p.text("返回问卷列表")}" title="${p.text("返回问卷列表")}">${icon("chevron-right")}</button>
         <h1 data-form-editor-title>${p.text("问卷")}</h1>
         <span data-form-editor-status></span>
         <div class="form-tabs" role="tablist">
@@ -74,9 +75,17 @@ export function renderFormWorkbench(model: FormUiModel): string {
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview">${p.text("预览")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${p.text("结果")}</button>
         </div>
-        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar>${p.text("存成 Artifact")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${p.text("删除")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar>${p.text("保存成果版本")}</button>
+        <details class="plugin-stage-more">
+          <summary class="mw-btn mw-btn--ghost" aria-label="${p.text("更多操作")}">${icon("more")}<span>${p.text("更多")}</span></summary>
+          <div class="plugin-stage-more-actions">
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-reload>${p.text("重新读取")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${p.text("删除")}</button>
+          </div>
+        </details>
       </div>
+      <p class="form-note" data-form-note role="status" aria-live="polite" hidden></p>
+      <p class="form-note" data-form-publication-note hidden></p>
       <div class="form-workspace" data-form-pane="editor">
         <div class="form-identity">
           <label class="form-field">${p.text("标题")}<input class="mw-input" data-form-title autocomplete="off"></label>
@@ -96,11 +105,14 @@ export function renderFormWorkbench(model: FormUiModel): string {
         </div>
         <div data-form-questions></div>
         <div class="form-prompt">
-          <label class="form-field">${p.text("按提示加一题")}<input class="mw-input" data-form-ai-prompt autocomplete="off" placeholder="${p.text("例如：你最常用的工具是什么")}"></label>
-          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate>${p.text("加题")}</button>
+          <label class="form-field">${p.text("题目或 AI 提示")}<input class="mw-input" data-form-ai-prompt autocomplete="off" placeholder="${p.text("例如：你最常用的工具是什么")}"></label>
+          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate>${p.text("按题目加题")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate-ai disabled>${icon("sparkles")}<span>${p.text("AI 拟题加题")}</span></button>
         </div>
+        <p class="form-note" data-form-ai-reason></p>
         <div class="form-actions">
-          <button class="mw-btn mw-btn--primary" type="button" data-form-publish>${p.text("发布")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-form-publish>${p.text("标记已发布")}</button>
+          <span class="form-note">${p.text("发布状态保存在本机，不会生成外网填写链接。")}</span>
         </div>
       </div>
       <form class="form-workspace" data-form-pane="preview" hidden>
@@ -117,7 +129,6 @@ export function renderFormWorkbench(model: FormUiModel): string {
           <pre class="form-export" data-form-export></pre>
         </details>
       </div>
-      <p class="form-note" data-form-note hidden></p>
     </div>
     <dialog class="mw-dialog creative-confirm" data-form-confirm>
       <form class="creative-confirm-form" method="dialog">

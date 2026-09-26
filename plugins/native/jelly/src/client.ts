@@ -88,23 +88,25 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const openGeneric = (title, html, ok, submit, cleanup) => {
     const dialog=$('[data-jelly-dialog]');
     genericVersion++;
-    if (dialog.open) {const cleanup=genericCleanup;genericCleanup=null;cleanup?.();}
+    // A close event may still be queued when this shared dialog opens its next view.
+    const previousCleanup=genericCleanup;genericCleanup=null;previousCleanup?.();
     genericSubmit=submit; genericCleanup=cleanup || null;
     $('[data-jelly-dialog-title]').textContent=L(title); $('[data-jelly-dialog-body]').innerHTML=html;
     $('[data-jelly-dialog-ok]').textContent=L(ok || '确定'); $('[data-jelly-dialog-ok]').hidden=!submit;
+    $('[data-jelly-dialog-ok]').disabled=false;
     $('[data-jelly-dialog-error]').hidden=true; if(!dialog.open)dialog.showModal();
   };
   const confirm = (title, message, ok = '确定') => new Promise((resolve) => {
     let answered=false;
     openGeneric(title,'<p class="jelly-muted">'+esc(message)+'</p>',ok,async()=>{answered=true;resolve(true);},()=>{if(!answered)resolve(false);});
   });
-  $('[data-jelly-dialog]').addEventListener('close',()=>{ const cleanup=genericCleanup; genericCleanup=null; genericSubmit=null; cleanup?.(); });
+  $('[data-jelly-dialog]').addEventListener('close',()=>{ if($('[data-jelly-dialog]').open)return; genericVersion++; const cleanup=genericCleanup; genericCleanup=null; genericSubmit=null; cleanup?.(); });
   $('[data-jelly-dialog-form]').addEventListener('submit',async(event)=>{
-    event.preventDefault(); const submit=genericSubmit; if(!submit)return;
+    event.preventDefault(); const submit=genericSubmit; if(!submit)return; const version=genericVersion;
     const ok=$('[data-jelly-dialog-ok]'); ok.disabled=true;
-    try { const keep=await submit(); if(keep!==false)$('[data-jelly-dialog]').close(); }
-    catch(error){ const errorEl=$('[data-jelly-dialog-error]');errorEl.hidden=false;errorEl.textContent=error.message; }
-    finally{ok.disabled=false;}
+    try { const keep=await submit(); if(keep!==false&&genericVersion===version)$('[data-jelly-dialog]').close(); }
+    catch(error){ if(genericVersion!==version){showNote(error.message,true);return;} const errorEl=$('[data-jelly-dialog-error]');errorEl.hidden=false;errorEl.textContent=error.message; }
+    finally{if(genericVersion===version)ok.disabled=false;}
   });
   const renderFilters = () => {
     $('[data-jelly-category-filters]').innerHTML=btn('全部','data-jelly-filter="" aria-pressed="'+!filterCategory+'"')+state.categories.map((entry)=>'<button type="button" class="mw-btn mw-btn--ghost" data-jelly-filter="'+esc(entry.id)+'" aria-pressed="'+(entry.id===filterCategory)+'">'+categoryDot(entry.id)+esc(entry.name)+'</button>').join('');

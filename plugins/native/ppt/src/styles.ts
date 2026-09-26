@@ -17,6 +17,9 @@ export const PPT_STYLES = `
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .ppt-stage-chrome { pointer-events: auto; }
   [data-ppt=workbench] { --plugin-tint: var(--plugin-ppt); }
+  [data-ppt-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
+  [data-ppt-stage-workspace] > .ppt-note { flex-shrink: 0; margin: 0 20px 16px; }
+  .ppt-workspace > * { flex-shrink: 0; }
   .ppt-workspace {
     display: flex; flex-direction: column; gap: 16px;
     flex: 1; min-height: 0; max-width: 72rem; padding: 8px 20px 28px; overflow: auto;
@@ -73,7 +76,7 @@ export const PPT_STYLES = `
   }
   .ppt-preview { display: flex; flex-direction: column; gap: 16px; overflow: auto; padding: 4px; }
   .ppt-preview-item { display: flex; flex-direction: column; gap: 8px; }
-  .ppt-card-notes { margin: 0 0 4px; padding: 0 4px; font-size: 12px; color: var(--muted); }
+  .ppt-card-notes { white-space: pre-wrap; margin: 0 0 4px; padding: 0 4px; font-size: 12px; color: var(--muted); }
   .ppt-card {
     aspect-ratio: 16 / 9; min-height: 140px; max-width: 100%; padding: 18px 20px; border-radius: 10px;
     border: 1px solid transparent; display: flex; flex-direction: column; justify-content: center; gap: 8px;
@@ -82,6 +85,7 @@ export const PPT_STYLES = `
   .ppt-card.is-current {
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--plugin-ppt, var(--focus)) 72%, var(--focus));
   }
+  .ppt-card h2, .ppt-card li, .ppt-card-notes { overflow-wrap: anywhere; }
   .ppt-card h2 { margin: 0; font-size: 18px; font-weight: 500; }
   .ppt-card ul { margin: 0; padding-left: 18px; }
   .ppt-card-empty { margin: 0; font-size: 13px; font-weight: 400; color: var(--muted); }
@@ -90,7 +94,7 @@ export const PPT_STYLES = `
   .plugin-stage-detail-bar [data-ppt-editor-status].mw-status {
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;
   }
-  .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
+  .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }
@@ -102,7 +106,10 @@ export const PPT_STYLES = `
     to { opacity: 1; transform: none; filter: none; }
   }
   @media (max-width: 900px) { .ppt-split { grid-template-columns: 1fr; } }
-  @media (max-width: 720px) { .ppt-meta { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) {
+    .ppt-meta { grid-template-columns: 1fr; }
+    .ppt-swatch { width: 44px; height: 44px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .is-arriving, .plugin-stage-workspace.is-arriving { animation: none; }
     .ppt-slide-row > button:first-child, .ppt-card, .ppt-swatch { transition: none; }

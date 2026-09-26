@@ -60,7 +60,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
           <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-clear-selection>${p.text("清空")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard>${p.text("丢掉")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-brainstorm>${p.text("头脑风暴")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch>${p.text("分发")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch>${p.text("复制内容")}</button>
         </div>
       </header>
       <div class="mw-empty" data-lingguang-empty>
@@ -68,15 +68,18 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <strong>${p.text("还没有灵光")}</strong>
         <p>${p.text("想法还没想清楚时先扔进来，再决定留下或丢掉。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <button class="mw-btn mw-btn--primary" type="button" data-lingguang-capture>${icon("plus")}<span>${p.text("记下第一条灵光")}</span></button>
       </div>
       <div data-lingguang-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-lingguang-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-lingguang-back aria-label="${p.text("返回灵光列表")}" title="${p.text("返回灵光列表")}">${icon("arrow")}</button>
+        <button class="plugin-stage-back" type="button" data-lingguang-back aria-label="${p.text("返回灵光列表")}" title="${p.text("返回灵光列表")}">${icon("chevron-right")}</button>
         <h1 data-lingguang-editor-title>${p.text("灵光")}</h1>
+        <span data-lingguang-save-status role="status" aria-live="polite"></span>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-save-retry hidden>${p.text("重试保存")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard-current>${p.text("丢掉")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("分发")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("复制内容")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-brainstorm-current>${p.text("头脑风暴")}</button>
       </div>
       <div class="lingguang-editor" data-lingguang-pane="editor">
@@ -102,19 +105,6 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         </div>
       </form>
     </dialog>
-    <dialog class="mw-dialog creative-confirm" data-lingguang-dispatch>
-      <form class="creative-confirm-form" method="dialog">
-        <p>${p.text("这次不会写入 Inbox 或 Goal。确认后只复制正文。")}</p>
-        <ul class="lingguang-dispatch-candidates">
-          <li>${p.text("Inbox")}</li>
-          <li>${p.text("Goal")}</li>
-          <li>${p.text("Functions")}</li>
-        </ul>
-        <div class="creative-confirm-actions">
-          <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>
-          <button class="mw-btn mw-btn--primary" value="ok">${p.text("复制正文")}</button>
-        </div>
-      </form>
-    </dialog>
+
   ` });
 }

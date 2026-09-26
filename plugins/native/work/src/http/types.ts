@@ -1,4 +1,5 @@
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectWorkspaceDirectoryRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { SessionContentService } from "../content.js";
 import type { SessionDirectoryService } from "../directory.js";
@@ -15,14 +16,15 @@ export interface WorkSessionHttpResources {
 
 /** The Local Host validates the HTTP channel; Work interprets only Session operations. */
 export interface WorkSessionHttpContext {
+  actions?: BoundActionClient;
   method: string | undefined;
   pathname: string;
   readBody(): Promise<Record<string, unknown>>;
   respond(status: number, body: unknown): void;
   resourcesPromise: Promise<WorkSessionHttpResources>;
   projectOptions: { project: ProjectOperationsProject | null; projects: readonly ProjectOperationsProject[] };
-  hasCurrentGoal(goalId: string): boolean;
-  readGoalContract(goalId: string): SessionHandoffGoalContext;
+  hasCurrentGoal(goalId: string): boolean | Promise<boolean>;
+  readGoalContract(goalId: string): SessionHandoffGoalContext | Promise<SessionHandoffGoalContext>;
   workspace: {
     add(path: string, projectId: string): Promise<ProjectWorkspaceDirectoryRecord>;
     repair(current: ProjectWorkspaceRecord, path: string, projectId: string): Promise<{ workspace: ProjectWorkspaceDirectoryRecord; updated_session_count: number }>;

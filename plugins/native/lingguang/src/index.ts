@@ -18,5 +18,11 @@ export type { LingguangPluginRouteHandler, LingguangPluginRouteRequest, Lingguan
 export { createLingguangRouteHandlers, lingguangRouteErrorResponse } from "./route-handlers.js";
 export type { LingguangRoutePorts } from "./route-handlers.js";
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "./manifest.js";
-export { openLingguangStore, LingguangStore, STUB_PREFIX } from "./store.js";
+export { openLingguangStore, LingguangStore } from "./store.js";
 export { LingguangError } from "./error.js";
+
+export { lingguangContentActions, createLingguangContentHandlers } from "./content-actions.js";
+
+export { lingguangActions, LINGGUANG_ACTIONS, LINGGUANG_ACTION_PERMISSIONS, createLingguangActionHandlers } from "./actions.js";
+export type { LingguangActionPorts } from "./actions.js";
+export type { LingguangConversationState } from "./store.js";

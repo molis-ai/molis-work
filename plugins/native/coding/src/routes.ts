@@ -1,3 +1,4 @@
+import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
 import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
@@ -5,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
 import { CODING_REPORT_TYPE } from "./artifacts.js";
@@ -34,6 +35,10 @@ export interface CodingExecutionPorts {
 function bodyOf(request: PluginRouteRequest): Record<string, unknown> {
   if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) return {};
   return request.body as Record<string, unknown>;
+}
+function savedActions(context: PluginStartContext, id: string) {
+  const value = context.services?.storage?.get(`actions:${id}`);
+  return typeof value === "string" ? parseExactActionReferences(JSON.parse(value)) : [];
 }
 function text(value: unknown, label: string, maximum = 200): string {
   if (typeof value !== "string" || !value.trim() || value.length > maximum) throw new Error(`${label}不能为空，且不能超过 ${maximum} 字符`);
@@ -299,6 +304,21 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const record = selected(request, execution);
       return { materials: materialChoices(context, savedMaterials(context, record.session_id), execution.materialReferences?.()) };
     }),
+    route("coding.actions", async (request, api, execution) => {
+      const record = selected(request, execution), runtimes = await api!.invoke(agent.listRuntimes, []);
+      const tools = runtimes.some(runtime => runtime.runtime_id === record.runtime_id && runtime.supports_action_tools)
+        ? await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]) : [];
+      const characterRef = savedCharacter(context, record.session_id);
+      let character: ReturnType<NonNullable<CodingExecutionPorts["characters"]>["resolve"]> | undefined;
+      let character_error: string | undefined;
+      try { if (characterRef) character = execution.characters?.resolve(characterRef); }
+      catch (error) { character_error = error instanceof Error ? error.message : "原角色不可用"; }
+      if (characterRef && !character && !character_error) character_error = "原角色不可用";
+      return { actions: tools.map(view => ({ ...view, availability: character_error
+        ? { available: false, code: "agent.character_unavailable", reason: character_error }
+        : character?.action_tools && !character.action_tools.some(ref => ref.capability_id === view.capability_id && ref.version === view.version && ref.provider_id === view.provider.provider_id)
+          ? { available: false, code: "agent.character_scope", reason: "当前 Character 未开放此能力" } : view.availability })), selected: savedActions(context, record.session_id) };
+    }),
     route("coding.state", async (_request, api, execution) => {
       const runtimes = await api!.invoke(agent.listRuntimes, []);
       const sessions = await Promise.all(execution.sessions.list(boardId).map(async record => {
@@ -321,7 +341,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api!.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
       return { sessions, methods, mcp, models: await execution.models(),
         workspace: await api!.invoke(projectsCapabilities.readWorkspace, []),
-        workspaces: await api!.invoke(projectsCapabilities.listWorkspaces, []),
+        workspaces: await api!.invoke(projectSettingsCapabilities.workspaces, []),
         runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
           roles: await api!.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
         }))),
@@ -332,7 +352,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
-        const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
         const workspace = workspaces.find(item=>item.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw new Error("请选择当前项目已授权的 MCP 工作区");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
@@ -347,7 +367,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }),
     route("coding.discover-methods", async (request, api) => {
       const body = bodyOf(request);
-      const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw new Error("请先选择这个项目已授权的工作区");
       return { candidates: await api!.invoke(agent.discoverSkills, ["prologue", context.plugin_id,
@@ -482,6 +502,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const savedConfiguration = context.services?.storage?.get(`configuration:${record.session_id}`);
       const configuration = typeof savedConfiguration === "string" ? nextConfiguration(JSON.parse(savedConfiguration)) : null;
       const savedMcp = context.services?.storage?.get(`mcp:${record.session_id}`);
+      const action_tools = savedActions(context, record.session_id);
       const mcp_tools = typeof savedMcp === "string" ? mcpSelection(JSON.parse(savedMcp)) : [];
       const savedSources = context.services?.storage?.get(`mcp-sources:${record.session_id}`);
       const mcp_sources = typeof savedSources === "string" ? mcpSources(JSON.parse(savedSources)) : [];
@@ -490,7 +511,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
+      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -508,13 +529,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const last = runs.at(-1);
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs, subagents, taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           ...(snapshot.recovery ? { recovery_required: true, error: snapshot.recovery.reason } : {}) };
       } catch (error) {
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
-        return { session, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
+        return { session, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
@@ -555,13 +576,28 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (!run) throw new Error("这轮执行不属于当前会话");
       return api!.invoke(agent.readCommandOutput, [session, { run_id: run.run_id, call_id: text(request.params.callId, "命令引用") }]);
     }),
-    route("coding.update-session", async (request, _api, execution) => {
+    route("coding.update-session", async (request, api, execution) => {
       const record = selected(request, execution);
       const body = bodyOf(request);
+      if (body.archive === true) {
+        if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
+        if (record.runtime_session_id) {
+          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+          const snapshot = await api!.invoke(agent.readSession, [session]);
+          if (snapshot.checkpoint_busy || snapshot.recovery || snapshot.latest_run && !isTerminalAgentPhase(snapshot.latest_run.phase)) {
+            throw Object.assign(new Error("请先完成或停止当前执行，再归档会话"), { code: "agent.session_busy" });
+          }
+        }
+        if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
+        return { session: execution.sessions.archive(boardId, record.session_id, new Date().toISOString()) };
+      }
+      if (record.archived) throw new Error("会话已归档，不能再修改");
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
+      const actionTools = body.action_tools === undefined ? undefined : parseExactActionReferences(body.action_tools);
+      if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
       if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
       if (body.mcp_sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(mcpSources(body.mcp_sources)));
       if (body.mcp_tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(mcpSelection(body.mcp_tools)));
@@ -585,6 +621,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }),
     route("coding.start-run", async (request, api, execution) => {
       const record = selected(request, execution);
+      if (record.archived) throw new Error("会话已归档，不能再运行");
       if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
       busy.add(record.session_id);
       try {
@@ -604,7 +641,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         }
         const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
         if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
-        const workspaces = await api!.invoke(projectsCapabilities.listWorkspaces, []);
+        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
         const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
         const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
@@ -647,7 +684,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
         const run = await api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
           ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: plan.content.steps.map((step, index) => ({ id: `step-${index + 1}`, ...step })) } } : {}),
-          model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+          model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
         execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
         return { run };

@@ -3,12 +3,14 @@ import type { DatabaseSync } from "node:sqlite";
 import type {
   FormOption,
   FormQuestion,
+  FormQuestionInput,
   FormQuestionType,
   FormRecord,
   FormStatus,
   FormSubmissionRecord,
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { FormError } from "./error.js";
+import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";
 
 interface FormRow {
   id: string;
@@ -23,6 +25,7 @@ interface FormRow {
   version: number;
   artifact_id?: string;
   artifact_version?: number;
+  publication_pending_json?: string | null;
 }
 
 interface SubmissionRow {
@@ -30,6 +33,9 @@ interface SubmissionRow {
   form_id: string;
   answers_json: string;
   submitted_at: string;
+  form_version: number | null;
+  questions_json: string | null;
+  request_id: string | null;
 }
 
 const QUESTION_TYPES: readonly FormQuestionType[] = [
@@ -88,9 +94,11 @@ export class FormStore {
   update(id: string, patch: {
     title?: string;
     description?: string;
-    questions?: readonly FormQuestion[];
+    questions?: readonly FormQuestionInput[];
+    expected_version?: number;
   }, projectId?: string): FormRecord {
     const current = this.get(id, projectId);
+    this.assertVersion(current, patch.expected_version);
     const next: FormRecord = {
       ...current,
       title: patch.title !== undefined ? normalizeTitle(patch.title) : current.title,
@@ -99,14 +107,16 @@ export class FormStore {
       updated_at: new Date().toISOString(),
       version: current.version + 1,
     };
-    this.db.prepare(
-      "UPDATE forms SET title = ?, description = ?, questions_json = ?, updated_at = ?, version = ? WHERE id = ?",
-    ).run(next.title, next.description, JSON.stringify(next.questions), next.updated_at, next.version, id);
+    const result = this.db.prepare(
+      "UPDATE forms SET title = ?, description = ?, questions_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
+    ).run(next.title, next.description, JSON.stringify(next.questions), next.updated_at, next.version, id, current.version);
+    if (result.changes !== 1) throw new FormError("form.conflict", "问卷已改变，请重新读取后保存");
     return next;
   }
 
-  publish(id: string, projectId?: string): FormRecord {
+  publish(id: string, projectId?: string, expectedVersion?: number): FormRecord {
     const current = this.get(id, projectId);
+    this.assertVersion(current, expectedVersion);
     const share_id = current.share_id ?? crypto.randomUUID().slice(0, 12);
     const next: FormRecord = {
       ...current,
@@ -115,28 +125,23 @@ export class FormStore {
       updated_at: new Date().toISOString(),
       version: current.version + 1,
     };
-    this.db.prepare(
-      "UPDATE forms SET status = ?, share_id = ?, updated_at = ?, version = ? WHERE id = ?",
-    ).run(next.status, next.share_id, next.updated_at, next.version, id);
+    const result = this.db.prepare(
+      "UPDATE forms SET status = ?, share_id = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
+    ).run(next.status, next.share_id, next.updated_at, next.version, id, current.version);
+    if (result.changes !== 1) throw new FormError("form.conflict", "问卷已改变，请重新读取后发布");
     return next;
   }
 
-  rememberArtifact(id: string, artifactId: string, artifactVersion: number, projectId?: string): FormRecord {
-    const current = this.get(id, projectId);
-    const updated_at = new Date().toISOString();
-    this.db.prepare(
-      "UPDATE forms SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = ? WHERE id = ?",
-    ).run(artifactId, artifactVersion, updated_at, current.version + 1, id);
-    return this.get(id, projectId);
+  delete(id: string, projectId?: string, expectedVersion?: number): void {
+    this.transaction(() => {
+      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      if (current.publication_pending) throw new FormError("form.publication_pending", "请先恢复上次 Artifact 发布，再删除问卷");
+      this.db.prepare("DELETE FROM submissions WHERE form_id = ?").run(id);
+      this.db.prepare("DELETE FROM forms WHERE id = ?").run(id);
+    });
   }
 
-  delete(id: string, projectId?: string): void {
-    this.get(id, projectId);
-    this.db.prepare("DELETE FROM submissions WHERE form_id = ?").run(id);
-    this.db.prepare("DELETE FROM forms WHERE id = ?").run(id);
-  }
-
-  generateQuestions(id: string, prompt: string, projectId?: string): FormRecord {
+  generateQuestions(id: string, prompt: string, projectId?: string, expectedVersion?: number): FormRecord {
     const current = this.get(id, projectId);
     const title = prompt.trim() || "请填写你的回答";
     if (title.length > 200) throw new FormError("form.invalid", "出题提示须为 1 到 200 个字");
@@ -147,22 +152,32 @@ export class FormStore {
       required: false,
       order: current.questions.length + 1,
     };
-    return this.update(id, { questions: [...current.questions, question] }, projectId);
+    return this.update(id, { questions: [...current.questions, question], expected_version: expectedVersion ?? current.version }, projectId);
   }
 
-  submit(id: string, answers: Readonly<Record<string, string>>, projectId?: string): FormSubmissionRecord {
-    const form = this.get(id, projectId);
-    const normalized = normalizeAnswers(form.questions, answers);
-    const submission: FormSubmissionRecord = {
-      id: crypto.randomUUID(),
-      form_id: id,
-      answers: normalized,
-      submitted_at: new Date().toISOString(),
-    };
-    this.db.prepare(
-      "INSERT INTO submissions (id, form_id, answers_json, submitted_at) VALUES (?, ?, ?, ?)",
-    ).run(submission.id, submission.form_id, JSON.stringify(submission.answers), submission.submitted_at);
-    return submission;
+  submit(id: string, answers: Readonly<Record<string, string>>, projectId?: string,
+    options: { expectedVersion?: number; requestId?: string } = {}): FormSubmissionRecord {
+    return this.transaction(() => {
+      const form = this.get(id, projectId);
+      if (options.requestId) {
+        const existing = this.db.prepare("SELECT * FROM submissions WHERE form_id = ? AND request_id = ?").get(id, options.requestId) as SubmissionRow | undefined;
+        if (existing) {
+          const prior = submissionFromRow(existing);
+          const normalized = normalizeAnswers(prior.questions ?? form.questions, answers);
+          if (options.expectedVersion !== undefined && prior.form_version !== options.expectedVersion
+            || Object.keys(normalized).some(key => prior.answers[key] !== normalized[key]))
+            throw new FormError("form.request_conflict", "这次提交已保存为其他内容，请重新填写后提交");
+          return prior;
+        }
+      }
+      this.assertVersion(form, options.expectedVersion);
+      const normalized = normalizeAnswers(form.questions, answers);
+      const submission: FormSubmissionRecord = { id: crypto.randomUUID(), form_id: id, answers: normalized,
+        submitted_at: new Date().toISOString(), form_version: form.version, questions: form.questions };
+      this.db.prepare("INSERT INTO submissions (id, form_id, answers_json, submitted_at, form_version, questions_json, request_id) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .run(submission.id, id, JSON.stringify(normalized), submission.submitted_at, form.version, JSON.stringify(form.questions), options.requestId ?? null);
+      return submission;
+    });
   }
 
   listSubmissions(id: string, projectId?: string): FormSubmissionRecord[] {
@@ -170,12 +185,7 @@ export class FormStore {
     const rows = this.db.prepare(
       "SELECT * FROM submissions WHERE form_id = ? ORDER BY datetime(submitted_at) DESC",
     ).all(id) as unknown as SubmissionRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      form_id: row.form_id,
-      answers: JSON.parse(row.answers_json) as Record<string, string>,
-      submitted_at: row.submitted_at,
-    }));
+    return rows.map(submissionFromRow);
   }
 
   analyze(id: string, projectId?: string): { form_id: string; submission_count: number } {
@@ -185,6 +195,46 @@ export class FormStore {
     ).get(id) as { count: number };
     return { form_id: id, submission_count: Number(row.count) };
   }
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: FormPublicationSnapshot): FormPublicationIntent {
+    return this.transaction(() => {
+      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      const pending = this.publicationIntent(id);
+      if (pending) {
+        if (pending.actor_id !== actorId) throw new FormError("form.publication_owner", "请由上次发布的发起者恢复，原快照已保留");
+        return pending;
+      }
+      const intent: FormPublicationIntent = { content: existing ?? { title: current.title, description: current.description, status: current.status, questions: current.questions },
+        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+      this.db.prepare("UPDATE forms SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
+      return intent;
+    });
+  }
+
+  completePublication(id: string, projectId: string, intent: FormPublicationIntent, artifact: { artifact_id: string; version: number }): FormRecord {
+    return this.transaction(() => {
+      const current = this.get(id, projectId);
+      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
+      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw new FormError("form.publication_conflict", "发布记录已改变，请重新读取问卷");
+      this.db.prepare("UPDATE forms SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
+        .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
+      return this.get(id, projectId);
+    });
+  }
+
+  private publicationIntent(id: string): FormPublicationIntent | null {
+    const row = this.db.prepare("SELECT publication_pending_json FROM forms WHERE id = ?").get(id) as { publication_pending_json: string | null };
+    return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as FormPublicationIntent : null;
+  }
+  private assertVersion(current: FormRecord, expectedVersion?: number): void {
+    if (expectedVersion !== undefined && expectedVersion !== current.version) throw new FormError("form.conflict", "问卷已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+  }
+  private transaction<T>(run: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE");
+    try { const result = run(); this.db.exec("COMMIT"); return result; }
+    catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
+
 }
 
 export function openFormStore(homeDirectory: string): FormStore {
@@ -214,10 +264,16 @@ export function openFormStore(homeDirectory: string): FormStore {
   ensureSqliteColumn(db, "forms", "project_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "forms", "artifact_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "forms", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
+  ensureSqliteColumn(db, "forms", "publication_pending_json", "TEXT");
+  ensureSqliteColumn(db, "submissions", "form_version", "INTEGER");
+  ensureSqliteColumn(db, "submissions", "questions_json", "TEXT");
+  ensureSqliteColumn(db, "submissions", "request_id", "TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL");
   return new FormStore(db);
 }
 
 function fromRow(row: FormRow): FormRecord {
+  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as FormPublicationIntent : null;
   return {
     id: row.id,
     project_id: row.project_id ?? "",
@@ -231,7 +287,13 @@ function fromRow(row: FormRow): FormRecord {
     version: row.version,
     artifact_id: row.artifact_id ?? "",
     artifact_version: Number(row.artifact_version) || 0,
+    ...(pending ? { publication_pending: { version: pending.version, source_version: pending.source_version } } : {}),
   };
+}
+
+function submissionFromRow(row: SubmissionRow): FormSubmissionRecord {
+  return { id: row.id, form_id: row.form_id, answers: JSON.parse(row.answers_json), submitted_at: row.submitted_at,
+    form_version: row.form_version ?? null, questions: row.questions_json ? JSON.parse(row.questions_json) : null };
 }
 
 function normalizeProjectId(value: string): string {
@@ -256,19 +318,20 @@ function usesOptions(type: FormQuestionType): boolean {
   return type === "singleChoice" || type === "multiChoice" || type === "dropdown";
 }
 
-function normalizeQuestions(value: readonly FormQuestion[]): FormQuestion[] {
+function normalizeQuestions(value: readonly FormQuestionInput[]): FormQuestion[] {
   if (!Array.isArray(value)) throw new FormError("form.invalid", "题目须是列表");
   if (value.length > 40) throw new FormError("form.invalid", "最多 40 题");
-  return value.map((question, index) => {
-    const type = QUESTION_TYPES.includes(question.type) ? question.type : "text";
+  const normalized = value.map((question: FormQuestionInput, index) => {
+    const type = question.type && QUESTION_TYPES.includes(question.type) ? question.type : "text";
     const title = String(question.title ?? "").trim() || `问题 ${index + 1}`;
     if (title.length > 200) throw new FormError("form.invalid", "题目标题须为 1 到 200 个字");
     const options = usesOptions(type)
-      ? (question.options ?? []).map((option: FormOption, optionIndex: number) => ({
+      ? (question.options ?? []).map((option: Partial<FormOption>, optionIndex: number) => ({
         id: option.id || crypto.randomUUID(),
         label: String(option.label ?? "").trim() || `选项 ${optionIndex + 1}`,
       }))
       : undefined;
+    if (options && new Set(options.map(option => option.id)).size !== options.length) throw new FormError("form.invalid", "选项标识不能重复");
     if (usesOptions(type) && (options?.length ?? 0) < 2) {
       throw new FormError("form.invalid", "选择题至少两个选项");
     }
@@ -281,22 +344,34 @@ function normalizeQuestions(value: readonly FormQuestion[]): FormQuestion[] {
       options,
     };
   });
+  if (new Set(normalized.map(question => question.id)).size !== normalized.length) throw new FormError("form.invalid", "题目标识不能重复");
+  return normalized;
 }
 
 function normalizeAnswers(
   questions: readonly FormQuestion[],
   answers: Readonly<Record<string, string>>,
 ): Record<string, string> {
-  const next: Record<string, string> = {};
+  const next: Array<[string, string]> = [];
+  const ids = new Set(questions.map(question => question.id));
+  if (Object.keys(answers).some(key => !ids.has(key))) throw new FormError("form.invalid", "答卷含有不存在的题目，请重新读取问卷");
   for (const question of questions) {
     const value = String(answers[question.id] ?? "").trim();
     if (question.required && !value) {
       throw new FormError("form.invalid", `请回答：${question.title}`);
     }
     if (value.length > 4000) throw new FormError("form.invalid", "回答过长");
-    next[question.id] = value;
+    if (value && usesOptions(question.type)) {
+      const allowed = new Set((question.options ?? []).map(option => option.label));
+      const values = question.type === "multiChoice" ? value.split("\n") : [value];
+      if (values.some(item => !allowed.has(item)) || new Set(values).size !== values.length) throw new FormError("form.invalid", `请选择有效选项：${question.title}`);
+    }
+    if (value && question.type === "rating" && !/^[1-5]$/.test(value)) throw new FormError("form.invalid", "评分须为 1 到 5");
+    if (value && question.type === "date" && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value))
+      throw new FormError("form.invalid", "请填写有效日期");
+    next.push([question.id, value]);
   }
-  return next;
+  return Object.fromEntries(next);
 }
 
 export type { FormOption };

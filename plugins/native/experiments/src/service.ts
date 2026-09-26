@@ -28,6 +28,22 @@ export class ExperimentsService {
   list() { return this.read().experiments.map(({ id, name, status, created_at, hash }) => ({ id, name, status, created_at, hash })); }
   get(id: string): Experiment { const e = this.read().experiments.find(e => e.id === id); if (!e) throw new Error("实验不存在"); return e; }
   participants() { return this.read().participants; }
+  deleteExperiment(id: string) {
+    if (this.active?.id === id) throw new Error("请先取消运行中的实验，等待其停止后再删除");
+    this.mutate(data => {
+      const index = data.experiments.findIndex(e => e.id === id);
+      if (index < 0) throw new Error("实验不存在");
+      if (data.experiments[index]!.status === "running") throw new Error("请先等待实验停止后再删除");
+      data.experiments.splice(index, 1);
+    });
+  }
+  deleteParticipant(id: string) {
+    this.mutate(data => {
+      const index = data.participants.findIndex(p => p.id === id);
+      if (index < 0) throw new Error("参试配置不存在");
+      data.participants.splice(index, 1);
+    });
+  }
   saveParticipant(p: Participant) {
     const validated = validateParticipant(p);
     return this.mutate(data => { if(data.participants.length >= 12 && !data.participants.some(i => i.id === p.id)) throw new Error("最多保存 12 份参试配置"); data.participants = [...data.participants.filter(i => i.id !== p.id), validated]; return validated; });

@@ -810,9 +810,15 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         catch { return { call_id: command.call_id, output: null }; }
       }));
       const plan = run.step_board && !run.step_board.terminal ? codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board && entry.revision) : undefined;
-      // A round that dispatched subtasks hands them on as facts; unreadable is said, never read as "none".
-      const subagents = ["coordinator", "writers"].includes(run.frozen.role_id)
-        ? await api!.invoke(agent.listSubagents, [session, ref]).catch(() => null) : [];
+      // A round that dispatched subtasks hands them on as facts; unreadable is said, never read as "none". A plan's
+      // subtasks count from every round of that plan, newest first: one finished two rounds ago must not be sent again.
+      const planRuns = plan && run.step_board
+        ? (await Promise.all(snapshot.runs.map(each => each.run_id === ref.run_id ? run : api!.invoke(agent.readRun, [session, each]))))
+          .filter(each => each.step_board?.board_id === run.step_board!.board_id).reverse()
+        : [run];
+      const withChildren = planRuns.filter(each => ["coordinator", "writers"].includes(each.frozen.role_id));
+      const subagents = withChildren.length
+        ? await Promise.all(withChildren.map(each => api!.invoke(agent.listSubagents, [session, each.ref]))).then(lists => lists.flat(), () => null) : [];
       const next = codingContinuation({ number: index + 1, run, reviews, commands, plan_unfinished: Boolean(plan), subagents });
       // A plan run in parallel goes on in parallel; any other plan continues as one execution round.
       return plan ? { ...next, intent: next.intent === "parallel" ? "parallel" : "execute", plan_revision: plan.revision, continue_step_board_of: run.ref.run_id } : next;

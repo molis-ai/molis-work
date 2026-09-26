@@ -16,7 +16,8 @@ export const CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(!group.children.length){region.append(el('p','尚未派出子任务。'));continue;}
       for(const child of group.children){
         const resultState=child.state==='completed'&&child.verdict?(child.verdict.status==='accepted'?'本轮结束，结果已接受':'本轮结束，需返工'):states[child.state];
-        const row=el('details'),summary=el('summary',(child.role_name || child.role_id)+' · '+resultState);row.dataset.child=child.subagent_id;row.open=opened.has(child.subagent_id);row.append(summary);
+        // Subtasks of one role look alike; the directory each worked in tells them apart.
+        const row=el('details'),summary=el('summary',(child.role_name || child.role_id)+(child.workspace_path?'（'+child.workspace_path.split('/').pop()+'）':'')+' · '+resultState);row.dataset.child=child.subagent_id;row.open=opened.has(child.subagent_id);row.append(summary);
         const assignment=el('details');assignment.className='coding-material';assignment.dataset.child=child.subagent_id+':assignment';assignment.open=opened.has(assignment.dataset.child);assignment.append(el('summary','查看任务与权限'),el('p',child.task),el('p','工作区：'+(child.workspace_path || '未知')),el('p','工具上限：'+(child.host_tools || []).join('、')));row.append(assignment);
         if(child.result){const result=el('div');result.className='coding-turn';if(child.result_html)result.innerHTML=child.result_html;else result.textContent=child.result;row.append(result);}
         if(child.error)row.append(el('p','运行信息：'+child.error));

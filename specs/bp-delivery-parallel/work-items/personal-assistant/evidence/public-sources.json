@@ -1,0 +1,370 @@
+{
+  "at": "2026-09-26T03:32:35.400Z",
+  "path": "Existing FeedSourceService → public RSS runtime → original Feed storage → original feed.subject.read",
+  "scope": "Two expressly registered public sources in isolated storage; no private accounts",
+  "builtHostRoot": "/Users/yijunwang/code/goalboard",
+  "evidence": [
+    {
+      "source": "Node.js releases",
+      "url": "https://github.com/nodejs/node/releases.atom",
+      "source_id": "feed-source-8154edb5b29a274dd6e10dfe12a29d9b",
+      "sync": {
+        "source": {
+          "board_id": "molis-work-v1-demo",
+          "source_id": "feed-source-8154edb5b29a274dd6e10dfe12a29d9b",
+          "kind": "custom_rss",
+          "definition_id": "custom-rss",
+          "sync_kind": "public_source",
+          "name": "Node.js releases",
+          "description": "自定义 HTTPS RSS/Atom；无凭据、无 Cookie，不跟随跨主机跳转。",
+          "status": "active",
+          "enabled": true,
+          "item_count": 10,
+          "origin": "molis_work",
+          "config": {
+            "feed_url": "https://github.com/nodejs/node/releases.atom",
+            "config_fingerprint": "39acb43d9bde73969b03527e9ea92b0c8758aca5adeb6b5c242d7c58e613e50f"
+          },
+          "schedule": {
+            "mode": "manual"
+          },
+          "cursor": {
+            "lastCapturedAt": "2026-09-26T03:32:34.806Z",
+            "lastPublishedAt": "2026-08-03T13:50:21.000Z",
+            "lastCandidateId": "feed:exact-1:tag:github.com,2008:Repository/27193779/v26.6.0",
+            "rss_http": {
+              "schema": "molis-work-rss-http-v1",
+              "etag": "W/\"ed12832735281bf8855b34916c1b4e03\"",
+              "final_url": "https://github.com/nodejs/node/releases.atom",
+              "feed_title": "Release notes from node",
+              "home_url": "https://github.com/nodejs/node/releases",
+              "last_success_at": "2026-09-26T03:32:34.815Z",
+              "consecutive_failures": 0
+            }
+          },
+          "credential_ref": null,
+          "account_label": null,
+          "last_sync_at": "2026-09-26T03:32:34.815Z",
+          "last_outcome": "completed",
+          "last_error_code": null,
+          "imported_at": "2026-09-26T03:32:32.121Z",
+          "updated_at": "2026-09-26T03:32:34.815Z"
+        },
+        "run": {
+          "board_id": "molis-work-v1-demo",
+          "run_id": "feed-run-47c9eb9369b7301de76b7d60acfbf077",
+          "operation_id": "feed-operation-94ffbd4fe6e2edc31201a314c0f671af",
+          "source_id": "feed-source-8154edb5b29a274dd6e10dfe12a29d9b",
+          "phase": "terminal",
+          "outcome": "completed",
+          "empty": false,
+          "error_code": null,
+          "receipt": {
+            "schema": "molis-work-feed-collection-receipt-v1",
+            "intent_fingerprint": "sha256:dd38a7c4a161edb3b1b454fa2dbc1ac8440f9d4fbdc874215692f7c9e7324027",
+            "requirement_met": true,
+            "receipts": [
+              {
+                "kind": "lane",
+                "laneId": "exact-1",
+                "state": "completed",
+                "itemCount": 10
+              },
+              {
+                "kind": "attempt",
+                "attemptId": "attempt:sha256:0936a6f6e7a1018057eaee113f3faedbf5ae0e65fcaf4ed29ab731986de2769b",
+                "providerId": "rss",
+                "phase": "ingesting",
+                "state": "completed",
+                "sideEffectState": "confirmed"
+              }
+            ],
+            "budget": {
+              "requested": {
+                "providerCalls": 1,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 20,
+                "bytes": 1000000,
+                "deadlineMs": 15000,
+                "maxConcurrency": 1
+              },
+              "effective": {
+                "providerCalls": 1,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 20,
+                "bytes": 1000000,
+                "deadlineMs": 15000,
+                "maxConcurrency": 1
+              },
+              "used": {
+                "providerCalls": 1,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 10,
+                "bytes": 167626,
+                "elapsedMs": 2678,
+                "peakConcurrency": 1
+              },
+              "reserved": {
+                "retry": {
+                  "providerCalls": 0,
+                  "fetchExtractCalls": 0,
+                  "modelInputTokens": 0,
+                  "modelOutputTokens": 0,
+                  "materials": 0,
+                  "bytes": 0,
+                  "elapsedMs": 0
+                },
+                "gapFill": {
+                  "providerCalls": 0,
+                  "fetchExtractCalls": 0,
+                  "modelInputTokens": 0,
+                  "modelOutputTokens": 0,
+                  "materials": 0,
+                  "bytes": 0,
+                  "elapsedMs": 0
+                }
+              },
+              "remaining": {
+                "providerCalls": 0,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 10,
+                "bytes": 832374,
+                "deadlineMs": 12322
+              },
+              "unreservedRemaining": {
+                "providerCalls": 0,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 10,
+                "bytes": 832374,
+                "elapsedMs": 12322
+              },
+              "limitReasons": [],
+              "stopReason": "exact_route_complete",
+              "skippedWork": []
+            },
+            "warnings": [],
+            "rss_http": {
+              "status": 200,
+              "not_modified": false,
+              "final_url": "https://github.com/nodejs/node/releases.atom",
+              "validator": "etag",
+              "feed_title": "Release notes from node",
+              "home_url": "https://github.com/nodejs/node/releases"
+            }
+          },
+          "created_count": 10,
+          "deduped_count": 0,
+          "recovery_count": 0,
+          "started_at": "2026-09-26T03:32:32.123Z",
+          "completed_at": "2026-09-26T03:32:34.815Z",
+          "updated_at": "2026-09-26T03:32:34.815Z"
+        },
+        "created": 10,
+        "deduped": 0,
+        "replayed": false
+      },
+      "item_count": 10,
+      "context": {
+        "subject": {
+          "kind": "feed_item",
+          "id": "feeditem-29f9c6ad-0144-45eb-a2db-1b4f3b4fd573"
+        },
+        "revision": "1",
+        "title": "2026-08-03, Version 26.6.0 (Current), @aduh95",
+        "excerpt": "Notable Changes [ 5a36018abc ] - doc : add MikeMcC399 as collaborator (Mike McCready) #64656 [ 9b04f82d7b ] - (SEMVER-MINOR) ffi : add getCurrentEventLoop (Paolo Insogna) #64323 [ bb51f2c960 ] - (SEMVER-MINOR) test_runner : add context.log() and test:log event (Moshe Atlow) #6438",
+        "truncated": false
+      }
+    },
+    {
+      "source": "TypeScript releases",
+      "url": "https://github.com/microsoft/TypeScript/releases.atom",
+      "source_id": "feed-source-c9eea9f8e8f2bdf4663eaab8d39958b8",
+      "sync": {
+        "source": {
+          "board_id": "molis-work-v1-demo",
+          "source_id": "feed-source-c9eea9f8e8f2bdf4663eaab8d39958b8",
+          "kind": "custom_rss",
+          "definition_id": "custom-rss",
+          "sync_kind": "public_source",
+          "name": "TypeScript releases",
+          "description": "自定义 HTTPS RSS/Atom；无凭据、无 Cookie，不跟随跨主机跳转。",
+          "status": "active",
+          "enabled": true,
+          "item_count": 10,
+          "origin": "molis_work",
+          "config": {
+            "feed_url": "https://github.com/microsoft/TypeScript/releases.atom",
+            "config_fingerprint": "850ee6250ac60d4c594aeb73d257195f0889ff4d46361bade61513d87f2dc2e5"
+          },
+          "schedule": {
+            "mode": "manual"
+          },
+          "cursor": {
+            "lastCapturedAt": "2026-09-26T03:32:35.383Z",
+            "lastPublishedAt": "2025-10-01T20:29:30.000Z",
+            "lastCandidateId": "feed:exact-1:tag:github.com,2008:Repository/20929025/v5.8.3",
+            "rss_http": {
+              "schema": "molis-work-rss-http-v1",
+              "etag": "W/\"50628990f0586680d4dd2714c2bbb838\"",
+              "final_url": "https://github.com/microsoft/TypeScript/releases.atom",
+              "feed_title": "Release notes from TypeScript",
+              "home_url": "https://github.com/microsoft/TypeScript/releases",
+              "last_success_at": "2026-09-26T03:32:35.392Z",
+              "consecutive_failures": 0
+            }
+          },
+          "credential_ref": null,
+          "account_label": null,
+          "last_sync_at": "2026-09-26T03:32:35.392Z",
+          "last_outcome": "completed",
+          "last_error_code": null,
+          "imported_at": "2026-09-26T03:32:34.826Z",
+          "updated_at": "2026-09-26T03:32:35.392Z"
+        },
+        "run": {
+          "board_id": "molis-work-v1-demo",
+          "run_id": "feed-run-8afc2bf21084962b3113994dfdb4bbd7",
+          "operation_id": "feed-operation-0f1df29bd883165adfdc86700c8e9954",
+          "source_id": "feed-source-c9eea9f8e8f2bdf4663eaab8d39958b8",
+          "phase": "terminal",
+          "outcome": "completed",
+          "empty": false,
+          "error_code": null,
+          "receipt": {
+            "schema": "molis-work-feed-collection-receipt-v1",
+            "intent_fingerprint": "sha256:9754869c718232cee46ced969147b9276c7e8b15aa418c7bd3e3cb54f0446ec6",
+            "requirement_met": true,
+            "receipts": [
+              {
+                "kind": "lane",
+                "laneId": "exact-1",
+                "state": "completed",
+                "itemCount": 10
+              },
+              {
+                "kind": "attempt",
+                "attemptId": "attempt:sha256:062cbe3e01e8a06068c2c13893e7950edd06c0ee6ad2c473de0ba0e3b6970c49",
+                "providerId": "rss",
+                "phase": "ingesting",
+                "state": "completed",
+                "sideEffectState": "confirmed"
+              }
+            ],
+            "budget": {
+              "requested": {
+                "providerCalls": 1,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 20,
+                "bytes": 1000000,
+                "deadlineMs": 15000,
+                "maxConcurrency": 1
+              },
+              "effective": {
+                "providerCalls": 1,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 20,
+                "bytes": 1000000,
+                "deadlineMs": 15000,
+                "maxConcurrency": 1
+              },
+              "used": {
+                "providerCalls": 1,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 10,
+                "bytes": 2704,
+                "elapsedMs": 553,
+                "peakConcurrency": 1
+              },
+              "reserved": {
+                "retry": {
+                  "providerCalls": 0,
+                  "fetchExtractCalls": 0,
+                  "modelInputTokens": 0,
+                  "modelOutputTokens": 0,
+                  "materials": 0,
+                  "bytes": 0,
+                  "elapsedMs": 0
+                },
+                "gapFill": {
+                  "providerCalls": 0,
+                  "fetchExtractCalls": 0,
+                  "modelInputTokens": 0,
+                  "modelOutputTokens": 0,
+                  "materials": 0,
+                  "bytes": 0,
+                  "elapsedMs": 0
+                }
+              },
+              "remaining": {
+                "providerCalls": 0,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 10,
+                "bytes": 997296,
+                "deadlineMs": 14447
+              },
+              "unreservedRemaining": {
+                "providerCalls": 0,
+                "fetchExtractCalls": 0,
+                "modelInputTokens": 0,
+                "modelOutputTokens": 0,
+                "materials": 10,
+                "bytes": 997296,
+                "elapsedMs": 14447
+              },
+              "limitReasons": [],
+              "stopReason": "exact_route_complete",
+              "skippedWork": []
+            },
+            "warnings": [],
+            "rss_http": {
+              "status": 200,
+              "not_modified": false,
+              "final_url": "https://github.com/microsoft/TypeScript/releases.atom",
+              "validator": "etag",
+              "feed_title": "Release notes from TypeScript",
+              "home_url": "https://github.com/microsoft/TypeScript/releases"
+            }
+          },
+          "created_count": 10,
+          "deduped_count": 0,
+          "recovery_count": 0,
+          "started_at": "2026-09-26T03:32:34.827Z",
+          "completed_at": "2026-09-26T03:32:35.392Z",
+          "updated_at": "2026-09-26T03:32:35.392Z"
+        },
+        "created": 10,
+        "deduped": 0,
+        "replayed": false
+      },
+      "item_count": 10,
+      "context": {
+        "subject": {
+          "kind": "feed_item",
+          "id": "feeditem-c46b406f-51c7-4d4d-8e95-fadc625cda4a"
+        },
+        "revision": "1",
+        "title": "TypeScript 5.8.3",
+        "excerpt": "Note: this tag was recreated to point at the correct commit. The npm package contained the correct content. For release notes, check out the release announcement . fixed issues query for Typescript 5.8.0 (Beta) . fixed issues query for Typescript 5.8.1 (RC) . fixed issues query f",
+        "truncated": false
+      }
+    }
+  ]
+}

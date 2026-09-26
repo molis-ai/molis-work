@@ -1,0 +1,42 @@
+(node:89189) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ assistant uses actual Prologue SDK through AgentHost without a workspace, freezes Character and has no execution tools (455.008167ms)
+▶ assistant revocation during prepare, Node credentials or final SDK dispatch sends no model request
+  ✔ prepare: source (213.263292ms)
+  ✔ prepare: material (141.805709ms)
+  ✔ prepare: preferences (86.434667ms)
+  ✔ prepare: model-permission (79.092709ms)
+  ✔ credential: source (128.386583ms)
+  ✔ credential: material (134.64425ms)
+  ✔ credential: preferences (148.857166ms)
+  ✔ credential: model-permission (215.503125ms)
+  ✔ dispatch: source (1236.484584ms)
+✔ assistant revocation during prepare, Node credentials or final SDK dispatch sends no model request (2387.418292ms)
+✔ assistant keeps an original beforeStart denial and never falls back to unguarded analysis (64.454ms)
+(node:89199) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ material inspector traces Inbox to original Feed, rechecks grant and ignores sync-only source updates (0.932208ms)
+(node:89200) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ two source contexts correlate project evidence, confirm original action and persist editable result (123.179167ms)
+✔ dismissal survives disk reopen, suppresses same event, never creates permanent preferences (193.756209ms)
+✔ snooze and visible preferences persist; stale preference updates cannot overwrite (122.7975ms)
+✔ concurrent confirmations claim once; lost response recovers saved result without replay (79.328625ms)
+✔ source revocation and stale material block model consumption and confirmed effects (115.846834ms)
+✔ invalid evidence, unrelated material, unavailable model and revocation during inference remain manual (233.934875ms)
+✔ caller scope, permissions, expiry and changed preferences reject unauthorized execution (105.426084ms)
+✔ revoked history contains no source body, prepared parameters or private result (57.298917ms)
+✔ recovery accepts updated source revision; dispatch revalidates source and preference (199.422666ms)
+✔ no-op checks suppress repeated inference; unrelated arrival cannot resurface dismissed evidence (223.6235ms)
+✔ arrival consumer reads shared Home events and original reuse subjects; method withdrawal invalidates suggestion (66.008958ms)
+✔ completed result is read from original owner with current authority, not cached Home history (106.158458ms)
+✔ recovery never exposes a revoked suggestion title while preserving independent result-read authority (172.324791ms)
+✔ mutation receipts never disclose revoked material or prepared action inputs (154.166667ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5760.269875

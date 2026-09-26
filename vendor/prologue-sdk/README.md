@@ -1,6 +1,21 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-board-same-state.tgz`。在大文件行窗读之上，**报一个步骤已经在的状态只记进展，不算冲突**：用 Coding 开发 Molis 时，模型对已在进行的步骤再报"进行中"，得到 `TASKBOARD_CONFLICT: A running node cannot become running`，那句进展也一起丢了，模型读成版本冲突去重读任务图、白费一轮。现在 board report 的目标状态与当前相同时，保留说明、版本加一、不改状态、不发状态事件；显式的 transition 仍然严格拒绝同状态转换。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-subagent-close.tgz`。在同状态回报只记进展之上，**核对并结束子任务被中断的那一轮后，子任务立即有终态**：重启后，运行到一半的子任务被投影为"需要对账"，父会话因此拒绝开始任何新一轮（`EFFECT_RECONCILE_REQUIRED`）。结束子会话那一轮会写下终态，但子任务登记表只在启动时读一次，父会话要等下次重启才解开。现在经恢复结束一轮后，重新读取以这一轮为运行的子任务并装回登记表。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-output-continuation`（同一 detached worktree）。
+- 未提交源码修改：[subagent-close.patch](subagent-close.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`c054fe2e7fd45b0a78c4f0a0614436cda5e27fd1341bafc9abc082505e51dd1e`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/subagent-close.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-subagent-close.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过；SDK 全量 3266 项通过、0 失败（新增定向：非优雅退出后孩子为对账，结束它的中断轮次后立即有终态；去掉修复时该项失败）。未发布 npm，未替换正式安装版。
+
+## 上一依赖：同状态回报只记进展
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-board-same-state.tgz`。在大文件行窗读之上，**报一个步骤已经在的状态只记进展，不算冲突**：用 Coding 开发 Molis 时，模型对已在进行的步骤再报"进行中"，得到 `TASKBOARD_CONFLICT: A running node cannot become running`，那句进展也一起丢了，模型读成版本冲突去重读任务图、白费一轮。现在 board report 的目标状态与当前相同时，保留说明、版本加一、不改状态、不发状态事件；显式的 transition 仍然严格拒绝同状态转换。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

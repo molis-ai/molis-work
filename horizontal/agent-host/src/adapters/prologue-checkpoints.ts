@@ -85,7 +85,11 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
       else { if (sessionId) uncertain.add(sessionId); queue.uncertain(reviewId, "尚无可确认的回退结果，不能重复执行"); }
     } else if (receipt?.status === "pending" && ["cancelled", "denied", "failed"].includes(effect?.state ?? "")) queue.cancel(reviewId, "回退已结束，未获得可继续的批准");
   };
+  // Rewinds from before this process are brought back once per session; every later one is live here, so rereading
+  // the whole execution ledger on each refresh and each round's start found nothing new and cost a disk read per record.
+  const settledSessions = new Set<string>(), settledBoards = new Set<string>();
   const restore = (sessionId: string): Promise<void> => {
+    if (settledSessions.has(sessionId)) return Promise.resolve();
     const held = restoring.get(sessionId);
     if (held) return held;
     const work = (async () => {
@@ -110,15 +114,17 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
         await settle(effect.ref, request.review_id);
         restored.add(intent.operation_id);
       }
-    })().finally(() => restoring.delete(sessionId));
+    })().then(() => { settledSessions.add(sessionId); }).finally(() => restoring.delete(sessionId));
     restoring.set(sessionId, work);
     return work;
   };
   const detach = queue.registerRefresh(async boardId => {
+    if (settledBoards.has(boardId)) return;
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行账暂不可读");
     const sessions = new Set(report.effects.flatMap(effect => effect.proposal.origin?.session ? [effect.proposal.origin.session] : []));
     for (const id of sessions) if ((await ports.readIndex(id))?.owner.board_id === boardId) await restore(id);
+    settledBoards.add(boardId);
   });
   const capability: AgentCheckpointsCapability & { restore: typeof restore; close(): Promise<void>; context(sessionId: string): Promise<string> } = {
     busy: session => active.has(session.session_id) || uncertain.has(session.session_id),

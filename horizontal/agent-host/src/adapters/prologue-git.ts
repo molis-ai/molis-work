@@ -120,7 +120,11 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       } finally { recovering.delete(effect.ref.id); }
     } });
   };
+  // Git operations from before this process are brought back once per board; every later one is registered live here,
+  // so rereading the whole execution ledger on each review refresh found nothing new and cost a disk read per record.
+  const settledBoards = new Set<string>();
   const restore = async (boardId: string) => {
+    if (settledBoards.has(boardId)) return;
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行记录暂不可读，不能发起新的 Git 操作");
     for (const effect of report.effects) {
@@ -140,6 +144,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       await settle(effect, request, typeof decision?.failure_reason === "string" ? new Error(decision.failure_reason) : undefined);
       restored.add(effect.ref.id);
     }
+    settledBoards.add(boardId);
   };
   const detach = queue.registerRefresh(restore);
   return { async prepare(input, execution) {

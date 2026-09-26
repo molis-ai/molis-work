@@ -194,7 +194,20 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
       input.checked = input.value === settings.engine;
     });
   };
-  const reloadPage = () => { location.reload(); };
+  const reloadPage = async () => {
+    const scope = document.querySelector("[data-shelf-settings]");
+    if (!scope) return;
+    const scroll = scope.closest("[data-settings-content]") || scope.parentElement;
+    const top = scroll?.scrollTop || 0;
+    const response = await fetch(location.href, { cache: "no-store" });
+    if (!response.ok) throw new Error(t("设置已保存，重新打开设置可查看最新内容。"));
+    const next = new DOMParser().parseFromString(await response.text(), "text/html").querySelector("[data-shelf-settings]");
+    if (!next) throw new Error(t("设置已保存，重新打开设置可查看最新内容。"));
+    scope.replaceChildren(...next.childNodes);
+    bind(scope.parentElement || document);
+    if (scroll) scroll.scrollTop = top;
+    window.dispatchEvent(new CustomEvent("molis-shelf-refresh"));
+  };
 
   const bind = (root) => {
     const scope = root && root.querySelector ? root : document;
@@ -242,7 +255,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         const next = [...(current?.custom_runtimes || []), { id: "", title, executable, kind }];
         try {
           settings = await savePatch(scope, { custom_runtimes: next });
-          reloadPage();
+          await reloadPage();
         } catch (error) {
           say(scope, "[data-shelf-runtime-error]", error.message);
         }
@@ -257,7 +270,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         if (!id || !current) return;
         try {
           settings = await savePatch(scope, { custom_runtimes: current.custom_runtimes.filter((entry) => entry.id !== id) });
-          reloadPage();
+          await reloadPage();
         } catch (error) {
           say(scope, "[data-shelf-runtime-error]", error.message);
         }
@@ -281,7 +294,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
           : [...existing, action];
         try {
           settings = await savePatch(scope, { shortcuts: next });
-          reloadPage();
+          await reloadPage();
         } catch (error) {
           say(scope, "[data-shelf-shortcut-error]", error.message);
         }
@@ -302,7 +315,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         if (hidden.has(slot)) hidden.delete(slot); else hidden.add(slot);
         try {
           settings = await savePatch(scope, { hidden_actions: [...hidden] });
-          reloadPage();
+          await reloadPage();
         } catch {}
       });
       row.querySelectorAll("[data-shelf-action-move]").forEach((button) => {
@@ -315,7 +328,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
           order.splice(next, 0, order.splice(index, 1)[0]);
           try {
             settings = await savePatch(scope, { action_order: order });
-            reloadPage();
+            await reloadPage();
           } catch {}
         });
       });
@@ -343,7 +356,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
             shortcuts: current.shortcuts.filter((entry) => entry.id !== id),
             action_order: current.action_order.filter((entry) => entry !== slot),
           });
-          reloadPage();
+          await reloadPage();
         } catch {}
       });
     });

@@ -1,6 +1,8 @@
 /** Explicit export allowlist copied from the stable producer codes below, not a runtime pattern.
  * New producer codes require review here; do not turn arbitrary strings or remediation text into facts. */
 export const REASON_CODES = [...new Set([
+  // Shared action validation and protected tree approval.
+  'actions.input_invalid', 'goal_tree_proposal.untrusted_actor',
   // Native Goal Tree submission/decision rejection literals, not operation-event names.
   'goal_tree_proposal.items_required', 'goal_tree_proposal.summary_required',
   'goal_tree_proposal.actor_required', 'goal_tree_proposal.id_required', 'goal_tree_proposal.not_found',

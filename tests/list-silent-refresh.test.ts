@@ -1,9 +1,10 @@
+import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import { DATASET_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-dataset";
 import { FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
-import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-functions";
+import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/functions/client.ts";
 import {
   INBOX_NATIVE_PLUGIN_ROUTES,
   InboxPluginRouteTable,
@@ -92,13 +93,14 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
 test("Inbox / Schedule 工作区 fragment 走 HTML 路由", async () => {
   assert.ok(INBOX_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "inbox.workbench"));
   assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.workbench"));
-  assert.equal(SCHEDULE_NATIVE_PLUGIN_ROUTES.length, 6);
+  assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.task.archive"));
 
   const inbox = new InboxPluginRouteTable(createInboxRouteHandlers({
-    listEntries: () => [],
-    setStatus: () => {
-      throw new Error("unused");
-    },
+    actions: { discover: async () => [], invoke: async <Input, Output>(definition: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
+      assert.equal(definition, inboxActions.list);
+      assert.deepEqual(input, {});
+      return { entries: [] } as Output;
+    } },
     changed() {},
     renderWorkbench: () => '<section data-inbox-workbench><div data-inbox-list></div><div data-inbox-stage-workspace></div></section>',
   }));

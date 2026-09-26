@@ -16,19 +16,20 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 4. **`apps/workbench/src/plugin-catalog.ts`**：`BUILTIN_PLUGIN_CATALOG` 加一条。`project_plugin_id`、`manifest`、可选 `personal`、`summary`（有 summary 才进内建市场）。
 5. **`apps/workbench/src/plugin-workbench.ts`**：`BUILTIN_PLUGIN_WORKBENCH` 登记 `contributions`、`stylesheet`、`clientFactory`、可选 `settingsClient`、`searchRow`。Pages 族照 Pages；Feed/Inbox **没有**插件包里的 factory，客户端在 `apps/workbench/src/scripts/client/navigation-feed.ts` / `navigation-inbox.ts`。
    工作面还须在 `ui-composition.ts` 通过 UiHost mount，`renderer.ts` 注入 primitives，再由 `goals-page-renderer.ts` 渲染到主页面；只登记 pack 不会产生页面 DOM。对照图片插件 `renderImagesContribution`。
-6. **HTTP**：个人插件（Pages 族、Functions、Shelf、灵光）实现 `apps/local-host/src/<id>-native-plugin-http.ts`，再挂进 `personal-native-plugin-http.ts` 的 handler 列表。项目插件（Feed、Inbox、Schedule）挂进 `web-request.ts`。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
+6. **HTTP**：个人插件（Pages 族、Shelf、灵光）实现 `apps/local-host/src/<id>-native-plugin-http.ts`，再挂进 `personal-native-plugin-http.ts` 的 handler 列表。项目插件（Feed、Inbox、Schedule）挂进 `web-request.ts`。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 7. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
 8. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 9. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（侧栏/岛/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 
-导航、设置位置、项目启用：catalog 说由 Manifest 推导。HTTP、客户端、MCP adapter、i18n **不会**自动出现。
+导航、设置位置、项目启用由 catalog 和 Manifest 推导。原生 UI 的 HTTP、客户端与 i18n 仍需接线；公共动作注册后可自动导出 MCP，历史兼容 adapter 不属于新插件的必改名单。
 
 ### 按需
 
 | 有这个 | 再改 |
 | --- | --- |
-| `mcp_exports` | `apps/local-host/src/mcp-native-plugins.ts` 的 `NATIVE_MCP_ADAPTERS`；`default_enabled: false`。私人库对照 `mcp-store-plugin-adapter.ts`。缺 adapter、有导出，Host 启动抛错 |
-| `behaviors` / Functions 去向 | 下面「接到 Functions」 |
+| 新的 MCP 能力 | 声明公共 `actions` 与处理器，设置 MCP audience，经 Runtime 注册后自动导出；不增加 Host 适配表 |
+| 维护存量 `mcp_exports` | 用 `required_actions` 声明其精确动作版本。历史处理器只做参数/结果转接，共用逐客户端授权和 ActionClient；开关不授予权限。无 provider 的引用属于本插件，复合工具须满足所有引用 |
+| `actions` / 判断消费场景 | 下面「接到统一判断场景」 |
 | 插件事件总线 | 下面「接到插件事件总线」；Native 不要抄 |
 | 新 Artifact 类型 | 合同 + Artifacts Module，不要只写在插件里 |
 | 设置页 | contribution + `settings` 槽 + `settingsClient` |
@@ -39,20 +40,22 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 | 全局搜索 | Pages 族：`searchRow`。Feed/Inbox/Goals：`apps/workbench/src/scripts/client/global-search.ts` 写死，不会跟 searchRow 走 |
 | SSOT | `docs/SSOT-MATRIX.md` 加一行 owner |
 
-## 接到 Functions
+## 接到统一判断场景
 
-函数本身在 Functions 插件里写。本插件只让那个画面能被绑。缺一步，函数页或现场都不会动。
+新能力声明 `actions` 并兑现处理器；判断消费者声明 `action_scenes` 并兑现真实绑定、触发和消费。不再为新场景增加 Host 白名单或 `functionAuthoringDestinations` 分支。合同与当前边界见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#统一动作与消费场景)。
 
-1. 现场按钮已接线（点了真改状态）。
-2. Manifest：`behaviors`、需要判断时再加 `function_scenes` + `judgment_subjects`。要判断就写可选 `requires: functions.evaluate`，并把它放进 `capabilities.consumes`。
-3. `apps/local-host/src/behavior-catalog.ts` 的 `NATIVE_BEHAVIOR_MANIFESTS` 加上本插件 Manifest。
-4. **不要指望新 `scene_id` 出现在「用在哪」。** 去向表是 `functionAuthoringDestinations()` / `sceneBehaviorIds()` 写死的：`home.dock`、`inbox.next`、`feed.capture`。新去向要改合同、绑定 HTTP（对照 `/api/inbox/judgment`、`/api/home/dock-judgment`、Feed 捕捉规则）、`functions-host.ts` 的 `FunctionScenesView`、现场吃建议的 UI。那是平台任务。
-5. 对象到来时调用 `JudgmentPort`（Host 用 `createFunctionsJudgmentPort` 注入；Feed 在 `judgeScene`）。
-6. 画面读 `suggested_behavior_ids`（Feed：`visibleFeedDispositionIds`；首页：`dock_behaviors`）。Functions 判断本身不写业务状态。Feed 来源规则可由用户明确设置 `admission: "inbox"`：Feed 用例消费 `inbox.admit` 或 `needs_review` 后写 Attention，记录规则与判断版本；旧规则默认 `suggest`，保持原有行为。它不授权 Functions 执行其他动作。
+1. 先确定业务事件、对象上下文、接受的判断结果，以及结果对产品的实际影响。
+2. 注册 `ActionSceneDefinition`，输入输出 schema 与语义类型要能核对；manifest 场景与运行实例 handler 一一对应。
+3. `bindings` 读取插件的真实配置；`bind` 校验配置写权限并写回原 owner。关闭时保留引用和版本。
+4. 触发方使用同作用域 `ActionSceneClient.runScene`。事件仅带业务参数，可信调用者与项目由组合根绑定。需要读取对象时用 `prepare` 生成函数输入与私有状态。
+5. `consume` 验证业务对象仍有效后落地；`failed` 可明确记录需人工处理的失败。共同内核在两条路径上都检查绑定、生命周期及授权；建议不自动授予操作权限。
+6. 如果某个入口依赖判断绑定，用 `required_scene` 声明，让 Host 根据真实使用位置计算可用性。其他插件的兼容判断无需增加 ID 分支。
 
-`home.dock` 属于 Host 首页，不是某个插件的 scene。系统行为（`inbox.done`、`feed.save`…）与插件 `behaviors` 撞号时系统项保留。MCP 工具进 Agent 去向，不进这三处卡底。
+Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/native/inbox/src/scenes.ts`、`apps/local-host/src/inbox-scene.ts` 及 `tests/inbox-automatic-scenes.test.ts`。Feed 各触发源通过组合根注入 `feedOptions.inboxJudgment`，共享绑定但不共享待处理队列。
 
-现有插件：Feed 用 `feed.capture`，Inbox 用 `inbox.next`。Pages / 灵光有对象处置，但今天没有场景和落地调用，不要新开去向。
+要让用户在系统判断编辑器里直接启用，场景声明 `configuration_permissions` 并提供 `targets(caller)`，返回原配置位置、名称、链接和 revision。系统绑定会携带准确场景提供方及 `expected_revision`，原 `bind` 必须在同一存储中原子核对；null 只代表业务已提供但尚未绑定的固定位置。发现过程不新建规则，停用保留原引用。仅启用所需的额外权限用 `activation_permissions` 声明，详见 SDK。
+
+迁移边界：Home、Inbox、Feed 及系统规则编辑器已接共同场景和配置位置；旧 Agent 行为池及其他消费者仍需迁移。不要复制 `function_scenes` 名单或 `requires: functions.evaluate` 作为新接入方法。完整系统管理 UI、工作流输入映射和生成模板闭环尚未完成；具体证据见迁移清单。
 
 ## 接到插件事件总线
 
@@ -72,7 +75,7 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 
 Native（Feed/Inbox/Pages/…）今天没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
 
-Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages / Functions 通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
+Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
 
 ## 信息整理的 Host 组合
 
@@ -82,7 +85,9 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 ## app 一等（Coding 族）
 
-`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Workspace、Diff、Text stats。Host 接线在 `coding-surface.ts` 一类：`createXPlugin`、会话 store、渲目录。
+已注册到当前项目 Runtime 的路由按 Manifest 和实际 contribution 自动分发，Web 外层和内部适配器均不再维护插件 ID 白名单。业务 HTTP 使用 `bindPluginActionRoute` 转调统一动作；生命周期仍由 supervisor 管理。新实例追加注册不应覆盖已有路由；停用后的请求不得重新启用实例。内置项目启用检查、控制令牌、origin 与一次性请求键继续生效。`/restart`、`/release-quarantine`、`/upgrade` 保留给 Host 生命周期，业务路由避开这些路径；不要在 Host 为新插件增加同名字段的结果加工。
+
+`kind: "app"` 必须真的经 Plugin Runtime `start()`。今天：Coding、Files、Git、Diff、Text stats。Host 接线在 `coding-surface.ts` 一类：`createXPlugin`、会话 store、渲目录。
 
 `start(context)` 返回 `kind: "app"`，并且：
 
@@ -131,3 +136,14 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 - 定向测试：`node --import tsx --test --test-concurrency=1 tests/<id>-*.test.ts`
 - 点名插件名单的测试仍过。
 - 真开 Workbench：侧栏或岛出现、点进主路径、刷新后状态还在、增删后列表自己更新且不整页闪白。
+
+## 项目设置
+
+跨插件读当前项目配置，先在 `packages/contracts/src/modules/projects.ts` 定义具名 typed capability，按项声明 consumes，Host 在 `project-capabilities.ts` 根据 runtime.project_id 装配。当前只有关联目录与浏览目录。目录关联复用 catalog，浏览偏好由 Host 持有，UI 在 `project-settings-pages.ts` 及对应客户端；不要建立第二份目录库。完整归属表见 `docs/platform/PROJECT-SETTINGS.md`。
+
+
+### 工作流内容交接
+
+内容型插件通过 SDK `defineWorkflowContentActions` / `bindWorkflowContentHandlers` 注册内容列表、读取、接收及可选空白创建。角色、输入输出及语义版本来自规范合同；Host 不再维护工作流 SUPPORTED / BLANK_START 或按插件 ID 分发。存量 Feed、Inbox、Pages、灵光已经接入，插件实现位于各自 `content-actions.ts`。
+
+配置引用会固定提供方和动作版本；停用或升级不改写旧引用。普通 Runtime 插件只需 Manifest actions 与 start 返回 handlers，工作流目录即可发现。Native 仍由组合根注入数据 owner，不能把其业务实现放回工作流 HTTP。通用 schema 步骤映射仍未完成，不把该内容协议解释为所有能力都已可连线。

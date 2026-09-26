@@ -22,7 +22,7 @@ const design:Design={
 };
 function fixture(db:Database.Database){
  const privateStorage=new SqlitePluginPrivateStorage(db);
- const base={board_id:'board',plugin_id:builderManifest.plugin_id,version:'1.0.0',install_id:'builder',deployment:'local',grants:['storage:private'],requireGrant(){}} as PluginStartContext;
+ const base={board_id:'board',plugin_id:builderManifest.plugin_id,version:builderManifest.version,install_id:'builder',deployment:'local',grants:['storage:private'],requireGrant(){}} as PluginStartContext;
  const storage=privateStorage.forPlugin(base,builderManifest);
  const context={...base,services:{storage,capabilities:{async invoke(){throw new Error('A built-in example must not invoke a model');}} as PluginCapabilityClient}} as PluginStartContext;
  const workflow=new BuilderWorkflow(context,{async ready(){},async models(){return[];}});
@@ -38,6 +38,7 @@ test('presentation is optional and preserves only typed field bindings through d
  assert.deepEqual(parseDesign(presented),presented);
  const candidates=parseCandidates([{...presented,id:'cards',rationale:'图片浏览'},{...presented,id:'list',layout:'list',rationale:'集中回顾'}]);
  assert.deepEqual(candidates[1]!.presentation,presented.presentation);
+ assert.deepEqual(parseDesign({...design,presentation:{title:'name',tags:'',image:null}}).presentation,{title:'name'},'an empty binding is the same as no binding');
  for(const key of ['title','description','image','metadata','link','tags']){
   assert.throws(()=>parseDesign({...design,presentation:{[key]:'missing'}}),/引用未知字段/);
   assert.throws(()=>parseDesign({...design,presentation:{[key]:'count'}}),/字段类型必须/);
@@ -81,7 +82,7 @@ test('explicit inspiration starter saves real preview records, survives reload a
   const release=(published.body as {release:Release}).release;
   assert.deepEqual(release.design.presentation,build.design!.presentation);
   const generated=createGeneratedPlugin(release,()=>reloaded.workflow.store.releases()[0]!);
-  const generatedContext={...f.base,plugin_id:release.pluginId,install_id:'generated-inspiration'};
+  const generatedContext={...f.base,plugin_id:release.pluginId,version:generated.manifest.version,install_id:'generated-inspiration'};
   const generatedStorage=f.privateStorage.forPlugin(generatedContext,generated.manifest);
   const app=await generated.start({...generatedContext,services:{storage:generatedStorage} as PluginStartContext['services']});
   assert.equal(app.kind,'app');if(app.kind!=='app')return;

@@ -1,4 +1,5 @@
-import { buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { buildMolisWorkWebView } from "./fixtures/web-view.js";
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GoalsModule } from "@molis-ai/molis-work-module-goals";

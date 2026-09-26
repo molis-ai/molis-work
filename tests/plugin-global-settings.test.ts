@@ -272,15 +272,15 @@ test("workbench settings directory and standalone settings both show Shelf after
   const directory = renderSettingsDirectorySection(directoryPrimitives);
   assert.match(directory, /data-settings-section="appearance"/);
   assert.match(directory, /data-settings-section="runtimes"/);
-  assert.match(directory, /data-settings-section="mcp"/);
-  assert.match(directory, /data-settings-section="connectors"/);
+  assert.doesNotMatch(directory, /data-settings-section="mcp"/);
+  assert.doesNotMatch(directory, /data-settings-section="connectors"/);
   assert.doesNotMatch(directory, /data-settings-section="planning"/);
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
   assert.match(directory, /data-settings-section="functions"/);
   const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(sectionOrder, ["appearance", "models", "runtimes", "mcp", "connectors", "diagnostics", "shelf", "functions", "planning"]);
+  assert.deepEqual(sectionOrder, ["appearance", "models", "runtimes", "diagnostics", "shelf", "functions", "planning"]);
   assert.match(withGoals, />Goals</);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
   const html = renderMolisWorkSettings({
@@ -307,8 +307,8 @@ test("workbench settings directory and standalone settings both show Shelf after
     diagnostics,
   });
   assert.match(appearance, /href="\/settings\/shelf"/);
-  assert.match(appearance, /href="\/settings\/mcp"/);
-  assert.match(appearance, /href="\/settings\/connectors"/);
+  assert.match(appearance, /href="\/capabilities\/library"/);
+  assert.doesNotMatch(appearance, /href="\/settings\/connectors"/);
   assert.match(appearance, /class="settings-document appearance-document"/);
   assert.doesNotMatch(appearance, /data-settings-panel="shelf"|name="drop_wheel_enabled"|class="shelf-settings-document"/);
 });
@@ -333,8 +333,8 @@ test("MCP settings page is a Host global section, not a Functions settings-page"
   assert.match(html, /data-mcp-settings/);
   assert.match(html, /data-mcp-group="functions"/);
   assert.match(html, /data-mcp-tool="molis_work_v1_functions_invoke"/);
-  assert.match(html, /href="\/settings\/mcp"/);
-  assert.match(html, /href="\/settings\/connectors"/);
+  assert.match(html, /href="\/capabilities\/library"/);
+  assert.doesNotMatch(html, /href="\/settings\/connectors"/);
   assert.match(html, /href="\/settings\/functions"/);
   assert.doesNotMatch(html, /data-settings-panel="functions"/);
   assert.doesNotMatch(settingsDocument(html), /data-connectors-settings|data-connector-token/);
@@ -360,8 +360,8 @@ test("Connectors settings page is a Host global section, not a plugin settings-p
   });
   assert.match(html, /data-settings-section="connectors"/);
   assert.match(html, /data-connectors-settings/);
-  assert.match(html, /href="\/settings\/connectors"/);
-  assert.match(html, /href="\/settings\/mcp"/);
+  assert.doesNotMatch(html, /href="\/settings\/connectors"/);
+  assert.match(html, /href="\/capabilities\/library"/);
   assert.doesNotMatch(settingsDocument(html), /data-mcp-settings|data-mcp-tool=/);
 });
 

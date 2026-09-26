@@ -1,3 +1,4 @@
+import type { ActionSceneBinding, ActionSceneReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, ensureSqliteColumn } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -6,7 +7,6 @@ import {
   FUNCTIONS_MAX_SAMPLES,
   functionOutputKeys,
   isFunctionDestinationId,
-  sceneBehaviorIds,
   type ChoiceCriterion,
   type FunctionCriteria,
   type FunctionDraftPatch,
@@ -14,6 +14,7 @@ import {
   type FunctionSample,
   type FunctionSceneBinding,
   type FunctionSceneMap,
+  type FunctionActionMap,
   type FunctionsPreviewRecord,
   type FunctionsPrimitive,
   type JudgmentRecord,
@@ -35,8 +36,11 @@ interface FunctionRow {
   instructions: string;
   criteria_json: string;
   scene_id: string | null;
+  scene_version: number | null;
+  scene_provider_id: string | null;
   subject_kinds_json: string | null;
   scene_map_json: string | null;
+  action_map_json: string | null;
   config_hash: string;
   last_preview_json: string | null;
   samples_json: string | null;
@@ -64,6 +68,22 @@ export class FunctionsStore {
       "SELECT * FROM functions ORDER BY datetime(updated_at) DESC, name COLLATE NOCASE",
     ).all() as unknown as FunctionRow[];
     return rows.map(fromRow);
+  }
+
+  /** Explicit data migration; the host supplies identities of the original owners. */
+  migrateSceneReferences(sceneId: string, aliases: Readonly<Record<string, string>>): void {
+    const rows = this.db.prepare("SELECT * FROM functions WHERE scene_id = ?").all(sceneId) as unknown as FunctionRow[];
+    for (const row of rows) {
+      const record = fromRow(row);
+      const map = { ...record.scene_map };
+      let changed = false;
+      for (const key of functionOutputKeys(record)) {
+        const replacement = aliases[map[key] ?? key];
+        if (replacement) { map[key] = replacement; changed = true; }
+      }
+      if (changed) this.db.prepare("UPDATE functions SET scene_map_json = ? WHERE id = ? AND scene_map_json IS ?")
+        .run(JSON.stringify(map), row.id, row.scene_map_json);
+    }
   }
 
   get(id: string): FunctionRecord | null {
@@ -133,15 +153,20 @@ export class FunctionsStore {
     });
     const last_preview = current.last_preview?.config_hash === config_hash ? current.last_preview : null;
     const scene_id = patch.scene_id === undefined ? current.scene_id : normalizeSceneId(patch.scene_id, current.primitive);
+    const changedScene = scene_id !== current.scene_id;
+    const scene_version = patch.scene_version === undefined ? changedScene ? null : current.scene_version ?? null : patch.scene_version;
+    const scene_provider_id = patch.scene_provider_id === undefined ? changedScene ? null : current.scene_provider_id ?? null : patch.scene_provider_id;
+    assertSceneReference(scene_id, scene_version, scene_provider_id);
     const subject_kinds = patch.subject_kinds === undefined ? current.subject_kinds : normalizeSubjectKinds(patch.subject_kinds);
     const scene_map = patch.scene_map === undefined
       ? pruneSceneMap(current.scene_map, current.primitive, criteria, scene_id)
       : normalizeSceneMap(patch.scene_map, current.primitive, criteria, scene_id);
+    const action_map = normalizeActionMap(patch.action_map === undefined ? current.action_map ?? {} : patch.action_map, scene_id, current.primitive, criteria);
     const now = new Date().toISOString();
     const written = this.db.prepare(`
       UPDATE functions
-      SET name = ?, function_key = ?, instructions = ?, criteria_json = ?, scene_id = ?, subject_kinds_json = ?,
-          scene_map_json = ?, config_hash = ?, last_preview_json = ?, updated_at = ?
+      SET name = ?, function_key = ?, instructions = ?, criteria_json = ?, scene_id = ?, scene_version = ?, scene_provider_id = ?, subject_kinds_json = ?,
+          scene_map_json = ?, action_map_json = ?, config_hash = ?, last_preview_json = ?, updated_at = ?
       WHERE id = ? AND status = 'draft' AND updated_at = ?
     `).run(
       name,
@@ -149,8 +174,11 @@ export class FunctionsStore {
       instructions,
       JSON.stringify(criteria),
       scene_id,
+      scene_version,
+      scene_provider_id,
       JSON.stringify(subject_kinds),
       JSON.stringify(scene_map),
+      JSON.stringify(action_map),
       config_hash,
       last_preview ? JSON.stringify(last_preview) : null,
       now,
@@ -194,10 +222,12 @@ export class FunctionsStore {
     return this.writeSamples(current.id, samples, expectedUpdatedAt ?? current.updated_at);
   }
 
-  publish(id: string, expectedUpdatedAt?: string): FunctionRecord {
+  publish(id: string, expectedUpdatedAt?: string, scene?: ActionSceneReference): FunctionRecord {
     const current = this.require(id);
     if (current.status === "published") return current;
     assertReadyToPublish(current);
+    if (scene && (scene.scene_id !== current.scene_id || current.scene_version && scene.version !== current.scene_version
+      || current.scene_provider_id && scene.provider_id !== current.scene_provider_id)) throw new FunctionsError("functions.conflict", "草稿用途已变化，请重新检查");
     const model = pinModel(current);
     const now = new Date().toISOString();
     const config_hash = hashFunctionConfig({
@@ -211,9 +241,10 @@ export class FunctionsStore {
       : current.last_preview;
     const written = this.db.prepare(`
       UPDATE functions
-      SET status = 'published', version = 1, model = ?, config_hash = ?, last_preview_json = ?, published_at = ?, updated_at = ?
+      SET status = 'published', version = 1, model = ?, config_hash = ?, last_preview_json = ?, published_at = ?, updated_at = ?, scene_version = ?, scene_provider_id = ?
       WHERE id = ? AND status = 'draft' AND updated_at = ?
-    `).run(model, config_hash, last_preview ? JSON.stringify(last_preview) : null, now, now, id, expectedUpdatedAt ?? current.updated_at);
+    `).run(model, config_hash, last_preview ? JSON.stringify(last_preview) : null, now, now, scene?.version ?? current.scene_version ?? null,
+      scene?.provider_id ?? current.scene_provider_id ?? null, id, expectedUpdatedAt ?? current.updated_at);
     if (written.changes !== 1) {
       const latest = this.require(id);
       if (latest.status === "published") return latest;
@@ -259,10 +290,10 @@ export class FunctionsStore {
   bindScene(sceneId: string, functionKey: string, boardId: string | null, ref: string | null = null): FunctionSceneBinding {
     const at = new Date().toISOString();
     this.db.prepare(`
-      INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(scene_id, board_id, ref) DO UPDATE SET function_key = excluded.function_key, updated_at = excluded.updated_at
-    `).run(sceneId, boardId ?? "", ref ?? "", functionKey, at);
+      INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, updated_at, binding_revision)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(scene_id, board_id, ref) DO UPDATE SET function_key = excluded.function_key, updated_at = excluded.updated_at, action_binding_json = NULL, binding_revision = excluded.binding_revision
+    `).run(sceneId, boardId ?? "", ref ?? "", functionKey, at, crypto.randomUUID());
     return { scene_id: sceneId, board_id: boardId, ref, function_key: functionKey };
   }
 
@@ -274,7 +305,7 @@ export class FunctionsStore {
 
   getSceneBinding(sceneId: string, boardId: string | null, ref: string | null = null): FunctionSceneBinding | null {
     const row = this.db.prepare(
-      "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE scene_id = ? AND board_id = ? AND ref = ?",
+      "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key != '' AND (action_binding_json IS NULL OR json_extract(action_binding_json, '$.enabled') = 1) AND scene_id = ? AND board_id = ? AND ref = ?",
     ).get(sceneId, boardId ?? "", ref ?? "") as { scene_id: string; board_id: string; ref: string; function_key: string } | undefined;
     if (!row) return null;
     return mapBinding(row);
@@ -283,12 +314,51 @@ export class FunctionsStore {
   listSceneBindings(functionKey?: string): FunctionSceneBinding[] {
     const rows = functionKey
       ? this.db.prepare(
-        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key = ? ORDER BY scene_id, board_id, ref",
+        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key = ? AND (action_binding_json IS NULL OR json_extract(action_binding_json, '$.enabled') = 1) ORDER BY scene_id, board_id, ref",
       ).all(functionKey) as Array<{ scene_id: string; board_id: string; ref: string; function_key: string }>
       : this.db.prepare(
-        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings ORDER BY scene_id, board_id, ref",
+        "SELECT scene_id, board_id, ref, function_key FROM function_scene_bindings WHERE function_key != '' AND (action_binding_json IS NULL OR json_extract(action_binding_json, '$.enabled') = 1) ORDER BY scene_id, board_id, ref",
       ).all() as Array<{ scene_id: string; board_id: string; ref: string; function_key: string }>;
     return rows.map(mapBinding);
+  }
+
+  sceneBindingRevision(sceneId: string, boardId: string): string | undefined {
+    return (this.db.prepare("SELECT COALESCE(NULLIF(binding_revision, ''), updated_at) AS revision FROM function_scene_bindings WHERE scene_id = ? AND board_id = ? AND ref = ''")
+      .get(sceneId, boardId) as { revision: string } | undefined)?.revision;
+  }
+
+  getActionSceneBinding(sceneId: string, boardId: string, ref = ""): ActionSceneBinding | null {
+    const row = this.db.prepare("SELECT action_binding_json, binding_revision, function_key FROM function_scene_bindings WHERE scene_id = ? AND board_id = ? AND ref = ?")
+      .get(sceneId, boardId, ref) as { action_binding_json: string | null; binding_revision: string; function_key: string } | undefined;
+    if (!row?.action_binding_json) return null;
+    const binding = JSON.parse(row.action_binding_json) as ActionSceneBinding;
+    // Legacy Functions keys identify this system-owned provider unambiguously.
+    // Other old unpinned references remain visible but require explicit rebinding.
+    const fn = !binding.function.provider_id && row.function_key && binding.function.capability_id === `functions.published.${row.function_key}`
+      ? { ...binding.function, provider_id: "system.functions" } : binding.function;
+    return { ...binding, function: fn, revision: row.binding_revision || binding.revision };
+  }
+
+  setActionSceneBinding(boardId: string, binding: ActionSceneBinding, legacyKey = "", expectedRevision?: string | null): ActionSceneBinding {
+    const reference: ActionSceneBinding = { binding_id: binding.binding_id, scene_id: binding.scene_id, scene_version: binding.scene_version,
+      project_id: binding.project_id, function: { capability_id: binding.function.capability_id, version: binding.function.version,
+        ...(binding.function.provider_id ? { provider_id: binding.function.provider_id } : {}) },
+      enabled: binding.enabled, title: binding.title, ...(binding.href ? { href: binding.href } : {}) };
+    const revision = crypto.randomUUID();
+    const saved = { ...reference, revision };
+    const at = new Date().toISOString();
+    const json = JSON.stringify(reference);
+    const written = expectedRevision === undefined ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, action_binding_json, updated_at, binding_revision)
+      VALUES (?, ?, '', ?, ?, ?, ?) ON CONFLICT(scene_id, board_id, ref) DO UPDATE SET
+      function_key=excluded.function_key, action_binding_json=excluded.action_binding_json, updated_at=excluded.updated_at, binding_revision=excluded.binding_revision`)
+      .run(binding.scene_id, boardId, legacyKey, json, at, revision)
+      : expectedRevision === null ? this.db.prepare(`INSERT INTO function_scene_bindings (scene_id, board_id, ref, function_key, action_binding_json, updated_at, binding_revision)
+        VALUES (?, ?, '', ?, ?, ?, ?) ON CONFLICT(scene_id, board_id, ref) DO NOTHING`).run(binding.scene_id, boardId, legacyKey, json, at, revision)
+        : this.db.prepare(`UPDATE function_scene_bindings SET function_key = ?, action_binding_json = ?, updated_at = ?, binding_revision = ?
+          WHERE scene_id = ? AND board_id = ? AND ref = '' AND COALESCE(NULLIF(binding_revision, ''), updated_at) = ?`)
+          .run(legacyKey, json, at, revision, binding.scene_id, boardId, expectedRevision);
+    if (written.changes !== 1 && written.changes !== 1n) throw new FunctionsError("functions.conflict", "配置已变化，请刷新后再试");
+    return saved;
   }
 
   recordJudgment(input: {
@@ -299,6 +369,8 @@ export class FunctionsStore {
     outcome: JudgmentRecord["outcome"];
     suggested_behavior_ids: readonly string[];
     error_code: string | null;
+    scene_provenance?: JudgmentRecord["scene_provenance"];
+    recommended_actions?: JudgmentRecord["recommended_actions"];
   }): JudgmentRecord {
     const record: JudgmentRecord = {
       judgment_id: crypto.randomUUID(),
@@ -310,12 +382,14 @@ export class FunctionsStore {
       suggested_behavior_ids: [...input.suggested_behavior_ids],
       error_code: input.error_code,
       created_at: new Date().toISOString(),
+      ...(input.scene_provenance ? { scene_provenance: input.scene_provenance } : {}),
+      ...(input.recommended_actions?.length ? { recommended_actions: input.recommended_actions } : {}),
     };
     this.db.prepare(`
       INSERT INTO function_judgments (
         judgment_id, function_key, function_version, subject_kind, subject_id, board_id,
-        scene_id, outcome, suggested_json, error_code, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        scene_id, outcome, suggested_json, error_code, created_at, scene_provenance_json, recommended_actions_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       record.judgment_id,
       record.function_key,
@@ -328,14 +402,26 @@ export class FunctionsStore {
       JSON.stringify(record.suggested_behavior_ids),
       record.error_code,
       record.created_at,
+      record.scene_provenance ? JSON.stringify(record.scene_provenance) : null,
+      record.recommended_actions ? JSON.stringify(record.recommended_actions) : null,
     );
     return record;
   }
 
   listJudgments(): JudgmentRecord[] {
     const rows = this.db.prepare(
-      "SELECT * FROM function_judgments ORDER BY datetime(created_at) DESC, judgment_id",
+      "SELECT * FROM function_judgments ORDER BY created_at DESC, rowid DESC",
     ).all() as Record<string, unknown>[];
+    return rows.map(mapJudgment);
+  }
+
+  latestSceneJudgments(boardId: string, sceneId: string): JudgmentRecord[] {
+    const rows = this.db.prepare(`
+      SELECT * FROM (
+        SELECT *, ROW_NUMBER() OVER (PARTITION BY subject_kind, subject_id ORDER BY created_at DESC, rowid DESC) AS subject_rank
+        FROM function_judgments WHERE board_id = ? AND scene_id = ?
+      ) WHERE subject_rank = 1 ORDER BY created_at DESC
+    `).all(boardId, sceneId) as Record<string, unknown>[];
     return rows.map(mapJudgment);
   }
 
@@ -345,13 +431,13 @@ export class FunctionsStore {
       ? this.db.prepare(`
           SELECT * FROM function_judgments
           WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR board_id = ?) AND scene_id = ?
-          ORDER BY datetime(created_at) DESC, judgment_id DESC
+          ORDER BY created_at DESC, rowid DESC
           LIMIT 1
         `).get(kind, id, board, board, sceneId) as Record<string, unknown> | undefined
       : this.db.prepare(`
           SELECT * FROM function_judgments
           WHERE subject_kind = ? AND subject_id = ? AND (? = '' OR board_id = ?)
-          ORDER BY datetime(created_at) DESC, judgment_id DESC
+          ORDER BY created_at DESC, rowid DESC
           LIMIT 1
         `).get(kind, id, board, board) as Record<string, unknown> | undefined;
     return row ? mapJudgment(row) : null;
@@ -393,8 +479,11 @@ export function openFunctionsStore(homeDirectory: string): FunctionsStore {
   `);
   ensureSqliteColumn(db, "functions", "samples_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureSqliteColumn(db, "functions", "scene_id", "TEXT");
+  ensureSqliteColumn(db, "functions", "scene_version", "INTEGER");
+  ensureSqliteColumn(db, "functions", "scene_provider_id", "TEXT");
   ensureSqliteColumn(db, "functions", "subject_kinds_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureSqliteColumn(db, "functions", "scene_map_json", "TEXT NOT NULL DEFAULT '{}'");
+  ensureSqliteColumn(db, "functions", "action_map_json", "TEXT NOT NULL DEFAULT '{}'");
   db.exec(`
     CREATE TABLE IF NOT EXISTS function_judgments (
       judgment_id TEXT PRIMARY KEY,
@@ -421,6 +510,10 @@ export function openFunctionsStore(homeDirectory: string): FunctionsStore {
     );
   `);
   migrateSceneBindingRef(db);
+  ensureSqliteColumn(db, "function_judgments", "scene_provenance_json", "TEXT");
+  ensureSqliteColumn(db, "function_judgments", "recommended_actions_json", "TEXT");
+  ensureSqliteColumn(db, "function_scene_bindings", "action_binding_json", "TEXT");
+  ensureSqliteColumn(db, "function_scene_bindings", "binding_revision", "TEXT NOT NULL DEFAULT ''");
   seedBuiltinFunctions(db);
   return new FunctionsStore(db);
 }
@@ -479,8 +572,8 @@ function insert(db: DatabaseSync, record: FunctionRecord): void {
   db.prepare(`
     INSERT INTO functions (
       id, name, function_key, primitive, status, version, model, instructions, criteria_json,
-      scene_id, subject_kinds_json, scene_map_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      scene_id, scene_version, scene_provider_id, subject_kinds_json, scene_map_json, action_map_json, config_hash, last_preview_json, samples_json, published_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     record.id,
     record.name,
@@ -492,8 +585,11 @@ function insert(db: DatabaseSync, record: FunctionRecord): void {
     record.instructions,
     JSON.stringify(record.criteria),
     record.scene_id,
+    record.scene_version ?? null,
+    record.scene_provider_id ?? null,
     JSON.stringify(record.subject_kinds),
     JSON.stringify(record.scene_map),
+    JSON.stringify(record.action_map ?? {}),
     record.config_hash,
     record.last_preview ? JSON.stringify(record.last_preview) : null,
     JSON.stringify(record.samples),
@@ -515,8 +611,11 @@ function fromRow(row: FunctionRow): FunctionRecord {
     version: row.version,
     model: row.model,
     scene_id: parseSceneId(row.scene_id),
+    scene_version: row.scene_version ?? null,
+    scene_provider_id: row.scene_provider_id ?? null,
     subject_kinds: parseSubjectKinds(row.subject_kinds_json),
     scene_map: parseSceneMap(row.scene_map_json),
+    action_map: row.action_map_json ? JSON.parse(row.action_map_json) as FunctionActionMap : {},
     instructions: row.instructions,
     criteria,
     last_preview: parsePreview(row.last_preview_json, primitive),
@@ -538,8 +637,11 @@ function buildRecord(input: {
   instructions: string;
   criteria: FunctionCriteria;
   scene_id: string | null;
+  scene_version?: number | null;
+  scene_provider_id?: string | null;
   subject_kinds: readonly string[];
   scene_map: FunctionSceneMap;
+  action_map?: FunctionActionMap;
   last_preview: FunctionsPreviewRecord | null;
   samples: readonly FunctionSample[];
   published_at: string | null;
@@ -555,8 +657,11 @@ function buildRecord(input: {
     model: input.model,
     instructions: input.instructions,
     scene_id: input.scene_id,
+    scene_version: input.scene_version ?? null,
+    scene_provider_id: input.scene_provider_id ?? null,
     subject_kinds: input.subject_kinds,
     scene_map: input.scene_map,
+    action_map: input.action_map ?? {},
     config_hash: hashFunctionConfig({
       primitive: input.primitive,
       instructions: input.instructions,
@@ -708,6 +813,13 @@ function parseSceneMap(raw: string | null | undefined): FunctionSceneMap {
   }
 }
 
+function assertSceneReference(sceneId: string | null, version: number | null, providerId: string | null): void {
+  if (version === null && providerId === null) return;
+  if (!sceneId || sceneId === AGENT_MCP_DESTINATION_ID || !Number.isSafeInteger(version) || (version ?? 0) < 1 || typeof providerId !== "string" || !providerId.trim() || providerId !== providerId.trim()) {
+    throw new FunctionsError("functions.invalid", "用途必须同时指定有效场景版本和提供方");
+  }
+}
+
 function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): string | null {
   if (value == null || value === "") return null;
   if (!isFunctionDestinationId(value)) {
@@ -731,6 +843,22 @@ function normalizeSubjectKinds(value: unknown): string[] {
     kinds.push(kind);
   }
   return kinds;
+}
+
+function normalizeActionMap(value: FunctionActionMap, sceneId: string | null, primitive: FunctionsPrimitive, criteria: FunctionCriteria): FunctionActionMap {
+  if (sceneId !== AGENT_MCP_DESTINATION_ID) return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new FunctionsError("functions.invalid", "推荐能力映射格式无效");
+  const keys = new Set(functionOutputKeys({ primitive, criteria }));
+  const result: Record<string, FunctionActionMap[string]> = {};
+  for (const [key, reference] of Object.entries(value)) {
+    if (!keys.has(key)) continue;
+    if (!reference || typeof reference !== "object" || typeof reference.capability_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(reference.capability_id)
+      || !Number.isSafeInteger(reference.version) || reference.version < 1 || typeof reference.provider_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(reference.provider_id)) {
+      throw new FunctionsError("functions.invalid", "推荐能力必须包含准确身份、版本和提供方");
+    }
+    result[key] = { capability_id: reference.capability_id, version: reference.version, provider_id: reference.provider_id };
+  }
+  return result;
 }
 
 function normalizeSceneMap(
@@ -768,11 +896,9 @@ function pruneSceneMap(
   if (sceneId === undefined) return { ...value };
   if (!primitive || !criteria) return { ...value };
   const allowed = new Set(functionOutputKeys({ primitive, criteria }));
-  const pool = new Set(sceneBehaviorIds(sceneId));
   const mapped: Record<string, string> = {};
   for (const [key, target] of Object.entries(value)) {
     if (!allowed.has(key) || !target) continue;
-    if (pool.size > 0 && !pool.has(target)) continue;
     mapped[key] = target;
   }
   return mapped;
@@ -897,5 +1023,7 @@ function mapJudgment(row: Record<string, unknown>): JudgmentRecord {
     suggested_behavior_ids: suggested,
     error_code: row.error_code == null || row.error_code === "" ? null : String(row.error_code),
     created_at: String(row.created_at ?? ""),
+    ...(row.scene_provenance_json ? { scene_provenance: JSON.parse(String(row.scene_provenance_json)) as JudgmentRecord["scene_provenance"] } : {}),
+    ...(row.recommended_actions_json ? { recommended_actions: JSON.parse(String(row.recommended_actions_json)) as JudgmentRecord["recommended_actions"] } : {}),
   };
 }

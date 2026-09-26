@@ -1,3 +1,6 @@
+import { pptTestPorts } from "./fixtures/ppt-actions.js";
+import { formTestPorts } from "./fixtures/form-actions.js";
+import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -63,9 +66,9 @@ test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑�
 
   const forms = openFormStore(home);
   try {
-    const formRoutes = new FormPluginRouteTable(createFormRouteHandlers(forms, {
+    const formRoutes = new FormPluginRouteTable(createFormRouteHandlers(formTestPorts(forms, project_id, {
       publishArtifact: (input) => ({ artifact_id: "form-" + input.record_id, version: input.version }),
-    }));
+    })));
     const created = await formRoutes.handle({ method: "POST", pathname: "/api/form", query, body: { title: "报名" } });
     const id = (created?.body as { form: { id: string } }).form.id;
     const first = await formRoutes.handle({ method: "POST", pathname: `/api/form/${id}/promote`, query, body: {} });
@@ -81,12 +84,12 @@ test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑�
 
   const datasets = openDatasetStore(home);
   try {
-    const routes = new DatasetPluginRouteTable(createDatasetRouteHandlers(datasets, {
+    const routes = new DatasetPluginRouteTable(createDatasetRouteHandlers(datasetTestPorts(datasets, query.get("project_id")!, {
       publishArtifact: (input) => {
         assert.equal(input.content.columns.length, 1);
         return { artifact_id: "dataset-" + input.record_id, version: input.version };
       },
-    }));
+    })));
     const created = await routes.handle({ method: "POST", pathname: "/api/dataset", query, body: { title: "分数" } });
     const id = (created?.body as { dataset: { id: string } }).dataset.id;
     await routes.handle({
@@ -108,12 +111,12 @@ test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑�
 
   const decks = openPptStore(home);
   try {
-    const routes = new PptPluginRouteTable(createPptRouteHandlers(decks, {
+    const routes = new PptPluginRouteTable(createPptRouteHandlers(pptTestPorts(decks, query.get("project_id")!, {
       publishArtifact: (input) => {
         assert.ok(input.content.slides.length > 0);
         return { artifact_id: "ppt-" + input.record_id, version: input.version };
       },
-    }));
+    })));
     const created = await routes.handle({ method: "POST", pathname: "/api/ppt", query, body: { title: "发布会" } });
     const id = (created?.body as { presentation: { id: string } }).presentation.id;
     const first = await routes.handle({ method: "POST", pathname: `/api/ppt/${id}/promote`, query, body: {} });

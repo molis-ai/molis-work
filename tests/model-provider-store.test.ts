@@ -56,6 +56,26 @@ test("密钥从不进表：行里只有一个指向密钥库的引用", async ()
   }
 });
 
+test("编辑已绑定的模型供应商保留 Connector 引用，删除供应商也不删除共享密钥", async () => {
+  const item = await fixture();
+  try {
+    item.store.upsert({ provider_id: "shared", display_name: "Shared", base_url: "https://models.example/v1",
+      api_format: "openai-chat-completions", models: [{ model_id: "model-a", enabled: true }] });
+    const ref = "connector-connection:11111111-1111-4111-8111-111111111111:token";
+    item.secrets.put(ref, "shared-secret");
+    item.store.selectConnection("shared", ref);
+    const edited = item.store.upsert({ provider_id: "shared", display_name: "Shared edited", base_url: "https://models.example/v2",
+      api_format: "openai-chat-completions", models: [{ model_id: "model-b", enabled: true }] });
+    assert.equal(edited.credential_ref, ref);
+    assert.equal(item.store.resolveConfiguration({ provider_id: "shared" })?.api_key, "shared-secret");
+    item.store.remove("shared");
+    assert.equal(item.secrets.get(ref), "shared-secret");
+  } finally {
+    item.db.close();
+    await rm(item.directory, { recursive: true, force: true });
+  }
+});
+
 test("删供应商会把它的密钥一起删掉，不留孤儿", async () => {
   const item = await fixture();
   try {

@@ -1,0 +1,10 @@
+[[permission]]
+identifier = "allow-context-directories"
+description = "Let the local main onboarding page manage explicitly selected directory bookmarks, preview metadata, and read selected files."
+commands.allow = [
+  "context_directory_status",
+  "context_directory_authorize",
+  "context_directory_forget",
+  "context_directory_preview",
+  "context_directory_read",
+]

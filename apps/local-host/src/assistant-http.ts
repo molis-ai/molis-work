@@ -4,7 +4,7 @@ import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
 
 /** Read-only proposals. Confirmed actions run through the existing plugin HTTP contracts. */
-export async function planInformationWork(feed: FeedApplication, projectId: string, body: Record<string, unknown>, completeText = hostCompleteText()) {
+export async function planInformationWork(feed: FeedApplication, projectId: string, body: Record<string, unknown>, completeText?: HostCompleteText) {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
   if (!prompt || prompt.length > 4000) throw new Error("请用 1–4000 字说明要筛选或整理什么");
   if (!completeText) throw new Error("尚未配置助手模型");
@@ -46,11 +46,11 @@ export async function planInformationWork(feed: FeedApplication, projectId: stri
 }
 
 export async function handleInformationAssistantHttp(request: IncomingMessage, response: ServerResponse, url: URL, options: {
-  projectId: string; feed: FeedApplication; completeText?: HostCompleteText;
+  projectId: string; feed: FeedApplication; completeText?: HostCompleteText; homeDirectory?: string;
 }) {
   return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: 20_000,
     async handle(input) {
       if (input.method !== "POST" || input.pathname !== "/api/assistant/plan") return null;
-      return { status: 200, body: await planInformationWork(options.feed, options.projectId, input.body, options.completeText) };
+      return { status: 200, body: await planInformationWork(options.feed, options.projectId, input.body, options.completeText ?? hostCompleteText({ homeDirectory: options.homeDirectory })) };
     }, mapError: error => ({ status: 400, body: { error: error instanceof Error ? error.message : "助手暂时不可用" } }) });
 }

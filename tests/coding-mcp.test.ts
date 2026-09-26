@@ -97,3 +97,49 @@ test("MCP HTTP credentials stay outside views; config identity, cancellation and
     assert.notEqual((await library.list(owner)).find(item=>item.id===hanging.id)?.health,'connected');
   }finally{await adapter?.close();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(root,{recursive:true,force:true});}
 });
+
+test("MCP connection selection resolves the current Connector secret again after rotation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "molis-mcp-connector-"));
+  const owner = { board_id: "connector-project", plugin_id: "io.molis.work.coding" };
+  const authSeen: string[] = [];
+  const server = createServer(async (request, response) => {
+    authSeen.push(String(request.headers.authorization ?? ""));
+    if (request.method === "DELETE") { response.writeHead(204).end(); return; }
+    const parts: Buffer[] = []; for await (const part of request) parts.push(Buffer.from(part));
+    const message = JSON.parse(Buffer.concat(parts).toString());
+    if (message.id === undefined) { response.writeHead(202).end(); return; }
+    const result = message.method === "initialize"
+      ? { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "connector-fixture", version: "1" } }
+      : { tools: [{ name: "read_note", inputSchema: { type: "object", properties: {} } }] };
+    response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const endpoint = `http://127.0.0.1:${address.port}/mcp`;
+  const connectionId = "11111111-1111-4111-8111-111111111111";
+  const credentialRef = `connector-connection:${connectionId}:token`;
+  let token = "first-mcp-token";
+  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  try {
+    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.mcp-connector-test", appVersion: "1.0.0" },
+      reviewQueue: new AgentReviewQueue(), storageRoot: join(root, "runtime"), modelConfiguration: async () => null,
+      resolveMcpConnection: (id, destination) => id === connectionId && destination === endpoint ? credentialRef : null,
+      resolveCredential: ref => ref === credentialRef ? token : null });
+    const library = adapter.mcpLibrary!;
+    const saved = await library.save(owner, { expected_version: 0, label: "选定的 MCP 账号", transport: "http", enabled: true,
+      timeout_ms: 1000, endpoint, auth: { kind: "connection", connection_id: connectionId } });
+    assert.equal(saved.auth_connection_id, connectionId);
+    assert.equal(JSON.stringify(saved).includes(token), false);
+    await library.control(owner, saved.id, "connect");
+    assert.ok(authSeen.includes("Bearer first-mcp-token"));
+    await library.control(owner, saved.id, "disconnect");
+    token = "rotated-mcp-token";
+    await library.control(owner, saved.id, "connect");
+    assert.ok(authSeen.includes("Bearer rotated-mcp-token"));
+    assert.equal(JSON.stringify(await library.list(owner)).includes(token), false);
+  } finally {
+    await adapter?.close(); server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});

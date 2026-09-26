@@ -20,6 +20,7 @@ const ALL_NATIVE: RuntimeSessionCapabilities = {
   resume: "native",
   events: "native",
   handoff: "native",
+  message: "native",
 };
 
 test("Runtime Host registers a provider, exposes its matrix, and returns honest unsupported results", async () => {

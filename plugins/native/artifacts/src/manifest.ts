@@ -1,5 +1,6 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
+import { ARTIFACT_ACTIONS } from "./actions.js";
 
 export const ARTIFACTS_PLUGIN_ID = "io.molis.work.artifacts";
 /** What the project database stores for this Plugin. */
@@ -23,6 +24,7 @@ export const artifactsManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [],
   capabilities: { provides: [], consumes: [] },
+  actions: ARTIFACT_ACTIONS,
   artifacts: {
     produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
     consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],

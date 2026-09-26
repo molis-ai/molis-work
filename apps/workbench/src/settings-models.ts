@@ -6,8 +6,10 @@ import type {
   ModelProviderStatus,
   ModelPromptCacheMode,
   ModelRecord,
+  ModelThinkingMode,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { promptCacheIsClientControlled } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 /**
  * The model settings page: which providers exist, what each speaks, and which
@@ -30,6 +32,8 @@ export interface ModelSettingsModel {
   readonly draft_provider?: ModelProviderRecord;
   /** Which provider the detail pane shows. Null when nothing is configured yet. */
   readonly selected_provider_id: string | null;
+  readonly connections?: readonly ConnectorConnectionView[];
+  readonly selected_connection_ids?: Readonly<Record<string, string>>;
   readonly primitives: ModelSettingsPrimitives;
 }
 
@@ -132,12 +136,13 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
     </div>
 
     ${renderPromptCacheField(provider, p)}
+    ${renderThinkingField(provider, p)}
 
-    ${renderCredentialField(provider, hasCredential, p, health?.status === "credential-unavailable")}
+    ${renderCredentialField(hasCredential, p, model.connections ?? [], model.selected_connection_ids?.[provider.provider_id])}
     ${health?.status === "credential-unavailable" ? `<p role="alert">${p.escape(p.L(health.detail))}</p>` : ""}
     ${renderModelList(provider, p)}
     <div data-model-delete-confirm hidden><p>${p.L("移除这个供应商及其密钥？后续任务将无法再选择它，历史记录会保留。")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${p.L("取消")}</button><button class="mw-btn" type="button" data-model-delete>${p.L("确认移除")}</button></div>
-    <footer class="model-settings-actions"><button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-model-save>${p.L("保存配置")}</button><span>${p.L("保存后用于新一轮执行；正在运行的任务保持原配置。")}</span></footer>
+    <footer class="model-settings-actions"><button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-model-save>${p.L("保存配置")}</button><span>${p.L("保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。")}</span></footer>
   </div>`;
 }
 
@@ -169,27 +174,37 @@ function renderPromptCacheField(
 }
 
 /**
- * The key field.
- *
- * It renders a fixed mask when a key is stored and an empty field when none is,
- * never the key and never its length. Typing a new value replaces it; leaving it
- * untouched keeps what the secret store already has.
+ * Whether the model thinks before answering. It costs more tokens and time, so it is off until the user turns it on.
+ * A format with no thinking field shows why instead of an option that could never be saved.
  */
-function renderCredentialField(
-  provider: ModelProviderRecord,
-  hasCredential: boolean,
-  p: ModelSettingsPrimitives,
-  unavailable = false,
-): string {
+function renderThinkingField(provider: ModelProviderRecord, p: ModelSettingsPrimitives): string {
+  const current: ModelThinkingMode = provider.thinking ?? "off";
+  if (provider.api_format !== "anthropic-messages") return `<div class="model-field">
+      <label for="model-thinking">${p.L("思考")}</label>
+      <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}" disabled><option value="off" selected>${p.escape(p.L("关闭"))}</option></select>
+      <p class="model-field-note">${p.escape(p.L("这个格式没有思考档可以打开。"))}</p>
+    </div>`;
+  const options = ([["off", "关闭"], ["adaptive", "开启（由模型决定想多少）"]] as const)
+    .map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${p.escape(p.L(label))}</option>`).join("");
   return `<div class="model-field">
-    <label for="model-api-key">${p.L("API Key")}</label>
-    <div class="model-key-row">
-      <input class="mw-input" id="model-api-key" type="password" autocomplete="off" spellcheck="false"${unavailable ? " disabled" : ""}
-        data-model-api-key="${p.escape(provider.provider_id)}"
-        placeholder="${hasCredential ? p.L("已保存，留空则不改动") : p.L("填入 API Key")}">
-      <button type="button" class="mw-btn" data-model-key-reveal aria-label="${p.L("显示输入的内容")}">${p.icon("eye")}</button>
-    </div>
-    ${hasCredential || unavailable ? "" : `<p class="model-field-hint mw-status" data-tone="attention">${p.icon("circle-alert")}${p.L("还没有填 API Key，这个供应商用不了")}</p>`}
+      <label for="model-thinking">${p.L("思考")}</label>
+      <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}">${options}</select>
+      <p class="model-field-note">${p.escape(p.L("开启后模型先思考再回答，用量和等待时间都会增加；思考过程会显示在每一轮里。"))}</p>
+    </div>`;
+}
+
+/** Provider settings select an existing Home connection; the key stays in Connectors. */
+function renderCredentialField(hasCredential: boolean, p: ModelSettingsPrimitives,
+  connections: readonly ConnectorConnectionView[], selectedId?: string): string {
+  return `<div class="model-field"><label for="model-connection">${p.L("使用的账号连接")}</label>
+    <select class="mw-select" id="model-connection" data-model-connection>
+      <option value="">${p.L("选择连接")}</option>
+      ${connections.filter((row) => row.service_id === "model-api" && (row.state === "connected" || row.connection_id === selectedId))
+        .map((row) => `<option value="${p.escape(row.connection_id)}"${row.connection_id === selectedId ? " selected" : ""}${row.state !== "connected" ? " disabled" : ""}>${p.escape(row.display_name)}${row.state !== "connected" ? ` · ${p.L("连接不可用")}` : ""}</option>`).join("")}
+      ${selectedId && !connections.some(row => row.service_id === "model-api" && row.connection_id === selectedId)
+        ? `<option value="${p.escape(selectedId)}" selected disabled>${p.L("原连接已不可用，请重新选择")}</option>` : ""}
+    </select><a class="mw-btn mw-btn--link" href="/settings/connectors?connector=model-api">${p.L("在 Connectors 管理 API Key")}</a>
+    ${hasCredential ? "" : `<p class="model-field-hint mw-status" data-tone="attention">${p.icon("circle-alert")}${p.L("请选择一条已保存的连接")}</p>`}
   </div>`;
 }
 

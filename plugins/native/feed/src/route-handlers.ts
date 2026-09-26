@@ -8,20 +8,20 @@ export function createFeedRouteHandlers(options: FeedRouteHandlerPorts): Record<
   const feed = () => options.feed();
   const connectors = () => options.connectors();
   return {
-    "feed.snapshot": () => ({
+    "feed.snapshot": async () => ({
       status: 200,
       body: {
-        ...options.hydrateSnapshot(feed().snapshot(options.boardId)),
+        ...await options.hydrateSnapshot(feed().snapshot(options.boardId)),
         source_catalog: options.sourceCatalog(),
         connector_auth: connectors().authStatus(),
       },
     }),
-    "feed.workbench": ({ request }) => {
+    "feed.workbench": async ({ request }) => {
       const preset = request.query.get("preset") ?? "feed";
       if (preset !== "feed") {
         return { status: 400, body: { error: "Feed 工作区类型无效" } };
       }
-      return { status: 200, html: options.renderWorkbench() };
+      return { status: 200, html: await options.renderWorkbench() };
     },
     ...createFeedOutRuleRouteHandlers(options),
     ...createFeedSourceRouteHandlers(options),

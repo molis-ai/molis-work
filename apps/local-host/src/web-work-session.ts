@@ -1,3 +1,4 @@
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleWorkSessionHttp, MolisWorkWorkspaceActionError, repairProjectWorkspace, unlinkProjectWorkspace, type ProjectWorkspaceRecord, type WorkSessionHttpContext } from "@molis-ai/molis-work-plugin-work";
@@ -12,32 +13,32 @@ export function createLocalWorkSessionHttp(withMolisWorkProjectCatalog: LocalWeb
   return async function handleSessions(
     request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
     options: { boardId: string; project: WebProjectNavigation | null; projects: WebProjectNavigation[] },
-    sessionResources: Promise<SessionRuntimeResources>, readWebView: () => MolisWorkWebView,
-    readGoalContract: WorkSessionHttpContext["readGoalContract"],
+    sessionResources: Promise<SessionRuntimeResources>, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>,
+    readGoalContract: WorkSessionHttpContext["readGoalContract"], actions: BoundActionClient,
   ): Promise<boolean> {
     const readProjectWorkspaceRecord = async (workspaceId: string): Promise<ProjectWorkspaceRecord | null> => {
       if (!options.project) return null;
-      const resources = await sessionResources;
       const catalogWorkspaces = await withMolisWorkProjectCatalog(
         { homeDirectory: homeDirectory },
         (catalog) => catalog.listWorkspaceDirectory(options.project!.project_id),
       );
-      return sessionProjectOperationsData(
-        resources,
+      return (await sessionProjectOperationsData(
+        actions,
         options.project.project_id,
-        readWebView(),
+        await readWebView(),
         options.projects,
         catalogWorkspaces,
-      ).workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
+      )).workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
     };
     return await handleWorkSessionHttp({
       method: request.method,
+      actions,
       pathname: url.pathname,
       readBody: () => readBody(request),
       respond: (status, value) => sendJson(response, status, value),
       resourcesPromise: sessionResources,
       projectOptions: options,
-      hasCurrentGoal: (goalId) => readWebView().goals.some((item) => item.goal.goal_id === goalId),
+      hasCurrentGoal: async (goalId) => (await readWebView()).goals.some((item) => item.goal.goal_id === goalId),
       readGoalContract: (goalId) => readGoalContract(goalId),
       workspace: {
         add: (canonicalPath, projectId) => withMolisWorkProjectCatalog(

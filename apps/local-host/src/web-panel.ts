@@ -1,3 +1,5 @@
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleWorkPanelHttp, type WorkPanelHttpContext } from "@molis-ai/molis-work-plugin-work";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
@@ -60,6 +62,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
     boardId: string,
     ptyHost: MolisWorkPtyHost,
     webUrl: string,
+    actions: BoundActionClient,
   ): Promise<boolean> {
     return handleWorkPanelHttp({
       method: request.method, url, projectId, text: L,
@@ -105,7 +108,7 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
           renderItem: (item) => feedItemContext(hydrateFeedItemContent(item)),
         });
       },
-      projectGuidance: () => coordinator.goalQueries.readProjectGuidance(boardId).runtime_prompt_prefix,
+      projectGuidance: async () => (await actions.invoke(goalsActions.guidanceRead, {})).runtime_prompt_prefix,
       isRuntimeKind: ports.isRuntimeKind,
       launchSpec: ports.launchSpec,
       advancePrompt: ports.advancePrompt,

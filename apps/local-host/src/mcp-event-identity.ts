@@ -1,30 +1,6 @@
 import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
-import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { isRuntimeContextMcpTool, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
-
-export const GOAL_EVENT_WRITE_TOOLS = new Set([
-  "molis_work_v1_goal_tree_propose",
-  "molis_work_v1_goal_intent_create",
-  "molis_work_v1_event_configure",
-  "molis_work_v1_event_report",
-  "molis_work_v1_event_note",
-  "molis_work_v1_event_progress",
-  "molis_work_v1_event_concern",
-  "molis_work_v1_event_decision_request",
-  "molis_work_v1_event_cite_decision",
-  "molis_work_v1_event_agree",
-  "molis_work_v1_event_close",
-  "molis_work_v1_event_resume",
-]);
-
-export const GOAL_EVENT_TOOLS = new Set([
-  ...GOAL_EVENT_WRITE_TOOLS,
-  "molis_work_v1_goal_list",
-  "molis_work_v1_goal_state",
-  "molis_work_v1_event_list",
-  "molis_work_v1_event_read",
-  "molis_work_v1_event_decide",
-]);
+import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { isRuntimeContextMcpTool, LEGACY_GOALS_MCP, type McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 
 export const RUNTIME_CONNECTION_OVERRIDE_FIELDS = [
   "board_id",
@@ -46,27 +22,6 @@ const RUNTIME_FORGED_AUTHORITY_FIELDS = [
   "payload",
 ] as const;
 
-const RUNTIME_CONFIRMATION_TOOLS = new Set([
-  "molis_work_v1_project_guidance_add",
-  "molis_work_v1_project_guidance_update",
-  "molis_work_v1_planning_method_save",
-  "molis_work_v1_goal_trash",
-  "molis_work_v1_goal_restore",
-]);
-
-const RUNTIME_READ_TOOLS = new Set([
-  "molis_work_v1_project_guidance_get",
-  "molis_work_v1_planning_methods",
-  "molis_work_v1_planning_analyze_change",
-  "molis_work_v1_planning_graph_check",
-  "molis_work_v1_goal_state",
-  "molis_work_v1_event_list",
-  "molis_work_v1_event_read",
-  "molis_work_v1_goal_list",
-  "molis_work_v1_goal_tree_read",
-  "molis_work_v1_goal_trash_list",
-]);
-
 export function assertRuntimeOrdinaryToolInput(
   name: string,
   arguments_: Record<string, unknown>,
@@ -76,7 +31,9 @@ export function assertRuntimeOrdinaryToolInput(
   const connection = RUNTIME_CONNECTION_OVERRIDE_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
   const actor = RUNTIME_ACTOR_OVERRIDE_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
   const forged: string[] = RUNTIME_FORGED_AUTHORITY_FIELDS.filter((field) => Object.hasOwn(arguments_, field));
-  if (Object.hasOwn(arguments_, "user_confirmed") && !RUNTIME_CONFIRMATION_TOOLS.has(name)) {
+  const alias = LEGACY_GOALS_MCP.find(binding => binding.name === name);
+  const declaresConfirmation = alias && Object.hasOwn(alias.action.action.input_schema.properties as object, "user_confirmed");
+  if (Object.hasOwn(arguments_, "user_confirmed") && !declaresConfirmation) {
     forged.push("user_confirmed");
   }
   if (name === "molis_work_v1_goal_tree_propose") {
@@ -138,29 +95,4 @@ function stableRuntimeSessionId(
     if (stable) return stable;
   }
   return null;
-}
-
-export function injectRuntimeIdentity(
-  name: string,
-  arguments_: Record<string, unknown>,
-  host: MolisWorkRuntimeContextHost | null,
-  callContext: McpToolCallContext,
-  connection: MolisWorkRuntimeConnection,
-  homeScopedNames: ReadonlySet<string> = new Set(),
-): Record<string, unknown> {
-  if (isRuntimeContextMcpTool(name) || homeScopedNames.has(name)) return arguments_;
-  const withBoard = { ...arguments_, board_id: connection.boardId };
-  if (RUNTIME_READ_TOOLS.has(name)) return withBoard;
-  const actor = runtimeEventActor(host, callContext);
-  if (name === "molis_work_v1_goal_tree_propose") {
-    const sessionId = actor.actor_id.split(":").slice(2).join(":") || actor.actor_id;
-    return { ...withBoard, actor_id: actor.actor_id, actor_kind: actor.actor_kind, submitted_session_id: sessionId };
-  }
-  if (name === "molis_work_v1_goal_intent_create") {
-    return { ...withBoard, actor_id: actor.actor_id, actor_kind: actor.actor_kind, source_kind: "runtime" };
-  }
-  if (GOAL_EVENT_WRITE_TOOLS.has(name)) {
-    return { ...withBoard, actor_id: actor.actor_id, actor_kind: actor.actor_kind };
-  }
-  return { ...withBoard, actor_id: actor.actor_id };
 }

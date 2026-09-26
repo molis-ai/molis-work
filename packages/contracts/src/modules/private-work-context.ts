@@ -1,3 +1,4 @@
+export * from "./session-messages.js";
 import type { ContractDescriptor } from "../platform/package.js";
 export * from "./runtime-project-context.js";
 
@@ -410,6 +411,12 @@ export interface PrivateWorkContextApplicationApi {
 }
 
 export type PrivateWorkContextErrorCode =
+  | "session.message_content_unavailable"
+  | "session.message_conflict"
+  | "session.message_target_changed"
+  | "session.message_unavailable"
+  | "session.message_not_found"
+  | "session.message_attempt_changed"
   | "session.not_found"
   | "session.confirmation_required"
   | "session.identity_conflict"

@@ -147,9 +147,12 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput): Plu
 }
 
 export interface PluginCapabilityPort {
+  availability?(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference,
+    options?: Pick<import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions, "consumer">): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
   invoke<Input, Output>(
     capability: HostCapabilityDefinition<Input, Output>,
     input: Input,
+    options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions,
   ): Promise<Output>;
 }
 
@@ -169,19 +172,29 @@ export class PluginCapabilityAccessError extends Error {
 export function createPluginCapabilityClient(
   manifest: PluginManifest,
   port: PluginCapabilityPort,
+  isActive: () => boolean = () => true,
 ): PluginCapabilityClient {
   const allowed = new Set(manifest.capabilities.consumes);
   return {
+    availability(capability) {
+      if (!isActive()) return { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" };
+      if (!allowed.has(capability.capability_id)) return { available: false, code: "plugin_capability_denied", reason: "插件未声明消费此宿主能力" };
+      return port.availability?.(capability, { consumer: "plugin" }) ?? { available: false, code: "actions.dependency_unknown", reason: "宿主未提供依赖状态检查" };
+    },
     async invoke<Input, Output>(
       capability: HostCapabilityDefinition<Input, Output>,
       input: Input,
+      options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions,
     ): Promise<Output> {
+      if (!isActive()) throw new PluginCapabilityAccessError("此插件实例已停止");
       if (!allowed.has(capability.capability_id)) {
         throw new PluginCapabilityAccessError(
           `${manifest.plugin_id} 没有声明消费 Capability ${capability.capability_id}`,
         );
       }
-      return await port.invoke(capability, input);
+      // Caller authority is added by the trusted executor around this port.
+      // A plugin may supply a stricter effect check, never its own identity.
+      return await port.invoke(capability, input, { ...(options?.before_effect ? { before_effect: options.before_effect } : {}), consumer: "plugin" });
     },
   };
 }

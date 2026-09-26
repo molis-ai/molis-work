@@ -3,6 +3,7 @@ import test from "node:test";
 import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentFrozenCharacter, AgentStartRequest, AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectAgentDeclaration, promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 function fixture() {
   const character: AgentFrozenCharacter = { reference: { artifact_id: "character:board:profile", version: 2 }, character_id: "profile", title: "Verifier",
@@ -18,12 +19,15 @@ function fixture() {
     task: "Read the repository.", role_id: "reader", directory: { canonical_path: "/tmp/ws", realpath_verified: true }, character: character.reference };
   const captured: AgentStartRequest[] = []; let cancelled = 0, widen = false;
   const host = new AgentHost();
-  host.register({ descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported", skills: "supported" } },
+  host.register({ descriptor: { runtime_id: "probe", display_name: "Probe", provider_version: "1", supports_action_tools: true, capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported", skills: "supported" } },
+    async readSession(session) { return { session, owner: { board_id: "board", plugin_id: "caller", install_id: "i", actor_id: "user" }, title: "Read", runs: [], latest_run: null }; },
     async start(input) {
       captured.push(input); const role = input.role!;
       return { ref: { run_id: "r", session_id: "s" }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution, model_id: "fixture",
+        ...(input.action_tools === undefined ? {} : { action_tools: structuredClone(input.action_tools) }),
         ...(role.character ? { character: structuredClone(role.character) } : {}), ...(role.character_skill_ids === undefined ? {} : {character_skill_ids: [...role.character_skill_ids]}), prompts: role.prompts.map(p => ({ prompt_id: p.prompt_id, version: p.version, layer: promptLayerOf(p) })),
-        host_tools: widen ? ["read-file", "run-command"] : [...role.host_tools], skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: input.directory } };
+        host_tools: widen ? ["read-file", "run-command"] : [...role.host_tools], skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null,
+        ...(input.workspace === "none" ? { workspace: "none" as const } : { directory: input.directory }) } };
     }, async control() { cancelled++; },
   } as AgentRuntimeAdapter);
   return { host, authority, request, character, captured, cancelled: () => cancelled, widen: () => { widen = true; } };
@@ -124,4 +128,48 @@ test("per-run Character Skill selection excludes unused native packages while pr
   assert.equal(result.frozen.character!.import_snapshot!.skills.length,1);
   assert.equal(f.character.import_snapshot.skills.length,2);
   const body=f.captured[0]!.role!.prompts.map(p=>p.body).join("\n");assert.match(body,/SELECTED_TEXT/);assert.doesNotMatch(body,/DO_NOT_LOAD/);
+});
+
+const actionView: ActionView = { capability_id: "unknown.read", version: 1, operation: "query", provider: { provider_id: "unknown", kind: "plugin", title: "Unknown" },
+  availability: { available: true }, action: { title: "Read", description: "Read the original record", kind: "query", scope: "project", audiences: ["agent"],
+    permissions: [], subject_kinds: [], input_schema: { type: "object" } } };
+const actionRef = { capability_id: actionView.capability_id, version: 1, provider_id: actionView.provider.provider_id };
+
+test("Character only narrows explicit action selection; omitted, null and empty preserve their meaning", async () => {
+  for (const scope of [undefined, null, [actionRef], []]) {
+    const f = fixture(); f.character.action_tools = scope;
+    let calls = 0;
+    f.authority.actions = async () => { calls++; return { discover: async () => [actionView], invoke: async () => ({}) }; };
+    assert.deepEqual((await f.host.start("probe", f.request, f.authority)).frozen.action_tools ?? [], []);
+    assert.equal(calls, 0, "selecting a Character never selects or authorizes actions");
+    f.request.action_tools = [actionRef];
+    if (scope?.length === 0) await assert.rejects(f.host.start("probe", f.request, f.authority), /Character/);
+    else assert.deepEqual((await f.host.start("probe", f.request, f.authority)).frozen.action_tools, [actionRef]);
+  }
+});
+
+test("Host rejects wrong source, missing grant, non-Agent audience, duplicate selection and commands in a read-only role", async () => {
+  for (const modify of [
+    (view: ActionView) => { view.provider = { ...view.provider, provider_id: "replacement" }; },
+    (view: ActionView) => { view.availability = { available: false, code: "actions.revoked", reason: "revoked" }; },
+    (view: ActionView) => { view.action = { ...view.action, audiences: ["user"] }; },
+    (view: ActionView) => { view.operation = "command"; },
+  ]) {
+    const f = fixture(), view = structuredClone(actionView); modify(view); f.request.action_tools = [actionRef];
+    f.authority.actions = async () => ({ discover: async () => [view], invoke: async () => ({}) });
+    await assert.rejects(f.host.start("probe", f.request, f.authority)); assert.equal(f.captured.length, 0);
+  }
+  const f = fixture(); f.request.action_tools = [actionRef, actionRef];
+  await assert.rejects(f.host.start("probe", f.request, f.authority)); assert.equal(f.captured.length, 0);
+});
+
+test("original Character guard is carried to dispatch and rejects late disable without changing frozen history", async () => {
+  const f = fixture(); f.request.action_tools = [actionRef]; let dispatchGuard: (() => void | Promise<void>) | undefined;
+  f.authority.actions = async (_runtime, validate) => { dispatchGuard = validate; return { discover: async () => [actionView], invoke: async () => ({}) }; };
+  const result = await f.host.start("probe", f.request, f.authority), history = structuredClone(result.frozen);
+  assert.ok(dispatchGuard); await dispatchGuard();
+  f.authority.resolveCharacter = () => { throw new Error("Character disabled"); };
+  await assert.rejects(f.captured[0]!.role!.actions!.client.invoke(actionRef, {}), /Character disabled/);
+  assert.throws(() => dispatchGuard!(), /Character disabled/);
+  assert.deepEqual(result.frozen, history);
 });

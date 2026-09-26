@@ -5,7 +5,7 @@ import { withMolisWorkProjectCatalog } from "./project-catalog.js";
 /** Supply the desktop Catalog adapter while the Host owns MCP resource lifecycle. */
 export class MolisWorkServer extends LocalMcpServer {
   constructor(audience?: MolisWorkMcpAudience | null, connection?: MolisWorkRuntimeConnection | null,
-    runtimeHost?: MolisWorkRuntimeContextHost | null, localHost?: MolisWorkLocalHost) {
-    super(withMolisWorkProjectCatalog, audience, connection, runtimeHost, localHost);
+    runtimeHost?: MolisWorkRuntimeContextHost | null, localHost?: MolisWorkLocalHost, actionServiceUrl?: string) {
+    super(withMolisWorkProjectCatalog, audience, connection, runtimeHost, localHost, actionServiceUrl);
   }
 }

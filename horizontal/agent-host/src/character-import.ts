@@ -2,10 +2,11 @@ import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/ch
 import { isAbsolute, relative } from "node:path";
 
 /** Only the frozen publication is read. Original files never change an admitted Run. */
-export function importedCharacterInstructions(character: CharacterContent, directory: string, selectedIds?: string[]): string {
+export function importedCharacterInstructions(character: CharacterContent, directory: string | undefined, selectedIds?: string[]): string {
   const snapshot = character.import_snapshot;
   if (!snapshot) return character.instructions;
   if (snapshot.project_root) {
+    if (!directory) throw new Error("此 Character 包含项目范围的导入内容，请使用原项目目录或重新导入全局配置");
     const path = relative(snapshot.project_root, directory);
     if (path === ".." || path.startsWith("../") || isAbsolute(path)) throw new Error("此 Character 包含项目范围的导入内容，请使用原项目目录或重新导入全局配置");
   }

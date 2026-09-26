@@ -2,6 +2,8 @@ import type {
   HostCapabilityDefinition,
   HostCapabilityDescriptor,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { ActionError, requireSynchronous, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-kernel",
@@ -31,8 +33,11 @@ export class CapabilityRegistryError extends Error {
 }
 
 interface RegisteredCapability<Context> {
+  token: symbol;
   descriptor: HostCapabilityDescriptor;
   handler: CapabilityHandler<Context, unknown, unknown>;
+  availability?: (context: Context) => ActionAvailability;
+  synchronous?: boolean;
 }
 
 function normalizedDescriptor<Input, Output>(
@@ -42,50 +47,87 @@ function normalizedDescriptor<Input, Output>(
   if (!capabilityId || !Number.isInteger(definition.version) || definition.version < 1) {
     throw new CapabilityRegistryError("kernel.capability_invalid", "Capability 必须有非空 ID 和正整数版本");
   }
-  if (definition.operation !== "query" && definition.operation !== "command") {
-    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability operation 必须是 query 或 command");
+  if (definition.operation !== "query" && definition.operation !== "command" && definition.operation !== "wait") {
+    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability operation 必须是 query、command 或 wait");
   }
   return {
     capability_id: capabilityId,
     version: definition.version,
     operation: definition.operation,
+    ...(definition.host_only ? { host_only: true } : {}),
+    ...(definition.scheduling === "concurrent" ? { scheduling: "concurrent" as const } : {}),
+    ...(definition.action ? { action: structuredClone(definition.action) } : {}),
+    ...(definition.action_provider ? { action_provider: structuredClone(definition.action_provider) } : {}),
   };
 }
 
-function capabilityKey(descriptor: HostCapabilityDescriptor): string {
-  return `${descriptor.capability_id}@${descriptor.version}`;
+type RegistryReference = Pick<HostCapabilityDescriptor, "capability_id" | "version" | "action_provider">;
+function capabilityKey(descriptor: RegistryReference): string {
+  return JSON.stringify([descriptor.capability_id, descriptor.version, descriptor.action_provider?.project_id ?? null]);
 }
 
 /** Provider-neutral registry. It owns routing, never business facts. */
 export class CapabilityRegistry<Context> {
   private readonly entries = new Map<string, RegisteredCapability<Context>>();
+  /** Registration order sorted once per change: every capability call looks something up here. */
+  private ordered: HostCapabilityDescriptor[] | null = null;
 
   register<Input, Output>(
     definition: HostCapabilityDefinition<Input, Output>,
     handler: CapabilityHandler<Context, Input, Output>,
+    options: { availability?: (context: Context) => ActionAvailability; synchronous?: boolean } = {},
   ): () => void {
     const descriptor = normalizedDescriptor(definition);
     const key = capabilityKey(descriptor);
-    if (this.entries.has(key)) {
+    const overlapping = [...this.entries.values()].some(({ descriptor: current }) =>
+      current.capability_id === descriptor.capability_id && current.version === descriptor.version
+      && (!current.action_provider?.project_id || !descriptor.action_provider?.project_id
+        || current.action_provider.project_id === descriptor.action_provider.project_id));
+    if (overlapping) {
       throw new CapabilityRegistryError(
         "kernel.capability_duplicate",
         `Capability 已注册: ${key}`,
       );
     }
+    const token = Symbol(key);
+    this.ordered = null;
     this.entries.set(key, {
+      token,
       descriptor,
       handler: handler as CapabilityHandler<Context, unknown, unknown>,
+      ...options,
     });
     return () => {
       const current = this.entries.get(key);
-      if (current?.handler === handler) this.entries.delete(key);
+      if (current?.token === token) { this.entries.delete(key); this.ordered = null; }
     };
   }
 
-  descriptors(): HostCapabilityDescriptor[] {
-    return [...this.entries.values()]
-      .map(({ descriptor }) => ({ ...descriptor }))
-      .sort((left, right) => capabilityKey(left).localeCompare(capabilityKey(right)));
+  /**
+   * Copies of the registered descriptors, in key order. `match` narrows before copying: finding one capability must
+   * not clone the whole registry, which grows with every project's Plugin actions and is consulted on every call.
+   */
+  descriptors(match?: (descriptor: Readonly<HostCapabilityDescriptor>) => boolean): HostCapabilityDescriptor[] {
+    this.ordered ??= [...this.entries.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, entry]) => entry.descriptor);
+    return (match ? this.ordered.filter(match) : this.ordered).map(descriptor => structuredClone(descriptor));
+  }
+
+  /** Resolve one visible identity without cloning the complete directory. Returned metadata stays isolated. */
+  descriptor(reference: Pick<HostCapabilityDescriptor, "capability_id" | "version">, projectId?: string | null): HostCapabilityDescriptor | undefined {
+    const local = projectId ? this.entries.get(JSON.stringify([reference.capability_id, reference.version, projectId])) : undefined;
+    const entry = local ?? this.entries.get(capabilityKey({ capability_id: reference.capability_id, version: reference.version }));
+    return entry ? structuredClone(entry.descriptor) : undefined;
+  }
+
+  availability(context: Context, reference: RegistryReference): ActionAvailability {
+    const entry = this.entries.get(capabilityKey(reference));
+    return entry ? entry.availability?.(context) ?? { available: true }
+      : { available: false, code: "actions.missing", reason: "能力未注册或已停用" };
+  }
+
+  /** Ephemeral identity distinguishes a restarted provider with the same public contract. */
+  registrationToken(reference: RegistryReference): symbol | undefined {
+    return this.entries.get(capabilityKey(reference))?.token;
   }
 
   async invoke<Input, Output>(
@@ -93,6 +135,16 @@ export class CapabilityRegistry<Context> {
     definition: HostCapabilityDefinition<Input, Output>,
     input: Input,
   ): Promise<Output> {
+    return await this.requireCapability(context, definition).handler(context, input) as Output;
+  }
+
+  invokeSync<Input, Output>(context: Context, definition: HostCapabilityDefinition<Input, Output>, input: Input): Output {
+    const registered = this.requireCapability(context, definition);
+    if (!registered.synchronous) throw new ActionError("actions.async_required", "此能力未声明同步执行，不能在同步事务中调用");
+    return requireSynchronous(registered.handler(context, input)) as Output;
+  }
+
+  private requireCapability(context: Context, definition: HostCapabilityDefinition): RegisteredCapability<Context> {
     const descriptor = normalizedDescriptor(definition);
     const registered = this.entries.get(capabilityKey(descriptor));
     if (!registered || registered.descriptor.operation !== descriptor.operation) {
@@ -101,6 +153,11 @@ export class CapabilityRegistry<Context> {
         `Capability 未注册: ${capabilityKey(descriptor)}`,
       );
     }
-    return await registered.handler(context, input) as Output;
+    const availability = requireSynchronous(registered.availability?.(context));
+    if (availability && !availability.available) throw new ActionError(availability.code, availability.reason);
+    return registered;
   }
 }
+
+export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
+export { assertActionInput } from "./action-schema.js";

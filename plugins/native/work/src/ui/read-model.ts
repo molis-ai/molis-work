@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
+import type { PublicWorkSession } from "../actions.js";
 import type { WorkSessionQueryApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { ProjectWorkspaceDirectoryRecord, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
@@ -7,7 +8,7 @@ import type { ProjectOperationsData, ProjectOperationsProject, ProjectSessionRec
 
 export interface WorkSessionViewInput {
   projectId: string;
-  sessions: WorkSessionQueryApi;
+  sessions: Pick<WorkSessionQueryApi, "goalHistory" | "eventCount"> & { list: (query: { project_id: string }) => PublicWorkSession[] };
   runtime: Pick<RuntimeHostApi, "capabilities">;
   goals: readonly { goal_id: string; title: string }[];
   allGoals: readonly { goal_id: string; title: string }[];

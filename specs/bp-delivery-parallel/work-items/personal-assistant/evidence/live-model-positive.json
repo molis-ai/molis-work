@@ -1,0 +1,26 @@
+{
+  "at": "2026-09-26T03:24:23.578Z",
+  "runtime": "Prologue via AgentHost",
+  "provider": "Minimax",
+  "model": "MiniMax-M3",
+  "materialScope": "Synthetic RSS/video and project text from isolated fixture; no private accounts read",
+  "outcome": "suggested",
+  "message": "已关联当前材料，请检查依据后确认",
+  "suggestions": [
+    {
+      "title": "把九月发布说明草稿从 PDF 导出改写为 CSV 导出",
+      "reason": "S1、S2 显示已批准的九月发布需求把 PDF 导出替换为 CSV 导出；S3 显示当前草稿只覆盖 PDF，与新需求不一致，需立刻更新以避免对外文档与交付目标错位。",
+      "evidence": [
+        {
+          "material_key": "S1",
+          "quote": "已批准的需求变更：九月发布必须把 PDF 导出替换为 CSV 导出，原 PDF 方案取消。请更新发布说明草稿。"
+        },
+        {
+          "material_key": "S3",
+          "quote": "当前已保存的九月发布说明草稿只介绍 PDF 导出，尚未纳入今天批准的 CSV 替换要求。"
+        }
+      ]
+    }
+  ],
+  "writes": 0
+}

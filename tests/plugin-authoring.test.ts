@@ -28,6 +28,35 @@ test("public Manifest parser preserves author declarations and rejects unsupport
       && error.message.includes("host_api_version"));
 });
 
+test("Manifest upgrade declarations use exact older source versions with one disposition each", () => {
+  const compatible = { ...manifest(), version: "1.1.0", upgrade_compatibility: {
+    compatible_from_versions: ["1.0.0"],
+  } };
+  assert.deepEqual(parsePluginManifest(compatible), compatible);
+  const migratable = { ...manifest(), version: "2.0.0", upgrade_compatibility: {
+    compatible_from_versions: ["1.1.0"], migratable_from_versions: ["1.0.0"],
+  } };
+  assert.deepEqual(parsePluginManifest(migratable), migratable);
+  const sameVersionCompatible = { ...manifest(), upgrade_compatibility: {
+    compatible_from_versions: ["1.0.0"],
+  } };
+  assert.deepEqual(parsePluginManifest(sameVersionCompatible), sameVersionCompatible);
+  for (const upgrade_compatibility of [
+    { compatible_from_versions: ["2.0.0"] },
+    { compatible_from_versions: ["1.0"] },
+    { compatible_from_versions: ["01.0.0"] },
+    { compatible_from_versions: ["1.0.0", "1.0.0"] },
+    { compatible_from_versions: ["1.0.0"], migratable_from_versions: ["1.0.0"] },
+    { migratable_from_versions: [] },
+  ]) {
+    assert.throws(() => parsePluginManifest({ ...manifest(), version: "1.1.0", upgrade_compatibility }), PluginManifestError);
+  }
+  assert.throws(() => parsePluginManifest({ ...manifest(), upgrade_compatibility: {
+    migratable_from_versions: ["1.0.0"],
+  } }), PluginManifestError);
+  assert.throws(() => parsePluginManifest({ ...manifest(), version: "01.0.0" }), PluginManifestError);
+});
+
 test("wire Manifest rejects missing shapes, invalid permissions and incompatible Artifact declarations", () => {
   for (const input of [null, [], { ...manifest(), publisher: null },
     { ...manifest(), capabilities: { provides: [false], consumes: [] } },

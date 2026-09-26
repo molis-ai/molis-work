@@ -13,7 +13,7 @@ export const LINGGUANG_PROJECT_PLUGIN_ID = "lingguang";
 
 export type LingguangSourceKind = "manual";
 export type LingguangStatus = "inbox" | "discarded";
-export type LingguangMessageRole = "user" | "stub";
+export type LingguangMessageRole = "user" | "assistant" | "stub";
 
 export interface LingguangSpark {
   readonly id: string;

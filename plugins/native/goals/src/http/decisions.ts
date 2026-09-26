@@ -1,3 +1,5 @@
+import { goalsActions } from "../actions.js";
+import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsHttpContext } from "./types.js";
 
 export async function handleGoalDecisionsHttp(context: GoalsHttpContext): Promise<boolean> {
@@ -20,21 +22,12 @@ export async function handleGoalDecisionsHttp(context: GoalsHttpContext): Promis
     try {
       const proposalId = decodeURIComponent(goalTreeProposalMatch[1]);
       const confirmsWholeProposal = body.confirm_all_pending === true;
-      const { decisions, decisionReason } = context.goalTreeWebInput.prepareDecision(context.options.boardId, proposalId, body);
       const idempotencyKey = String(body.idempotency_key ?? context.idempotencyHeader ?? "");
-      const result = context.goalTreeDecision.decideGoalTreeProposal({
-        board_id: context.options.boardId,
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+      const result = await context.actions.invoke(goalsActions.treeDecide, {
         proposal_id: proposalId,
-        authority: {
-          actor_id: "web-user",
-          actor_kind: "user",
-          authority_source: "web",
-          conversation_ref: `web:${context.options.boardId}`,
-          message_ref: `web-decision:${idempotencyKey}`,
-          whole_confirmation_prompted: confirmsWholeProposal,
-        },
-        decisions,
-        reason: decisionReason || undefined,
+        ...(body.decisions == null ? {} : { decisions: body.decisions as GoalTreeProposalDecideInput["decisions"] }),
+        ...(reason ? { reason } : {}),
         confirm_all_pending: confirmsWholeProposal,
         idempotency_key: idempotencyKey,
       });

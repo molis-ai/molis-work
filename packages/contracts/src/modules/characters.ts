@@ -1,3 +1,4 @@
+import { parseExactActionReferences, type ExactActionReference } from "../platform/actions.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 export * from "./character-import.js";
 import type { ContractDescriptor } from "../platform/package.js";
@@ -23,6 +24,8 @@ export interface CharacterDraft {
   instructions: string;
   /** null inherits the caller's set; [] deliberately removes all Host tools. */
   host_tools: string[] | null;
+  /** null/absent inherits the explicit run selection; [] excludes every action. */
+  action_tools?: ExactActionReference[] | null;
   created_at: string;
   updated_at: string;
   import_snapshot?: CharacterImportSnapshot;
@@ -34,6 +37,8 @@ export interface CharacterContent {
   title: string;
   instructions: string;
   host_tools: string[] | null;
+  /** null/absent inherits the explicit run selection; [] excludes every action. */
+  action_tools?: ExactActionReference[] | null;
   source: { owner_actor_id: string; draft_revision: number };
   import_snapshot?: CharacterImportSnapshot;
 }
@@ -42,6 +47,8 @@ export interface CharacterDraftPatch {
   title: string;
   instructions: string;
   host_tools: string[] | null;
+  /** null/absent inherits the explicit run selection; [] excludes every action. */
+  action_tools?: ExactActionReference[] | null;
 }
 
 export interface CharactersQuery {
@@ -66,6 +73,7 @@ export function parseCharacterContent(value: unknown): CharacterContent {
     || !Number.isSafeInteger(source.draft_revision) || Number(source.draft_revision) < 1) throw new Error("Character 正文或来源不完整");
   return { character_id: x.character_id, title: x.title, instructions: x.instructions,
     host_tools: parseCharacterTools(x.host_tools),
+    ...(x.action_tools === undefined ? {} : { action_tools: x.action_tools === null ? null : parseExactActionReferences(x.action_tools) }),
     ...(x.import_snapshot === undefined ? {} : { import_snapshot: parseCharacterImportSnapshot(x.import_snapshot) }),
     source: { owner_actor_id: source.owner_actor_id, draft_revision: source.draft_revision as number } };
 }

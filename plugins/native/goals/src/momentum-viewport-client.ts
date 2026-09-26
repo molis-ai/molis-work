@@ -53,14 +53,20 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
         edge.classList.toggle("is-selected-path", (upstream.has(edge.dataset.edgeFrom) && upstream.has(edge.dataset.edgeTo)) || (downstream.has(edge.dataset.edgeFrom) && downstream.has(edge.dataset.edgeTo)));
       });
     };
-    const fitGoalGraph = (force = false) => {
+    const graphBounds = () => {
       const view = viewport(), all = nodes();
-      if (!view?.clientWidth || !all.length || (!force && isExpanded())) return;
+      if (!view?.clientWidth || !all.length) return null;
       const left = Math.min(...all.map((node) => point(node).x));
       const top = Math.min(...all.map((node) => point(node).y));
       const right = Math.max(...all.map((node) => point(node).x + node.offsetWidth));
       const bottom = Math.max(...all.map((node) => point(node).y + node.offsetHeight));
       const z = Math.min(1, Math.max(.08, Math.min((view.clientWidth - 80) / (right - left), (view.clientHeight - 160) / (bottom - top))));
+      return { view, left, top, right, bottom, z };
+    };
+    const fitGoalGraph = (force = false) => {
+      const bounds = graphBounds();
+      if (!bounds || (!force && isExpanded())) return;
+      const { view, left, top, right, bottom, z } = bounds;
       camera = { x: (view.clientWidth - (right - left) * z) / 2 - left * z, y: (view.clientHeight - (bottom - top) * z) / 2 - top * z + 12, z };
       autoFit = true;
       drawGoalGraph();
@@ -86,6 +92,12 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
       camera = { x: (view.clientWidth - node.offsetWidth) / 2 - p.x, y: (view.clientHeight - node.offsetHeight) / 2 - p.y + 16, z: 1 };
       autoFit = false;
       drawGoalGraph();
+    };
+    /* First sight of a map shows the whole map while it stays readable; a large one opens on the selected Goal. */
+    const introduceGoalGraph = () => {
+      const bounds = graphBounds();
+      if (bounds && !isExpanded() && bounds.z >= .5) fitGoalGraph();
+      else centerGoal();
     };
     const focusGoal = () => {
       const node = nodes().find((entry) => entry.dataset.goalId === getSelected());
@@ -119,7 +131,7 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
         if (!drag.moved && Math.hypot(dx, dy) < 5) return;
         drag.moved = true;
         if (!view.hasPointerCapture(event.pointerId)) view.setPointerCapture(event.pointerId);
-        if (drag.node) positions[drag.node.dataset.goalId] = { x: drag.point.x + dx / camera.z, y: drag.point.y + dy / camera.z };
+        if (drag.node) { positions[drag.node.dataset.goalId] = { x: drag.point.x + dx / camera.z, y: drag.point.y + dy / camera.z }; drag.node.classList.add("is-dragging"); }
         else { camera.x = drag.point.x + dx; camera.y = drag.point.y + dy; }
         autoFit = false;
         view.classList.add("is-panning");
@@ -128,6 +140,7 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
       const finish = (event) => {
         if (!drag || drag.id !== event.pointerId) return;
         suppressClick = drag.moved;
+        drag.node?.classList.remove("is-dragging");
         drag = null;
         if (view.hasPointerCapture(event.pointerId)) view.releasePointerCapture(event.pointerId);
         view.classList.remove("is-panning");
@@ -169,7 +182,7 @@ export const GOALS_MOMENTUM_VIEWPORT_FACTORY_SCRIPT = `(host) => {
       });
     };
     return {
-      drawGoalGraph, bindGoalGraphViewport, fitGoalGraph, setGraphZoom, centerGoal, focusGoal, restoreOverview,
+      drawGoalGraph, bindGoalGraphViewport, fitGoalGraph, introduceGoalGraph, setGraphZoom, centerGoal, focusGoal, restoreOverview,
       getZoom: () => camera.z,
       readView: () => ({ camera: overviewCamera || camera, positions, autoFit }),
       restoreView: (value) => {

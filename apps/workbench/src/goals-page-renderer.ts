@@ -26,6 +26,8 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
    */
   plugin_panels?: Readonly<Record<string, string>>;
   plugin_stages?: readonly string[];
+  /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
+  plugin_rail?: readonly { surface: string; label: string }[];
   project: ProjectOperationsProject | null;
   projects: ProjectOperationsProject[];
   route_prefix: string;
@@ -77,7 +79,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
   renderExperimentsContribution(): string;
   renderImagesNativePluginSurface(): string;
-  renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
   renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -86,6 +87,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderJellyNativePluginSurface(surface: "directory" | "workbench"): string;
   renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
 
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
@@ -98,7 +100,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -227,9 +229,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell)}
       <div class="plugin-stack">
-      ${renderAssistantIsland(primitives, enabledPlugins)}
       ${renderWorkspaceChrome(primitives, projectTitlebarChrome)}
-      ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter)}
+      ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter, renderAssistantIsland(primitives, enabledPlugins), view.plugin_rail)}
       </div>
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
@@ -243,7 +244,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           shelf: "",
           lingguang: "",
           alchemist: "",
-          functions: "",
+          workflows: "",
           experiments: "",
           pages: "",
           form: "",
@@ -269,7 +270,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderInboxNativePluginSurface(view, "workbench")}
             ${renderScheduleNativePluginSurface(view, "workbench")}
             ${renderShelfNativePluginSurface("workbench")}
-            ${renderFunctionsNativePluginSurface("workbench")}
             ${renderExperimentsContribution()}
             ${renderImagesNativePluginSurface()}
             ${renderPagesNativePluginSurface("workbench")}
@@ -280,6 +280,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderJellyNativePluginSurface("workbench")}
             ${renderCogniaNativePluginSurface("workbench")}
             ${renderAlchemistNativePluginSurface("workbench")}
+            ${renderWorkflowsNativePluginSurface("workbench")}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>

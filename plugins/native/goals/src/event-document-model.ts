@@ -7,9 +7,7 @@ import type {
   PlanningMethodPack,
   RiskRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { ExecutionRunRecord } from "@molis-ai/molis-work-contracts/modules/execution";
-import type { EvidenceRecord } from "@molis-ai/molis-work-contracts/modules/evidence-verification";
-import type { ReviewObligationRecord, ReviewRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import type { ReviewObligationRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalEventApplication } from "./goal-event-application.js";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { BoardSnapshot } from "./goal-entry-contract.js";
@@ -288,37 +286,6 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
     status_label: state.latest_reports.length || state.progress_summary ? "待继续" : "待开始",
     main_action_label: state.latest_reports.length || state.progress_summary ? "继续工作" : "开始工作",
     action_summary: state.progress_summary?.summary || "打开终端开始工作，或添加一条记录。",
-  };
-}
-
-export function attachEventDocument<T extends {
-  goal: GoalRecord;
-  relations: readonly GoalRelationRecord[];
-  risks: readonly { risk_id: string }[];
-  runs: readonly ExecutionRunRecord[];
-  evidence: readonly EvidenceRecord[];
-  reviews: readonly ReviewRecord[];
-  events?: readonly GoalsDecisionEvent[];
-}>(
-  item: T,
-  boardId: string,
-  ports: GoalEventDocumentPorts,
-  snapshot: BoardSnapshot,
-  planningMethods: readonly PlanningMethodPack[] = [],
-  events: readonly GoalsDecisionEvent[] = [],
-): T & { event_document: GoalEventDocumentView } {
-  return {
-    ...item,
-    event_document: createGoalEventDocumentView({
-      boardId,
-      goal: item.goal,
-      ports,
-      snapshot,
-      relations: item.relations,
-      risks: item.risks as unknown as RiskRecord[],
-      events: events.length ? events : item.events,
-      planning_methods: planningMethods,
-    }),
   };
 }
 

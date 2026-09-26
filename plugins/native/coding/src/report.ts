@@ -1,4 +1,5 @@
 import { codingReportStepsMarkdown, type CodingReportSteps } from "./report-steps.js";
+import { requestText } from "./continuation.js";
 import type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -71,7 +72,7 @@ export function createCodingExecutionReport(input: {
     throw new Error("这一轮尚未结束或仍需核对结果，暂不能保存报告");
   }
   const phase = { completed: "本轮结束", failed: "执行失败", stopped: "已停止", cancelled: "已取消" };
-  const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n");
+  const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text)).join("\n\n");
   const modelAnswer = run.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
   const supplemental = run.turns.filter(turn => turn.steer).map(turn =>
     `${turn.steer!.state === "applied" ? "已加入后续上下文" : "已收到，未确认应用"}\n${literal(turn.text)}`).join("\n\n");
@@ -80,7 +81,8 @@ export function createCodingExecutionReport(input: {
     const state = output.timed_out ? "超时" : output.cancelled ? "已取消" : output.exit_code === null ? "退出状态未知" : `退出码 ${output.exit_code}`;
     return `${state}${output.truncated ? "；输出已截断" : ""}\n${literal(output.command)}\n标准输出\n${literal(output.stdout)}\n标准错误\n${literal(output.stderr)}`;
   }).join("\n\n");
-  const activity = run.activity.map(item => `${item.name} · ${item.target} · ${
+  // Model reasoning is not evidence of anything done, so the report's activity lists only operations.
+  const activity = run.activity.filter(item => item.name !== "reasoning").map(item => `${item.name} · ${item.target} · ${
     item.state === "completed" ? "已返回（不等于任务通过）" : item.state === "failed" ? "失败" : "结果未知，未收到结束回执"
   }`).join("\n");
   const usage = codingUsageSummary(run.usage);

@@ -1,3 +1,4 @@
+import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
 
@@ -11,7 +12,9 @@ export const imagesManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+  actions: Object.values(imagesActions),
   permissions: [
+    ...IMAGES_ACTION_PERMISSIONS.map(permission => ({ permission, required: true, reason: "图片动作" })),
     { permission: "storage:private", required: true, reason: "保存生图配置、项目生成记录和本机图片" },
     { permission: "secret:images", required: true, reason: "由宿主加密保管生图服务 API Key" },
     { permission: "network:*", required: true, reason: "访问用户明确配置的生图接口并下载生成结果" },

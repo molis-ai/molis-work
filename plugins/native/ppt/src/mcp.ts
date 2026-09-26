@@ -1,137 +1,19 @@
-import type { PptSlide } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginMcpExportDeclaration, PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PptError } from "./error.js";
-import { promotePpt, requirePptArtifactPort } from "./promote.js";
-import type { PptRoutePorts } from "./route-handlers.js";
-import type { PptStore } from "./store.js";
+import { pptActions } from "./actions.js";
 
-/** Declare `tool_id`s here and handle by `tool_id` only. Host stamps the public name and injects project_id. */
-export const PPT_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = [
-  {
-    tool_id: "list",
-    description: "列出当前绑定项目里的演示稿。先 list 再 get / update；不要编造演示稿 id。",
-    input_schema: { type: "object", properties: {}, required: [] },
-    effect: "read",
-  },
-  {
-    tool_id: "get",
-    description: "读取一份演示稿的主题色和幻灯片。id 必须来自 list 或 create 的结果。",
-    input_schema: {
-      type: "object",
-      properties: { id: { type: "string" } },
-      required: ["id"],
-    },
-    effect: "read",
-  },
-  {
-    tool_id: "create",
-    description: "在当前绑定项目新建一份演示稿，默认带一页空白幻灯片。",
-    input_schema: {
-      type: "object",
-      properties: { title: { type: "string" } },
-      required: [],
-    },
-    effect: "write",
-  },
-  {
-    tool_id: "update",
-    description: "改演示稿标题、说明、主题色或幻灯片。slides 整表替换。不导出 PPTX。",
-    input_schema: {
-      type: "object",
-      properties: {
-        id: { type: "string" },
-        title: { type: "string" },
-        description: { type: "string" },
-        color_primary: { type: "string" },
-        color_background: { type: "string" },
-        color_text: { type: "string" },
-        slides: { type: "array" },
-      },
-      required: ["id"],
-    },
-    effect: "write",
-  },
-  {
-    tool_id: "delete",
-    description: "删除演示稿。不可恢复。",
-    input_schema: {
-      type: "object",
-      properties: { id: { type: "string" } },
-      required: ["id"],
-    },
-    effect: "write",
-  },
-  {
-    tool_id: "promote",
-    description: "把当前演示稿的页和配色存成 Artifact。私人库里的稿子还在，可以继续改。",
-    input_schema: {
-      type: "object",
-      properties: { id: { type: "string" } },
-      required: ["id"],
-    },
-    effect: "write",
-  },
-];
-
-export function runPptMcpTool(
-  store: PptStore,
-  request: PluginMcpHandleRequest,
-  projectId: string,
-  ports: PptRoutePorts = {},
-): string {
-  if (request.tool_id === "list") {
-    return dump({ presentations: store.list(projectId) });
-  }
-  if (request.tool_id === "get") {
-    return dump({ presentation: store.get(idOf(request), projectId) });
-  }
-  if (request.tool_id === "create") {
-    return dump({ presentation: store.create({ title: optionalString(request.arguments.title), project_id: projectId }) });
-  }
-  if (request.tool_id === "update") {
-    return dump({
-      presentation: store.update(idOf(request), {
-        title: optionalString(request.arguments.title),
-        description: optionalString(request.arguments.description),
-        color_primary: optionalString(request.arguments.color_primary),
-        color_background: optionalString(request.arguments.color_background),
-        color_text: optionalString(request.arguments.color_text),
-        slides: optionalSlides(request.arguments.slides),
-      }, projectId),
-    });
-  }
-  if (request.tool_id === "delete") {
-    store.delete(idOf(request), projectId);
-    return dump({ ok: true });
-  }
-  if (request.tool_id === "promote") {
-    const promoted = promotePpt(store, idOf(request), projectId, requirePptArtifactPort(ports.publishArtifact));
-    return dump({ presentation: promoted.presentation, artifact: promoted.artifact });
-  }
-  throw new Error(`未登记的 PPT MCP：${request.tool_id}`);
-}
-
-function dump(value: unknown): string {
-  return JSON.stringify(value, null, 2);
-}
-
-function idOf(request: PluginMcpHandleRequest): string {
-  return requiredString(request.arguments.id, "演示稿 id");
-}
-
-function requiredString(value: unknown, label: string): string {
-  if (typeof value !== "string" || !value.trim()) throw new PptError("ppt.invalid", `缺少${label}`);
-  return value.trim();
-}
-
-function optionalString(value: unknown): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== "string") throw new PptError("ppt.invalid", "字段须为文字");
-  return value;
-}
-
-function optionalSlides(value: unknown): PptSlide[] | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value)) throw new PptError("ppt.invalid", "幻灯片须是列表");
-  return value as PptSlide[];
+/** Original names remain thin aliases; new capabilities are discovered from the shared directory. */
+const legacy: Readonly<Record<string, ActionDefinition>> = {
+  list: pptActions.list, get: pptActions.get, create: pptActions.create, update: pptActions.update,
+  delete: pptActions.delete, promote: pptActions.promote,
+};
+export const PPT_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = Object.entries(legacy).map(([tool_id, definition]) => ({
+  tool_id, description: definition.action.description, input_schema: { ...definition.action.input_schema, type: "object" },
+  required_actions: [definition].map(({ capability_id, version }) => ({ capability_id, version })),
+  effect: definition.operation === "query" ? "read" : "write",
+}));
+export async function runPptMcpTool(actions: BoundActionClient, request: PluginMcpHandleRequest): Promise<string> {
+  const definition = legacy[request.tool_id];
+  if (!definition) throw new ActionError("mcp.tool_unknown", `未登记的 Ppts MCP：${request.tool_id}`);
+  return JSON.stringify(await actions.invoke(definition, request.arguments));
 }

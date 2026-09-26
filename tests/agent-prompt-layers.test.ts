@@ -64,6 +64,12 @@ test("Coding 自己的声明是合法的，且 base 那一段独立成层", () =
   assert.equal(base?.layer, "base", "产品约束不能被角色的措辞悄悄顶替");
   const roleOnly = codingPrompts.filter((prompt) => prompt.prompt_id !== "coding-base");
   assert.equal(roleOnly.every((prompt) => promptLayerOf(prompt) === "role"), true);
+  // search only looks inside files; every role can also look at directories, and is told the difference.
+  assert.ok(codingAgentManifest.roles.every((role) => role.host_tools?.includes("list")), "every Coding role can list a directory");
+  assert.match(base!.body, /search 只在文件内容里找文字/);
+  // Reading through commands costs a review each; rewriting through commands skips the diff preview.
+  assert.match(base!.body, /不要用 cat、sed -n、grep、wc 这类命令代替/);
+  assert.match(base!.body, /改文件只用 edit 或 write/);
 });
 
 function hostFor(projectPrompts?: readonly AgentPromptText[]) {
@@ -98,6 +104,10 @@ test("项目那一层由宿主补，而且被强制标成 project —— 不管�
     },
     async createSession() {
       return { session_id: "session-1", runtime_id: "probe" };
+    },
+    async readSession(session: unknown) {
+      return { session, owner: { board_id: "board-1", plugin_id: "io.molis.work.coding", install_id: "install-1", actor_id: "tester" },
+        title: "probe", runs: [], latest_run: null };
     },
     async start(request) {
       for (const prompt of request.role.prompts) {

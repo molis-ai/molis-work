@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -18,9 +19,11 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
   const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, board_id: DEMO_BOARD_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text: n ? "new\r\n" : "old\r\n", after_text: n ? "latest <script>\n" : "new\r\n" } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: applied, effect_error: null } }));
-  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
+  const host = () => ({ store, homeDirectory: root, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
     execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
-      reads++; if (!readable) throw new Error("runtime unavailable");
+      // Files also refreshes project browsing settings before dispatch; count only Agent reads.
+      if ([agent.readSession.capability_id, agent.readRun.capability_id, agent.readRunReviews.capability_id].includes(definition.capability_id)) reads++;
+      if (!readable) throw new Error("runtime unavailable");
       if (definition.capability_id === agent.readSession.capability_id) return { runs: (args as any[])[0].session_id === "sdk" ? [ref] : [] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
       if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
@@ -40,6 +43,9 @@ test("Coding freezes original multi-edit reviews, binds feedback to exact lines 
     const saved = await request(prefix, "POST"); assert.equal(saved.status, 200); assert.equal(saved.body.output, null);
     assert.equal((await request(prefix.replace('/app/', '/foreign/'))).status, 400);
     const reading = await request(prefix+'?change_index=1'); assert.match(reading.body.html, /latest &lt;script&gt;/); assert.doesNotMatch(reading.body.html, /latest <script>/);
+    const auto = await request(prefix+'?change_index=1&net=auto');
+    assert.equal(auto.body.view_mode, "write", "第一次写入结果未知时不拼净变更");
+    assert.deepEqual(auto.body.net_groups, [{ path: "cart.mjs", indices: [0, 1], available: false, reason: "有写入未批准或执行结果不确定，只能逐次查看" }]);
     assert.match(reading.body.html, /评论修改后第 1 行/);
     const comments = [{ change_index: 1, side: "before", line: 1, comment: "请保留原行尾", text: "forged" }];
     const feedback = await request(prefix+'/feedback', 'POST', { comments }); assert.equal(feedback.status, 200); assert.match(feedback.body.task, /new\\r\\n/); assert.doesNotMatch(feedback.body.task, /forged/);

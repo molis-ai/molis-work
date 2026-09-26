@@ -2,13 +2,24 @@ import { CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT } from "./writer-integr
 import { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 import { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
 import { CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./characters-client.js";
+import { CODING_ACTIONS_CLIENT } from "./actions-client.js";
 import { CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT } from "./subagents-client.js";
 import { CODING_PLANS_CLIENT_FACTORY_SCRIPT } from "./plans-client.js";
 import { CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT } from "./writers-client.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_CHANGESET_CLIENT_FACTORY_SCRIPT } from "./changeset-client.js";
 import { codingUsageSummary } from "./usage.js";
-import { atBottom, STICK_THRESHOLD_PX } from "./reading.js";
+import { atBottom, onContentAppended, onReaderScrolled, READER_INTENT_MS, STICK_THRESHOLD_PX } from "./reading.js";
+import { CONTINUATION_MARKER, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, MENTIONS_MARKER, digestTask } from "./continuation.js";
+import { MODEL_DIGEST_HEAD } from "./history-digest.js";
+import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
+import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
+import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
+import { codeLanguage, codeTokens, diffRowTokens } from "./highlight.js";
+import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
+import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
+import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
+import { createCodingTimeline } from "./timeline.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -22,27 +33,56 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const prefix = root.dataset.codingPrefix + '/api/plugins/io.molis.work.coding';
   const STICK_THRESHOLD_PX = ${STICK_THRESHOLD_PX};
   const atBottom = ${atBottom.toString()};
+  const onContentAppended = ${onContentAppended.toString()};
+  const onReaderScrolled = ${onReaderScrolled.toString()};
+  const CONTINUATION_MARKER = ${JSON.stringify(CONTINUATION_MARKER)};
+  const SESSION_WINDOW = ${SESSION_WINDOW}, SESSION_PAGE = ${SESSION_PAGE};
+  const HISTORY_DIGEST_MARKER = ${JSON.stringify(HISTORY_DIGEST_MARKER)}, HISTORY_DIGEST_TASK_HEAD = ${JSON.stringify(HISTORY_DIGEST_TASK_HEAD)}, MODEL_DIGEST_HEAD = ${JSON.stringify(MODEL_DIGEST_HEAD)}, MENTIONS_MARKER = ${JSON.stringify(MENTIONS_MARKER)};
+  const digestTask = ${digestTask.toString()};
+  const ownTask = (text) => { const own = digestTask(text), at = own.indexOf(MENTIONS_MARKER); return at < 0 ? own : own.slice(0, at); };
+  const READER_INTENT_MS = ${READER_INTENT_MS};
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
+  const timeline = (${createCodingTimeline.toString()})();
+  setInterval(()=>timeline.tick(turns),1000);
   const position = () => ({ offset: turns.scrollTop, viewport: turns.clientHeight, content: turns.scrollHeight });
+  // The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it
+  // for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it.
+  const useProjectWorkspace = async (id) => {
+    const response=await fetch((document.body.dataset.routePrefix || '')+'/api/project-settings/workspaces',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({workspace_id:id})});
+    if(!response.ok){let reason='';try{reason=(await response.json()).error || '';}catch{}throw new Error('没能把项目的当前目录切过去'+(reason?'：'+reason:''));}
+    root.querySelectorAll('[data-git-refresh],[data-files-refresh]').forEach(button=>button.click());
+  };
+  // Opening a session, or pointing it at another directory, makes that directory the project's current one, so Files
+  // and Git always show where the open session's next round runs. A directory that is no longer authorized is left alone.
+  const followWorkspace = async () => {
+    const target=state.workspaces?.find(item=>item.workspace_id===workspaceId && item.realpath_verified);
+    if(!target || target.workspace_id===state.workspace?.workspace_id) return;
+    try{await useProjectWorkspace(target.workspace_id);state.workspace=target;}
+    catch(error){status(error.message+'；Files 与 Git 仍显示原目录。',true);}
+  };
   const renderedText = new WeakMap();
   const directoryRows = new Map(), directoryGroups = new Map();
   let directoryClaimed = false;
   const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
   const materialSelections = new Map(), characterSelections = new Map(), characterSkills = new Map(), characterTitles = new Map();
   const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
+  const actionSelections = new Map();
   let mcpChoices = [], mcpSourceChoices = [];
   let methodChoices = [], methodDocumentTicket = 0;
   const answeredQuestions = new Set();
   const draftKey = (id) => 'molis-coding-draft:' + root.dataset.codingPrefix + ':' + id;
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
+  let runtimeSessionId = null;
   let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '';
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportOutput=null, artifactRows=[], artifactTicket=0;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
   let progressView=null,progressTicket=0,progressSaving=false,reportItem='',changeItem='',itemTicket=0;
   let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
+  /** The header names the folder; the full path stays one hover away. */
+  const showWorkspace=(path,fallback)=>{const label=q('[data-coding-workspace-label]'),name=path?path.split('/').filter(Boolean).at(-1):fallback;label.innerHTML=(path?'<svg aria-hidden="true"><use href="#icon-folder"></use></svg>':'')+'<span></span>';label.lastChild.textContent=name;label.title=path||'';label.dataset.empty=String(!path);root.dataset.codingWorkspaceName=path?name:'';turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=path?name:'当前工作区';node.parentElement.title=path||'';});};
   const status = (message, error = false) => { q('[data-coding-status]').textContent = message; q('[data-coding-status]').dataset.error = String(error); };
   const api = async (path, method = 'GET', body) => {
     const response = await fetch(prefix + path, { method, cache:'no-store',
@@ -53,13 +93,62 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({q,api,host,status});
   const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent(),prepareRework:reason=>plans.prepareStepRework(reason)});
-  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({directory,current:()=>current,status,navigate:async(id,target)=>{
+  let planEntries=[],subagentGroups=[];
+  // A long session is read as a window: the latest rounds in full, earlier ones as summaries until scrolled back to.
+  let lastData=null;
+  let earlierRuns=[],earlierFingerprint='',olderViews=new Map(),olderPlanEntries=[],olderSubagents=[],windowRuns=[],allRuns=[],pageLoading=false;
+  const resetWindow=()=>{earlierRuns=[];earlierFingerprint='';olderViews=new Map();olderPlanEntries=[];olderSubagents=[];windowRuns=[];allRuns=[];pageLoading=false;};
+  const subagentCards = (${CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),timeline,
+    showReviews:(container,refs,sid)=>host.showReviews?.(container,refs,sid),sessionId:()=>runtimeSessionId,
+    parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
+    openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
+  const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,refresh:()=>readCurrent()});
+  const cooperationUi = (${CODING_COOPERATION_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,
+    openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);},refreshSessions:()=>refreshState(),
+    openArtifact:(reference,title)=>host.openItem('coding',reference.artifact_id,title || reference.artifact_id),
+    rounds:()=>allRuns.map((run,index)=>({run_id:run.ref.run_id,number:index+1,phase:run.phase})),
+    prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
+    // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
+    materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
+  const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
+  // The TaskBoard takes the conversation's place in the main area; the session list stays beside it.
+  const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
+  // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
+  // session's plans and subagents, fetched again only when the number of rounds changes.
+  let boardAll={key:'',id:'',value:null};
+  const boardUpdate=(id,data)=>{
+    const merged=()=>{
+      const all=boardAll.id===id?boardAll.value:null;if(!all)return {...data,runs:allRuns};
+      // The window read just now is the freshest for its own rounds; every other round comes from the whole-session read.
+      const held=new Set((data.runs||[]).map(run=>run.ref.run_id));
+      return {...data,runs:all.runs.map(run=>allRuns.find(own=>own.ref.run_id===run.ref.run_id&&!own.light)||run),
+        taskboard_plans:[...all.taskboard_plans.filter(entry=>!held.has(entry.run_id)),...(data.taskboard_plans||[])],
+        subagents:[...all.subagents.filter(group=>!held.has(group.run_id)),...(data.subagents||[])]};
+    };
+    taskboard.update(id,merged());
+    const key=id+':'+(data.run_count??allRuns.length);
+    if(root.dataset.codingBoardOpen==='true'&&boardAll.key!==key){boardAll.key=key;
+      void api('/sessions/'+encodeURIComponent(id)+'/taskboard').then(value=>{if(current!==id)return;boardAll={key,id,value};taskboard.update(id,merged());}).catch(()=>{boardAll.key='';});}
+  };
+  const showBoard=(open)=>{root.dataset.codingBoardOpen=String(open);if(open)taskboard.show();else taskboard.hide();};
+  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({board:q('[data-coding-board]'),current:()=>current,status,ownTask,roleName:id=>ROLE_NAMES[id]||id||'Agent',
+    amend:async(runId,version,amendment,live=true)=>{
+      const id=current;
+      try{const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
+        if(!live)status('已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
+        else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);}
+      catch(error){status(error.message,true);}
+      if(id===current)await readCurrent();
+    },
+    navigate:async(id,target)=>{
     const record=state.sessions.find(item=>item.session_id===id);if(!record)throw new Error('原会话暂不可读，请刷新后重试。');
     host.openItem('coding',id,record.title);await openCodingItem(id);if(current!==id)return;
     host.revealTask?.();
     if(target.kind==='session')return;
     if(target.kind==='step'){await stepReports.open(id,target.run_id,target.step_id);return;}
     if(target.kind==='fixed-plan'){await plans.openFixed(target.revision);return;}
+    // Everything else lives in the conversation or the results panel: leave the board and show it there.
+    directory.querySelector('[data-coding-face=sessions]')?.click();showBoard(false);if(['plan','child','recovery','reviews'].includes(target.kind))root.dataset.codingResults='true';
     const node=target.kind==='plan'?q('[data-coding-plan]'):target.kind==='recovery'?q('[data-coding-recovery]'):target.kind==='reviews'?q('[data-coding-host-reviews]'):
       target.kind==='child'?[...q('[data-coding-subagents]').querySelectorAll('details[data-child]')].find(node=>node.dataset.child===target.child_id):[...turns.children].find(node=>node.dataset.run===target.run_id);
     if(!node || node.hidden)throw new Error('原内容暂不可读，请等待任务刷新后重试。');
@@ -78,7 +167,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     try{await flushDraft();status('分工已保存；选择并行写入并发送任务后才开始。');}catch(error){configurations.set(owner,previous);throw error;}
   },select:async(owner,id)=>{
     if(owner!==current)throw new Error('会话已改变，请重新打开独立工作树');
-    workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
+    workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();await followWorkspace();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
   }});
   const plans = (${CODING_PLANS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,status,execute:async revision=>{
     if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
@@ -86,7 +175,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const request={plan_revision:revision,intent,provider_id,model_id,workspace_id:workspaceId,
       ...(intent==='parallel'?{writer_assignments:structuredClone(configurations.get(id)?.writer_assignments || [])}:{}),
       methods:structuredClone(methodSelections.get(id)||[]),materials:structuredClone(materialSelections.get(id)||[]),character:structuredClone(characterSelections.get(id)??null),character_skill_ids:characterSkills.get(id),
-      mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])};
+      action_tools:structuredClone(actionSelections.get(id)||[]),mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])};
     sending=true;controls();
     try{
       await flushDraft();
@@ -171,7 +260,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
     if (!id) return Promise.resolve();
     rememberDraft(id,value);
-    const body={draft:value, ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
+    const body={draft:value, ...(actionSelections.has(id)?{action_tools:structuredClone(actionSelections.get(id))}:{}), ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
     const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
@@ -218,9 +307,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-send]').textContent = sending ? '正在提交…' : active ? '补充要求' : '发送';
     q('[data-coding-stop]').hidden = !active;
     q('[data-coding-stop]').disabled = sending;
+    // Pausing lets the current step finish; a paused round resumes with its context intact.
+    const pause=q('[data-coding-pause]'),paused=lastRun && ['paused','pausing'].includes(lastRun.phase),pausable=lastRun && ['starting','running','compacting'].includes(lastRun.phase);
+    pause.hidden=!(paused || pausable);pause.dataset.action=paused?'resume':'pause';
+    pause.textContent=lastRun?.phase==='pausing'?'正在暂停…':paused?'恢复':'暂停';pause.disabled=sending || lastRun?.phase==='pausing';
     q('[data-coding-intent]').disabled = Boolean(active || sending);
     q('[data-coding-model]').disabled = Boolean(active || sending);
     q('[data-coding-rename]').hidden = !current;
+    q('[data-coding-archive]').hidden = !current;
     q('[data-coding-goal-open]').disabled = !current || sending;
     q('[data-coding-material-open]').disabled = !current || sending;
     const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
@@ -229,6 +323,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     characterButton.title=character?'下一轮：'+(characterTitles.get(current) || character.artifact_id)+' · v'+character.version:'下一轮不使用 Character';
     q('[data-coding-method-open]').disabled = !current || sending;
     q('[data-coding-mcp-open]').disabled=!current || sending;
+    q('[data-coding-actions-open]').disabled=!current || sending;
+    const actionCount=(actionSelections.get(current) || []).length;contextLabel('[data-coding-actions-open]','能力'+(actionCount?' · '+actionCount:''),actionCount);
     const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; contextLabel('[data-coding-mcp-open]','MCP'+(mcpCount?' · '+mcpCount:''),mcpCount);
     const writable=['edit','execute'].includes(q('[data-coding-intent]').value);
     q('[data-coding-checkpoints-refresh]').disabled=!current || checkpointLoading;
@@ -239,6 +335,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const count=(methodSelections.get(current) || []).length;
     contextLabel('[data-coding-method-open]','方法'+(count?' · '+count:''),count);
   };
+  (${CODING_ACTIONS_CLIENT})({q,api,current:()=>current,selections:actionSelections,save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status});
   (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({q,api,current:()=>current,selections:characterSelections,titles:characterTitles,skillSelections:characterSkills,
     save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status});
   const renderArtifacts = () => {
@@ -257,17 +354,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const renderDirectory = () => {
     const selectedFilter = directory.querySelector('[data-coding-filter][aria-pressed=true]')?.dataset.codingFilter || 'all';
+    // The filters double as the background-task overview: how many rounds are working and how many wait on you.
+    const counts={running:state.sessions.filter(session=>session.state==='running').length,'needs-you':state.sessions.filter(session=>session.checkpoint_busy || ['paused','waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state)).length};
+    directory.querySelectorAll('[data-coding-filter]').forEach(button=>{const count=counts[button.dataset.codingFilter];if(count===undefined)return;let badge=button.querySelector('.coding-filter-count');if(!badge){badge=document.createElement('span');badge.className='coding-filter-count';button.append(badge);}badge.textContent=count?String(count):'';badge.hidden=!count;});
     const needle = directory.querySelector('[data-coding-search]').value.trim().toLocaleLowerCase();
     const list = directory.querySelector('[data-coding-sessions]');
     // Replace the server's first paint once, then preserve live pointer targets.
     if (!directoryClaimed) { list.replaceChildren(); directoryClaimed=true; }
     const visible = state.sessions.filter((session) => session.title.toLocaleLowerCase().includes(needle)
-      && (selectedFilter === 'all' || selectedFilter === 'running' && session.state === 'running' || selectedFilter === 'needs-you' && (session.checkpoint_busy || ['waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state))));
+      && (selectedFilter === 'all' || selectedFilter === 'running' && session.state === 'running' || selectedFilter === 'needs-you' && (session.checkpoint_busy || ['paused','waiting-answer','waiting-approval','failed','reconcile-required'].includes(session.state))));
     const visibleIds=new Set(visible.map(session=>session.session_id));
     for(const [id,row] of directoryRows) if(!visibleIds.has(id)) {row.remove();directoryRows.delete(id);}
     list.querySelector('.mw-empty')?.remove();
-    if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);if(!needle && selectedFilter==='all'){const button=document.createElement('button');button.type='button';button.className='mw-btn mw-btn--primary';button.dataset.codingNew='';button.textContent='新建编码会话';empty.append(button);}list.append(empty); return; }
-    const labels = { idle:'尚未执行', running:'执行中', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', done:'本轮结束' };
+    if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);list.append(empty); return; }
+    const labels = { idle:'尚未执行', running:'执行中', paused:'已暂停', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', done:'本轮结束' };
     for (const session of visible) {
       let row=directoryRows.get(session.session_id);
       if(!row) {
@@ -283,8 +383,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       row.setAttribute('aria-current',String(current===session.session_id));row.classList.toggle('is-selected',current===session.session_id);
       const title=row.querySelector('.coding-session-title'),time=row.querySelector('time'),mark=row.querySelector('.coding-session-state');
       if(title.textContent!==session.title) title.textContent=session.title;title.title=session.title;
-      if(time.dateTime!==session.updated_at) {time.textContent=session.updated_at.slice(5,10);time.dateTime=session.updated_at;}
+      if(time.dateTime!==session.updated_at) {
+        // Local time: today reads as a clock time, earlier days as a date.
+        const at=new Date(session.updated_at),now=new Date(),pad=(n)=>String(n).padStart(2,'0');
+        time.textContent=Number.isNaN(at.getTime()) ? session.updated_at.slice(5,10) : at.toDateString()===now.toDateString() ? pad(at.getHours())+':'+pad(at.getMinutes()) : pad(at.getMonth()+1)+'-'+pad(at.getDate());
+        time.dateTime=session.updated_at;time.title=Number.isNaN(at.getTime()) ? session.updated_at : at.toLocaleString('zh-CN');
+      }
       const label=session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state;if(mark.textContent!==label) mark.textContent=label;
+      mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
       const groupTitle=session.goal_title || (session.goal_id ? '关联 Goal 暂不可用' : '未关联 Goal');
@@ -312,7 +418,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       models.value=value;workspaceId=config.workspace_id;
     }
     const workspace=state.workspaces?.find(item=>item.workspace_id===workspaceId);
-    q('[data-coding-workspace-label]').textContent=workspace?.canonical_path || (workspaceId?'原工作区暂不可用，请重新选择':'选择已授权工作区后开始');
+    showWorkspace(workspace?.canonical_path,workspaceId?'原工作区暂不可用，请重新选择':'选择已授权工作区后开始');
     if(!q('[data-coding-workspace-dialog]').open)q('[data-coding-workspace-choice]').value=workspaceId;
   };
   const rememberConfiguration = () => {
@@ -320,8 +426,23 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
     configurations.set(current,{intent:q('[data-coding-intent]').value,provider_id:provider_id || '',model_id:model_id || '',workspace_id:workspaceId,...(configurations.get(current)?.writer_assignments ? {writer_assignments:configurations.get(current).writer_assignments} : {})});
   };
-  const refreshState = async () => {
+  // A session named by its first task renames its open tab too, while Coding is the surface on show (its tab is then
+  // the active one and only its title changes). Whichever read sees the new name first does it.
+  const retitle=(id,before,after)=>{if(id && id===current && before && after && before!==after && root.getBoundingClientRect().width>0)host.openItem('coding',id,after);};
+  // One directory read at a time. The poll and every event ask for it; a slow read must not let them pile up in the
+  // project's queue, where each would hold up reviews and every other call behind it. A caller arriving mid-read gets
+  // the next read, which starts after this one, so it still sees whatever it just changed.
+  let stateRead=null,stateNext=null;
+  const refreshState = () => {
+    const run=()=>{stateRead=readState().finally(()=>{stateRead=null;});return stateRead;};
+    if(!stateRead)return run();
+    stateNext??=stateRead.catch(()=>{}).then(()=>{stateNext=null;return stateRead??run();});
+    return stateNext;
+  };
+  const readState = async () => {
+    const before=current && state?.sessions?.find(item=>item.session_id===current)?.title;
     const result=await api('/state'); state=result;
+    retitle(current,before,current && result.sessions.find(item=>item.session_id===current)?.title);
     const models=q('[data-coding-model]'); const previous=models.value;
     const options=result.models.map((model) => { const option=document.createElement('option'); option.value=JSON.stringify([model.provider_id,model.model_id]); option.textContent=model.label; return option; });
     if (!options.length) { const option=document.createElement('option'); option.textContent='先配置可用模型'; option.value=''; options.push(option); }
@@ -330,7 +451,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(models.dataset.options!==modelKey) { models.replaceChildren(...options);models.dataset.options=modelKey;if(options.some(option=>option.value===previous)) models.value=previous; }
     const selectedWorkspace=result.workspaces.find(item=>item.workspace_id===workspaceId) || result.workspace || (result.workspaces.length===1 ? result.workspaces[0] : null);
     if(!configurations.get(current))workspaceId=selectedWorkspace?.workspace_id || '';
-    q('[data-coding-workspace-label]').textContent=selectedWorkspace?.canonical_path || '选择已授权工作区后开始';
+    showWorkspace(selectedWorkspace?.canonical_path,'选择已授权工作区后开始');
     const workspaceChoice=q('[data-coding-workspace-choice]');
     const workspaceKey=JSON.stringify(result.workspaces);
     if(workspaceChoice.dataset.options!==workspaceKey) {workspaceChoice.replaceChildren(...result.workspaces.map(item=>{const option=document.createElement('option');option.value=item.workspace_id;option.textContent=item.canonical_path;return option;}));workspaceChoice.dataset.options=workspaceKey;workspaceChoice.value=workspaceId;}
@@ -342,7 +463,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     execute.disabled=!available?.available; execute.textContent=available?.available ? '执行' : '执行（待接通审批）';
     const edit=q('[data-coding-intent] option[value=edit]'); const writable=roles.find(role=>role.role_id==='writer')?.available;
     edit.disabled=!writable; edit.textContent=writable ? '修改文件' : '修改文件（待接通审批）';
-    applyConfiguration();renderDirectory();taskboard.sessions(state.sessions); controls();
+    applyConfiguration();renderDirectory(); controls();
   };
   const renderMcp = () => {
     const list=q('[data-coding-mcp-list]');list.replaceChildren();const catalog=(state.mcp || []).flatMap(server=>server.tools.map(tool=>({...tool,label:server.label,available:server.enabled && server.health==='connected'})));
@@ -392,20 +513,54 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!current || sending)return;methodChoices=structuredClone(methodSelections.get(current) || []);methodDocumentTicket++;
     q('[data-coding-method-search]').value='';q('[data-coding-method-document]').hidden=true;q('[data-coding-method-error]').textContent='';renderMethods();q('[data-coding-method-dialog]').showModal();
   };
+  // Code reads as code: fenced blocks and diff lines are coloured from text pieces, never from model-written markup.
+  const codeLanguageOf = ${codeLanguage.toString()};
+  const tokensOf = ${codeTokens.toString()};
+  const paintInto = (target, text, language) => {
+    if(!language || text.length > 40000)return false;
+    const pieces=tokensOf(text,language);target.replaceChildren(...pieces.map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=document.createElement('span');span.className='tok-'+kind;span.textContent=value;return span;}));return true;
+  };
+  const paintBlock = (code) => {
+    if(code.dataset.painted)return;code.dataset.painted='true';
+    const named=[...code.classList].find(name=>name.startsWith('language-'))||'',text=code.textContent;
+    paintInto(code,text,codeLanguageOf(named) || (/^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? 'json' : /^\s*\$ /.test(text) ? 'sh' : ''));
+  };
+  // Diff lines keep their sign; the rest of each line is coloured by the file's language, in order, so a block comment
+  // spanning lines stays a comment (see diffRowTokens).
+  const diffRowTokens = ${diffRowTokens.toString()};
+  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows').forEach(list => {
+    const codes=[...list.querySelectorAll(':scope > li > code')];if(!codes.some(code=>!code.parentElement.dataset.painted))return;
+    const language=codeLanguageOf(list.closest('[data-code-path]').dataset.codePath || '');
+    const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
+    const painted=language && rows.every(row=>row.text.length<=40000) ? diffRowTokens(rows,language,tokensOf) : null;
+    rows.forEach((row,index)=>{
+      if(row.code.parentElement.dataset.painted)return;row.code.parentElement.dataset.painted='true';
+      if(!painted)return;
+      row.code.replaceChildren(...(row.sign?[row.sign]:[]),...painted[index].map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=document.createElement('span');span.className='tok-'+kind;span.textContent=value;return span;}));
+    });
+    list.querySelectorAll(':scope > li:not([data-painted])').forEach(row=>{row.dataset.painted='true';});
+  });
+  let paintFrame=0;new MutationObserver(()=>{if(paintFrame)return;paintFrame=requestAnimationFrame(()=>{paintFrame=0;paintDiffs(root);});}).observe(root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre').forEach(pre => {
+    const code=pre.querySelector('code');if(code)paintBlock(code);
     const button=document.createElement('button'); button.type='button'; button.className='mw-btn coding-code-copy'; button.textContent='复制';
     button.addEventListener('click',async()=>{ try { await navigator.clipboard.writeText(pre.querySelector('code')?.textContent || pre.textContent); button.textContent='已复制'; } catch { button.textContent='复制失败，请手动选择'; } }); pre.append(button);
   });
   const renderCommands = (runs) => {
     const region=q('[data-coding-commands]');
-    const refs=runs.flatMap((run,index)=>(run.command_outputs || []).map(ref=>({ref,number:index+1})));
+    // A summarized round names its command targets itself; a loaded one is read from its activity.
+    const refs=runs.flatMap((run,index)=>(run.command_outputs || []).map(({target,...ref})=>({ref,number:index+1,target:target ?? run.activity?.find(item=>item.call_id===ref.call_id)?.target ?? ''})));
     region.hidden=!refs.length;
-    for(const {ref,number} of refs) {
+    const shown=new Set([...region.children].map(node=>node.dataset.command));
+    for(const {ref,number,target} of refs) {
       const key=JSON.stringify(ref);
-      if([...region.children].some(node=>node.dataset.command===key)) continue;
+      if(shown.has(key)) continue;shown.add(key);
       const detail=document.createElement('details');detail.className='coding-command';detail.dataset.command=key;
-      const summary=document.createElement('summary');summary.textContent='第 '+number+' 轮 · 查看命令回执';
-      const body=document.createElement('div');detail.append(summary,body);region.append(detail);
+      // The row names the command itself; its exit state is read from the durable receipt when opened.
+      const summary=document.createElement('summary'),line=document.createElement('code'),state=document.createElement('span'),round=document.createElement('span');
+      line.textContent=target ? '$ '+target : '命令回执';line.title=target;state.className='coding-command-state';round.className='coding-command-round';round.textContent='第 '+number+' 轮';
+      summary.append(line,state,round);
+      const body=document.createElement('div');detail.append(summary,body);region.insertBefore(detail,region.querySelector(':scope > h3')?.nextSibling || null);
       let loaded=false,busy=false;
       const load=async()=>{
         if(loaded || busy) return;busy=true;body.textContent='正在读取执行回执…';
@@ -415,8 +570,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(id!==current || ticket!==generation) return;
           loaded=true;body.replaceChildren();
           const condition=receipt.stop_reason==='timed-out' || receipt.timed_out ? '超时' : receipt.stop_reason==='cancelled' || receipt.cancelled ? '已取消' : receipt.exit_code===null ? '退出码未知' : '退出码 '+receipt.exit_code;
-          summary.textContent='第 '+number+' 轮 · '+condition;
-          const command=document.createElement('pre');command.textContent=receipt.command;body.append(command);
+          state.textContent=condition.replace('退出码 ','exit ');state.dataset.tone=receipt.exit_code===0 && !receipt.timed_out && !receipt.cancelled ? 'done' : 'failed';if(!target){line.textContent='$ '+receipt.command;line.title=receipt.command;}
+          const command=document.createElement('p');command.className='coding-command-recorded';command.textContent='回执记录的命令：'+receipt.command;body.append(command);
           for(const [label,value] of [['标准输出',receipt.stdout],['标准错误',receipt.stderr]]) {
             const heading=document.createElement('p');heading.textContent=label;const output=document.createElement('pre');output.textContent=value || '（无输出）';body.append(heading,output);
           }
@@ -563,7 +718,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!reportRun) dialogueOffset=turns.scrollTop;
     reportRun=runId;reportSaving=save;
     turns.hidden=true;q('[data-coding-report-reader]').hidden=false;q('[data-coding-latest]').hidden=true;
-    q('[data-coding-report-save]').disabled=true;q('[data-coding-report-progress]').hidden=true;reportOutput=null;q('[data-coding-report-output]').hidden=true;q('[data-coding-report-output-status]').hidden=true;
+    q('[data-coding-report-save]').disabled=true;q('[data-coding-report-save]').hidden=false;q('[data-coding-report-progress]').hidden=true;reportOutput=null;q('[data-coding-report-output]').hidden=true;q('[data-coding-report-output-status]').hidden=true;
     q('[data-coding-report-status]').textContent=save?'正在保存固定报告…':'正在读取执行报告…';
     if(!save) q('[data-coding-report-body]').replaceChildren();
     try {
@@ -571,7 +726,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(current!==id || generation!==generationAtStart || ticket!==reportTicket) return;
       q('[data-coding-report-body]').innerHTML=result.html;enrichCode(q('[data-coding-report-body]'));
       q('[data-coding-report-status]').textContent=result.reference?'已保存固定版本 v'+result.reference.version+' · '+result.saved_at:'尚未保存；保存后保留这轮证据，不代表任务验收。';
-      q('[data-coding-report-save]').disabled=Boolean(result.reference);
+      q('[data-coding-report-save]').disabled=Boolean(result.reference);q('[data-coding-report-save]').hidden=Boolean(result.reference);
       q('[data-coding-report-progress]').hidden=!(result.reference && result.report.goal && !result.report.goal_source_error);
       q('[data-coding-report-output]').hidden=!result.reference;
       if(result.reference)void loadReportOutput(id,runId,ticket);
@@ -583,14 +738,26 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } finally {if(ticket===reportTicket)reportSaving=false;}
   };
-  const renderRuns = (runs) => {
-    const follow = !reportRun && !changeReview.active() && pinned && atBottom(position());
-    if(runs.length)q('[data-coding-welcome]')?.remove();
-    else if(!q('[data-coding-welcome]')) turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));
+  // A new decision takes keyboard focus once — Enter approves, Tab reaches reject — unless the person is typing.
+  const offeredApprovals=new Set();
+  const offerApproval = (inline) => {
+    const card=inline.querySelector('[data-agent-review-phase=pending]'),id=card?.dataset.agentReviewItem,approve=card?.querySelector('[data-agent-review-approve]');
+    if(!inline.isConnected || !id || !approve || approve.disabled || offeredApprovals.has(id))return;
+    offeredApprovals.add(id);
+    if(document.activeElement?.matches?.('input,textarea,select,[contenteditable=""],[contenteditable=true]') || document.querySelector('dialog[open]'))return;
+    approve.focus({preventScroll:true});
+  };
+  // runs: the rounds to (re)draw, a contiguous stretch. all: the whole session in order, where rounds that are not
+  // loaded are summaries. Numbering and "latest" are always read against the whole session.
+  const renderRuns = (runs, all=runs) => {
+    // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it.
+    const follow = !reportRun && onContentAppended({position:position(),pinned}).follow;
+    if(all.length)q('[data-coding-welcome]')?.remove();
+    else if(!q('[data-coding-welcome]')) {turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));const name=root.dataset.codingWorkspaceName;if(name)turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=name;});}
     turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
     for (const run of runs) {
       let block=[...turns.children].find(node=>node.dataset.run===run.ref.run_id);
-      if(!block) { block=document.createElement('section'); block.dataset.run=run.ref.run_id; turns.append(block); }
+      if(!block) { block=document.createElement('section'); block.dataset.run=run.ref.run_id; block.dataset.runIndex=String(all.indexOf(run)); turns.insertBefore(block,[...turns.querySelectorAll(':scope > [data-run]')].find(node=>Number(node.dataset.runIndex)>all.indexOf(run)) || null); }
       renderQuestions(block,run);
       const entries=[
         ...run.turns.filter(turn=>turn.kind!=='system').map((value,index)=>({kind:'turn',value,sequence:value.sequence ?? index})),
@@ -613,6 +780,42 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           const renderKey=turn.text+'|'+(turn.steer?.state || '')+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
             if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) node.textContent=turn.text;}
+            // A round that started from the digest of earlier rounds shows the person's own request; the digest it carried
+            // stays one click away, with the plain statement that tool output was not carried.
+            const digestAt=turn.kind==='user' && turn.text.startsWith(HISTORY_DIGEST_MARKER) ? turn.text.indexOf(HISTORY_DIGEST_TASK_HEAD) : -1;
+            if(digestAt>=0){
+              const digest=turn.text.slice(HISTORY_DIGEST_MARKER.length,digestAt),own=turn.text.slice(digestAt+HISTORY_DIGEST_TASK_HEAD.length),count=(digest.match(/前 (\\d+) 轮/)||[])[1]||'';
+              node.classList.add('has-digest');node.replaceChildren();
+              const details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre'),text=document.createElement('div');
+              details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-history"></use></svg>';summary.append(document.createTextNode('带入了前 '+count+' 轮的摘要（'+(digest.includes(MODEL_DIGEST_HEAD)?'模型整理':'宿主按记录整理')+'）· 工具输出原文没有带入'));
+              body.textContent=digest;details.append(summary,body);
+              text.className='coding-turn-own';text.textContent=own.startsWith(CONTINUATION_MARKER)?'从断点继续 · '+own.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim():own;
+              node.append(details,text);
+            }
+            // Files named with @ were attached after the person's words; the words show, the attachments fold away.
+            else if(turn.kind==='user' && turn.text.includes(MENTIONS_MARKER) && !turn.text.startsWith(CONTINUATION_MARKER)){
+              const at=turn.text.indexOf(MENTIONS_MARKER),own=turn.text.slice(0,at),attached=turn.text.slice(at+MENTIONS_MARKER.length),folders=(attached.match(/^### .*（目录/gm)||[]).length,count=(attached.match(/^### /gm)||[]).length-folders;
+              node.replaceChildren();const text=document.createElement('div'),details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre');
+              text.className='coding-turn-own';text.textContent=own;details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-paperclip"></use></svg>';summary.append(document.createTextNode('附带了 '+[count?count+' 个文件':'',folders?folders+' 个目录':''].filter(Boolean).join('、')+'（发送时的内容）'));
+              body.textContent=attached;details.append(summary,body);node.append(text,details);
+            }
+            // Material the runtime handed the model (a confirmed plan, a fixed report) arrives wrapped as reference data;
+            // it reads as one line naming the material, with the text one click away.
+            else if(turn.kind==='user' && turn.text.startsWith('Untrusted context data.')){
+              let name='附带材料';try{const outer=JSON.parse(turn.text.slice(turn.text.indexOf('{')));name=JSON.parse(String(outer.text).split('\\n')[0]).title||name;}catch{}
+              node.classList.add('is-material');node.replaceChildren();
+              const details=document.createElement('details'),summary=document.createElement('summary'),body=document.createElement('pre');
+              details.className='coding-digest';summary.innerHTML='<svg aria-hidden="true"><use href="#icon-paperclip"></use></svg>';summary.append(document.createTextNode('附带材料：'+name+'（作为参考数据交给模型，不是指令）'));
+              body.textContent=turn.text;details.append(summary,body);node.append(details);
+            }
+            // A continuation the Host composed reads as one line; the facts it handed the model stay one click away.
+            else if(turn.kind==='user' && turn.text.startsWith(CONTINUATION_MARKER)){
+              const body=node.innerHTML,line=turn.text.slice(CONTINUATION_MARKER.length).split('\\n')[0].replace(/请从断点继续完成原任务。?$/,'').trim();
+              node.classList.add('is-continuation');node.innerHTML='';
+              const details=document.createElement('details'),summary=document.createElement('summary'),facts=document.createElement('div');
+              summary.innerHTML='<svg aria-hidden="true"><use href="#icon-play"></use></svg>';summary.append(document.createTextNode('从断点继续 · '+line));
+              facts.className='coding-continuation-facts';facts.innerHTML=body;details.append(summary,facts);node.append(details);
+            }
             if(turn.steer) {
               const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
               receipt.textContent=turn.steer.state==='applied'?'已加入后续模型上下文':turn.steer.state==='unconfirmed'?'已保存，未确认应用':'已收到，等待后续处理';
@@ -625,11 +828,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         } else if(entry.kind==='activity') {
           const activities=entry.values,key=activities[0].call_id;
           let detail=[...block.querySelectorAll('[data-coding-activity]')].find(node=>node.dataset.codingActivity===key);
-          if(!detail) { detail=document.createElement('details'); detail.className='coding-activity'; detail.dataset.codingActivity=key; detail.append(document.createElement('summary'),document.createElement('pre')); }
-          const unfinished=activities.filter(item=>item.state==='started').length;
-          detail.querySelector('summary').textContent=activities.length+' 项执行活动'+(unfinished ? ' · '+unfinished+(terminal(run.phase)?' 项未收到结果':' 项进行中') : '');
-          const text=activities.map(item=>item.name+' '+item.target+' · '+({started:terminal(run.phase)?'本轮已结束，工具结果未返回':'进行中',completed:'已返回',failed:'失败',unknown:'历史结果状态未知'}[item.state] || item.state)+(item.output?'\\n'+item.output:'')+(item.output_truncated?'\\n（内容已截断）':'')).join('\\n\\n');
-          if(detail.querySelector('pre').textContent!==text) detail.querySelector('pre').textContent=text;
+          if(!detail) { detail=document.createElement('details'); detail.className='coding-activity'; detail.dataset.codingActivity=key; }
+          timeline.renderGroup(detail,activities,run,entry===groups.findLast(group=>group.kind==='activity') && run===all.at(-1));
           ordered.push(detail);
         } else {
           const question=entry.value,key=JSON.stringify([run.ref.run_id,question.pending_id,question.pending_revision]);
@@ -637,7 +837,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(form) ordered.push(form);
         }
       }
-      for(const detail of block.querySelectorAll('[data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
+      // The running plan sits right under the task it came from, kept in place by the same ordering as every entry.
+      // A graph continued by a later round is shown once, on the round now working on it.
+      const planEntry=planEntries.find(entry=>entry.run_id===run.ref.run_id),boardId=planEntry?.board?.board_id;
+      const laterOnSameGraph=boardId && all.slice(all.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.board_id===boardId);
+      if(laterOnSameGraph)block.querySelector(':scope > .coding-plan-progress')?.remove();
+      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase),run===all.at(-1));
+      if(planCard){const at=ordered.findIndex(node=>node.dataset?.kind==='user');ordered.splice(at+1,0,planCard);}
+      // Children appear right after the step that sent them.
+      const children=subagentCards.render(run,subagentGroups.find(group=>group.run_id===run.ref.run_id));
+      if(children){const at=ordered.map(node=>Boolean(node.classList?.contains('coding-activity') && node.querySelector('[data-kind="dispatch-subagent"]'))).lastIndexOf(true);ordered.splice(at>=0?at+1:ordered.length,0,children);}
+      // While the model is still writing its latest reply, a caret marks the end of that text — and only that text.
+      const writing=run===all.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
+      ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
+      for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.
       let cursor=block.firstElementChild;
@@ -645,31 +858,65 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(node!==cursor) block.insertBefore(node,cursor);
         cursor=node.nextElementSibling;
       }
+      // The pending decision sits where the work stopped. The Host renders it and owns the decision.
+      let inline=block.querySelector(':scope > [data-coding-inline-review]');
+      if(run===all.at(-1) && run.phase==='awaiting-review') {
+        if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
+        const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void Promise.resolve(host.showReviews?.(inline,[run.ref],runtimeSessionId)).then(()=>offerApproval(inline));
+      } else inline?.remove();
+      timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy));
     }
-    renderCommands(runs);
-    changeReview.render(runs);
-    const reportRuns=runs.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase));
-    q('[data-coding-reports]').hidden=!reportRuns.length;
-    const reportList=q('[data-coding-report-list]');
-    for(const run of reportRuns) {
-      let button=[...reportList.children].find(node=>node.dataset.codingReportOpen===run.ref.run_id);
-      if(!button) {button=document.createElement('button');button.type='button';button.className='mw-btn';button.dataset.codingReportOpen=run.ref.run_id;reportList.append(button);}
-      button.textContent='第 '+(runs.indexOf(run)+1)+' 轮 · '+(phases[run.phase] || run.phase)+' · 查看报告';
+    renderCommands(all);
+    // One row per finished round: its changes and its report, newest first.
+    const ended=all.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase)),outcomeList=q('[data-coding-outcome-list]');
+    q('[data-coding-outcomes]').hidden=!ended.length;
+    const outcomeIcon=(name)=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),use=document.createElementNS('http://www.w3.org/2000/svg','use');svg.setAttribute('aria-hidden','true');use.setAttribute('href','#icon-'+name);svg.append(use);return svg;};
+    const rows=new Map([...outcomeList.children].map(node=>[node.dataset.codingOutcome,node]));
+    for(const run of ended) {
+      let row=rows.get(run.ref.run_id);
+      if(!row) {
+        row=document.createElement('div');row.className='coding-outcome';row.dataset.codingOutcome=run.ref.run_id;
+        const name=document.createElement('span'),phase=document.createElement('span'),change=document.createElement('button'),report=document.createElement('button');
+        name.className='coding-outcome-name';phase.className='coding-outcome-phase';
+        change.type='button';change.className='mw-btn mw-btn--ghost';change.dataset.codingChangeOpen=run.ref.run_id;change.append(outcomeIcon('columns'),'变更');
+        report.type='button';report.className='mw-btn mw-btn--ghost';report.dataset.codingReportOpen=run.ref.run_id;report.append(outcomeIcon('file'),'报告');
+        row.append(name,phase,change,report);outcomeList.prepend(row);
+      }
+      row.querySelector('.coding-outcome-name').textContent='第 '+(all.indexOf(run)+1)+' 轮';
+      const phase=row.querySelector('.coding-outcome-phase');phase.textContent=phases[run.phase] || run.phase;phase.dataset.tone=run.phase==='completed'?'done':run.phase==='failed'?'failed':'idle';
     }
-    lastRun=runs.at(-1)||null;
+    lastRun=all.at(-1)||null;
     const result=q('[data-coding-result]');
-    if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status("输入任务后开始；本轮方式与模型在发送时固定。");} }
+    if(!lastRun) { result.textContent="本轮的成果、检查与执行记录会显示在这里。"; delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status('');} }
     if(lastRun) {
-      const values=[['最新执行（第 '+runs.length+' 轮）',phases[lastRun.phase]||lastRun.phase],['模型',lastRun.frozen.model_id],['工作范围',lastRun.frozen.directory.canonical_path],...(lastRun.frozen.subagent_workspaces?.length ? [['本轮独立目录',lastRun.frozen.subagent_workspaces.map(item=>item.directory.canonical_path).join('；')]] : []),['身份',lastRun.frozen.role_id+' · v'+lastRun.frozen.role_version],['本轮方法',lastRun.frozen.skills.length ? lastRun.frozen.skills.map(method=>method.name+' · v'+method.version).join('、') : '未使用方法'],['本轮 MCP',lastRun.frozen.mcp_tools?.length ? lastRun.frozen.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、') : '未使用 MCP'],['本轮 MCP 资料',(lastRun.frozen.mcp_sources || []).length ? lastRun.frozen.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、') : '未单独选择资料来源'],['用量',codingUsageSummary(lastRun.usage)]];
-      const character=lastRun.frozen.character;values.push(['本轮 Character',character?character.title+' · v'+character.reference.version:'未使用 Character']);
-      if(character)values.push(['本轮内置工具',lastRun.frozen.host_tools?.join('、') || '不使用内置工具']);
-      values.push(['本轮固定材料',lastRun.frozen.text_materials.length ? lastRun.frozen.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、') : '未选择材料']);
-      if(lastRun.frozen.compaction) values.push(['上下文整理','自动 · 估计超过 '+lastRun.frozen.compaction.above_tokens+' tokens 时选择较早原文 · v'+lastRun.frozen.compaction.version]);
+      // Only what this round actually used is listed; what it did not use is named once, so nothing is silently omitted.
+      const f=lastRun.frozen,values=[['模型',f.model_id],['用量',codingUsageSummary(lastRun.usage)],['工作范围',f.directory?.canonical_path || '无工作目录']],unused=[];
+      if(f.subagent_workspaces?.length) values.push(['本轮独立目录',f.subagent_workspaces.map(item=>item.directory.canonical_path).join('；')]);
+      values.push(['身份',f.role_id+' · v'+f.role_version]);
+      if(f.skills.length) values.push(['本轮方法',f.skills.map(method=>method.name+' · v'+method.version).join('、')]); else unused.push('方法');
+      if((f.action_tools || []).length) values.push(['本轮能力',f.action_tools.map(ref=>ref.capability_id+' · v'+ref.version+' · '+ref.provider_id).join('、')]); else unused.push('能力');
+      if(f.mcp_tools?.length) values.push(['本轮 MCP',f.mcp_tools.map(tool=>(tool.server_label || tool.server)+' / '+tool.tool+' · 配置 '+(tool.configuration_version ?? '未记录')+' · '+tool.version).join('、')]); else unused.push('MCP');
+      if((f.mcp_sources || []).length) values.push(['本轮 MCP 资料',f.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、')]); else unused.push('MCP 资料来源');
+      const character=f.character;
+      if(character) values.push(['本轮 Character',character.title+' · v'+character.reference.version],['本轮内置工具',f.host_tools?.join('、') || '不使用内置工具']); else unused.push('Character');
+      if(f.text_materials.length) values.push(['本轮固定材料',f.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、')]); else unused.push('固定材料');
+      if(f.compaction) values.push(['上下文整理','自动 · 估计超过 '+f.compaction.above_tokens+' tokens 时选择较早原文 · v'+f.compaction.version]);
       if(!lastRun.usage.compaction && lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
-      const key=JSON.stringify(values); if(result.dataset.content!==key) { const dl=document.createElement('dl'); values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;dl.append(dt,dd);}); result.replaceChildren(dl);result.dataset.content=key; }
+      const phaseLabel=phases[lastRun.phase]||lastRun.phase,tone=lastRun.phase==='completed'?'done':lastRun.phase==='failed'?'failed':terminal(lastRun.phase)?'idle':'live';
+      const key=JSON.stringify([all.length,phaseLabel,values,unused]);
+      if(result.dataset.content!==key) {
+        const head=document.createElement('header'),title=document.createElement('h3'),phase=document.createElement('span'),round=document.createElement('span'),dl=document.createElement('dl');
+        head.className='coding-facts-head';title.textContent='本轮概况';phase.className='coding-facts-phase';phase.dataset.tone=tone;phase.textContent=phaseLabel;round.className='coding-facts-round';round.textContent='第 '+all.length+' 轮';head.append(title,phase,round);
+        values.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;if(label==='工作范围'||label==='本轮独立目录')dd.className='is-path';dl.append(dt,dd);});
+        result.replaceChildren(head,dl);
+        if(unused.length){const note=document.createElement('p');note.className='coding-facts-unused';note.textContent='本轮未使用：'+unused.join('、');result.append(note);}
+        result.dataset.content=key;
+      }
       const nextStatus=lastRun.ref.run_id+':'+lastRun.phase+':'+lastRun.stop_reason;
-      if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.stop_reason || phases[lastRun.phase] || lastRun.phase,lastRun.phase==='failed');}
+      // The round's own footer shows its live state and outcome; this line only carries a failure worth reading twice.
+      if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.phase==='failed' ? (lastRun.stop_reason || phases.failed) : '',lastRun.phase==='failed');}
     }
+    const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.textContent=phases[lastRun.phase]||lastRun.phase;}
     if(follow) turns.scrollTop=turns.scrollHeight;
     q('[data-coding-latest]').hidden=Boolean(reportRun) || follow || atBottom(position()); controls();
   };
@@ -686,7 +933,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const labels={completed:'已执行',failed:'执行失败（可能部分生效）','not-dispatched':'未执行',unknown:'结果未知'};
       report.runs.forEach((run,index)=>{
         const section=document.createElement('section');
-        const heading=document.createElement('h4');heading.textContent='中断轮次 '+(index+1);section.append(heading);
+        // A subtask's interrupted round is named after the subtask, so the person knows what closing it settles.
+        const child=run.subagent?subagentGroups.flatMap(group=>group.children||[]).find(entry=>entry.subagent_id===run.subagent.subagent_id):null;
+        // Subtasks of one role read alike; the directory each one worked in tells them apart.
+        const where=child?.workspace_path?'（'+child.workspace_path.split('/').at(-1)+'）':'';
+        const heading=document.createElement('h4');heading.textContent=run.subagent?'子任务「'+(child?.role_name||'子任务')+'」'+where+'的中断轮次':'中断轮次 '+(index+1);section.append(heading);
+        if(run.subagent){const row=document.createElement('p');row.textContent='结束后这个子任务按已核实的结果收尾，不会重跑；它在自己目录里的改动保持原样。';section.append(row);}
         run.operations.forEach(operation=>{const row=document.createElement('p');row.textContent=labels[operation.outcome]+'：'+operation.summary;section.append(row);});
         if(!run.operations.length){const row=document.createElement('p');row.textContent='未发现持久记录的副作用操作；这不代表原任务已完成。';section.append(row);}
         if(run.waiting){const row=document.createElement('p');row.textContent='结束时将关闭 '+run.waiting+' 项遗留等待，旧问题与审批不能继续回答。';section.append(row);}
@@ -707,21 +959,82 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const list=q('[data-coding-checkpoints-list]');list.replaceChildren();
       data.checkpoints.forEach(item=>{
         const row=document.createElement('section'), label=document.createElement('p'), meta=document.createElement('small'), button=document.createElement('button');
-        label.textContent=item.label;meta.textContent=new Date(item.created_at).toLocaleString()+(item.origin_run_id?' · 原轮次 '+item.origin_run_id:'')+(item.directory?' · '+item.directory.canonical_path:'');
-        button.className='mw-btn';button.type='button';button.dataset.codingRewind=item.checkpoint_id;button.textContent='预览回退';button.setAttribute('aria-label','预览回退 '+item.label+' '+item.checkpoint_id);
-        row.append(label,meta,button);list.append(row);
+        label.textContent=item.label;const round=allRuns.findIndex(run=>run.ref?.run_id===item.origin_run_id);
+        meta.textContent=new Date(item.created_at).toLocaleString()+(item.origin_run_id?' · '+(round>=0?'第 '+(round+1)+' 轮':'原轮次 '+item.origin_run_id):'')+(item.directory?' · '+item.directory.canonical_path:'');
+        button.className='mw-btn';button.type='button';button.dataset.codingRewind=item.checkpoint_id;button.textContent=item.rewound_at?'再次预览回退':'预览回退';button.setAttribute('aria-label',button.textContent+' '+item.label+' '+item.checkpoint_id);
+        row.append(label,meta);
+        // Already rewound here: say when, so the list does not read as untouched; the files may have changed since.
+        if(item.rewound_at){const done=document.createElement('small');done.className='coding-checkpoint-done';done.textContent='已于 '+new Date(item.rewound_at).toLocaleString()+' 回退到这里；之后文件可能又有改动。';row.append(done);}
+        row.append(button);list.append(row);
       });
       q('[data-coding-checkpoints-status]').textContent=checkpointBusy?'回退尚未结束或结果待核对，请查看下方审查。':data.checkpoints.length?'先查看完整预览，再由你批准这一次。':'本会话暂无可读取的检查点；命令修改不在文件检查点范围内。';
     } catch(error) {
       if(current===id && generation===ticket){checkpointKey='';q('[data-coding-checkpoints-status]').textContent='检查点暂不可读：'+error.message;}
     } finally {if(generation===ticket){checkpointLoading=false;controls();}}
   };
+  // A live round is followed as it happens: the Host answers the moment it changes, so text arrives as it is written
+  // rather than on the next timer tick. The regular refresh keeps everything else current at a slower pace.
+  let liveRun='';
+  const followLive=async(id,runId)=>{
+    if(liveRun===runId)return;liveRun=runId;let since=null,failures=0;
+    while(current===id && liveRun===runId){
+      try{
+        const data=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/live?timeout=20000'+(since?'&since='+encodeURIComponent(since):''));
+        if(current!==id || liveRun!==runId)break;failures=0;since=data.version;
+        const run=data.runs[0],at=windowRuns.findIndex(held=>held.ref.run_id===runId);if(at<0)break;
+        windowRuns[at]=run;allRuns=allRuns.map(held=>held.ref.run_id===runId?run:held);
+        renderRuns([run],allRuns);usageMeter.render({...lastData,runs:windowRuns},lastRun);
+        if(terminal(run.phase)){void readCurrent();break;}
+      }catch{if(++failures>3)break;await new Promise(resolve=>setTimeout(resolve,1000));}
+    }
+    if(liveRun===runId)liveRun='';
+  };
+  // Earlier rounds come back a page at a time as the reader scrolls up; what they were reading stays where it was.
+  const loadEarlier=async()=>{
+    const start=allRuns.findIndex(run=>!run.light);
+    if(pageLoading || !current || start<=0)return;
+    const id=current,ticket=generation;pageLoading=true;renderEarlier();
+    try{
+      const page=await api('/sessions/'+encodeURIComponent(id)+'/runs?before='+start+'&limit='+SESSION_PAGE);
+      if(current!==id || ticket!==generation)return;
+      page.runs.forEach(run=>olderViews.set(run.ref.run_id,run));olderPlanEntries.push(...(page.taskboard_plans || []));olderSubagents.push(...(page.subagents || []));
+      allRuns=allRuns.map(run=>run.light && olderViews.get(run.ref.run_id) || run);
+      planEntries=[...olderPlanEntries,...planEntries.filter(entry=>!olderPlanEntries.includes(entry))];subagentGroups=[...olderSubagents,...subagentGroups.filter(group=>!olderSubagents.includes(group))];
+      // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; the round being read stays put.
+      const pending=page.runs.map(run=>olderViews.get(run.ref.run_id)).reverse();
+      while(pending.length){
+        if(current!==id || ticket!==generation)return;
+        const anchor=[...turns.querySelectorAll(':scope > [data-run]')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top),before=anchor?.getBoundingClientRect().top;
+        renderRuns(pending.splice(0,2).reverse(),allRuns);
+        if(anchor)turns.scrollTop+=anchor.getBoundingClientRect().top-before;
+        if(pending.length)await new Promise(resolve=>requestAnimationFrame(resolve));
+      }
+    }catch(error){if(current===id)status(error.message,true);}
+    finally{pageLoading=false;if(current===id)renderEarlier();}
+  };
+  const earlierWatch=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))void loadEarlier();},{root:turns,rootMargin:'900px 0px 0px 0px'});
+  const renderEarlier=()=>{
+    const hidden=allRuns.findIndex(run=>!run.light);
+    let bar=turns.querySelector(':scope > [data-coding-earlier]');
+    if(hidden<=0){if(bar){earlierWatch.unobserve(bar);bar.remove();}return;}
+    if(!bar){bar=document.createElement('button');bar.type='button';bar.className='coding-earlier';bar.dataset.codingEarlier='';bar.addEventListener('click',()=>void loadEarlier());earlierWatch.observe(bar);}
+    if(turns.firstElementChild!==bar)turns.prepend(bar);
+    bar.disabled=pageLoading;bar.textContent=pageLoading?'正在读取更早的轮次…':'显示更早的 '+hidden+' 轮';
+  };
   const readCurrent = async (fresh=false) => {
     if(!current || loading && !fresh) return;
     const id=current, ticket=generation; loading=true;
     try {
-      const data=await api('/sessions/'+encodeURIComponent(id));
+      const read=(known)=>api('/sessions/'+encodeURIComponent(id)+'?window='+SESSION_WINDOW+(earlierFingerprint?'&earlier='+earlierFingerprint:'')+(known.length?'&known='+known.join(','):''));
+      let data=await read(fresh?[]:windowRuns.map(run=>run.fingerprint).filter(Boolean));
       if(current!==id || ticket!==generation) return;
+      // An unchanged round keeps the very view already drawn, so nothing about it is redrawn either.
+      data.runs=data.runs.map(run=>run.unchanged ? windowRuns.find(held=>held.fingerprint===run.fingerprint) || run : run);
+      if(data.runs.some(run=>run.unchanged)){data=await read([]);if(current!==id || ticket!==generation) return;}
+      if(data.earlier){earlierRuns=data.earlier;earlierFingerprint=data.earlier_fingerprint;}
+      // A round that leaves the window keeps its full view: it is already drawn and settled.
+      for(const run of windowRuns) if(!data.runs.some(next=>next.ref.run_id===run.ref.run_id)) olderViews.set(run.ref.run_id,run);
+      windowRuns=data.runs;allRuns=[...earlierRuns.map(summary=>olderViews.get(summary.ref.run_id) || summary),...data.runs];
       recovery=Boolean(data.recovery_required);checkpointBusy=Boolean(data.checkpoint_busy);
       q('[data-coding-recovery]').hidden=!recovery;
       const resultsLabel=recovery || checkpointBusy || data.runs.some(run=>run.phase==='awaiting-review')?'结果 · 待审查':'结果与审查';
@@ -730,6 +1043,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(recovery && recoveryKey!==id){recoveryKey=id;void readRecovery();}
       if(!q('[data-coding-title] input')) q('[data-coding-title]').textContent=data.session.title;
       q('[data-coding-goal-label]').textContent=data.session.goal_id?'下一轮目标：'+(data.session.goal_title || data.session.goal_id):'下一轮未关联目标';
+      retitle(id,state.sessions.find(record=>record.session_id===id)?.title,data.session.title);
       state.sessions=state.sessions.map(record=>record.session_id===id ? data.session : record);
       if(!configurations.has(id)) configurations.set(id,data.configuration);
       if(fresh) {
@@ -738,10 +1052,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           q('[data-coding-model]').value=state.models[0] ? JSON.stringify([state.models[0].provider_id,state.models[0].model_id]) : '';
           workspaceId=state.workspace?.workspace_id || (state.workspaces?.length===1?state.workspaces[0].workspace_id:'');
         }
-        applyConfiguration();
+        applyConfiguration();void followWorkspace();
       }
       if(!mcpSourceSelections.has(id))mcpSourceSelections.set(id,data.mcp_sources || []);
       if(!mcpSelections.has(id))mcpSelections.set(id,data.mcp_tools || []);
+      if(!actionSelections.has(id))actionSelections.set(id,data.action_tools || []);
       if(!materialSelections.has(id)) materialSelections.set(id,data.materials || []);
       if(!characterSelections.has(id)){characterSelections.set(id,data.character ?? null);characterTitles.set(id,data.character_title || '');if(data.character_skill_ids!==undefined)characterSkills.set(id,data.character_skill_ids);}
       if(!methodSelections.has(id)) methodSelections.set(id,data.methods || []);
@@ -750,13 +1065,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
       if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      renderRuns(data.runs);
-      plans.update(id,data.plan ?? null,data.runs);
+      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
+      if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
+      plans.update(id,data.plan ?? null,allRuns);
       subagents.update(id,data.subagents ?? []);
-      taskboard.update(id,data);
+      boardUpdate(id,data);
       stepReports.sync(id);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
-      void host.showReviews?.(q('[data-coding-host-reviews]'), [...data.runs.map(run=>run.ref), ...(data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : []))], data.session.runtime_session_id);
+      // The results panel lists this session's reviews by session, not by naming every round: open items always, and the
+      // latest settled history with the rest one click away. It is only read while the panel is open.
+      if(root.dataset.codingResults==='true')void host.showReviews?.(q('[data-coding-host-reviews]'), (data.subagents || []).flatMap(group=>(group.children || []).flatMap(child=>child.child_run ? [child.child_run] : [])), data.session.runtime_session_id, undefined, data.session.runtime_session_id ? {runSession:data.session.runtime_session_id,limit:30} : undefined);
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);
       if(fresh || checkpointKey!==nextCheckpointKey){checkpointKey=nextCheckpointKey;void readCheckpoints();}
       if(data.error) status(data.error,true);
@@ -770,16 +1088,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     root.dataset.codingResults='false';
     root.dataset.codingDetail='true';
     if(id===current) return selectionTask;
-    if(changeReview.active())changeReview.close();q('[data-coding-changes-list]').replaceChildren();q('[data-coding-changes]').hidden=true;
+    if(changeReview.active())changeReview.close();q('[data-coding-outcome-list]').replaceChildren();q('[data-coding-outcomes]').hidden=true;
     materialTicket++;q('[data-coding-material-dialog]').close();
-    closeReport();q('[data-coding-report-list]').replaceChildren();q('[data-coding-reports]').hidden=true;
+    closeReport();
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
-    current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    resetWindow();cooperationUi.reset();current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
-    q('[data-coding-commands]').replaceChildren();q('[data-coding-commands]').hidden=true;
+    q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;
     input.disabled=true; selectionTask=readCurrent(true);await selectionTask;
   };
   const openCodingItem = async(itemId) => {
@@ -797,7 +1115,21 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true));
     else void flushDraft().catch(error=>status(error.message,true));
   });
-  const create = async() => { const result=await api('/sessions','POST',{title:'新编码会话'}); await refreshState(); host.openItem('coding',result.session.session_id,result.session.title); await select(result.session.session_id); input.focus(); };
+  // A new session is only worth keeping once something is written in it: an untouched empty one is reused
+  // instead of piling up. Anything with a draft, a Goal or a past run is left alone.
+  const untouched = async() => {
+    for(const session of state.sessions.filter(item=>item.state==='idle' && item.title==='新编码会话' && !item.goal_id)) {
+      if(localDraft(session.session_id)) continue;
+      try{const data=await api('/sessions/'+encodeURIComponent(session.session_id)+'?window=1');if(!data.runs.length && !(data.draft || '').trim() && !data.character && !(data.materials || []).length)return session;}catch{}
+    }
+    return null;
+  };
+  const create = async() => {
+    const reuse=await untouched();
+    const session=reuse || (await api('/sessions','POST',{title:'新编码会话'})).session;
+    if(!reuse)await refreshState();
+    host.openItem('coding',session.session_id,session.title);await select(session.session_id);input.focus();
+  };
   let creatingCharacterSession=false;
   window.addEventListener('molis-work:character-coding',event=>{
     if(creatingCharacterSession)return;
@@ -812,6 +1144,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       input.focus();status('已带入角色固定版本。选择模型和执行方式后开始任务。');
     })().catch(error=>{status(error.message,true);window.alert('创建 Character 编码会话失败：'+error.message);}).finally(()=>{creatingCharacterSession=false;});
   });
+  /** The composer keeps rarely used context behind one "+" so the bar stays about the task. */
+  const attachMenu=q('[data-coding-attach-menu]'),attachToggle=q('[data-coding-attach-toggle]');
+  const setAttach=open=>{attachMenu.hidden=!open;attachToggle.setAttribute('aria-expanded',String(open));};
+  document.addEventListener('click',event=>{if(attachMenu.hidden)return;if(event.target.closest('[data-coding-attach-toggle]'))return;setAttach(false);});
+  root.addEventListener('keydown',event=>{if(event.key==='Escape' && !attachMenu.hidden){setAttach(false);attachToggle.focus();}});
+  attachToggle.addEventListener('click',()=>setAttach(attachMenu.hidden));
   const click = async(event) => {
     const target=event.target.closest('button,a'); if(!target) return;
     try {
@@ -854,7 +1192,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-rewind]')) {
         const id=current,ticket=generation;checkpointBusy=true;controls();
         try {
-          await api('/sessions/'+encodeURIComponent(id)+'/checkpoints/'+encodeURIComponent(target.dataset.codingRewind)+'/rewind','POST',{intent:q('[data-coding-intent]').value});
+          // A rewind is the person's own reviewed file change, not a round: it does not depend on the composer's mode.
+          const chosen=q('[data-coding-intent]').value,intent=['edit','execute'].includes(chosen)?chosen:'edit';
+          await api('/sessions/'+encodeURIComponent(id)+'/checkpoints/'+encodeURIComponent(target.dataset.codingRewind)+'/rewind','POST',{intent});
           if(current===id && generation===ticket){status('回退预览已准备，请在右侧审查当前内容与回退后的内容。');await readCurrent();}
         } catch(error) {if(current===id && generation===ticket){checkpointBusy=false;throw error;}}
         finally {controls();}
@@ -863,6 +1203,46 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-mcp-settings-link]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-mcp-close]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-material-open]')) await openMaterials();
+      if(target.matches('[data-coding-delegate-open]')) await cooperationUi.openDialog();
+      // A round that only announced its next step goes on when the person asks, with the same way of working.
+      if(target.matches('[data-coding-nudge]') && !sending) {
+        const run=allRuns.find(item=>item.ref.run_id===target.dataset.codingNudge);if(!run || run.light)return;
+        const said=[...run.turns].reverse().find(turn=>turn.kind==='assistant')?.text.trim() || '',asked=ownTask(run.turns.find(turn=>turn.kind==='user')?.text || '');
+        const intent={builder:'execute',writer:'edit',reader:'discuss',reviewer:'review',planner:'plan',coordinator:'collaborate'}[run.frozen.role_id] || q('[data-coding-intent]').value;
+        const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
+        try{await startRound(id,'上一轮你说「'+said+'」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\\n'+asked,intent,modelValue,currentSelection(id));status('已请它接着做；新的写入和命令仍需你审查。');pinned=true;await refreshState();await readCurrent();}
+        catch(error){status(error.message,true);}finally{sending=false;controls();}
+      }
+      // Committing a round's changes happens in Git, under Host review; the round only drafts the message.
+      if(target.matches('[data-coding-commit-round]')) {
+        const run=allRuns.find(item=>item.ref.run_id===target.dataset.codingCommitRound);if(!run || run.light)return;
+        // The person's own request titles the commit, unwrapped from a "let it continue" or a continuation the product composed.
+        let request=ownTask(run.turns.find(turn=>turn.kind==='user')?.text || '');
+        const handed=request.indexOf('完成原任务：\\n');if(request.startsWith('上一轮你说「') && handed>=0)request=request.slice(handed+'完成原任务：\\n'.length);
+        if(request.startsWith(CONTINUATION_MARKER)){const from=request.indexOf('原任务：\\n'),to=request.indexOf('\\n\\n宿主核实的事实');if(from>=0)request=request.slice(from+'原任务：\\n'.length,to>from?to:undefined);}
+        const asked=request.trim().split('\\n')[0].replace(/^#+\\s*/,'');
+        const answer=[...run.turns].reverse().find(turn=>turn.kind==='assistant')?.text || '';
+        const points=answer.split('\\n').map(line=>line.replace(/^[#>*\\-\\s\\d.、]+/,'').replace(/[*\x60]/g,'').trim()).filter(line=>line.length>4).slice(0,5);
+        const files=[...new Set(run.activity.filter(item=>['edit','write'].includes(item.name) && item.state==='completed' && item.target).map(item=>item.target))];
+        const title=asked.length>72?asked.slice(0,70)+'…':asked;
+        let draft=[title,'',...points.map(point=>'- '+point),'','改动文件：',...files.map(file=>'- '+file)].join('\\n').trim(),note,failed=false;
+        // The model drafts from every recent round that changed files (a call that costs a little); the rule draft above stays as the fallback.
+        const id=current;target.disabled=true;status('正在请模型起草提交说明…');
+        try{const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
+          const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run.ref.run_id)+'/commit-draft','POST',{provider_id,model_id});
+          draft=result.message;note='提交说明由模型根据第 '+result.rounds.join('、')+' 轮的改动起草'+(result.usage?'（用了 '+(result.usage.input+result.usage.output).toLocaleString()+' tokens）':'')+'，已放进 Git 面板：先暂存这些文件，读一遍说明再提交，每一步都经过宿主审查。';}
+        catch(error){failed=true;note='模型起草没有成功（'+error.message+'），已放入按规则拼出的草稿：先暂存这些文件，改好说明再提交。';}
+        finally{target.disabled=false;}
+        if(id!==current)return;
+        // The Git view works on the project's browsing directory (project settings); point it at the round's own directory first.
+        const ownWorkspace=(state.workspaces || []).find(item=>item.canonical_path===run.frozen.directory?.canonical_path),own=ownWorkspace?.workspace_id || workspaceId;
+        try{sessionStorage.setItem('molis-commit-draft:'+own,draft);}catch{}
+        let pointed=false;
+        try{await useProjectWorkspace(own);pointed=true;}catch{}
+        directory.querySelector('[data-coding-face=files]')?.click();
+        // Git would otherwise stay on another directory, where this message does not belong: say so rather than claim it is there.
+        status(pointed?note:'Git 面板没能切到这一轮的工作目录'+(ownWorkspace?'「'+ownWorkspace.display_name+'」':'')+'，提交说明还没有放进去：请在项目设置的工作目录里选中它，再点一次「提交这些改动…」。',failed || !pointed);
+      }
       if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();
       if(target.matches('[data-coding-method-close]')) {methodDocumentTicket++;q('[data-coding-method-dialog]').close();input.focus();}
@@ -870,12 +1250,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-context-toggle]')){const context=q('[data-coding-context]');context.hidden=!context.hidden;target.setAttribute('aria-expanded',String(!context.hidden));}
       if(target.matches('[data-coding-workspace-open]')) { q('[data-coding-workspace-dialog]').showModal(); }
       if(target.matches('[data-coding-workspace-close]')) q('[data-coding-workspace-dialog]').close();
-      if(target.matches('[data-coding-results-open]')) {root.dataset.codingResults=root.dataset.codingResults==='true'?'false':'true';if(root.dataset.codingResults==='true')q('[data-coding-results-close]').focus({preventScroll:true});}
+      if(target.matches('[data-coding-results-open]')) {root.dataset.codingResults=root.dataset.codingResults==='true'?'false':'true';if(root.dataset.codingResults==='true'){q('[data-coding-results-close]').focus({preventScroll:true});void readCurrent();}}
       if(target.matches('[data-coding-results-close]')) {root.dataset.codingResults='false';q('[data-coding-results-open]').focus({preventScroll:true});}
       if(target.matches('[data-coding-directory-back]')) {root.dataset.codingDetail='false';(directory.querySelector('[aria-current=true]') || directory.querySelector('[data-coding-new]'))?.focus({preventScroll:true});}
-      if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();}
+      if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){const intent=q('[data-coding-intent]'),wanted=[...intent.options].find(option=>option.value===target.dataset.codingPromptIntent && !option.disabled);if(wanted){intent.value=wanted.value;intent.dispatchEvent(new Event('change',{bubbles:true}));}input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(input.value.length,input.value.length);}
       if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=true; try { await create(); } finally { target.disabled=false; } }
-      if(target.matches('[data-coding-session]')) { event.preventDefault(); const session=state.sessions.find(item=>item.session_id===target.dataset.codingSession);host.openItem('coding',session.session_id,session.title);await select(session.session_id); }
+      // The first list is drawn by the server, so a row can be clicked before the directory read has arrived.
+      // ⌘/Ctrl-click opens the session in the pane beside this one; this pane keeps the session it shows.
+      if(target.matches('[data-coding-session]')) { event.preventDefault(); const id=target.dataset.codingSession,session=state.sessions.find(item=>item.session_id===id),title=session?.title || (target.querySelector('.coding-session-title,strong,.mw-dir-row__title')?.textContent || '').trim();
+        if((event.metaKey || event.ctrlKey) && host.openBeside){host.openBeside('coding',id,title);return;}
+        host.openItem('coding',id,title);await select(id); }
+      if(target.matches('[data-coding-open-beside]')) { host.openBeside?.('coding'); return; }
       if(target.matches('[data-coding-filter]')) { directory.querySelectorAll('[data-coding-filter]').forEach(item=>{item.setAttribute('aria-pressed',String(item===target));}); renderDirectory(); }
       if(target.matches('[data-coding-face]')) {
         const face=target.dataset.codingFace;
@@ -883,16 +1268,34 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(face==='artifacts'||face==='taskboard')host.onDirectoryFace?.('sessions');
           directory.dataset.codingCurrentFace=face;
           directory.querySelector('[data-coding-artifact-directory]').hidden=face!=='artifacts';
-          directory.querySelector('[data-coding-taskboard]').hidden=face!=='taskboard';
+          showBoard(face==='taskboard');
           directory.querySelectorAll('[data-coding-face]').forEach(button=>{button.setAttribute('aria-pressed',String(button===target));});
           directory.querySelector('.mw-dir__label').textContent=face==='taskboard'?'TaskBoard':face==='artifacts'?'产物':face==='files'?'文件':'会话';
-          if(face==='taskboard'){taskboard.sessions(state.sessions);taskboard.show();if(current)await readCurrent();}
+          if(face==='taskboard'&&current)await readCurrent();
           if(face==='artifacts')await loadArtifacts();
         } else if(face==='goals') await openGoals();
         else status('这个导航面尚未装配，现阶段可使用会话、目标关联和文件入口。');
       }
+      if(target.matches('[data-coding-board-close]')) directory.querySelector('[data-coding-face=sessions]')?.click();
       if(target.matches('[data-coding-latest]')) { pinned=true;turns.scrollTop=turns.scrollHeight;target.hidden=true; }
+      if(target.matches('[data-coding-continue]')) { target.disabled=true; await continueRound(target.dataset.codingContinue); target.disabled=false; }
+      if(target.matches('[data-coding-recover-continue]')) { target.disabled=true; await recoverAndContinue(target.dataset.codingRecoverContinue); target.disabled=false; }
+      if(target.matches('[data-coding-pause]') && lastRun) {
+        const action=target.dataset.action==='resume'?'resume':'pause';target.disabled=true;
+        try { await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:action});status(action==='pause'?'暂停请求已收到：当前这一步做完后停下，已开始的操作不会中断。':'已恢复，这一轮从暂停处接着执行。');await readCurrent(); }
+        catch(error) { status(error.message,true); } finally { controls(); }
+      }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
+      if(target.matches('[data-coding-archive]') && current) {
+        if(!confirm('归档这条 Coding 会话？它会从活动列表移出，执行记录和固定成果仍会保留。'))return;
+        target.disabled=true;
+        const id=current;
+        try {
+          await api('/sessions/'+encodeURIComponent(id),'PATCH',{archive:true});
+          generation++;current='';lastRun=null;root.dataset.codingDetail='false';
+          await refreshState();status('会话已归档。');
+        } finally {target.disabled=false;}
+      }
       if(target.matches('[data-coding-rename]') && current) {
         const title=q('[data-coding-title]'); if(title.querySelector('input')) return;
         const field=document.createElement('input');field.className='mw-input';field.value=title.textContent;field.setAttribute('aria-label','会话名称');title.replaceChildren(field);field.focus();field.select();
@@ -904,7 +1307,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   root.addEventListener('click',click);
   directory.querySelector('[data-coding-search]').addEventListener('input',renderDirectory);
-  turns.addEventListener('scroll',()=>{if(reportRun || changeReview.active())return;pinned=atBottom(position());q('[data-coding-latest]').hidden=pinned;},{passive:true});
+  let readerIntentAt=-Infinity;const readerIntent=()=>{readerIntentAt=performance.now();};
+  for(const type of ['wheel','touchstart','touchmove','pointerdown','keydown'])turns.addEventListener(type,readerIntent,{passive:true});
+  turns.addEventListener('scroll',()=>{if(reportRun)return;pinned=onReaderScrolled(position(),{pinned,by_reader:performance.now()-readerIntentAt<READER_INTENT_MS});q('[data-coding-latest]').hidden=pinned;},{passive:true});
+  // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.
+  let followFrame=0;new MutationObserver(()=>{if(!pinned || reportRun || followFrame)return;followFrame=requestAnimationFrame(()=>{followFrame=0;if(pinned && !reportRun)turns.scrollTop=turns.scrollHeight;});}).observe(turns,{childList:true,subtree:true,characterData:true});
+  // Browsers without field-sizing still grow the field as the person writes.
+  if(!globalThis.CSS?.supports?.('field-sizing','content'))input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,Math.min(innerHeight*0.4,320))+'px';});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]')])field.addEventListener('change',()=>{
     rememberConfiguration();controls();void flushDraft().catch(error=>status('配置暂未保存：'+error.message,true));
@@ -964,26 +1373,99 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const workspace=await host.addWorkspace(path);workspaceId=workspace.workspace_id;
       } else workspaceId=q('[data-coding-workspace-choice]').value;
       if(!workspaceId) throw new Error('请选择或关联一个工作目录');
+      await useProjectWorkspace(workspaceId);
       rememberConfiguration();await flushDraft();await refreshState();q('[data-coding-workspace-error]').textContent='';q('[data-coding-workspace-path]').value='';q('[data-coding-workspace-confirm]').checked=false;q('[data-coding-workspace-dialog]').close();
     } catch(error) { q('[data-coding-workspace-error]').textContent=error.message; }
     finally {submit.disabled=false;}
   });
   directory.querySelector('[data-coding-artifact-search]').addEventListener('input',renderArtifacts);
-  input.addEventListener('keydown',event=>{if(event.key==='/' && !event.isComposing && !input.value.trim()){event.preventDefault();openMethods();}});
+  // The same commands in the composer's slash menu, the palette and the shortcuts; each says when it is not available.
+  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',done:'本轮结束'};
+  const codingCommands=()=>{
+    const intents=[...q('[data-coding-intent]').options].map(option=>({slash:option.value,label:'方式：'+option.textContent.replace(/（.*）/,''),hint:'下一轮用这个方式',keywords:['方式','intent'],enabled:!option.disabled && Boolean(current),
+      run:()=>{const select=q('[data-coding-intent]');select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));status('下一轮方式：'+option.textContent+'。');input.focus();}}));
+    return [...intents,
+      {slash:'compact',label:'下一轮整理上下文',hint:'把前面的对话整理成摘要带入',keywords:['摘要','整理','context'],enabled:Boolean(current && runtimeSessionId),
+        run:async()=>{const id=current;await api('/sessions/'+encodeURIComponent(id)+'/compact','POST',{on:true});status('下一轮会把前面的对话整理成摘要带入。');if(id===current)await readCurrent();}},
+      {slash:'usage',label:'上下文与用量',hint:'窗口占比、会话用量、预算',keywords:['cost','费用','预算','context'],enabled:!q('[data-coding-meter]').hidden,run:()=>q('[data-coding-meter-toggle]').click()},
+      {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:Boolean(current) && !sending,run:()=>openMaterials()},
+      {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:Boolean(current) && !sending,run:()=>openMethods()},
+      {slash:'delegate',label:'委派给新会话',hint:'新会话接受并发送后才执行',keywords:['委派','delegate'],enabled:Boolean(current),run:()=>cooperationUi.openDialog()},
+      {slash:'model',label:'选择模型',hint:'下一轮使用的模型',keywords:['model'],enabled:Boolean(current),run:()=>{const select=q('[data-coding-model]'),trigger=select.closest('.mw-select-picker')?.querySelector('.mw-select-picker__trigger');if(trigger){trigger.focus();trigger.click();}else select.focus();}},
+      {slash:'workspace',label:'选择工作区',hint:'下一轮在哪个目录工作',keywords:['目录','folder'],enabled:Boolean(current),run:()=>q('[data-coding-workspace-dialog]').showModal()},
+      {slash:'new',label:'新建会话',keys:'Mod+Alt+N',keywords:['new','会话'],run:()=>q('[data-coding-new]').click()},
+      {slash:'stop',label:'停止这一轮',hint:'已开始的操作不会被撤销',keys:'',keywords:['stop','停止'],enabled:!q('[data-coding-stop]').hidden && !q('[data-coding-stop]').disabled,run:()=>q('[data-coding-stop]').click()},
+      {slash:'results',label:'结果与审查',keys:'Mod+Alt+R',keywords:['review','审查','结果'],run:()=>q('[data-coding-results-open]').click()},
+      {slash:'palette',label:'命令面板',keys:'Mod+Shift+P',keywords:['command','命令'],run:()=>commandsUi.openPalette()},
+    ];
+  };
+  const commandsUi=(${CODING_COMMANDS_CLIENT_FACTORY_SCRIPT})({q,input,status,commands:codingCommands,current:()=>current,
+    workspace:()=>workspaceId,files:(key)=>api('/sessions/'+encodeURIComponent(current)+'/files?workspace_id='+encodeURIComponent(key)),
+    symbols:(key,path)=>api('/sessions/'+encodeURIComponent(current)+'/symbols?workspace_id='+encodeURIComponent(key)+'&path='+encodeURIComponent(path)),
+    sessions:()=>state.sessions.map(session=>({...session,state_label:SESSION_STATE[session.state] || ''})),
+    openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);}});
+  // Esc in the composer stops a live round, as in terminal agents — never mid-IME, never while the + menu is open.
+  input.addEventListener('keydown',event=>{if(event.key!=='Escape' || event.isComposing || event.keyCode===229 || !attachMenu.hidden)return;const stop=q('[data-coding-stop]');if(stop.hidden || stop.disabled)return;event.preventDefault();stop.click();});
   input.addEventListener('input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
+  // One way to start a round, shared by the composer and by continuing from a breakpoint.
+  const startRound = async (id,task,intent,modelValue,selection,extra={}) => {
+    const [provider_id,model_id]=JSON.parse(modelValue);
+    // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
+    if(id===current && lastData?.next_history?.history==='digest')status('正在请模型把前面的对话整理成摘要，写好后开始这一轮…');
+    const started=await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{...extra,task,intent,provider_id,model_id,workspace_id:selection.workspace_id,methods:selection.methods,...(selection.action_tools===undefined?{}:{action_tools:selection.action_tools}),mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
+    const digest=started?.digest;
+    if(digest && id===current)status(digest.source==='model'?'前面的对话已由模型整理成摘要带入'+(digest.usage?'（用了 '+(digest.usage.input+digest.usage.output).toLocaleString()+' tokens）':'')+'，展开这一轮开头的摘要可以看全文。'
+      :'模型没能写出摘要（'+digest.problem+'），这一轮带入的是宿主按执行记录整理的摘要。',digest.source!=='model');
+  };
+  const currentSelection = (id) => ({workspace_id:workspaceId,methods:structuredClone(methodSelections.get(id) || []),mcp_tools:structuredClone(mcpSelections.get(id) || []),mcp_sources:structuredClone(mcpSourceSelections.get(id) || []),materials:structuredClone(materialSelections.get(id) || []),character:structuredClone(characterSelections.get(id) ?? null),writer_assignments:[]});
+  // Continue an unfinished round: the Host states what already happened, the composer draft stays untouched.
+  const continueRound = async (runId) => {
+    if(sending || !current)return;
+    const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
+    try {
+      if(!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===modelValue))throw new Error('请先选择可用的模型');
+      const next=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/continuation');
+      if(current!==id)return;
+      // A plan round continues on its own graph; everything else starts a fresh round with the Host's facts.
+      // The rest of a plan runs the way the person picks now: steps left after subtasks (such as running the tests) may
+      // need execution rather than another round of parallel writers.
+      const chosen=q('[data-coding-intent]').value,intent=next.continue_step_board_of&&['execute','parallel'].includes(chosen)?chosen:next.intent;
+      // A parallel round goes on with the directories it was given; the saved split is what those subtasks used.
+      const selection=currentSelection(id);if(intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
+      await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{});
+      status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
+      pinned=true;await refreshState();await readCurrent();
+    } catch(error) {if(current===id)status(error.message,true);}
+    finally {sending=false;controls();}
+  };
+  // An interrupted round is checked first; only a round whose outcomes are all known is closed and continued.
+  const recoverAndContinue = async (runId) => {
+    if(sending || !current)return;
+    const id=current;
+    try {
+      const report=await api('/sessions/'+encodeURIComponent(id)+'/recovery');
+      const entry=report.runs.find(run=>run.run_id===runId);
+      // The round's subtasks were cut off with it; they are settled together, or a new round would be refused.
+      const blocked=report.runs.find(run=>!run.can_close);
+      if(!entry || blocked || report.blockers.length) {
+        root.dataset.codingResults='true';recoveryKey='';void readRecovery();
+        status((report.blockers.length?report.blockers.join('；'):(blocked||entry)?.blockers?.join('；') || '这一轮还有结果未知的操作')+'。请在右侧核对后再继续。',true);return;
+      }
+      for(const run of [...report.runs.filter(run=>run.subagent),entry])await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run.run_id)+'/recover','POST',{expected_version:run.version});
+      if(current!==id)return;
+      await continueRound(runId);
+    } catch(error) {if(current===id)status(error.message,true);}
+  };
   q('[data-coding-composer]').addEventListener('submit',async(event)=>{
     event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
-    const id=current,task=input.value,character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []); sending=true;controls();
+    const id=current,task=input.value,action_tools=structuredClone(actionSelections.get(current)||[]),character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []); sending=true;controls();
     try {
       rememberConfiguration();await flushDraft();
       if(activeRun && !terminal(activeRun.phase)) {
         await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:activeRun.ref.run_id,text:task});
         status('补充要求已交给执行引擎，等待后续处理。');
-      } else {
-        const [provider_id,model_id]=JSON.parse(modelValue);
-        await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{task,intent,provider_id,model_id,workspace_id,methods,mcp_tools,mcp_sources,materials,character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments}:{})});
-      }
+      } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
       if(current===id && input.value===task) input.value='';
       if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();
     } catch(error) { status(error.message,true); }
@@ -991,5 +1473,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   void refreshState().catch(error=>status(error.message,true));
   let pollingTicks=0;
-  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}if(current) void readCurrent();void writerDirectories.refresh();void integrations.refreshReviews();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
+  const poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);return;}void writerDirectories.refresh();void integrations.refreshReviews();if(++pollingTicks%5===0) void refreshState().catch(error=>status(error.message,true));},1000);
+  // The conversation refreshes as fast as the work moves: near-continuous while the model is producing,
+  // slower while it waits on the person or rests, slowest in a background tab. readCurrent never overlaps itself.
+  const conversationDelay=()=>document.hidden ? 5000 : !lastRun ? 2500 : ['starting','running','compacting','pausing'].includes(lastRun.phase) ? (liveRun ? 1200 : 350) : terminal(lastRun.phase) ? 2500 : 1000;
+  const followConversation=async()=>{if(!root.isConnected)return;if(current)await readCurrent().catch(()=>{});setTimeout(followConversation,conversationDelay());};
+  setTimeout(followConversation,conversationDelay());
 }`;

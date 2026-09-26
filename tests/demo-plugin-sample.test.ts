@@ -1,3 +1,4 @@
+import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,20 +7,18 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import {
-  DEMO_BOARD_ID,
+import { DEMO_BOARD_ID,
   DEMO_CORE_ARTIFACT_ID,
   DEMO_GITHUB_SOURCE_ID,
   DEMO_GMAIL_SOURCE_ID,
   GoalProjectApplication,
   LocalProjectDatabase,
-  buildMolisWorkWebView,
+  
   createLocalFeedApplication,
   openWorkSessionRegistry,
   seedDemoBoard,
   seedDemoPluginSurfaces,
-  seedDemoProjectExtras,
-} from "@molis-ai/molis-work-app-local-host";
+  seedDemoProjectExtras } from "@molis-ai/molis-work-app-local-host";
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";

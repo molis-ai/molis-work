@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -148,7 +149,7 @@ function project(directory: string) {
     db: store.db,
     appendEvent: (event) => store.appendEvent(event),
   });
-  const platform = createPluginPlatform({
+  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID),
     board_id: DEMO_BOARD_ID,
     actor_id: "tester",
     db: store.db,

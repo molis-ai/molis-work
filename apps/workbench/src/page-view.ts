@@ -13,6 +13,8 @@ export interface MolisWorkWebView {
    */
   plugin_panels?: Readonly<Record<string, string>>;
   plugin_stages?: readonly string[];
+  /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
+  plugin_rail?: readonly { surface: string; label: string }[];
   snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];
@@ -33,17 +35,6 @@ export interface MolisWorkWebView {
   feed_connector_auth?: FeedUiModel["connector_auth"];
   schedule_jobs?: readonly ScheduleJobRecord[];
   schedule_tasks?: readonly ScheduleConversationTaskView[];
-  /** Board-level scene bindings and scene-filtered published function choices. */
-  function_scenes?: {
-    readonly inbox_next: string | null;
-    readonly home_dock: string | null;
-    readonly inbox_next_functions: readonly { readonly function_key: string; readonly name: string }[];
-    readonly home_dock_functions: readonly { readonly function_key: string; readonly name: string }[];
-    readonly feed_capture_functions: readonly { readonly function_key: string; readonly name: string }[];
-    readonly dock_behaviors?: readonly {
-      readonly behavior_id: string;
-      readonly title: string;
-      readonly subject_kinds: readonly string[];
-    }[];
-  };
+  /** Live authorized status from the Inbox scene owner. */
+  inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxJudgmentSummary;
 }

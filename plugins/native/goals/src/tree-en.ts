@@ -1,5 +1,6 @@
 /** Existing Goal Tree copy; shared short labels remain in the host catalog. */
 export const GOALS_TREE_EN: Record<string, string> = {
+  "{month}月{day}日": "{monthName} {day}",
   "回收站 · Molis Work": "Trash · Molis Work",
   "已归档 Goal · Molis Work": "Archived Goals · Molis Work",
   "受阻 {count}": "{count} blocked",

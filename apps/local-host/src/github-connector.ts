@@ -5,11 +5,13 @@ import {
 
 import { connectorFixtureAllowed } from "./connector-execution-mode.js";
 import { resolveGithubToken } from "./connector-credentials.js";
+import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export function createGithubConnector(opts?: {
   fixture?: IntegrationProviderItem[];
   token?: string;
+  authRef?: string;
   allowFixture?: boolean;
   fetchImpl?: GithubFetch;
   now?: () => Date;
@@ -17,6 +19,6 @@ export function createGithubConnector(opts?: {
   return createGithubProvider({
     ...opts,
     allowFixture: opts?.allowFixture ?? connectorFixtureAllowed(),
-    resolveToken: resolveGithubToken,
+    resolveToken: opts?.authRef ? () => createFileSecretStore().get(opts.authRef!) : resolveGithubToken,
   });
 }

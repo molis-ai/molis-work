@@ -1071,10 +1071,12 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     const page = await (await fetch(`${origin}/goals/${encodeURIComponent(child.goal.goal_id)}`)).text();
     assert.match(page, /退回理由已按下方问题预填，可以直接提交，也可以改写/);
     assert.match(page, /已按下方问题预填，可以直接采用，也可以改写/);
-    assert.match(page, /决定理由或修改意见[\s\S]*必填/);
     assert.doesNotMatch(page, /Molis Work 会自动附上上方问题/);
-    assert.doesNotMatch(page, /补充说明[\s\S]*可选/);
-    const prefilled = page.match(/<textarea name="reason"[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? "";
+    const decisionForm = page.match(/<form\b[^>]*data-goal-tree-decision-form[^>]*>[\s\S]*?<\/form>/)?.[0];
+    assert.ok(decisionForm, "必须实际渲染方案决定表单");
+    assert.match(decisionForm, /决定理由或修改意见[\s\S]*必填/);
+    assert.doesNotMatch(decisionForm, /补充说明[\s\S]*可选/);
+    const prefilled = decisionForm.match(/<textarea name="reason"[^>]*>([\s\S]*?)<\/textarea>/)?.[1] ?? "";
     assert.match(prefilled, /不能安全写入|不一致/);
     const path = `/api/goal-tree-proposals/${encodeURIComponent(submitted.proposal.proposal_id)}/decision`;
     const emptyReject = await fetch(`${origin}${path}`, {

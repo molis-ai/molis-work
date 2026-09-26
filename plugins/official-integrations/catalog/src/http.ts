@@ -92,6 +92,8 @@ export function createCatalogHttp(fetchImpl: CatalogFetch, now: () => Date): Cat
         response = await fetchImpl(request.url, {
           method: request.method ?? "GET",
           headers: request.headers,
+          redirect: "error",
+          signal: AbortSignal.timeout(25_000),
           body: request.body === undefined
             ? undefined
             : typeof request.body === "string"
@@ -114,21 +116,10 @@ export function createCatalogHttp(fetchImpl: CatalogFetch, now: () => Date): Cat
       if (!response.ok) {
         throw new CatalogLiveError("provider", response.status, "稍后重试同步");
       }
-      let json: unknown = null;
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType.includes("json") || contentType === "") {
-        try {
-          json = await response.json();
-        } catch {
-          json = null;
-        }
-      } else {
-        try {
-          json = await response.json();
-        } catch {
-          json = null;
-        }
-      }
+      let json: unknown;
+      try { json = await response.json(); }
+      catch { throw new CatalogLiveError("provider", response.status, "服务未返回有效 JSON，无法验证连接"); }
+      if (!json || typeof json !== "object") throw new CatalogLiveError("provider", response.status, "服务返回的内容无效");
       throwIfProviderPayloadFailed(json, response.status);
       return { status: response.status, json, headers: response.headers };
     },

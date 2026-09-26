@@ -25,7 +25,10 @@ import type { StartLensRun } from "../services/start-lens-run.js";
 import type { StartPulseRun } from "../services/start-pulse-run.js";
 import type { WorkspaceExportService } from "../services/workspace-export.js";
 
+import type { WorkReuseService } from "../../../work-reuse/service.js";
+
 export interface ApiDependencies {
+  workReuse: WorkReuseService;
   workspaceId: string;
   actorId: string;
   workspaceName?: string;

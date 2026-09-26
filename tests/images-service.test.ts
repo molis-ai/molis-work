@@ -9,17 +9,17 @@ import { setImmediate } from "node:timers/promises";
 import type { ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import { ImagesService, type ImagesSecretPort } from "../plugins/native/images/src/service.js";
 import { ImagesStore } from "../plugins/native/images/src/store.js";
-import type { ImageFetch } from "../plugins/native/images/src/providers.js";
+import type { ImageGeneration } from "../plugins/native/images/src/providers.js";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
-const success = () => new Response(JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }));
+const success = () => [{ bytes: PNG, mime: "image/png" }];
 const connectionInput = { name: "测试生图", api_format: "openai-images" as const, base_url: "https://provider.example/v1", model: "test-image", api_key: "only-in-secret-store" };
 
-function fixture(t: TestContext, fetch: ImageFetch = async () => success()) {
+function fixture(t: TestContext, generate: ImageGeneration = async () => success()) {
   const home = mkdtempSync(join(tmpdir(), "molis-images-"));
   const keys = new Map<string, string>();
   const secrets: ImagesSecretPort = { get: (reference) => keys.get(reference) ?? null, put: (reference, key) => { keys.set(reference, key); }, delete: (reference) => { keys.delete(reference); } };
-  const service = new ImagesService({ homeDirectory: home, secrets, fetch });
+  const service = new ImagesService({ homeDirectory: home, secrets, generate });
   t.after(async () => { await service.close(); rmSync(home, { recursive: true, force: true }); });
   return { home, service, keys, secrets };
 }
@@ -81,7 +81,7 @@ test("images: generation persists real bytes, isolates projects, and deduplicate
 });
 
 test("images: concurrency is capped per home across projects, cancellation frees capacity and late responses never overwrite it", async (t) => {
-  const resolvers: Array<(value: Response) => void> = [];
+  const resolvers: Array<(value: ReturnType<typeof success>) => void> = [];
   const { service, home, secrets } = fixture(t, () => new Promise((resolve) => { resolvers.push(resolve); }));
   assert.throws(() => new ImagesService({ homeDirectory: home, secrets }), { code: "images.already_open" });
   const connection = service.saveConnection(connectionInput);
@@ -105,7 +105,7 @@ test("images: concurrency is capped per home across projects, cancellation frees
   assert.equal(resolvers.length, 3);
 });
 
-test("images: a second Host process cannot interrupt a live runner's persisted jobs", async (t) => {
+test("images: a second Host process reads live jobs and closing it does not interrupt their owner", async (t) => {
   const { service, home } = fixture(t, () => new Promise(() => {}));
   const connection = service.saveConnection(connectionInput);
   const job = service.start("project-a", { request_id: "cross-process", connection_id: connection.id, prompt: "狐狸" });
@@ -114,24 +114,52 @@ test("images: a second Host process cannot interrupt a live runner's persisted j
   const script = `import { ImagesService } from ${JSON.stringify(moduleUrl)};
     try {
       const service = new ImagesService({homeDirectory:${JSON.stringify(home)},secrets:{get:()=>null,put:()=>{},delete:()=>{}}});
+      process.stdout.write(service.getJob('project-a', ${JSON.stringify(job.id)}).status);
       await service.close();
-      process.stdout.write('unexpected second runner');
     } catch(error) { process.stdout.write(error.code ?? 'unexpected error'); }`;
   const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
   assert.equal(child.status, 0, child.stderr);
-  assert.equal(child.stdout, "images.already_open");
+  assert.equal(child.stdout, "running");
   assert.equal(service.getJob("project-a", job.id).status, "running");
 });
 
-test("images: a generation captures its model and key when started, even if settings change before fetch", async (t) => {
-  const { service } = fixture(t, async (_url, init) => {
-    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer only-in-secret-store");
-    assert.equal(JSON.parse(String(init?.body)).model, "test-image");
+test("images: legacy running data recovers only after the old exclusive runner closes", async (t) => {
+  const { service, home, secrets } = fixture(t, () => new Promise(() => {}));
+  const connection = service.saveConnection(connectionInput);
+  const job = service.start("project-a", { request_id: "legacy", connection_id: connection.id, prompt: "legacy" });
+  await service.close();
+  const db = new DatabaseSync(join(home, "images", "images.db"));
+  db.prepare("UPDATE jobs SET status = 'running', runner_id = NULL, finished_at = NULL WHERE id = ?").run(job.id);
+  db.exec("ALTER TABLE jobs DROP COLUMN runner_id");
+  db.close();
+  const oldLock = new DatabaseSync(join(home, "images", ".runner-lock.db"));
+  oldLock.exec("BEGIN EXCLUSIVE");
+  try { assert.throws(() => new ImagesService({ homeDirectory: home, secrets }), { code: "images.already_open" }); }
+  finally { oldLock.close(); }
+  const restarted = new ImagesService({ homeDirectory: home, secrets });
+  try {
+    assert.equal(restarted.getJob("project-a", job.id).status, "interrupted");
+    assert.equal(restarted.listConnections()[0]!.id, connection.id);
+    // An old executable must also be excluded while the new runner is alive.
+    const module = new URL("node:sqlite").href;
+    const script = `import { DatabaseSync } from ${JSON.stringify(module)};
+      const lock = new DatabaseSync(${JSON.stringify(join(home, "images", ".runner-lock.db"))});
+      try { lock.exec('BEGIN EXCLUSIVE'); process.stdout.write('unexpected'); }
+      catch (error) { process.stdout.write(String(error.errcode)); }
+      finally { lock.close(); }`;
+    const child = spawnSync(process.execPath, ["--input-type=module", "-e", script], { encoding: "utf8", timeout: 10_000 });
+    assert.equal(child.status, 0, child.stderr); assert.equal(child.stdout, "5");
+  } finally { await restarted.close(); }
+});
+
+test("images: a generation passes its fixed model and credential reference to the Host", async (t) => {
+  const { service } = fixture(t, async input => {
+    assert.equal(input.resolveCredential(input.credential_ref), "only-in-secret-store");
+    assert.equal(input.model, "test-image");
     return success();
   });
   const connection = service.saveConnection(connectionInput);
   const job = service.start("project-a", { request_id: "snapshot", connection_id: connection.id, prompt: "狐狸" });
-  service.saveConnection({ ...connectionInput, id: connection.id, model: "new-model", api_key: "new-secret" });
   assert.equal((await settled(service, job)).status, "succeeded");
   assert.equal(service.getJob("project-a", job.id).model, "test-image");
 });
@@ -149,7 +177,7 @@ test("images: close and restart mark unfinished jobs interrupted and do not char
   const db = new DatabaseSync(join(home, "images", "images.db"));
   db.prepare("UPDATE jobs SET status = 'running', finished_at = NULL WHERE id = ?").run(job.id);
   db.close();
-  const restarted = new ImagesService({ homeDirectory: home, secrets, fetch: () => { calls += 1; return new Promise(() => {}); } });
+  const restarted = new ImagesService({ homeDirectory: home, secrets, generate: () => { calls += 1; return new Promise(() => {}); } });
   try {
     assert.equal(restarted.getJob("project-a", job.id).status, "interrupted");
     assert.equal(restarted.start("project-a", input).id, job.id);
@@ -160,8 +188,8 @@ test("images: close and restart mark unfinished jobs interrupted and do not char
 
 test("images: shutdown aborts every task and releases the runner when interruption writes fail", async (t) => {
   const signals: AbortSignal[] = [];
-  const { service, home, secrets } = fixture(t, (_url, init) => {
-    signals.push(init!.signal!);
+  const { service, home, secrets } = fixture(t, (_input, signal) => {
+    signals.push(signal);
     return new Promise(() => {});
   });
   const connection = service.saveConnection(connectionInput);
@@ -212,7 +240,7 @@ test("images: failed store initialization releases the runner even when database
     if (closes === 1) throw new Error("injected constructor cleanup failure");
   });
   assert.throws(() => new ImagesStore(home), /injected constructor cleanup failure/u);
-  assert.equal(closes, 2);
+  assert.equal(closes, 3);
   execMock.mock.restore();
   closeMock.mock.restore();
   const store = new ImagesStore(home);
@@ -236,8 +264,8 @@ test("images: provider exceptions are redacted and failed requests require a new
 });
 
 test("images: localhost can generate without a key and remote connections fail clearly until configured", async (t) => {
-  const { service } = fixture(t, async (_url, init) => {
-    assert.equal(new Headers(init?.headers).get("authorization"), null);
+  const { service } = fixture(t, async input => {
+    assert.equal(input.resolveCredential(input.credential_ref), "");
     return success();
   });
   const remote = service.saveConnection({ ...connectionInput, api_key: "" });
@@ -259,4 +287,55 @@ test("images: timeout ends local waiting without retry and reports uncertain rem
   assert.match(result.error, /180 秒/u);
   assert.match(result.error, /计费/u);
   assert.equal(calls, 1);
+});
+
+for (const change of ["model", "endpoint", "credential", "delete"] as const) {
+  test(`images: ${change} change while generating rejects stale bytes and preserves the prompt for retry`, async t => {
+    const entered = Promise.withResolvers<void>(), reply = Promise.withResolvers<ReturnType<typeof success>>();
+    const { service, home, keys } = fixture(t, async () => { entered.resolve(); return reply.promise; });
+    const connection = service.saveConnection(connectionInput);
+    const input = { request_id: `pending-${change}`, connection_id: connection.id, prompt: "保留的原始描述" };
+    const job = service.start("project-a", input);
+    await entered.promise;
+    if (change === "model") service.saveConnection({ ...connectionInput, id: connection.id, model: "changed-model", api_key: "" });
+    if (change === "endpoint") service.saveConnection({ ...connectionInput, id: connection.id, base_url: "https://changed.example/v1" });
+    if (change === "credential") keys.set(`images:${connection.id}`, "replacement-key");
+    if (change === "delete") service.deleteConnection(connection.id);
+    reply.resolve(success());
+    const result = await settled(service, job);
+    assert.equal(result.status, "failed");
+    assert.match(result.error, /改变或撤销/);
+    assert.equal(result.prompt, input.prompt);
+    assert.deepEqual(result.images, []);
+    assert.deepEqual(readdirSync(join(home, "images", "assets")), []);
+    assert.equal(service.start("project-a", input).id, job.id);
+  });
+}
+
+test("images: revocation between enqueue and dispatch prevents the model call", async t => {
+  let calls = 0;
+  const { service, keys } = fixture(t, async () => { calls++; return success(); });
+  const connection = service.saveConnection(connectionInput);
+  const job = service.start("project-a", { request_id: "before-dispatch", connection_id: connection.id, prompt: "原材料" });
+  keys.delete(`images:${connection.id}`);
+  assert.equal((await settled(service, job)).status, "failed");
+  assert.equal(calls, 0);
+});
+
+test("images: deferred Host credential resolution refuses a changed selection", async t => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const { service, keys } = fixture(t, async input => {
+    entered.resolve(); await release.promise;
+    input.resolveCredential(input.credential_ref);
+    assert.fail("a revoked credential must not reach model execution");
+  });
+  const connection = service.saveConnection(connectionInput);
+  const job = service.start("project-a", { request_id: "deferred-credential", connection_id: connection.id, prompt: "原始素材" });
+  await entered.promise;
+  keys.set(`images:${connection.id}`, "changed-key");
+  release.resolve();
+  const result = await settled(service, job);
+  assert.equal(result.status, "failed");
+  assert.match(result.error, /改变或撤销/);
+  assert.equal(result.prompt, "原始素材");
 });

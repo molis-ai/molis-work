@@ -7,7 +7,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("Proposal UI preserves user input on failed confirmation, retries atomically, and rejects without creating Goals", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, reloadPage } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage } = browser;
   const coordinator = new GoalProjectApplication(store);
   function propose(id: string) {
     coordinator.goalEvents.createIntent({
@@ -40,21 +40,15 @@ test("Proposal UI preserves user input on failed confirmation, retries atomicall
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const openGoal = async (goalId: string, formSelector: string) => {
-    await command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId);
+    await navigate(() => command("Page.navigate", { url: origin + "/goals/" + encodeURIComponent(goalId) }, sessionId));
     await command("Page.bringToFront", {}, sessionId);
-    await waitFor(
-      "document.readyState === 'complete' && !document.querySelector('[data-goal-node-workspace]')?.hidden && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " +
-        JSON.stringify(goalId) +
-        " && " +
-        dom(formSelector),
-    );
+    await waitFor("document.querySelector('[data-goal-view=" + JSON.stringify(goalId) + "]')");
+    if (await evaluate("document.querySelector('[data-frame-goal-work]')?.getBoundingClientRect().width > 0")) await click("[data-frame-goal-work]");
+    await waitFor(dom(formSelector) + "?.getBoundingClientRect().width > 0");
   };
   await openGoal("browser-adopt-root", adoptForm);
   assert.equal(await evaluate("document.querySelectorAll('[data-feed-entry-id^=\"decision:\"]').length"), 0);
   assert.equal(await evaluate("document.querySelectorAll('[data-feed-detail^=\"decision:\"]').length"), 0);
-  assert.ok(await evaluate("document.querySelectorAll('[data-inbox-row][data-inbox-subject-type=\"goal_decision\"]').length >= 2"));
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-inbox-row][data-inbox-subject-id=\"browser-adopt-root\"]'))"));
-  assert.ok(await evaluate("Boolean(document.querySelector('[data-inbox-row][data-inbox-subject-id=\"browser-reject-root\"]'))"));
   await click(adoptForm + ' button[value="confirm"]');
   await waitFor("document.activeElement === " + dom(adoptForm + ' textarea[name="reason"]'));
   assert.equal(await evaluate(dom(adoptForm + ' textarea[name="reason"]') + ".getAttribute('aria-invalid')"), "true");

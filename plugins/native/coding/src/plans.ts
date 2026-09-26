@@ -1,11 +1,16 @@
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { CONTINUATION_MARKER, originalTask, requestText } from "./continuation.js";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 
 export interface CodingPlanContent {
   title: string;
-  steps: Array<{ title: string; acceptance: string }>;
+  /**
+   * `after` names the earlier steps (1-based) a step waits for. Left out, a step waits for the one before it;
+   * an empty list means it can start right away. Only earlier steps can be named, so the graph has no cycles.
+   */
+  steps: Array<{ title: string; acceptance: string; after?: number[] }>;
   blockers: string;
   change_reason: string;
 }
@@ -23,13 +28,26 @@ export function parseCodingPlan(value: unknown): CodingPlanContent {
     return value.trim();
   };
   if (!Array.isArray(entry.steps) || !entry.steps.length || entry.steps.length > 20) throw new Error("计划需包含 1–20 个有序步骤");
-  const content = { title: text(entry.title, "计划标题", 200), steps: entry.steps.map((step: unknown) => {
+  const content = { title: text(entry.title, "计划标题", 200), steps: entry.steps.map((step: unknown, index: number) => {
     if (!step || typeof step !== "object" || Array.isArray(step)) throw new Error("计划步骤无效");
     const one = step as Record<string, unknown>;
-    return { title: text(one.title, "步骤", 1000), acceptance: text(one.acceptance, "完成条件", 1000) };
-  }), blockers: text(entry.blockers ?? "", "阻塞", 2000, true), change_reason: text(entry.change_reason ?? "", "变更说明", 2000, true) };
+    const parsed: { title: string; acceptance: string; after?: number[] } = { title: text(one.title, "步骤", 1000), acceptance: text(one.acceptance, "完成条件", 1000) };
+    if (one.after !== undefined && one.after !== null) {
+      if (!Array.isArray(one.after) || one.after.some(n => !Number.isSafeInteger(n) || n < 1 || n > index) || new Set(one.after).size !== one.after.length)
+        throw new Error(`第 ${index + 1} 步的前置步骤只能是它之前的步骤编号，且不能重复`);
+      parsed.after = [...one.after as number[]].sort((a, b) => a - b);
+    }
+    return parsed;
+  }), blockers: text(entry.blockers ?? "", "阻塞", 2000, true).replace(/^(无|没有|暂无|none|n\/a)[。.]?$/i, ""), change_reason: text(entry.change_reason ?? "", "变更说明", 2000, true) };
   if (JSON.stringify(content).length > 12_000) throw new Error("计划正文超过 12,000 字符，请保留具体步骤与完成条件");
   return content;
+}
+/**
+ * The steps a confirmed plan runs as: `step-N` ids, and each step's waits as step ids. A step that declares no
+ * `after` carries no `depends_on`, so plans written before steps could declare them freeze exactly as they did.
+ */
+export function executionSteps(content: CodingPlanContent): Array<{ id: string; title: string; acceptance: string; depends_on?: string[] }> {
+  return content.steps.map(({ after, ...step }, index) => ({ id: `step-${index + 1}`, ...step, ...(after ? { depends_on: after.map(n => `step-${n}`) } : {}) }));
 }
 export function parseCodingPlanAnswer(answer: string): CodingPlanContent {
   // Providers may prepend commentary. A single explicit JSON block is still
@@ -45,11 +63,23 @@ export function parseCodingPlanAnswer(answer: string): CodingPlanContent {
   try { parsed = JSON.parse(raw); } catch { throw new Error("模型没有返回有效计划，原回答仍保留。请补充要求让它重新规划。"); }
   return parseCodingPlan(parsed);
 }
-export function planFromRun(sessionId: string, run: AgentRunView): Omit<CodingPlanDraft, "revision" | "confirmed"> {
+/**
+ * The task a plan serves. A plan worked out over several planning rounds belongs to the request that started them;
+ * what was said in later planning rounds is kept as notes the plan already reflects, and a resumed round adds nothing
+ * of its own. `chain` runs oldest first and ends with the round the proposal came from.
+ */
+export function planTask(chain: readonly AgentRunView[]): string {
+  const [root, ...later] = chain;
+  const asked = (run: AgentRunView) => run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text).trim()).filter(Boolean);
+  const first = asked(root!)[0]?.startsWith(CONTINUATION_MARKER) ? [originalTask(root!).trim()] : asked(root!);
+  const notes = later.flatMap(asked).filter(text => !text.startsWith(CONTINUATION_MARKER));
+  return first.join("\n\n") + (notes.length ? "\n\n规划时补充的意见（已体现在确认的计划里）：\n" + notes.map(text => "- " + text).join("\n") : "");
+}
+export function planFromRun(sessionId: string, run: AgentRunView, earlier: readonly AgentRunView[] = []): Omit<CodingPlanDraft, "revision" | "confirmed"> {
   if (run.phase !== "completed" || run.frozen.role_id !== "planner") throw new Error("请等待规划轮次完成，再查看提案");
+  if (!run.frozen.directory) throw new Error("代码计划需要原授权工作区");
   const answer = run.turns.filter(turn => turn.kind === "assistant").at(-1)?.text.trim() ?? "";
-  const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => turn.text).join("\n\n");
-  return { content: parseCodingPlanAnswer(answer), source: { session_id: sessionId, run_id: run.ref.run_id, task, workspace_path: run.frozen.directory.canonical_path } };
+  return { content: parseCodingPlanAnswer(answer), source: { session_id: sessionId, run_id: run.ref.run_id, task: planTask([...earlier, run]), workspace_path: run.frozen.directory.canonical_path } };
 }
 export function planReference(sessionId: string, revision: number): ArtifactReference {
   return { artifact_id: `coding-plan:${sessionId}:${revision}`, version: 1 };
@@ -72,7 +102,7 @@ export function planMaterial(plan: CodingPlanDraft): AgentTextMaterial {
   const ref = plan.confirmed;
   const material = { material_id: `${ref.artifact_id}@${ref.version}`, source_artifact_id: ref.artifact_id,
     source_version: ref.version, title: `确认计划 / ${plan.content.title} / 修订 ${plan.revision}`,
-    text: `以下是用户确认的固定计划。按有序步骤核对实际完成条件；如发现阻塞或需要实质变更，说明证据并等待调整计划，不自行扩大范围。确认不批准任何文件修改或命令，不代表步骤已完成；执行、检查与用户验收分别报告。\n\n${JSON.stringify({ revision: plan.revision, ...plan.content }, null, 2)}` };
+    text: `以下是用户确认的固定计划。按有序步骤核对实际完成条件；如发现阻塞或需要实质变更，说明证据并等待调整计划，不自行扩大范围。确认不批准任何文件修改或命令，不代表步骤已完成；执行、检查与用户验收分别报告。${plan.content.steps.some(step => step.after) ? "步骤里的 after 是它等待的更早步骤编号：没写就等上一步，[] 表示不等任何步骤。" : ""}\n\n${JSON.stringify({ revision: plan.revision, ...plan.content }, null, 2)}` };
   agentTextMaterialContent(material);
   return material;
 }

@@ -1,18 +1,9 @@
 # @molis-ai/molis-work-plugin-workspace
 
-Publishes the project's working directory as a typed Artifact so Files, Git,
-Diff and Coding can bind to it through ordinary port wiring.
+Retired from the product catalog and runtime graph. There is no Workspace navigator entry. Directory association and browsing selection now live in Project Settings → Workspaces, through the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md).
 
-In FlyLeaf this was the `projects` Plugin, which both picked a directory and
-published it. Molis Work already owns project selection in the catalog, so this
-Plugin keeps only the half that was missing: turning the current project into a
-value other Plugins can consume.
+This package retains legacy contracts and data compatibility. Local Host migrates its saved `selected-workspace` once; catalog memberships and historical Artifacts remain intact. New consumers must use `projectSettingsCapabilities`, not Workspace output bindings.
 
-The published reference carries an **opaque Host handle**, never an absolute
-path. Resolving a handle to a directory stays a Host privilege, so a Plugin that
-was never granted filesystem access cannot learn the user's disk layout from an
-Artifact that happens to pass through it.
-
-- Status: `partial`
+- Status: `partial` (legacy compatibility only)
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`

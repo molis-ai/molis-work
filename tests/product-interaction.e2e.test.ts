@@ -27,7 +27,7 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(f=>f.contentDocument?.querySelector('[data-goal-view]')?.dataset.goalView==='CORE')");
 });
 
-test("Feed task creation is a scoped dialog with validation and persistent schedule", { timeout: 60_000 }, async t => {
+test("Feed task creation is a scoped panel with validation and persistent schedule", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = b;
   const catalog = await openMolisWorkProjectCatalog({homeDirectory});
@@ -38,7 +38,7 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
   await click('[data-plugin-id="feed"]');
   assert.equal(await evaluate("document.querySelector('[data-feed-advanced-open]')"), null);
   await click('[data-feed-add-toggle]');
-  await waitFor("document.querySelector('[data-feed-sources-dialog]').open");
+  await waitFor("!document.querySelector('[data-feed-sources-dialog]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-feed-add]')"), null);
   await click('[data-feed-choose-kind="custom_rss"]');
   assert.equal(await evaluate("document.querySelector('[data-feed-source-register]').parentElement === document.querySelector('[data-feed-sources-dialog] footer [data-feed-sources-close]').parentElement"), true);
@@ -48,15 +48,13 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
     document.querySelector('[data-feed-add-name]').value='设计观察';
     document.querySelector('[data-feed-source-value=custom_rss]').value='https://example.com/design.xml';
     document.querySelector('[data-feed-create-frequency]').value='360';
-    document.querySelector('[data-feed-add-out-rule-name]').value='发布相关';
-    document.querySelector('[data-feed-add-out-rule-contains]').value='launch';
   }`);
   await click('[data-feed-source-register]');
-  await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
+  await waitFor("!!document.querySelector('[data-feed-sources-dialog]').hidden");
   await waitFor("[...document.querySelectorAll('[data-feed-task]')].some(x=>x.textContent.includes('设计观察'))");
   const sourceId = await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(x=>x.textContent.includes('设计观察')).dataset.feedTask");
-  await click(`[data-feed-task-config-open="${sourceId}"]`);
-  assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').open"), true);
+  await click(`button[data-feed-view="settings"]`);
+  assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   assert.equal(await evaluate(`document.querySelector('[data-feed-task-config="${sourceId}"] [data-source-schedule-interval]').value`), "360");
   assert.equal(await evaluate(`document.querySelector('[data-feed-task-config="${sourceId}"] [data-source-schedule-enabled]').checked`), true);
   const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_BOARD_ID, sourceId);
@@ -66,6 +64,19 @@ test("Feed task creation is a scoped dialog with validation and persistent sched
     assert.equal(saved.schedule.enabled, true); assert.equal(saved.schedule.interval_minutes, 360);
     assert.ok(Date.parse(saved.schedule.next_pull_at!) > Date.now());
   }
+  createLocalFeedApplication(b.store.db).ingestItem({ source: saved, externalId: "browser-rule-preview", title: "Launch preview", summary: "Original material", body: "launch body", occurredAt: new Date().toISOString(), attention: false });
+  await click('button[data-feed-view="rules"]');
+  const section = `[data-feed-out-rules="${sourceId}"]`;
+  await evaluate(`{
+    document.querySelector('${section} [data-feed-out-rule-name]').value='发布相关';
+    document.querySelector('${section} [data-feed-out-rule-contains]').value='launch';
+  }`);
+  const beforePreview = createLocalFeedApplication(b.store.db).listOutRules(DEMO_BOARD_ID);
+  await click(section + ' [data-feed-rule-preview-run]');
+  await waitFor(`document.querySelector('${section} [data-feed-rule-preview]')?.textContent.includes('Launch preview')`);
+  assert.deepEqual(createLocalFeedApplication(b.store.db).listOutRules(DEMO_BOARD_ID), beforePreview, "preview has no rule write");
+  await click(section + ' [data-feed-out-rule-create]');
+  await waitFor(`document.querySelector('${section}')?.textContent.includes('发布相关')`);
   const rules = createLocalFeedApplication(b.store.db).listOutRules(DEMO_BOARD_ID)
     .filter((rule) => rule.match.source_id === sourceId);
   assert.equal(rules.length, 1);

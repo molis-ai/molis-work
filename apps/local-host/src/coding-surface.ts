@@ -1,32 +1,23 @@
-import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
-import { createCharactersPlugin, CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
+import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
+import { CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
-import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
-import { codingShelfMaterial } from "./coding-shelf-material.js";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
-import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
-import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
-  CODING_REPORT_TYPE,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
   CodingSessionStore,
-  createCodingPlugin,
   toDirectoryEntries,
   renderPendingQuestionCard,
   renderCodingReport,
+  codingNetChange,
+  HISTORY_DIGEST_MARKER,
   type CodingUiModel,
-  type CodingExecutionPorts,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
   DIFF_PLUGIN_ID,
   DIFF_PROJECT_PLUGIN_ID,
   DIFF_UI_CONTRIBUTION_ID,
-  createDiffPlugin,
   renderDiff,
   compareRunChangeSet,
   type DiffView,
@@ -37,7 +28,6 @@ import {
   FILES_PLUGIN_ID,
   FILES_PROJECT_PLUGIN_ID,
   FILES_UI_CONTRIBUTION_ID,
-  createFilesPlugin,
   renderFilesBrowserDirectory,
   renderFilesBrowserResult,
   pathKey,
@@ -49,7 +39,6 @@ import {
   GIT_PLUGIN_ID,
   GIT_PROJECT_PLUGIN_ID,
   GIT_UI_CONTRIBUTION_ID,
-  createGitPlugin,
   projectGit,
   parsePorcelainStatus,
   renderGitBrowserDirectory,
@@ -58,26 +47,14 @@ import {
 } from "@molis-ai/molis-work-plugin-git";
 import { listWorkspaceDirectory } from "./workspace-files.js";
 import { readWorkspaceGit } from "./workspace-git.js";
-import { createTextStatsPlugin, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
-import {
-  WORKSPACE_PLUGIN_ID,
-  WORKSPACE_PROJECT_PLUGIN_ID,
-  WORKSPACE_UI_CONTRIBUTION_ID,
-  createWorkspacePlugin,
-  projectWorkspace,
-  renderWorkspaceWorkbench,
-  type WorkspaceUiModel,
-} from "@molis-ai/molis-work-plugin-workspace";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { TEXT_STATS_PLUGIN_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
+
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-import { createPluginPlatform, type PluginPlatform } from "./plugin-platform.js";
-import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
-import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -89,126 +66,12 @@ import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
  * because one Plugin did.
  */
 
-export interface CodingSurfacePorts {
-  characterWorkspaces?: () => Promise<readonly ProjectWorkspaceRef[]>;
-  characterSpawn?: (request: import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnRequest) => import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnResult;
-  store: LocalProjectDatabase;
-  boardId: string;
-  actorId: string;
-  /** Sessions attach to Goals by id; the title is resolved here, never copied. */
-  goalTitle(goalId: string): string | undefined;
+export interface CodingSurfacePorts extends ProjectPluginPorts {
   escapeHtml(value: unknown): string;
   translate(value: string): string;
-  /** Directories bound to this project. Empty means none is bound yet. */
-  workspaces?: readonly ProjectWorkspaceRef[];
-  capabilities?: PluginCapabilityPort;
-  execution?: Omit<CodingExecutionPorts, "sessions" | "goalTitle">;
-  routePrefix?: string;
-  homeDirectory?: string;
 }
 
-interface Started {
-  platform: PluginPlatform;
-  running: boolean;
-  workspaceRunning: boolean;
-  error?: string;
-}
-
-const started = new WeakMap<LocalProjectDatabase, Map<string, Promise<Started>>>();
-
-/** Drops a project's platform, so a closed project does not keep one alive. */
-export async function releaseCodingSurface(store: LocalProjectDatabase, boardId: string): Promise<void> {
-  const boards = started.get(store);
-  const opening = boards?.get(boardId);
-  if (!opening) return;
-  boards!.delete(boardId);
-  const record = await opening;
-  if (!record.platform) return;
-  for (const pluginId of record.platform.supervisor.enabledPluginIds()) {
-    const active = record.platform.supervisor.state(pluginId);
-    record.platform.supervisor.revoke(pluginId);
-    if (active?.status === "running" && active.install_id) await record.platform.runtime.stop(active.install_id);
-  }
-}
-
-async function ensureStarted(ports: CodingSurfacePorts): Promise<Started> {
-  let boards = started.get(ports.store);
-  if (!boards) { boards = new Map(); started.set(ports.store, boards); }
-  const existing = boards.get(ports.boardId);
-  if (existing) return existing;
-  const opening = startPlatform(ports);
-  boards.set(ports.boardId, opening);
-  return opening;
-}
-
-async function startPlatform(ports: CodingSurfacePorts): Promise<Started> {
-  const record: Started = { platform: null as unknown as PluginPlatform, running: false, workspaceRunning: false };
-  try {
-    const storage = new SqlitePluginPrivateStorage(ports.store.db);
-    const artifacts = new ArtifactsModule({ db: ports.store.db, appendEvent: event => ports.store.appendEvent(event) });
-    const platform = createPluginPlatform({
-      board_id: ports.boardId,
-      actor_id: ports.actorId,
-      db: ports.store.db,
-      artifacts,
-      ui: new UiHost(),
-      privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
-      ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
-    });
-    /**
-     * The whole workspace family starts together.
-     *
-     * They form one graph — Workspace publishes, Files captures, Diff compares,
-     * Git decides, Text stats counts — and a graph with a missing node is not a
-     * smaller graph, it is a set of Plugins waiting on a source that will never
-     * arrive. Starting them together is also what registers their ports and
-     * event subscriptions, without which no binding can be made at all.
-     *
-     * Each still starts in isolation: one failing leaves its siblings running.
-     */
-    const report = await platform.start([
-      { definition: createCharactersPlugin(charactersPluginPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query, ports.characterWorkspaces ?? (async () => ports.workspaces ?? []), ports.characterSpawn)), replace_version: true },
-      { definition: createShelfPlugin(ports.homeDirectory ? {
-        references: () => artifacts.query.listArtifacts(ports.boardId).filter(item => item.producer_plugin_id === CODING_PLUGIN_ID
-          && [CODING_REPORT_TYPE, "coding.changeset.v1"].includes(item.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version })),
-        preview: record => codingShelfMaterial(record, ports.boardId, ports.routePrefix ?? ""),
-        receive: preview => {
-          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
-          const item = shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
-          return { item, snapshot: shelf.snapshot() };
-        },
-      } : undefined), replace_version: true },
-      { definition: createCodingPlugin(ports.execution ? { execution: {
-        ...ports.execution, sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
-        characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.boardId, artifacts.query),
-        materialReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
-          .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        reportReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        changeSetReferences: () => artifacts.query.listArtifacts(ports.boardId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-      } } : {}), replace_version: true },
-      { definition: createWorkspacePlugin({ currentWorkspaceId: () => currentWorkspaceId(ports) }), replace_version: true },
-      { definition: createFilesPlugin({ readable: () => currentWorkspaceId(ports) !== null }), replace_version: true },
-      { definition: createDiffPlugin(), replace_version: true },
-      { definition: createGitPlugin(), replace_version: true },
-      { definition: createTextStatsPlugin(), replace_version: true },
-    ]);
-    bindWorkspaceCompanions(platform, ports.boardId, ports.actorId);
-    record.platform = platform;
-    record.running = report.running.includes(CODING_PLUGIN_ID);
-    record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
-    record.workspaceRunning = report.running.includes(WORKSPACE_PLUGIN_ID);
-  } catch (error) {
-    record.error = error instanceof Error ? error.message : "Coding 启动失败";
-    record.running = false;
-    record.workspaceRunning = false;
-  }
-  return record;
-}
+export { releaseProjectPlugins as releaseCodingSurface } from "./project-plugins.js";
 
 export async function codingDirectoryPanel(
   ports: CodingSurfacePorts,
@@ -222,7 +85,7 @@ export async function codingWorkbenchPanel(ports: CodingSurfacePorts) {
 
 async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "workbench") {
   const record = await ensureStarted(ports);
-  if (!record.running) {
+  if (!record.running || !record.platform) {
     const message = ports.escapeHtml(record.error ?? "Coding 插件未能启动");
     const panel = surface === "directory"
       ? `<section class="mw-empty" role="alert"><p>${message}</p></section>`
@@ -282,11 +145,62 @@ export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promi
 
 /** Host dispatches only declared plugin routes, after the normal control guard. */
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
-  if (!/^\/api\/plugins\/io\.molis\.work\.(coding|workspace|files|git|diff|text-stats|shelf|characters)\//.test(url.pathname)) return false;
+  const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
+  const pluginRoute = url.pathname.match(/^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\/(.+)$/u);
+  if (!runtimeUpdates && !pluginRoute) return false;
   const record = await ensureStarted(ports);
-  const active = record.platform?.supervisor.state(url.pathname.split("/")[3]!);
-  if (active?.status !== "running") { sendLocalWebJson(response, 503, { error: active?.message ?? record.error ?? "插件未能启动" }); return true; }
-  const result = await record.platform.router().dispatch({
+  if (!record.platform) { sendLocalWebJson(response, 503, { error: record.error ?? "插件运行平台未能启动" }); return true; }
+  if (runtimeUpdates) {
+    const updates = record.platform.upgradeCandidates().map(candidate => ({
+      ...candidate,
+      project_plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === candidate.plugin_id)?.project_plugin_id ?? null,
+    }));
+    sendLocalWebJson(response, 200, { updates });
+    return true;
+  }
+  const pluginId = pluginRoute![1]!;
+  const active = record.platform.supervisor.state(pluginId);
+  // Native adapters and unrelated routes retain their own ownership. Runtime
+  // registration, rather than a second list of built-in IDs, decides this boundary.
+  if (!active) return false;
+  const operation = pluginRoute![2]!;
+  if (operation === "restart" || operation === "release-quarantine") {
+    if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "重试必须通过 POST 确认" }); return true; }
+    const state = await record.platform.supervisor.restart(pluginId, { release_quarantine: operation === "release-quarantine" });
+    if (pluginId === CODING_PLUGIN_ID) {
+      const active = record.platform.supervisor.state(pluginId);
+      record.running = active?.status === "running";
+      record.error = active?.message ?? undefined;
+    }
+    sendLocalWebJson(response, state.status === "running" ? 200 : 409, { state });
+    return true;
+  }
+  if (operation === "upgrade") {
+    if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "升级必须通过 POST 确认" }); return true; }
+    const state = await record.platform.upgrade(pluginId);
+    if (!state || state.status !== "running") {
+      sendLocalWebJson(response, 409, { error: state?.message ?? "插件升级失败", code: state?.code ?? "plugin_upgrade_failed" });
+      return true;
+    }
+    sendLocalWebJson(response, 200, {
+      state,
+      version: state.install_id ? record.platform.runtime.get(state.install_id).version : null,
+    });
+    return true;
+  }
+  const router = record.platform.router();
+  if (active.status !== "running") { sendLocalWebJson(response, 503, { error: active.message ?? "插件未能启动" }); return true; }
+  if (!router.match(request.method ?? "GET", url.pathname)) return false;
+  // Existing workspace outputs need a settings refresh before their consumers
+  // read them. Unrelated plugins must not cause Files reads or publications.
+  const filesOutputs = record.platform.supervisor.manifest(FILES_PLUGIN_ID)?.artifacts.produces ?? [];
+  const consumesFiles = record.platform.supervisor.manifest(pluginId)?.artifacts.consumes.some(input =>
+    filesOutputs.some(output => output.artifact_type_id === input.artifact_type_id && output.schema_version === input.schema_version));
+  if (consumesFiles) {
+    await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
+    await record.platform.wiring.drain();
+  }
+  const result = await router.dispatch({
     method: request.method ?? "GET", pathname: url.pathname, actor_id: ports.actorId,
     query: Object.fromEntries(url.searchParams),
     ...(["GET", "HEAD"].includes(request.method ?? "GET") ? {} : { body: await readLocalWebBody(request) }),
@@ -295,13 +209,17 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   await record.platform.wiring.drain();
   if (result.status === 200 && url.pathname.endsWith("/state")) {
     const content = result.body as { view?: unknown; html?: string };
-    if (content?.view && url.pathname.includes("/io.molis.work.diff/")) content.html = renderDiff({
+    if (content?.view && pluginId === DIFF_PLUGIN_ID) content.html = renderDiff({
       route_prefix: ports.routePrefix ?? "", view: content.view as DiffView,
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
     });
-    if (content?.view && url.pathname.includes("/io.molis.work.text-stats/")) content.html = renderTextStats({
+    if (content?.view && pluginId === TEXT_STATS_PLUGIN_ID) content.html = renderTextStats({
       view: content.view as TextStatsView, primitives: { escape: value => escapeHtml(String(value)) },
     });
+  }
+  if (pluginId !== CODING_PLUGIN_ID) {
+    sendLocalWebJson(response, result.status, result.body);
+    return true;
   }
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
@@ -309,7 +227,12 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   if (body?.runs) for (const run of body.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
-    for (const turn of run.turns) Object.assign(turn, { html: renderFeedRichText(turn.text) });
+    // A digest round's opening is drawn by the page from its text; rendering it as well would double what travels.
+    // After the SDK compacts context, earlier replies reach the model labelled "[retained assistant …]" or
+    // "[historical … run:…]", and it sometimes opens its answer with one or several of them. They are the SDK's
+    // bookkeeping, not something said to the person; only labels at the very start are dropped.
+    for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
+      html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     for (const question of run.awaiting_input) Object.assign(question, { html: renderPendingQuestionCard({
       questions: [question], primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]),
         text: value => value, formatDate: value => value },
@@ -322,11 +245,34 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   const reportBody = result.body as { report?: { title: string; body_markdown: string; run_id: string } } | undefined;
   const changeBody = result.body as { change?: import("@molis-ai/molis-work-contracts/modules/workspace-artifacts").CodingChangeSet; reference?: { version: number }; html?: string } | undefined;
   if (result.status === 200 && changeBody?.change) {
-    const changeIndex = Number(url.searchParams.get("change_index") ?? 0);
-    const view = compareRunChangeSet({ content: changeBody.change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
-      Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1);
-    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference),
+    const change = changeBody.change, changeIndex = Number(url.searchParams.get("change_index") ?? 0);
+    const index = Number.isSafeInteger(changeIndex) && changeIndex >= 0 ? changeIndex : -1, chosen = change.files[index];
+    // A file written several times reads best as one net change, but only when that is exactly what happened.
+    const requested = url.searchParams.get("net"), net = chosen && (requested === "1" || requested === "auto") ? codingNetChange(change, chosen.path) : null;
+    const netFiles = net?.available ? (() => {
+      const first = change.files[net.indices[0]!]!, last = change.files[net.indices.at(-1)!]!;
+      return [{ ...last, kind: first.kind, review: { ...last.review!, before_text: net.before_text } }];
+    })() : null;
+    const view = compareRunChangeSet({ content: netFiles ? { ...change, files: netFiles } : change, source_plugin_id: CODING_PLUGIN_ID, content_version: changeBody.reference?.version ?? 1 }, undefined,
+      netFiles ? 0 : index);
+    const groups = [...new Set(change.files.map(file => file.path))].map(path => ({ path, ...codingNetChange(change, path) })).filter(group => group.indices.length > 1);
+    Object.assign(changeBody, { view_mode: netFiles ? "net" : "write",
+      net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available, ...(group.available ? {} : { reason: group.reason }) })) });
+    changeBody.html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+  }
+  // A child's results read as diffs against the main workspace, folded like the change reader, not as two full copies.
+  const integrationBody = result.body as { files?: Array<{ path: string[]; before_text?: string | null; after_text?: string | null; diff_html?: string }> } | undefined;
+  if (result.status === 200 && (request.method ?? "GET") === "GET" && url.pathname.endsWith("/integration") && Array.isArray(integrationBody?.files)) {
+    for (const file of integrationBody.files) {
+      if (file.before_text === undefined || file.after_text === undefined) continue;
+      const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", files: [{ path: file.path.join("/"),
+        kind: file.before_text === null ? "added" : file.after_text === null ? "deleted" : "modified", added_lines: 0, removed_lines: 0, diff: "",
+        review: { review_id: "integration", before_text: file.before_text, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
+        source_plugin_id: CODING_PLUGIN_ID, content_version: 1 }, undefined, 0);
+      file.diff_html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", fold_context: 3, sides: false,
+        primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+    }
   }
   if (result.status === 200 && reportBody?.report) {
     const report = reportBody.report;
@@ -337,66 +283,6 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   }
   sendLocalWebJson(response, result.status, result.body);
   return true;
-}
-
-/**
- * Which directory this project is working in.
- *
- * Exactly one bound directory is an answer. Several with nothing to choose
- * between them is not: picking one would silently point every downstream Plugin
- * at a directory the user never chose.
- */
-function currentWorkspaceId(ports: CodingSurfacePorts): string | null {
-  const workspaces = ports.workspaces ?? [];
-  return workspaces.length === 1 ? workspaces[0]!.workspace_id : null;
-}
-
-/** Workspace's own panel, rendered by the Plugin, from the project catalog. */
-export async function workspaceDirectoryPanel(
-  ports: CodingSurfacePorts,
-): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureStarted(ports);
-  if (!record.workspaceRunning) return null;
-  const contribution = record.platform.supervisor.contribution(WORKSPACE_PLUGIN_ID);
-  const views = (contribution as { views?: ReadonlyArray<{
-    descriptor: { contribution_id: string };
-    render(request: { surface: string; model: WorkspaceUiModel }): string;
-  }> } | null)?.views ?? [];
-  const view = views.find((entry) => entry.descriptor.contribution_id === WORKSPACE_UI_CONTRIBUTION_ID);
-  if (!view) return null;
-
-  try {
-    const workspaces = ports.workspaces ?? [];
-    const currentId = currentWorkspaceId(ports);
-    const current = workspaces.find((entry) => entry.workspace_id === currentId) ?? null;
-    const model: WorkspaceUiModel = {
-      route_prefix: "",
-      view: projectWorkspace({
-        current: current === null
-          ? null
-          : {
-            workspace_id: current.workspace_id,
-            name: current.display_name,
-            handle: current.workspace_id,
-          },
-        // The catalog already checked the real path when it recorded the row;
-        // an unverified row is one the Host could not resolve.
-        resolvable: current?.realpath_verified === true,
-        candidates: workspaces.map((entry) => ({
-          workspace_id: entry.workspace_id,
-          name: entry.display_name,
-          resolvable: entry.realpath_verified,
-        })),
-      }),
-      primitives: {
-        escape: ports.escapeHtml,
-        icon: (name) => icon(name as Parameters<typeof icon>[0]),
-      },
-    };
-    return { panel: view.render({ surface: "source", model }), plugin_id: WORKSPACE_PROJECT_PLUGIN_ID };
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -539,14 +425,13 @@ function failedStage(plugin: string, message: string): string {
 /** Compose the running companions into the same main-stage contract as other apps. */
 export async function codingCompanionStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<string[]> {
   const record = await ensureStarted(ports);
-  return ["workspace", "files", "git", "diff", "text-stats"].filter(id => enabled.includes(id)).map(id => {
+  return ["files", "git", "diff", "text-stats"].filter(id => enabled.includes(id)).map(id => {
     const active = record.platform?.supervisor.state("io.molis.work." + id);
     if (active?.status !== "running") return failedStage(id, active?.message ?? "插件未能启动，请重新打开页面");
-    const openWorkspace = `<button class="mw-btn mw-btn--ghost companion-manage" type="button" data-companion-open="workspace">${icon("folder-tree")}<span>管理工作目录</span>${icon("chevron-right")}</button>`;
+    const openWorkspace = `<a class="mw-btn mw-btn--ghost companion-manage" href="${escapeHtml(ports.routePrefix ?? "")}/settings/workspaces">${icon("folder-tree")}<span>工作目录设置</span>${icon("chevron-right")}</a>`;
     let body: string;
-    if (id === "workspace") body = renderWorkspaceWorkbench();
-    else if (id === "files" || id === "git") {
-      const directory = id === "files" ? renderFilesBrowserDirectory() : `<label class="mw-field"><span class="mw-field__label">浏览工作区</span><select class="mw-select" data-companion-workspace aria-label="Git 浏览工作区"></select></label>` + renderGitBrowserDirectory();
+    if (id === "files" || id === "git") {
+      const directory = id === "files" ? renderFilesBrowserDirectory() : renderGitBrowserDirectory();
       const result = id === "files" ? renderFilesBrowserResult() : renderGitBrowserResult();
       body = `<div class="companion-layout">${renderSidebar({className:"companion-directory",header:openWorkspace,body:directory})}<div class="companion-result">${renderEmpty({className:"companion-empty",icon:id === "files" ? "file" : "git-branch",title:id === "files" ? "打开文件，开始阅读" : "查看工作区的改动",body:id === "files" ? "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。" : "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。"})}${result}</div></div>`;
     } else {

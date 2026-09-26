@@ -1,0 +1,478 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-24T09:32:26.034987+00:00",
+  "title": "Design System: Molis Work Context Onboarding",
+  "extensions": {
+    "colorMeta": {
+      "page": {
+        "role": "neutral",
+        "displayName": "浅色 · 外层工作场",
+        "tonalRamp": [
+          "oklch(15% 0.0017 247.84)",
+          "oklch(26% 0.0017 247.84)",
+          "oklch(38% 0.0017 247.84)",
+          "oklch(49% 0.0017 247.84)",
+          "oklch(61% 0.0017 247.84)",
+          "oklch(72% 0.0017 247.84)",
+          "oklch(84% 0.0017 247.84)",
+          "oklch(95% 0.0017 247.84)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "浅色 · 内容纸面",
+        "tonalRamp": [
+          "oklch(15% 0.0000 0.00)",
+          "oklch(26% 0.0000 0.00)",
+          "oklch(38% 0.0000 0.00)",
+          "oklch(49% 0.0000 0.00)",
+          "oklch(61% 0.0000 0.00)",
+          "oklch(72% 0.0000 0.00)",
+          "oklch(84% 0.0000 0.00)",
+          "oklch(95% 0.0000 0.00)"
+        ]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "浅色 · 范围底面",
+        "tonalRamp": [
+          "oklch(15% 0.0017 247.84)",
+          "oklch(26% 0.0017 247.84)",
+          "oklch(38% 0.0017 247.84)",
+          "oklch(49% 0.0017 247.84)",
+          "oklch(61% 0.0017 247.84)",
+          "oklch(72% 0.0017 247.84)",
+          "oklch(84% 0.0017 247.84)",
+          "oklch(95% 0.0017 247.84)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "浅色 · 主文字",
+        "tonalRamp": [
+          "oklch(15% 0.0058 271.19)",
+          "oklch(26% 0.0058 271.19)",
+          "oklch(38% 0.0058 271.19)",
+          "oklch(49% 0.0058 271.19)",
+          "oklch(61% 0.0058 271.19)",
+          "oklch(72% 0.0058 271.19)",
+          "oklch(84% 0.0058 271.19)",
+          "oklch(95% 0.0058 271.19)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "浅色 · 次级文字",
+        "tonalRamp": [
+          "oklch(15% 0.0154 262.34)",
+          "oklch(26% 0.0154 262.34)",
+          "oklch(38% 0.0154 262.34)",
+          "oklch(49% 0.0154 262.34)",
+          "oklch(61% 0.0154 262.34)",
+          "oklch(72% 0.0154 262.34)",
+          "oklch(84% 0.0154 262.34)",
+          "oklch(95% 0.0154 262.34)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "浅色 · 分隔线",
+        "tonalRamp": [
+          "oklch(15% 0.0046 258.33)",
+          "oklch(26% 0.0046 258.33)",
+          "oklch(38% 0.0046 258.33)",
+          "oklch(49% 0.0046 258.33)",
+          "oklch(61% 0.0046 258.33)",
+          "oklch(72% 0.0046 258.33)",
+          "oklch(84% 0.0046 258.33)",
+          "oklch(95% 0.0046 258.33)"
+        ]
+      },
+      "action": {
+        "role": "primary",
+        "displayName": "浅色 · 主动作",
+        "tonalRamp": [
+          "oklch(15% 0.0058 271.19)",
+          "oklch(26% 0.0058 271.19)",
+          "oklch(38% 0.0058 271.19)",
+          "oklch(49% 0.0058 271.19)",
+          "oklch(61% 0.0058 271.19)",
+          "oklch(72% 0.0058 271.19)",
+          "oklch(84% 0.0058 271.19)",
+          "oklch(95% 0.0058 271.19)"
+        ]
+      },
+      "on-action": {
+        "role": "primary",
+        "displayName": "浅色 · 主动作文字",
+        "tonalRamp": [
+          "oklch(15% 0.0000 0.00)",
+          "oklch(26% 0.0000 0.00)",
+          "oklch(38% 0.0000 0.00)",
+          "oklch(49% 0.0000 0.00)",
+          "oklch(61% 0.0000 0.00)",
+          "oklch(72% 0.0000 0.00)",
+          "oklch(84% 0.0000 0.00)",
+          "oklch(95% 0.0000 0.00)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "浅色 · 靛蓝强调",
+        "tonalRamp": [
+          "oklch(15% 0.1585 275.21)",
+          "oklch(26% 0.1585 275.21)",
+          "oklch(38% 0.1585 275.21)",
+          "oklch(49% 0.1585 275.21)",
+          "oklch(61% 0.1585 275.21)",
+          "oklch(72% 0.1585 275.21)",
+          "oklch(84% 0.1585 275.21)",
+          "oklch(95% 0.1585 275.21)"
+        ]
+      },
+      "ready": {
+        "role": "status",
+        "displayName": "浅色 · 可读取",
+        "tonalRamp": [
+          "oklch(15% 0.0585 165.61)",
+          "oklch(26% 0.0585 165.61)",
+          "oklch(38% 0.0585 165.61)",
+          "oklch(49% 0.0585 165.61)",
+          "oklch(61% 0.0585 165.61)",
+          "oklch(72% 0.0585 165.61)",
+          "oklch(84% 0.0585 165.61)",
+          "oklch(95% 0.0585 165.61)"
+        ]
+      },
+      "error": {
+        "role": "status",
+        "displayName": "浅色 · 错误反馈",
+        "tonalRamp": [
+          "oklch(15% 0.1342 18.87)",
+          "oklch(26% 0.1342 18.87)",
+          "oklch(38% 0.1342 18.87)",
+          "oklch(49% 0.1342 18.87)",
+          "oklch(61% 0.1342 18.87)",
+          "oklch(72% 0.1342 18.87)",
+          "oklch(84% 0.1342 18.87)",
+          "oklch(95% 0.1342 18.87)"
+        ]
+      },
+      "dark-page": {
+        "role": "neutral",
+        "displayName": "深色 · 外层工作场",
+        "tonalRamp": [
+          "oklch(15% 0.0026 247.98)",
+          "oklch(26% 0.0026 247.98)",
+          "oklch(38% 0.0026 247.98)",
+          "oklch(49% 0.0026 247.98)",
+          "oklch(61% 0.0026 247.98)",
+          "oklch(72% 0.0026 247.98)",
+          "oklch(84% 0.0026 247.98)",
+          "oklch(95% 0.0026 247.98)"
+        ]
+      },
+      "dark-paper": {
+        "role": "neutral",
+        "displayName": "深色 · 内容纸面",
+        "tonalRamp": [
+          "oklch(15% 0.0025 247.95)",
+          "oklch(26% 0.0025 247.95)",
+          "oklch(38% 0.0025 247.95)",
+          "oklch(49% 0.0025 247.95)",
+          "oklch(61% 0.0025 247.95)",
+          "oklch(72% 0.0025 247.95)",
+          "oklch(84% 0.0025 247.95)",
+          "oklch(95% 0.0025 247.95)"
+        ]
+      },
+      "dark-wash": {
+        "role": "neutral",
+        "displayName": "深色 · 范围底面",
+        "tonalRamp": [
+          "oklch(15% 0.0057 285.93)",
+          "oklch(26% 0.0057 285.93)",
+          "oklch(38% 0.0057 285.93)",
+          "oklch(49% 0.0057 285.93)",
+          "oklch(61% 0.0057 285.93)",
+          "oklch(72% 0.0057 285.93)",
+          "oklch(84% 0.0057 285.93)",
+          "oklch(95% 0.0057 285.93)"
+        ]
+      },
+      "dark-ink": {
+        "role": "neutral",
+        "displayName": "深色 · 主文字",
+        "tonalRamp": [
+          "oklch(15% 0.0011 197.14)",
+          "oklch(26% 0.0011 197.14)",
+          "oklch(38% 0.0011 197.14)",
+          "oklch(49% 0.0011 197.14)",
+          "oklch(61% 0.0011 197.14)",
+          "oklch(72% 0.0011 197.14)",
+          "oklch(84% 0.0011 197.14)",
+          "oklch(95% 0.0011 197.14)"
+        ]
+      },
+      "dark-muted": {
+        "role": "neutral",
+        "displayName": "深色 · 次级文字",
+        "tonalRamp": [
+          "oklch(15% 0.0146 262.36)",
+          "oklch(26% 0.0146 262.36)",
+          "oklch(38% 0.0146 262.36)",
+          "oklch(49% 0.0146 262.36)",
+          "oklch(61% 0.0146 262.36)",
+          "oklch(72% 0.0146 262.36)",
+          "oklch(84% 0.0146 262.36)",
+          "oklch(95% 0.0146 262.36)"
+        ]
+      },
+      "dark-line": {
+        "role": "neutral",
+        "displayName": "深色 · 分隔线",
+        "tonalRamp": [
+          "oklch(15% 0.0098 268.31)",
+          "oklch(26% 0.0098 268.31)",
+          "oklch(38% 0.0098 268.31)",
+          "oklch(49% 0.0098 268.31)",
+          "oklch(61% 0.0098 268.31)",
+          "oklch(72% 0.0098 268.31)",
+          "oklch(84% 0.0098 268.31)",
+          "oklch(95% 0.0098 268.31)"
+        ]
+      },
+      "dark-action": {
+        "role": "primary",
+        "displayName": "深色 · 主动作",
+        "tonalRamp": [
+          "oklch(15% 0.0011 197.14)",
+          "oklch(26% 0.0011 197.14)",
+          "oklch(38% 0.0011 197.14)",
+          "oklch(49% 0.0011 197.14)",
+          "oklch(61% 0.0011 197.14)",
+          "oklch(72% 0.0011 197.14)",
+          "oklch(84% 0.0011 197.14)",
+          "oklch(95% 0.0011 197.14)"
+        ]
+      },
+      "dark-on-action": {
+        "role": "primary",
+        "displayName": "深色 · 主动作文字",
+        "tonalRamp": [
+          "oklch(15% 0.0058 271.19)",
+          "oklch(26% 0.0058 271.19)",
+          "oklch(38% 0.0058 271.19)",
+          "oklch(49% 0.0058 271.19)",
+          "oklch(61% 0.0058 271.19)",
+          "oklch(72% 0.0058 271.19)",
+          "oklch(84% 0.0058 271.19)",
+          "oklch(95% 0.0058 271.19)"
+        ]
+      },
+      "dark-accent": {
+        "role": "primary",
+        "displayName": "深色 · 靛蓝强调",
+        "tonalRamp": [
+          "oklch(15% 0.1373 278.50)",
+          "oklch(26% 0.1373 278.50)",
+          "oklch(38% 0.1373 278.50)",
+          "oklch(49% 0.1373 278.50)",
+          "oklch(61% 0.1373 278.50)",
+          "oklch(72% 0.1373 278.50)",
+          "oklch(84% 0.1373 278.50)",
+          "oklch(95% 0.1373 278.50)"
+        ]
+      },
+      "dark-ready": {
+        "role": "status",
+        "displayName": "深色 · 可读取",
+        "tonalRamp": [
+          "oklch(15% 0.1064 161.87)",
+          "oklch(26% 0.1064 161.87)",
+          "oklch(38% 0.1064 161.87)",
+          "oklch(49% 0.1064 161.87)",
+          "oklch(61% 0.1064 161.87)",
+          "oklch(72% 0.1064 161.87)",
+          "oklch(84% 0.1064 161.87)",
+          "oklch(95% 0.1064 161.87)"
+        ]
+      },
+      "dark-error": {
+        "role": "status",
+        "displayName": "深色 · 错误反馈",
+        "tonalRamp": [
+          "oklch(15% 0.1285 16.50)",
+          "oklch(26% 0.1285 16.50)",
+          "oklch(38% 0.1285 16.50)",
+          "oklch(49% 0.1285 16.50)",
+          "oklch(61% 0.1285 16.50)",
+          "oklch(72% 0.1285 16.50)",
+          "oklch(84% 0.1285 16.50)",
+          "oklch(95% 0.1285 16.50)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "介绍标题",
+        "purpose": "清单与读取页的任务介绍，窄屏降低字号。"
+      },
+      "title": {
+        "displayName": "面板标题",
+        "purpose": "清单头部的内容问题。"
+      },
+      "body": {
+        "displayName": "正文",
+        "purpose": "页面默认阅读层级。"
+      },
+      "control": {
+        "displayName": "操作",
+        "purpose": "常规按钮文字。"
+      },
+      "label": {
+        "displayName": "标签",
+        "purpose": "字段、范围及次级说明。"
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel-rest",
+        "value": "0 4px 24px #00000002",
+        "purpose": "清单外轮廓的极弱柔和深度。"
+      }
+    ],
+    "motion": [
+      {
+        "name": "reading-progress",
+        "value": "transform .3s",
+        "purpose": "已读来源进度；通过 scaleX 改变，遵循 reduced motion。"
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation:none!important;transition:none!important",
+        "purpose": "prefers-reduced-motion: reduce 时关闭动态效果。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1100px"
+      },
+      {
+        "name": "single-column",
+        "value": "780px"
+      },
+      {
+        "name": "narrow",
+        "value": "480px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主按钮",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "当前切片已实现的按钮变体；焦点颜色记录局部现状。",
+      "html": "<button type=\"button\" class=\"ds-button-primary\">开始整理<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M12 5l7 7-7 7\"/></svg></button>",
+      "css": ".ds-button-primary{font-family:Inter,\"Noto Sans SC\",system-ui,sans-serif;font-size:13px;font-weight:500;line-height:1.65;border:1px solid var(--cx-line,#e2e4e7);background:var(--cx-paper,#fff);color:var(--cx-ink,#222326);border-radius:7px;min-height:40px;padding:9px 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;cursor:pointer;background:var(--cx-action,#222326);border-color:var(--cx-action,#222326);color:var(--cx-on,#fff);min-width:154px;}.ds-button-primary:hover{filter:brightness(.9);}.ds-button-primary:focus-visible{outline:2px solid var(--cx-accent,#5e6ad2);outline-offset:4px;}.ds-button-primary:disabled{opacity:.45;cursor:not-allowed}.ds-button-primary svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}"
+    },
+    {
+      "name": "次按钮",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "当前切片已实现的按钮变体；焦点颜色记录局部现状。",
+      "html": "<button type=\"button\" class=\"ds-button-secondary\">关闭</button>",
+      "css": ".ds-button-secondary{font-family:Inter,\"Noto Sans SC\",system-ui,sans-serif;font-size:13px;font-weight:500;line-height:1.65;border:1px solid var(--cx-line,#e2e4e7);background:var(--cx-paper,#fff);color:var(--cx-ink,#222326);border-radius:7px;min-height:40px;padding:9px 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;cursor:pointer;}.ds-button-secondary:hover{background:var(--cx-wash,#f8f9fa);}.ds-button-secondary:focus-visible{outline:2px solid var(--cx-accent,#5e6ad2);outline-offset:4px;}.ds-button-secondary:disabled{opacity:.45;cursor:not-allowed}.ds-button-secondary svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}"
+    },
+    {
+      "name": "轻量按钮",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "当前切片已实现的按钮变体；焦点颜色记录局部现状。",
+      "html": "<button type=\"button\" class=\"ds-button-quiet\">返回</button>",
+      "css": ".ds-button-quiet{font-family:Inter,\"Noto Sans SC\",system-ui,sans-serif;font-size:13px;font-weight:500;line-height:1.65;border:1px solid var(--cx-line,#e2e4e7);background:var(--cx-paper,#fff);color:var(--cx-ink,#222326);border-radius:7px;min-height:40px;padding:9px 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;cursor:pointer;background:transparent;border-color:transparent;color:var(--cx-muted,#676c75);}.ds-button-quiet:hover{background:transparent;}.ds-button-quiet:focus-visible{outline:2px solid var(--cx-accent,#5e6ad2);outline-offset:4px;}.ds-button-quiet:disabled{opacity:.45;cursor:not-allowed}.ds-button-quiet svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}"
+    },
+    {
+      "name": "内容字段",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "项目名称与范围编辑共享的纸面字段。",
+      "html": "<label class=\"ds-field-label\" for=\"ds-project-name\">项目名称</label><input id=\"ds-project-name\" class=\"ds-field\" value=\"待命名项目\">",
+      "css": ".ds-field-label{display:block;font:12px/1.65 Inter,\"Noto Sans SC\",system-ui,sans-serif;color:var(--cx-muted,#676c75);margin-bottom:7px}.ds-field{display:block;width:100%;font:14px/1.65 Inter,\"Noto Sans SC\",system-ui,sans-serif;border:1px solid var(--cx-line,#e2e4e7);background:var(--cx-paper,#fff);color:var(--cx-ink,#222326);border-radius:6px;padding:10px 12px;min-height:42px}.ds-field:focus-visible{outline:2px solid var(--cx-accent,#5e6ad2);outline-offset:4px;}@media(max-width:480px){.ds-field{font-size:16px}}"
+    },
+    {
+      "name": "连续内容面",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "清单共享外轮廓；内部通过分隔线保持连续。",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-head\"><h2>想带入哪些内容？</h2></header><div class=\"ds-panel-copy\">选择本次整理需要的来源。</div></section>",
+      "css": ".ds-panel{font:14px/1.65 Inter,\"Noto Sans SC\",system-ui,sans-serif;color:var(--cx-ink,#222326);background:var(--cx-paper,#fff);border:1px solid var(--cx-line,#e2e4e7);border-radius:12px;overflow:hidden;box-shadow:0 4px 24px #00000002}.ds-panel-head{padding:26px 28px;border-bottom:1px solid var(--cx-line,#e2e4e7)}.ds-panel-head h2{font-size:18px;font-weight:550;letter-spacing:-.4px;margin:0}.ds-panel-copy{padding:24px 28px;color:var(--cx-muted,#676c75)}"
+    },
+    {
+      "name": "来源行",
+      "kind": "custom",
+      "refersTo": "source-row",
+      "description": "选择、图标、名称、状态、范围在同一行内；示例为待添加的文件夹。",
+      "html": "<div class=\"ds-source-row\"><label class=\"ds-source\"><input class=\"ds-source-check\" type=\"checkbox\" checked><svg class=\"ds-source-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z\"/></svg><span class=\"ds-source-copy\"><span class=\"ds-source-title\">文件夹资料 <span class=\"ds-source-status\">待添加</span></span><small>选择一个工作文件夹中的文本资料</small></span></label><button type=\"button\" class=\"ds-source-action\" aria-label=\"调整文件夹资料范围\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></button></div>",
+      "css": ".ds-source-row{font:14px/1.65 Inter,\"Noto Sans SC\",system-ui,sans-serif;color:var(--cx-ink,#222326);background:color-mix(in srgb,var(--cx-accent,#5e6ad2) 2%,var(--cx-paper,#fff));border-bottom:1px solid var(--cx-line,#e2e4e7);min-height:99px;padding:21px 25px;display:flex;align-items:center;gap:12px}.ds-source{display:flex;align-items:center;gap:17px;flex:1;min-width:0;cursor:pointer}.ds-source-check{width:17px;height:17px;accent-color:var(--cx-action,#222326);margin:0;flex-shrink:0;cursor:pointer}.ds-source-copy{min-width:0;flex:1}.ds-source-title{font-size:14px;font-weight:520;display:flex;align-items:center;gap:9px;flex-wrap:wrap}.ds-source-status{font-size:11px;font-weight:400;color:var(--cx-muted,#676c75)}.ds-source-copy small{display:block;font-size:12px;color:var(--cx-muted,#676c75);margin-top:4px;overflow-wrap:anywhere}.ds-source-action{font-family:Inter,\"Noto Sans SC\",system-ui,sans-serif;font-size:13px;font-weight:500;line-height:1.65;border:1px solid var(--cx-line,#e2e4e7);background:var(--cx-paper,#fff);color:var(--cx-ink,#222326);border-radius:7px;min-height:40px;padding:9px 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;cursor:pointer;background:transparent;border-color:transparent;color:var(--cx-muted,#676c75);padding:6px 10px;min-height:36px;flex-shrink:0}.ds-source-row svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;}.ds-source-row .ds-source-icon{width:25px;height:25px;color:var(--cx-accent,#5e6ad2)}.ds-source-check:focus-visible,.ds-source-action:focus-visible{outline:2px solid var(--cx-accent,#5e6ad2);outline-offset:4px;}@media(max-width:480px){.ds-source-row{padding:17px 15px;gap:6px;flex-wrap:wrap}.ds-source{min-width:175px;gap:11px}.ds-source-row .ds-source-icon{width:22px;height:22px}.ds-source-copy small{font-size:11px}.ds-source-action{min-height:40px;padding:5px 8px}}"
+    },
+    {
+      "name": "正文引用",
+      "kind": "button",
+      "refersTo": "citation",
+      "description": "紧贴摘要正文的引用入口，点击后读取对应原文；此独立样式示例不接业务。",
+      "html": "<p class=\"ds-citation-line\">摘要中的判断保留来源 <button type=\"button\" class=\"ds-citation\" aria-label=\"查看来源 S1\">[S1]</button></p>",
+      "css": ".ds-citation-line{font:14px/1.95 Inter,\"Noto Sans SC\",system-ui,sans-serif;color:var(--cx-ink,#222326)}.ds-citation{color:var(--cx-accent,#5e6ad2);border:0;background:var(--cx-wash,#f8f9fa);padding:0 4px;border-radius:3px;font:inherit;cursor:pointer}.ds-citation:focus-visible{outline:2px solid var(--cx-accent,#5e6ad2);outline-offset:4px;}"
+    },
+    {
+      "name": "来源参考",
+      "kind": "button",
+      "refersTo": "source-reference",
+      "description": "名称与版本保持可读；来源名称允许完整折行。",
+      "html": "<button type=\"button\" class=\"ds-reference\"><span>S1 · 版本 1</span>导入的工作说明.md</button>",
+      "css": ".ds-reference{font:12px/1.65 Inter,\"Noto Sans SC\",system-ui,sans-serif;display:block;width:100%;background:transparent;text-align:left;border:0;border-bottom:1px solid var(--cx-line,#e2e4e7);padding:14px 0;overflow-wrap:anywhere;color:var(--cx-muted,#676c75);cursor:pointer}.ds-reference span{color:var(--cx-accent,#5e6ad2);display:block;font-size:10px}.ds-reference:focus-visible{outline:2px solid var(--cx-accent,#5e6ad2);outline-offset:4px;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "安静的中性色工作台",
+    "overview": "本记录描述已实现的来源清单、读入状态和项目建议页面。沿用 Molis Work 的 Linear × coss.ui 视觉世界：中性色承载阅读与操作，细线区分内容，少量靛蓝提示来源、引用和进度。说明、材料与动作清楚分层，视觉密度随任务阶段变化。\n\n这是局部切片记录，不替代[根设计系统](../../../../DESIGN.md)。代码依据为 [样式](../../../../apps/workbench/src/styles/context-onboarding.ts)、[客户端](../../../../apps/workbench/src/scripts/context-onboarding.ts)和 [renderer](../../../../apps/workbench/src/context-onboarding-renderer.ts)；范围依据为[本轮约定](review/contract.md)。双栏清单是本次首屏表达，不能据此规定整个产品的页面结构。图稿中的账号、目录和模型结果不成为组件默认内容；`review-*` 截图采用固定模型响应，只能证明相应排版和交互，不证明真实模型质量或真实账号授权已验收。",
+    "keyCharacteristics": [
+      "浅深主题共享相同内容层级与中性色操作语法。",
+      "来源在一个连续面上排列，选择、范围、状态与动作保持关联。",
+      "Inter 与 Noto Sans SC 构成单一无衬线层级，图标使用既有 Lucide 语汇。",
+      "状态使用文字说明，能力未就绪时直接显示原因。",
+      "窄屏按阅读顺序收为单列，建议页采用动作贴近视口底部。"
+    ],
+    "rules": [
+      {
+        "name": "The State Has Words Rule",
+        "body": "颜色只能强化状态，来源是否已选、是否可读以及为何不可读必须有文字表达。",
+        "section": "colors"
+      },
+      {
+        "name": "The Direct Heading Rule",
+        "body": "主标题直接陈述当前任务；前面不增加装饰眉题。",
+        "section": "typography"
+      },
+      {
+        "name": "The Continuous Surface Rule",
+        "body": "同一来源清单共享外轮廓，内部用分隔线表达条目，不给每一行添加浮起的卡片阴影。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 沿用浅深中性色层次，让工作内容与下一步动作先被读到。",
+      "**Do** 将选择、范围和真实能力状态保留在同一来源行内。",
+      "**Do** 保持窄屏阅读顺序、可见焦点、文本折行与减少动态效果支持。",
+      "**Do** 明确区分示例模型响应、已完成的工程接线和真实账号或模型验收。"
+    ],
+    "donts": [
+      "**Don't** 为主标题添加装饰眉题，或用营销插画替代来源和状态。",
+      "**Don't** 把本次双栏构图、局部焦点颜色或原生字段做法提升为根系统规则。",
+      "**Don't** 用图标、可勾选或固定账号样例暗示来源已经可读取。",
+      "**Don't** 把截图中的固定模型响应当作真实模型质量或账号授权的证明。"
+    ]
+  }
+}

@@ -153,7 +153,11 @@ export {
   unwrapColumns,
 } from "./commands.js";
 export { extractFromPagesBody } from "./extract.js";
-export { PAGES_AI_COMMANDS, runPagesAi, stubPagesAi } from "./ai.js";
+export { PAGES_AI_COMMANDS, runPagesAi } from "./ai.js";
 export type { PagesRoutePorts } from "./route-handlers.js";
-export { requirePromoteArtifactPort } from "./promote.js";
-export type { PagesPublishArtifactPort } from "./promote.js";
+export type { PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
+
+export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";
+
+export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, createPagesActionHandlers } from "./actions.js";
+export type { PagesActionPorts } from "./actions.js";

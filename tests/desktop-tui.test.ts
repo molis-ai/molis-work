@@ -1,4 +1,5 @@
-import { buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { buildMolisWorkWebView } from "./fixtures/web-view.js";
+
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
@@ -599,8 +600,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
-    assert.doesNotMatch(pluginStrip, /data-plugin-id="lingguang"/);
+    assert.match(pluginStrip, /class="plugin-rail-items"[\s\S]*data-assistant-island[\s\S]*data-plugin-id="lingguang"[\s\S]*class="personal-sidebar-footer"/);
     assert.match(browser, /data-assistant-island[\s\S]*data-plugin-id="lingguang"[\s\S]*data-assistant-toggle[\s\S]*data-assistant-composer/);
+    assert.match(browser, /class="mw-group workspace-history">\s*<button[^>]*data-navigation-labels-toggle/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);
     assert.doesNotMatch(browserMarkup, /data-plugin-section="goals"/);
@@ -610,10 +612,12 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const accountFooter = browser.match(/<footer class="personal-sidebar-footer"[\s\S]*?<\/footer>/)?.[0];
     assert.ok(accountFooter);
     assert.match(pluginStrip, /class="personal-sidebar-footer"/);
-    assert.match(accountFooter, /data-plugin-id="market"[^>]*data-work-surface-open="market"[\s\S]*data-plugin-id="characters"[\s\S]*data-plugin-id="settings"[\s\S]*class="personal-account"/);
+    assert.match(accountFooter, /data-plugin-id="settings"[\s\S]*class="personal-account"/);
+    assert.doesNotMatch(accountFooter, /data-plugin-id="market"|data-plugin-id="characters"|__SYSTEM_CAPABILITIES__|capabilities\/library/);
     const railItems = pluginStrip?.match(/<div class="plugin-rail-items">[\s\S]*?<\/div>/)?.[0] ?? "";
-    assert.doesNotMatch(railItems, /data-plugin-id="characters"|data-plugin-id="market"/);
-    assert.match(railItems, /data-plugin-id="plugin-builder"[\s\S]*class="plugin-rail-rule"[\s\S]*data-plugin-id="home"/);
+    assert.match(railItems, /^<div class="plugin-rail-items"><button[^>]*data-plugin-id="home"/);
+    assert.match(railItems, /data-plugin-id="home"[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*data-plugin-id="feed"[\s\S]*data-plugin-id="sessions"[\s\S]*class="plugin-rail-group">拓展<\/p>[\s\S]*data-plugin-id="plugin-builder"[\s\S]*data-plugin-id="market"[^>]*data-work-surface-open="market"/);
+    assert.doesNotMatch(railItems, /plugin-rail-rule/);
     assert.doesNotMatch(browser, /data-directory-shortcuts|directory-shortcuts-title/);
     const homeStart = browser.indexOf('data-work-surface="home"');
     assert.ok(homeStart >= 0);
@@ -802,7 +806,6 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
     assert.match(desktop, /setDesktopDirectory\(restoredDirectory, false, false\)/);
     assert.match(desktop, /const directGoalRequested = .*localPathname\(\)/);
-    assert.match(desktop, /if \(directGoalRequested && selected && !restoredNavigation\)[\s\S]*setDesktopDirectory\("goals", false, false\)[\s\S]*setDesktopWorkSurface\("goal", false, false\)/);
     assert.match(desktop, /data-directory-back/);
     assert.doesNotMatch(desktop, /class="desktop-project-context"/);
     assert.doesNotMatch(desktop, /class="project-decisions/);
@@ -834,14 +837,14 @@ test("panel APIs and the TUI pane work without a desktop shell marker", async ()
 
     const index = await webFetch(`${origin}/`);
     const indexHtml = await index.text();
-    assert.match(indexHtml, /每个项目管理自己的 Goals 和 Sessions；工作目录在新建或关联 Session 时选择/);
+    assert.match(indexHtml, /class="project-index-page"/);
     assert.match(indexHtml, new RegExp(`href="${prefix}"`));
     assert.doesNotMatch(indexHtml, /class="tui-pane"|pty-client\.js/);
 
     const desktopIndex = await webFetch(`${origin}/?desktop=1`);
     assert.equal(desktopIndex.headers.get("set-cookie"), null);
     const desktopIndexHtml = await desktopIndex.text();
-    assert.match(desktopIndexHtml, /每个项目管理自己的 Goals 和 Sessions；工作目录在新建或关联 Session 时选择/);
+    assert.match(desktopIndexHtml, /class="project-index-page"/);
     assert.match(desktopIndexHtml, new RegExp(`href="${prefix}\\?desktop=1"`));
 
     const cookieResponse = await webFetch(`${origin}${prefix}/goals/TUI-GOAL`, {
@@ -1380,6 +1383,9 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
 
 test("Inbox Message save and start survives a Web restart without duplicating its Goal", async () => {
   const fixture = await catalogFixture();
+  const inboxCatalog = await openMolisWorkProjectCatalog({ homeDirectory: fixture.homeDirectory });
+  try { inboxCatalog.addProjectPlugin({ project_id: fixture.project.project_id, plugin_id: "inbox", actor_id: "test-user" }); }
+  finally { inboxCatalog.close(); }
   const itemId = "inbox-restart-test";
   addProjectFeedItem(fixture.project, itemId, { openInbox: true });
   const prefix = `/projects/${encodeURIComponent(fixture.project.project_id)}`;

@@ -7,7 +7,10 @@ type GitReviewIntent = { board_id: string; workspace_id: string; operation_id: s
   | { operation_kind?: "git-index"; document: AgentGitIndexReviewDocument }
   | { operation_kind: "git-integration"; document: AgentGitIntegrationReviewDocument }
   | { operation_kind: "git-worktree"; document: AgentToolOperationReviewDocument }
+  /** Commit, branch, push or pull request: one reviewed operation on the person's repository. */
+  | { operation_kind: "git-operation"; document: AgentToolOperationReviewDocument }
 );
+const GIT_OPERATION_TOOLS = /^git-(commit|branch-create|branch-switch|push|pr-create|merge|pull|resolve|merge-abort)$/;
 type StoredReview = GitReviewIntent & { kind: "molis-git-index-review"; requested_at: string };
 type Decision = Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note" | "reconciliation"> & { failure_reason?: string };
 export interface PrologueGitReviewPort {
@@ -39,14 +42,17 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
     if (!effect.pending) throw new Error("Git 操作缺少原审查等待");
     return { review_id: `prologue-git:${effect.pending.ref.id}`, run: null,
       operation: { kind: saved.operation_kind ?? "git-index", operation_id: saved.operation_id, workspace_id: saved.workspace_id },
-      board_id: saved.board_id, plugin_id: saved.operation_kind && saved.operation_kind !== "git-index" ? "io.molis.work.coding" : "io.molis.work.git", kind: saved.document.kind, document: saved.document,
+      board_id: saved.board_id, plugin_id: saved.operation_kind && !["git-index", "git-operation"].includes(saved.operation_kind) ? "io.molis.work.coding" : "io.molis.work.git", kind: saved.document.kind, document: saved.document,
       requested_at: saved.requested_at, expires_at: new Date(Date.parse(saved.requested_at) + APPROVAL_TTL).toISOString() };
   };
   const savedOf = async (effect: Effect): Promise<StoredReview | null> => {
     if (effect.proposal.subject.what !== "tool" || effect.proposal.subject.name !== SUBJECT || !effect.proposal.reviewRef) return null;
     const value = await ports.read(effect.proposal.reviewRef) as StoredReview;
     if (value?.kind !== "molis-git-index-review" || !value.board_id || !value.workspace_id || !value.operation_id
-      || (value.operation_kind === "git-integration" ? value.document?.kind !== "git-integration" : value.operation_kind === "git-worktree" ? value.document?.kind !== "tool-operation" || value.document.tool !== "git-worktree-create" : value.document?.kind !== "git-index")) throw new Error("Git 审查归属不可读，不能猜测执行结果");
+      || (value.operation_kind === "git-integration" ? value.document?.kind !== "git-integration"
+        : value.operation_kind === "git-worktree" ? value.document?.kind !== "tool-operation" || value.document.tool !== "git-worktree-create"
+        : value.operation_kind === "git-operation" ? value.document?.kind !== "tool-operation" || !GIT_OPERATION_TOOLS.test(value.document.tool)
+        : value.document?.kind !== "git-index")) throw new Error("Git 审查归属不可读，不能猜测执行结果");
     return value;
   };
   const settle = async (effect: Effect, request: AgentReviewRequest, error?: unknown) => {
@@ -114,7 +120,11 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       } finally { recovering.delete(effect.ref.id); }
     } });
   };
+  // Git operations from before this process are brought back once per board; every later one is registered live here,
+  // so rereading the whole execution ledger on each review refresh found nothing new and cost a disk read per record.
+  const settledBoards = new Set<string>();
   const restore = async (boardId: string) => {
+    if (settledBoards.has(boardId)) return;
     const report = await runtime.effects.readRecovery();
     if (report.unavailable.length) throw new Error("执行记录暂不可读，不能发起新的 Git 操作");
     for (const effect of report.effects) {
@@ -134,6 +144,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       await settle(effect, request, typeof decision?.failure_reason === "string" ? new Error(decision.failure_reason) : undefined);
       restored.add(effect.ref.id);
     }
+    settledBoards.add(boardId);
   };
   const detach = queue.registerRefresh(restore);
   return { async prepare(input, execution) {

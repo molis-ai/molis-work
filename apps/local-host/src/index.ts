@@ -6,7 +6,6 @@ export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 export { RuntimeIntegrationError, SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
-export { runtimeGoalTreeDecisionAuthority } from "./runtime-decision.js";
 export { openWorkSessionRegistry } from "./session-registry.js";
 export { RuntimeSessionHost } from "./runtime-session.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
@@ -79,9 +78,9 @@ export {
 
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
-export { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
-export { assembleHostBehaviorCatalog, hostAllowedBehaviorIds, liveHostAllowedBehaviorIds, liveHostBehaviorCatalog, liveHostFunctionAuthoringCatalog, SYSTEM_BEHAVIORS } from "./behavior-catalog.js";
-export { createFunctionsJudgmentPort, withFunctionsService, readFunctionScenesView } from "./functions-host.js";
+export { createLocalFeedApplication } from "./feed-application.js";
+export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
+export { withFunctionsService } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./feed-intelligence-client.js";
@@ -112,12 +111,13 @@ export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
-export { handleFunctionsNativePluginHttp } from "./functions-native-plugin-http.js";
+export { handleFunctionsHttp } from "./functions-http.js";
 export { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
 export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 export { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 export { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 export { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
+export { handleWorkflowsNativePluginHttp, workflowsHostPorts } from "./workflows-native-plugin-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 
@@ -207,9 +207,12 @@ export {
   filesDirectoryPanel,
   gitDirectoryPanel,
   releaseCodingSurface,
-  workspaceDirectoryPanel,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 export { createGitWorktreePort, GitWorktreeError, type GitWorktreePort } from "./git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 export { MolisWorkCasebookIntegration } from "./casebook/integration.js";
+export { draftText } from "./model-draft.js";
+
+export { ensureSystemAgentService } from "./system-agent-service.js";
+export { LocalActionGatewayClient } from "./action-gateway.js";

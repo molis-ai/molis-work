@@ -54,6 +54,7 @@ describe("SQLite migrations", () => {
       "pulse_reports",
       "pulse_runs",
       "research_plans",
+      "research_playbook_revisions",
       "research_playbook_rules",
       "runtime_settings",
       "schema_migrations",
@@ -62,6 +63,7 @@ describe("SQLite migrations", () => {
       "supply_signals",
       "taste_rules",
       "ui_context",
+      "work_reuse_receipts",
       "workspace_actors",
       "workspaces",
     ]);
@@ -88,6 +90,7 @@ describe("SQLite migrations", () => {
       { version: 7 },
       { version: 8 },
       { version: 9 },
+      { version: 10 },
     ]);
   });
 });

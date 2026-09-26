@@ -1,3 +1,4 @@
+import type { ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,
   AgentPromptText,
@@ -56,6 +57,8 @@ export type AgentCapabilitySupport = "supported" | "partial" | "unsupported";
 export type AgentRuntimeCapabilityMatrix = Record<AgentRuntimeCapability, AgentCapabilitySupport>;
 
 export interface AgentRuntimeDescriptor {
+  supports_action_tools?: boolean;
+  supports_workspace_none?: boolean;
   runtime_id: string;
   display_name: string;
   provider_version: string;
@@ -113,6 +116,11 @@ export interface AgentWorkingDirectory {
   realpath_verified: boolean;
 }
 
+/** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
+export type AgentWorkspace =
+  | { workspace?: "required"; directory: AgentWorkingDirectory }
+  | { workspace: "none"; directory?: never };
+
 export interface AgentTextMaterial {
   material_id: string;
   title: string;
@@ -162,11 +170,26 @@ export interface AgentRunBudget {
   max_duration_ms?: number;
 }
 
+/** Runtime limits are explicit positive safe integers; omitted values keep SDK defaults. */
+export function parseAgentRunBudget(value: AgentRunBudget | undefined): AgentRunBudget | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("执行预算格式无效");
+  const budget: AgentRunBudget = {};
+  for (const field of ["max_turns", "max_output_tokens", "max_total_tokens", "max_duration_ms"] as const) {
+    const limit = value[field];
+    if (limit === undefined) continue;
+    if (!Number.isSafeInteger(limit) || limit < 1 || field === "max_duration_ms" && limit > 2_147_483_647) throw new Error(`执行预算 ${field} 必须为有效的正整数`);
+    budget[field] = limit;
+  }
+  return budget;
+}
+
 /** Ordered steps supplied by the caller from its immutable confirmed Artifact. */
 export interface AgentExecutionPlan {
   source: ArtifactReference;
   title: string;
-  steps: Array<{ id: string; title: string; acceptance: string }>;
+  /** `depends_on` names earlier steps this one waits for; absent, a step waits for the one before it. */
+  steps: Array<{ id: string; title: string; acceptance: string; depends_on?: string[] }>;
 }
 
 /** Original SDK facts. A reported success is never a user acceptance. */
@@ -174,12 +197,28 @@ export interface AgentStepBoard {
   board_id: string;
   version: number;
   terminal: boolean;
+  /** In execution order: dependencies first, the original plan order breaking ties. */
   nodes: Array<{
     id: string;
     state: "not-started" | "ready" | "running" | "succeeded" | "failed" | "cancelled" | "blocked";
     reports: Array<{ note: string; at_ms: number }>;
+    /** The SDK node title; a person's inserted step carries its own. */
+    title?: string;
+    depends_on?: string[];
+    /** Added by a person during the run, not part of the confirmed plan. */
+    inserted?: boolean;
   }>;
 }
+
+/**
+ * A person's change to a running plan. Each one is an SDK board operation recorded as a report on the
+ * board itself; the confirmed plan Artifact is never rewritten.
+ */
+export type AgentStepAmendment =
+  | { kind: "skip"; node: string; reason: string }
+  | { kind: "insert"; after: string; title: string; acceptance: string }
+  | { kind: "unblock"; node: string; note: string }
+  | { kind: "move"; node: string; direction: "up" | "down" };
 
 /**
  * Exactly what the Host froze for one Run. Later settings changes never alter a
@@ -193,10 +232,13 @@ export interface AgentFrozenCharacter extends CharacterContent {
   published_at: string;
 }
 
-export interface AgentFrozenStart {
+interface AgentFrozenStartFields {
+  action_tools?: ExactActionReference[];
   /** Exact imported Skill ids used by this Run; the full Character snapshot remains immutable. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
+  /** The earlier round of this session whose unfinished step graph this Run continues, instead of a new graph. */
+  continues_step_board_of?: string;
   /** Child directory grants frozen for this run; never a grant to write the parent. */
   subagent_workspaces?: AgentSubagentWorkspace[];
   /** Authoritative fixed Character content and source at start, never looked up for history. */
@@ -207,6 +249,15 @@ export interface AgentFrozenStart {
   model_id: string;
   /** Host-frozen context selection policy, absent when not wired for this runtime. */
   compaction?: { prompt_id: string; version: number; above_tokens: number };
+  /**
+   * The window this Run was packed against (the model's own, capped by the runtime), and whether the provider's input
+   * count already includes cached prompt tokens. Absent on runs started before it was recorded.
+   */
+  model_context?: { window_tokens: number; prompt_includes_cache: boolean };
+  /** Present when this Run started from the Host's digest of earlier rounds instead of their verbatim history. */
+  history?: "digest";
+  /** Present when the model was asked to think before answering (the provider's setting when the Run started). */
+  thinking?: "adaptive";
   /**
    * Exactly the prompts this Run was frozen with, layer included.
    *
@@ -221,17 +272,20 @@ export interface AgentFrozenStart {
   host_tools: string[];
   text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
   budget: AgentRunBudget | null;
-  directory: AgentWorkingDirectory;
 }
+export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
 
-export interface AgentCreateSessionInput {
+interface AgentCreateSessionFields {
   board_id: string;
   plugin_id: string;
   install_id: string;
   actor_id: string;
-  directory: AgentWorkingDirectory;
   title: string;
 }
+export type AgentCreateSessionInput = AgentCreateSessionFields & (
+  | { workspace?: "required"; directory: AgentWorkingDirectory; role_id?: string }
+  | { workspace: "none"; directory?: never; role_id: string }
+);
 
 /**
  * The role as the Host froze it, taken from the Plugin's own declarations.
@@ -250,7 +304,15 @@ export interface AgentSubagentWorkspace {
   directory: AgentWorkingDirectory;
 }
 
+export interface AgentActionClient {
+  discover(): Promise<readonly ActionView[]>;
+  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
+}
+
 export interface AgentFrozenRole {
+  workspace?: "required" | "none";
+  /** Trusted Host composition only. Never serialized into run history. */
+  actions?: { tools: ActionView[]; client: AgentActionClient };
   character_skill_ids?: string[];
   subagent_workspaces?: AgentSubagentWorkspace[];
   subagents?: AgentFrozenSubagentRole[];
@@ -268,10 +330,22 @@ export interface AgentFrozenRole {
   host_tools: string[];
 }
 
-export interface AgentStartRequest {
+interface AgentStartRequestFields {
+  action_tools?: ExactActionReference[];
   /** Explicit subset of the selected Character's imported Skills. Empty uses rules only. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
+  /**
+   * Continue the unfinished step graph of this earlier round in the same session. The plan must be exactly the
+   * one that round was frozen with; a person's inserted and skipped steps carry over because the graph does.
+   */
+  continue_step_board_of?: string;
+  /**
+   * How earlier rounds of the session reach this one. Absent or `session` carries every earlier round verbatim, tool
+   * output included. `digest` starts without that raw history: the task itself carries the caller's digest of earlier
+   * rounds, which is how a long session keeps working once its history no longer fits the model's window.
+   */
+  history?: "session" | "digest";
   /** Selected child roots; the Host must independently verify every directory grant. */
   subagent_workspaces?: AgentSubagentWorkspace[];
   /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
@@ -291,13 +365,13 @@ export interface AgentStartRequest {
    * adapter call, which an adapter must refuse rather than guess around.
    */
   role?: AgentFrozenRole;
-  directory: AgentWorkingDirectory;
   text_materials?: AgentTextMaterial[];
   skills?: AgentSkillRef[];
   mcp_tools?: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   budget?: AgentRunBudget;
 }
+export type AgentStartRequest = AgentStartRequestFields & AgentWorkspace;
 
 export interface AgentRunHandle {
   ref: AgentRunRef;
@@ -347,6 +421,8 @@ export interface AgentToolActivity {
   /** Bounded execution evidence, shown only when the user expands the activity. */
   output?: string;
   output_truncated?: boolean;
+  /** On a display copy only: lines of output left out because the surface never shows them. */
+  output_hidden_lines?: number;
   /** Last observation time; null when absent from the original replay. */
   at: string | null;
   /** Position of the original call; a result updates it without moving it. */
@@ -373,6 +449,11 @@ export interface AgentRunUsage {
   coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
   /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
   unavailable_reason?: string;
+  /**
+   * How much of the model's window the latest main call used: its whole prompt as the provider counted it (cached
+   * parts included). Absent until a call is recorded; compaction calls never count.
+   */
+  context?: { tokens: number; coverage: AgentUsageCoverage };
 }
 
 export interface AgentCommandOutputRef {
@@ -445,15 +526,27 @@ export interface AgentRunView {
 }
 
 export interface AgentSessionView {
+  /** Immutable session mode; missing historical values mean required. */
+  workspace?: "required" | "none";
   /** A manual rewind is in progress or has an unresolved execution outcome. */
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
-  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id">;
+  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id"> & { actor_id?: string };
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];
   latest_run: AgentRunView | null;
+}
+
+/** Where a session stands, without its rounds: enough for a directory of many sessions. */
+export interface AgentSessionStatus {
+  session_id: string;
+  /** The latest round's phase; null before the first round. */
+  latest_phase: AgentRunPhase | null;
+  /** Persisted work exists but is not safe to continue automatically. */
+  recovery: boolean;
+  checkpoint_busy: boolean;
 }
 
 export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
@@ -529,7 +622,7 @@ export interface AgentReviewRequest {
   /** Null for a manual operation; never fabricate an Agent Run. */
   run: AgentRunRef | null;
   operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
-    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration"; session_id?: never };
+    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration" | "git-operation"; session_id?: never };
   board_id: string;
   plugin_id: string;
   kind: AgentReviewKind;
@@ -543,6 +636,11 @@ export interface AgentReviewDecisionInput {
   decision: "approve" | "reject";
   actor_id: string;
   note?: string;
+  /**
+   * A person approving a command may also allow the same command for the rest of this Agent session.
+   * Only an in-boundary command qualifies; the Host records who set it and applies it to exact repeats.
+   */
+  remember?: "session";
 }
 
 export interface AgentReviewReceipt {
@@ -560,6 +658,8 @@ export interface AgentReviewReceipt {
   delivery_error?: string;
   /** Human evidence, projected only after the execution owner has settled the original effect. */
   reconciliation?: { actor_id: string; at: string; reason: string };
+  /** Approved by a person's earlier "allow this command for this session", not by a new click. */
+  standing_rule?: { set_by: string; set_at: string };
 }
 
 export interface AgentGitIndexObservation {
@@ -606,6 +706,8 @@ export interface AgentCheckpoint {
   session_id: string;
   label: string;
   created_at: string;
+  /** When a reviewed rewind to this checkpoint last took effect, if one has; the files may have changed since. */
+  rewound_at?: string;
 }
 
 export interface AgentCheckpointsCapability {
@@ -655,13 +757,14 @@ export interface AgentMcpServerInput {
   executable?: string;
   argv?: string[];
   endpoint?: string;
-  auth?: { kind: "none" | "keep-existing" | "replace-secret"; secret?: string };
+  auth?: { kind: "none" | "keep-existing" | "replace-secret" | "connection"; secret?: string; connection_id?: string };
 }
 export interface AgentMcpServerView {
   id: string; version: number; label: string; enabled: boolean;
   transport: "stdio" | "http"; timeout_ms: number;
   directory?: AgentWorkingDirectory; executable?: string; argv?: string[]; endpoint?: string;
   credential: "none" | "present";
+  auth_connection_id?: string;
   health: "connected" | "disconnected" | "unavailable" | "not-reattached";
   busy?: string; error?: string;
   tools: Array<AgentMcpToolRef & { description: string }>;
@@ -723,6 +826,8 @@ export interface AgentRecoveryReport {
     can_close: boolean;
     blockers: string[];
     operations: Array<{ effect_id: string; kind: string; summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
+    /** The interrupted round belongs to this subtask of the session; closing it settles the subtask. */
+    subagent?: { subagent_id: string };
   }>;
 }
 
@@ -732,13 +837,22 @@ export interface AgentRecoveryCapability {
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
 }
 
+/** Host-owned, in-memory authority checks; never part of a Plugin payload or persisted run. */
+export interface AgentStartExecution {
+  beforeStart?(): void | Promise<void>;
+  /** Live owner authority, valid beyond the start invocation's lifetime. */
+  beforeDispatch?(): void | Promise<void>;
+}
+
 export interface AgentRuntimeAdapter {
   readonly recovery?: AgentRecoveryCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
-  start(request: AgentStartRequest): Promise<AgentRunHandle>;
+  /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
+  readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
+  start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
   read(run: AgentRunRef): Promise<AgentRunView>;
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
   control(run: AgentRunRef, control: AgentRunControl): Promise<void>;
@@ -752,6 +866,8 @@ export interface AgentRuntimeAdapter {
   readonly mcpLibrary?: AgentMcpLibrary;
   readonly mcp?: AgentMcpCapability;
   readonly subagents?: AgentSubagentsCapability;
+  /** Adjust a running plan's step graph on behalf of a person. Absent when the Runtime has no step graphs. */
+  amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number): Promise<AgentStepBoard>;
 }
 
 /**
@@ -806,7 +922,21 @@ export interface AgentHostApi {
  * before the call lands. That keeps the Manifest a complete account of what a
  * Plugin can reach, and keeps start authority in one place.
  */
+/** What to draft: the purpose in a few words, how to write it, and the material it is drawn from. */
+export interface AgentDraftTextRequest {
+  purpose: string;
+  instructions: string;
+  material: string;
+  model_selection?: { provider_id: string; model_id: string };
+}
+export interface AgentDraftTextResult {
+  text: string;
+  /** Tokens the call used, when the provider reported them. */
+  usage: { input: number; output: number } | null;
+}
+
 export const agentHostCapabilities = {
+  listActions: { capability_id: "agent.actions.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], readonly ActionView[]>,
   /** Which Runtimes exist and what each one really supports. */
   listRuntimes: {
     capability_id: "agent.runtimes.v1",
@@ -836,11 +966,24 @@ export const agentHostCapabilities = {
   cancelSubagent: {
     capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
+  /** A person adjusts the running plan's step graph; the version guards against a concurrent change. */
+  amendStepBoard: {
+    capability_id: "agent.run.step-board.amend.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number], AgentStepBoard>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>,
+  /**
+   * Many sessions' standing in one call, for a directory: one queued operation instead of one per session. A session
+   * this project cannot read comes back with an error of its own rather than failing the others.
+   */
+  readSessionStatuses: {
+    capability_id: "agent.sessions.status.v1",
+    version: 1,
+    operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | { session_id: string; error: string }>>,
   listSkills: {
     capability_id: "agent.skills.list.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,
@@ -876,6 +1019,26 @@ export const agentHostCapabilities = {
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
+  /**
+   * Resolves once the run's view differs from the version the caller holds, or at the timeout (at most 25 s).
+   * How a surface follows a live round as it happens instead of rereading it on a timer; nothing is replayed.
+   */
+  /**
+   * One short text from the model — a commit message, say — with no tools, no conversation and nothing recorded as a
+   * round. It is a model call and costs what one costs; the usage comes back so the page can say so. It writes nothing
+   * of the project's, so a draft that takes a minute runs beside the project's other operations instead of ahead of them.
+   */
+  draftText: {
+    capability_id: "agent.draft-text.v1",
+    version: 1,
+    operation: "command",
+    scheduling: "concurrent",
+  } as HostCapabilityDefinition<AgentDraftTextRequest, AgentDraftTextResult>,
+  waitRun: {
+    capability_id: "agent.run.wait.v1",
+    version: 1,
+    operation: "wait",
+  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, since: string | null, timeoutMs: number], { version: string; view: AgentRunView }>,
   controlRun: {
     capability_id: "agent.run.control.v1",
     version: 1,
@@ -929,3 +1092,43 @@ export const agentHostCapabilities = {
 
 export type AgentHostCapabilityId =
   (typeof agentHostCapabilities)[keyof typeof agentHostCapabilities]["capability_id"];
+
+/** Dedicated generated-plugin authoring port; implementations remain in Agent Host. */
+export interface BuilderAgentActivity {
+  type: 'file' | 'check' | 'tool';
+  name: string;
+  detail: string;
+  path?: string;
+}
+export interface BuilderAgentRequest {
+  /** `model` is a generated plugin's own model call: one turn, no tools, the plugin's instructions. */
+  role: 'designer' | 'coder' | 'model';
+  instruction: string;
+  promptVersion: string;
+  task: string;
+  contractRevision: string;
+  operationIds?: readonly string[];
+  signal?: AbortSignal;
+  checks?(operationIds: readonly string[], signal: AbortSignal): Promise<unknown>;
+  onActivity?(activity: BuilderAgentActivity): void;
+}
+export interface BuilderAgentRecord {
+  id: string;
+  role: BuilderAgentRequest['role'];
+  promptVersion: string;
+  contractRevision: string;
+  instruction: string;
+  input: string;
+  output: string;
+  configuredModel: string;
+  /** Empty means the provider did not report its actual model; never substitute the requested model. */
+  reportedModels: string[];
+  sessionId?: string;
+  runId?: string;
+  phase: 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  startedAt: string;
+  finishedAt?: string;
+  error?: string;
+  activity: BuilderAgentActivity[];
+  usage: unknown[];
+}

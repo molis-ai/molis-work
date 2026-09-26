@@ -56,7 +56,7 @@ export const EXPERIMENTS_STYLES = `
   .exp-arm small { display: block; color: var(--muted); margin-top: 3px; }
   .exp-import { position: relative; display: inline-flex !important; }
   .exp-import input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  .exp-import:focus-within { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .exp-import:focus-within { outline: var(--focus-stroke, 1px solid var(--ink)); outline-offset: var(--focus-stroke-inset, -1px); }
   .exp-table-wrap { overflow-x: auto; }
   .exp-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
   .exp-table th, .exp-table td { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); min-width: 100px; }
@@ -77,14 +77,11 @@ export const EXPERIMENTS_STYLES = `
   .exp-model-dialog { width: min(640px, calc(100vw - 32px)); }
   .exp-model-dialog .exp-section:first-child { padding-top: 0; }
   .exp-model-config > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text); }
-  .exp-model-config > summary::before { content: '›'; color: var(--muted); }
   .exp-model-config > summary > span:first-child { flex: 1; }
-  .exp-model-config[open] > summary::before { transform: rotate(90deg); }
-  .exp-model-config > summary::-webkit-details-marker { display: none; }
   .exp-model-dialog label + label { margin-top: 12px; }
   .exp-add-model[open] > .exp-grid { margin: 14px 0; }
   .exp-notice { position: absolute; bottom: 16px; right: 20px; z-index: 30; max-width: min(480px,calc(100% - 40px)); margin: 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--muted); font-size: 12px; line-height: 1.6; white-space: pre-wrap; box-shadow: 0 4px 16px color-mix(in srgb,var(--ink) 8%,transparent); }
-  .experiments :is(button,summary):focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .experiments :is(button,summary):focus-visible { outline: var(--focus-stroke, 1px solid var(--ink)); outline-offset: var(--focus-stroke-inset, -1px); }
   @media (max-width: 900px) {
     .exp-form { display: block; }
     .exp-grid, .exp-review { grid-template-columns: minmax(0,1fr); }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentReviewQueue, createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-host';
@@ -56,5 +56,44 @@ test('packed SDK: rejected review feedback reaches the next model request before
     assert.deepEqual(queue.list('board'),originalRequests,'the original request timestamps, deadlines and proposal survive restart');
     assert.deepEqual([queue.receipt(first.review_id),queue.receipt(second.review_id)],before);assert.deepEqual(restored.latest_run?.turns,completed.turns);assert.equal(requests.length,4,'restoration cannot send feedback or execute again');
     assert.equal(await readFile(join(project,'a.ts'),'utf8'),'revised\n');
+  }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('packed SDK: a refused command carries its reason, naming the command, into the next model request', {timeout:30_000}, async t=>{
+  const root=await mkdtemp(join(tmpdir(),'molis-review-command-')), project=join(root,'project');await mkdir(project);
+  const requests:any[]=[];
+  t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
+    const body=typeof init.body==='string'?init.body:new TextDecoder().decode(init.body as Uint8Array);requests.push(JSON.parse(body));
+    const round=requests.length, events:string[]=[];
+    const emit=(type:string,value:unknown)=>events.push(`event: ${type}\ndata: ${JSON.stringify({type,...value as object})}\n\n`);
+    emit('message_start',{message:{id:'message-'+round,type:'message',role:'assistant',model:'fixture',content:[],stop_reason:null,usage:{input_tokens:20,output_tokens:0}}});
+    if(round===1){
+      emit('content_block_start',{index:0,content_block:{type:'tool_use',id:'command-1',name:'run-command',input:{}}});
+      emit('content_block_delta',{index:0,delta:{type:'input_json_delta',partial_json:JSON.stringify({executable:'touch',argv:['ran.txt']})}});
+    }else{
+      emit('content_block_start',{index:0,content_block:{type:'text',text:''}});
+      emit('content_block_delta',{index:0,delta:{type:'text_delta',text:'Understood; the command was not run.'}});
+    }
+    emit('content_block_stop',{index:0});emit('message_delta',{delta:{stop_reason:round===1?'tool_use':'end_turn',stop_sequence:null},usage:{output_tokens:10}});emit('message_stop',{});
+    return new Response(events.join(''),{headers:{'content-type':'text/event-stream'}});
+  });
+  const queue=new AgentReviewQueue();
+  const adapter=await createPrologueNodeAdapter({app:{appId:'molis.review-command.test',appVersion:'1.0.0'},storageRoot:join(root,'sdk'),reviewQueue:queue,
+    modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'test'}),resolveCredential:()=> 'test-only'});
+  try{
+    const owner={board_id:'board',plugin_id:'io.molis.work.coding',install_id:'installed',actor_id:'user'},directory={canonical_path:project,realpath_verified:true};
+    const session=await adapter.createSession({...owner,directory,title:'command feedback'});
+    const handle=await adapter.start({...owner,directory,session,task:'Touch a file.',role_id:'builder',role:{role_id:'builder',version:1,execution:'workspace-write',prompts:[],host_tools:['read-file','run-command']}});
+    const asked=await until(async()=>{const review=queue.list('board','pending')[0];const view=await adapter.read(handle.ref);if(!review && ['failed','completed'].includes(view.phase))throw new Error(JSON.stringify({view,requests}));return review;});
+    assert.equal(asked.document.kind,'command');
+    const note='先别跑这个命令：计划的下一步是向我确认测试范围。反馈标记 COMMAND-FEEDBACK-1。';
+    const rejected=await queue.respond({review_id:asked.review_id,decision:'reject',actor_id:'user',note});
+    assert.equal(rejected.delivery_error,undefined);assert.equal(rejected.note,note);
+    const completed=await until(async()=>{const view=await adapter.read(handle.ref);return view.phase==='completed'?view:null;});
+    const next=JSON.stringify(requests.at(-1).messages);
+    assert.ok(next.includes(note),'the reason reaches the model');
+    assert.ok(next.includes('touch ran.txt'),'the refused command is named, not just its kind');
+    assert.ok(completed.turns.some(turn=>turn.kind==='user' && turn.text.includes(note)));
+    await assert.rejects(access(join(project,'ran.txt')),'a refused command never runs');
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
 });

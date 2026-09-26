@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
 import { seedDemoBoard, DEMO_BOARD_ID } from "../apps/local-host/src/demo-seed.js";
 import { handleBuilderHttp, releaseBuilderSurface } from "../apps/local-host/src/plugin-builder-surface.js";
@@ -20,7 +21,9 @@ test("plugin builder browser completes creation, installed data, publishing and 
   const databasePath = join(directory, "project.db"); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), runtime = new BrowserFixtureRuntime(directory);
   const token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>(), mutationHeaders: string[] = [];
-  const ports = { store, boardId: DEMO_BOARD_ID, actorId: "browser-test", homeDirectory: directory, goalTitle: () => undefined, escapeHtml, translate: (value: string) => value, capabilities: runtime,
+  // The Plugin executor runs every plugin action through the project's action service, as the product host does.
+  const actionService = new ActionService();
+  const ports = { actions: { registry: actionService, client: actionService, project_id: DEMO_BOARD_ID }, store, boardId: DEMO_BOARD_ID, actorId: "browser-test", homeDirectory: directory, goalTitle: () => undefined, escapeHtml, translate: (value: string) => value, capabilities: runtime,
     execution: { async ready() {}, async models() { return [{ provider_id: "fixture", model_id: "fixture-prologue", label: "Fixture Prologue · browser test" }]; } },
   };
   const server = createServer((request, response) => {
@@ -76,7 +79,7 @@ test("plugin builder browser completes creation, installed data, publishing and 
   const focusBefore = await page.evaluate("({value:document.activeElement.value,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd,name:document.activeElement.name})");
   await page.wait("document.querySelector('[data-node-id=collection]')");
   assert.deepEqual(await page.evaluate("({value:document.activeElement.value,start:document.activeElement.selectionStart,end:document.activeElement.selectionEnd,name:document.activeElement.name})"), focusBefore, "placing later UI parts must preserve the active input and caret");
-  await page.wait("document.querySelector('[data-pb-status]')?.textContent === '界面与功能已接通'");
+  await page.wait("document.querySelector('[data-pb-status]')?.textContent.startsWith('界面与功能已接通')");
   await page.click("[data-record-submit]");
   await page.wait("!document.querySelector('[data-record-editor]')?.open");
   await page.wait("document.querySelector('[data-record-list]')?.textContent.includes('预览马克杯')");
@@ -125,11 +128,20 @@ test("plugin builder browser completes creation, installed data, publishing and 
   await published.wait("document.querySelector('[data-record-list] table')");
   assert.ok((await published.evaluate<string>("document.querySelector('[data-record-list]').textContent")).includes("正式马克杯"), "editing draft layout must preserve the installed version and its data");
   await installed.command("Page.bringToFront"); await installed.click('[data-pb-action="publish"]');
-  await installed.wait("document.querySelector('[data-pb-connected] a')");
+  await installed.wait("document.querySelector('[data-pb-publish-dialog]')?.open");
+  await installed.click('[data-pb-compatibility][value="compatible"]');
+  await installed.click('[data-pb-publish-confirm]');
+  await installed.wait("document.querySelector('[data-pb-publish-dialog]')?.open === false");
+  await installed.click('[data-pb-library]'); await installed.wait("document.querySelector('[data-pb-upgrade]')?.textContent.includes('升级到 v2')");
+  assert.ok((await installed.evaluate<string>("document.querySelector('[data-pb-library-list]').textContent")).includes("已安装 v1 · 最新发布 v2"));
+  await published.command("Page.bringToFront"); await published.command("Page.reload"); await published.wait("document.querySelector('[data-record-list] table') && document.querySelector('[data-record-list]').textContent.includes('正式马克杯')");
+  assert.ok((await published.evaluate<string>("document.querySelector('.pb-standalone-bar').textContent")).includes("v1"), "publishing the candidate leaves the installed release active");
+  await installed.command("Page.bringToFront"); await installed.click('[data-pb-upgrade]');
+  await installed.wait("document.querySelector('[data-pb-upgrade]') === null");
   await published.command("Page.bringToFront"); await published.command("Page.reload"); await published.wait("document.querySelector('[data-record-list]')?.classList.contains('cards') && document.querySelector('[data-record-list]').textContent.includes('正式马克杯')");
   assert.ok((await published.evaluate<string>("document.querySelector('.pb-standalone-bar').textContent")).includes("v2"));
   await published.viewport(390, 844, true); await noOverflow(published, "mobile installed plugin"); await published.screenshot(join(screenshots, "mobile-installed.png"));
-  assert.deepEqual(runtime.starts.map(start => start.role), ["design", "ui", "behavior"]);
+  assert.deepEqual(runtime.starts.map(start => start.role), ["design", "behavior"], "UI parts come from the spec board, not a whole-page model run");
   assert.equal(new Set(mutationHeaders).size, mutationHeaders.length, "browser mutations must each use an independent idempotency key");
   assert.ok(mutationHeaders.every(value => value.length >= 8));
   assert.deepEqual(errors, [], "browser contract defects");

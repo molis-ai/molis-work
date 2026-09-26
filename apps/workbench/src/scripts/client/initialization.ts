@@ -8,7 +8,9 @@ import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
+import { NAVIGATION_PRESENTATION_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
+import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
@@ -31,9 +33,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       saveUiState, setMobileView,
+      openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
+    (${NAVIGATION_PRESENTATION_SCRIPT})(L);
+    (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
+      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,
+      openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
+      openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
       setDirectory: (...args) => setDesktopDirectory(...args),
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
       selectGoal: (...args) => selectGoal(...args),
@@ -45,12 +53,20 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
       feedApi,
+      messageApi: async (pathname, method, body) => {
+        const response = await fetch(route(pathname), { method, headers: molisWorkControlHeaders(), body: body == null ? undefined : JSON.stringify(body) });
+        const result = await response.json();
+        if (!response.ok && !(response.status === 409 && result.state === 'failed')) throw new Error(result.error || L('消息请求失败，请核对原请求'));
+        return result;
+      },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
-      openFeedSource: (sourceId) => {
-        setDesktopDirectory("feed", true, false);
-        tabWorkspace?.openPlugin("feed");
-        setFeedTask(sourceId);
+      openTarget: (target) => {
+        if (target.kind === 'item') tabWorkspace?.openItem(target.surface, target.id, target.title);
+        else {
+          tabWorkspace?.openPlugin(target.surface);
+          if (target.kind === 'group') document.dispatchEvent(new CustomEvent('workbench-open-group', { detail: { surface: target.surface, id: target.id } }));
+        }
         setMobileView("document");
       },
     });
@@ -91,6 +107,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         return result.workspace;
       },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
+      openBeside: (plugin, id, title) => tabWorkspace?.openBeside(plugin, id, title),
     });
     (${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})({
       request: companionRequest, route, icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
@@ -217,7 +234,11 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (desktopWorkSurfaces.length) setDesktopWorkSurface(activeDesktopSurface, false, false);
     }
     immersiveNavigation?.sync();
-    tabWorkspace?.restore();
+    const directGoalRequested = /^\\/(?:archive\\/|trash\\/)?goals\\/[^\\/]+\\/?$/.test(localPathname());
+    const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
+      performance.getEntriesByType("navigation")[0]?.type,
+    );
+    tabWorkspace?.restore(directGoalRequested && !restoredNavigation ? selected : "");
     const restoredExclusive = tabWorkspace?.state?.()?.exclusive;
     const settingsKind = restoredExclusive === "settings" || restoredExclusive === "project-settings"
       ? restoredExclusive
@@ -230,15 +251,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (settingsKind === "project-settings") void settingsDirectory?.loadProjectSection?.(settingsDirectory?.getProjectActive?.() || "general");
       else void settingsDirectory?.loadSection?.(settingsDirectory?.getActive?.() || "appearance");
     }
-    const directGoalRequested = /^\\/(?:archive\\/|trash\\/)?goals\\/[^\\/]+\\/?$/.test(localPathname());
-    const restoredNavigation = restoredUi && ["reload", "back_forward"].includes(
-      performance.getEntriesByType("navigation")[0]?.type,
-    );
-    if (tabWorkspace) {
-      if (directGoalRequested && selected && !restoredNavigation) {
-        tabWorkspace.openPlugin("goals");
-      }
-    } else if (!directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
+    if (!tabWorkspace && !directGoalRequested && !restoredNavigation && !decisionView && !collectionView) {
       goalWorkspaceMode = "graph";
       setDesktopDirectory("root", false, false);
       setDesktopWorkSurface("home", false, false);
@@ -313,7 +326,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     immersiveNavigation?.sync();
     frameContainer?.restore();
-    tabWorkspace?.restore();
+    tabWorkspace?.apply();
     if (directGoalRequested && selected && !restoredNavigation && tabWorkspace) {
       tabWorkspace.openItem("goals", selected);
     } else if (tabWorkspace && !directGoalRequested && !decisionView && !collectionView) {
@@ -332,6 +345,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     if (!(directGoalRequested && !restoredNavigation) && matchMedia("(max-width: 760px)").matches && (restoredMobileView === "tree" || restoredMobileView === "document" || restoredMobileView === "tui")) {
       setMobileView(restoredMobileView);
     }
+    openRequestedFeedRule();
     updateRelationPreviews();
     updateAllRelationFormPreviews();
     setInterval(refreshBoard, 4000);

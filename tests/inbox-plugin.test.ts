@@ -1,10 +1,14 @@
+import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
+import { inboxActions, inboxManifest, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
+import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "inbox-plugin-test-token-0123456789012345";
@@ -14,7 +18,13 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const created = await catalog.createProject({ display_name: "Inbox 项目", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
-  const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN });
+  const functionEnv: NodeJS.Dict<string> = {};
+  const host = new MolisWorkLocalHost({ homeDirectory, functions: { env: functionEnv },
+    actionAvailability: projectActionAvailability(async (_options, operation) => operation(catalog), homeDirectory) });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+  const actions = host.actionClient(reference);
+  const caller: ActionCallContext = { actor_id: "test-owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
+  const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN, localHost: host });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
@@ -22,6 +32,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   let sequence = 0;
   t.after(async () => {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await host.close();
     catalog.close();
     await rm(homeDirectory, { recursive: true, force: true });
   });
@@ -37,6 +48,16 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
     body: JSON.stringify({ plugin_id: "feed" }),
   });
   assert.equal(addFeed.status, 200);
+
+  // No Inbox page has been opened: project activation must already register every action.
+  const discovered = (await actions.discover(caller)).filter(action => action.provider.plugin_id === "io.molis.work.inbox");
+  const declared = inboxManifest.actions!.filter(definition => definition.action.permissions.every(permission => caller.permissions.includes(permission)));
+  assert.deepEqual(discovered.map(action => action.capability_id).sort(), declared.map(action => action.capability_id).sort());
+  assert.ok(discovered.filter(action => ![inboxActions.generatePages.capability_id, inboxActions.evaluateJudgment.capability_id].includes(action.capability_id))
+    .every(action => action.availability.available));
+  assert.equal(discovered.find(action => action.capability_id === inboxActions.evaluateJudgment.capability_id)?.availability.available, false);
+  await assert.rejects(actions.invoke({ ...caller, permissions: [] }, inboxActions.list, {}), { code: "actions.forbidden" });
+  await assert.rejects(actions.invoke({ ...caller, project_id: "another-project" }, inboxActions.list, {}), { code: "actions.scope_mismatch" });
 
   insertFeedItem(project, "inbox-plugin-item");
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
@@ -160,12 +181,21 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   });
   assert.equal(mismatched.status, 400);
 
+  const disconnected = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ function_key: "system_pick_inbox_next" }),
+  });
+  assert.equal(disconnected.status, 503, "an enabled binding cannot claim readiness without its provider");
+  functionEnv.TYPESAFE_API_KEY = "fixture-not-used-for-network";
+
   const bound = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ function_key: "system_pick_inbox_next" }),
   });
   assert.equal(bound.status, 200);
+  const afterBinding = (await actions.discover(caller)).find(action => action.capability_id === inboxActions.evaluateJudgment.capability_id)!;
+  assert.notEqual(afterBinding.availability.available ? "available" : afterBinding.availability.code, "actions.binding_required");
   assert.equal((await bound.json() as { function_key: string }).function_key, "system_pick_inbox_next");
 
   const rebound = await webFetch(`${origin}${prefix}/api/inbox/judgment`);
@@ -189,6 +219,32 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   });
   assert.equal(unbound.status, 200);
   assert.equal((await unbound.json() as { function_key: string | null }).function_key, null);
+  await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entryId] }), { code: "actions.binding_required" });
+
+  const mcp = createActionMcpPorts({ service: actions, context: () => caller, serverInfo: { name: "inbox-test", version: "1" } });
+  const statusName = actionMcpToolName(inboxActions.setStatus);
+  assert.ok((await mcp.tools).some(tool => tool.name === statusName));
+  const current = await (await webFetch(`${origin}${prefix}/api/inbox`)).json() as { entries: Array<{entry_id: string; revision: number}> };
+  const original = current.entries.find(entry => entry.entry_id === entryId)!;
+  const reopened = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: statusName,
+    arguments: { entry_id: entryId, status: "open", expected_revision: original.revision } } }, mcp);
+  assert.equal((reopened!.result as { isError?: boolean }).isError, false);
+  const internal = await actions.invoke(caller, inboxActions.list, {}) as { entries: Array<{entry_id: string; project_id: string; status: string}> };
+  assert.equal(internal.entries.find(entry => entry.entry_id === entryId)?.status, "open");
+  assert.ok(internal.entries.every(entry => entry.project_id === project.project_id));
+  const visible = await (await webFetch(`${origin}${prefix}/api/inbox`)).json();
+  assert.deepEqual(visible, internal, "MCP writes must be visible through the actual HTTP entry");
+
+  catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
+  const disabled = (await actions.discover(caller)).find(action => action.capability_id === inboxActions.list.capability_id)!;
+  assert.deepEqual(disabled.availability, { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" });
+  await assert.rejects(actions.invoke(caller, inboxActions.list, {}), { code: "actions.plugin_disabled" });
+  assert.ok(!(await mcp.tools).some(tool => tool.name === statusName));
+  assert.equal((await webFetch(`${origin}${prefix}/api/inbox`)).status, 403);
+  assert.equal((await webFetch(`${origin}${prefix}/api/inbox/workbench`)).status, 403);
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
+  await host.closeProject(reference);
+  assert.deepEqual(await actions.invoke(caller, inboxActions.list, {}), internal, "reopening registers actions and retains the real business state");
 
   function webFetch(input: string, init: RequestInit = {}): Promise<Response> {
     const method = (init.method ?? "GET").toUpperCase();

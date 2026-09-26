@@ -5,7 +5,7 @@ import { JELLY_PROJECT_PLUGIN_ID, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jel
 import { EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STYLES, experimentsUiContribution } from "@molis-ai/molis-work-plugin-experiments";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
-import { feedUiContribution } from "@molis-ai/molis-work-plugin-feed";
+import { feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import {
   goalsContextUiContribution,
   goalsDecisionResultsUiContribution,
@@ -31,19 +31,13 @@ import {
   shelfSettingsUiContribution,
   shelfUiContribution,
 } from "@molis-ai/molis-work-plugin-shelf";
-import {
-  FUNCTIONS_CLIENT_FACTORY_SCRIPT,
-  FUNCTIONS_SETTINGS_CLIENT_SCRIPT,
-  FUNCTIONS_STYLES,
-  functionsSettingsUiContribution,
-  functionsUiContribution,
-} from "@molis-ai/molis-work-plugin-functions";
 import { PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution } from "@molis-ai/molis-work-plugin-pages";
 import { FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
 import { workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
 
 export interface PluginSearchRow {
@@ -70,7 +64,7 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
   { project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, contributions: [imagesUiContribution], stylesheet: IMAGES_STYLES, clientFactory: IMAGES_CLIENT_FACTORY_SCRIPT },
   { project_plugin_id: JELLY_PROJECT_PLUGIN_ID, contributions: [jellyUiContribution], stylesheet: JELLY_STYLES, clientFactory: JELLY_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" } },
   { project_plugin_id: "experiments", contributions: [experimentsUiContribution], stylesheet: EXPERIMENTS_STYLES, clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT },
-  { project_plugin_id: "feed", contributions: [feedUiContribution] },
+  { project_plugin_id: "feed", contributions: [feedUiContribution], stylesheet: FEED_STYLES },
   { project_plugin_id: "inbox", contributions: [inboxUiContribution] },
   {
     project_plugin_id: "schedule",
@@ -84,13 +78,6 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
     stylesheet: SHELF_STYLES,
     clientFactory: SHELF_CLIENT_FACTORY_SCRIPT,
     settingsClient: SHELF_SETTINGS_CLIENT_SCRIPT,
-  },
-  {
-    project_plugin_id: "functions",
-    contributions: [functionsUiContribution, functionsSettingsUiContribution],
-    stylesheet: FUNCTIONS_STYLES,
-    clientFactory: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
-    settingsClient: FUNCTIONS_SETTINGS_CLIENT_SCRIPT,
   },
   {
     project_plugin_id: "pages",
@@ -133,6 +120,12 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
     stylesheet: ALCHEMIST_STYLES,
     clientFactory: ALCHEMIST_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-alchemist-id]", idDataset: "alchemistId" },
+  },
+  {
+    project_plugin_id: "workflows",
+    contributions: [workflowsUiContribution],
+    stylesheet: WORKFLOWS_STYLES,
+    clientFactory: WORKFLOWS_CLIENT_FACTORY_SCRIPT,
   },
   { project_plugin_id: "sessions", contributions: [workUiContribution, workTerminalUiContribution] },
   { project_plugin_id: "artifacts", contributions: [artifactReferenceUiContribution, artifactBrowserUiContribution] },

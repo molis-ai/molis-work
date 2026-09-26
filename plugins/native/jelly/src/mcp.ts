@@ -1,59 +1,39 @@
+import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginMcpExportDeclaration, PluginMcpHandleRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { JellyCommand } from "@molis-ai/molis-work-contracts/modules/jelly";
-import { jellyOccurrences } from "./calendar.js";
+import { jellyActions } from "./actions.js";
+import { jellyCommandActions } from "./command-actions.js";
 import { JellyError } from "./error.js";
-import type { JellyStore } from "./store.js";
-const string = { type: "string" };
-const stringArray = { type: "array", items: string };
-const object = { type: "object" };
-function tool(tool_id: string, description: string, effect: "read" | "write", properties: Record<string, unknown>, required: string[] = []): PluginMcpExportDeclaration {
-  return { tool_id, description, effect, scope: "home", input_schema: { type: "object", properties: effect === "write" ? { ...properties, expected_revision: { type: "integer" } } : properties, required, additionalProperties: false } };
+
+// Only public name/argument compatibility lives here. Schemas and execution belong to actions.
+const aliases: Record<string, ActionDefinition> = {
+  list_items: jellyActions.calendar, get_item: jellyActions.item, search: jellyActions.search, list_categories: jellyActions.categories,
+  create_item: jellyCommandActions["item.create"], update_item: jellyCommandActions["item.update"], move_items: jellyCommandActions["item.move_many"],
+  set_task_completed: jellyCommandActions["item.complete"], delete_item: jellyCommandActions["item.delete"], reorder_untimed_items: jellyCommandActions["item.reorder"],
+  create_series: jellyCommandActions["series.create"], modify_series: jellyCommandActions["series.update"], undo: jellyCommandActions.undo,
+};
+export const JELLY_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = Object.entries(aliases).map(([tool_id, definition]) => {
+  const schema = definition.action.input_schema;
+  const properties = { ...schema.properties as Record<string, unknown> };
+  let required = (schema.required as string[]).filter(field => field !== "expected_revision");
+  if (tool_id === "set_task_completed") properties.original_date = (jellyCommandActions["series.complete"].action.input_schema.properties as Record<string, unknown>).original_date;
+  if (tool_id === "modify_series") { properties.delete = { type: "boolean" }; required = required.filter(field => field !== "patch"); }
+  const dependencies = [definition, ...(definition.operation === "command" ? [jellyActions.categories] : []),
+    ...(tool_id === "set_task_completed" ? [jellyCommandActions["series.complete"]] : []),
+    ...(tool_id === "modify_series" ? [jellyCommandActions["series.delete"]] : [])];
+  return { required_actions: dependencies.map(({ capability_id, version }) => ({ capability_id, version })), tool_id, description: definition.action.description + (tool_id === "modify_series" ? " delete=true 删除，否则传入 patch 修改。" : tool_id === "set_task_completed" ? " 重复实例需提供 original_date。" : ""), effect: definition.operation === "query" ? "read" : "write", scope: "home", input_schema: { ...schema, type: "object", properties, required } };
+});
+function definitionFor(request: PluginMcpHandleRequest): ActionDefinition {
+  const definition = aliases[request.tool_id];
+  if (!Object.hasOwn(aliases, request.tool_id)) throw new JellyError("jelly.invalid", "未知 Jelly 工具");
+  if (request.tool_id === "set_task_completed" && request.arguments?.original_date) return jellyCommandActions["series.complete"];
+  if (request.tool_id === "modify_series" && request.arguments?.delete === true) return jellyCommandActions["series.delete"];
+  return definition!;
 }
-export const JELLY_MCP_EXPORTS: readonly PluginMcpExportDeclaration[] = [
-  tool("list_items", "读取本机 Jelly 指定日期范围的事项、重复实例和当前 revision。日期为 YYYY-MM-DD。", "read", { start: string, end: string }, ["start", "end"]),
-  tool("get_item", "读取已有事项或重复系列。id 必须来自 list_items。", "read", { id: string }, ["id"]),
-  tool("search", "搜索 Jelly 事项、笔记和灵感。不会修改数据。", "read", { query: string }, ["query"]),
-  tool("list_categories", "读取 Jelly 分类与当前版本。", "read", {}),
-  tool("create_item", "按用户要求新建事项。item 包含 title/start_date/end_date、可选 start_time/end_time（本地分钟），category_id/priority/pinned。", "write", { item: object }, ["item"]),
-  tool("update_item", "更新一个现有事项。patch 仅含要改字段；不能把事项完成误作 Goal 验收。", "write", { id: string, patch: object }, ["id", "patch"]),
-  tool("move_items", "按用户要求把一次性事项移到指定日期，保留跨日长度和时刻。", "write", { ids: stringArray, date: string }, ["ids", "date"]),
-  tool("set_task_completed", "完成或重新打开事项；重复实例须提供原始 original_date（改期也不改变它）。", "write", { id: string, original_date: string, completed: { type: "boolean" }, completion_description: string }, ["id", "completed"]),
-  tool("delete_item", "按用户明确要求删除一次性事项，可撤销。重复事项用 modify_series 的 delete。", "write", { id: string }, ["id"]),
-  tool("reorder_untimed_items", "为某日全部单日无时事项排序，ids必须包含该日全部合资格记录。", "write", { date: string, ids: stringArray }, ["date", "ids"]),
-  tool("create_series", "新建每周重复系列。series 含事项字段、weekdays（周一1至周日7）、可选until。", "write", { series: object }, ["series"]),
-  tool("modify_series", "修改或删除某次及后续。scope为onlyThis或thisAndFuture，original_date是原始发生日；delete=true才删除。", "write", { id: string, original_date: string, scope: { type: "string", enum: ["onlyThis", "thisAndFuture"] }, patch: object, delete: { type: "boolean" } }, ["id", "original_date", "scope"]),
-  tool("undo", "按用户要求撤销最近一次 Jelly 写入；不影响原 Jelly App 数据。", "write", {}),
-];
-export function runJellyMcpTool(store: JellyStore, request: PluginMcpHandleRequest): string {
-  const args = request.arguments ?? {};
-  const state = store.read();
-  const result = (data: unknown) => JSON.stringify(data);
-  if (request.tool_id === "list_items") return result({ revision: state.revision, items: jellyOccurrences(state, String(args.start ?? ""), String(args.end ?? "")) });
-  if (request.tool_id === "list_categories") return result({ revision: state.revision, categories: state.categories });
-  if (request.tool_id === "get_item") {
-    const item = state.items.find((i) => i.id === args.id) ?? state.series.find((i) => i.id === args.id);
-    if (!item) throw new JellyError("jelly.not_found", "事项不存在");
-    return result({ revision: state.revision, item });
-  }
-  if (request.tool_id === "search") {
-    const query = String(args.query ?? "").trim().toLocaleLowerCase();
-    if (!query) throw new JellyError("jelly.invalid", "请输入搜索词");
-    const matches = (text: string) => text.toLocaleLowerCase().includes(query);
-    return result({ revision: state.revision, items: [...state.items, ...state.series].filter((i) => matches(i.title + "\n" + i.notes)), notes: state.notes.filter((i) => !i.archived_at && matches(i.title + "\n" + i.blocks.map((b) => b.text).join("\n"))), inspirations: state.inspirations.filter((i) => !i.archived_at && matches(i.title + "\n" + i.raw_text + "\n" + (i.url ?? ""))) });
-  }
-  let command: JellyCommand;
-  switch (request.tool_id) {
-    case "create_item": command = { type: "item.create", item: args.item }; break;
-    case "update_item": command = { type: "item.update", id: args.id, patch: args.patch }; break;
-    case "move_items": command = { type: "item.move_many", ids: args.ids, date: args.date }; break;
-    case "set_task_completed": command = { type: args.original_date ? "series.complete" : "item.complete", id: args.id, original_date: args.original_date, completed: args.completed, completion_description: args.completion_description }; break;
-    case "delete_item": command = { type: "item.delete", id: args.id }; break;
-    case "reorder_untimed_items": command = { type: "item.reorder", date: args.date, ids: args.ids }; break;
-    case "create_series": command = { type: "series.create", series: args.series }; break;
-    case "modify_series": command = { type: args.delete === true ? "series.delete" : "series.update", id: args.id, original_date: args.original_date, scope: args.scope, patch: args.patch }; break;
-    case "undo": command = { type: "undo" }; break;
-    default: throw new JellyError("jelly.invalid", "未知 Jelly 工具");
-  }
-  if (args.expected_revision !== undefined && !Number.isSafeInteger(args.expected_revision)) throw new JellyError("jelly.invalid", "版本必须为整数");
-  return result({ state: store.execute(command, args.expected_revision as number | undefined ?? state.revision) });
+export async function runJellyMcpTool(actions: BoundActionClient, request: PluginMcpHandleRequest): Promise<string> {
+  const definition = definitionFor(request), input = { ...request.arguments };
+  if (request.tool_id === "modify_series") { delete input.delete; if (definition === jellyCommandActions["series.delete"]) delete input.patch; }
+  if (request.tool_id === "set_task_completed" && definition === jellyCommandActions["item.complete"]) delete input.original_date;
+  // The historical MCP contract allows omitted revision; retain a CAS against a fresh read.
+  if (definition.operation === "command" && input.expected_revision === undefined) input.expected_revision = (await actions.invoke(jellyActions.categories, {})).revision;
+  return JSON.stringify(await actions.invoke(definition, input));
 }

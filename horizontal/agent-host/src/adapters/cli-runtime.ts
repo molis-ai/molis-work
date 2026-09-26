@@ -12,6 +12,7 @@ import type {
   AgentRunRef,
   AgentRunView,
   AgentRuntimeAdapter,
+  AgentStartExecution,
   AgentRuntimeCapabilityMatrix,
   AgentRuntimeDescriptor,
   AgentRuntimeHealth,
@@ -181,10 +182,11 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef> {
+    if (input.workspace === "none" || !input.directory?.realpath_verified) throw new CliAgentError("agent.capability_unavailable", "CLI 需要明确授权的工作目录");
     const sessionId = randomUUID();
     this.#sessions.set(sessionId, {
       title: input.title,
-      owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id },
+      owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id },
       cwd: input.directory.canonical_path,
       runs: [],
     });
@@ -203,7 +205,8 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
     };
   }
 
-  async start(request: AgentStartRequest): Promise<AgentRunHandle> {
+  async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
+    if (request.workspace === "none" || !request.directory?.realpath_verified) throw new CliAgentError("agent.capability_unavailable", "CLI 需要明确授权的工作目录");
     if (request.execution_plan) throw new CliAgentError("agent.capability_unavailable", "此 CLI 运行时尚未接通计划步骤回报，请使用 Prologue");
     if (request.text_materials?.length) throw new CliAgentError("agent.capability_unavailable", "此 CLI 运行时尚未接通固定材料消费，请使用 Prologue 或移除材料");
     const session = this.#requireSession(request.session.session_id);
@@ -263,6 +266,7 @@ export class CliAgentAdapter implements AgentRuntimeAdapter {
       ended_at: null,
     };
     const record: RunRecord = { view, state, handle: null, listeners: new Set(), stopping: false };
+    await execution?.beforeStart?.();
     this.#runs.set(ref.run_id, record);
     session.runs.push(ref);
 

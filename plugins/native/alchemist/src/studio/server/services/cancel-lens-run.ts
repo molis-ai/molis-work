@@ -5,7 +5,7 @@ import type { SqliteResearchRepository } from "../db/research-repository.js";
 import type { SqliteJobRunner } from "../jobs/sqlite-job-runner.js";
 import { RESEARCH_LENS_JOB } from "./start-lens-run.js";
 
-const inputSchema = z.object({ lensRunId: z.string().min(1), planId: z.string().min(1) }).strict();
+const inputSchema = z.object({ lensRunId: z.string().min(1), planId: z.string().min(1), actorId: z.string().min(1).optional() }).strict();
 
 export class CancelLensRunError extends Error {
   readonly name = "CancelLensRunError";

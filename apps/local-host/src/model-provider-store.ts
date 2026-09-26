@@ -5,9 +5,11 @@ import type {
   ModelProviderRecord,
   ModelPromptCacheMode,
   ModelRecord,
+  ModelThinkingMode,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import {
   inspectPromptCacheChoice,
+  inspectThinkingChoice,
   providerHealth,
 } from "@molis-ai/molis-work-contracts/modules/model-providers";
 
@@ -65,6 +67,7 @@ export function createModelProviderTables(db: ModelProviderSqlite): void {
       ON model_providers(enabled, display_name);
   `);
   addPromptCacheColumn(db);
+  addThinkingColumn(db);
 }
 
 /**
@@ -81,6 +84,13 @@ export function addPromptCacheColumn(db: ModelProviderSqlite): void {
   db.exec("ALTER TABLE model_providers ADD COLUMN prompt_cache TEXT NOT NULL DEFAULT 'off'");
 }
 
+/** Add `thinking` to a table that predates it. Existing rows read as `off`, so nothing starts thinking unasked. */
+export function addThinkingColumn(db: ModelProviderSqlite): void {
+  const columns = db.prepare("PRAGMA table_info(model_providers)").all() as Array<{ name?: unknown }>;
+  if (columns.some((column) => String(column.name) === "thinking")) return;
+  db.exec("ALTER TABLE model_providers ADD COLUMN thinking TEXT NOT NULL DEFAULT 'off'");
+}
+
 /** The reference a provider's key is stored under. Derived, never user supplied. */
 export function modelCredentialRef(providerId: string): string {
   return `model-provider:${providerId}`;
@@ -88,6 +98,7 @@ export function modelCredentialRef(providerId: string): string {
 
 const API_FORMATS: readonly ModelApiFormat[] = ["anthropic-messages", "openai-chat-completions"];
 const PROMPT_CACHE_MODES: readonly ModelPromptCacheMode[] = ["off", "best-effort", "required"];
+const THINKING_MODES: readonly ModelThinkingMode[] = ["off", "adaptive"];
 const PROVIDER_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 
 type Row = Record<string, unknown>;
@@ -116,6 +127,7 @@ function mapProvider(row: Row): ModelProviderRecord {
     prompt_cache: PROMPT_CACHE_MODES.includes(row.prompt_cache as ModelPromptCacheMode)
       ? row.prompt_cache as ModelPromptCacheMode
       : "off",
+    thinking: THINKING_MODES.includes(row.thinking as ModelThinkingMode) ? row.thinking as ModelThinkingMode : "off",
     models,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
@@ -140,6 +152,12 @@ export class ModelProviderStore {
     createModelProviderTables(this.#db);
   }
 
+  /** Read existing credential references without schema writes or secret access. */
+  static inspectCredentialReferences(db: Pick<ModelProviderSqlite, "prepare">): Array<Pick<ModelProviderRecord, "provider_id" | "display_name" | "credential_ref">> {
+    if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_providers'").get()) return [];
+    return db.prepare("SELECT provider_id, display_name, credential_ref FROM model_providers").all() as Array<Pick<ModelProviderRecord, "provider_id" | "display_name" | "credential_ref">>;
+  }
+
   list(): ModelProviderRecord[] {
     return (this.#db.prepare(
       "SELECT * FROM model_providers ORDER BY display_name, provider_id",
@@ -160,6 +178,7 @@ export class ModelProviderStore {
     api_format: ModelApiFormat;
     enabled?: boolean;
     prompt_cache?: ModelPromptCacheMode;
+    thinking?: ModelThinkingMode;
     models?: readonly ModelRecord[];
   }): ModelProviderRecord {
     if (!PROVIDER_ID.test(input.provider_id)) {
@@ -170,9 +189,10 @@ export class ModelProviderStore {
     }
     let endpoint: URL;
     try { endpoint = new URL(input.base_url); }
-    catch { throw new ModelProviderError("model-provider.invalid", "Base URL 必须是完整的 HTTPS 地址"); }
-    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.hash || endpoint.search) {
-      throw new ModelProviderError("model-provider.invalid", "Base URL 必须使用 HTTPS，不能包含密码、查询参数或片段");
+    catch { throw new ModelProviderError("model-provider.invalid", "Base URL 必须是完整地址"); }
+    const localHttp = endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname);
+    if ((!localHttp && endpoint.protocol !== "https:") || endpoint.username || endpoint.password || endpoint.hash || endpoint.search) {
+      throw new ModelProviderError("model-provider.invalid", "Base URL 必须使用 HTTPS 或本机 HTTP，不能包含密码、查询参数或片段");
     }
     if (input.models !== undefined && (input.models.length > 200 || input.models.some((model) =>
       typeof model.model_id !== "string" || !model.model_id.trim() || model.model_id.length > 200
@@ -196,33 +216,39 @@ export class ModelProviderStore {
     if (cacheProblem !== null) {
       throw new ModelProviderError("model-provider.invalid", cacheProblem);
     }
+    const thinking = input.thinking ?? existing?.thinking ?? "off";
+    if (!THINKING_MODES.includes(thinking)) throw new ModelProviderError("model-provider.invalid", `不认识的思考档：${thinking}`);
+    const thinkingProblem = inspectThinkingChoice({ api_format: input.api_format, thinking });
+    if (thinkingProblem !== null) throw new ModelProviderError("model-provider.invalid", thinkingProblem);
     const record: ModelProviderRecord = {
       provider_id: input.provider_id,
       display_name: input.display_name.trim() === "" ? input.provider_id : input.display_name.trim(),
       base_url: input.base_url.trim().replace(/\/+$/u, ""),
       api_format: input.api_format,
-      credential_ref: modelCredentialRef(input.provider_id),
+      credential_ref: existing?.credential_ref ?? modelCredentialRef(input.provider_id),
       enabled: input.enabled ?? existing?.enabled ?? true,
       prompt_cache: promptCache,
+      thinking,
       models: [...(input.models ?? existing?.models ?? [])],
       created_at: existing?.created_at ?? at,
       updated_at: at,
     };
     this.#db.prepare(`
       INSERT INTO model_providers
-        (provider_id, display_name, base_url, api_format, credential_ref, enabled, prompt_cache, models_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (provider_id, display_name, base_url, api_format, credential_ref, enabled, prompt_cache, thinking, models_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(provider_id) DO UPDATE SET
         display_name = excluded.display_name,
         base_url = excluded.base_url,
         api_format = excluded.api_format,
         enabled = excluded.enabled,
         prompt_cache = excluded.prompt_cache,
+        thinking = excluded.thinking,
         models_json = excluded.models_json,
         updated_at = excluded.updated_at
     `).run(
       record.provider_id, record.display_name, record.base_url, record.api_format,
-      record.credential_ref, record.enabled ? 1 : 0, record.prompt_cache,
+      record.credential_ref, record.enabled ? 1 : 0, record.prompt_cache, record.thinking,
       JSON.stringify(record.models), record.created_at, record.updated_at,
     );
     return record;
@@ -239,7 +265,7 @@ export class ModelProviderStore {
     const existing = this.get(providerId);
     if (existing === null) return false;
     // If secret deletion fails, retain the visible row so the user can retry.
-    this.#secrets.delete(existing.credential_ref);
+    if (existing.credential_ref === modelCredentialRef(providerId)) this.#secrets.delete(existing.credential_ref);
     this.#db.prepare("DELETE FROM model_providers WHERE provider_id = ?").run(providerId);
     return true;
   }
@@ -252,7 +278,17 @@ export class ModelProviderStore {
     if (plaintext.trim() === "") {
       throw new ModelProviderError("model-provider.invalid", "API Key 不能是空的");
     }
+    if (existing.credential_ref !== modelCredentialRef(providerId)) throw new ModelProviderError("model-provider.invalid", "请在 Connectors 中更换所选连接的密钥");
     this.#secrets.put(existing.credential_ref, plaintext.trim());
+  }
+
+  selectConnection(providerId: string, credentialRef: string): void {
+    if (!this.get(providerId)) throw new ModelProviderError("model-provider.unknown", `找不到供应商：${providerId}`);
+    if (!/^(?:connector-connection:|model-provider:)/u.test(credentialRef) || !this.#secrets.get(credentialRef)?.trim()) {
+      throw new ModelProviderError("model-provider.invalid", "所选连接不可用");
+    }
+    this.#db.prepare("UPDATE model_providers SET credential_ref = ?, updated_at = ? WHERE provider_id = ?")
+      .run(credentialRef, this.#now().toISOString(), providerId);
   }
 
   /** Whether a key is really stored. Asked of the secret store, never cached on the row. */

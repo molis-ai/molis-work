@@ -30,8 +30,8 @@ test('packed SDK child dispatch uses Host review, frozen roles, actual reads and
     }
     parentCalls++;
     if(parentCalls===1){
-      const catalog=JSON.stringify(body.system);assert.doesNotMatch(catalog,/molis-child-[a-z0-9-]+@2@/);const character=catalog.match(/molis-child-[a-z0-9-]+@2/)?.[0];assert.ok(character,catalog);
-      return response('',{name:'dispatch-subagent',input:{instruction:'READ_CHILD_SAMPLE: read sample.txt and report exact contents; no writes.',tools:['read','search','context-remaining'],character,idempotencyKey:'read-child',maxTurns:3}});
+      const catalog=JSON.stringify(body.system);assert.doesNotMatch(catalog,/molis-child-[a-z0-9-]+@4@/);const character=catalog.match(/molis-child-[a-z0-9-]+@4/)?.[0];assert.ok(character,catalog);
+      return response('',{name:'dispatch-subagent',input:{instruction:'READ_CHILD_SAMPLE: read sample.txt and report exact contents; no writes.',tools:['read','search'] /* a parent may leave out optional tools; the child must still start */,character,idempotencyKey:'read-child',maxTurns:3}});
     }
     assert.ok(messages.includes('ACTUAL CHILD FILE'),messages);
     if(parentCalls===2 || parentCalls===3){
@@ -88,7 +88,7 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
     if(child){childCalls++;childEntered.resolve();if(outcome==='failed')throw new Error('deliberate child provider failure');
       return new Promise<Response>((_resolve,reject)=>{const abort=()=>reject(new DOMException('Stopped','AbortError'));if(init.signal?.aborted)abort();else init.signal?.addEventListener('abort',abort,{once:true});});}
     parentCalls++;
-    if(parentCalls===1){let character=JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@2/)?.[0];assert.ok(character);
+    if(parentCalls===1){let character=JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0];assert.ok(character);
       if(outcome==='unknown-role')character=JSON.stringify(body.system).match(/molis-role-[a-z0-9-]+/)?.[0]+'@8';
       return response('',{name:'dispatch-subagent',input:{instruction:'CONTROL_CHILD inspect only',tools:['read','search','context-remaining'],character,idempotencyKey:'child-control',maxTurns:2}});}
     return response('Observed child outcome, no acceptance claim.');
@@ -112,6 +112,7 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
     const children=await adapter.subagents!.list(handle.ref);
     if(outcome==='rejected'||outcome==='unknown-role'){assert.equal(childCalls,0);assert.ok(children.every(child=>child.state!=='completed'));}
     else {assert.equal(childCalls,1);assert.equal(children.length,1);assert.equal(children[0].state,outcome);assert.equal(children[0].result,null);}
-    assert.equal(decided.size,1);
+    // A character that does not exist is refused before the dispatch is reviewed: nobody approves a call that can only fail.
+    assert.equal(decided.size,outcome==='unknown-role'?0:1);
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
 });

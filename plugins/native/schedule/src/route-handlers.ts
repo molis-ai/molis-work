@@ -3,12 +3,14 @@ import type { SchedulePluginRouteHandler, SchedulePluginRouteResponse } from "./
 import { parseClockTime } from "./calendar.js";
 import { ScheduleTaskError } from "./task-error.js";
 import {
+  archiveScheduleConversationTask,
   bindScheduleConversationJob,
   createScheduleConversationTask,
   getScheduleConversationTask,
   listScheduleConversationTasks,
   openScheduleConversationTask,
   toScheduleConversationTaskView,
+  updateScheduleConversationTask,
   type ScheduleConversationTaskRecord,
   type ScheduleConversationTaskView,
   type ScheduleTaskDatabase,
@@ -32,10 +34,14 @@ export interface ScheduleRouteHandlerPorts {
     minute: number;
     notify_important: boolean;
   }): ScheduleConversationTaskView;
+  updateTask(taskId: string, input: {
+    title: string; instructions: string; hour: number; minute: number; notify_important: boolean;
+  }): ScheduleConversationTaskView;
+  archiveTask(taskId: string): void;
   setTaskEnabled(taskId: string, enabled: boolean): ScheduleConversationTaskView;
   openTask(taskId: string): ScheduleConversationTaskView;
   changed(): void;
-  renderWorkbench?(): string;
+  renderWorkbench?(): string | Promise<string>;
 }
 
 export function createScheduleRouteHandlerPorts(options: {
@@ -69,6 +75,24 @@ export function createScheduleRouteHandlerPorts(options: {
       bindScheduleConversationJob(options.db, created.task_id, job.job_id, now);
       return asView(created.task_id);
     },
+    updateTask(taskId, input) {
+      options.db.transaction(() => {
+        const task = updateScheduleConversationTask(options.db, taskId, input, now);
+        if (task.enabled) {
+          const job = registerConversationJob(options.schedule, task, now());
+          bindScheduleConversationJob(options.db, task.task_id, job.job_id, now);
+        }
+      }).immediate();
+      return asView(taskId);
+    },
+    archiveTask(taskId) {
+      options.db.transaction(() => {
+        const task = getScheduleConversationTask(options.db, taskId);
+        if (!task || task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+        archiveScheduleConversationTask(options.db, taskId, now);
+        if (task.job_id && options.schedule.get(task.job_id)) options.schedule.cancel(task.job_id);
+      }).immediate();
+    },
     setTaskEnabled: (taskId, enabled) => {
       pauseOrResumeConversationTask(options.db, options.schedule, taskId, enabled, now);
       return asView(taskId);
@@ -86,8 +110,8 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
       status: 200,
       body: { jobs: options.listJobs(), tasks: options.listTasks() },
     }),
-    "schedule.workbench": () => options.renderWorkbench
-      ? { status: 200, html: options.renderWorkbench() }
+    "schedule.workbench": async () => options.renderWorkbench
+      ? { status: 200, html: await options.renderWorkbench() }
       : { status: 501, body: { error: "Schedule 工作区不可用" } },
     "schedule.job.enabled": ({ params, request }) => {
       const enabled = request.body.enabled;
@@ -114,6 +138,23 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
       });
       options.changed();
       return { status: 201, body: { task } };
+    },
+    "schedule.task.update": ({ params, request }) => {
+      const clock = parseClockTime(request.body.time ?? request.body.clock);
+      const task = options.updateTask(params.task_id ?? "", {
+        title: typeof request.body.title === "string" ? request.body.title : "",
+        instructions: typeof request.body.instructions === "string" ? request.body.instructions : "",
+        hour: clock.hour,
+        minute: clock.minute,
+        notify_important: request.body.notify_important !== false,
+      });
+      options.changed();
+      return { status: 200, body: { task } };
+    },
+    "schedule.task.archive": ({ params }) => {
+      options.archiveTask(params.task_id ?? "");
+      options.changed();
+      return { status: 200, body: { archived: true } };
     },
     "schedule.task.enabled": ({ params, request }) => {
       const enabled = request.body.enabled;

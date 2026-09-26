@@ -49,7 +49,7 @@ export function createInspirationStarter(store: BuilderStore, storage: PluginPri
  for (const sample of samples) records.save(sample);
  return store.update(draft.id,draft.revision,doc=>{
   doc.example='inspiration';doc.title=selected.title;doc.phase='ready';
-  doc.candidates=candidates;doc.design=selected;doc.nodes=nodes;doc.behavior=behavior;
+  doc.candidates=candidates;doc.design=selected;doc.nodes=nodes;doc.behavior=behavior;doc.connected=nodes.map(node=>node.id);
   doc.messages.push({role:'assistant',text:'这是内置灵感库示例，没有运行模型。你可以收集、整理和回看，再把它改成自己的工具。'});
  });
 }

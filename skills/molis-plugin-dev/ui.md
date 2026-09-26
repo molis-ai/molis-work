@@ -77,6 +77,14 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
 - 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入。
 
+质感层（`craft-finish.ts`，最后加载，标本 `/__ui/catalog#craft`）：
+
+- 舞台已经在一张圆角纸页上。不要再给自己的舞台画外框、圆角卡片或整页阴影；需要分区用间距和发丝线。
+- 抬升用 `--lift-1`（静止卡片）/ `--lift-2`（悬停、菜单）/ `--lift-3`（对话框）。圆角用 `--r-row` 8、`--r-card` 12、`--r-dialog` 16。
+- 时长用 `--dur-press` / `--dur-hover` / `--dur-move` / `--dur-arrive`，曲线 `--ease-quint`（到达）、`--ease-spring`（回弹）、`--ease-swift`（色调）。`mw-btn` 的按下回弹、对话框和菜单的入场已由 Host 提供，不要重写。
+- 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）。只在真实完成或真实到达时调用，首次渲染不要调用。
+- 位置由标签条最前的插件芯片说明，舞台不需要再放一行「插件名」大标题。
+
 意图总表：仓库 `DESIGN.md`。硬规则：`packages/design-system/README.md`。
 
 ## 文案与 i18n

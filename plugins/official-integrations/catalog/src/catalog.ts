@@ -74,8 +74,8 @@ const CATALOG: CatalogConnectorDraft[] = [
     auth_help: "使用带 calendar.readonly 的 Google 访问令牌。可与 Gmail 同一 OAuth 客户端，但 scope 要包含日历。",
     permission_host: "googleapis.com",
     identity: {
-      request: (ctx) => get("https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1", googleBearer(ctx)),
-      read: (json) => text(nestedText(asRecord(asList(json)[0]), ["id"]), nestedText(asRecord(json), ["summary"])) || "Google Calendar",
+      request: (ctx) => get("https://www.googleapis.com/calendar/v3/calendars/primary", googleBearer(ctx)),
+      read: (json) => text(asRecord(json)?.id, asRecord(json)?.summary),
     },
     feed: {
       request: (ctx) => get("https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=20&singleEvents=true&orderBy=updated", googleBearer(ctx)),
@@ -90,14 +90,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("outlook", "Outlook", "mail", "邮件与日历。", "Feed 拉邮件与日历", {
+  spec("outlook", "Outlook", "mail", "邮件与日历。", "Feed 读取邮件", {
     token_label: "Microsoft Graph 访问令牌（Mail.Read）",
     token_placeholder: "EwB…",
     auth_help: "使用 Microsoft Graph 委托令牌，需要 Mail.Read。Outlook / OneDrive / Teams / SharePoint 可共用同一 Graph 令牌（需对应 scope）。",
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.mail, asRecord(json)?.displayName) || "Outlook",
+      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.mail, asRecord(json)?.displayName),
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/messages?$top=20&$select=id,subject,from,receivedDateTime,webLink,bodyPreview", graphHeaders(ctx)),
@@ -119,7 +119,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "googleapis.com",
     identity: {
       request: (ctx) => get("https://www.googleapis.com/drive/v3/about?fields=user", googleBearer(ctx)),
-      read: (json) => nestedText(asRecord(json), ["user", "emailAddress"]) || nestedText(asRecord(json), ["user", "displayName"]) || "Google Drive",
+      read: (json) => nestedText(asRecord(json), ["user", "emailAddress"]) || nestedText(asRecord(json), ["user", "displayName"]),
     },
     feed: {
       request: (ctx) => get(`https://www.googleapis.com/drive/v3/files?pageSize=20&orderBy=${encodeURIComponent("modifiedTime desc")}&fields=files(id,name,modifiedTime,webViewLink,owners)`, googleBearer(ctx)),
@@ -140,7 +140,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.displayName) || "OneDrive",
+      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.displayName),
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/drive/recent", graphHeaders(ctx)),
@@ -160,7 +160,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.displayName) || "SharePoint",
+      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.displayName),
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/followedSites?$top=20", graphHeaders(ctx)),
@@ -178,7 +178,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "api.dropboxapi.com",
     identity: {
       request: (ctx) => post("https://api.dropboxapi.com/2/users/get_current_account", bearer(ctx), null),
-      read: (json) => text(nestedText(asRecord(json), ["email"]), nestedText(asRecord(json), ["name", "display_name"])) || "Dropbox",
+      read: (json) => text(nestedText(asRecord(json), ["email"]), nestedText(asRecord(json), ["name", "display_name"])),
     },
     feed: {
       request: (ctx) => post("https://api.dropboxapi.com/2/files/list_folder", bearer(ctx), { path: "", limit: 20 }),
@@ -197,7 +197,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "api.box.com",
     identity: {
       request: (ctx) => get("https://api.box.com/2.0/users/me", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.login, asRecord(json)?.name) || "Box",
+      read: (json) => text(asRecord(json)?.login, asRecord(json)?.name),
     },
     feed: {
       request: (ctx) => get("https://api.box.com/2.0/folders/0/items?limit=20", bearer(ctx)),
@@ -221,7 +221,7 @@ const CATALOG: CatalogConnectorDraft[] = [
         nestedText(asRecord(json), ["bot", "owner", "user", "name"]),
         nestedText(asRecord(json), ["name"]),
         asRecord(json)?.id as string,
-      ) || "Notion",
+      ),
     },
     feed: {
       request: (ctx) => post("https://api.notion.com/v1/search", bearer(ctx, { "Notion-Version": "2022-06-28" }), {
@@ -241,14 +241,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       }),
     },
   }),
-  spec("slack", "Slack", "chat", "频道、消息与 Canvas。", "Feed 拉频道与消息", {
+  spec("slack", "Slack", "chat", "频道、消息与 Canvas。", "Feed 读取频道列表", {
     token_label: "Slack Bot Token",
     token_placeholder: "xoxb-…",
     auth_help: "Slack Bot User OAuth Token。需要 channels:read 或 groups:read。",
     permission_host: "slack.com",
     identity: {
       request: (ctx) => get("https://slack.com/api/auth.test", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.user, asRecord(json)?.team) || "Slack",
+      read: (json) => text(asRecord(json)?.user, asRecord(json)?.team),
     },
     feed: {
       request: (ctx) => get("https://slack.com/api/conversations.list?limit=20&exclude_archived=true", bearer(ctx)),
@@ -260,14 +260,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("teams", "Microsoft Teams", "chat", "消息、频道与聊天。", "Feed 拉频道与聊天", {
+  spec("teams", "Microsoft Teams", "chat", "消息、频道与聊天。", "Feed 读取聊天列表", {
     token_label: "Microsoft Graph 访问令牌（Chat.Read）",
     token_placeholder: "EwB…",
     auth_help: "使用 Microsoft Graph 令牌，需要 Chat.Read。",
     permission_host: "graph.microsoft.com",
     identity: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me", graphHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.displayName) || "Teams",
+      read: (json) => text(asRecord(json)?.userPrincipalName, asRecord(json)?.displayName),
     },
     feed: {
       request: (ctx) => get("https://graph.microsoft.com/v1.0/me/chats?$top=20", graphHeaders(ctx)),
@@ -280,14 +280,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("discord", "Discord", "chat", "服务器与频道。", "Feed 拉服务器与频道消息", {
+  spec("discord", "Discord", "chat", "服务器与频道。", "Feed 读取服务器列表", {
     token_label: "Discord Bot Token",
     token_placeholder: "MTIz…",
     auth_help: "Discord Bot Token。本机用 Bot 前缀调用；Bot 必须在要读的服务器里。",
     permission_host: "discord.com",
     identity: {
       request: (ctx) => get("https://discord.com/api/v10/users/@me", discordHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.username, asRecord(json)?.global_name) || "Discord",
+      read: (json) => text(asRecord(json)?.username, asRecord(json)?.global_name),
     },
     feed: {
       request: (ctx) => get("https://discord.com/api/v10/users/@me/guilds", discordHeaders(ctx)),
@@ -298,13 +298,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("feishu", "飞书", "chat", "消息、文档与日历。", "Feed 拉消息、文档与日历", {
+  spec("feishu", "飞书", "chat", "消息、文档与日历。", "Feed 读取会话列表；Artifact 导入文档", {
     token_label: "飞书应用凭证",
     token_placeholder: "cli_…:app_secret",
     auth_help: "企业自建应用，格式 app_id:app_secret。导入正文需文档只读权限，并将文档共享给应用；知识库链接还需知识库读取权限。Feed 拉会话另需 im 权限。",
     permission_host: "open.feishu.cn",
-    parseToken: (raw) => splitParts(raw, ":", 2, ["app_id", "app_secret"]),
+    parseToken: (raw) => raw === "lark-cli" ? tokenContext(raw) : splitParts(raw, ":", 2, ["app_id", "app_secret"]),
     async prepare(ctx, http) {
+      if (ctx.accessToken === "lark-cli") return ctx;
       const result = await http.json(post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
         app_id: ctx.extra.app_id,
         app_secret: ctx.extra.app_secret,
@@ -314,11 +315,15 @@ const CATALOG: CatalogConnectorDraft[] = [
       return { ...ctx, accessToken: token };
     },
     identity: {
-      request: (ctx) => post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
+      request: (ctx) => (ctx.accessToken === "lark-cli" || ctx.extra.auth_method === "oauth")
+        ? get("https://open.feishu.cn/open-apis/authen/v1/user_info", bearer(ctx))
+        : post("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
         app_id: ctx.extra.app_id,
         app_secret: ctx.extra.app_secret,
       }),
-      read: (json, ctx) => text(asRecord(json)?.tenant_access_token) ? (text(ctx.extra.app_id) || "飞书") : "",
+      read: (json, ctx) => (ctx.accessToken === "lark-cli" || ctx.extra.auth_method === "oauth")
+        ? text(nestedText(asRecord(json), ["data", "name"]), nestedText(asRecord(json), ["data", "open_id"]))
+        : text(asRecord(json)?.tenant_access_token) ? (text(ctx.extra.app_id)) : "",
     },
     feed: {
       request: (ctx) => get("https://open.feishu.cn/open-apis/im/v1/chats?page_size=20", bearer(ctx)),
@@ -345,11 +350,15 @@ const CATALOG: CatalogConnectorDraft[] = [
       return { ...ctx, accessToken: token };
     },
     identity: {
-      request: (ctx) => post("https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
+      request: (ctx) => ctx.extra.auth_method === "oauth"
+        ? get("https://open.larksuite.com/open-apis/authen/v1/user_info", bearer(ctx))
+        : post("https://open.larksuite.com/open-apis/auth/v3/tenant_access_token/internal", { "content-type": "application/json" }, {
         app_id: ctx.extra.app_id,
         app_secret: ctx.extra.app_secret,
       }),
-      read: (json, ctx) => text(asRecord(json)?.tenant_access_token) ? (text(ctx.extra.app_id) || "Lark") : "",
+      read: (json, ctx) => ctx.extra.auth_method === "oauth"
+        ? text(nestedText(asRecord(json), ["data", "name"]), nestedText(asRecord(json), ["data", "open_id"]))
+        : text(asRecord(json)?.tenant_access_token) ? text(ctx.extra.app_id) : "",
     },
     feed: {
       request: (ctx) => get("https://open.larksuite.com/open-apis/im/v1/chats?page_size=20", bearer(ctx)),
@@ -395,7 +404,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "api.zoom.us",
     identity: {
       request: (ctx) => get("https://api.zoom.us/v2/users/me", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.email, asRecord(json)?.display_name) || "Zoom",
+      read: (json) => text(asRecord(json)?.email, asRecord(json)?.display_name),
     },
     feed: {
       request: (ctx) => get("https://api.zoom.us/v2/users/me/meetings?page_size=20", bearer(ctx)),
@@ -413,11 +422,11 @@ const CATALOG: CatalogConnectorDraft[] = [
     auth_help: "GitLab PAT，需要 read_api 或 read_user。默认 gitlab.com。",
     permission_host: "gitlab.com",
     identity: {
-      request: (ctx) => get("https://gitlab.com/api/v4/user", { "PRIVATE-TOKEN": ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT }),
-      read: (json) => text(asRecord(json)?.username, asRecord(json)?.name) || "GitLab",
+      request: (ctx) => get("https://gitlab.com/api/v4/user", ctx.extra.auth_method === "oauth" ? bearer(ctx) : { "PRIVATE-TOKEN": ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT }),
+      read: (json) => text(asRecord(json)?.username, asRecord(json)?.name),
     },
     feed: {
-      request: (ctx) => get("https://gitlab.com/api/v4/events?per_page=20", { "PRIVATE-TOKEN": ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT }),
+      request: (ctx) => get("https://gitlab.com/api/v4/events?per_page=20", ctx.extra.auth_method === "oauth" ? bearer(ctx) : { "PRIVATE-TOKEN": ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT }),
       read: (json) => mapList(json, "gitlab", (row) => item({
         externalId: `gitlab-${text(row.id)}`,
         title: text(row.action_name, nestedText(asRecord(row.target_title ? { t: row.target_title } : row), ["t"])) || "GitLab 动态",
@@ -430,13 +439,13 @@ const CATALOG: CatalogConnectorDraft[] = [
   }),
   spec("bitbucket", "Bitbucket", "code", "仓库与 PR。", "Feed 拉仓库与 PR", {
     token_label: "Bitbucket 令牌",
-    token_placeholder: "username:app-password 或 Bearer",
-    auth_help: "App password 用 username:password；OAuth 直接贴 access token。",
+    token_placeholder: "email:api-token 或 OAuth 访问令牌",
+    auth_help: "Bitbucket App Password 已停用。API Token 用 Atlassian 邮箱:api-token；OAuth 用户访问令牌可直接粘贴。",
     permission_host: "api.bitbucket.org",
     parseToken: parseBitbucketToken,
     identity: {
       request: (ctx) => get("https://api.bitbucket.org/2.0/user", bitbucketHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.display_name, asRecord(json)?.username) || "Bitbucket",
+      read: (json) => text(asRecord(json)?.display_name, asRecord(json)?.username),
     },
     feed: {
       request: (ctx) => get("https://api.bitbucket.org/2.0/repositories?role=member&pagelen=20", bitbucketHeaders(ctx)),
@@ -454,11 +463,11 @@ const CATALOG: CatalogConnectorDraft[] = [
     auth_help: "Vercel 账户 Token。只读部署列表。",
     permission_host: "api.vercel.com",
     identity: {
-      request: (ctx) => get("https://api.vercel.com/v2/user", bearer(ctx)),
-      read: (json) => text(nestedText(asRecord(json), ["user", "username"]), nestedText(asRecord(json), ["user", "email"])) || "Vercel",
+      request: (ctx) => get(vercelUrl("/v2/user", ctx), bearer(ctx)),
+      read: (json) => text(nestedText(asRecord(json), ["user", "username"]), nestedText(asRecord(json), ["user", "email"])),
     },
     feed: {
-      request: (ctx) => get("https://api.vercel.com/v6/deployments?limit=20", bearer(ctx)),
+      request: (ctx) => get(vercelUrl("/v6/deployments?limit=20", ctx), bearer(ctx)),
       read: (json) => mapList(asRecord(json)?.deployments, "vercel", (row) => item({
         externalId: `vercel-${text(row.uid, row.id)}`,
         title: text(row.name, row.url) || "Vercel 部署",
@@ -468,14 +477,19 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("cloudflare", "Cloudflare", "code", "Workers、Pages 与 DNS。", "Feed 拉 Workers、Pages 与 DNS", {
+  spec("cloudflare", "Cloudflare", "code", "Workers、Pages 与 DNS。", "Feed 读取域名列表", {
     token_label: "Cloudflare API Token",
     token_placeholder: "…",
     auth_help: "Cloudflare API Token。identity 打官方 /user/tokens/verify；不要用 Global API Key 的邮箱头。拉域名还需要 Zone.Read。",
-    permission_host: "api.cloudflare.com",
+    permission_host: "api.cloudflare.com", additional_permission_hosts: ["dash.cloudflare.com"],
     identity: {
-      request: (ctx) => get("https://api.cloudflare.com/client/v4/user/tokens/verify", bearer(ctx)),
-      read: (json) => text(nestedText(asRecord(json), ["result", "status"]), nestedText(asRecord(json), ["result", "id"])) || "Cloudflare",
+      request: (ctx) => get(ctx.extra.auth_method === "oauth" ? "https://dash.cloudflare.com/oauth2/userinfo" : "https://api.cloudflare.com/client/v4/user/tokens/verify", bearer(ctx)),
+      read: (json, ctx) => {
+        if (ctx.extra.auth_method === "oauth") return text(asRecord(json)?.email, asRecord(json)?.sub);
+        const result = asRecord(asRecord(json)?.result);
+        if (asRecord(json)?.success !== true || result?.status !== "active") throw new CatalogLiveError("needs_auth", 401, "Cloudflare API Token 已失效");
+        return text(result.id);
+      },
     },
     feed: {
       request: (ctx) => get("https://api.cloudflare.com/client/v4/zones?per_page=20", bearer(ctx)),
@@ -486,17 +500,17 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("huggingface", "Hugging Face", "code", "模型、数据集与 Spaces。", "Feed 拉模型、数据集与 Spaces", {
+  spec("huggingface", "Hugging Face", "code", "模型、数据集与 Spaces。", "Feed 读取账号模型列表", {
     token_label: "Hugging Face Access Token",
     token_placeholder: "hf_…",
     auth_help: "Hugging Face access token。用 whoami 后拉该用户模型。",
     permission_host: "huggingface.co",
     identity: {
-      request: (ctx) => get("https://huggingface.co/api/whoami-v2", bearer(ctx)),
+      request: (ctx) => get(ctx.extra.auth_method === "oauth" ? "https://huggingface.co/oauth/userinfo" : "https://huggingface.co/api/whoami-v2", bearer(ctx)),
       read: (json, ctx) => {
-        const name = text(asRecord(json)?.name, asRecord(json)?.email);
+        const name = ctx.extra.auth_method === "oauth" ? text(asRecord(json)?.preferred_username) : text(asRecord(json)?.name);
         if (name) ctx.extra.name = name;
-        return name || "Hugging Face";
+        return name;
       },
     },
     feed: {
@@ -509,7 +523,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("sentry", "Sentry", "code", "错误与性能。", "Feed 拉错误与性能", {
+  spec("sentry", "Sentry", "code", "错误与性能。", "Feed 读取错误列表", {
     token_label: "Sentry Auth Token",
     token_placeholder: "sntrys_…",
     auth_help: "Sentry User/Org Auth Token，需要 event:read、org:read。",
@@ -517,10 +531,12 @@ const CATALOG: CatalogConnectorDraft[] = [
     identity: {
       request: (ctx) => get("https://sentry.io/api/0/organizations/", bearer(ctx)),
       read: (json, ctx) => {
-        const first = asRecord(asList(json)[0]);
+        const organizations = asList(json).map(asRecord).filter(Boolean);
+        const first = ctx.extra.org ? organizations.find(row => text(row?.slug) === ctx.extra.org) : organizations.slice().sort((a, b) => text(a?.id).localeCompare(text(b?.id)))[0];
         const slug = text(first?.slug);
         if (slug) ctx.extra.org = slug;
-        return text(first?.name, first?.slug) || "Sentry";
+        if (first?.id) ctx.extra.account_id = `:${text(first.id)}`;
+        return text(first?.name, first?.slug);
       },
     },
     feed: {
@@ -536,14 +552,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("supabase", "Supabase", "code", "数据库、认证与存储。", "Feed 拉项目事件", {
+  spec("supabase", "Supabase", "code", "数据库、认证与存储。", "Feed 读取项目列表", {
     token_label: "Supabase Access Token",
     token_placeholder: "sbp_…",
     auth_help: "Supabase Management API access token。拉项目列表。",
     permission_host: "api.supabase.com",
     identity: {
-      request: (ctx) => get("https://api.supabase.com/v1/organizations", bearer(ctx)),
-      read: (json) => text(asRecord(asList(json)[0])?.name, asRecord(asList(json)[0])?.slug) || "Supabase",
+      request: (ctx) => get("https://api.supabase.com/v1/profile", bearer(ctx)),
+      read: (json) => text(asRecord(json)?.primary_email, asRecord(json)?.username, asRecord(json)?.gotrue_id),
     },
     feed: {
       request: (ctx) => get("https://api.supabase.com/v1/projects", bearer(ctx)),
@@ -555,17 +571,17 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("linear", "Linear", "work", "Issue、项目与周期。", "Feed 拉 Issue 与周期", {
+  spec("linear", "Linear", "work", "Issue、项目与周期。", "Feed 读取 Issue", {
     token_label: "Linear API Key",
     token_placeholder: "lin_api_…",
     auth_help: "Linear Personal API key。只读 viewer 与最近 Issue。",
     permission_host: "api.linear.app",
     identity: {
-      request: (ctx) => post("https://api.linear.app/graphql", bearer(ctx), { query: "{ viewer { id name email } }" }),
-      read: (json) => text(nestedText(asRecord(json), ["data", "viewer", "name"]), nestedText(asRecord(json), ["data", "viewer", "email"])) || "Linear",
+      request: (ctx) => post("https://api.linear.app/graphql", linearHeaders(ctx), { query: "{ viewer { id name email } }" }),
+      read: (json) => text(nestedText(asRecord(json), ["data", "viewer", "name"]), nestedText(asRecord(json), ["data", "viewer", "email"])),
     },
     feed: {
-      request: (ctx) => post("https://api.linear.app/graphql", bearer(ctx), {
+      request: (ctx) => post("https://api.linear.app/graphql", linearHeaders(ctx), {
         query: "{ issues(first: 20) { nodes { id identifier title url updatedAt assignee { name } } } }",
       }),
       read: (json) => mapList(nestedTextList(asRecord(json), ["data", "issues", "nodes"]), "linear", (row) => item({
@@ -582,14 +598,14 @@ const CATALOG: CatalogConnectorDraft[] = [
     token_label: "Jira 站点、邮箱与 API token",
     token_placeholder: "your-site.atlassian.net|you@email|api-token",
     auth_help: "Atlassian API token，格式 站点|邮箱|token。Cloud 站点不要带 https://。",
-    permission_host: "atlassian.net",
+    permission_host: "atlassian.net", additional_permission_hosts: ["api.atlassian.com"],
     parseToken: (raw) => splitParts(raw, "|", 3, ["site", "email", "token"]),
     identity: {
-      request: (ctx) => get(`https://${jiraHost(ctx)}/rest/api/3/myself`, jiraHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.displayName, asRecord(json)?.emailAddress) || "Jira",
+      request: (ctx) => get(`${jiraBase(ctx)}/rest/api/3/myself`, jiraHeaders(ctx)),
+      read: (json) => text(asRecord(json)?.displayName, asRecord(json)?.emailAddress),
     },
     feed: {
-      request: (ctx) => get(`https://${jiraHost(ctx)}/rest/api/3/search/jql?jql=${encodeURIComponent("assignee=currentUser() ORDER BY updated DESC")}&maxResults=20&fields=summary,updated`, jiraHeaders(ctx)),
+      request: (ctx) => get(`${jiraBase(ctx)}/rest/api/3/search/jql?jql=${encodeURIComponent("assignee=currentUser() ORDER BY updated DESC")}&maxResults=20&fields=summary,updated`, jiraHeaders(ctx)),
       read: (json, ctx) => mapList(asRecord(json)?.issues, "jira", (row) => {
         const fields = asRecord(row.fields);
         return item({
@@ -606,14 +622,14 @@ const CATALOG: CatalogConnectorDraft[] = [
     token_label: "Confluence 站点、邮箱与 API token",
     token_placeholder: "your-site.atlassian.net|you@email|api-token",
     auth_help: "与 Jira 相同的 Atlassian API token，格式 站点|邮箱|token。",
-    permission_host: "atlassian.net",
+    permission_host: "atlassian.net", additional_permission_hosts: ["api.atlassian.com"],
     parseToken: (raw) => splitParts(raw, "|", 3, ["site", "email", "token"]),
     identity: {
-      request: (ctx) => get(`https://${jiraHost(ctx)}/wiki/rest/api/user/current`, jiraHeaders(ctx)),
-      read: (json) => text(asRecord(json)?.displayName, asRecord(json)?.email) || "Confluence",
+      request: (ctx) => get(`${jiraBase(ctx)}/wiki/rest/api/user/current`, jiraHeaders(ctx)),
+      read: (json) => text(asRecord(json)?.displayName, asRecord(json)?.email),
     },
     feed: {
-      request: (ctx) => get(`https://${jiraHost(ctx)}/wiki/rest/api/content/search?cql=${encodeURIComponent("type=page order by lastmodified desc")}&limit=20`, jiraHeaders(ctx)),
+      request: (ctx) => get(`${jiraBase(ctx)}/wiki/rest/api/content/search?cql=${encodeURIComponent("type=page order by lastmodified desc")}&limit=20`, jiraHeaders(ctx)),
       read: (json, ctx) => mapList(asRecord(json)?.results, "confluence", (row) => {
         const path = nestedText(asRecord(row._links), ["webui"]);
         return item({
@@ -632,7 +648,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "app.asana.com",
     identity: {
       request: (ctx) => get("https://app.asana.com/api/1.0/users/me", bearer(ctx)),
-      read: (json) => text(nestedText(asRecord(json), ["data", "name"]), nestedText(asRecord(json), ["data", "email"])) || "Asana",
+      read: (json) => text(nestedText(asRecord(json), ["data", "name"]), nestedText(asRecord(json), ["data", "email"])),
     },
     feed: {
       collect: async (ctx, http) => {
@@ -660,7 +676,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "api.clickup.com",
     identity: {
       request: (ctx) => get("https://api.clickup.com/api/v2/user", clickupHeaders(ctx)),
-      read: (json) => text(nestedText(asRecord(json), ["user", "username"]), nestedText(asRecord(json), ["user", "email"])) || "ClickUp",
+      read: (json) => text(nestedText(asRecord(json), ["user", "username"]), nestedText(asRecord(json), ["user", "email"])),
     },
     feed: {
       collect: async (ctx, http) => {
@@ -686,8 +702,8 @@ const CATALOG: CatalogConnectorDraft[] = [
     auth_help: "monday.com 个人 API token。官方要求 Authorization 头直接放 token，不要加 Bearer。",
     permission_host: "api.monday.com",
     identity: {
-      request: (ctx) => post("https://api.monday.com/v2", mondayHeaders(ctx), { query: "{ me { id name email } }" }),
-      read: (json) => text(nestedText(asRecord(json), ["data", "me", "name"]), nestedText(asRecord(json), ["data", "me", "email"])) || "monday.com",
+      request: (ctx) => post("https://api.monday.com/v2", mondayHeaders(ctx), { query: "{ me { id name email account { id } } }" }),
+      read: (json) => text(nestedText(asRecord(json), ["data", "me", "name"]), nestedText(asRecord(json), ["data", "me", "email"])),
     },
     feed: {
       request: (ctx) => post("https://api.monday.com/v2", mondayHeaders(ctx), { query: "{ boards(limit: 20) { id name url updated_at } }" }),
@@ -706,7 +722,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "api.airtable.com",
     identity: {
       request: (ctx) => get("https://api.airtable.com/v0/meta/whoami", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.email, asRecord(json)?.id) || "Airtable",
+      read: (json) => text(asRecord(json)?.email, asRecord(json)?.id),
     },
     feed: {
       request: (ctx) => get("https://api.airtable.com/v0/meta/bases", bearer(ctx)),
@@ -717,56 +733,32 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("loom", "Loom", "work", "录像与评论。", "Feed 拉录像与评论", {
-    token_label: "Loom 访问令牌",
-    token_placeholder: "…",
-    auth_help: "Atlassian 官方目前不提供开放 PAT。只有企业/合作方发给你的 Loom API token 才能连；identity 打 GET https://api.loom.com/v1/users/me。没有这类令牌时是 live 失败，不是占位。",
-    permission_host: "api.loom.com",
-    identity: {
-      request: (ctx) => get("https://api.loom.com/v1/users/me", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.email, asRecord(json)?.name, nestedText(asRecord(json), ["user", "email"])) || "Loom",
-    },
-    feed: {
-      request: (ctx) => get("https://api.loom.com/v1/videos", bearer(ctx)),
-      read: (json) => mapList(asRecord(json)?.videos ?? json, "loom", (row) => item({
-        externalId: `loom-${text(row.id)}`,
-        title: text(row.title, row.name) || "Loom 录像",
-        url: text(row.share_url, row.url) || undefined,
-        occurredAt: text(row.created_at),
-      })),
-    },
+  spec("loom", "Loom", "work", "通过 Atlassian Rovo MCP 读取关联站点的录像。", "MCP 读取录像与评论", {
+    token_label: "", token_placeholder: "", auth_help: "Loom 没有公开 REST API；请使用官方 Rovo MCP。",
+    permission_host: "mcp.atlassian.com", feed_available: false,
+    identity: { request() { throw new CatalogLiveError("configuration", undefined, "请通过官方 Rovo MCP 连接 Loom"); }, read() { return ""; } },
+    feed: { async collect() { return []; } },
   }),
-  spec("figma", "Figma", "design", "设计稿与标注。", "Feed 拉设计稿与标注", {
+  spec("figma", "Figma", "design", "设计稿与标注。", "API 验证身份；MCP 读取设计内容", {
     token_label: "Figma Personal Access Token",
     token_placeholder: "figu_… 或 figd_…",
-    auth_help: "Figma PAT。先验证 /v1/me；没有 team/project id 时入站列表可能为空。",
+    auth_help: "使用 Figma Personal Access Token 验证账号。需要读取设计内容时，请连接官方 MCP。",
     permission_host: "api.figma.com",
     identity: {
-      request: (ctx) => get("https://api.figma.com/v1/me", { "X-Figma-Token": ctx.accessToken, Authorization: `Bearer ${ctx.accessToken}`, "User-Agent": USER_AGENT }),
-      read: (json) => text(asRecord(json)?.handle, asRecord(json)?.email) || "Figma",
+      request: (ctx) => get("https://api.figma.com/v1/me", ctx.extra.auth_method === "oauth" ? bearer(ctx) : { "X-Figma-Token": ctx.accessToken, "User-Agent": USER_AGENT }),
+      read: (json) => text(asRecord(json)?.handle, asRecord(json)?.email),
     },
-    feed: {
-      request: (ctx) => get("https://api.figma.com/v1/me", { "X-Figma-Token": ctx.accessToken, Authorization: `Bearer ${ctx.accessToken}`, "User-Agent": USER_AGENT }),
-      read: (json) => {
-        const me = asRecord(json);
-        const id = text(me?.id, me?.handle);
-        if (!id) return [];
-        return [item({
-          externalId: `figma-me-${id}`,
-          title: `${text(me?.handle, me?.email)} · Figma 账号`,
-          summary: "已验证身份。文件列表需要团队或项目 id。",
-        })];
-      },
-    },
+    feed_available: false,
+    feed: { async collect() { return []; } },
   }),
-  spec("canva", "Canva", "design", "设计与导出。", "Feed 拉设计与导出", {
+  spec("canva", "Canva", "design", "设计与导出。", "Feed 读取设计列表", {
     token_label: "Canva 访问令牌",
     token_placeholder: "…",
-    auth_help: "Canva 没有 PAT。需要自己在 Canva Developer 创建 Connect App，用 OAuth 拿到 access token 再贴进来。identity 打官方 GET /rest/v1/users/me。",
+    auth_help: "Canva 没有 PAT。推荐在上方使用自己的 Connect App 完成 OAuth；已有访问令牌也可粘贴，到期后需要更新。",
     permission_host: "api.canva.com",
     identity: {
       request: (ctx) => get("https://api.canva.com/rest/v1/users/me", bearer(ctx)),
-      read: (json) => text(nestedText(asRecord(json), ["team_user", "user_id"]), nestedText(asRecord(json), ["user", "display_name"]), nestedText(asRecord(json), ["profile", "display_name"])) || "Canva",
+      read: (json) => text(nestedText(asRecord(json), ["team_user", "user_id"]), nestedText(asRecord(json), ["user", "display_name"]), nestedText(asRecord(json), ["profile", "display_name"])),
     },
     feed: {
       request: (ctx) => get("https://api.canva.com/rest/v1/designs?limit=20", bearer(ctx)),
@@ -778,7 +770,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("adobe", "Adobe", "design", "创意工具。", "Feed 拉创意文件", {
+  spec("adobe", "Adobe", "design", "创意工具。", "API 验证 Adobe IMS 身份", {
     token_label: "Adobe IMS 访问令牌",
     token_placeholder: "api-key|access-token 或 access-token",
     auth_help: "Adobe IMS access token。官方 UserInfo 要带 client_id：填 api-key|access-token。只贴 access token 时也可能通，但多数情况会 401。",
@@ -786,20 +778,10 @@ const CATALOG: CatalogConnectorDraft[] = [
     parseToken: parseAdobeToken,
     identity: {
       request: (ctx) => get(adobeUserinfoUrl(ctx), bearer(ctx, adobeApiKey(ctx))),
-      read: (json) => text(asRecord(json)?.email, asRecord(json)?.name, asRecord(json)?.sub) || "Adobe",
+      read: (json) => text(asRecord(json)?.email, asRecord(json)?.name, asRecord(json)?.sub),
     },
-    feed: {
-      request: (ctx) => get(adobeUserinfoUrl(ctx), bearer(ctx, adobeApiKey(ctx))),
-      read: (json) => {
-        const email = text(asRecord(json)?.email, asRecord(json)?.name);
-        if (!email) return [];
-        return [item({
-          externalId: `adobe-${text(asRecord(json)?.sub, email)}`,
-          title: `${email} · Adobe 账号`,
-          summary: "已验证 IMS 身份。",
-        })];
-      },
-    },
+    feed_available: false,
+    feed: { async collect() { return []; } },
   }),
   spec("salesforce", "Salesforce", "crm", "CRM 对象与记录。", "Feed 拉 CRM 记录", {
     token_label: "Salesforce 实例与访问令牌",
@@ -809,7 +791,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     parseToken: (raw) => splitParts(raw, "|", 2, ["instance", "token"]),
     identity: {
       request: (ctx) => get(`${salesforceInstance(ctx)}/services/oauth2/userinfo`, bearer(ctx)),
-      read: (json) => text(asRecord(json)?.preferred_username, asRecord(json)?.name) || "Salesforce",
+      read: (json) => text(asRecord(json)?.preferred_username, asRecord(json)?.name),
     },
     feed: {
       request: (ctx) => get(`${salesforceInstance(ctx)}/services/data/v60.0/query?q=${encodeURIComponent("SELECT Id,Subject,LastModifiedDate FROM Task ORDER BY LastModifiedDate DESC LIMIT 20")}`, bearer(ctx)),
@@ -820,14 +802,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("hubspot", "HubSpot", "crm", "CRM 与营销。", "Feed 拉 CRM 与营销", {
-    token_label: "HubSpot Private App Token",
-    token_placeholder: "pat-na1-…",
-    auth_help: "HubSpot private app access token，需要 crm.objects.contacts.read。",
+  spec("hubspot", "HubSpot", "crm", "CRM 与营销。", "Feed 读取联系人", {
+    token_label: "HubSpot Service Key / 既有 Private App Token",
+    token_placeholder: "Service Key 或 pat-na1-…",
+    auth_help: "新建连接建议用 HubSpot Service Key，赋予 crm.objects.contacts.read；已有 Private App Token 仍可使用。",
     permission_host: "api.hubapi.com",
     identity: {
       request: (ctx) => get("https://api.hubapi.com/integrations/v1/me", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.hub_domain, asRecord(json)?.hub_id) || "HubSpot",
+      read: (json) => text(asRecord(json)?.hub_domain, asRecord(json)?.hub_id, asRecord(json)?.portalId),
     },
     feed: {
       request: (ctx) => get("https://api.hubapi.com/crm/v3/objects/contacts?limit=20&properties=email,firstname,lastname,lastmodifieddate", bearer(ctx)),
@@ -850,7 +832,7 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "api.intercom.io",
     identity: {
       request: (ctx) => get("https://api.intercom.io/me", bearer(ctx, { Accept: "application/json", "Intercom-Version": "2.13" })),
-      read: (json) => text(asRecord(json)?.email, asRecord(json)?.name) || "Intercom",
+      read: (json) => text(asRecord(json)?.email, asRecord(json)?.name),
     },
     feed: {
       request: (ctx) => get("https://api.intercom.io/conversations?per_page=20", bearer(ctx, { Accept: "application/json", "Intercom-Version": "2.13" })),
@@ -862,14 +844,14 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("stripe", "Stripe", "crm", "支付与客户。", "Feed 拉支付与客户", {
+  spec("stripe", "Stripe", "crm", "支付与客户。", "Feed 读取支付事件", {
     token_label: "Stripe Secret Key",
     token_placeholder: "sk_live_… 或 sk_test_…",
     auth_help: "Stripe secret key。只读 account 与 events。不要把密钥提交到 Git。",
     permission_host: "api.stripe.com",
     identity: {
       request: (ctx) => get("https://api.stripe.com/v1/account", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.display_name, asRecord(json)?.email, asRecord(json)?.id) || "Stripe",
+      read: (json) => text(asRecord(json)?.display_name, asRecord(json)?.email, asRecord(json)?.id),
     },
     feed: {
       request: (ctx) => get("https://api.stripe.com/v1/events?limit=20", bearer(ctx)),
@@ -883,7 +865,7 @@ const CATALOG: CatalogConnectorDraft[] = [
   spec("x", "X", "social", "帖子与账号。", "Feed 拉帖子与账号", {
     token_label: "X Bearer / User Token",
     token_placeholder: "AAAA…",
-    auth_help: "不要贴开发者后台的 App-Only Bearer（/users/me 会 403）。需要 OAuth 2.0 User Access Token（PKCE）或用户上下文令牌，权限 tweet.read、users.read。开放接口按套餐计费，失败时是 live 错误不是占位。",
+    auth_help: "不要贴开发者后台的 App-Only Bearer（/users/me 会 403）。需要 OAuth 2.0 User Access Token（PKCE）或用户上下文令牌，权限 tweet.read、users.read。开放接口按套餐计费，需要开发者账号具备相应 API 访问资格。",
     permission_host: "api.x.com",
     identity: {
       request: (ctx) => get("https://api.x.com/2/users/me", bearer(ctx)),
@@ -895,7 +877,7 @@ const CATALOG: CatalogConnectorDraft[] = [
       },
     },
     feed: {
-      request: (ctx) => get(`https://api.x.com/2/users/${encodeURIComponent(ctx.extra.user_id || "me")}/tweets?max_results=20`, bearer(ctx)),
+      request: (ctx) => get(`https://api.x.com/2/users/${encodeURIComponent(ctx.extra.user_id || "me")}/tweets?max_results=20&tweet.fields=created_at`, bearer(ctx)),
       read: (json) => mapList(asRecord(json)?.data, "x", (row) => item({
         externalId: `x-${text(row.id)}`,
         title: text(row.text)?.slice(0, 80) || "X 帖子",
@@ -905,28 +887,19 @@ const CATALOG: CatalogConnectorDraft[] = [
       })),
     },
   }),
-  spec("linkedin", "LinkedIn", "social", "职业社交。", "Feed 拉职业动态", {
+  spec("linkedin", "LinkedIn", "social", "职业社交。", "API 读取 OpenID 会员资料", {
     token_label: "LinkedIn 访问令牌",
     token_placeholder: "AQX…",
     auth_help: "LinkedIn OpenID 会员令牌（openid profile）。identity 打官方 /v2/userinfo。帖子列表要 Community Management 权限，多数开发者应用会 403，连接仍以 userinfo 成功为准。",
     permission_host: "api.linkedin.com",
     identity: {
       request: (ctx) => get("https://api.linkedin.com/v2/userinfo", bearer(ctx)),
-      read: (json) => text(asRecord(json)?.name, asRecord(json)?.email, asRecord(json)?.sub) || "LinkedIn",
+      read: (json) => text(asRecord(json)?.name, asRecord(json)?.email, asRecord(json)?.sub),
     },
-    feed: {
-      request: (ctx) => get("https://api.linkedin.com/v2/userinfo", bearer(ctx)),
-      read: (json) => {
-        const name = text(asRecord(json)?.name, asRecord(json)?.email);
-        if (!name) return [];
-        return [item({
-          externalId: `linkedin-${text(asRecord(json)?.sub, name)}`,
-          title: `${name} · LinkedIn 账号`,
-          summary: "已验证 OpenID 身份。",
-        })];
-      },
-    },
+    feed_available: false,
+    feed: { async collect() { return []; } },
   }),
+
 ];
 
 function nestedTextList(record: Record<string, unknown> | null, path: string[]): unknown {
@@ -940,11 +913,13 @@ function nestedTextList(record: Record<string, unknown> | null, path: string[]):
 }
 
 function discordHeaders(ctx: CatalogAuthContext): Record<string, string> {
+  if (ctx.extra.auth_method === "oauth") return bearer(ctx);
   const token = ctx.accessToken.startsWith("Bot ") ? ctx.accessToken : `Bot ${ctx.accessToken}`;
   return { Authorization: token, "User-Agent": USER_AGENT };
 }
 
 function clickupHeaders(ctx: CatalogAuthContext): Record<string, string> {
+  if (ctx.extra.auth_method === "oauth") return bearer(ctx);
   return { Authorization: ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT };
 }
 
@@ -960,16 +935,17 @@ function mondayHeaders(ctx: CatalogAuthContext): Record<string, string> {
 }
 
 function adobeUserinfoUrl(ctx: CatalogAuthContext): string {
-  const clientId = text(ctx.extra.api_key);
+  const clientId = text(ctx.extra.api_key, ctx.extra.client_id);
   const base = "https://ims-na1.adobelogin.com/ims/userinfo/v2";
   return clientId ? `${base}?client_id=${encodeURIComponent(clientId)}` : base;
 }
 
 function jiraHost(ctx: CatalogAuthContext): string {
-  return (ctx.extra.site ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return (ctx.extra.site_url ?? ctx.extra.site ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "");
 }
 
 function jiraHeaders(ctx: CatalogAuthContext): Record<string, string> {
+  if (ctx.extra.auth_method === "oauth") return bearer(ctx);
   const basic = Buffer.from(`${ctx.extra.email}:${ctx.accessToken}`).toString("base64");
   return { Authorization: `Basic ${basic}`, Accept: "application/json", "User-Agent": USER_AGENT };
 }
@@ -996,7 +972,8 @@ function parseAdobeToken(raw: string): CatalogAuthContext {
 }
 
 function adobeApiKey(ctx: CatalogAuthContext): Record<string, string> {
-  return ctx.extra.api_key ? { "X-Api-Key": ctx.extra.api_key } : {};
+  const key = ctx.extra.api_key || ctx.extra.client_id;
+  return key ? { "X-Api-Key": key } : {};
 }
 
 function salesforceInstance(ctx: CatalogAuthContext): string {
@@ -1024,4 +1001,14 @@ export function getCatalogSpec(id: string): CatalogConnectorSpec {
 
 export function catalogConnectorIds(): readonly string[] {
   return CATALOG_CONNECTORS.map((entry) => entry.id);
+}
+
+function jiraBase(ctx: CatalogAuthContext): string { return ctx.extra.base || `https://${jiraHost(ctx)}`; }
+function linearHeaders(ctx: CatalogAuthContext): Record<string, string> {
+  return ctx.extra.auth_method === "oauth" ? bearer(ctx) : { Authorization: ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT };
+}
+function vercelUrl(path: string, ctx: CatalogAuthContext): string {
+  const url = new URL(path, "https://api.vercel.com");
+  if (ctx.extra.team_id) url.searchParams.set("teamId", ctx.extra.team_id);
+  return url.href;
 }

@@ -91,13 +91,18 @@ export function unsatisfiedOutgoingDependencies<T extends GoalsTreeItem>(item: T
 
 const GOAL_CREATED_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-export function goalTreeCreatedLabel(iso: string): string {
+export function goalTreeCreatedParts(iso: string): { month: number; day: number; monthName: string } | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso.trim());
-  if (!match) return "";
+  if (!match) return null;
   const month = Number(match[2]);
   const day = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
-  return `${GOAL_CREATED_MONTHS[month - 1]} ${day}`;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { month, day, monthName: GOAL_CREATED_MONTHS[month - 1] };
+}
+
+export function goalTreeCreatedLabel(iso: string): string {
+  const parts = goalTreeCreatedParts(iso);
+  return parts ? `${parts.monthName} ${parts.day}` : "";
 }
 
 export function goalTreeCreatorInitial(actorId: string): string {

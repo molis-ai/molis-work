@@ -3,7 +3,7 @@ import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
-  const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem } = host;
+  const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
   const market = document.querySelector('[data-work-surface="market"]');
   const selector = market.querySelector("[data-market-project]");
   const trigger = market.querySelector("[data-market-project-trigger]");
@@ -13,7 +13,31 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const projectCheck = market.querySelector("[data-market-project-check]");
   const status = market.querySelector("[data-market-status]");
   const retry = market.querySelector("[data-market-retry]");
-  let projects = null, marketRequest = null, pending = false;
+  const marketLink = document.querySelector('[data-plugin-strip] [data-plugin-id="market"]');
+  const updateCount = marketLink?.querySelector("[data-market-update-count]");
+  let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false;
+  const paintUpdateCount = () => {
+    if (updateCount) {
+      updateCount.hidden = updates.length === 0;
+      updateCount.textContent = updates.length ? String(updates.length) : "";
+    }
+    if (marketLink) marketLink.setAttribute("aria-label", updates.length
+      ? L("插件市场") + "，" + updates.length + L("个可用更新")
+      : L("插件市场"));
+  };
+  const refreshUpdates = () => {
+    if (updatesRequest) return updatesRequest;
+    updatesRequest = (async () => {
+      try {
+        if (!projectId) { updates = []; return; }
+        const response = await fetch(route("/api/plugins/runtime/updates"), { cache: "no-store" });
+        if (!response.ok) throw new Error(L("无法读取插件更新"));
+        updates = (await response.json()).updates || [];
+      } catch { updates = []; }
+      finally { paintUpdateCount(); }
+    })().finally(() => { updatesRequest = null; });
+    return updatesRequest;
+  };
   const syncProjectMenu = () => {
     const current = selector.value;
     const currentText = selector.selectedOptions[0] ? selector.selectedOptions[0].text : "";
@@ -63,6 +87,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const onlyAdded = market.querySelector('[data-market-scope][aria-pressed="true"]')?.dataset.marketScope === "added";
     const addedIds = current?.plugins ?? [];
     const hiddenIds = current?.hidden ?? [];
+    paintUpdateCount();
     const installed = market.querySelector("[data-market-installed-row]");
     installed.replaceChildren(...addedIds.flatMap(id => {
       const card = market.querySelector('[data-market-plugin="' + id + '"]');
@@ -87,6 +112,28 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       button.disabled = !current || pending;
       button.dataset.marketMembership = added ? "added" : "available";
       button.textContent = added ? L("移除") : L("添加");
+      const currentProject = selector.value === projectId;
+      const openButton = card.querySelector('[data-market-open]');
+      openButton.hidden = !added || !currentProject;
+      openButton.disabled = pending;
+      button.classList.toggle('mw-btn--ghost', added);
+      button.classList.toggle('mw-btn--secondary', !added);
+      button.setAttribute('aria-label', (added ? L('移除') : L('添加')) + ' ' + card.querySelector('h2').textContent);
+      const update = added && currentProject ? updates.find(item => item.project_plugin_id === card.dataset.marketPlugin && item.plugin_id === card.dataset.marketRuntimeId) : null;
+      const upgradeButton = card.querySelector("[data-market-upgrade]");
+      upgradeButton.dataset.marketUpgrade = update?.plugin_id || "";
+      upgradeButton.hidden = !update;
+      upgradeButton.disabled = !current || pending || !update?.can_upgrade;
+      const version = card.querySelector("[data-market-version]");
+      if (update) {
+        version.hidden = false;
+        version.textContent = L("已安装") + " v" + update.installed_version + " · " + L("可升级至") + " v" + update.target_version;
+        upgradeButton.textContent = update.can_upgrade ? L("升级") : L("暂不可升级");
+        upgradeButton.title = update.can_upgrade ? L("保留现有数据与已授予权限") : L("目标版本尚未声明支持此来源版本");
+      } else {
+        version.hidden = true;
+        version.textContent = "";
+      }
     });
     market.querySelector("[data-market-empty]").hidden = count > 0;
     market.querySelector("[data-market-catalog]").hidden = count === 0;
@@ -101,6 +148,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         const response = await fetch("/api/settings/project-plugins", { cache: "no-store" });
         if (!response.ok) throw new Error(L("无法读取项目插件"));
         projects = (await response.json()).projects;
+        await refreshUpdates();
         selector.replaceChildren(...projects.map(project => new Option(project.display_name, project.project_id)));
         if (projects.some(project => project.project_id === projectId)) selector.value = projectId;
         selector.disabled = !projects.length;
@@ -131,6 +179,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   market.querySelector(".plugin-market-body").addEventListener("scroll", placeProjectMenu, { passive: true });
   addEventListener("resize", placeProjectMenu);
   market.addEventListener("click", async event => {
+    const open = event.target.closest('[data-market-open]');
+    if (open) { openPlugin?.(open.dataset.marketOpen); if (matchMedia('(max-width: 600px)').matches) setMobileView('document'); return; }
     const chosen = event.target.closest("[data-market-project-option]");
     if (chosen) {
       selector.value = chosen.dataset.marketProjectOption;
@@ -152,6 +202,24 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (installedItem) {
       const row = market.querySelector('[data-market-plugin="' + installedItem.dataset.marketFocus + '"]');
       row?.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      return;
+    }
+    const upgrade = event.target.closest("[data-market-upgrade]");
+    if (upgrade?.dataset.marketUpgrade && !upgrade.disabled && !pending) {
+      const pluginId = upgrade.dataset.marketUpgrade;
+      pending = true; selector.disabled = true; filter();
+      status.textContent = L("正在升级插件…");
+      try {
+        const response = await fetch(route("/api/plugins/" + encodeURIComponent(pluginId) + "/upgrade"), {
+          method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify({}),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || L("插件升级失败"));
+        updates = updates.filter(item => item.plugin_id !== pluginId);
+        status.textContent = L("已升级至") + " v" + result.version;
+        filter();
+      } catch (error) { status.textContent = error.message; }
+      finally { pending = false; selector.disabled = false; filter(); }
       return;
     }
     const button = event.target.closest("[data-market-add]");
@@ -184,7 +252,13 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (storedPath === route("/artifacts") || storedPath?.startsWith(route("/artifacts/"))) artifactPath = storedPath;
   } catch {}
   const loadArtifacts = async (path = artifactPath || route("/artifacts")) => {
-    if (!artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) return;
+    if (!artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) {
+      const selected = Boolean(detail.querySelector('[data-artifact-id]'));
+      document.querySelector('[data-artifact-stage-shell]')?.setAttribute('data-expanded', String(selected));
+      const workspace = document.querySelector('[data-artifact-stage-workspace]');
+      if (workspace) workspace.hidden = !selected;
+      return;
+    }
     artifactRequest?.abort();
     const controller = new AbortController(); artifactRequest = controller;
     const message = document.createElement("p"); message.textContent = L("正在读取成果…"); message.role = "status";
@@ -218,7 +292,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const collapse = event.target.closest("[data-artifact-collapse]");
     if (collapse) {
       event.preventDefault();
-      setSurface("artifacts");
+      openPlugin?.("artifacts");
       void loadArtifacts(route("/artifacts"));
       return;
     }
@@ -235,5 +309,12 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });
-  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(route("/artifacts")); } };
+  document.querySelector('[data-work-surface=artifacts]')?.addEventListener('molis-work:select-item', event => {
+    const base = route('/artifacts');
+    const path = event.detail.itemId || base;
+    if (path !== base && !path.startsWith(base + '/')) return;
+    void loadArtifacts(path);
+  });
+  void refreshUpdates();
+  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(); } };
 }`;

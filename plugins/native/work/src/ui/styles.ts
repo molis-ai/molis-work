@@ -83,6 +83,9 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-stage-list .goal-collection-fold > .session-stage-row { padding-left: 24px; }
   .session-stage-row { width: 100%; color: var(--ink); }
   .session-stage-row::before { display: none; }
+  body .session-stage-list .session-stage-row:is(.is-selected, [aria-selected="true"]) {
+    background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, transparent);
+  }
   .session-stage-row__copy {
     min-width: 0; width: 100%; display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(8rem, 18rem) auto;
@@ -263,6 +266,7 @@ export const PROJECT_OPERATIONS_STYLES = `
   .session-rail dt { color: var(--muted); }
   .session-rail dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   .session-rail dd { display: grid; gap: 2px; justify-items: start; }
+  .session-rail dd > .mw-btn--link { min-height: 0; height: auto; padding: 0; color: var(--blue); font-size: 11px; }
   .session-rail code { overflow-wrap: anywhere; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .operation-history { margin: 0; padding: 0; list-style: none; }
   .operation-history li { padding: 8px 0; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 8px; }

@@ -57,7 +57,6 @@ import {
   createWorkbenchGoalsTreeRenderer,
   renderProjectOperations,
   renderShelfContribution,
-  renderFunctionsContribution,
   renderExperimentsContribution,
   renderImagesContribution,
   renderPagesContribution,
@@ -68,6 +67,7 @@ import {
   renderJellyContribution,
   renderCogniaContribution,
   renderAlchemistContribution,
+  renderWorkflowsContribution,
   renderWorkbenchDocument,
   renderWorkTerminal,
 } from "./ui-composition.js";
@@ -109,12 +109,6 @@ function renderShelfNativePluginSurface(surface: "directory" | "workbench"): str
   });
 }
 
-function renderFunctionsNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderFunctionsContribution(surface, {
-    functions: [],
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
 
 function renderPagesNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderPagesContribution(surface, {
@@ -154,6 +148,12 @@ function renderJellyNativePluginSurface(surface: "directory" | "workbench"): str
 
 function renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderLingguangContribution(surface, {
+    primitives: { escape: escapeHtml, text: L },
+  });
+}
+
+function renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string {
+  return renderWorkflowsContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
   });
 }
@@ -207,7 +207,7 @@ function dataJson(view: MolisWorkWebView): string {
     goals: summarize(view.goals),
     archived_goals: summarize(view.archived_goals),
     trashed_goals: summarize(view.trashed_goals),
-    function_scenes: view.function_scenes ?? null,
+    inbox_judgment: view.inbox_judgment ?? null,
   }).replaceAll("<", "\\u003c");
 }
 
@@ -420,6 +420,7 @@ function prefixLocalLinks(html: string, routePrefix: string, desktopShell = fals
     : html;
   const resolved = prefixed
     .replaceAll('href="__PROJECT_INDEX__"', 'href="/"')
+    .replaceAll('href="__SYSTEM_CAPABILITIES__"', `href="/capabilities/library${routePrefix ? `?project=${encodeURIComponent(routePrefix.split("/")[2]!)}` : ""}"`)
     .replaceAll('href="__WORKBENCH_CSS__"', 'href="/assets/molis-work-workbench.css"')
     .replaceAll('href="__PROJECT_SETTINGS__"', `href="${routePrefix ? `${routePrefix}/settings` : "/settings/projects"}"`)
     .replaceAll('href="__PROJECT_RULES_SETTINGS__"', `href="${routePrefix ? `${routePrefix}/settings/rules` : "/settings/projects"}"`)
@@ -435,7 +436,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderFunctionsNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderExperimentsContribution, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

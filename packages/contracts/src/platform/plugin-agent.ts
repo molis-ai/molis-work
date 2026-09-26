@@ -19,6 +19,8 @@ export interface AgentRoleDeclaration {
   version: number;
   name: string;
   execution?: AgentRoleExecution;
+  /** Explicit pure inference role. Omission requires an authorized working directory. */
+  workspace?: "required" | "none";
   /**
    * Prompt ids this role is composed from, in order.
    *
@@ -228,6 +230,13 @@ export function inspectAgentDeclaration(
       continue;
     }
     roles.add(role.role_id);
+    if (role.workspace !== undefined && role.workspace !== "required" && role.workspace !== "none") {
+      problems.push(`Agent 角色 ${role.role_id} 的工作区声明无效`);
+    }
+    if (role.workspace === "none" && ((role.execution ?? "read-only") !== "read-only" || role.host_tools?.length
+      || role.subagent_workspaces || agent.subagents?.parent_role_ids.includes(role.role_id))) {
+      problems.push(`无工作区角色 ${role.role_id} 必须为不使用工具或子任务的只读推理`);
+    }
     // A role must resolve to at least one prompt: either the ones it names, or
     // — for a role that names none — a prompt sharing its id. A role running
     // with no prompt at all would be an agent with no instructions.
@@ -297,7 +306,10 @@ export function inspectAgentDeclaration(
           problems.push(`子 Agent 角色 ${child.role_id} 引用了未登记的父角色 ${parent}`);
         }
       }
-      if (child.execution === "workspace-write") {
+      // A child that can write files works only in its own directory. One that only runs commands (each a Host review)
+      // may work in the main workspace, as a reviewer running the checks does.
+      const writesFiles = child.host_tools === undefined || child.host_tools.some((tool) => tool === "write" || tool === "edit-file");
+      if (child.execution === "workspace-write" && writesFiles) {
         const parents = child.parent_role_ids ?? subagents.parent_role_ids ?? [];
         const allOwnWorkspaces = parents.length > 0
           && parents.every((parent) => workspaceParents.has(parent));

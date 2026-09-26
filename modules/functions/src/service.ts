@@ -1,7 +1,10 @@
 import {
+  AGENT_MCP_DESTINATION_ID,
   FUNCTIONS_CREDENTIAL_REF,
+  NOUL_POSITIVE_THRESHOLD,
   filterSuggestedBehaviorIds,
   functionFitsScene,
+  functionOutputKeys,
   mapJudgmentChoice,
   type FunctionDescribe,
   type FunctionDraftPatch,
@@ -14,7 +17,6 @@ import {
   type FunctionsPrimitive,
   type FunctionsSecretPort,
   type FunctionsSettingsStatus,
-  type JudgeFunctionInput,
   type JudgmentRecord,
   type TypeSafeEvaluateResult,
   type TypeSafeProvider,
@@ -29,7 +31,6 @@ export interface FunctionsServiceOptions {
   readonly secrets: FunctionsSecretPort;
   readonly env?: NodeJS.Dict<string>;
   readonly provider?: TypeSafeProvider;
-  readonly allowed_behavior_ids?: readonly string[];
 }
 
 const missingProvider: TypeSafeProvider = {
@@ -43,14 +44,12 @@ export class FunctionsService {
   private readonly secrets: FunctionsSecretPort;
   private readonly env: NodeJS.Dict<string>;
   private readonly provider: TypeSafeProvider;
-  private readonly allowedBehaviorIds: readonly string[];
 
   constructor(options: FunctionsServiceOptions) {
     this.store = options.store;
     this.secrets = options.secrets;
     this.env = options.env ?? {};
     this.provider = options.provider ?? missingProvider;
-    this.allowedBehaviorIds = options.allowed_behavior_ids ?? [];
   }
 
   list(): FunctionRecord[] {
@@ -129,9 +128,9 @@ export class FunctionsService {
     return this.settingsStatus();
   }
 
-  async preview(id: string, input: string, expectedUpdatedAt?: string): Promise<FunctionRecord> {
+  async preview(id: string, input: string, expectedUpdatedAt?: string, signal?: AbortSignal): Promise<FunctionRecord> {
     const current = this.store.require(id);
-    const result = await this.evaluate(current, input);
+    const result = await this.evaluate(current, input, signal);
     const preview: FunctionsPreviewRecord = {
       input: input.trim(),
       outcome: outcomeOf(result),
@@ -149,23 +148,39 @@ export class FunctionsService {
     return this.store.savePreview(id, preview, expectedUpdatedAt);
   }
 
-  async invokePublished(functionKey: string, input: string): Promise<FunctionInvokeResult> {
+  async invokePublished(functionKey: string, input: string, context: { version?: number; config_hash?: string; project_id?: string; signal?: AbortSignal; record_history?: boolean;
+    before_evaluate?: (record: FunctionRecord) => void | Promise<void>; before_result?: (record: FunctionRecord) => void | Promise<void> } = {}): Promise<FunctionInvokeResult> {
     const current = this.store.requirePublishedByKey(functionKey);
-    const result = await this.evaluate(current, input);
+    if ((context.version !== undefined && context.version !== current.version)
+      || (context.config_hash !== undefined && context.config_hash !== current.config_hash)) {
+      throw new FunctionsError("functions.version_conflict", "判断规则版本已变化，请重新确认绑定");
+    }
+    await context.before_evaluate?.(current);
+    const result = await this.evaluate(current, input, context.signal);
     const outcome = outcomeOf(result);
-    this.store.recordJudgment({
+    // A published rule returns its authored symbols; only the consumer can decide
+    // whether a referenced business action is currently authorized and prepared.
+    const targets = functionOutputKeys(current).map(key => current.scene_map[key] ?? key);
+    const suggested = outcome === "ok" && current.scene_id !== AGENT_MCP_DESTINATION_ID && (current.scene_id || Object.keys(current.scene_map).length)
+      ? filterSuggestedBehaviorIds(targets, targets, mapJudgmentChoice(current, result)) : [];
+    const outputKey = current.primitive === "choice" ? result.choice : current.primitive === "noul" && result.noul !== null ? result.noul >= NOUL_POSITIVE_THRESHOLD ? "true" : "false" : null;
+    const action = outcome === "ok" && outputKey ? current.action_map?.[outputKey] : undefined;
+    await context.before_result?.(current);
+    context.signal?.throwIfAborted();
+    if (context.record_history !== false) this.store.recordJudgment({
       function_key: current.function_key,
       function_version: current.version!,
-      subject: { kind: "mcp_invoke", id: current.function_key },
+      subject: { kind: "mcp_invoke", id: current.function_key, ...(context.project_id ? { board_id: context.project_id } : {}) },
       scene_id: null,
       outcome,
-      suggested_behavior_ids: outcome === "ok"
-        ? filterSuggestedBehaviorIds(this.allowedBehaviorIds, this.allowedBehaviorIds, mapJudgmentChoice(current, result))
-        : [],
+      suggested_behavior_ids: suggested,
+      recommended_actions: action ? [{ ...action }] : [],
       error_code: null,
     });
     return {
       status: outcome,
+      suggested_behavior_ids: suggested,
+      recommended_actions: action ? [{ ...action }] : [],
       function_key: current.function_key,
       version: current.version!,
       model: result.model || current.model,
@@ -175,6 +190,20 @@ export class FunctionsService {
       probabilities: result.probabilities,
       confidence: result.confidence,
     };
+  }
+
+  recordSceneJudgment(input: Parameters<FunctionsStore["recordJudgment"]>[0]): JudgmentRecord {
+    return this.store.recordJudgment(input);
+  }
+
+  sceneBindingRevision(sceneId: string, boardId: string) { return this.store.sceneBindingRevision(sceneId, boardId); }
+
+  actionSceneBinding(sceneId: string, boardId: string, ref = "") {
+    return this.store.getActionSceneBinding(sceneId, boardId, ref);
+  }
+
+  saveActionSceneBinding(boardId: string, binding: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneBinding, legacyKey = "", expectedRevision?: string | null) {
+    return this.store.setActionSceneBinding(boardId, binding, legacyKey, expectedRevision);
   }
 
   sceneBinding(sceneId: string, boardId?: string | null, ref?: string | null): FunctionSceneBinding | null {
@@ -201,54 +230,28 @@ export class FunctionsService {
     return this.store.listJudgments();
   }
 
+  latestSceneJudgments(boardId: string, sceneId: string): JudgmentRecord[] {
+    return this.store.latestSceneJudgments(boardId, sceneId);
+  }
+
   latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, boardId?: string, sceneId?: string | null): JudgmentRecord | null {
     return this.store.latestJudgment(kind, id, boardId, sceneId);
   }
 
-  async judge(input: JudgeFunctionInput): Promise<JudgmentRecord> {
-    const allowed = this.allowedBehaviorIds.length > 0 ? this.allowedBehaviorIds : input.offered_behavior_ids;
-    const offered = input.offered_behavior_ids;
-    try {
-      const current = this.store.requirePublishedByKey(input.function_key);
-      const result = await this.evaluate(current, input.input);
-      const outcome = outcomeOf(result);
-      const suggested = outcome === "ok"
-        ? filterSuggestedBehaviorIds(offered, allowed, mapJudgmentChoice(current, result))
-        : [];
-      return this.store.recordJudgment({
-        function_key: current.function_key,
-        function_version: current.version!,
-        subject: input.subject,
-        scene_id: input.scene_id ?? null,
-        outcome,
-        suggested_behavior_ids: suggested,
-        error_code: null,
-      });
-    } catch (error) {
-      const code = error instanceof FunctionsError ? error.code : "functions.failed";
-      return this.store.recordJudgment({
-        function_key: input.function_key,
-        function_version: 0,
-        subject: input.subject,
-        scene_id: input.scene_id ?? null,
-        outcome: "needs_review",
-        suggested_behavior_ids: [],
-        error_code: code,
-      });
-    }
+  publish(id: string, expectedUpdatedAt?: string, scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference): FunctionRecord {
+    return this.store.publish(id, expectedUpdatedAt, scene);
   }
 
-  publish(id: string, expectedUpdatedAt?: string): FunctionRecord {
-    return this.store.publish(id, expectedUpdatedAt);
-  }
-
-  private async evaluate(record: FunctionRecord, input: string): Promise<TypeSafeEvaluateResult> {
+  private async evaluate(record: FunctionRecord, input: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult> {
+    signal?.throwIfAborted();
     const state = input.trim();
     if (!state || state.length > 8000) {
       throw new FunctionsError("functions.invalid", "试跑输入须为 1 到 8000 个字");
     }
     assertReadyToEvaluate(record);
-    return this.provider.evaluate(this.resolveApiKey(), record, state);
+    const result = await this.provider.evaluate(this.resolveApiKey(), record, state, signal);
+    signal?.throwIfAborted();
+    return result;
   }
 
   private resolveApiKey(): string {

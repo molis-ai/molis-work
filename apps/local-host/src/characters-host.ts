@@ -75,6 +75,7 @@ export function codingCharacterPorts(homeDirectory: string | undefined, actorId:
       try { content = parseCharacterContent(record.payload); } catch { return []; }
       if (content.source.owner_actor_id !== actorId || record.artifact_id !== `character:${boardId}:${content.character_id}`) return [];
       const summary = { reference, title: content.title, instructions: content.instructions, host_tools: content.host_tools,
+        ...(content.action_tools === undefined ? {} : { action_tools: content.action_tools }),
         ...(content.import_snapshot ? { imported_skills: content.import_snapshot.skills.map(({id,name,compatibility,reason})=>({id,name,compatibility,reason})) } : {}) };
       try { freezeProjectCharacter(homeDirectory, actorId, boardId, artifacts, reference); return [{ ...summary, available: true }]; }
       catch (error) { return [{ ...summary, available: false, reason: error instanceof Error ? error.message : "角色版本不可用" }]; }

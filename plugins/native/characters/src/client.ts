@@ -1,4 +1,5 @@
 import { CHARACTER_IMPORT_CLIENT_FACTORY } from "./import-client.js";
+import { CHARACTER_ACTION_CLIENT } from "./action-client.js";
 /** Personal editing and exact project publication. No polling replaces an active editor. */
 export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   const root = document.querySelector('[data-characters]');
@@ -7,7 +8,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   const api = root.dataset.characterApi, key = 'molis.characters.drafts:' + api;
   const list = q('list'), form = q('editor'), dialog = q('dialog');
   let records = [], publications = [], selected = null, revision = null, busy = false, confirmation = null;
-  let importsView;
+  let importsView, actionsView;
   let drafts = {};
   try {
     const stored = JSON.parse(sessionStorage.getItem(key) || '{}');
@@ -21,7 +22,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   const note = text => { q('notice').textContent = text; };
   const current = () => records.find(item => item.character_id === selected);
   const values = () => ({ title: q('title').value, instructions: q('instructions').value,
-    host_tools: q('inherit').checked ? null : q('tools').value.split(',').map(tool => tool.trim()).filter(Boolean) });
+    host_tools: q('inherit').checked ? null : q('tools').value.split(',').map(tool => tool.trim()).filter(Boolean), action_tools: actionsView.value() });
   const dirty = () => Boolean(selected && drafts[selected]);
   const remember = () => {
     if (!selected || busy) return;
@@ -55,6 +56,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
       const details = document.createElement('details'), summary = document.createElement('summary'), content = document.createElement('pre');
       summary.textContent = 'v' + record.version + ' · ' + record.payload.title + ' · ' + (record.lifecycle_state !== 'active' || record.availability !== 'available' ? '当前不可用' : '已发布') + ' · 草稿修订 ' + record.payload.source.draft_revision;
       content.textContent = record.payload.instructions + '\\n\\n内置工具：' + (record.payload.host_tools === null ? '沿用调用方' : record.payload.host_tools.join(', ') || '不用内置工具');
+      content.textContent += '\\n动作能力：' + actionsView.describe(record.payload.action_tools);
       details.append(summary, content); importsView?.renderPublication(record, details); target.append(details);
     }
   };
@@ -65,6 +67,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     revision = local ? local.expected_revision : record.revision;
     q('title').value = value.title; q('instructions').value = value.instructions;
     q('inherit').checked = value.host_tools === null; q('tools').value = (value.host_tools || []).join(', '); q('tools-field').hidden = q('inherit').checked;
+    actionsView.render(value.action_tools);
     q('heading').textContent = record.title;
     q('status').textContent = record.state === 'disabled' ? '已停用' : record.state === 'tombstoned' ? '已删除' : '草稿修订 ' + record.revision;
     q('toggle').textContent = record.state === 'disabled' ? '启用' : '停用';
@@ -76,6 +79,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     root.querySelectorAll('button, input, textarea').forEach(element => { if(!element.closest('[data-character-import-dialog], [data-character-run-dialog]')) element.disabled = busy; });
     if (record?.state === 'tombstoned') form.querySelectorAll('button, input, textarea').forEach(element => { element.disabled = true; });
     if (record?.state !== 'active') q('preview').disabled = true;
+    actionsView?.controls(busy || record?.state === 'tombstoned');
   };
   const select = id => { selected = id; note(''); renderList(); renderEditor(); };
   const load = async () => { const result = await request('GET', '/drafts'); records = result.drafts; publications = result.publications; renderList(); renderEditor(); };
@@ -105,7 +109,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     if (!record?.instructions.trim()) throw new Error('先填写角色的做事方式，再发布。');
     const frozenId = record.character_id, frozenRevision = record.revision;
     confirm('发布「' + record.title + '」', '将草稿修订 ' + frozenRevision + ' 的以下内容发布到当前项目。Coding 仍需明确选择此版本。',
-      record.instructions + '\\n\\n内置工具：' + (record.host_tools === null ? '沿用调用方' : record.host_tools.join(', ') || '不用内置工具'), '发布到当前项目', async () => {
+      record.instructions + '\\n\\n内置工具：' + (record.host_tools === null ? '沿用调用方' : record.host_tools.join(', ') || '不用内置工具') + '\\n动作能力：' + actionsView.describe(record.action_tools), '发布到当前项目', async () => {
         const result = await request('POST', '/drafts/' + encodeURIComponent(frozenId) + '/publish', { expected_revision: frozenRevision });
         dialog.close(); await load(); note((result.replayed ? '当前草稿已发布，复用' : '已发布') + ' v' + result.reference.version + '，内容已固定。');
       });
@@ -113,7 +117,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   q('toggle').addEventListener('click', () => {
     const record = current(); if (!record) return;
     const id = record.character_id, expected = revision, state = record.state === 'disabled' ? 'active' : 'disabled';
-    confirm(state === 'active' ? '启用角色' : '停用角色', state === 'active' ? '启用后，可在新执行中明确选择已发布版本。' : '所有项目的新执行都不能再选择这个角色。已有执行和发布版本保持原样。', record.title, state === 'active' ? '启用' : '停用', async () => {
+    confirm(state === 'active' ? '启用角色' : '停用角色', state === 'active' ? '启用后，可在新执行中明确选择已发布版本。' : '新的执行不能再选择此角色；内置引擎后续动作调用也会停止。已完成的操作和历史版本保持。', record.title, state === 'active' ? '启用' : '停用', async () => {
       await request('POST', '/drafts/' + encodeURIComponent(id) + '/state', { expected_revision: expected, state });
       // Keep unsubmitted text; state transitions advance the revision without changing that text.
       if (drafts[id]) { drafts[id].expected_revision = expected + 1; persist(); }
@@ -135,5 +139,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   q('confirm').addEventListener('click', () => void act(async () => { if (confirmation) await confirmation(); }));
   dialog.addEventListener('close', () => { confirmation = null; });
   importsView = (${CHARACTER_IMPORT_CLIENT_FACTORY})({root,q,request,current,load,select,act,save,dirty,note});
+  actionsView = (${CHARACTER_ACTION_CLIENT})({q,request,changed:remember});
+  void actionsView.refresh();
   void act(load);
 }`;

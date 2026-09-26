@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-compaction-growth.tgz",
+    "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-coding-inference.tgz",
     "@tauri-apps/api": "2.11.1"
   },
   "molis-work": {

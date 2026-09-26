@@ -26,26 +26,22 @@ test("Characters manifest supplies the user glyph to navigation and tabs", () =>
   assert.equal(pluginTabGlyphs().characters, "user");
 });
 
-test("Characters button sits in the identity card, ahead of settings and the account", () => {
+test("Characters sits with the other tools; building and adding tools close the list, you close the rail", () => {
   const primitives = {
     L: (value: string) => value,
     escapeHtml: (value: unknown) => String(value),
     icon: (name: string) => `<svg data-icon="${name}"></svg>`,
   };
   const account = `<footer class="personal-sidebar-footer"><button data-plugin-id="settings"></button><button class="personal-account"></button></footer>`;
-  const html = renderPluginRail(primitives, ["goals", "characters", "pages", "plugin-builder"], account);
-  const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("personal-sidebar-footer"));
-  const card = html.slice(html.indexOf("personal-sidebar-footer"));
-  assert.match(items, /data-plugin-id="plugin-builder"[\s\S]*data-icon="wand"[\s\S]*class="plugin-rail-rule"[\s\S]*data-plugin-id="home"[\s\S]*data-plugin-id="goals"/);
-  assert.match(items, /data-plugin-id="pages"/);
-  assert.doesNotMatch(items.slice(items.indexOf("plugin-rail-rule")), /data-plugin-id="plugin-builder"/);
-  assert.doesNotMatch(items, /data-plugin-id="characters"|data-plugin-id="market"/);
-  assert.match(card, /data-plugin-id="market"[\s\S]*data-plugin-id="characters"[\s\S]*data-plugin-id="settings"[\s\S]*class="personal-account"/);
-  assert.match(card, /data-work-surface-open="characters"/);
+  const island = `<div class="assistant-island" data-assistant-island><button data-plugin-id="lingguang"></button></div>`;
+  const html = renderPluginRail(primitives, ["goals", "characters", "pages", "plugin-builder", "inbox"], account, island);
+  const items = html.slice(html.indexOf("plugin-rail-items"), html.indexOf("data-assistant-island"));
+  assert.match(items, /data-plugin-id="home"[\s\S]*data-plugin-id="goals"[\s\S]*data-plugin-id="inbox"[\s\S]*创作[\s\S]*data-plugin-id="pages"[\s\S]*更多[\s\S]*data-plugin-id="characters"[\s\S]*拓展[\s\S]*data-plugin-id="plugin-builder"[\s\S]*data-icon="wand"[\s\S]*data-plugin-id="market"[\s\S]*href="__SYSTEM_CAPABILITIES__"/);
+  assert.match(items, /data-work-surface-open="characters"/);
+  assert.match(html, /plugin-rail-items[\s\S]*data-assistant-island[\s\S]*data-plugin-id="lingguang"[\s\S]*class="personal-sidebar-footer"[\s\S]*data-plugin-id="settings"[\s\S]*class="personal-account"/);
+  assert.doesNotMatch(html, /plugin-rail-rule|navigation-labels-toggle/);
 
   const without = renderPluginRail(primitives, ["goals"], account);
-  const plainCard = without.slice(without.indexOf("personal-sidebar-footer"));
-  assert.doesNotMatch(without, /plugin-rail-rule/);
-  assert.doesNotMatch(plainCard, /data-plugin-id="characters"/);
-  assert.match(plainCard, /data-plugin-id="market"[\s\S]*data-plugin-id="settings"[\s\S]*class="personal-account"/);
+  assert.doesNotMatch(without, /data-plugin-id="characters"|>创作<|>更多</);
+  assert.match(without, /data-plugin-id="goals"[\s\S]*拓展[\s\S]*data-plugin-id="market"/);
 });

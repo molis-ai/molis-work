@@ -112,21 +112,30 @@ export class FeedConnectorService {
         "feed-source",
         `${this.boardId}\u0000connector\u0000gmail\u0000${scoped.installationId}`,
       );
+      const existing = this.feed.snapshot(this.boardId).sources.find((row) => row.source_id === sourceId);
       this.feed.upsertSource({
-        ...source,
+        ...(existing ?? {
+          ...source,
+          cursor: {},
+          item_count: 0,
+          last_sync_at: null,
+          last_outcome: null,
+        }),
         source_id: sourceId,
-        name: `Gmail · ${scoped.email || "已连接账号"}`,
-        status: "active",
-        enabled: true,
+        name: existing?.name ?? `Gmail · ${scoped.email}`,
+        status: existing?.enabled === false ? "paused" : "active",
+        enabled: existing?.enabled ?? true,
         origin: "molis_work",
         account_label: scoped.email ?? null,
         config: {
+          ...existing?.config,
           installation_id: scoped.installationId,
           token_refs: this.ports.gmail.installationSecretRefs(scoped.installationId),
-          scope: this.ports.gmail.normalizeScope(source.config.scope),
+          scope: this.ports.gmail.normalizeScope(existing?.config.scope ?? source.config.scope),
         },
         credential_ref: this.ports.gmail.installationSecretRefs(scoped.installationId).access,
-        imported_at: now,
+        last_error_code: null,
+        imported_at: existing?.imported_at ?? now,
         updated_at: now,
       });
       // The fixed Gmail source remains only as a compatibility shell. Once an

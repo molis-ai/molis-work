@@ -862,6 +862,7 @@ export type {
 } from "./goal-events.js";
 export {
   goalEventClosureKinds,
+  goalIntentSourceKinds,
   goalEventConcernActions,
   goalEventConcernStatuses,
   goalEventDecisionEffectKinds,

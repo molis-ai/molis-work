@@ -13,6 +13,7 @@ import {
   diffManifest,
   parseUnifiedDiff,
   reconstructSides,
+  renderDiff,
   splitLines,
   textDiffRow,
 } from "@molis-ai/molis-work-plugin-diff";
@@ -222,4 +223,27 @@ test("每个输入端口都是可选的：没连上也能起来", () => {
   assert.equal((diffManifest.ports?.inputs ?? []).every((port) => port.optional === true), true);
   assert.equal(diffManifest.ports?.input_groups?.length, 3);
   assert.deepEqual(diffManifest.ports?.outputs, []);
+});
+
+test("折叠只收起远离改动的未改变行，行号按钮仍在原处可评论", () => {
+  const lines = Array.from({ length: 20 }, (_, n) => `line ${n + 1}`);
+  const after = lines.map((line, n) => n === 9 ? "changed" : line);
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+    review: { review_id: "v", before_text: lines.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
+  source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
+  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const html = renderDiff({ view, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  assert.doesNotMatch(html, /diff-sides/, "宿主已写明文件时不重复对比两侧");
+  assert.match(html, /data-diff-unfold="0"[^>]*>.*展开 6 行未改变/, "改动上方离得远的 6 行收起");
+  assert.match(html, /data-diff-unfold="1"[^>]*>.*展开 7 行未改变/, "改动下方离得远的 7 行收起");
+  assert.equal(html.match(/data-diff-folded=/g)?.length, 13);
+  assert.match(html, /data-diff-folded="0" hidden><span class="diff-before"><button[^>]*data-coding-line="1"/, "收起的行仍能按原行号评论");
+  assert.doesNotMatch(html, /data-diff-folded="\d+" hidden><span class="diff-before"><button[^>]*data-coding-line="7"/, "改动前后 3 行保持可见");
+  const plain = renderDiff({ view, route_prefix: "", primitives });
+  assert.doesNotMatch(plain, /data-diff-unfold|data-diff-folded/, "不要求折叠时逐行展示");
+  assert.match(plain, /diff-sides/);
+  const tiny = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "b.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
+    review: { review_id: "w", before_text: "a\nb\nc\nd\ne\n", after_text: "a\nb\nc\nd\nE\n", decision: "approved", execution: "applied" } }] },
+  source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
+  assert.doesNotMatch(renderDiff({ view: tiny, route_prefix: "", primitives, fold_context: 3 }), /data-diff-unfold/, "少于四行不值得折叠");
 });

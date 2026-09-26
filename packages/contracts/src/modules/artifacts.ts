@@ -26,6 +26,28 @@ export interface ArtifactReference {
   version: number;
 }
 
+export const ARTIFACT_SUBJECT_KIND = "artifact";
+
+/** A subject names one immutable version, including IDs containing path or version delimiters. */
+export function artifactSubjectId(reference: ArtifactReference): string {
+  if (typeof reference.artifact_id !== "string" || !reference.artifact_id.trim()
+    || !Number.isSafeInteger(reference.version) || reference.version < 1) {
+    throw new TypeError("Artifact subject requires an ID and an exact positive version");
+  }
+  return JSON.stringify([reference.artifact_id, reference.version]);
+}
+
+/** Reject implicit latest references and noncanonical aliases of the same subject. */
+export function parseArtifactSubjectId(subjectId: string): ArtifactReference | null {
+  try {
+    const value: unknown = JSON.parse(subjectId);
+    if (!Array.isArray(value) || value.length !== 2 || typeof value[0] !== "string" || !value[0].trim()
+      || !Number.isSafeInteger(value[1]) || value[1] < 1) return null;
+    const reference = { artifact_id: value[0], version: value[1] as number };
+    return artifactSubjectId(reference) === subjectId ? reference : null;
+  } catch { return null; }
+}
+
 export interface ArtifactProducerIdentity {
   plugin_id: string;
   plugin_version: string;

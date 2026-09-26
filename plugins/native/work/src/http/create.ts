@@ -35,7 +35,7 @@ export async function handleSessionCreateHttp(context: WorkSessionHttpContext): 
         ? body.current_goal_id.trim()
         : null;
       
-      if (currentGoalId && !hasCurrentGoal(currentGoalId)) {
+      if (currentGoalId && !await hasCurrentGoal(currentGoalId)) {
         respond( 400, { error: "当前 Goal 不属于这个 Project，或已经不在当前 Goal Tree" });
         return true;
       }

@@ -50,6 +50,27 @@ export function createCodingChangeSet(sessionId: string, run: AgentRunView, rows
       workspace_id: `${run.ref.session_id}:${run.ref.run_id}`, workspace_name: "本轮授权工作区" } });
 }
 
+/**
+ * A file's net change across one round's writes: the first write's original against the last write's result.
+ *
+ * Offered only when it is exactly what happened on disk — every write approved and applied, each starting from
+ * the previous result. Anything else (a rejected or uncertain write, an edit in between) would make the
+ * merged picture a guess, so the separate writes stay the only view.
+ */
+export function codingNetChange(change: CodingChangeSet, path: string):
+  | { available: true; indices: number[]; before_text: string | null; after_text: string }
+  | { available: false; indices: number[]; reason: string } {
+  const indices = change.files.flatMap((file, index) => file.path === path ? [index] : []);
+  if (indices.length < 2) return { available: false, indices, reason: "这个文件本轮只写入了一次" };
+  const reviews = indices.map(index => change.files[index]!.review);
+  if (reviews.some(review => !review || review.decision !== "approved" || review.execution !== "applied"))
+    return { available: false, indices, reason: "有写入未批准或执行结果不确定，只能逐次查看" };
+  for (let at = 1; at < reviews.length; at++) {
+    if (reviews[at]!.before_text !== reviews[at - 1]!.after_text) return { available: false, indices, reason: "两次写入之间文件被改过，只能逐次查看" };
+  }
+  return { available: true, indices, before_text: reviews[0]!.before_text, after_text: reviews.at(-1)!.after_text };
+}
+
 /** The server derives quoted text from the exact stored side/line, never browser text. */
 export function codingChangeFeedback(change: CodingChangeSet, value: unknown): string {
   if (!Array.isArray(value) || value.length < 1 || value.length > 30) throw new Error("请填写 1 至 30 条行级意见");

@@ -1,0 +1,47 @@
+{
+  "name": "@molis-ai/molis-work-app-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "node dist/main.js",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-server": "workspace:*",
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*",
+    "@molis-ai/molis-work-app-local-host": "workspace:*",
+    "@molis-ai/molis-work-im-ui": "workspace:*",
+    "@molis-ai/molis-work-app-desktop": "workspace:*",
+    "@molis-ai/molis-work-plugin-runtime": "workspace:*"
+  },
+  "molis-work": {
+    "path": "apps/server",
+    "kind": "app",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/app-host",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md"
+  },
+  "description": "Headless standalone server launcher, original Host action bridge and local asset restore adapter.",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}

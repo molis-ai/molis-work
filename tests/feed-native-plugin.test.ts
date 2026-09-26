@@ -129,7 +129,7 @@ function itemEntry(overrides: {
       priority: "normal",
       tags: [],
       author: null,
-      disposition: "feed",
+      disposition: "inbox",
       linked_goal_id: null,
       read_at: null,
       revision: 1,
@@ -150,9 +150,10 @@ function stageGroup(html: string, sourceId: string): string {
 }
 
 function taskConfigPanel(html: string, sourceId: string): string {
-  const match = html.match(new RegExp(`<section data-feed-task-config="${sourceId}"[\\s\\S]*?</section>`));
-  assert.ok(match, `missing task config ${sourceId}`);
-  return match[0];
+  const start = html.indexOf(`<section data-feed-task-config="${sourceId}"`);
+  assert.ok(start >= 0, `missing task config ${sourceId}`);
+  const next = html.indexOf('<section data-feed-task-config="', start + 1);
+  return html.slice(start, next >= 0 ? next : html.length);
 }
 
 function persistedDetail(overrides: Partial<PersistedFeedDetailModel["item"]> = {}): PersistedFeedDetailModel {
@@ -181,7 +182,7 @@ function persistedDetail(overrides: Partial<PersistedFeedDetailModel["item"]> = 
       priority: "normal",
       tags: [],
       author: null,
-      disposition: "feed",
+      disposition: "inbox",
       linked_goal_id: null,
       read_at: null,
       revision: 1,
@@ -222,7 +223,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.match(workbench, /data-feed-stage-shell/);
   assert.match(workbench, /plugin-stage-shell/);
   assert.doesNotMatch(workbench, /data-feed-stage-group/);
-  assert.match(workbench, /data-feed-empty-title>还没有拉取任务/);
+  assert.match(workbench, /data-feed-empty-title>还没有来源/);
   assert.match(workbench, /data-feed-add-toggle/);
   assert.match(workbench, /data-feed-source-filter hidden/);
   assert.doesNotMatch(workbench, /接入来源后，消息和 Feed 会出现在这里|选择一项查看详情/);
@@ -239,21 +240,21 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
 
   const overlays = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
-    surface: "overlays",
+    surface: "workbench",
     model: model(),
   });
-  assert.match(overlays, /data-feed-add-out-rule-contains/);
-  assert.match(overlays, /捕捉规则（可选）/);
+  assert.doesNotMatch(overlays, /data-feed-add-out-rule-contains/);
+  assert.match(overlays, /data-feed-source-rail/);
   assert.doesNotMatch(overlays, /data-feed-advanced|data-feed-advanced-open/);
   assert.doesNotMatch(overlays, /Relay|data-relay-import|导入已有历史|与迁移/);
   assert.match(overlays, /data-feed-choose-kind="custom_rss"/);
   assert.match(overlays, /RSS \/ Atom/);
-  assert.doesNotMatch(overlays, /网站与博客|持续收集新文章|先选择你想关注的来源|chevron-right/);
+  assert.doesNotMatch(overlays, /网站与博客|持续收集新文章|先选择你想关注的来源/);
   assert.doesNotMatch(overlays, /data-feed-choose-kind="rss"/);
 
   const catalogOverlays = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
-    surface: "overlays",
+    surface: "workbench",
     model: model({
       source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI" }],
     }),
@@ -286,18 +287,20 @@ test("Feed capture rules belong to a task, not the directory", () => {
   });
   const overlays = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
-    surface: "overlays",
+    surface: "workbench",
     model: uiModel,
   });
   assert.equal(directory, "");
-  assert.doesNotMatch(workbench, /data-feed-advanced-open|捕捉规则/);
+  assert.doesNotMatch(workbench, /data-feed-advanced-open|<dialog[^>]*data-feed-sources-dialog/);
+  assert.match(workbench, /data-feed-source-rail/);
+  assert.match(workbench, /data-feed-view="rules"/);
   assert.doesNotMatch(workbench, /mw-dir-row--nested/);
-  assert.doesNotMatch(workbench, /data-feed-task-toggle="all"|data-feed-task="all"/);
+  assert.match(workbench, /data-feed-task="all"/);
   assert.ok(
     workbench.indexOf("data-feed-add-toggle") < workbench.indexOf('data-feed-task="source-a"'),
     "Feed add task sits above source rows",
   );
-  assert.match(workbench, /data-feed-task-config-open="source-a"/);
+  assert.match(workbench, /data-feed-task="source-a"/);
   assert.match(workbench, /data-icon="check"|data-icon="alert"|href="#icon-check"|href="#icon-alert"/);
   const panelA = taskConfigPanel(overlays, "source-a");
   const panelB = taskConfigPanel(overlays, "source-b");
@@ -309,28 +312,23 @@ test("Feed capture rules belong to a task, not the directory", () => {
   assert.doesNotMatch(panelB, /A launch|Global/);
 });
 
-test("Feed task capture rules pick a published function instead of typing a key", () => {
+test("Feed capture rule selector loads the shared directory instead of embedding a function list", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
   const overlays = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
-    surface: "overlays",
+    surface: "workbench",
     model: model({
       sources: [source()],
-      judgment: {
-        functions: [
-          { function_key: "system_admit_inbox", name: "是否进 Inbox" },
-        ],
-      },
     }),
   });
   const panel = taskConfigPanel(overlays, "source-a");
   assert.match(panel, /data-feed-out-rule-function-key/);
-  assert.match(panel, /不用判断/);
-  assert.match(panel, /value="system_admit_inbox"/);
+  assert.match(panel, /请选择判断能力/);
+  assert.doesNotMatch(panel, /value="system_admit_inbox"/);
   assert.doesNotMatch(panel, /placeholder="system_admit_inbox"/);
-  assert.match(overlays, /data-feed-add-out-rule-function-key/);
-  assert.match(overlays, /不用判断/);
+  assert.match(panel, /data-feed-rule-instructions/);
+  assert.match(panel, /data-feed-rule-preview-run/);
 });
 
 test("Feed suggestions retain an explicit manual Inbox override", () => {
@@ -377,6 +375,29 @@ test("Feed suggestions retain an explicit manual Inbox override", () => {
   assert.match(promote, /打开原文/);
 });
 
+test("Gmail source detail opens Connectors with the current project", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const gmail = source({
+    source_id: "gmail-account",
+    kind: "gmail",
+    sync_kind: "gmail",
+    ui_kind: "gmail",
+    name: "Gmail · owner@example.com",
+    account_label: "owner@example.com",
+    status: "error",
+    status_kind: "attention",
+    last_error_code: "connector_needs_auth",
+  });
+  const html = host.render({
+    contribution_id: FEED_UI_CONTRIBUTION_ID,
+    surface: "source-workbench",
+    model: model({ sources: [gmail] }),
+  });
+  assert.match(html, /href="\/settings\/connectors\?connector=gmail&amp;project=project-test"/);
+  assert.match(html, /管理账号连接/);
+});
+
 test("Feed stage list groups items by source task", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
@@ -414,7 +435,7 @@ test("Feed stage list groups items by source task", () => {
   assert.match(other, /data-feed-entry-id="entry-orphan"/);
   assert.match(workbench, /data-feed-stage-group="source-empty"/);
   const empty = stageGroup(workbench, "source-empty");
-  assert.match(empty, /这个任务还没有 Item/);
+  assert.match(empty, /这个来源还没有消息/);
   const paused = stageGroup(workbench, "source-paused");
   assert.match(paused, /goal-collection-mark is-attention/);
   assert.match(paused, /data-icon="alert"|href="#icon-alert"/);
@@ -532,7 +553,8 @@ test("Feed demo data keeps page-local actions and never calls real Source APIs",
   assert.match(detail, /data-prototype-feed-action="inbox"/);
   assert.match(detail, /data-feed-task="prototype-source-github"/);
   assert.match(detail, /data-icon="check"|data-icon="alert"|href="#icon-check"|href="#icon-alert"/);
-  assert.doesNotMatch(detail, /data-feed-task="all"|mw-dir-row--nested/);
+  assert.match(detail, /data-feed-task="all"/);
+  assert.doesNotMatch(detail, /mw-dir-row--nested/);
   assert.match(source, /data-prototype-source-sync="prototype-source-github"/);
   assert.match(source, /data-prototype-config-save/);
   assert.match(source, /data-prototype-schedule-save/);
@@ -546,8 +568,11 @@ test("Feed Plugin route table owns matching while the Host supplies handlers", a
   const handlers = Object.fromEntries([
     "feed.snapshot",
     "feed.workbench",
+    "feed.out-rules.judgments",
+    "feed.out-rules.preview-judgment",
     "feed.out-rules.list",
     "feed.out-rules.evaluate",
+    "feed.out-rules.preview",
     "feed.out-rules.create",
     "feed.out-rules.update",
     "feed.out-rules.delete",
@@ -600,6 +625,7 @@ test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", as
     throw new Error("unused Feed workbench port");
   };
   const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
+    actions: { discover: unused, invoke: unused },
     boardId: "board",
     routePrefix: "",
     feed: unused,

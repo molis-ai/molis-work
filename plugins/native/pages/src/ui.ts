@@ -80,15 +80,17 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <strong>${p.text("还没有文档")}</strong>
         <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
-        <button class="mw-btn mw-btn--ghost" type="button" data-pages-templates>${p.text("从模板新建")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-pages-import>${p.text("导入已有文档")}</button>
+        <div class="mw-empty__actions">
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-templates>${icon("library")}<span>${p.text("从模板新建")}</span></button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入已有文档")}</span></button>
+        </div>
       </div>
       <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("没有匹配的文档")}</p>
       <div data-pages-rows></div>
     </div>
     <div class="plugin-stage-workspace" data-pages-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-pages-back aria-label="${p.text("返回文档列表")}" title="${p.text("返回文档列表")}">${icon("arrow")}</button>
+        <button class="plugin-stage-back" type="button" data-pages-back aria-label="${p.text("返回文档列表")}" title="${p.text("返回文档列表")}">${icon("chevron-right")}</button>
         <h1 data-pages-editor-title>${p.text("文档")}</h1>
         <span data-pages-editor-status></span>
         <div class="pages-editor-tools">

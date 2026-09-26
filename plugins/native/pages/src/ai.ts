@@ -73,59 +73,7 @@ export async function runPagesAi(
     if (!output) throw Object.assign(new Error("模型没有返回文字"), { code: "pages.invalid" });
     return { text: output, stub: false, command: request.command, style: request.style };
   }
-  return {
-    text: stubPagesAi(request.command, text, request.style),
-    stub: true,
-    command: request.command,
-    style: request.style,
-  };
-}
-
-export function stubPagesAi(command: string, text: string, style?: string): string {
-  const label = pagesAiCommandLabel(command, style);
-  return `【未接模型 · ${label}】\n\n${localDraft(command, text, style)}`;
-}
-
-function localDraft(command: string, text: string, style?: string): string {
-  const lines = splitLines(text);
-  if (command === "outline") {
-    return lines.slice(0, 8).map((line, index) => `${index + 1}. ${clip(line, 48)}`).join("\n");
-  }
-  if (command === "bullets" || command === "actions") {
-    return lines.map((line) => `- ${clip(line, 80)}`).join("\n");
-  }
-  if (command === "summarize") {
-    return clip(lines[0] ?? text, 160) + (lines.length > 1 ? `\n（原文共 ${lines.length} 句，接上模型后再做压缩。）` : "");
-  }
-  if (command === "continue") return `${text.trim()}\n\n（接上模型后会从这里接着写。）`;
-  if (command === "expand" || (command === "rewrite" && style === "expand")) {
-    return `${text.trim()}\n\n补充：这里本来要展开原因、例子和边界，但当前没有模型。`;
-  }
-  if (command === "rewrite" && style === "concise") return clip(text.replaceAll(/\s+/g, " "), 180);
-  if (command === "rewrite" && style === "formal") return `现将原文整理如下：\n${text.trim()}`;
-  if (command === "rewrite" && style === "casual") return text.trim();
-  if (command === "explain" || command === "reader" || command === "coach") {
-    return `${text.trim()}\n\n（${labelHint(command)}需要模型才能认真做，上面仍是原文。）`;
-  }
-  if (command === "translate" || command === "translate_new") {
-    return `${text.trim()}\n\n（没有模型，不能翻译。上面是原文。）`;
-  }
-  if (command === "proofread") return text.trim();
-  return text.trim();
-}
-
-function labelHint(command: string): string {
-  if (command === "explain") return "解释";
-  if (command === "reader") return "读者视角";
-  return "写作教练";
-}
-
-function splitLines(text: string): string[] {
-  return text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-}
-
-function clip(value: string, max: number): string {
-  return value.length <= max ? value : value.slice(0, max - 1) + "…";
+  throw Object.assign(new Error("请先配置文字模型，再使用写作助手"), { code: "actions.connection_required" });
 }
 
 export function actionItemsFromText(text: string): string[] {

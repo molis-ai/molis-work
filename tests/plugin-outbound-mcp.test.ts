@@ -1,3 +1,13 @@
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import type { MolisWorkRuntimeConnection } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { pptTestPorts } from "./fixtures/ppt-actions.js";
+import { formTestPorts } from "./fixtures/form-actions.js";
+import { datasetTestPorts } from "./fixtures/dataset-actions.js";
+import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -11,12 +21,9 @@ import {
   parsePluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
-import {
-  FUNCTIONS_MCP_EXPORTS,
-  FUNCTIONS_PROJECT_PLUGIN_ID,
-  functionsManifest,
-  runFunctionsMcpTool,
-} from "@molis-ai/molis-work-plugin-functions";
+import { LEGACY_FUNCTIONS_MCP, callLegacyFunctionsMcp } from "../apps/local-host/src/mcp-functions-tools.ts";
+import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { functionsActions } from "@molis-ai/molis-work-module-functions";
 import {
   FORM_MCP_EXPORTS,
   FORM_PROJECT_PLUGIN_ID,
@@ -45,7 +52,6 @@ import {
   pptManifest,
   runPptMcpTool,
 } from "@molis-ai/molis-work-plugin-ppt";
-import { createFormMcpAdapter } from "../apps/local-host/src/mcp-store-plugin-adapter.ts";
 import { assertContributionMatchesManifest, PluginContributionError } from "@molis-ai/molis-work-plugin-runtime";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
@@ -65,9 +71,29 @@ import {
 } from "../apps/local-host/src/mcp-settings-store.ts";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const INVOKE = mcpPublicToolName(FUNCTIONS_PROJECT_PLUGIN_ID, "invoke");
-const LIST = mcpPublicToolName(FUNCTIONS_PROJECT_PLUGIN_ID, "list");
-const DESCRIBE = mcpPublicToolName(FUNCTIONS_PROJECT_PLUGIN_ID, "describe");
+const authorizedFunctionViews: ActionView[] = Object.values(functionsActions).map(action => ({ ...action,
+  provider: { provider_id: "system.functions", title: "Functions", kind: "system" }, availability: { available: true },
+}));
+const codingAction: ActionView = { ...authorizedFunctionViews[0]!, capability_id: "coding.search", version: 1,
+  provider: { provider_id: "io.molis.work.coding", plugin_id: "io.molis.work.coding", kind: "plugin", title: "Coding" } };
+const creativeViews: ActionView[] = [formManifest, pagesManifest, datasetManifest, pptManifest].flatMap(manifest => manifest.actions!.map(action => ({
+  ...action, provider: { provider_id: manifest.plugin_id, plugin_id: manifest.plugin_id, kind: "plugin" as const, title: manifest.name }, availability: { available: true as const },
+})));
+async function grantNativeTools(home: string, connection: MolisWorkRuntimeConnection, manifest: PluginManifest, tools: string[]) {
+  assert.ok(connection.projectId);
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  try {
+    const caller = { actor_id: "runtime:codex", project_id: connection.projectId, audience: "mcp" as const, permissions: [] };
+    const views = await host.inspectActions(caller, molisWorkHostProjectReference(connection));
+    for (const tool of tools) for (const ref of manifest.mcp_exports!.find(item => item.tool_id === tool)!.required_actions!) {
+      const view = views.find(view => view.capability_id === ref.capability_id && view.version === ref.version && view.provider.plugin_id === manifest.plugin_id)!;
+      await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, caller.project_id, view, true));
+    }
+  } finally { await host.close(); }
+}
+const INVOKE = "molis_work_v1_functions_invoke";
+const LIST = "molis_work_v1_functions_list";
+const DESCRIBE = "molis_work_v1_functions_describe";
 const FORM_LIST = mcpPublicToolName(FORM_PROJECT_PLUGIN_ID, "list");
 const FORM_CREATE = mcpPublicToolName(FORM_PROJECT_PLUGIN_ID, "create");
 const PAGES_LIST = mcpPublicToolName(PAGES_PROJECT_PLUGIN_ID, "list");
@@ -86,6 +112,7 @@ function projectSource(overrides: Partial<McpPluginExportSource> = {}): McpPlugi
     personal: false,
     exports: [{
       tool_id: "search",
+      required_actions: [{ capability_id: "coding.search", version: 1 }],
       description: "搜索代码",
       input_schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
       effect: "read",
@@ -118,35 +145,33 @@ test("apps/mcp no longer ships a static Functions tool catalog", () => {
   assert.ok(MCP_TOOLS.some((tool) => tool.name === "molis_work_v1_context_resolve"));
 });
 
-test("Functions Manifest registers the three outbound tools without identity fields", () => {
-  const parsed = parsePluginManifest(JSON.parse(JSON.stringify(functionsManifest)));
-  assert.deepEqual(
-    parsed.mcp_exports?.map((entry) => entry.tool_id),
-    ["list", "describe", "invoke"],
-  );
-  assert.equal(parsed.agent?.mcp, undefined);
-  for (const entry of FUNCTIONS_MCP_EXPORTS) {
-    const properties = entry.input_schema.properties ?? {};
+test("system judgment aliases derive contracts without a Functions plugin", () => {
+  assert.equal(BUILTIN_PLUGIN_MCP_SOURCES.some(source => source.project_plugin_id === "functions"), false);
+  assert.deepEqual(LEGACY_FUNCTIONS_MCP.map(entry => entry.action), [functionsActions.list, functionsActions.describe, functionsActions.invoke]);
+  const catalog = assembleMcpCatalog({ audience: "runtime", preference: { version: 1, overrides: {} }, enabled_project_plugins: [], actions: authorizedFunctionViews });
+  for (const entry of LEGACY_FUNCTIONS_MCP) {
+    const tool = catalog.tools.find(tool => tool.name === entry.name);
+    assert.deepEqual(tool?.inputSchema, entry.action.action.input_schema);
     for (const field of MCP_IDENTITY_FIELDS) {
-      assert.equal(Object.hasOwn(properties, field), false, field);
+      assert.equal(Object.hasOwn(entry.action.action.input_schema.properties ?? {}, field), false, field);
     }
-    assert.equal(mcpPublicToolName(FUNCTIONS_PROJECT_PLUGIN_ID, entry.tool_id).startsWith("molis_work_v1_functions_"), true);
   }
 });
 
-test("assembleMcpCatalog defaults Functions on, new plugin contributions off, and honors overrides", () => {
+test("assembleMcpCatalog derives aliases only from authorized available actions and honors spelling overrides", () => {
   const coding = projectSource();
   const empty = { version: 1 as const, overrides: {} };
   const runtime = assembleMcpCatalog({
     audience: "runtime",
     preference: empty,
+    actions: authorizedFunctionViews,
     enabled_project_plugins: ["coding"],
     sources: [...BUILTIN_PLUGIN_MCP_SOURCES, coding],
   });
   assert.ok(names(runtime).includes(LIST));
   assert.ok(names(runtime).includes(DESCRIBE));
   assert.ok(names(runtime).includes(INVOKE));
-  assert.ok(names(runtime).includes("molis_work_v1_goal_list"));
+  assert.equal(names(runtime).includes("molis_work_v1_goal_list"), false, "Functions authorization does not grant Goals access");
   assert.equal(names(runtime).includes("molis_work_v1_coding_search"), false);
   assert.equal(names(runtime).includes(FORM_LIST), false);
   assert.equal(names(runtime).includes(PAGES_LIST), false);
@@ -156,6 +181,7 @@ test("assembleMcpCatalog defaults Functions on, new plugin contributions off, an
   const enabledCoding = assembleMcpCatalog({
     audience: "runtime",
     preference: withMcpToolOverride(empty, "molis_work_v1_coding_search", true, false),
+    actions: [codingAction],
     enabled_project_plugins: ["coding"],
     sources: [...BUILTIN_PLUGIN_MCP_SOURCES, coding],
   });
@@ -164,6 +190,7 @@ test("assembleMcpCatalog defaults Functions on, new plugin contributions off, an
   const disabledInvoke = assembleMcpCatalog({
     audience: "runtime",
     preference: withMcpToolOverride(empty, INVOKE, false, true),
+    actions: authorizedFunctionViews,
     enabled_project_plugins: null,
   });
   assert.equal(names(disabledInvoke).includes(INVOKE), false);
@@ -171,6 +198,11 @@ test("assembleMcpCatalog defaults Functions on, new plugin contributions off, an
   assert.ok(names(disabledInvoke).includes(LIST));
   assert.equal(names(runtime).includes("molis_work_v1_event_decide"), false);
   assert.ok(runtime.known_names.has("molis_work_v1_event_decide"));
+  for (const actions of [[], authorizedFunctionViews.map(view => ({ ...view, availability: { available: false as const, code: "offline", reason: "offline" } }))]) {
+    const unavailable = assembleMcpCatalog({ audience: "runtime", preference: empty, enabled_project_plugins: null, actions });
+    assert.ok(LEGACY_FUNCTIONS_MCP.every(alias => !names(unavailable).includes(alias.name)));
+    assert.ok(LEGACY_FUNCTIONS_MCP.every(alias => unavailable.known_names.has(alias.name)));
+  }
 });
 
 test("runtime named call of a management platform tool is authority_denied, not unknown", async () => {
@@ -192,7 +224,7 @@ test("runtime named call of a management platform tool is authority_denied, not 
 });
 
 test("project-scoped contributions require the bound project to enable the plugin and cover grants", () => {
-  const coding = projectSource({ required_permissions: ["artifact:read"] });
+  const coding = projectSource();
   const preference = { version: 1 as const, overrides: { molis_work_v1_coding_search: true } };
   const unbound = assembleMcpCatalog({
     audience: "runtime",
@@ -222,12 +254,13 @@ test("project-scoped contributions require the bound project to enable the plugi
     audience: "runtime",
     preference,
     enabled_project_plugins: ["coding"],
-    sources: [{ ...coding, grants: ["artifact:read"] }],
+    sources: [coding],
+    actions: [codingAction],
   });
   assert.ok(names(granted).includes("molis_work_v1_coding_search"));
 });
 
-test("undeclared MCP handlers cannot redeem and unregistered tool_ids never run", () => {
+test("undeclared MCP handlers cannot redeem and unregistered tool_ids never run", async () => {
   const pluginId = "io.molis.work.example";
   const manifest = parsePluginManifest({
     schema_version: 2,
@@ -285,13 +318,9 @@ test("undeclared MCP handlers cannot redeem and unregistered tool_ids never run"
     views: [view],
     mcp: [{ tool_id: "list", handle: () => "ok" }],
   });
-  assert.throws(
-    () => runFunctionsMcpTool({
-      listPublished() { return []; },
-      describePublished() { throw new Error("should-not-run"); },
-      invokePublished() { throw new Error("should-not-run"); },
-    } as never, { tool_id: "secret", arguments: {} }),
-    /未登记的 Functions MCP/,
+  await assert.rejects(
+    () => callLegacyFunctionsMcp({ invoke() { throw new Error("must not execute"); } } as never, "secret", {}),
+    (error: unknown) => error instanceof Error && "code" in error && error.code === "mcp.tool_unknown",
   );
 });
 
@@ -309,7 +338,7 @@ test("settings entries expose platform and Functions groups without writing plug
   });
 });
 
-test("turning a method off hides it from new MCP connections and refuses a named call", async (t) => {
+test("turning a method off updates existing and new MCP connections and refuses a stale named call", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-mcp-catalog-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const host = {
@@ -320,33 +349,38 @@ test("turning a method off hides it from new MCP connections and refuses a named
   const open = new MolisWorkServer("runtime", null, host);
   t.after(() => open.close());
   const before = await listToolNames(open);
-  assert.ok(before.includes(INVOKE));
-  assert.ok(before.includes("molis_work_v1_goal_list"));
+  assert.ok(before.includes(LIST));
+  assert.equal(before.includes("molis_work_v1_goal_list"), false, "unbound clients cannot discover project Goal aliases");
 
   await mkdir(join(home, "config"), { recursive: true });
   await writeFile(join(home, "config", "mcp-tools.json"), JSON.stringify({
     version: 1,
-    overrides: { [INVOKE]: false },
+    overrides: { [LIST]: false },
   }));
 
-  const frozen = await open.handleMessage({
+  const refreshed = await open.handleMessage({
     jsonrpc: "2.0",
     id: 3,
     method: "tools/list",
     params: {},
   }) as { result: { tools: Array<{ name: string }> } };
-  assert.ok(frozen.result.tools.some((tool) => tool.name === INVOKE));
+  assert.equal(refreshed.result.tools.some((tool) => tool.name === LIST), false);
+  const staleCall = await open.handleMessage({ id: 30, method: "tools/call", params: {
+    name: LIST, arguments: { function_key: "x", input: "y" },
+  } }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+  assert.equal(staleCall.result.isError, true);
+  assert.match(staleCall.result.content[0]?.text ?? "", /"code":"mcp\.tool_disabled"/);
 
   const closed = new MolisWorkServer("runtime", null, host);
   t.after(() => closed.close());
   const after = await listToolNames(closed);
-  assert.equal(after.includes(INVOKE), false);
-  assert.ok(after.includes(LIST));
+  assert.equal(after.includes(LIST), false);
+  assert.ok(after.includes(DESCRIBE));
   const refused = await closed.handleMessage({
     jsonrpc: "2.0",
     id: 4,
     method: "tools/call",
-    params: { name: INVOKE, arguments: { function_key: "x", input: "y" } },
+    params: { name: LIST, arguments: { function_key: "x", input: "y" } },
   }) as { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(refused.result.isError, true);
   assert.match(refused.result.content[0]?.text ?? "", /"code":"mcp\.tool_disabled"/);
@@ -376,7 +410,7 @@ test("settings MCP page and Home preference toggle the same catalog", async (t) 
   assert.match(page, /data-mcp-settings/);
   assert.match(page, /data-mcp-tool="molis_work_v1_functions_invoke"/);
   assert.match(page, /data-mcp-group="functions"/);
-  assert.match(page, /href="\/settings\/mcp"/);
+  assert.match(page, /href="\/capabilities\/access/);
   assert.doesNotMatch(page, /data-settings-panel="functions"/);
 
   const headers = {
@@ -441,11 +475,7 @@ test("Host refuses a catalogued plugin that has no native adapter", async () => 
 });
 
 test("built-in plugin MCP sources all have Host adapters and callTool does not branch on Functions public names", () => {
-  const adapters = createNativeMcpPluginAdapters({
-    requireHost: () => {
-      throw new Error("unused");
-    },
-  });
+  const adapters = createNativeMcpPluginAdapters({ discover: async () => [], invoke: async () => { throw new Error("unused"); } });
   for (const source of BUILTIN_PLUGIN_MCP_SOURCES) {
     assert.ok(adapters.has(source.plugin_id), source.plugin_id);
   }
@@ -489,6 +519,7 @@ test("personal project-scoped tools stay off by default, need a bound project, a
   const boundEmptyEnablement = assembleMcpCatalog({
     audience: "runtime",
     preference: enabled,
+    actions: creativeViews,
     enabled_project_plugins: [],
   });
   assert.ok(names(boundEmptyEnablement).includes(FORM_LIST));
@@ -512,20 +543,20 @@ test("Pages Form Dataset PPT MCP handlers partition records by injected project_
 
   const pages = openPagesStore(home);
   try {
-    const created = JSON.parse(runPagesMcpTool(pages, { tool_id: "create", arguments: { title: "项目文档" } }, alpha)) as {
+    const created = JSON.parse(await runPagesMcpTool(pagesTestPorts(pages, alpha).actions, { tool_id: "create", arguments: { title: "项目文档" } })) as {
       document: { id: string; project_id: string };
     };
     assert.equal(created.document.project_id, alpha);
-    const listedAlpha = JSON.parse(runPagesMcpTool(pages, { tool_id: "list", arguments: {} }, alpha)) as {
+    const listedAlpha = JSON.parse(await runPagesMcpTool(pagesTestPorts(pages, alpha).actions, { tool_id: "list", arguments: {} })) as {
       documents: Array<{ id: string }>;
     };
-    const listedBeta = JSON.parse(runPagesMcpTool(pages, { tool_id: "list", arguments: {} }, beta)) as {
+    const listedBeta = JSON.parse(await runPagesMcpTool(pagesTestPorts(pages, beta).actions, { tool_id: "list", arguments: {} })) as {
       documents: Array<{ id: string }>;
     };
     assert.deepEqual(listedAlpha.documents.map((item) => item.id), [created.document.id]);
     assert.deepEqual(listedBeta.documents, []);
-    assert.throws(
-      () => runPagesMcpTool(pages, { tool_id: "secret", arguments: {} }, alpha),
+    await assert.rejects(
+      () => runPagesMcpTool(pagesTestPorts(pages, alpha).actions, { tool_id: "secret", arguments: {} }),
       /未登记的 Pages MCP/,
     );
   } finally {
@@ -534,20 +565,20 @@ test("Pages Form Dataset PPT MCP handlers partition records by injected project_
 
   const forms = openFormStore(home);
   try {
-    const created = JSON.parse(runFormMcpTool(forms, { tool_id: "create", arguments: { title: "项目问卷" } }, alpha)) as {
+    const created = JSON.parse(await runFormMcpTool(formTestPorts(forms, alpha).actions, { tool_id: "create", arguments: { title: "项目问卷" } })) as {
       form: { id: string; project_id: string; title: string };
     };
     assert.equal(created.form.project_id, alpha);
-    const listedAlpha = JSON.parse(runFormMcpTool(forms, { tool_id: "list", arguments: {} }, alpha)) as {
+    const listedAlpha = JSON.parse(await runFormMcpTool(formTestPorts(forms, alpha).actions, { tool_id: "list", arguments: {} })) as {
       forms: Array<{ id: string }>;
     };
-    const listedBeta = JSON.parse(runFormMcpTool(forms, { tool_id: "list", arguments: {} }, beta)) as {
+    const listedBeta = JSON.parse(await runFormMcpTool(formTestPorts(forms, beta).actions, { tool_id: "list", arguments: {} })) as {
       forms: Array<{ id: string }>;
     };
     assert.deepEqual(listedAlpha.forms.map((item) => item.id), [created.form.id]);
     assert.deepEqual(listedBeta.forms, []);
-    assert.throws(
-      () => runFormMcpTool(forms, { tool_id: "secret", arguments: {} }, alpha),
+    await assert.rejects(
+      () => runFormMcpTool(formTestPorts(forms, alpha).actions, { tool_id: "secret", arguments: {} }),
       /未登记的 Forms MCP/,
     );
   } finally {
@@ -556,8 +587,8 @@ test("Pages Form Dataset PPT MCP handlers partition records by injected project_
 
   const datasets = openDatasetStore(home);
   try {
-    JSON.parse(runDatasetMcpTool(datasets, { tool_id: "create", arguments: { title: "项目表" } }, alpha));
-    const listed = JSON.parse(runDatasetMcpTool(datasets, { tool_id: "list", arguments: {} }, beta)) as {
+    JSON.parse(await runDatasetMcpTool(datasetTestPorts(datasets, alpha).actions, { tool_id: "create", arguments: { title: "项目表" } }));
+    const listed = JSON.parse(await runDatasetMcpTool(datasetTestPorts(datasets, beta).actions, { tool_id: "list", arguments: {} })) as {
       datasets: unknown[];
     };
     assert.deepEqual(listed.datasets, []);
@@ -567,8 +598,8 @@ test("Pages Form Dataset PPT MCP handlers partition records by injected project_
 
   const presentations = openPptStore(home);
   try {
-    JSON.parse(runPptMcpTool(presentations, { tool_id: "create", arguments: { title: "项目稿" } }, alpha));
-    const listed = JSON.parse(runPptMcpTool(presentations, { tool_id: "list", arguments: {} }, beta)) as {
+    JSON.parse(await runPptMcpTool(pptTestPorts(presentations, alpha).actions, { tool_id: "create", arguments: { title: "项目稿" } }));
+    const listed = JSON.parse(await runPptMcpTool(pptTestPorts(presentations, beta).actions, { tool_id: "list", arguments: {} })) as {
       presentations: unknown[];
     };
     assert.deepEqual(listed.presentations, []);
@@ -580,15 +611,10 @@ test("Pages Form Dataset PPT MCP handlers partition records by injected project_
 test("Form MCP adapter injects the bound project and refuses an unbound call", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-form-mcp-adapter-"));
   t.after(() => rm(home, { recursive: true, force: true }));
-  const host = {
-    homeDirectory: home,
-    runtimeContext: { runtime_id: "codex", stable_work_context_id: "form-mcp", host_declares_stable: true },
-  };
-  const context = { runtimeSessionId: null as const, runtimeSessionIdSource: null as const };
-  const unbound = createFormMcpAdapter({
-    requireHost: () => host,
-    boundProjectId: () => null,
-  });
+  const context = { runtimeSessionId: null, runtimeSessionIdSource: null };
+  const unbound = createNativeMcpPluginAdapters({ discover: async () => [], invoke: async () => {
+    throw Object.assign(new Error("Project required"), { code: "mcp.connection_incomplete" });
+  } }).get(formManifest.plugin_id)!;
   await assert.rejects(
     () => unbound.handle({ tool_id: "list", arguments: {} }, context),
     (error: unknown) => error instanceof Error
@@ -596,10 +622,8 @@ test("Form MCP adapter injects the bound project and refuses an unbound call", a
       && (error as { code: string }).code === "mcp.connection_incomplete",
   );
 
-  const adapter = createFormMcpAdapter({
-    requireHost: () => host,
-    boundProjectId: () => "project-bound",
-  });
+  const formStore = openFormStore(home); t.after(() => formStore.close());
+  const adapter = createNativeMcpPluginAdapters(formTestPorts(formStore, "project-bound").actions).get(formManifest.plugin_id)!;
   const created = JSON.parse(await adapter.handle({ tool_id: "create", arguments: { title: "绑定问卷" } }, context)) as {
     form: { title: string; project_id: string };
   };
@@ -651,12 +675,10 @@ test("enabled Form tools appear on a new bound connection and stay hidden while 
   assert.equal(unboundNames.includes(FORM_LIST), false);
   assert.ok(unboundNames.includes(LIST));
 
-  const bound = new MolisWorkServer("runtime", {
-    databasePath: join(home, "project.db"),
-    boardId: "board-form-mcp",
-    projectId: "project-form-mcp",
-    webBaseUrl: "http://127.0.0.1:4173",
-  }, runtimeHost);
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Form MCP", actor_id: "user" }));
+  const connection = { databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id, webBaseUrl: runtimeHost.webBaseUrl };
+  await grantNativeTools(home, connection, formManifest, ["list", "create"]);
+  const bound = new MolisWorkServer("runtime", connection, runtimeHost);
   t.after(() => bound.close());
   const boundNames = await listToolNames(bound);
   assert.ok(boundNames.includes(FORM_LIST));
@@ -677,7 +699,53 @@ test("enabled Form tools appear on a new bound connection and stay hidden while 
   assert.equal(listed.result.isError, false, listed.result.content[0]?.text);
   const payload = JSON.parse(listed.result.content[0]?.text ?? "{}") as { forms: Array<{ title: string; project_id: string }> };
   assert.deepEqual(payload.forms.map((item) => item.title), ["MCP 问卷"]);
-  assert.equal(payload.forms[0]?.project_id, "project-form-mcp");
+  assert.equal(payload.forms[0]?.project_id, project.project_id);
+});
+
+test("enabled PPT tools appear on a new bound connection and stay hidden while unbound", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-ppt-mcp-bound-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  await mkdir(join(home, "config"), { recursive: true });
+  await writeFile(join(home, "config", "mcp-tools.json"), JSON.stringify({
+    version: 1,
+    overrides: { [mcpPublicToolName("ppt", "list")]: true, [mcpPublicToolName("ppt", "create")]: true },
+  }));
+  const runtimeHost = {
+    homeDirectory: home,
+    runtimeContext: { runtime_id: "codex", stable_work_context_id: "ppt-bound", host_declares_stable: true },
+    webBaseUrl: "http://127.0.0.1:4173",
+  };
+  const unbound = new MolisWorkServer("runtime", null, runtimeHost);
+  t.after(() => unbound.close());
+  const unboundNames = await listToolNames(unbound);
+  assert.equal(unboundNames.includes(mcpPublicToolName("ppt", "list")), false);
+  assert.ok(unboundNames.includes(LIST));
+
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "PPT MCP", actor_id: "user" }));
+  const connection = { databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id, webBaseUrl: runtimeHost.webBaseUrl };
+  await grantNativeTools(home, connection, pptManifest, ["list", "create"]);
+  const bound = new MolisWorkServer("runtime", connection, runtimeHost);
+  t.after(() => bound.close());
+  const boundNames = await listToolNames(bound);
+  assert.ok(boundNames.includes(mcpPublicToolName("ppt", "list")));
+  assert.ok(boundNames.includes(mcpPublicToolName("ppt", "create")));
+  const created = await bound.handleMessage({
+    jsonrpc: "2.0",
+    id: 10,
+    method: "tools/call",
+    params: { name: mcpPublicToolName("ppt", "create"), arguments: { title: "MCP 演示稿" } },
+  }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+  assert.equal(created.result.isError, false, created.result.content[0]?.text);
+  const listed = await bound.handleMessage({
+    jsonrpc: "2.0",
+    id: 11,
+    method: "tools/call",
+    params: { name: mcpPublicToolName("ppt", "list"), arguments: {} },
+  }) as { result: { isError: boolean; content: Array<{ text: string }> } };
+  assert.equal(listed.result.isError, false, listed.result.content[0]?.text);
+  const payload = JSON.parse(listed.result.content[0]?.text ?? "{}") as { presentations: Array<{ title: string; project_id: string }> };
+  assert.deepEqual(payload.presentations.map((item) => item.title), ["MCP 演示稿"]);
+  assert.equal(payload.presentations[0]?.project_id, project.project_id);
 });
 
 test("a new MCP connection restores a bound session before freezing project-scoped tools", async (t) => {
@@ -717,6 +785,7 @@ test("a new MCP connection restores a bound session before freezing project-scop
   const createdPayload = JSON.parse(created.result.content[0]?.text ?? "{}") as { status: string };
   assert.equal(createdPayload.status, "bound", created.result.content[0]?.text);
 
+  await grantNativeTools(home, first.runtimeConnection!, formManifest, ["list"]);
   const second = new MolisWorkServer("runtime", null, runtimeHost);
   t.after(() => second.close());
   const secondNames = await listToolNames(second);

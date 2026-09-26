@@ -90,6 +90,9 @@ export class FeedSourceService {
     let scope = input.scope == null ? source.config.scope : bounded(input.scope.trim(), 500);
     let config = { ...source.config };
     let cursor = source.cursor;
+    let credentialRef = source.credential_ref;
+    let accountLabel = source.account_label;
+    let changedAccount = false;
     if (source.sync_kind === "gmail" && input.scope != null) {
       if (!input.scope.trim()) {
         scope = this.ports.providers.gmail.defaultScope;
@@ -123,16 +126,85 @@ export class FeedSourceService {
       config = { ...config, feed_url: feedUrl, config_fingerprint: fingerprint };
       cursor = {};
     }
-    const updated = this.feed.upsertSource({
+    if (input.connection_id != null) {
+      if (!(["github", "gmail", "connector"] as string[]).includes(source.sync_kind)) {
+        throw new FeedDomainError("这个来源不使用账号连接", "feed_source_invalid_configuration");
+      }
+      const connectionId = input.connection_id.trim();
+      if (!connectionId || !this.ports.resolveConnection) {
+        throw new FeedDomainError("请选择可用的账号连接", "feed_source_invalid_configuration");
+      }
+      const connection = this.ports.resolveConnection(source.kind, connectionId);
+      changedAccount = typeof source.config.connection_id === "string"
+        ? source.config.connection_id !== connectionId
+        : source.credential_ref !== connection.credentialRef;
+      credentialRef = connection.credentialRef;
+      accountLabel = connection.accountLabel;
+      config.connection_id = connectionId;
+      if (source.sync_kind === "gmail") config.token_refs = connection.tokenRefs;
+      if (source.sync_kind === "connector") config.refresh_ref = connection.refreshRef;
+      if (changedAccount) cursor = {};
+    }
+    const save = () => this.feed.upsertSource({
       ...source,
       name,
       description,
       config: { ...config, ...(scope == null ? {} : { scope }) },
       cursor,
-      ...(input.feed_url == null ? {} : { status: source.enabled ? "active" : "paused", last_error_code: null }),
+      credential_ref: credentialRef,
+      account_label: accountLabel,
+      ...(!changedAccount && input.feed_url == null ? {} : {
+        status: source.enabled ? "active" : "paused", last_error_code: null,
+        ...(changedAccount ? { last_sync_at: null, last_outcome: null } : {}),
+      }),
       updated_at: now,
     });
-    this.ports.appendEvent(this.boardId, sourceId, "feed_source.configuration_updated", "来源配置已更新");
+    const updated = changedAccount && input.connection_id
+      ? this.ports.transaction(() => {
+        // Listener checkpoints and Signal dedupe keys are keyed by source_id.
+        // A new account needs a new source rather than just an empty cursor.
+        const nextId = stableId("feed-source", `${this.boardId}\u0000connector\u0000${source.kind}\u0000${input.connection_id}`);
+        const prior = this.feed.snapshot(this.boardId).sources.find((candidate) => candidate.source_id === nextId);
+        if (prior && sourceDeletedAt(prior)) {
+          throw new FeedDomainError("这条账号来源已移除，请先恢复或另建来源", "feed_source_invalid_configuration");
+        }
+        const next = this.feed.upsertSource({
+          ...(prior ?? source),
+          source_id: nextId,
+          name: input.name == null && !prior && accountLabel ? `${source.kind} · ${accountLabel}` : name,
+          description,
+          config: { ...config, ...(scope == null ? {} : { scope }) },
+          credential_ref: credentialRef,
+          account_label: accountLabel,
+          cursor: prior?.cursor ?? {},
+          schedule: prior?.schedule ?? source.schedule,
+          status: prior ? prior.status : source.enabled ? "active" : "paused",
+          enabled: prior?.enabled ?? source.enabled,
+          item_count: prior?.item_count ?? 0,
+          last_sync_at: prior?.last_sync_at ?? null,
+          last_outcome: prior?.last_outcome ?? null,
+          last_error_code: prior?.last_error_code ?? null,
+          imported_at: prior?.imported_at ?? now,
+          updated_at: now,
+        });
+        if (!prior) {
+          for (const rule of this.feed.listOutRules(this.boardId)) {
+            if (rule.match.source_id !== sourceId) continue;
+            this.feed.createOutRule(this.boardId, {
+              name: rule.name,
+              match: { ...rule.match, source_id: nextId },
+              enabled: rule.enabled,
+              function_key: rule.function_key,
+              judgment: rule.judgment,
+              admission: rule.admission,
+            });
+          }
+        }
+        this.feed.upsertSource({ ...source, enabled: false, status: "paused", updated_at: now });
+        return next;
+      })
+      : save();
+    this.ports.appendEvent(this.boardId, updated.source_id, "feed_source.configuration_updated", changedAccount ? "来源已切换到另一账号连接" : "来源配置已更新");
     return updated;
   }
 

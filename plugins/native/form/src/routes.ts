@@ -37,6 +37,7 @@ export const FORM_NATIVE_PLUGIN_ROUTES = [
   route("form.promote", "POST", /^\/api\/form\/([^/]+)\/promote$/u, ["id"]),
   route("form.delete", "POST", /^\/api\/form\/([^/]+)\/delete$/u, ["id"]),
   route("form.generate", "POST", /^\/api\/form\/([^/]+)\/generate-questions$/u, ["id"]),
+  route("form.generate-ai", "POST", /^\/api\/form\/([^/]+)\/generate-ai-question$/u, ["id"]),
   route("form.submit", "POST", /^\/api\/form\/([^/]+)\/submit$/u, ["id"]),
   route("form.results", "GET", /^\/api\/form\/([^/]+)\/results$/u, ["id"]),
 ] as const satisfies readonly FormPluginRouteDefinition[];

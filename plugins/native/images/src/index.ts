@@ -12,3 +12,7 @@ export * from "./client.js";
 export * from "./styles.js";
 export * from "./en.js";
 export * from "./routes.js";
+
+export * from "./actions.js";
+export * from "./credential-references.js";
+export type { ImageGeneration, ImageProviderRequest } from "./providers.js";

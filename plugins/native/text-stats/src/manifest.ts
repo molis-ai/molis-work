@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 import { TEXT_STATS_UI_CONTRIBUTION_ID } from "./ui.js";
+import { TEXT_STATS_ACTIONS } from "./actions.js";
 
 export const TEXT_STATS_PLUGIN_ID = "io.molis.work.text-stats";
 /** What the project database stores for this Plugin. */
@@ -20,7 +21,8 @@ export const textStatsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: TEXT_STATS_PLUGIN_ID,
-  version: "1.1.0",
+  version: "1.2.0",
+  upgrade_compatibility: { compatible_from_versions: ["1.1.0"] },
   name: "Text stats",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-text-stats-binding" },
@@ -29,6 +31,7 @@ export const textStatsManifest: PluginManifest = {
     { permission: "artifact:read", required: true, reason: "读取绑定的文本快照" },
   ],
   capabilities: { provides: [], consumes: [] },
+  actions: TEXT_STATS_ACTIONS,
   artifacts: {
     produces: [],
     consumes: [{ artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION }],

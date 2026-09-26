@@ -6,7 +6,7 @@
 
 ## 当前问题与证据
 
-现有 `src/store.ts` 的 `demoIdeaCards` 固定拼三张模板卡，原 spec 明确排除了市场脉搏、Lens、预算、Copilot、注释、Memory、导出。源项目已有 SQLite 版本对象、后台任务、两种 Lens、证据、决策、公开来源采集、上下文对话与完整 React 工作面。重新手写缩减版本不能满足完整业务迁移。
+迁入前的 `src/store.ts` 曾通过 `demoIdeaCards` 固定拼三张模板卡（现已移除），原 spec 明确排除了市场脉搏、Lens、预算、Copilot、注释、Memory、导出。源项目已有 SQLite 版本对象、后台任务、两种 Lens、证据、决策、公开来源采集、上下文对话与完整 React 工作面。重新手写缩减版本不能满足完整业务迁移。
 
 ## 保留、替换、忽略
 

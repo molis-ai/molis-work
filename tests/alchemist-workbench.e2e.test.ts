@@ -89,12 +89,13 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   await click('[data-alc-action="explore"]');await includes('这次炼化未完成');
   await command('Page.reload',{},sessionId);await visible('[data-alc-action="explore"]');await includes('浏览器验收缺模型也保存方向');
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');await includes('研究摘要');
-  await mkdir('specs/alchemist-plugin/verification',{recursive:true});
+  const screenshotDirectory = process.env.MOLIS_WORK_ALCHEMIST_SCREENSHOTS ?? 'specs/alchemist-plugin/verification';
+  await mkdir(screenshotDirectory,{recursive:true});
   for(const [width,height,label] of [[1440,1000,'desktop'],[390,844,'mobile']] as const){
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<500},sessionId);
     const bounds=await evaluate<{width:number;right:number}>(`(()=>{const r=document.querySelector('${content}').getBoundingClientRect();return {width:document.documentElement.scrollWidth,right:r.right}})()`);
     assert.ok(bounds.width<=width+1&&bounds.right<=width+1,JSON.stringify(bounds));
-    for(const theme of ['light','dark']){await evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`specs/alchemist-plugin/verification/native-${label}-${theme}.png`,Buffer.from(shot.data,'base64'));}
+    for(const theme of ['light','dark']){await evaluate(`document.documentElement.dataset.resolvedTheme='${theme}'`);const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(join(screenshotDirectory,`native-${label}-${theme}.png`),Buffer.from(shot.data,'base64'));}
   }
   await click('[data-alc-action="back"]');await visible(`[data-alchemist-id="${ids.idea}"]`);
   assert.equal(await evaluate(`document.querySelector('${root}').dataset.expanded`),'false');

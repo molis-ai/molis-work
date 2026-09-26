@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CHARACTERS_UI_CONTRIBUTION_ID } from "./ui.js";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export const CHARACTERS_PROJECT_PLUGIN_ID = "characters";
 export const charactersManifest: PluginManifest = {
@@ -11,9 +12,10 @@ export const charactersManifest: PluginManifest = {
     { permission: "artifact:read", required: true, reason: "查看当前项目已发布的角色版本" },
     { permission: "artifact:write", required: true, reason: "将本人确认的角色内容发布为当前项目的固定版本" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: [agentHostCapabilities.listActions.capability_id, agentHostCapabilities.listRuntimes.capability_id] },
   artifacts: { produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }], consumes: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }] },
   routes: [
+    { route_id: "characters.actions", method: "GET", path: "/actions" },
     { route_id: "characters.discover", method: "POST", path: "/imports/discover" },
     { route_id: "characters.import", method: "POST", path: "/imports" },
     { route_id: "characters.import-file", method: "POST", path: "/imports/file" },

@@ -14,7 +14,7 @@ const STYLE_ID = "molis-shelf-xterm-css";
 
 interface ShelfTuiBridge {
   open(options: { command: string; cwd: string; title: string }): void;
-  send(text: string): void;
+  send(text: string): boolean;
   isLive(): boolean;
 }
 
@@ -58,8 +58,16 @@ export function startShelfTerminalClient(): void {
 
   let socket: WebSocket | null = null;
   let live = false;
+  let spawning = false;
+  let authenticated = false;
   let queued: string[] = [];
   let pending: { command: string; cwd: string; title: string } | null = null;
+
+  const recoverQueued = (message: string): void => {
+    const unsent = queued.splice(0).map((line) => line.replace(/\r$/, ""));
+    spawning = false;
+    if (unsent.length) window.dispatchEvent(new CustomEvent("molis-shelf-tui-unsent", { detail: { texts: unsent, message } }));
+  };
 
   const send = (message: unknown): void => {
     if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -84,13 +92,16 @@ export function startShelfTerminalClient(): void {
       } catch {
         return;
       }
+      if (socket !== next) return;
       if (message.type === "ready") {
+        authenticated = true;
         if (pending) spawn(pending);
         return;
       }
       if (message.panelId && message.panelId !== PANEL_ID) return;
       if (message.type === "spawned") {
         live = true;
+        spawning = false;
         if (message.replay) term.write(message.replay);
         refit();
         for (const line of queued.splice(0)) send({ type: "write", panelId: PANEL_ID, data: line });
@@ -102,25 +113,33 @@ export function startShelfTerminalClient(): void {
       }
       if (message.type === "exit") {
         live = false;
-        term.writeln("\r\n[38;5;180m终端会话已结束。再点「对话」可以重新拉起。[0m");
+        recoverQueued("终端会话已结束，未发送的输入已恢复。");
+        term.writeln("\r\n[38;5;180m终端会话已结束。再次发送会重新打开。[0m");
         return;
       }
       if (message.type === "error" && message.message) {
+        recoverQueued(message.message);
+        window.dispatchEvent(new CustomEvent("molis-shelf-notice", { detail: { message: message.message } }));
         term.writeln(`\r\n[38;5;180m${message.message}[0m`);
       }
     });
     next.addEventListener("close", () => {
-      if (socket === next) socket = null;
+      if (socket !== next) return;
+      socket = null;
       live = false;
+      recoverQueued("终端连接已断开，未发送的输入已恢复。");
+      authenticated = false;
     });
   };
 
   const spawn = (options: { command: string; cwd: string; title: string }): void => {
     pending = options;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (spawning || live) return;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !authenticated) {
       connect();
       return;
     }
+    spawning = true;
     send({
       type: "spawn",
       panelId: PANEL_ID,
@@ -144,9 +163,11 @@ export function startShelfTerminalClient(): void {
       spawn(options);
     },
     send(text) {
+      if (!socket || !pending) return false;
       const line = `${text}\r`;
       if (live) send({ type: "write", panelId: PANEL_ID, data: line });
       else queued.push(line);
+      return true;
     },
     isLive: () => live,
   };

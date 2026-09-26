@@ -129,6 +129,17 @@ pnpm install:local
 
 Runtime 只在 Session 启动时读取 MCP 和 Skill，因此刚完成接入后需要新开 Session。
 
+### 一键启动（开发日常）
+
+仓库检出后的日常入口是根目录的 `Start.sh`：先清理残留实例（常驻 LaunchAgent 服务、占用 4173 的旧 Web、运行中的桌面端），按需补装依赖、在构建产物缺失或落后于源码时重新构建，然后启动桌面端——其 Web 界面直接来自仓库刚构建的 `dist`，改完代码重启即可看到。交互终端会进入逐步向导（选目标、确认清理、确认重建）；脚本化场景可加参数跳过向导。
+
+```bash
+./Start.sh              # 向导，默认启动桌面端 App
+./Start.sh --web        # 只启动 Web 服务并打开浏览器
+./Start.sh --build      # 启动前强制重建
+./Start.sh --no-clean   # 跳过清理
+```
+
 ### 构建、安装和启动 macOS Desktop
 
 ```bash

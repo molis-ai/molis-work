@@ -85,6 +85,21 @@ test("同一个会话 id 不会被悄悄覆盖", async () => {
   }
 });
 
+test("归档会话从活动目录移出，直接读取仍保留原执行引用", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "coding-store-"));
+  try {
+    const db = open(join(directory, "project.db"));
+    const store = new CodingSessionStore(db);
+    store.create({ board_id: BOARD, session_id: "s1", title: "旧会话", runtime_id: "prologue", at: "2026-09-19T14:00:00Z" });
+    store.setRuntimeSession(BOARD, "s1", "runtime-s1", "2026-09-19T15:00:00Z");
+    assert.equal(store.archive(BOARD, "s1", "2026-09-19T16:00:00Z").archived, true);
+    assert.equal(store.list(BOARD).length, 0);
+    assert.equal(store.get(BOARD, "s1").runtime_session_id, "runtime-s1");
+    assert.throws(() => store.archive(BOARD, "s1", "2026-09-19T17:00:00Z"), /已归档/);
+    db.close();
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
 test("Goal 标题在读的时候解析；解析不到就退回 id，会话不会消失", async () => {
   const directory = await mkdtemp(join(tmpdir(), "coding-store-"));
   try {

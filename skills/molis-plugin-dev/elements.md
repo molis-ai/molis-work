@@ -8,10 +8,22 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - `host_api_version`：与 schema 对齐，产品用 `2`。
 - `plugin_id`：反向域名，如 `io.molis.work.feed`。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
-- `name`、`version`：给人看的名字；代码变化必须自己递增 version。同一 `plugin_id + version + signature` 的 Manifest 不能静默改内容。
+- `name`、`version`：给人看的名字；代码变化必须自己递增 version。同一 `plugin_id + version + signature` 的 Manifest 不能静默改内容。升级来源要通过 `upgrade_compatibility` 精确声明。
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
+
+## 版本升级
+
+`upgrade_compatibility` 不是版本范围或自动升级开关，而是目标发布对精确旧版本的声明：
+
+- `compatible_from_versions`：新代码可直接读写该版本的私人数据，并沿用旧 grant。项目重启可用兼容实现恢复，但已安装版本只在用户手动升级后更新。同版本修正文档可列出当前版本以继续运行，但不会改变安装指纹或显示成升级。
+- `migratable_from_versions`：允许用户手动升级；目标定义还必须实现 `validateUpgrade({ from, context })`，通过只读 `get` 检查现有私人数据。Host 不执行数据迁移；预检通过后，目标实现直接使用已有格式。需要转换格式的插件目前不受此协议支持。
+- 来源必须是精确 SemVer；较高版本的来源必须早于当前 `version`，只有 `compatible_from_versions` 可列出与 Manifest 相同的版本。未声明的来源不能升级；升级不能降低版本。
+- Runtime 检查目标 Manifest 保留全部旧 grant 和必需权限，不会自动授予新权限。相同身份的普通安装仍要求指纹一致；同版本不同 Manifest 只有明确兼容声明才可用于继续运行，存储的版本与指纹保持不变。
+- `validateUpgrade` 收到旧安装记录和受限上下文；只有目标 Manifest 声明且旧安装已授予的 `storage:private.get` 可用，不暴露其他服务。校验失败时旧安装记录、grant 和存储仍留在原位。
+
+完整流程和 Manifest 片段见[本地 Plugin 开发·版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
 ## 权限与能力
 
@@ -25,7 +37,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 | `network:<host>` | 访问该主机 |
 | `secret:<name>` | 凭据引用，不要自己存可导出密钥 |
 
-`requires[]`：`capability_id`、`version`、`reason`。可选的写 `optional: true`。每一条的 `capability_id` 必须同时出现在 `capabilities.consumes`，否则解析拒绝。Inbox 绑判断是可选 `functions.evaluate`，两处都写了。
+`requires[]`：`capability_id`、`version`、`reason`。可选的写 `optional: true`。每一条的 `capability_id` 必须同时出现在 `capabilities.consumes`，否则解析拒绝。旧 Feed 判断仍有可选 `functions.evaluate`；Inbox 已改用动态消费场景，不声明这项旧依赖。
 
 `capabilities.provides` 是契约 id，不是别的插件包名。不带 `@` 时版本按 1：`functions.evaluate` 对得上 requires 里的 version 1；`functions.evaluate.v1` 是另一个 id。`consumes` 写不带版本的 id。Kernel 里任意满足者都可以。必需项没有提供者、依赖成环、或依赖的插件被挡住，才不激活。
 
@@ -58,26 +70,16 @@ Native：构建期装配，Host 注入 HTML primitives。
 
 写操作要 revision / 幂等；冲突可恢复。handler 用注入的 Module/端口，不 import 别的插件实现。
 
-## behaviors / function_scenes / judgment_subjects
+## actions / action_scenes
 
-这是「让 Functions 能绑到你的画面」，**不是**在本插件里写一条判断函数。函数记录在 Functions 插件（`{home}/functions/functions.db`）里写、试跑、发布。
+新插件通过 `actions` 提供查询、判断或操作，通过 `action_scenes` 贡献真实消费入口。不能仅写一个场景标签或让 Host 增加判断去向枚举。定义和公开类型在 contracts/platform/actions，SDK 的 `defineAction` 用同一份定义生成 manifest 与 handler 引用。
 
-顺序不能反：
+- 动作：身份与版本、名称、输入输出、语义类型、权限、作用域、允许入口。`required_scene` 可声明触发入口依赖的已启用判断绑定。
+- 场景：事件触发、对象种类、提供的输入和接受的结果、作用域与权限。`event_schema` 和 `prepare` 将业务事件转换为函数上下文；私有 `state` 留给消费方。
+- 兑现：运行实例提供 `bindings`、`bind`、`consume`；需要时提供 `prepare` 和 `failed`。绑定数据保留在原业务 owner。消费前核对业务对象；共同内核负责绑定修订、提供方实例和权限重查。
+- 发现：Host 场景客户端根据注册合同判断兼容性，并从真实绑定反查使用位置。新场景无需更新 Host ID 名单。完整系统管理 UI 与部分旧编辑器尚在迁移，不能把注册成功等同于所有产品入口完成。
 
-1. 画面上已经有一颗能点的下一步处置（HTTP + 客户端真能改状态）。
-2. Manifest `behaviors`：`behavior_id` 为 `[a-z0-9][a-z0-9-]*`，公开名 `{短名}.{behavior_id}`。与系统 id 撞号（如 `inbox.done`）时系统项保留。每条要 `title`、`effect`（`read`|`write`）、`subject_kinds`。
-3. 若这个时刻要让 Functions 来挑：`function_scenes`（`scene_id` 如 `feed.capture`）+ `judgment_subjects`。
-4. Host 总表：插件 Manifest 进 `apps/local-host/src/behavior-catalog.ts` 的 `NATIVE_BEHAVIOR_MANIFESTS`。只改自己的 Manifest，行为总表收不到。
-5. **「用在哪」不会扫 Manifest 自动生成。** `functionAuthoringDestinations()` 和 `sceneBehaviorIds()` 写死三个去向：`home.dock`、`inbox.next`、`feed.capture`。新 `scene_id` 只写进 Manifest，函数页不会多一行。那是平台改动。
-6. `judgment_subjects` 会合并进作者目录的「看什么」。去向仍是上面那张死表。
-7. 对象到来时 Host/插件要真的调 `JudgmentPort`（对照 Feed 的 `judgeScene`）。只声明、落地时不调，按钮不会按建议亮。
-8. 绑定 HTTP：Inbox / 首页是 `/api/inbox/judgment`、`/api/home/dock-judgment`；Feed 绑在捕捉规则上。再注入 `MolisWorkWebView.function_scenes`。
-9. 画面吃建议：`suggested_behavior_ids`、`visibleFeedDispositionIds`、首页 `dock_behaviors`。判断只建议，不自动写。
-10. 要判断就写可选 `requires: functions.evaluate`，并把这个 id 放进 `capabilities.consumes`（Inbox/Feed 就是这样）。`app` 还要兑现 `behaviors[].handle`。
-
-`home.dock` 是 Host 的首页去向，不是某个插件自己的 scene。Agent 去向是 `agent.mcp`。没有「对象到来 / 点开挑按钮」这种时刻，不要新开去向。
-
-录取四问和判例：`docs/platform/PLUGIN-DEVELOPMENT.md`。接线清单：[host.md](host.md)。
+`behaviors`、`function_scenes` 和 `judgment_subjects` 是旧页面仍读取的兼容声明。它们既不替代动作处理器，也不兑现实际场景消费。Feed 筛选和首页建议仍有旧 JudgmentPort 路径；Inbox 显式及自动判断已使用新场景。详情见 [Host 接线](host.md#接到统一判断场景) 和 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#统一动作与消费场景)。
 
 ## MCP（对外贡献）
 
@@ -153,10 +155,16 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 
 提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。正文在包装里的 `agent_prompts` / `agent_skills`，不进 Manifest。Host 还要把正文挂进 catalog，见 [host.md](host.md)。
 
-`subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实，走 `projects.workspace.read.v1`。`directory_input_port` 不会让 Host 采信目录。
+`subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实，候选通过 `projectSettingsCapabilities.workspaces` 读取。`directory_input_port` 不会让 Host 采信目录。
 
 今天两例：`plugins/native/coding`（kind `app`）、`plugins/native/schedule`（kind `native`）。不要把 Coding 的 agent 块抄到普通内容插件。合同里还有 `compaction`、`text_sources`、`skills`，这两个插件没用，先不要写成必填。
 
 ## Integration
 
 `kind: "integration"`。`definePollingIntegrationPlugin`：Manifest + `createProvider` → Connector Driver + Signal Adapter。Host 只看 Contract 和 Receipt。细节：[integrations.md](integrations.md)。
+
+## 当前项目设置能力
+
+从 `contracts/modules/projects` 导入 `projectSettingsCapabilities`：`workspaces` 返回当前项目已关联目录，`browsingWorkspace` 返回 Files/Git 的当前浏览目录或 null。逐项将完整 `capability_id` 写入 Manifest consumes，然后调用 `invoke(capability, [])`。不可传 project_id，不支持 key 袋或通配读取。Host 裁剪其他项目关联字段。工作目录在项目设置中维护，不再接 Workspace 输出。Coding 会话执行目录独立；`projects.workspace.read.v1` 只保留旧执行默认值兼容。
+
+`settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。

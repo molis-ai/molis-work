@@ -74,10 +74,12 @@ export function prologueModelConfiguration(
     endpoint: modelRequestShape(selection.provider, "").url,
     model: selection.model.model_id,
     credential_ref: selection.provider.credential_ref,
+    ...(selection.model.context_tokens ? { context_tokens: selection.model.context_tokens } : {}),
     // Left out when off, so nothing downstream has to special-case it.
     ...(selection.provider.prompt_cache === undefined || selection.provider.prompt_cache === "off"
       ? {}
       : { prompt_cache: selection.provider.prompt_cache }),
+    ...(selection.provider.thinking === "adaptive" ? { thinking: "adaptive" as const } : {}),
   };
 }
 

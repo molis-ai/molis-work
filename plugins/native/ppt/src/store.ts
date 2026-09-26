@@ -1,6 +1,7 @@
 import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
-import type { PptRecord, PptSlide } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
 import { PptError } from "./error.js";
 
 interface PptRow {
@@ -17,6 +18,7 @@ interface PptRow {
   version: number;
   artifact_id?: string;
   artifact_version?: number;
+  publication_pending_json?: string | null;
 }
 
 const DEFAULT_PRIMARY = "#5e6ad2";
@@ -74,9 +76,11 @@ export class PptStore {
     color_primary?: string;
     color_background?: string;
     color_text?: string;
-    slides?: readonly PptSlide[];
+    slides?: readonly PptSlideInput[];
+    expected_version?: number;
   }, projectId?: string): PptRecord {
     const current = this.get(id, projectId);
+    this.assertVersion(current, patch.expected_version);
     const next: PptRecord = {
       ...current,
       title: patch.title !== undefined ? normalizeTitle(patch.title) : current.title,
@@ -88,25 +92,58 @@ export class PptStore {
       updated_at: new Date().toISOString(),
       version: current.version + 1,
     };
-    this.write(next, false);
+    this.write(next, false, current.version);
     return next;
   }
 
-  rememberArtifact(id: string, artifactId: string, artifactVersion: number, projectId?: string): PptRecord {
-    const current = this.get(id, projectId);
-    const updated_at = new Date().toISOString();
-    this.db.prepare(
-      "UPDATE presentations SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = ? WHERE id = ?",
-    ).run(artifactId, artifactVersion, updated_at, current.version + 1, id);
-    return this.get(id, projectId);
+  delete(id: string, projectId?: string, expectedVersion?: number): void {
+    this.transaction(() => {
+      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      if (current.publication_pending) throw new PptError("ppt.publication_pending", "请先恢复上次 Artifact 发布，再删除演示稿");
+      this.db.prepare("DELETE FROM presentations WHERE id = ?").run(id);
+    });
   }
 
-  delete(id: string, projectId?: string): void {
-    this.get(id, projectId);
-    this.db.prepare("DELETE FROM presentations WHERE id = ?").run(id);
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: PptPublicationSnapshot): PptPublicationIntent {
+    return this.transaction(() => {
+      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      const pending = this.publicationIntent(id);
+      if (pending) {
+        if (pending.actor_id !== actorId) throw new PptError("ppt.publication_owner", "请由上次发布的发起者恢复，原快照已保留");
+        return pending;
+      }
+      const intent: PptPublicationIntent = { content: existing ?? { title: current.title, description: current.description, color_primary: current.color_primary, color_background: current.color_background, color_text: current.color_text, slides: current.slides },
+        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+      this.db.prepare("UPDATE presentations SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
+      return intent;
+    });
   }
 
-  private write(record: PptRecord, insert: boolean): void {
+  completePublication(id: string, projectId: string, intent: PptPublicationIntent, artifact: { artifact_id: string; version: number }): PptRecord {
+    return this.transaction(() => {
+      const current = this.get(id, projectId);
+      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
+      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw new PptError("ppt.publication_conflict", "发布记录已改变，请重新读取演示稿");
+      this.db.prepare("UPDATE presentations SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
+        .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
+      return this.get(id, projectId);
+    });
+  }
+
+  private publicationIntent(id: string): PptPublicationIntent | null {
+    const row = this.db.prepare("SELECT publication_pending_json FROM presentations WHERE id = ?").get(id) as { publication_pending_json: string | null };
+    return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as PptPublicationIntent : null;
+  }
+  private assertVersion(current: PptRecord, expectedVersion?: number): void {
+    if (expectedVersion !== undefined && expectedVersion !== current.version) throw new PptError("ppt.conflict", "演示稿已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+  }
+  private transaction<T>(run: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE");
+    try { const result = run(); this.db.exec("COMMIT"); return result; }
+    catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
+  private write(record: PptRecord, insert: boolean, expectedVersion = record.version - 1): void {
     if (insert) {
       this.db.prepare(
       "INSERT INTO presentations (id, project_id, title, description, color_primary, color_background, color_text, slides_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -117,12 +154,13 @@ export class PptStore {
       );
       return;
     }
-    this.db.prepare(
-      "UPDATE presentations SET title = ?, description = ?, color_primary = ?, color_background = ?, color_text = ?, slides_json = ?, updated_at = ?, version = ? WHERE id = ?",
+    const result = this.db.prepare(
+      "UPDATE presentations SET title = ?, description = ?, color_primary = ?, color_background = ?, color_text = ?, slides_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
     ).run(
       record.title, record.description, record.color_primary, record.color_background,
-      record.color_text, JSON.stringify(record.slides), record.updated_at, record.version, record.id,
+      record.color_text, JSON.stringify(record.slides), record.updated_at, record.version, record.id, expectedVersion,
     );
+    if (result.changes !== 1) throw new PptError("ppt.conflict", "演示稿已改变，请重新读取后保存");
   }
 }
 
@@ -148,6 +186,7 @@ export function openPptStore(homeDirectory: string): PptStore {
   ensureSqliteColumn(db, "presentations", "project_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "presentations", "artifact_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "presentations", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
+  ensureSqliteColumn(db, "presentations", "publication_pending_json", "TEXT");
   return new PptStore(db);
 }
 
@@ -166,6 +205,7 @@ function fromRow(row: PptRow): PptRecord {
     version: row.version,
     artifact_id: row.artifact_id ?? "",
     artifact_version: Number(row.artifact_version) || 0,
+    ...(row.publication_pending_json ? { publication_pending: ((intent: PptPublicationIntent) => ({ version: intent.version, source_version: intent.source_version }))(JSON.parse(row.publication_pending_json)) } : {}),
   };
 }
 
@@ -196,10 +236,12 @@ function normalizeColor(value: string): string {
   return value.toLowerCase();
 }
 
-function normalizeSlides(value: readonly PptSlide[]): PptSlide[] {
+function normalizeSlides(value: readonly PptSlideInput[]): PptSlide[] {
   if (!Array.isArray(value)) throw new PptError("ppt.invalid", "幻灯片须是列表");
   if (value.length === 0) throw new PptError("ppt.invalid", "至少保留一页");
   if (value.length > 40) throw new PptError("ppt.invalid", "最多 40 页");
+  const identities = value.map(slide => slide.id).filter(Boolean);
+  if (new Set(identities).size !== identities.length) throw new PptError("ppt.invalid", "幻灯片标识不能重复");
   return value.map((slide, index) => ({
     id: slide.id || crypto.randomUUID(),
     title: String(slide.title ?? "").trim().slice(0, 80),

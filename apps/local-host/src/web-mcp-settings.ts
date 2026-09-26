@@ -4,7 +4,7 @@ import { listMcpSettingsEntries } from "./mcp-catalog.js";
 import {
   readMcpToolPreference,
   withMcpToolOverride,
-  writeMcpToolPreference,
+  updateMcpToolPreference,
 } from "./mcp-settings-store.js";
 
 export async function handleLocalMcpSettingsHttp(
@@ -42,9 +42,7 @@ export async function handleLocalMcpSettingsHttp(
     sendJson(response, 404, { error: "没有这个 MCP 方法" });
     return true;
   }
-  const current = await readMcpToolPreference(homeDirectory);
-  const next = withMcpToolOverride(current, name, body.enabled, row.default_enabled);
-  await writeMcpToolPreference(homeDirectory, next.overrides);
+  await updateMcpToolPreference(homeDirectory, current => withMcpToolOverride(current, name, body.enabled as boolean, row.default_enabled));
   sendJson(response, 200, { name, enabled: body.enabled });
   return true;
 }

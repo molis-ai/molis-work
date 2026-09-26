@@ -29,6 +29,12 @@ export interface FeedSourcePorts {
   createRuntime(source: FeedSourceRecord): PublicFeedRuntime;
   transaction<T>(operation: () => T): T;
   appendEvent(boardId: string, sourceId: string, type: string, reason: string, payload?: Record<string, unknown>): void;
+  resolveConnection?(serviceId: string, connectionId: string): {
+    credentialRef: string | null;
+    accountLabel: string | null;
+    refreshRef?: string;
+    tokenRefs?: { access: string; refresh: string; expiresAt: string };
+  };
 }
 export type RegisterFeedSourceInput =
   | { kind: "research_library"; repository: string; research_source: string; name?: string }
@@ -50,6 +56,7 @@ export interface UpdateFeedSourceInput {
   description?: string;
   scope?: string;
   feed_url?: string;
+  connection_id?: string;
 }
 
 export type ConfigureFeedSourceScheduleInput =

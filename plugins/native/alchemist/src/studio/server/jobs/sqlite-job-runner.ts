@@ -51,6 +51,7 @@ export interface SqliteJobRunnerOptions {
   clock: Clock;
   idFactory: IdFactory;
   leaseMs?: number;
+  actorId?(): string;
 }
 
 export class SqliteJobRunner {
@@ -63,13 +64,38 @@ export class SqliteJobRunner {
     this.leaseMs = options.leaseMs ?? 30_000;
   }
 
+  get renewalIntervalMs(): number { return Math.max(1, Math.min(1000, Math.floor(this.leaseMs / 3))); }
+
+  ownsLease(jobId: string): boolean {
+    const job = this.get(jobId);
+    return job?.status === "running" && job.leaseOwner === this.options.workerId
+      && Boolean(job.leaseExpiresAt && job.leaseExpiresAt > this.options.clock.now());
+  }
+
+  renewLease(jobId: string): boolean {
+    const now = this.options.clock.now();
+    const expires = new Date(Date.parse(now) + this.leaseMs).toISOString();
+    return this.database.prepare(`UPDATE jobs SET lease_expires_at = ?
+      WHERE id = ? AND status = 'running' AND lease_owner = ? AND lease_expires_at > ?`)
+      .run(expires, jobId, this.options.workerId, now).changes === 1;
+  }
+
+  /** Synchronous plugin persistence is fenced by the original job in the same DB transaction. */
+  withLease<T>(jobId: string, write: () => T): T {
+    return this.database.transaction(() => {
+      if (!this.ownsLease(jobId)) throw new Error("JOB_LEASE_NOT_OWNED");
+      return write();
+    }).immediate();
+  }
+
   enqueue(input: { kind: string; payload: unknown }): PersistedJob {
     const now = this.options.clock.now();
     const job: PersistedJob = {
       id: this.options.idFactory.next("job"),
       kind: input.kind,
       status: "queued",
-      input: input.payload,
+      input: this.options.actorId && input.payload && typeof input.payload === "object" && !Array.isArray(input.payload)
+        ? { ...input.payload, actorId: this.options.actorId() } : input.payload,
       attempt: 0,
       createdAt: now,
       updatedAt: now,
@@ -84,7 +110,7 @@ export class SqliteJobRunner {
         )
         .run(job.id, job.kind, JSON.stringify(job.input), now, now);
       this.appendEvent(job.id, "queued", {});
-    })();
+    }).immediate();
     return job;
   }
 
@@ -120,7 +146,7 @@ export class SqliteJobRunner {
       if (update.changes !== 1) return undefined;
       this.appendEvent(row.id, "running", { attempt: row.attempt + 1 });
       return this.get(row.id);
-    })();
+    }).immediate();
   }
 
   saveCheckpoint(
@@ -128,16 +154,18 @@ export class SqliteJobRunner {
     checkpoint: unknown,
     event?: { type: string; payload: unknown },
   ): PersistedJob {
-    const now = this.options.clock.now();
-    const update = this.database
-      .prepare(
-        `UPDATE jobs SET checkpoint_json = ?, updated_at = ?
-         WHERE id = ? AND status = 'running' AND lease_owner = ?`,
-      )
-      .run(JSON.stringify(checkpoint), now, jobId, this.options.workerId);
-    if (update.changes !== 1) throw new Error("JOB_LEASE_NOT_OWNED");
-    this.appendEvent(jobId, event?.type ?? "checkpoint_saved", event?.payload ?? {});
-    return this.require(jobId);
+    return this.withLease(jobId, () => {
+      const now = this.options.clock.now();
+      const update = this.database
+        .prepare(
+          `UPDATE jobs SET checkpoint_json = ?, updated_at = ?
+           WHERE id = ? AND status = 'running' AND lease_owner = ?`,
+        )
+        .run(JSON.stringify(checkpoint), now, jobId, this.options.workerId);
+      if (update.changes !== 1) throw new Error("JOB_LEASE_NOT_OWNED");
+      this.appendEvent(jobId, event?.type ?? "checkpoint_saved", event?.payload ?? {});
+      return this.require(jobId);
+    });
   }
 
   complete(jobId: string): PersistedJob {
@@ -149,17 +177,19 @@ export class SqliteJobRunner {
   }
 
   cancel(jobId: string): PersistedJob {
-    const now = this.options.clock.now();
-    const update = this.database
-      .prepare(
-        `UPDATE jobs
-         SET status = 'cancelled', lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
-         WHERE id = ? AND status IN ('queued', 'running')`,
-      )
-      .run(now, jobId);
-    if (update.changes !== 1) throw new Error("JOB_NOT_CANCELLABLE");
-    this.appendEvent(jobId, "cancelled", {});
-    return this.require(jobId);
+    return this.database.transaction(() => {
+      const now = this.options.clock.now();
+      const update = this.database
+        .prepare(
+          `UPDATE jobs
+           SET status = 'cancelled', lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
+           WHERE id = ? AND status IN ('queued', 'running')`,
+        )
+        .run(now, jobId);
+      if (update.changes !== 1) throw new Error("JOB_NOT_CANCELLABLE");
+      this.appendEvent(jobId, "cancelled", {});
+      return this.require(jobId);
+    }).immediate();
   }
 
   recoverExpired(): number {
@@ -187,7 +217,7 @@ export class SqliteJobRunner {
         this.appendEvent(row.id, "queued", { reason: "recovered_after_interruption" });
       }
       return expired.length;
-    })();
+    }).immediate();
   }
 
   listEvents(jobId: string, afterSequence = 0): PersistedJobEvent[] {
@@ -201,18 +231,28 @@ export class SqliteJobRunner {
     ).map(mapJobEvent);
   }
 
+  readEvents(jobId: string, afterSequence = 0): { jobId: string; status: RunStatus; cursor: number; events: PersistedJobEvent[] } {
+    return this.database.transaction(() => {
+      const job = this.require(jobId);
+      const events = this.listEvents(jobId, afterSequence);
+      return { jobId, status: job.status, cursor: events.at(-1)?.sequence ?? afterSequence, events };
+    })();
+  }
+
   private finish(jobId: string, status: "completed" | "failed", errorCode?: string): PersistedJob {
-    const now = this.options.clock.now();
-    const update = this.database
-      .prepare(
-        `UPDATE jobs
-         SET status = ?, error_code = ?, lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
-         WHERE id = ? AND status = 'running' AND lease_owner = ?`,
-      )
-      .run(status, errorCode ?? null, now, jobId, this.options.workerId);
-    if (update.changes !== 1) throw new Error("JOB_LEASE_NOT_OWNED");
-    this.appendEvent(jobId, status, errorCode ? { errorCode } : {});
-    return this.require(jobId);
+    return this.withLease(jobId, () => {
+      const now = this.options.clock.now();
+      const update = this.database
+        .prepare(
+          `UPDATE jobs
+           SET status = ?, error_code = ?, lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
+           WHERE id = ? AND status = 'running' AND lease_owner = ?`,
+        )
+        .run(status, errorCode ?? null, now, jobId, this.options.workerId);
+      if (update.changes !== 1) throw new Error("JOB_LEASE_NOT_OWNED");
+      this.appendEvent(jobId, status, errorCode ? { errorCode } : {});
+      return this.require(jobId);
+    });
   }
 
   private appendEvent(jobId: string, type: string, payload: unknown): void {

@@ -10,6 +10,8 @@ import {
 import type { SqliteIdeaRepository } from "../db/idea-repository.js";
 import type { SqliteMemoryRepository } from "../db/memory-repository.js";
 import type { SqliteResearchRepository } from "../db/research-repository.js";
+import type { WorkReuseService } from "../../../work-reuse/service.js";
+import type { ReuseSelection } from "../../../work-reuse/contracts.js";
 
 export class ResearchPlanError extends Error {
   readonly name = "ResearchPlanError";
@@ -30,6 +32,7 @@ interface Dependencies {
   memory: SqliteMemoryRepository;
   research: SqliteResearchRepository;
   runtime: AiRuntimePort;
+  workReuse?: WorkReuseService;
 }
 
 export function createResearchPlanService(dependencies: Dependencies) {
@@ -40,6 +43,7 @@ export function createResearchPlanService(dependencies: Dependencies) {
     modelPolicy: "auto" | "fixed";
     modelId?: string;
     budget: ResearchBudget;
+    reuse?: ReuseSelection;
   }): Promise<ResearchPlan> => {
     const idea = dependencies.ideas.getIdea(input.ideaId);
     const version = dependencies.ideas.getVersion(input.ideaId, input.ideaVersion);
@@ -55,6 +59,8 @@ export function createResearchPlanService(dependencies: Dependencies) {
       throw new ResearchPlanError("RESEARCH_BUDGET_INVALID");
     }
     const now = dependencies.clock.now();
+    const reportId = input.lens === "market_space" ? dependencies.research.getLatestReport(marketLensCompatibilityKey(input.ideaId, input.ideaVersion))?.id : undefined;
+    const reuse = await dependencies.workReuse?.prepare(input.reuse, { directionId: idea.directionId, reportId, lens: input.lens });
     const key =
       input.lens === "market_space"
         ? marketLensCompatibilityKey(input.ideaId, input.ideaVersion)
@@ -86,7 +92,8 @@ export function createResearchPlanService(dependencies: Dependencies) {
       estimatedDuration:
         input.lens === "market_space" ? { minMinutes: 2, maxMinutes: 4 } : { minMinutes: 1, maxMinutes: 3 },
       budget,
-      appliedPlaybookRuleIds:
+      ...(reuse ? { reuse } : {}),
+      appliedPlaybookRuleIds: reuse ? reuse.methods.map(method => method.id) :
         input.lens === "market_space"
           ? dependencies.memory
               .listApplicablePlaybookRules({
@@ -99,14 +106,6 @@ export function createResearchPlanService(dependencies: Dependencies) {
       createdAt: now,
     };
     const created = dependencies.research.createPlan(plan);
-    for (const ruleId of created.appliedPlaybookRuleIds) {
-      dependencies.memory.recordPlaybookApplication({
-        id: dependencies.idFactory.next("memory_application"),
-        ruleId,
-        planId: created.id,
-        appliedAt: now,
-      });
-    }
     return created;
   };
 }

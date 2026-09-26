@@ -45,6 +45,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let editVersion = 0;
   let dirty = false;
   let saveQueue = Promise.resolve();
+  const publishing = new Set();
   const keepListScroll = (paint) => {
     const top = list?.scrollTop || 0;
     paint();
@@ -53,7 +54,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const routePrefix = () => document.body.dataset.routePrefix || "";
-  const route = (path) => routePrefix() + path;
+  const route = (path) => typeof host.route === "function" ? host.route(path) : routePrefix() + path;
   const headers = () => typeof molisWorkControlHeaders === "function"
     ? molisWorkControlHeaders()
     : { "content-type": "application/json" };
@@ -75,6 +76,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const showNote = (text, isError) => {
     if (!note) return;
+    if (!text && selected?.publication_pending) text = L("上次成果保存尚未完成。继续保存会恢复当时的快照，当前编辑内容可在之后另存一版。");
     note.hidden = !text;
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
@@ -223,7 +225,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     fillGoalSelect();
     const artifactBar = workbench.querySelector("[data-pages-artifact-bar]");
-    if (artifactBar) artifactBar.textContent = selected.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    if (artifactBar) artifactBar.textContent = selected.publication_pending ? L("继续保存上次成果") : selected.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    if (selected.publication_pending) showNote("", false);
   };
   const markSelected = (id) => {
     rowsEl.querySelectorAll("[data-page-id]").forEach((row) => {
@@ -237,7 +240,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     button.type = "button";
     button.className = "creative-artifact-act";
     button.dataset[key] = record.id;
-    const label = record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    const label = record.publication_pending ? L("继续保存上次成果") : record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
     button.setAttribute("aria-label", label);
     button.innerHTML = ICON("upload") + "<span></span>";
     button.lastElementChild.textContent = label;
@@ -395,7 +398,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       },
       runAi: async (input) => {
         if (!selected) throw new Error(L("文档请求失败"));
-        return request("POST", "/api/plugins/pages/" + encodeURIComponent(selected.id) + "/ai", input);
+        const id = selected.id;
+        const revision = editVersion;
+        if (saveTimer || dirty) await persistCurrent();
+        if (!selected || selected.id !== id || editVersion !== revision) throw new Error(L("文档已改变，请重新生成"));
+        const result = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id) + "/ai", { ...input, expected_version: selected.version });
+        if (!selected || selected.id !== id || editVersion !== revision) throw new Error(L("文档已改变，请重新生成"));
+        return result;
       },
       onCreateFromAi: async (input) => {
         const content = String(input.text || "").split(/\\n{2,}/).map((part) => (
@@ -414,6 +423,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       title: titleInput.value,
       body: editor && Editor ? Editor.getDoc(editor) : selected.body,
       version: editVersion,
+      server_version: selected.version,
     };
   };
   const storeDocument = (document) => {
@@ -431,6 +441,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         goal_id: document.goal_id,
         artifact_id: document.artifact_id,
         artifact_version: document.artifact_version,
+        publication_pending: document.publication_pending,
         version: document.version,
         updated_at: document.updated_at,
       };
@@ -446,9 +457,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const enqueueSave = (draft, patch) => {
     const run = saveQueue.then(async () => {
-      const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(draft.id), patch || {
-        title: draft.title,
-        body: draft.body,
+      const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(draft.id), {
+        ...(patch || { title: draft.title, body: draft.body }),
+        expected_version: selected && selected.id === draft.id ? selected.version : draft.server_version,
       });
       if (!payload.document || payload.document.id !== draft.id) throw new Error(L("文档请求失败"));
       return adoptSaved(draft, payload.document);
@@ -476,6 +487,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     markSelected(record.id);
     syncEditorChrome();
+    showNote("", false);
     if (pending && leaving) {
       void enqueueSave(leaving).catch((error) => showNote(error.message || L("保存失败"), true));
     }
@@ -514,10 +526,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       return saved;
     } catch (error) {
       dirty = true;
+      statusEl.textContent = L("保存失败");
       throw error;
     }
   };
   const queueSave = () => {
+    statusEl.textContent = L("保存中");
     editVersion += 1;
     dirty = true;
     clearTimeout(saveTimer);
@@ -607,6 +621,32 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const clearDrop = () => {
     workbench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
+  };
+
+  const publishPage = async (id) => {
+    if (publishing.has(id)) return;
+    publishing.add(id);
+    let draft = null;
+    try {
+      if (selected?.id === id) await persistCurrent();
+      const current = selected?.id === id ? selected : records.find(record => record.id === id);
+      if (!current) return;
+      draft = selected?.id === id ? draftOf() : null;
+      const payload = await request("POST", "/api/plugins/pages/" + encodeURIComponent(id) + "/promote", {
+        goal_id: current.publication_pending?.goal_id ?? current.goal_id ?? "", expected_version: current.version,
+      });
+      if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);
+      showNote(payload.recovered ? L("已恢复上次成果；当前编辑内容已保留，需要时可再存一版。") : L("已存成 Artifact"), false);
+    } catch (error) {
+      // A failed response may follow an already committed Artifact. Refresh its
+      // durable recovery state while preserving any local edits made in flight.
+      try {
+        const payload = await request("GET", "/api/plugins/pages/" + encodeURIComponent(id));
+        if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);
+        if (selected?.id === id) syncEditorChrome();
+      } catch { /* Keep the original error and the user's draft. */ }
+      throw error;
+    } finally { publishing.delete(id); }
   };
 
   ${PAGES_IMPORT_CLIENT_SCRIPT}
@@ -742,21 +782,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       const listedArtifact = event.target.closest("[data-pages-artifact]");
       if (listedArtifact) {
-        const id = listedArtifact.dataset.pagesArtifact;
-        const record = records.find((item) => item.id === id);
-        if (!record) return;
-        if (selected && selected.id === id) await persistCurrent();
-        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(id) + "/promote")), {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({ project_id: projectId(), goal_id: record.goal_id || "" }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
-        showNote(L("已存成 Artifact"), false);
-        await loadList();
-        if (payload.document && selected && selected.id === id && !saveTimer && !dirty) remember(payload.document, false);
-        else if (payload.document) storeDocument(payload.document);
+        await publishPage(listedArtifact.dataset.pagesArtifact);
         return;
       }
       const row = event.target.closest("button[data-page-id]");
@@ -790,19 +816,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-pages-promote]") && selected) {
         closeMore();
-        const id = selected.id;
-        const goalId = goalSelect ? goalSelect.value : selected.goal_id;
-        await persistCurrent();
-        const response = await fetch(route(withProject("/api/plugins/pages/" + encodeURIComponent(id) + "/promote")), {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify({ project_id: projectId(), goal_id: goalId }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (payload.document && selected && selected.id === id && !saveTimer && !dirty) remember(payload.document, false);
-        else if (payload.document) storeDocument(payload.document);
-        if (!response.ok) throw new Error(payload.error || L("文档请求失败"));
-        showNote(L("已存成 Artifact"), false);
+        await publishPage(selected.id);
         return;
       }
       if (event.target.closest("[data-pages-export]") && selected) {

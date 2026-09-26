@@ -18,6 +18,8 @@ path = "../adapters/tauri/src/ocr_main.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+base64 = "0.22"
+libc = "0.2"
 portable-pty = "0.8"
 semver = "1"
 serde = { version = "1", features = ["derive"] }
@@ -47,8 +49,11 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
   "NSImage",
   "NSImageRep",
   "NSPanel",
+  "NSOpenPanel",
+  "NSSavePanel",
   "NSParagraphStyle",
   "NSPasteboard",
+  "NSPasteboardItem",
   "NSResponder",
   "NSRunningApplication",
   "NSScreen",

@@ -2,41 +2,15 @@ import type { McpToolDefinition } from "./protocol.js";
 import { V1_TOOLS } from "./goal-tools.js";
 import { EVENT_TOOLS } from "./goal-event-tools.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
+import { LEGACY_GOALS_MCP_TOOLS } from "./goal-action-aliases.js";
 
 /** Platform MCP tools only. Plugin tools are Manifest `mcp_exports`, assembled by Local Host. */
 const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
 
-const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...CONTEXT_TOOLS];
+const TOOLS: McpToolDefinition[] = [...V1_TOOLS, ...EVENT_TOOLS, ...LEGACY_GOALS_MCP_TOOLS, ...CONTEXT_TOOLS];
 
 const RUNTIME_V1_TOOL_NAMES = new Set([
-  "molis_work_v1_project_guidance_get",
-  "molis_work_v1_project_guidance_add",
-  "molis_work_v1_project_guidance_update",
-  "molis_work_v1_planning_methods",
-  "molis_work_v1_planning_method_save",
-  "molis_work_v1_planning_analyze_change",
-  "molis_work_v1_planning_graph_check",
-  "molis_work_v1_goal_intent_create",
-  "molis_work_v1_goal_state",
-  "molis_work_v1_event_configure",
-  "molis_work_v1_event_note",
-  "molis_work_v1_event_report",
-  "molis_work_v1_event_list",
-  "molis_work_v1_event_read",
-  "molis_work_v1_event_progress",
-  "molis_work_v1_event_concern",
-  "molis_work_v1_event_decision_request",
-  "molis_work_v1_event_cite_decision",
-  "molis_work_v1_event_agree",
-  "molis_work_v1_event_close",
-  "molis_work_v1_event_resume",
-  "molis_work_v1_goal_list",
-  "molis_work_v1_goal_tree_propose",
-  "molis_work_v1_goal_tree_read",
-  "molis_work_v1_goal_tree_check",
-  "molis_work_v1_goal_trash",
-  "molis_work_v1_goal_trash_list",
-  "molis_work_v1_goal_restore",
+  ...LEGACY_GOALS_MCP_TOOLS.map(tool => tool.name),
 ]);
 
 const RUNTIME_CONTEXT_TOOL_NAMES = new Set([

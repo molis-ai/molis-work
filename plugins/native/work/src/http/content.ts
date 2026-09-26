@@ -1,52 +1,28 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workActions } from "../actions.js";
 import type { WorkSessionHttpContext } from "./types.js";
-import { publicSessionRecord } from "./public-records.js";
 
+/** Public Session queries and resume share the same authorization and original owner. */
 export async function handleSessionContentHttp(context: WorkSessionHttpContext): Promise<boolean> {
-  const { method, pathname, respond, resourcesPromise, projectOptions } = context;
-  const projectSessionApiMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/(content|resume)$/);
-  if (projectSessionApiMatch) {
+  const { method, pathname, respond, actions } = context;
+  const match = pathname.match(/^\/api\/sessions\/([^/]+)\/(content|resume)$/);
+  if (!match && !(method === "GET" && pathname === "/api/sessions")) return false;
+  try {
+    if (!actions) throw new ActionError("actions.service_unavailable", "Session 动作服务不可用");
+    if (!match) { respond(200, await actions.invoke(workActions.list, {})); return true; }
     let sessionId: string;
-    try {
-      sessionId = decodeURIComponent(projectSessionApiMatch[1]);
-    } catch {
-      respond( 400, { error: "Session ID 无效" });
-      return true;
-    }
-    const resources = await resourcesPromise;
-    let session;
-    try {
-      session = resources.registry.get(sessionId);
-    } catch {
-      respond( 404, { error: "找不到这条 Session" });
-      return true;
-    }
-    if (session.project_id !== projectOptions.project?.project_id) {
-      respond( 404, { error: "找不到这条 Session" });
-      return true;
-    }
-    if (method === "GET" && projectSessionApiMatch[2] === "content") {
-      const result = await resources.content.read(sessionId);
-      respond( 200, {
-        ...result,
-        session: publicSessionRecord(result.session),
-      });
-      return true;
-    }
-    if (method === "POST" && projectSessionApiMatch[2] === "resume") {
-      const result = await resources.content.resume(sessionId);
-      respond( result.status === "ok" ? 200 : result.status === "unsupported" ? 409 : 503, result);
-      return true;
-    }
-    respond( 405, { error: "Session 操作不支持这个请求方法" });
-    return true;
+    try { sessionId = decodeURIComponent(match[1]!); }
+    catch { respond(400, { error: "Session ID 无效" }); return true; }
+    if (method === "GET" && match[2] === "content") {
+      respond(200, await actions.invoke(workActions.content, { session_id: sessionId }));
+    } else if (method === "POST" && match[2] === "resume") {
+      const result = await actions.invoke(workActions.resume, { session_id: sessionId });
+      respond(result.status === "ok" ? 200 : result.status === "unsupported" ? 409 : 503, result);
+    } else respond(405, { error: "Session 操作不支持这个请求方法" });
+  } catch (error) {
+    const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : undefined;
+    respond(code === "session.not_found" || code === "sessions.not_found" || code === "actions.plugin_disabled" || code === "actions.missing" ? 404 : code === "actions.forbidden" ? 403
+      : code === "actions.service_unavailable" ? 503 : 400, { error: error instanceof Error ? error.message : String(error), ...(code ? { code } : {}) });
   }
-  if (method === "GET" && pathname === "/api/sessions") {
-    const resources = await resourcesPromise;
-    respond( 200, {
-      sessions: resources.registry.list({ project_id: projectOptions.project?.project_id }).map(publicSessionRecord),
-    });
-    return true;
-  }
-
-  return false;
+  return true;
 }

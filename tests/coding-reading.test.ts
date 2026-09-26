@@ -25,6 +25,11 @@ test("人往上翻之后，新内容不抢滚动，而是给一个回到最新�
   assert.equal(decision.show_jump_to_latest, true);
 });
 
+test("钉住时，内容在上次绘制后变长到视口以下，也继续跟随", () => {
+  const grownBelowFold = { offset: 900, viewport: 100, content: 1400 };
+  assert.equal(onContentAppended({ position: grownBelowFold, pinned: true }).follow, true, "晚到的审查卡片不能让对话停在半截");
+});
+
 test("就算位置在底部，只要钉住被解除也不自动跟随", () => {
   const decision = onContentAppended({ position: bottom, pinned: false });
   assert.equal(decision.follow, false, "钉住只能由读者自己回到底部来恢复");
@@ -38,6 +43,13 @@ test("差一点点到底仍算在底部——阈值之内不折腾", () => {
 test("读者滚回底部就重新钉住", () => {
   assert.equal(onReaderScrolled(readingUp), false);
   assert.equal(onReaderScrolled(bottom), true);
+});
+
+test("不是读者造成的滚动（卡片重排、面板保持锚点、内容收缩）不会取消跟随", () => {
+  assert.equal(onReaderScrolled(readingUp, { pinned: true, by_reader: false }), true, "卡片重排把视口推离底部时仍跟随");
+  assert.equal(onReaderScrolled(readingUp, { pinned: false, by_reader: false }), false, "读者已上翻时，程序滚动也不会替他钉回");
+  assert.equal(onReaderScrolled(readingUp, { pinned: true, by_reader: true }), false, "读者自己上翻才取消跟随");
+  assert.equal(onReaderScrolled(bottom, { pinned: false, by_reader: false }), true, "到底就重新钉住");
 });
 
 test("内容比视口还短时永远算在底部", () => {

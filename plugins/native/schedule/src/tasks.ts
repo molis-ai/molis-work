@@ -34,6 +34,7 @@ export interface ScheduleConversationTaskRecord {
   minute: number;
   notify_important: boolean;
   enabled: boolean;
+  archived: boolean;
   unread: boolean;
   job_id: string | null;
   last_run_at: string | null;
@@ -56,6 +57,7 @@ interface TaskRow {
   minute: number;
   notify_important: number;
   enabled: number;
+  archived: number;
   unread: number;
   job_id: string | null;
   last_run_at: string | null;
@@ -83,6 +85,7 @@ export function migrateScheduleConversationTasks(db: ScheduleTaskDatabase): void
       minute INTEGER NOT NULL,
       notify_important INTEGER NOT NULL CHECK (notify_important IN (0, 1)),
       enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
       unread INTEGER NOT NULL CHECK (unread IN (0, 1)),
       job_id TEXT,
       last_run_at TEXT,
@@ -104,6 +107,10 @@ export function migrateScheduleConversationTasks(db: ScheduleTaskDatabase): void
     CREATE INDEX IF NOT EXISTS schedule_conversation_turns_task_idx
       ON schedule_conversation_turns(task_id, created_at);
   `);
+  const columns = db.prepare("PRAGMA table_info(schedule_conversation_tasks)").all() as Array<{ name: string }>;
+  if (!columns.some((column) => column.name === "archived")) {
+    db.exec("ALTER TABLE schedule_conversation_tasks ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))");
+  }
 }
 
 export function scheduleConversationFingerprint(db: ScheduleTaskDatabase): string {
@@ -120,7 +127,7 @@ export function scheduleConversationFingerprint(db: ScheduleTaskDatabase): strin
 export function listScheduleConversationTasks(db: ScheduleTaskDatabase): ScheduleConversationTaskRecord[] {
   migrateScheduleConversationTasks(db);
   const rows = db.prepare(
-    "SELECT * FROM schedule_conversation_tasks ORDER BY enabled DESC, updated_at DESC",
+    "SELECT * FROM schedule_conversation_tasks WHERE archived = 0 ORDER BY enabled DESC, updated_at DESC",
   ).all() as TaskRow[];
   return rows.map((row) => toRecord(db, row));
 }
@@ -187,9 +194,34 @@ export function setScheduleConversationTaskEnabled(
   now = () => new Date(),
 ): ScheduleConversationTaskRecord {
   const task = mustGet(db, taskId);
+  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
   db.prepare("UPDATE schedule_conversation_tasks SET enabled = ?, updated_at = ? WHERE task_id = ?")
     .run(enabled ? 1 : 0, now().toISOString(), task.task_id);
   return mustGet(db, task.task_id);
+}
+
+export function updateScheduleConversationTask(
+  db: ScheduleTaskDatabase,
+  taskId: string,
+  input: { title: string; instructions: string; hour: number; minute: number; notify_important: boolean },
+  now = () => new Date(),
+): ScheduleConversationTaskRecord {
+  const task = mustGet(db, taskId);
+  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  const title = normalizeTitle(input.title);
+  const instructions = normalizeInstructions(input.instructions);
+  assertClockTime(input.hour, input.minute);
+  db.prepare(`UPDATE schedule_conversation_tasks
+    SET title = ?, instructions = ?, hour = ?, minute = ?, notify_important = ?, updated_at = ?
+    WHERE task_id = ?`).run(title, instructions, input.hour, input.minute, input.notify_important ? 1 : 0, now().toISOString(), taskId);
+  return mustGet(db, taskId);
+}
+
+export function archiveScheduleConversationTask(db: ScheduleTaskDatabase, taskId: string, now = () => new Date()): void {
+  const task = mustGet(db, taskId);
+  if (task.archived) throw new ScheduleTaskError("schedule_task_not_found", "定时任务不存在");
+  db.prepare("UPDATE schedule_conversation_tasks SET archived = 1, enabled = 0, updated_at = ? WHERE task_id = ?")
+    .run(now().toISOString(), taskId);
 }
 
 export function openScheduleConversationTask(
@@ -269,6 +301,7 @@ function toRecord(db: ScheduleTaskDatabase, row: TaskRow): ScheduleConversationT
     minute: row.minute,
     notify_important: row.notify_important === 1,
     enabled: row.enabled === 1,
+    archived: row.archived === 1,
     unread: row.unread === 1,
     job_id: row.job_id,
     last_run_at: row.last_run_at,

@@ -2,6 +2,24 @@
 
 Use this reference for ordinary work on a connected Goal. Examples use `call(name, args)` to mean invoking that exact host-provided MCP tool and reading its result. Keep the returned IDs and versions; replace the example content and operation keys for your task.
 
+Before these examples, the current client needs project grants for goals.list, goals.create and goals.note, plus goals.state.read, goals.events.list and goals.events.read for state and history queries. Missing or revoked access is resolved in **Capabilities → External access**, not by enabling a legacy name alone. The same Home's system service must be running. Preserve the original tool name and Session context on retries: legacy write names keep their historical Session author, while public action tools use their client author.
+
+Work operation grants are separate from read/create/note grants:
+
+| Legacy name suffix | Required action |
+| --- | --- |
+| event_configure | goals.events.configure |
+| event_report | goals.events.report |
+| event_progress | goals.progress.record |
+| event_concern | goals.concerns.apply |
+| event_decision_request | goals.decisions.request |
+| event_cite_decision | goals.decisions.cite |
+| event_agree | goals.agreement.set |
+| event_close | goals.closure.submit |
+| event_resume | goals.work.resume |
+
+These grant ordinary work operations only. Requesting or citing a decision does not authorize a Runtime to create user approval. Missing tools require user authorization through External access; do not grant yourself access.
+
 ## A useful Goal without a template
 
 ```javascript

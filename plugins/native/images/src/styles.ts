@@ -48,6 +48,7 @@ export const IMAGES_STYLES = `
   .images-status-panel[data-status=failed] > p:first-child { color: var(--red); }
   .images-status-panel small { display: block; color: var(--muted); line-height: 1.65; margin-bottom: 12px; }
   .images-actions, .images-presets, .images-protocols, .images-saved-connections { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .images-saved-connection { display: inline-flex; align-items: center; gap: 4px; }
   .images-presets .mw-btn[aria-pressed=true], .images-protocols .mw-btn[aria-pressed=true], .images-saved-connections .mw-btn[aria-pressed=true] { background: var(--nav-active); color: var(--ink); }
   dialog.mw-dialog.images-connections-dialog { width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 0; }
   .images-connections-dialog > form { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }

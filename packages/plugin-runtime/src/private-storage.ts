@@ -1,12 +1,15 @@
-import type { PluginManifest, PluginPrivateStorage, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginManifest, PluginPrivateStorage, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export interface PluginPrivateStorageDatabase {
   exec(sql: string): unknown;
   prepare(sql: string): {
     get(...parameters: unknown[]): unknown;
     run(...parameters: unknown[]): { changes: number | bigint };
+    all?(...parameters: unknown[]): unknown[];
   };
 }
+
+export interface PluginPrivateStorageSnapshotRecord { item_key: string; item_value: string }
 
 export class PluginPrivateStorageError extends Error {
   constructor(readonly code: "plugin_storage_denied" | "plugin_storage_input_invalid", message: string) {
@@ -25,7 +28,7 @@ export class SqlitePluginPrivateStorage {
     )`);
   }
 
-  forPlugin(context: PluginStartContext, manifest: PluginManifest): PluginPrivateStorage {
+  forPlugin(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage {
     if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version
       || !manifest.permissions.some(item => item.permission === "storage:private")) {
       throw new PluginPrivateStorageError("plugin_storage_denied", "Manifest 未声明当前 Plugin 的私有存储权限");
@@ -77,5 +80,31 @@ export class SqlitePluginPrivateStorage {
   /** Called only by the owning Host after a non-retaining uninstall succeeds. */
   deleteInstallationData(installId: string): void {
     this.db.prepare("DELETE FROM plugin_private_values WHERE install_id = ?").run(installId);
+  }
+
+  snapshotInstallationData(installId: string): PluginPrivateStorageSnapshotRecord[] {
+    const statement = this.db.prepare("SELECT item_key, item_value FROM plugin_private_values WHERE install_id = ? ORDER BY item_key");
+    if (!statement.all) throw new Error("Plugin private storage database does not support snapshots");
+    return statement.all(installId).map(row => {
+      if (!row || typeof row !== "object") throw new Error("Invalid Plugin private storage row");
+      const value = row as Record<string, unknown>;
+      if (typeof value.item_key !== "string" || typeof value.item_value !== "string") {
+        throw new Error("Invalid Plugin private storage row");
+      }
+      return { item_key: value.item_key, item_value: value.item_value };
+    });
+  }
+
+  restoreInstallationData(installId: string, snapshot: readonly PluginPrivateStorageSnapshotRecord[]): void {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      this.db.prepare("DELETE FROM plugin_private_values WHERE install_id = ?").run(installId);
+      const insert = this.db.prepare("INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)");
+      for (const row of snapshot) insert.run(installId, row.item_key, row.item_value);
+      this.db.exec("COMMIT");
+    } catch (error) {
+      try { this.db.exec("ROLLBACK"); } catch { /* preserve the original restoration error */ }
+      throw error;
+    }
   }
 }

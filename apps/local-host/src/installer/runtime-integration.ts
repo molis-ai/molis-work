@@ -29,6 +29,10 @@ export class RuntimeIntegrationService {
     this.planner = new RuntimeIntegrationPlanner({ homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory, receiptPath: id => this.receiptPath(id), backupPath: (id, plan) => this.backupPath(id, plan) });
   }
 
+  clientDescriptors(): readonly { id: string; title: string }[] {
+    return ADAPTERS.map(adapter => ({ id: `runtime:${adapter.id}`, title: adapter.displayName }));
+  }
+
   async detectAll(): Promise<RuntimeIntegrationDetection[]> {
     return Promise.all(ADAPTERS.map((adapter) => this.detect(adapter.id)));
   }

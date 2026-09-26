@@ -1,5 +1,6 @@
 /** Artifact application copy; Workbench supplies the request locale. */
 export const ARTIFACT_EN: Record<string, string> = {
+  "此项目未启用该插件": "This plugin is not enabled for this project",
   "Coding 固定变更": "Coding saved changes",
   "Coding 执行报告": "Coding execution reports",
   "在 Coding 打开原报告与会话": "Open the original report and task in Coding",

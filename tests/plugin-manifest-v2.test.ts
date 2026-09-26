@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { inspectActionDeclarations, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+
+test("scene result labels belong to a finite recommendation contract", () => {
+  const scene: ActionSceneDefinition = { scene_id: "example.review", version: 1, title: "Review", description: "Review the original note", trigger: "Note submitted",
+    scope: "project", subject_kinds: ["note"], permissions: [], input_schema: { type: "object" },
+    result_type: "molis.behavior-recommendation.v1", recommendation_labels: { ack: "Accept" },
+    result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { enum: ["ack", "later"] } } } } };
+  assert.deepEqual(inspectActionDeclarations([], [scene]), []);
+  for (const invalid of [
+    { ...scene, recommendation_labels: { absent: "Not in contract" } },
+    { ...scene, recommendation_labels: { ack: " " } },
+    { ...scene, recommendation_source: "subject-offers" },
+    { ...scene, result_type: "molis.judgment.v1" },
+    { ...scene, result_schema: { type: "object" } },
+  ]) assert.ok(inspectActionDeclarations([], [invalid]).some(problem => problem.includes("推荐名称")));
+});
 
 const PLUGIN_ID = "io.molis.work.coding";
 
@@ -90,6 +106,11 @@ function rejects(mutate: (manifest: Record<string, unknown>) => void, needle: st
 test("v2 Manifest keeps author declarations for ports, events, views, routes and agent", () => {
   const input = v2Manifest();
   assert.deepEqual(parsePluginManifest(input), input);
+});
+
+test("malformed action permissions fail as manifest errors instead of escaping validation", () => {
+  rejects(m => { m.actions = [{ capability_id: "test.read", version: 1, action: { permissions: 42 } }]; }, "不完整");
+  rejects(m => { m.action_scenes = [{ scene_id: "test.received", version: 1, permissions: 42 }]; }, "不完整");
 });
 
 test("v1 Manifest cannot silently carry v2 declarations", () => {
@@ -198,6 +219,13 @@ test("agent block is checked against the Plugin's own ports, prompts and subagen
     const agent = manifest.agent as { roles: Array<{ prompts?: string[] }> };
     agent.roles[0]!.prompts = ["nowhere"];
   }, "引用了未声明的 Prompt");
+  // A child in the main workspace may run commands (each reviewed) but never write files.
+  const checker = v2Manifest(), declared = checker.agent as { prompts: unknown[]; subagents: { parent_role_ids: string[]; roles: Array<Record<string, unknown>> } };
+  declared.subagents.parent_role_ids.push("reader");declared.prompts.push({ prompt_id: "checker", version: 1 });
+  declared.subagents.roles.push({ role_id: "checker", version: 1, name: "Checker", execution: "workspace-write", parent_role_ids: ["reader"], host_tools: ["read-file", "run-command"] });
+  assert.doesNotThrow(() => parsePluginManifest(checker));
+  (declared.subagents.roles.at(-1)!.host_tools as string[]).push("write");
+  assert.throws(() => parsePluginManifest(checker), /只能属于要求独立子目录的父角色/);
   rejects((manifest) => {
     const agent = manifest.agent as {
       roles: Array<{ role_id: string; subagent_workspaces?: string }>;
@@ -336,4 +364,16 @@ test("v1 Manifest cannot carry mcp_exports", () => {
       && error.code === "plugin_declaration_invalid"
       && error.message.includes("mcp_exports"),
   );
+});
+
+
+test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or self links", () => {
+  const input = v2Manifest();
+  const ui = input.ui as Record<string, unknown>;
+  ui.embedded_plugins = ["io.molis.work.example.reader"];
+  assert.deepEqual(parsePluginManifest(input).ui.embedded_plugins, ["io.molis.work.example.reader"]);
+  for (const invalid of [[PLUGIN_ID], ["io.molis.work.example.reader", "io.molis.work.example.reader"], [" padded"], "io.molis.work.example.reader", [null]]) {
+    ui.embedded_plugins = invalid;
+    assert.throws(() => parsePluginManifest(input), PluginManifestError);
+  }
 });

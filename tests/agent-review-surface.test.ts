@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   isDecidable,
+  leakedMarkup,
   renderAgentReviewSurface,
   reviewPhase,
   type AgentReviewPrimitives,
@@ -170,4 +171,44 @@ test('Git unknown results show a separate recovery entry, and content equality n
   item.receipt = receipt({ effect_error: '原操作未发生', reconciliation: { actor_id: 'user', at: '2026-09-22', reason: '<evidence>' } });
   const settled = renderAgentReviewSurface({ rows: [item], primitives: p });
   assert.match(settled, /已核对：原操作未发生/); assert.match(settled, /&lt;evidence&gt;/); assert.doesNotMatch(settled, /data-agent-review-inspect|已完成/);
+});
+
+test("a text edit reads as a unified diff with context and counts; a command reads as one shell line", () => {
+  const edit = row();
+  const before = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join("\n") + "\n";
+  const after = before.replace("line 10\n", "line ten\n").replace("line 18\n", "");
+  edit.request.document = { kind: "text-edit", target_path: "src/app.ts", exists: true, before_text: before, after_text: after };
+  const html = renderAgentReviewSurface({ rows: [edit], primitives: p });
+  assert.match(html, /<span class="agent-review-count" data-added>\+1<\/span><span class="agent-review-count" data-removed>−2<\/span>/);
+  assert.match(html, /<tr data-diff="delete"><td class="agent-review-ln">10<\/td><td class="agent-review-ln"><\/td>/);
+  assert.match(html, /<tr data-diff="insert"><td class="agent-review-ln"><\/td><td class="agent-review-ln">10<\/td>/);
+  assert.match(html, /⋯ 6 行未变/, "unchanged lines far from a change collapse into one gap row");
+  assert.doesNotMatch(html, />line 1<\/td>/, "context is limited to three lines around each change");
+  const command = row();
+  command.request.document = { kind: "command", command: "node", args: ["--test", "a b.test.js", "it's"], cwd: ".", timeout_ms: 15000 };
+  const commandHtml = renderAgentReviewSurface({ rows: [command], primitives: p });
+  assert.match(commandHtml, /\$<\/span> node --test (&#39;|')a b\.test\.js(&#39;|') (&#39;|')it(&#39;|')\\(&#39;|')(&#39;|')s(&#39;|')</);
+  assert.match(commandHtml, /在 工作区根目录 运行/);
+});
+
+test("only an in-boundary command offers 'allow for this session', and a rule's approval says so", () => {
+  const inside = row();
+  inside.request.kind = "command";
+  inside.request.document = { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, escalate: false };
+  assert.match(renderAgentReviewSurface({ rows: [inside], primitives: p }), /data-agent-review-remember/);
+  const outside = row();
+  outside.request.kind = "command";
+  outside.request.document = { kind: "command", command: "npm", args: ["publish"], cwd: ".", timeout_ms: 30000, escalate: true };
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [outside], primitives: p }), /data-agent-review-remember/);
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [row()], primitives: p }), /data-agent-review-remember/, "a file edit is always read");
+  const ruled = row({ receipt: receipt({ status: "approved", effect_settled: true, decided_by: "alice", standing_rule: { set_by: "alice", set_at: "2026-09-24T00:00:00.000Z" } }) });
+  ruled.request.kind = "command";
+  ruled.request.document = inside.request.document;
+  assert.match(renderAgentReviewSurface({ rows: [ruled], primitives: p }), /按本会话规则批准 · alice 设定于/);
+});
+
+test("命令里混有像工具调用标记的文本时，审查卡提醒一句；正常命令不提醒", () => {
+  assert.equal(leakedMarkup(`node -e 'console.log(1);</argml:arbgt></item>'`), true, "the MiniMax leak seen in a real round");
+  assert.equal(leakedMarkup("run </invoke> now"), true);
+  for (const clean of ["npm test", "node --version", "git log --oneline -3", "echo 'a < b > c'", "grep -n '<div' src/a.html"]) assert.equal(leakedMarkup(clean), false, clean);
 });

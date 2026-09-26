@@ -16,7 +16,6 @@ import {
   LINGGUANG_CLIENT_FACTORY_SCRIPT,
   LINGGUANG_PROJECT_PLUGIN_ID,
   LingguangPluginRouteTable,
-  STUB_PREFIX,
   createLingguangRouteHandlers,
   lingguangManifest,
   openLingguangStore,
@@ -26,6 +25,10 @@ import {
   renderMolisWorkWorkbenchClientScript,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
+
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 
 const PROJECT = "project-lingguang";
 const OTHER = "project-other";
@@ -97,11 +100,13 @@ function emptyView(): MolisWorkWebView {
   } as MolisWorkWebView;
 }
 
-async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
+async function withHome<T>(run: (home: string, host: MolisWorkLocalHost) => Promise<T>): Promise<T> {
   const home = await mkdtemp(join(tmpdir(), "lingguang-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => "可以先记录明天窗边光线的变化。" });
   try {
-    return await run(home);
+    return await run(home, host);
   } finally {
+    await host.close();
     await rm(home, { recursive: true, force: true });
   }
 }
@@ -131,15 +136,15 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
   const islandAt = stack.indexOf("data-assistant-island");
   const projectAt = stack.indexOf("data-project-island");
   const railAt = stack.indexOf("data-plugin-strip");
-  assert.ok(islandAt >= 0 && projectAt > islandAt && railAt > projectAt, "个人岛在项目岛上面");
-  const items = stack.slice(stack.indexOf("plugin-rail-items"), stack.indexOf("personal-sidebar-footer"));
+  assert.ok(projectAt >= 0 && railAt > projectAt && islandAt > railAt, "项目在上、工具居中、个人岛收在底部");
+  const items = stack.slice(stack.indexOf("plugin-rail-items"), islandAt);
   assert.doesNotMatch(items, /data-plugin-id="lingguang"/);
   assert.match(stack, /data-assistant-toggle/);
   assert.match(stack, /data-assistant-composer/);
   assert.match(stack, /<input class="assistant-composer-input"/);
   assert.doesNotMatch(stack, /assistant-composer-toolbar/);
   assert.doesNotMatch(stack, /<textarea class="assistant-composer-input"/);
-  assert.match(stack, /data-assistant-model/);
+  assert.match(stack, /data-assistant-plan/);
   assert.match(stack, /data-assistant-send/);
   assert.match(html, /data-lingguang="workbench"/);
   assert.match(html, /data-lingguang-confirm/);
@@ -160,11 +165,9 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
 test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编辑器，确认不用 window.confirm", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.match(script, /\["images","jelly","experiments","shelf","lingguang","functions","characters","pages","form","dataset","ppt","alchemist"\]/);
   assert.match(script, /data-assistant-composer/);
   assert.match(script, /offsetHeight \|\| 32/);
   assert.match(script, /rect\.height - height/);
-  assert.match(script, /对话尚未接入/);
   assert.doesNotMatch(saveFunctionSource(LINGGUANG_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /window\.confirm/);
@@ -174,9 +177,11 @@ test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编�
 });
 
 test("快记、重开还在；项目隔离；丢掉后离开列表", async () => {
-  await withHome(async (home) => {
+  await withHome(async (home, host) => {
     const store = openLingguangStore(home);
-    const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers(store));
+    const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers({ projectId: PROJECT, actions: bindActionClient(host.actionClient(
+      molisWorkHostProjectReference({ projectId: PROJECT, boardId: PROJECT, databasePath: join(home, "project.sqlite") })),
+      () => ({ actor_id: "test", project_id: PROJECT, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })) }));
     const created = await routes.handle({
       method: "POST",
       pathname: "/api/lingguang",
@@ -203,20 +208,10 @@ test("快记、重开还在；项目隔离；丢掉后离开列表", async () =>
     const titles = ((listed?.body as { sparks: Array<{ title: string }> }).sparks).map((item) => item.title);
     assert.equal(titles.length, 3);
     assert.deepEqual(new Set(titles), new Set(["要丢掉的", "再丢一条没有标题的", "窗边的光"]));
-    const other = await routes.handle({
-      method: "GET",
-      pathname: "/api/lingguang",
-      query: new URLSearchParams({ project_id: OTHER }),
-      body: {},
-    });
-    assert.deepEqual((other?.body as { sparks: unknown[] }).sparks, []);
-    await assert.rejects(() => routes.handle({
-      method: "GET",
-      pathname: `/api/lingguang/${spark.id}`,
-      query: new URLSearchParams({ project_id: OTHER }),
-      body: {},
-    }));
-    await assert.rejects(() => routes.handle({ method: "GET", pathname: "/api/lingguang", query: new URLSearchParams(), body: {} }));
+    await assert.rejects(() => routes.handle({ method: "GET", pathname: "/api/lingguang",
+      query: new URLSearchParams({ project_id: OTHER }), body: {} }), { code: "actions.scope_mismatch" });
+    // The bound caller supplies project identity; no untrusted query is required.
+    assert.equal(((await routes.handle({ method: "GET", pathname: "/api/lingguang", query: new URLSearchParams(), body: {} }))!.body as { sparks: unknown[] }).sparks.length, 3);
     const discardId = (third?.body as { spark: { id: string } }).spark.id;
     const discarded = await routes.handle({
       method: "POST",
@@ -237,10 +232,12 @@ test("快记、重开还在；项目隔离；丢掉后离开列表", async () =>
   });
 });
 
-test("改正文会写入 store；头脑风暴是本地 stub 且落库", async () => {
-  await withHome(async (home) => {
+test("改正文会写入 store；头脑风暴使用注入模型并保存真实回复", async () => {
+  await withHome(async (home, host) => {
     const store = openLingguangStore(home);
-    const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers(store));
+    const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers({ projectId: PROJECT, actions: bindActionClient(host.actionClient(
+      molisWorkHostProjectReference({ projectId: PROJECT, boardId: PROJECT, databasePath: join(home, "project.sqlite") })),
+      () => ({ actor_id: "test", project_id: PROJECT, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })) }));
     const created = await routes.handle({
       method: "POST",
       pathname: "/api/lingguang",
@@ -272,13 +269,13 @@ test("改正文会写入 store；头脑风暴是本地 stub 且落库", async ()
     const messages = (replied?.body as { messages: Array<{ role: string; body: string }> }).messages;
     assert.equal(messages.at(-2)?.role, "user");
     assert.equal(messages.at(-2)?.body, "明天试试");
-    assert.equal(messages.at(-1)?.role, "stub");
-    assert.equal(messages.at(-1)?.body, `${STUB_PREFIX}明天试试`);
+    assert.equal(messages.at(-1)?.role, "assistant");
+    assert.equal(messages.at(-1)?.body, "可以先记录明天窗边光线的变化。");
     store.close();
 
     const reopened = openLingguangStore(home);
     const again = reopened.openConversation([id], PROJECT);
-    assert.equal(again.messages.at(-1)?.body, `${STUB_PREFIX}明天试试`);
+    assert.equal(again.messages.at(-1)?.body, "可以先记录明天窗边光线的变化。");
     reopened.close();
   });
 });

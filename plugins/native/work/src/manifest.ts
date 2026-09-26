@@ -1,5 +1,6 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { WORK_UI_CONTRIBUTION_ID } from "./ui/contribution.js";
+import { workActions } from "./actions.js";
 
 export const WORK_PLUGIN_ID = "io.molis.work.sessions";
 /** What the project database stores for this Plugin. */
@@ -22,6 +23,7 @@ export const workManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-sessions-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [],
+  actions: Object.values(workActions),
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   ui: {

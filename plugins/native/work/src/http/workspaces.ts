@@ -132,7 +132,7 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       context.respond(400, { error: "请选择 Runtime" });
       return true;
     }
-    if (currentGoalId && !context.hasCurrentGoal(currentGoalId)) {
+    if (currentGoalId && !await context.hasCurrentGoal(currentGoalId)) {
       context.respond(400, { error: "当前 Goal 不属于这个 Project，或已经不在当前 Goal Tree" });
       return true;
     }

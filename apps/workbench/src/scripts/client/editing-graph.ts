@@ -232,7 +232,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     });
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
-        setFeedTask, setFeedAddOpen,
+        setFeedTask, setFeedAddOpen, showToast,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,
         getSurface: () => activeDesktopSurface,

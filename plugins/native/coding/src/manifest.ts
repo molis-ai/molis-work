@@ -1,9 +1,9 @@
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, readWorkspaceFileCapability, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
@@ -37,9 +37,11 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.32.0",
+  version: "1.47.0",
   name: "Coding",
   kind: "app",
+  // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
+  upgrade_compatibility: { compatible_from_versions: ["1.45.0", "1.44.0", "1.43.0", "1.42.0", "1.41.0", "1.40.0", "1.39.0", "1.38.0", "1.37.0", "1.36.0", "1.35.0", "1.34.0", "1.33.0", "1.32.0", "1.31.0", "1.30.0"] },
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -58,7 +60,9 @@ export const codingManifest: PluginManifest = {
       ...Object.values(goalContextCapabilities).map((entry) => entry.capability_id),
       ...Object.values(goalProgressCapabilities).map((entry) => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
-      projectsCapabilities.listWorkspaces.capability_id,
+      readWorkspaceFileCapability.capability_id,
+      projectSettingsCapabilities.workspaces.capability_id,
+      projectSettingsCapabilities.browsingWorkspace.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],
@@ -110,6 +114,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.save-plan", method: "POST", path: "/sessions/:sessionId/plan" },
     { route_id: "coding.confirm-plan", method: "POST", path: "/sessions/:sessionId/plan/confirm" },
     { route_id: "coding.characters", method: "GET", path: "/sessions/:sessionId/characters" },
+    { route_id: "coding.actions", method: "GET", path: "/sessions/:sessionId/actions" },
     { route_id: "coding.read-changeset", method: "GET", path: "/sessions/:sessionId/runs/:runId/changeset" },
     { route_id: "coding.save-changeset", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset" },
     { route_id: "coding.changeset-feedback", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset/feedback" },
@@ -129,6 +134,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.record-report-progress", method: "POST", path: "/sessions/:sessionId/runs/:runId/report/progress" },
     { route_id: "coding.recovery", method: "GET", path: "/sessions/:sessionId/recovery" },
     { route_id: "coding.recover-run", method: "POST", path: "/sessions/:sessionId/runs/:runId/recover" },
+    { route_id: "coding.continuation", method: "GET", path: "/sessions/:sessionId/runs/:runId/continuation" },
+    { route_id: "coding.plan-amendments", method: "POST", path: "/sessions/:sessionId/runs/:runId/plan-amendments" },
     { route_id: "coding.checkpoints", method: "GET", path: "/sessions/:sessionId/checkpoints" },
     { route_id: "coding.prepare-rewind", method: "POST", path: "/sessions/:sessionId/checkpoints/:checkpointId/rewind" },
     { route_id: "coding.save-mcp", method: "POST", path: "/mcp" },
@@ -139,12 +146,25 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.state", method: "GET", path: "/state" },
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
+    { route_id: "coding.read-runs", method: "GET", path: "/sessions/:sessionId/runs" },
+    { route_id: "coding.taskboard", method: "GET", path: "/sessions/:sessionId/taskboard" },
+    { route_id: "coding.live", method: "GET", path: "/sessions/:sessionId/runs/:runId/live" },
+    { route_id: "coding.commit-draft", method: "POST", path: "/sessions/:sessionId/runs/:runId/commit-draft" },
+    { route_id: "coding.files", method: "GET", path: "/sessions/:sessionId/files" },
+    { route_id: "coding.symbols", method: "GET", path: "/sessions/:sessionId/symbols" },
+    { route_id: "coding.compact-next", method: "POST", path: "/sessions/:sessionId/compact" },
+    { route_id: "coding.delegations", method: "GET", path: "/sessions/:sessionId/delegations" },
+    { route_id: "coding.delegate", method: "POST", path: "/sessions/:sessionId/delegations" },
+    { route_id: "coding.delegation-action", method: "POST", path: "/sessions/:sessionId/delegations/:delegationId" },
+    { route_id: "coding.delegation-deliver", method: "POST", path: "/sessions/:sessionId/delegations/:delegationId/deliveries" },
+    { route_id: "coding.delegation-decide", method: "POST", path: "/sessions/:sessionId/delegations/:delegationId/deliveries/:deliveryId" },
     { route_id: "coding.command-output", method: "GET", path: "/sessions/:sessionId/runs/:runId/commands/:callId" },
     { route_id: "coding.update-session", method: "PATCH", path: "/sessions/:sessionId" },
     { route_id: "coding.start-run", method: "POST", path: "/sessions/:sessionId/runs" },
     { route_id: "coding.control-run", method: "POST", path: "/sessions/:sessionId/control" },
   ],
   ui: {
+    embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     /**
      * Entries the command menu and content actions offer.

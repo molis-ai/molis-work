@@ -1,3 +1,6 @@
+import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { authorizeMcpActions } from "./mcp-action-client.js";
 import {
   AgentHost,
   CliAgentAdapter,
@@ -11,12 +14,18 @@ import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-w
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import type { ModelProviderStore } from "./model-provider-store.js";
-import { prepareGitIndexCapability, readGitResultsCapability, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { prepareGitOperation } from "./git-operations.js";
+import { draftText } from "./model-draft.js";
+import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { resolveConfiguredHome } from "./product-home.js";
+import { readFile, rename, writeFile } from "node:fs/promises";
 import { prepareGitIndex } from "./workspace-git-index.js";
 import { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 import { createGitWorktreePort } from "./git-worktrees.js";
@@ -51,6 +60,8 @@ export interface AgentHostCompositionOptions {
 }
 
 export interface AgentHostComposition {
+  readonly inference: PrologueInferenceClient;
+  createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
   readonly ready: Promise<void>;
   /** Unregisters the Capabilities this composition added. */
@@ -84,22 +95,32 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   let ready: Promise<void> | undefined;
-  const initialize = () => ready ??= options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
+  let disposed = false;
+  let disposal: Promise<void> | undefined;
+  const initialize = (): Promise<void> => {
+    if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
+    return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
       ...options.prologue,
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); });
+    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); }))
+      .catch(error => { ready = undefined; throw error; });
+  };
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
-      register: (definition, handler) => options.localHost.registerCapability(definition, handler),
+      register: (definition, handler) => options.localHost.registerCapability(definition, async (project, input, invocation) => {
+        await initialize();
+        return handler(project, input, invocation);
+      }),
     },
     {
       agentHost: () => agentHost,
-      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.workspacesFor, options.homeDirectory),
+      authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
+      legacyActorId: () => "web-user",
       boardId: (runtime) => runtime.board_id,
     },
   );
-  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input) => {
+  const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {
     await initialize();
     if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
     const current = async () => options.workspacesFor ? await options.workspacesFor(project.project_id)
@@ -107,12 +128,66 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const prepared = await prepareGitIndex(input, current);
     const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
     if (!workspace) throw new Error("工作区已取消授权");
+    await invocation.beforeEffect();
     const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, prepared);
     return { review_id: request.review_id };
   });
 
 
+  // Commit, branch, push and PR: prepared against the repository as the person saw it, run only as the review shows.
+  // What each produced is kept beside the review, since a receipt only says whether it happened.
+  const detailsFile = path.join(options.homeDirectory ?? resolveConfiguredHome(), "git-operation-details.json");
+  const readDetails = async (): Promise<Record<string, string>> => { try { return JSON.parse(await readFile(detailsFile, "utf8")); } catch { return {}; } };
+  const saveDetail = async (key: string, detail: string) => {
+    const next = { ...await readDetails(), [key]: detail }, temporary = detailsFile + "." + process.pid + ".tmp";
+    await writeFile(temporary, JSON.stringify(next)); await rename(temporary, detailsFile);
+  };
+  const unregisterGitOperation = options.localHost.registerCapability(prepareGitOperationCapability, async (project, input, invocation) => {
+    await initialize();
+    if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
+    if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("Git 操作标识无效");
+    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
+      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const workspace = grants.find(item => item.workspace_id === input.workspace_id && item.realpath_verified);
+    if (!workspace) throw new Error("工作区已取消授权");
+    const prepared = await prepareGitOperation(workspace, input.revision, input.operation);
+    // The caller's authority is checked again right before the review is created, as for staging.
+    await invocation.beforeEffect();
+    const request = await prologue.gitReviews.prepare({ board_id: project.board_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
+      operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
+      { check: prepared.check, async execute() {
+        const detail = await prepared.execute();
+        try { await saveDetail(`${project.board_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
+      } });
+    return { review_id: request.review_id };
+  });
+  // A short draft from the model (a commit message): its own throwaway runtime, no tools, no review queue.
+  const unregisterDraft = options.localHost.registerCapability(agentHostCapabilities.draftText, async (project, input) => {
+    if (!options.prologue) throw new Error("模型执行方尚未接通，不能起草");
+    const { reviewQueue: _queue, storageRoot: _root, ...prologue } = options.prologue;
+    return draftText(prologue, path.join(options.homeDirectory ?? resolveConfiguredHome(), "agent-drafts"), project.board_id, input);
+  });
+  const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
+    await initialize();
+    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
+      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
+    await agentHost.reviews.refresh(project.board_id);
+    const details = await readDetails(), records: GitOperationRecord[] = [];
+    for (const request of agentHost.reviews.list(project.board_id)) {
+      if (request.operation?.kind !== "git-operation" || request.operation.workspace_id !== input.workspace_id || request.document.kind !== "tool-operation") continue;
+      const receipt = agentHost.reviews.receipt(request.review_id);
+      const outcome: GitOperationRecord["outcome"] = !receipt ? "unknown" : receipt.effect_uncertain ? "unknown" : receipt.status === "pending" ? "pending"
+        : receipt.status === "rejected" ? "denied" : receipt.status === "cancelled" ? "cancelled" : receipt.status === "expired" ? "expired"
+        : receipt.effect_settled ? "succeeded" : receipt.effect_error ? "failed" : "running";
+      const detail = details[`${project.board_id}:${request.operation.operation_id}`];
+      records.push({ operation_id: request.operation.operation_id, review_id: request.review_id, tool: request.document.tool, summary: request.document.summary, outcome,
+        ...(outcome === "succeeded" && detail ? { detail } : {}), ...(receipt?.effect_error ? { failure_reason: receipt.effect_error } : {}),
+        requested_at: request.requested_at, decided_by: receipt?.decided_by ?? null, decided_at: receipt?.decided_at ?? null });
+    }
+    return records.reverse();
+  });
   const unregisterGitResults = options.localHost.registerCapability(readGitResultsCapability, async (project, input) => {
     await initialize();
     const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
@@ -148,11 +223,15 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   };
   const unregisterWriters = options.localHost.registerCapability(writerDirectoryCapabilities.list, async (project, input) => {
     const { grants, parent, port } = await writerParent(project.project_id, input.workspace_id);
-    return (await port.list()).map(tree => {
+    const { owned, unavailable } = await port.inspect();
+    const grantFor = (canonical_path: string) => grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null;
+    return [...owned.map(tree => {
       const canonical_path = path.resolve(parent.canonical_path, tree.directory);
-      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path,
-        workspace_id: grants.find(grant => grant.realpath_verified && grant.canonical_path === canonical_path)?.workspace_id ?? null };
-    });
+      return { worktree_id: tree.worktree_id, branch: tree.branch, base_commit: tree.base_commit, canonical_path, workspace_id: grantFor(canonical_path) };
+    }), ...unavailable.map(entry => {
+      const canonical_path = path.resolve(parent.canonical_path, entry.directory);
+      return { worktree_id: path.basename(canonical_path), branch: entry.branch ?? "", base_commit: "", canonical_path, workspace_id: grantFor(canonical_path), problem: entry.reason };
+    })];
   });
   const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input) => {
     await initialize();
@@ -189,13 +268,17 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const run = await prologue.read(ref);
     if (!["completed", "failed", "cancelled", "stopped"].includes(run.phase) || run.frozen.role_id !== "writers" || session.latest_run && !["completed", "failed", "cancelled", "stopped"].includes(session.latest_run.phase)) throw new Error("父任务仍在执行或需核对，暂不能整合");
     const children = await prologue.subagents.list(ref), child = children.find(c => c.subagent_id === source.subagent_id);
-    if (!child || child.state !== "completed" || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
+    // Any ended child may be brought back: one that ran out of turns after writing and testing its files still did the
+    // work. What lands is exactly what the person reviews file by file, re-checked at approval; unknown outcomes still block.
+    if (!child || !["completed", "failed", "cancelled"].includes(child.state) || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
     const granted = options.workspacesFor ? await options.workspacesFor(project.project_id)
       : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
-    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === run.frozen.directory.canonical_path);
+    const originalDirectory = run.frozen.directory;
+    if (!originalDirectory) throw new Error("无目录会话不能整合工作区");
+    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === originalDirectory.canonical_path);
     if (!originalParent) throw new Error("原主工作区已取消授权");
     const { grants, parent } = await writerParent(project.project_id, originalParent.workspace_id);
-    if (parent.canonical_path !== run.frozen.directory.canonical_path) throw new Error("原主工作区授权已改变");
+    if (parent.canonical_path !== originalDirectory.canonical_path) throw new Error("原主工作区授权已改变");
     const frozen = run.frozen.subagent_workspaces?.find(w => w.directory.canonical_path === child.workspace_path);
     const writer = frozen && grants.find(g => g.workspace_id === frozen.workspace_id && g.realpath_verified && g.canonical_path === child.workspace_path);
     if (!writer) throw new Error("原子任务目录没有本轮独立写入授权");
@@ -216,16 +299,30 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id };
   });
 
-  return { agentHost, get ready() { return initialize(); }, async dispose() {
+  const inference: PrologueInferenceClient = {
+    async completeText(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeText(input); },
+    async completeTextResult(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeTextResult(input); },
+    async generateImages(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.generateImages(input); },
+    async evaluateTypeSafe(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.evaluateTypeSafe(input); },
+  };
+  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
+  return { agentHost, inference, createBuilderAgent, get ready() { return initialize(); }, dispose() {
+    if (disposal) return disposal;
+    disposed = true;
     unregister();
     unregisterGit();
+    unregisterGitOperation();
+    unregisterDraft();
+    unregisterGitOperations();
     unregisterGitResults();
     unregisterWriters();
     unregisterPrepareWriter();
     unregisterReadIntegration();
     unregisterPrepareIntegration();
-    await ready?.catch(() => undefined);
-    await prologue?.close();
+    return disposal = (async () => {
+      await ready?.catch(() => undefined);
+      await prologue?.close();
+    })();
   } };
 }
 
@@ -241,11 +338,16 @@ async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
   workspaceFor: AgentHostCompositionOptions["workspaceFor"],
+  localHost: MolisWorkLocalHost,
   workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
   homeDirectory?: string,
+  caller?: HostPluginCaller,
 ): Promise<AgentStartAuthority> {
-  const declared = BUILTIN_PLUGIN_AGENTS.get(pluginId);
-  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+  // Plugin declarations come from its actual activation. The bundled lookup is
+  // retained only for trusted Host composition that calls this API directly.
+  const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills }
+    : BUILTIN_PLUGIN_AGENTS.get(pluginId);
+  const manifest = caller?.declaration.manifest ?? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
@@ -255,8 +357,17 @@ async function startAuthority(
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     method_owner: { board_id: runtime.board_id, plugin_id: pluginId },
+    actions: async (runtimeId, validate) => {
+      const reference = { project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path };
+      const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime",
+        project_id: runtime.project_id, audience: "agent", permissions: [], ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); });
+      return {
+        discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
+        invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+      };
+    },
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
-    project_prompts: projectPrompts(runtime),
+    project_prompts: await projectPrompts(runtime, localHost),
   };
 }
 
@@ -272,10 +383,11 @@ async function startAuthority(
  * confirmed — and passing that along would turn "this project has said nothing"
  * into an instruction, which is a different claim.
  */
-function projectPrompts(runtime: MolisWorkProjectRuntime): AgentPromptText[] {
+async function projectPrompts(runtime: MolisWorkProjectRuntime, localHost: MolisWorkLocalHost): Promise<AgentPromptText[]> {
   let view: ProjectGuidanceView;
   try {
-    view = runtime.coordinator.readProjectGuidance(runtime.board_id);
+    view = await localHost.client({ project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path })
+      .invoke(readProjectGuidanceCapability, { board_id: runtime.board_id });
   } catch {
     // Guidance is an addition, not a precondition. A project whose guidance
     // cannot be read still starts Runs; it just starts them without this layer.
@@ -286,7 +398,7 @@ function projectPrompts(runtime: MolisWorkProjectRuntime): AgentPromptText[] {
     prompt_id: "project-guidance",
     // The version moves with the content, so a frozen Run records which
     // guidance it actually ran with rather than just that some existed.
-    version: view.entries.length,
+    version: view.revisions.length,
     layer: "project",
     body: view.runtime_prompt_prefix,
   }];

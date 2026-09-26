@@ -35,13 +35,14 @@ test("packed SDK consumes the Host-frozen Character instructions and narrowed to
     const original: AgentFrozenCharacter = { character_id: "profile", title: "Verifier", instructions: "CHARACTER_FIXED_V2: cite actual evidence.", host_tools: ["read-file"],
       source: { owner_actor_id: "u", draft_revision: 3 }, reference: { artifact_id: "character:b:profile", version: 2 }, board_id: "b", content_digest: "fixed",
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "official-characters-binding" }, published_at: "2026-09-22T00:00:00Z" };
-    const expected = structuredClone(original);
+    const expected = structuredClone(original), resolved = Promise.withResolvers<void>();
     const authority: AgentStartAuthority = { manifest: { roles: [{ role_id: "reader", version: 1, name: "Reader", prompts: ["base", "reader"], host_tools: ["read-file", "search"] }],
       prompts: [{ prompt_id: "base", version: 1 }, { prompt_id: "reader", version: 1 }], characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: ["reader"] } },
       authorizedDirectories: [root], prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "BASE_MARKER" }, { prompt_id: "reader", version: 1, layer: "role", body: "ROLE_MARKER" }],
-      project_prompts: [{ prompt_id: "project", version: 1, body: "PROJECT_MARKER" }], resolveCharacter: () => original };
+      project_prompts: [{ prompt_id: "project", version: 1, body: "PROJECT_MARKER" }], resolveCharacter: () => { resolved.resolve(); return original; } };
     const task = "Inspect the repository without changing files.";
     const starting = host.start("prologue", { ...owner, session, directory, task, role_id: "reader", character: original.reference }, authority);
+    await resolved.promise;
     original.instructions = "LATER_UNPUBLISHED_EDIT"; original.host_tools.push("search");
     const handle = await starting;
     const view = await new Promise<AgentRunView>((resolve, reject) => {

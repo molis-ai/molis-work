@@ -17,6 +17,9 @@ export const FORM_STYLES = `
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .form-stage-chrome { pointer-events: auto; }
   [data-form=workbench] { --plugin-tint: var(--plugin-form); }
+  [data-form-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
+  .form-workspace > * { flex-shrink: 0; }
+  [data-form-stage-workspace] > .form-note { flex-shrink: 0; }
   .form-tabs { display: flex; gap: 4px; margin-left: auto; }
   .form-tabs [data-form-tab=editor] { --tab-tone: var(--plugin-form, var(--tone-idle)); }
   .form-tabs [data-form-tab=preview] { --tab-tone: var(--tone-progress); }
@@ -47,7 +50,7 @@ export const FORM_STYLES = `
   .form-toolbar .mw-btn, .form-prompt .mw-btn, .form-actions .mw-btn { flex: none; width: auto; align-self: center; }
   .form-actions:has([data-form-submit][hidden]) { display: none; }
   .form-prompt { align-items: flex-end; max-width: 36rem; }
-  .form-prompt .form-field { flex: 1; min-width: 0; }
+  .form-prompt .form-field { flex: 1 1 14rem; min-width: min(100%, 14rem); }
   [data-form-questions] { display: flex; flex-direction: column; gap: 10px; }
   .form-question .mw-select-picker { width: 100%; min-width: 0; }
   .form-question {
@@ -105,6 +108,7 @@ export const FORM_STYLES = `
   }
   .form-result p span:first-child { color: var(--muted); }
   .form-result p span:last-child { color: var(--ink); overflow-wrap: anywhere; }
+  .form-result p.form-result-legacy { display: block; color: var(--muted); line-height: 1.5; }
   .form-export-panel { max-width: 36rem; }
   .form-export-panel summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   .form-note { margin: 0 20px 16px; max-width: 40rem; font-size: 12px; color: var(--tone-done, var(--muted)); }
@@ -114,7 +118,7 @@ export const FORM_STYLES = `
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;
   }
   .plugin-stage-detail-bar [data-form-delete] { margin-left: 8px; }
-  .plugin-stage-list .mw-empty { max-width: 32ch; padding: 8px 8px 16px; }
+  .plugin-stage-list .mw-empty { max-width: min(100%, 30em); padding: 8px 8px 16px; }
   .plugin-stage-workspace.is-arriving,
   .is-arriving { animation: creative-arrive var(--motion-normal, 190ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)) both; }
   @keyframes creative-arrive {
@@ -125,7 +129,16 @@ export const FORM_STYLES = `
     from { transform: translateY(4px); }
     to { transform: none; }
   }
-  @media (max-width: 720px) { .form-identity { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) {
+    .form-identity { grid-template-columns: 1fr; }
+    .form-question { grid-template-columns: minmax(0, 1fr) auto auto; }
+    .form-question > [data-question-title] { grid-column: 1 / -1; min-width: 0; }
+    .form-question > .mw-select, .form-question > .mw-select-picker { grid-column: 1; }
+    .form-question > .mw-check-row { grid-column: 2 / -1; min-height: 44px; }
+    .form-question-move { grid-column: 1 / 3; }
+    .form-question [data-question-move], .form-question [data-question-remove],
+    .form-question [data-option-remove] { min-width: 44px; min-height: 44px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .is-arriving, .plugin-stage-workspace.is-arriving, [data-form-pane]:not([hidden]) { animation: none; }
     .form-question, .form-tabs .mw-btn, .form-preview-option { transition: none; }

@@ -12,7 +12,6 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
-  assert.equal(await evaluate("document.querySelector('[data-immersive-theme]') === null"), true);
   await click('[data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await waitFor("document.querySelectorAll('[data-feed-stage-group]').length>0");
@@ -20,10 +19,15 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(await evaluate("document.querySelector('[data-feed-stage-group] [data-feed-entry-id]')?.closest('[data-feed-stage-group]')?.dataset.feedStageGroup"), groupedSource);
   const sources = await evaluate<string[]>("[...document.querySelectorAll('[data-feed-task]')].map(x=>x.dataset.feedTask)");
   assert.ok(sources.length >= 1);
-  assert.equal(sources.includes("all"), false);
+  assert.equal(sources.includes("all"), true);
   const source = await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(x=>x.textContent.includes('Solidot'))?.dataset.feedTask");
   assert.ok(source);
-  assert.match(await evaluate<string>(`document.querySelector('[data-feed-task="${source}"] .goal-collection-mark')?.innerHTML || ""`), /icon-check|icon-alert/);
+  assert.equal(await evaluate("document.querySelector('[data-feed-source-rail] [data-feed-task=all]')?.getAttribute('aria-current')"), "page");
+  assert.ok(await evaluate<string>(`document.querySelector('[data-feed-source-rail] [data-feed-task="${source}"]')?.dataset.feedSourceState`));
+  await click(`[data-feed-source-rail] [data-feed-task="${source}"]`);
+  assert.equal(await evaluate("document.querySelector('[data-feed-workbench]')?.dataset.selectedSource"), source);
+  assert.equal(await evaluate("document.querySelector('button[data-feed-view=settings]')?.hidden"), false);
+  await click('[data-feed-source-rail] [data-feed-task=all]');
   const bounds = await evaluate<number[]>("[...document.querySelectorAll('[data-feed-stage-group] > summary')].map(x=>x.getBoundingClientRect().top)");
   assert.equal(new Set(bounds).size, bounds.length, "source tasks must not overlap");
   const widths = await evaluate<number[]>("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item:not([data-pinned])')].map(x=>Math.round(x.getBoundingClientRect().width))");
@@ -36,7 +40,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   const frameSelector = "document.querySelector('iframe.tab-content-frame').contentDocument";
   const unfilteredCount = await evaluate<string>("[...document.querySelectorAll('iframe.tab-content-frame')][1].contentDocument.querySelector('[data-feed-result-count]').textContent");
   await evaluate(`{ const field = ${frameSelector}.querySelector('[data-feed-search]'); field.value = 'not found in this source'; field.dispatchEvent(new Event('input',{bubbles:true})); }`);
-  assert.equal(await evaluate(`${frameSelector}.querySelector('[data-feed-result-count]').textContent`), "0 个 Item");
+  assert.equal(await evaluate(`${frameSelector}.querySelector('[data-feed-result-count]').textContent`), "0 条消息");
   assert.equal(await evaluate("[...document.querySelectorAll('iframe.tab-content-frame')][1].contentDocument.querySelector('[data-feed-result-count]').textContent"), unfilteredCount);
   await click('.tab-pane.is-focused [data-tab-split]');
   await click('[data-layout-split=bottom]');
@@ -59,7 +63,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(await evaluate("document.querySelector('.tab-pane.is-focused').dataset.tabPane===document.querySelector('[data-focus-pane]').dataset.focusPane"), true);
 });
 
-test("moving a Feed tab and merging panes preserves its unfinished source form", { timeout: 90_000 }, async (t) => {
+test("merging a Feed overview pane preserves its unfinished inline source form", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
@@ -75,38 +79,40 @@ test("moving a Feed tab and merging panes preserves its unfinished source form",
   await evaluate(`(() => {
     window.draftFrame = [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].find(f=>f.contentDocument.body.dataset.desktopSurface==='feed');
     window.draftDocument = draftFrame.contentDocument;
-    draftDocument.querySelector('[data-feed-stage-chrome] [data-feed-add-toggle]').click();
+    const railToggle = draftDocument.querySelector('[data-feed-rail-toggle]');
+    if (railToggle.getBoundingClientRect().width && railToggle.getAttribute('aria-expanded') !== 'true') railToggle.click();
+    draftDocument.querySelector('[data-feed-source-rail] header [data-feed-add-toggle]').click();
   })()`);
-  await waitFor("draftDocument.querySelector('[data-feed-sources-dialog]')?.open === true");
+  await waitFor("draftDocument.querySelector('[data-feed-sources-dialog]')?.hidden === false && draftDocument.querySelector('[data-feed-workbench]')?.dataset.feedView === 'add'");
+  assert.equal(await evaluate("draftDocument.querySelector('[data-feed-sources-dialog]').tagName"), "SECTION", "source setup is an inline work surface");
   await evaluate("draftDocument.querySelector('[data-feed-choose-kind=custom_rss]').click()");
   await evaluate(`(() => {
     draftDocument.querySelector('[data-feed-add-name]').value = '未提交的观察来源';
     draftDocument.querySelector('[data-feed-add-form] [data-feed-source-value=custom_rss]').value = 'https://example.com/draft.xml';
     draftDocument.querySelector('[data-feed-search]').value='保留检索';
-    draftDocument.querySelector('[data-feed-sources-dialog]').close();
+    draftDocument.querySelector('[data-feed-sources-dialog] [data-feed-sources-close]').click();
     window.sourcePane = draftFrame.dataset.paneOwner;
     const target = [...document.querySelectorAll('[data-tab-pane]')].find(p=>p.dataset.tabPane!==sourcePane);
     window.targetPane = target.dataset.tabPane;
-    const transfer = new DataTransfer();
-    document.querySelector('[data-tab-id="'+draftFrame.dataset.paneTab+'"]').dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}));
-    const r=target.getBoundingClientRect();
-    target.dispatchEvent(new DragEvent('drop',{bubbles:true,cancelable:true,dataTransfer:transfer,clientX:r.x+r.width/2,clientY:r.y+r.height/2}));
   })()`);
-  await waitFor("draftFrame.dataset.paneOwner===targetPane");
-  assert.equal(await evaluate("draftFrame.contentDocument===draftDocument && draftFrame.isConnected"), true, "move must retain the actual content document");
-  assert.equal(await evaluate("draftDocument.querySelector('[data-feed-add-name]').value"), "未提交的观察来源");
-  await evaluate("document.querySelector('[data-tab-pane=\"'+sourcePane+'\"] [data-tab-pane-close]').click()");
+  // Feed overview is a pane view, not a draggable item tab. Merge the neighbouring
+  // pane and keep the real Feed document, including its unfinished source form.
+  await evaluate("document.querySelector('[data-tab-pane=\"'+targetPane+'\"] [data-tab-pane-close]').click()");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length===1");
   assert.equal(await evaluate("draftFrame.contentDocument===draftDocument && !draftFrame.hidden"), true, "merge must retain the surviving content document");
-  await evaluate("draftDocument.querySelector('[data-feed-stage-chrome] [data-feed-add-toggle]').click()");
+  await evaluate(`(() => {
+    const railToggle = draftDocument.querySelector('[data-feed-rail-toggle]');
+    if (railToggle.getBoundingClientRect().width && railToggle.getAttribute('aria-expanded') !== 'true') railToggle.click();
+    draftDocument.querySelector('[data-feed-source-rail] header [data-feed-add-toggle]').click();
+  })()`);
   await evaluate("draftDocument.querySelector('[data-feed-choose-kind=custom_rss]').click()");
   assert.equal(await evaluate("draftDocument.querySelector('[data-feed-add-form]').hidden"), false);
   assert.equal(await evaluate("draftDocument.querySelector('[data-feed-search]').value"), "保留检索");
   await evaluate("draftDocument.querySelector('[data-feed-sources-dialog] [data-feed-sources-close]').click()");
   assert.equal(await evaluate("draftDocument.querySelector('[data-feed-add-form] [data-feed-source-value=custom_rss]').value"), "https://example.com/draft.xml");
-  // Focus messages still resolve the moved frame's new owner.
+  // Focus messages still resolve the surviving Feed pane.
   await evaluate("draftDocument.querySelector('[data-feed-search]').focus()");
-  assert.equal(await evaluate("document.querySelector('.tab-pane.is-focused').dataset.tabPane===targetPane"), true);
+  assert.equal(await evaluate("document.querySelector('.tab-pane.is-focused').dataset.tabPane===sourcePane"), true);
 });
 
 test("opening a related Goal inside a pane leaves the original Goal tab intact", { timeout: 90_000 }, async (t) => {

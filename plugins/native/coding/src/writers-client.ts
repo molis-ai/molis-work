@@ -15,7 +15,10 @@ export const CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT = `(ports) => {
         renderKey=key;list.replaceChildren();
         if(!data.directories.length)list.append(node('p','还没有为这个仓库准备独立工作树。'));
         for(const directory of data.directories){
-          const row=node('section',undefined,'coding-material');row.append(node('p',directory.canonical_path),node('p','分支：'+directory.branch),node('p','原始起点：'+directory.base_commit));
+          const row=node('section',undefined,'coding-material');row.append(node('p',directory.canonical_path),node('p','分支：'+(directory.branch || '无')));
+          // A directory whose branch or origin no longer matches is listed so it is not a mystery, but it takes no work.
+          if(directory.problem){row.append(node('p','不能再作为独立工作树使用：'+directory.problem+'。目录和其中内容保持原样，请自行核对后处理。'));list.append(row);continue;}
+          row.append(node('p','原始起点：'+directory.base_commit));
           if(directory.workspace_id){
             const draft=assignments.get(directory.workspace_id) || {task:'',selected:false};assignments.set(directory.workspace_id,draft);
             const label=node('label',undefined,'mw-check-row'),check=node('input');check.type='checkbox';check.setAttribute('aria-label','分配任务：'+directory.canonical_path);check.className='mw-check';check.checked=draft.selected;
@@ -29,7 +32,7 @@ export const CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT = `(ports) => {
           });row.append(use);}else row.append(node('p','目录已存在，但尚未授权给本项目；请通过工作区入口关联此目录。'));
           list.append(row);
         }
-        for(const [id,draft] of assignments)if(draft.selected && !data.directories.some(item=>item.workspace_id===id)){
+        for(const [id,draft] of assignments)if(draft.selected && !data.directories.some(item=>item.workspace_id===id && !item.problem)){
           const row=node('section',undefined,'coding-material');row.append(node('p','已保存的分工目录暂不可用：'+id),node('p',draft.task || '尚未填写任务'));
           const remove=node('button','移除此分工','mw-btn');remove.type='button';remove.addEventListener('click',()=>{assignments.delete(id);remember();renderKey='';void refresh();});row.append(remove);list.append(row);
         }

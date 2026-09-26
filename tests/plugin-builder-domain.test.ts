@@ -39,6 +39,13 @@ function privateStorage(db: Database.Database, installId = "builder"): PluginPri
 test("controlled schema rejects executable payloads, bad references/types/cycles, and incomplete UI bindings", () => {
   assert.deepEqual(parseDesign(design), design);
   assert.deepEqual(parseModelJson("```json\n{\"ok\":true}\n```"), { ok: true });
+  assert.deepEqual(parseModelJson("<think>先想想字段</think>\n{\"ok\":true}"), { ok: true }, "provider reasoning blocks are not part of the answer");
+  // contains counts tagged records: if(contains(status,"已读"),1,0) totals to the number read.
+  const reading = parseDesign({ id: "books", title: "读书", description: "读书清单", journey: ["记录"], acceptance: ["统计已读"], layout: "table", allowImport: false, allowExport: false,
+    fields: [{ id: "title", label: "书名", type: "text", required: true }, { id: "status", label: "状态", type: "tags", required: false }],
+    calculations: [{ id: "read", label: "已读", expression: { op: "if", condition: { op: "contains", left: { op: "field", id: "status" }, right: { op: "literal", value: "已读" } }, then: { op: "literal", value: 1 }, else: { op: "literal", value: 0 } } }] });
+  assert.equal(reading.calculations[0].id, "read");
+  assert.throws(() => parseDesign({ ...reading, calculations: [{ id: "bad", label: "坏", expression: { op: "contains", left: { op: "literal", value: 3 }, right: { op: "literal", value: "x" } } }] }), /contains 左侧必须为标签或文字/);
   assert.throws(() => parseModelJson("prefix {\"ok\":true}"), /完整 JSON/);
   assert.throws(() => parseDesign({ ...design, script: "alert(1)" }), /不支持的属性/);
   assert.throws(() => parseDesign({ ...design, calculations: [{ id: "script", label: "代码", expression: { op: "eval", code: "process.exit()" } }] }), /不允许执行代码/);
@@ -85,6 +92,23 @@ test("drafts and installed records survive SQLite restart while instances and pr
     assert.equal(recovered.list()[0].values.revenue, 120);
     recovered.remove(first.id, 2); assert.deepEqual(recovered.list(), []);
   } finally { db.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test("未发布草稿可移除，已发布 release 不受作品库删除影响", () => {
+  const db = new Database(":memory:"), storage = privateStorage(db), store = new BuilderStore(storage);
+  try {
+    const draft = store.create("做一个测试插件");
+    new RecordStore(storage, `preview:${draft.id}`, design, behavior).save(input());
+    assert.throws(() => store.remove(draft.id, draft.revision + 1), /更新/);
+    store.remove(draft.id, draft.revision);
+    assert.equal(store.get(draft.id), null);
+    assert.equal(storage.get(`plugin-builder:records:preview:${draft.id}`), null);
+    let published = store.create("做一个正式插件");
+    published = store.update(published.id, published.revision, doc => { doc.design = design; doc.nodes = nodes; doc.behavior = behavior; doc.phase = "ready"; });
+    store.release(published.id, published.revision);
+    assert.throws(() => store.remove(published.id, published.revision + 1), /已发布/);
+    assert.equal(store.versions(published.id).length, 1);
+  } finally { db.close(); }
 });
 
 test("CAS rejects a real interleaved write through two SQLite connections without losing the winner", () => {
@@ -158,7 +182,7 @@ test("record inputs reject unknown fields, bad links and invalid numbers before 
   } finally { db.close(); }
 });
 
-test("publishing snapshots a complete revision, keeps monotonic versions, protects old schemas and supports compatible activation and undo", () => {
+test("publishing snapshots immutable candidates, requires an explicit compatibility choice and keeps monotonic versions", () => {
   const db = new Database(":memory:");
   try {
     const store = new BuilderStore(privateStorage(db));
@@ -173,25 +197,70 @@ test("publishing snapshots a complete revision, keeps monotonic versions, protec
       draft.history.push({ design: structuredClone(draft.design), nodes: structuredClone(draft.nodes), behavior: structuredClone(draft.behavior) });
       draft.design!.title = "新版销售记录";
     });
-    assert.equal(store.releases()[0].design.title, "销售记录", "draft edit cannot change the active plugin");
-    const second = store.release(doc.id, doc.revision);
-    assert.equal(second.version, 2); assert.equal(second.pluginId, first.pluginId);
-    store.activate(doc.id, 1); assert.equal(store.releases()[0].version, 1);
+    assert.equal(store.releases()[0].design.title, "销售记录", "draft edit cannot change an already published release");
+    assert.throws(() => store.release(doc.id, doc.revision), /请选择.*直接兼容.*校验已有数据/);
+    const second = store.release(doc.id, doc.revision, false);
+    assert.equal(second.version, 2); assert.equal(second.pluginId, first.pluginId); assert.equal(second.compatibleWithPrevious, false);
     doc = store.get(doc.id)!;
-    const third = store.release(doc.id, doc.revision); assert.equal(third.version, 3);
+    const third = store.release(doc.id, doc.revision, true); assert.equal(third.version, 3); assert.equal(third.compatibleWithPrevious, true);
     doc = store.undo(doc.id, store.get(doc.id)!.revision);
     assert.equal(doc.design!.title, "销售记录"); assert.equal(doc.active, null);
-    assert.equal(store.releases()[0].version, 3, "undo only changes the draft");
+    assert.equal(store.releases()[0].version, 3, "undo only changes the draft; the latest published release remains available");
+    doc = store.get(doc.id)!;
     doc = store.update(doc.id, doc.revision, draft => { draft.design!.fields = draft.design!.fields.filter(field => field.id !== "url"); });
-    assert.throws(() => store.release(doc.id, doc.revision), /无法删除/);
+    const fourth = store.release(doc.id, doc.revision, false); assert.equal(fourth.version, 4, "incompatible candidates can be published for an explicit data check");
+    doc = store.get(doc.id)!;
     doc = store.update(doc.id, doc.revision, draft => { draft.design = structuredClone(design); draft.design.fields.find(field => field.id === "url")!.type = "text"; });
-    assert.throws(() => store.release(doc.id, doc.revision), /无法更改/);
-    doc = store.update(doc.id, doc.revision, draft => { draft.design = structuredClone(design); draft.design.fields.push({ id: "category", label: "类别", type: "text", required: true }); });
-    assert.throws(() => store.release(doc.id, doc.revision), /必须为可选/);
-    doc = store.update(doc.id, doc.revision, draft => { draft.design!.fields.find(field => field.id === "category")!.required = false; });
-    const fourth = store.release(doc.id, doc.revision); assert.equal(fourth.version, 4);
-    assert.throws(() => store.activate(doc.id, 1), /无法删除/);
-    assert.equal(store.releases()[0].version, 4);
-    assert.deepEqual(store.versions(doc.id).map(release => release.version), [4, 3, 2, 1]);
+    const fifth = store.release(doc.id, doc.revision, true); assert.equal(fifth.version, 5, "the declaration is stored; existing data is checked only when the user upgrades");
+    assert.equal(store.releases()[0].version, 5);
+    assert.deepEqual(store.versions(doc.id).map(release => release.version), [5, 4, 3, 2, 1]);
+  } finally { db.close(); }
+});
+
+test("contains lets a derived flag count tagged records through the summary", () => {
+  const db = new Database(":memory:");
+  try {
+    const books = parseDesign({ id: "books", title: "读书", description: "读书清单", journey: ["记录"], acceptance: ["统计已读"], layout: "table", allowImport: false, allowExport: false,
+      fields: [{ id: "title", label: "书名", type: "text", required: true }, { id: "status", label: "状态", type: "tags", required: false }],
+      calculations: [{ id: "read", label: "已读", expression: { op: "if", condition: { op: "contains", left: { op: "field", id: "status" }, right: { op: "literal", value: "已读" } }, then: { op: "literal", value: 1 }, else: { op: "literal", value: 0 } } }] });
+    const records = new RecordStore(privateStorage(db, "books"), "live", books, { calculations: books.calculations, allowImport: false, allowExport: false });
+    records.save({ title: "少，但更好", status: ["已读"] }); records.save({ title: "设计心理学", status: ["在读"] }); records.save({ title: "禅与摩托车", status: ["已读", "推荐"] });
+    assert.equal(records.summary().totals.read, 2);
+    // and: read this year = contains(status,"已读") and year = 2026.
+    const yearly = parseDesign({ ...books, fields: [...books.fields, { id: "year", label: "读完年份", type: "number", required: false }],
+      calculations: [{ id: "thisYear", label: "今年已读", expression: { op: "if", condition: { op: "and", left: { op: "contains", left: { op: "field", id: "status" }, right: { op: "literal", value: "已读" } }, right: { op: "equal", left: { op: "field", id: "year" }, right: { op: "literal", value: 2026 } } }, then: { op: "literal", value: 1 }, else: { op: "literal", value: 0 } } }] });
+    const thisYear = new RecordStore(privateStorage(db, "yearly"), "live", yearly, { calculations: yearly.calculations, allowImport: false, allowExport: false });
+    thisYear.save({ title: "A", status: ["已读"], year: 2026 }); thisYear.save({ title: "B", status: ["已读"], year: 2025 }); thisYear.save({ title: "C", status: ["在读"], year: 2026 });
+    assert.equal(thisYear.summary().totals.thisYear, 1);
+    assert.throws(() => parseDesign({ ...books, calculations: [{ id: "bad", label: "坏", expression: { op: "if", condition: { op: "contains", left: { op: "field", id: "status" }, right: ["已读"] }, then: { op: "literal", value: 1 }, else: { op: "literal", value: 0 } } }] }), /计算字段「坏」：表达式必须为受控 AST 对象，实际是数组/);
+  } finally { db.close(); }
+});
+
+test("formula strings are another notation for the same controlled expression tree", async () => {
+  const { parseFormula } = await import("../plugins/native/plugin-builder/src/formula.js");
+  assert.deepEqual(parseFormula("quantity * price"), { op: "multiply", left: { op: "field", id: "quantity" }, right: { op: "field", id: "price" } });
+  assert.deepEqual(parseFormula("if(contains(status, '已读') and year == 2026, 1, 0)"), { op: "if",
+    condition: { op: "and", left: { op: "contains", left: { op: "field", id: "status" }, right: { op: "literal", value: "已读" } }, right: { op: "equal", left: { op: "field", id: "year" }, right: { op: "literal", value: 2026 } } },
+    then: { op: "literal", value: 1 }, else: { op: "literal", value: 0 } });
+  assert.deepEqual(parseFormula("a < 3"), { op: "gt", left: { op: "literal", value: 3 }, right: { op: "field", id: "a" } });
+  assert.deepEqual(parseFormula("x != 'y'"), { op: "if", condition: { op: "equal", left: { op: "field", id: "x" }, right: { op: "literal", value: "y" } }, then: { op: "literal", value: false }, else: { op: "literal", value: true } });
+  assert.throws(() => parseFormula("process.exit()"), /公式/);
+  assert.throws(() => parseFormula("eval('1')"), /不支持函数 eval/);
+  assert.throws(() => parseFormula("(a + b"), /需要「\)」/);
+  // Through the design parser, a formula is validated exactly like an object expression.
+  const withFormula = parseDesign({ ...design, calculations: [{ id: "revenue", label: "销售额", expression: "quantity * price" }] });
+  assert.deepEqual(withFormula.calculations[0].expression, design.calculations[0].expression);
+  assert.throws(() => parseDesign({ ...design, calculations: [{ id: "bad", label: "坏", expression: "title * 2" }] }), /计算字段「坏」.*multiply 两侧必须为数字/);
+});
+
+test("declared totals limit the summary to sums that mean something", () => {
+  const db = new Database(":memory:");
+  try {
+    const stock = parseDesign({ ...design, totals: ["quantity", "revenue"] });
+    const records = new RecordStore(privateStorage(db, "totals"), "live", stock, behavior);
+    records.save(input("铅笔", 3, 12)); records.save(input("橡皮", 2, 5));
+    assert.deepEqual(records.summary(), { count: 2, totals: { quantity: 5, revenue: 46 } }, "unit price is not summed");
+    assert.throws(() => parseDesign({ ...design, totals: ["title"] }), /合计项「title」必须是数字字段或数字计算/);
+    assert.throws(() => parseDesign({ ...design, totals: ["large"] }), /合计项「large」/);
   } finally { db.close(); }
 });

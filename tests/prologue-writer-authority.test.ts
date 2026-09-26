@@ -100,7 +100,7 @@ for (const decision of ["approve", "reject", "stop", "bridge-failure", "escape",
   try {
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
     const manifest = structuredClone(codingAgentManifest), role = manifest.roles.find(role => role.role_id === "coordinator")!;
-    role.subagent_workspaces = "required"; role.host_tools = ["read-file", "dispatch-subagent", "await-subagents"];
+    role.subagent_workspaces = "required"; role.execution = "read-only"; role.host_tools = ["read-file", "dispatch-subagent", "await-subagents"];
     manifest.subagents!.roles = [{ role_id: "coding-writer", version: 3, name: "独立写入", execution: decision === "command" ? "workspace-write" : "text-edit", host_tools: ["read-file", "write", ...(decision === "command" ? ["run-command"] : [])] }];
     const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Parent" });
@@ -224,7 +224,7 @@ test("production writers role runs two isolated children concurrently with indep
     assert.ok(!body.tools.some((tool: any) => ["write", "edit", "run-command"].includes(tool.name)), "production parent is read-only");
     parentCalls++;
     if (parentCalls <= 2) {
-      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0]; assert.ok(character);
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@5/)?.[0]; assert.ok(character);
       const index = parentCalls - 1;
       return toolResponse("dispatch-subagent", { instruction: `PRODUCTION_CHILD_${index}: read and then replace sample.txt in your own root; report the actual receipt.`, tools: ["read", "search", "context-remaining", "write", "edit", "run-command"], character, workspace: `writer-${index}`, idempotencyKey: `writer-${index}`, background: true, maxTurns: 3 }, String(index));
     }
@@ -232,8 +232,13 @@ test("production writers role runs two isolated children concurrently with indep
       const refs = [...new Set<string>(JSON.stringify(body.messages).match(/sub-[a-z0-9-]+/g) ?? [])]; assert.equal(refs.length, 2);
       return toolResponse("await-subagents", { refs, mode: "all", timeoutMs: 10_000 });
     }
+    // The coordinator checks what its children actually wrote by reading their directories, read-only.
+    if (parentCalls === 4) { assert.match(JSON.stringify(body.system), /加 workspace 参数/); return toolResponse("read", { path: "sample.txt", workspace: "writer-0" }, "-a"); }
+    if (parentCalls === 5) { assert.match(JSON.stringify(body.messages), /CHILD 0/); return toolResponse("read", { path: "sample.txt", workspace: "writer-1" }, "-b"); }
+    if (parentCalls === 6) { parentLooked = JSON.stringify(body.messages); return toolResponse("read", { path: "sample.txt" }, "-own"); }
     return toolResponse();
   });
+  let parentLooked = "";
   let queue = new AgentReviewQueue();
   const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.production-writers", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
@@ -269,6 +274,8 @@ test("production writers role runs two isolated children concurrently with indep
       await new Promise(resolve => setTimeout(resolve, 10));
     }
     assert.equal(concurrent, true, "both children must reach pending writes before either is approved");
+    // Child 1's write was rejected, so its directory still reads ORIGINAL through the parent's read-only view.
+    assert.match(parentLooked, /CHILD 0[\s\S]*ORIGINAL/);
     assert.equal(await readFile(join(parent, "sample.txt"), "utf8"), "ORIGINAL\n");
     assert.equal(await readFile(join(childPaths[0]!, "sample.txt"), "utf8"), "CHILD 0\n");
     assert.equal(await readFile(join(childPaths[1]!, "sample.txt"), "utf8"), "ORIGINAL\n");

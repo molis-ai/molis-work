@@ -21,7 +21,7 @@
 人盯着一条 `inbox_entry`。处置只有做完了 / 忽略。查看原消息是导航。
 
 - 不读 Feed / Goals 表，标题由 Host 注入。
-- 场景：`inbox.next`。可选 `requires: functions.evaluate`，同时写在 `capabilities.consumes`。
+- 场景：`action_scenes` 中的 `inbox.next`，兑现 prepare/bind/consume/failed。显式调用和 Feed 自动事件共用绑定及执行，不再依赖旧 `functions.evaluate`。
 - 完成/忽略只改 Attention 状态，不删原对象。
 
 ## Pages / Forms / Dataset / PPT：本机创作
@@ -37,7 +37,7 @@
 
 三栏：看什么 / 函数 / 用在哪。去向文案说人会看到什么。Choice 选项可自定义，绑现场用 `scene_map`，不覆盖选项。设置页只配 TypeSafe Key。MCP 三项 `scope: home`。不要抄成 plugin-stage 列表。
 
-别的插件要被 Functions 绑，走 [host.md](host.md)「接到 Functions」，不要在自己包里复制这份编辑器。
+别的插件消费判断，走 [host.md](host.md#接到统一判断场景)，不要复制旧编辑器或添加新的 Host 去向白名单。
 
 ## 灵光：岛
 
@@ -60,11 +60,11 @@
 
 人盯着绑来的一份文本快照。`kind: "app"`，`slot: "stage"`，一个必选输入口，无存储、无事件、无输出口。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。产品里还没有连线页，这个口在跑着的产品里不会自己接上。
 
-## Diff / Files / Git / Workspace
+## Diff / Files / Git
 
 - Diff：三组可选输入（两份快照 / Run 变更 / Git 变更），`input_groups`，没绑也能激活并说明自己。
 - Files：浏览工作区；`onEvent` 在 Coding/Git 发 file-changed 之后重读目录。事件 id 来自合同，不 import Coding 包。这是插件事件总线，不是 Functions 去向。
-- Git / Workspace：工作区引用和改动。抄事件订阅时点名 `from_plugin_ids`，不要通配。
+- Git：工作区改动；目录通过当前项目设置读取。抄事件订阅时点名 `from_plugin_ids`，不要通配。
 
 ## Coding：Runtime 托管的 app
 

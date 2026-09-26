@@ -1,3 +1,4 @@
+import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -5,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createMolisWorkLocalHost, snapshotBoardCapability, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+import { MolisWorkV1Error, setGoalEventAgreementCapability } from "@molis-ai/molis-work-plugin-goals";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import type { GoalEventClosureResult, GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
 
@@ -32,6 +33,7 @@ test("Runtime state tools record progress and close without applying user identi
   let management: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "状态闭环", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     const runtimeHost = {
       homeDirectory,
       runtimeContext: {
@@ -162,6 +164,7 @@ test("Runtime agree unknown field and omitted close version are rejected with no
   let runtime: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "未知字段", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     runtime = new MolisWorkServer("runtime", {
       databasePath: project.database_path,
       boardId: project.board_id,
@@ -215,6 +218,7 @@ test("MCP agreement_change request keeps request-time commitment; later related 
   let management: MolisWorkServer | undefined;
   try {
     const project = await catalog.createProject({ display_name: "过期请求", actor_id: "user" });
+    await grantGoalsMcp(host, homeDirectory, project);
     const connection = {
       databasePath: project.database_path,
       boardId: project.board_id,
@@ -250,9 +254,11 @@ test("MCP agreement_change request keeps request-time commitment; later related 
     assert.equal(asked.decision_request.commitment.outcome, "用户能完成真实购买");
     assert.equal(asked.decision_request.commitment.requirements[0].statement, "真实购买");
     const beforeRevise = JSON.parse(await runtime.callTool("molis_work_v1_goal_state", { goal_id })) as GoalEventStateView;
-    await management.callTool("molis_work_v1_event_agree", {
-      database_path: project.database_path,
-      board_id, goal_id, actor_id: "manager", idempotency_key: "revise-stale-mcp",
+    await assert.rejects(management.callTool("molis_work_v1_event_agree", { goal_id }), { code: "mcp.tool_disabled" });
+    // This trusted user change is fixture setup; the management MCP below still proves stale approval rejection.
+    await host.client(molisWorkHostProjectReference({ projectId: project.project_id, boardId: board_id, databasePath: project.database_path }))
+      .invoke(setGoalEventAgreementCapability, {
+      board_id, goal_id, actor_id: "manager", actor_kind: "user", idempotency_key: "revise-stale-mcp",
       expected_config_version: beforeRevise.config.version,
       expected_agreement_version: beforeRevise.agreement.version,
       revise_requirements: [{ requirement_id: "r-five", statement: "真实购买并处理退货" }],

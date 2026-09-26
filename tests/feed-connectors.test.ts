@@ -496,6 +496,7 @@ test("Host Gmail authorization creates stable account Sources, pauses the legacy
     const legacy = service.ensureSources().find((source) => source.sync_kind === "gmail")!;
     const originalFetch = globalThis.fetch;
     const credentials: string[] = [];
+    let originalImportedAt = "";
     try {
       for (const [account, attempt] of [["a", "first"], ["b", "first"], ["a", "reauthorized"]]) {
         const access = `fixture-access-${account}-${attempt}`;
@@ -526,6 +527,29 @@ test("Host Gmail authorization creates stable account Sources, pauses the legacy
         const fixed = service.feed.getSource(DEMO_BOARD_ID, legacy.source_id);
         assert.equal(fixed.status, "paused");
         assert.equal(fixed.enabled, false);
+        if (account === "a" && attempt === "first") {
+          originalImportedAt = source.imported_at;
+          service.feed.upsertSource({
+            ...source,
+            name: "My Gmail task",
+            cursor: { historyId: "321", account_email: "a@example.com" },
+            schedule: { mode: "interval", enabled: true, interval_minutes: 60, next_pull_at: "2026-09-24T12:00:00.000Z" },
+            status: "error",
+            last_error_code: "connector_needs_auth",
+          });
+          service.feed.upsertSource({ ...fixed, cursor: { historyId: "legacy-account" } });
+        }
+        if (account === "b") {
+          assert.deepEqual(source.cursor, {}, "a new account must not inherit the legacy account cursor");
+        }
+        if (account === "a" && attempt === "reauthorized") {
+          assert.equal(source.name, "My Gmail task");
+          assert.equal(source.imported_at, originalImportedAt);
+          assert.equal(source.status, "active");
+          assert.equal(source.last_error_code, null);
+          assert.deepEqual(source.cursor, { historyId: "321", account_email: "a@example.com" });
+          assert.deepEqual(source.schedule, { mode: "interval", enabled: true, interval_minutes: 60, next_pull_at: "2026-09-24T12:00:00.000Z" });
+        }
       }
       const accounts = service.feed.snapshot(DEMO_BOARD_ID).sources.filter((source) => source.sync_kind === "gmail" && source.source_id !== legacy.source_id);
       assert.equal(accounts.length, 2, "reauthorizing A updates its stable Source instead of duplicating it");

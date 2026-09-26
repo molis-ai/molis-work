@@ -2,12 +2,15 @@ import { ensureSqliteColumn, openHomeSqliteDatabase } from "@molis-ai/molis-work
 import type { DatabaseSync } from "node:sqlite";
 import type {
   DatasetColumn,
+  DatasetColumnInput,
   DatasetColumnType,
   DatasetRecord,
   DatasetRow,
+  DatasetRowInput,
   DatasetVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { DatasetError } from "./error.js";
+import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
 
 interface DatasetRowDb {
   id: string;
@@ -22,6 +25,7 @@ interface DatasetRowDb {
   version: number;
   artifact_id?: string;
   artifact_version?: number;
+  publication_pending_json?: string | null;
 }
 
 const COLUMN_TYPES: readonly DatasetColumnType[] = ["text", "number", "date"];
@@ -73,10 +77,12 @@ export class DatasetStore {
   update(id: string, patch: {
     title?: string;
     description?: string;
-    columns?: readonly DatasetColumn[];
-    rows?: readonly DatasetRow[];
+    columns?: readonly DatasetColumnInput[];
+    rows?: readonly DatasetRowInput[];
+    expected_version?: number;
   }, projectId?: string): DatasetRecord {
     const current = this.get(id, projectId);
+    this.assertVersion(current, patch.expected_version);
     const columns = patch.columns !== undefined ? normalizeColumns(patch.columns) : current.columns;
     const rows = normalizeRows(patch.rows !== undefined ? patch.rows : current.rows, columns);
     const next: DatasetRecord = {
@@ -93,22 +99,16 @@ export class DatasetStore {
     return next;
   }
 
-  rememberArtifact(id: string, artifactId: string, artifactVersion: number, projectId?: string): DatasetRecord {
-    const current = this.get(id, projectId);
-    const updated_at = new Date().toISOString();
-    this.db.prepare(
-      "UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = ? WHERE id = ?",
-    ).run(artifactId, artifactVersion, updated_at, current.version + 1, id);
-    return this.get(id, projectId);
+  delete(id: string, projectId?: string, expectedVersion?: number): void {
+    this.transaction(() => {
+      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      if (current.publication_pending) throw new DatasetError("dataset.publication_pending", "请先恢复上次发布，再删除数据表");
+      this.db.prepare("DELETE FROM dataset_versions WHERE dataset_id = ?").run(id);
+      this.db.prepare("DELETE FROM datasets WHERE id = ?").run(id);
+    });
   }
 
-  delete(id: string, projectId?: string): void {
-    this.get(id, projectId);
-    this.db.prepare("DELETE FROM dataset_versions WHERE dataset_id = ?").run(id);
-    this.db.prepare("DELETE FROM datasets WHERE id = ?").run(id);
-  }
-
-  generateColumn(id: string, prompt: string, projectId?: string): DatasetRecord {
+  generateColumn(id: string, prompt: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const current = this.get(id, projectId);
     const name = prompt.trim() || `列 ${current.columns.length + 1}`;
     if (name.length > 80) throw new DatasetError("dataset.invalid", "列名须为 1 到 80 个字");
@@ -118,17 +118,19 @@ export class DatasetStore {
       type: "text",
       order: current.columns.length + 1,
     };
-    return this.update(id, { columns: [...current.columns, column] }, projectId);
+    return this.update(id, { columns: [...current.columns, column], expected_version: expectedVersion ?? current.version }, projectId);
   }
 
-  importCsv(id: string, csv: string, projectId?: string): DatasetRecord {
+  importCsv(id: string, csv: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const parsed = parseCsv(csv);
     if (parsed.columns.length === 0) throw new DatasetError("dataset.invalid", "CSV 至少要有表头");
-    return this.update(id, { columns: parsed.columns, rows: parsed.rows }, projectId);
+    return this.update(id, { columns: parsed.columns, rows: parsed.rows, expected_version: expectedVersion }, projectId);
   }
 
-  saveVersion(id: string, note?: string, projectId?: string): DatasetVersionRecord {
+  saveVersion(id: string, note?: string, projectId?: string, expectedVersion?: number): DatasetVersionRecord {
+    return this.transaction(() => {
     const snapshot = this.get(id, projectId);
+    this.assertVersion(snapshot, expectedVersion);
     const record: DatasetVersionRecord = {
       id: crypto.randomUUID(),
       dataset_id: id,
@@ -140,6 +142,7 @@ export class DatasetStore {
       "INSERT INTO dataset_versions (id, dataset_id, note, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?)",
     ).run(record.id, record.dataset_id, record.note, JSON.stringify(record.snapshot), record.created_at);
     return record;
+    });
   }
 
   listVersions(id: string, projectId?: string): DatasetVersionRecord[] {
@@ -156,7 +159,7 @@ export class DatasetStore {
     }));
   }
 
-  rollback(id: string, versionId: string, projectId?: string): DatasetRecord {
+  rollback(id: string, versionId: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const versions = this.listVersions(id, projectId);
     const target = versions.find((item) => item.id === versionId);
     if (!target) throw new DatasetError("dataset.not_found", "找不到这个版本");
@@ -165,7 +168,47 @@ export class DatasetStore {
       description: target.snapshot.description,
       columns: target.snapshot.columns,
       rows: target.snapshot.rows,
+      expected_version: expectedVersion,
     }, projectId);
+  }
+
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: DatasetPublicationSnapshot): DatasetPublicationIntent {
+    return this.transaction(() => {
+      const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
+      const pending = this.publicationIntent(id);
+      if (pending) {
+        if (pending.actor_id !== actorId) throw new DatasetError("dataset.publication_owner", "请由上次发布的发起者恢复，原快照已保留");
+        return pending;
+      }
+      const intent: DatasetPublicationIntent = { content: existing ?? { title: current.title, description: current.description, columns: current.columns, rows: current.rows },
+        version: current.artifact_version + 1, source_version: current.version, actor_id: actorId };
+      this.db.prepare("UPDATE datasets SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
+      return intent;
+    });
+  }
+
+  completePublication(id: string, projectId: string, intent: DatasetPublicationIntent, artifact: { artifact_id: string; version: number }): DatasetRecord {
+    return this.transaction(() => {
+      const current = this.get(id, projectId);
+      if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
+      if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw new DatasetError("dataset.publication_conflict", "发布记录已改变，请重新读取数据表");
+      this.db.prepare("UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
+        .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
+      return this.get(id, projectId);
+    });
+  }
+
+  private publicationIntent(id: string): DatasetPublicationIntent | null {
+    const row = this.db.prepare("SELECT publication_pending_json FROM datasets WHERE id = ?").get(id) as { publication_pending_json: string | null };
+    return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as DatasetPublicationIntent : null;
+  }
+  private assertVersion(current: DatasetRecord, expectedVersion?: number): void {
+    if (expectedVersion !== undefined && expectedVersion !== current.version) throw new DatasetError("dataset.conflict", "数据表已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
+  }
+  private transaction<T>(run: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE");
+    try { const result = run(); this.db.exec("COMMIT"); return result; }
+    catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
 
   private write(record: DatasetRecord, insert: boolean): void {
@@ -179,13 +222,14 @@ export class DatasetStore {
       );
       return;
     }
-    this.db.prepare(
-      "UPDATE datasets SET title = ?, description = ?, status = ?, columns_json = ?, rows_json = ?, updated_at = ?, version = ? WHERE id = ?",
+    const result = this.db.prepare(
+      "UPDATE datasets SET title = ?, description = ?, status = ?, columns_json = ?, rows_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
     ).run(
       record.title, record.description, record.status,
       JSON.stringify(record.columns), JSON.stringify(record.rows),
-      record.updated_at, record.version, record.id,
+      record.updated_at, record.version, record.id, record.version - 1,
     );
+    if (result.changes !== 1) throw new DatasetError("dataset.conflict", "数据表已改变，请重新读取后保存");
   }
 }
 
@@ -217,21 +261,21 @@ export function openDatasetStore(homeDirectory: string): DatasetStore {
   ensureSqliteColumn(db, "datasets", "project_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "datasets", "artifact_id", "TEXT NOT NULL DEFAULT ''");
   ensureSqliteColumn(db, "datasets", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
+  ensureSqliteColumn(db, "datasets", "publication_pending_json", "TEXT");
   return new DatasetStore(db);
 }
 
 export function parseCsv(text: string): { columns: DatasetColumn[]; rows: DatasetRow[] } {
-  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter((line) => line.trim().length > 0);
+  const lines = csvRecords(text);
   if (lines.length === 0) return { columns: [], rows: [] };
-  const headers = splitCsvLine(lines[0] ?? "");
+  const headers = lines[0]!;
   const columns = headers.map((name, index) => ({
     id: `col-${index + 1}`,
     name: name.trim() || `列 ${index + 1}`,
     type: "text" as DatasetColumnType,
     order: index + 1,
   }));
-  const rows = lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line);
+  const rows = lines.slice(1).map((cells) => {
     return {
       id: crypto.randomUUID(),
       cells: Object.fromEntries(columns.map((column, index) => [column.id, cells[index] ?? ""])),
@@ -267,33 +311,33 @@ function csvEscape(value: string): string {
   return value;
 }
 
-function splitCsvLine(line: string): string[] {
-  const cells: string[] = [];
-  let current = "";
-  let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    if (char === '"') {
-      if (quoted && line[index + 1] === '"') {
-        current += '"';
-        index += 1;
-        continue;
-      }
-      quoted = !quoted;
+function csvRecords(text: string): string[][] {
+  const records: string[][] = [];
+  let row: string[] = [], cell = "", quoted = false, closed = false, started = false;
+  const endRow = () => { if (started || row.length || cell) records.push([...row, cell]); row = []; cell = ""; closed = false; started = false; };
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!;
+    if (quoted) {
+      if (char !== '"') cell += char;
+      else if (text[i + 1] === '"') { cell += '"'; i++; }
+      else { quoted = false; closed = true; }
       continue;
     }
-    if (char === "," && !quoted) {
-      cells.push(current);
-      current = "";
-      continue;
+    if (char === ",") { row.push(cell); cell = ""; closed = false; started = true; }
+    else if (char === "\n" || char === "\r") { if (char === "\r" && text[i + 1] === "\n") i++; endRow(); }
+    else if (char === '"' && cell === "" && !closed) { quoted = true; started = true; }
+    else {
+      if (closed || char === '"') throw new DatasetError("dataset.invalid", "CSV 引号格式无效");
+      cell += char; started = true;
     }
-    current += char;
   }
-  cells.push(current);
-  return cells;
+  if (quoted) throw new DatasetError("dataset.invalid", "CSV 引号未闭合");
+  endRow();
+  return records;
 }
 
 function fromRow(row: DatasetRowDb): DatasetRecord {
+  const pending = row.publication_pending_json ? JSON.parse(row.publication_pending_json) as DatasetPublicationIntent : null;
   return {
     id: row.id,
     project_id: row.project_id ?? "",
@@ -307,6 +351,7 @@ function fromRow(row: DatasetRowDb): DatasetRecord {
     version: row.version,
     artifact_id: row.artifact_id ?? "",
     artifact_version: Number(row.artifact_version) || 0,
+    ...(pending ? { publication_pending: { version: pending.version, source_version: pending.source_version } } : {}),
   };
 }
 
@@ -328,18 +373,18 @@ function normalizeDescription(value: string): string {
   return value;
 }
 
-function normalizeColumns(value: readonly DatasetColumn[]): DatasetColumn[] {
+function normalizeColumns(value: readonly DatasetColumnInput[]): DatasetColumn[] {
   if (!Array.isArray(value)) throw new DatasetError("dataset.invalid", "列须是列表");
   if (value.length > 40) throw new DatasetError("dataset.invalid", "最多 40 列");
   return value.map((column, index) => ({
     id: column.id || crypto.randomUUID(),
     name: String(column.name ?? "").trim() || `列 ${index + 1}`,
-    type: COLUMN_TYPES.includes(column.type) ? column.type : "text",
+    type: column.type && COLUMN_TYPES.includes(column.type) ? column.type : "text",
     order: index + 1,
   }));
 }
 
-function normalizeRows(rows: readonly DatasetRow[], columns: readonly DatasetColumn[]): DatasetRow[] {
+function normalizeRows(rows: readonly DatasetRowInput[], columns: readonly DatasetColumn[]): DatasetRow[] {
   if (!Array.isArray(rows)) throw new DatasetError("dataset.invalid", "行须是列表");
   if (rows.length > 2000) throw new DatasetError("dataset.invalid", "最多 2000 行");
   return rows.map((row) => ({

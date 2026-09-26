@@ -77,7 +77,15 @@ function fixture(events: unknown[] = []) {
 test("compaction copies original Unicode and line endings, rejects invented or out-of-range coordinates", () => {
   assert.deepEqual(compactionSelection('{"selections":[{"record":0,"startPart":1,"endPart":2}]}', older), { excerpts: [{ record: 0, text: "未执行\r\n已批准 ≠ 已发生\n" }] });
   assert.deepEqual(compactionSelection('{"selections":[]}', older), { excerpts: [] });
-  for (const invalid of ['summary', '{}', '{"selections":[{"record":0,"startPart":0,"endPart":2}]}', '{"selections":[{"record":1,"startPart":1,"endPart":1}]}', '{"selections":[{"record":0,"startPart":1,"endPart":4}]}']) {
+  // MiniMax once picked part 1 of an empty record: there is nothing to keep, so that pick is dropped rather than failing the round.
+  assert.deepEqual(compactionSelection('{"selections":[{"record":1,"startPart":1,"endPart":1},{"record":0,"startPart":1,"endPart":1}]}', [...older, { role: "assistant", text: "" }]),
+    { excerpts: [{ record: 0, text: "未执行\r\n" }] });
+  // A fenced answer, or a line of prose before the object, still carries exactly one selection.
+  const pick = '{"selections":[{"record":0,"startPart":1,"endPart":1}]}', kept = { excerpts: [{ record: 0, text: "未执行\r\n" }] };
+  assert.deepEqual(compactionSelection("```json\n" + pick + "\n```", older), kept);
+  assert.deepEqual(compactionSelection("按要求保留第 1 段：\n" + pick, older), kept);
+  for (const invalid of ['summary', '{}', '{"selections":[{"record":0,"startPart":0,"endPart":2}]}', '{"selections":[{"record":1,"startPart":1,"endPart":1}]}', '{"selections":[{"record":0,"startPart":1,"endPart":4}]}',
+    "```json\n" + pick + "\n```\n```json\n" + pick + "\n```", "说明 " + pick + " 之后还有话"]) {
     assert.throws(() => compactionSelection(invalid, older));
   }
 });

@@ -32,7 +32,7 @@ export async function handleSessionAssociationHttp(context: WorkSessionHttpConte
         ? body.current_goal_id.trim()
         : null;
       const goalId = targetProjectId === projectOptions.project?.project_id ? requestedGoalId : null;
-      if (goalId && !hasCurrentGoal(goalId)) {
+      if (goalId && !await hasCurrentGoal(goalId)) {
         respond( 400, { error: "当前 Goal 不属于这个 Project，或已经不在当前 Goal Tree" });
         return true;
       }

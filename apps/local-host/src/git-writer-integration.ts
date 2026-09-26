@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitFileMode, type WriterIntegrationFile, type WriterIntegrationView } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -47,6 +49,29 @@ async function branch(root: string) {
   catch (error) { if ((error as { code?: number }).code === 1) return "detached"; throw error; }
 }
 
+/**
+ * Three-way merge of plain text. Conflicts come back marked for a person to resolve; nothing is guessed.
+ * diff3 style keeps each side of a conflict whole (with the original base between them): the default style trims lines
+ * both sides share out of the block, so "keep both" would silently drop a shared closing brace.
+ */
+async function mergeThreeWay(root: string, current: string, base: string, other: string): Promise<{ text: string; clean: boolean; conflicts: number }> {
+  const dir = await mkdtemp(path.join(tmpdir(), "molis-merge-"));
+  try {
+    const files = ["current", "base", "other"].map(name => path.join(dir, name));
+    await writeFile(files[0]!, current); await writeFile(files[1]!, base); await writeFile(files[2]!, other);
+    try {
+      const out = await git(root, ["merge-file", "-p", "--diff3", "-L", "主工作区", "-L", "原基线", "-L", "子任务", ...files], LIMIT * 4);
+      return { text: new TextDecoder("utf-8", { fatal: true }).decode(out), clean: true, conflicts: 0 };
+    } catch (error) {
+      // merge-file exits with the number of conflicts and still prints the marked result.
+      const code = (error as { code?: number }).code, stdout = (error as { stdout?: Buffer }).stdout;
+      if (typeof code === "number" && code > 0 && code < 128 && stdout) return { text: new TextDecoder("utf-8", { fatal: true }).decode(stdout), clean: false, conflicts: code };
+      throw error;
+    }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+const CONFLICT_MARKER = /^(<{7}|={7}|>{7}|\|{7})( |$)/m;
+
 /** A live read, not a historical child-run artifact. No filesystem write occurs here. */
 export async function readWriterIntegration(selection: WriterIntegrationSelection, current: Grants): Promise<WriterIntegrationView> {
   const grants = await current(), parent = grants.find(g => g.workspace_id === selection.workspace_id && g.realpath_verified), child = grants.find(g => g.workspace_id === selection.writer_workspace_id && g.realpath_verified);
@@ -70,7 +95,19 @@ export async function readWriterIntegration(selection: WriterIntegrationSelectio
       const index = (await git(parent.canonical_path, ["ls-files", "--stage", "-z", "--", name])).toString();
       const baseEntry = (await git(parent.canonical_path, ["ls-tree", "-z", tree.base_commit, "--", name])).toString().replace(/ blob ([a-f0-9]+)\t/, " $1 0\t");
       if (same(before, after)) throw new Error("主工作区已有相同内容，无需再次整合；这不证明旧操作曾经成功");
-      if (!same(before, base) || index !== baseEntry) throw new Error("主工作区或暂存区的同一路径已偏离原基线，请先处理冲突");
+      // A staged edit is the person's work in progress: never merged into, never overwritten; they settle it first.
+      if (index !== baseEntry) throw new Error("主工作区的暂存区里这个文件已有改动，与子任务成果冲突；请先提交或取消暂存后再整合");
+      if (!same(before, base)) {
+        // Both sides changed this path since the child started. Plain text gets a three-way merge a person can finish;
+        // it is never selectable as-is, so the child's version can't silently overwrite the main workspace's change.
+        if (before.text !== null && after.text !== null && before.mode === after.mode) {
+          const merged = await mergeThreeWay(parent.canonical_path, before.text, base.text ?? "", after.text);
+          file.conflict = { base_text: base.text, merged_text: merged.text, clean: merged.clean, markers: merged.conflicts };
+          file.revision = fingerprint([tree, head, parentBranch, child.canonical_path, parent.canonical_path, segments, base, before, after, index, "three-way"]);
+          throw new Error(merged.clean ? "主工作区在子任务开始后也改了这个文件；三方合并没有冲突，确认合并结果后可以整合" : `主工作区在子任务开始后也改了这个文件；三方合并有 ${merged.conflicts} 处冲突，请解决后再整合`);
+        }
+        throw new Error("主工作区的同一路径已偏离原基线（非文本或文件模式不同），请先处理冲突");
+      }
       file.revision = fingerprint([tree, head, parentBranch, child.canonical_path, parent.canonical_path, segments, base, before, after, index]);
       file.selectable = true;
     } catch (error) { file.reason = error instanceof Error ? error.message : "此项暂不可整合"; }
@@ -101,7 +138,7 @@ function patchFor(file: WriterIntegrationFile): string {
 }
 
 /** Only the original reviewed Effect may execute this prepared operation. */
-export async function prepareWriterIntegration(selection: WriterIntegrationSelection & { files: readonly { path: readonly string[]; revision: string }[] }, current: Grants) {
+export async function prepareWriterIntegration(selection: WriterIntegrationSelection & { files: readonly { path: readonly string[]; revision: string; resolution?: string }[] }, current: Grants) {
   selection = structuredClone(selection);
   if (!Array.isArray(selection.files) || !selection.files.length || selection.files.length > 1000) throw new Error("请选择要整合的文件");
   const names = selection.files.map(f => parseFilePath(f.path).join("/"));
@@ -110,6 +147,14 @@ export async function prepareWriterIntegration(selection: WriterIntegrationSelec
     const view = await readWriterIntegration(selection, current);
     const files = selection.files.map((selected, i) => {
       const file = view.files.find(f => f.path.join("/") === names[i]);
+      if (selected.resolution !== undefined) {
+        // A person's resolution of a conflict: bound to the exact three sides they merged, reviewed as the text to write.
+        if (!file?.conflict || !selected.revision || file.revision !== selected.revision) throw new Error("主工作区或子任务成果在合并后又变了，请重新合并");
+        if (typeof selected.resolution !== "string" || Buffer.byteLength(selected.resolution) > LIMIT) throw new Error("合并结果超过完整审查上限（256 KiB）");
+        if (CONFLICT_MARKER.test(selected.resolution)) throw new Error("合并结果里还有冲突标记，请先解决");
+        if (selected.resolution === file.before_text) throw new Error("合并结果与主工作区现在的内容相同，无需整合");
+        return { ...file, after_text: selected.resolution, after_mode: file.before_mode ?? file.after_mode };
+      }
       if (!file?.selectable || !selected.revision || file.revision !== selected.revision) throw new Error(file?.reason ?? "成果或主工作区已改变，请重新查看并审查");
       return file;
     });

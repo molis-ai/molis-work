@@ -6,6 +6,7 @@ commands.allow = [
   "shelf_hotkey_status",
   "shelf_apply_hotkeys",
   "shelf_drag_out",
+  "shelf_copy_files",
   "shelf_find_files",
   "shelf_admit_paths",
   "shelf_open_path",

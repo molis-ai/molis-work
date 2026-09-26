@@ -6,7 +6,9 @@
 
 ## 一次典型调用
 
-CapabilityRegistry.register 绑定定义与 handler，并返回注销函数；descriptors 提供已注册能力；invoke 根据定义找到处理器，将调用上下文和输入传入并返回输出。
+ActionService.registerProvider 注册同一提供方的合同、处理器与消费场景，并返回注销函数；discover 从底层唯一 CapabilityRegistry 派生授权目录。invoke 在实际派发前检查授权、提供方实例、可用性及输入输出合同。
+
+事务内的插件数据接口使用 invokeSync，处理器必须由可信注册方显式声明 `execution: "sync"`，与异步调用复用原记录和校验。它不等待 Promise：异步授权、未声明同步的处理器和意外 Promise 返回均被拒绝。此声明是处理器实现合同，Kernel 不为违反合同的处理器回滚已发生的副作用。Local Host 的同步端口只接收 plugin audience 的私有 SDK 动作；公共动作仍走异步调度，不能借同步端口绕过队列或异步策略。
 
 ## 从哪里读代码
 
@@ -20,7 +22,7 @@ CapabilityRegistry.register 绑定定义与 handler，并返回注销函数；de
 
 ## 接入与边界
 
-Registry 负责身份、重复注册和缺失能力错误。参数的业务校验、用户权限、事务和状态转换由 Host 与实际 handler 负责。
+Registry 负责身份、重复注册、生命周期及派发；ActionService 负责声明合同、权限、消费场景和通用输入输出校验。Host 提供可信上下文与实时策略，实际 handler 继续拥有业务校验、事务和状态转换。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 

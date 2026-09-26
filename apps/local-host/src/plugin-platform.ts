@@ -1,8 +1,9 @@
 import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
+  PluginDefinition,
   PluginManifest,
   PluginPrivateStorage,
-  PluginStartContext,
+  PluginUpgradeContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
@@ -13,15 +14,17 @@ import {
   PluginSupervisor,
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeRepository,
+  SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
   type PluginCapabilityPort,
   type PluginEventsDatabase,
   type PluginSupervisorEntry,
+  type PluginUpgradeCandidate,
   type PluginSupervisorReport,
   type PluginWiringDatabase,
 } from "@molis-ai/molis-work-plugin-runtime";
 
-import { PluginHostExecutor } from "./plugin-executor.js";
+import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -43,9 +46,13 @@ export interface PluginPlatformOptions {
   db: PluginPlatformDatabase;
   artifacts: ArtifactsApplicationApi;
   ui: UiHostApi;
-  privateStorageFor(context: PluginStartContext, manifest: PluginManifest): PluginPrivateStorage;
+  privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  capturePrivateData?(installId: string): Promise<unknown> | unknown;
+  restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** Capabilities the Host exposes to Plugins that declared consuming them. */
   capabilities?: PluginCapabilityPort;
+  /** Shared system registry plus the trusted project identity for this activation. */
+  actions: PluginHostExecutorOptions["actions"];
   /**
    * Opaque scope key stamped on every Plugin output in this project, so the
    * Host can tell two inputs belong to the same scope. Defaults to the board.
@@ -61,6 +68,9 @@ export interface PluginPlatform {
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
   start(entries: readonly PluginSupervisorEntry[]): Promise<PluginSupervisorReport>;
+  upgradeCandidates(): PluginUpgradeCandidate[];
+  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<ReturnType<PluginSupervisor["state"]>>;
+  rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
 }
 
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
@@ -68,11 +78,17 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     board_id: options.board_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
+    actions: options.actions,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
+    capturePrivateData: options.capturePrivateData,
+    restorePrivateData: options.restorePrivateData,
   });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(options.db), executor);
-  const supervisor = new PluginSupervisor(runtime);
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(options.db), executor,
+    { actions: options.actions });
+  const supervisor = new PluginSupervisor(runtime, {
+    releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
+  });
   const wiring = new PluginInputGraph({
     boardId: options.board_id,
     lifecycle: supervisor,
@@ -99,15 +115,19 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     void events.resume(options.board_id);
   });
 
-  let manifests: PluginManifest[] = [];
   return {
     runtime,
     supervisor,
     events,
     wiring,
-    router: () => new PluginRouteRouter(supervisor, manifests),
+    router: () => new PluginRouteRouter(supervisor, supervisor.states().flatMap(state => {
+      const manifest = supervisor.manifest(state.plugin_id);
+      return manifest ? [manifest] : [];
+    })),
+    upgradeCandidates: () => supervisor.upgradeCandidates(),
+    upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
+    rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
     async start(entries) {
-      manifests = entries.map((entry) => entry.definition.manifest);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();

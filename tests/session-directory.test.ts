@@ -224,6 +224,12 @@ test("project Session directory APIs discover, link, create, transfer, archive a
     assert.equal(transferred.status, 200, await transferred.clone().text());
     listed = await (await fetch(`${origin}${prefixA}/api/sessions`)).json() as { sessions: Array<{ session_id: string; status: string }> };
     assert.equal(listed.sessions.some((item) => item.session_id === sessionId), false);
+    const disabled = await fetch(`${origin}${prefixB}/api/sessions`);
+    assert.equal(disabled.status, 404);
+    assert.equal((await disabled.json() as { code: string }).code, "actions.plugin_disabled");
+    const enabledCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    try { enabledCatalog.addProjectPlugin({ project_id: second.project_id, plugin_id: "sessions", actor_id: "user" }); }
+    finally { enabledCatalog.close(); }
     const secondListed = await (await fetch(`${origin}${prefixB}/api/sessions`)).json() as { sessions: Array<{ session_id: string }> };
     assert.equal(secondListed.sessions.some((item) => item.session_id === sessionId), true);
   } finally {

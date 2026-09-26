@@ -10,6 +10,8 @@ export const packageDescriptor = {
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+export { workActions, WORK_ACTION_PERMISSIONS, createWorkActionHandlers, publicWorkSessionSchema } from "./actions.js";
+export type { WorkSessionDirectory, PublicWorkSession, PublicSessionContent, WorkSessionActionResources } from "./actions.js";
 export { handleWorkSessionHttp } from "./http/index.js";
 export { handleWorkPanelHttp, type WorkPanelHttpContext } from "./http/panels.js";
 export { publicSessionRecord, publicSessionHandoff } from "./http/public-records.js";
@@ -32,3 +34,5 @@ export { PROJECT_OPERATIONS_STYLES } from "./ui/styles.js";
 export { PROJECT_OPERATIONS_CLIENT_SCRIPT } from "./ui/browser.js";
 export type { WorkUiModel, WorkUiSurface, ProjectOperationsProject, ProjectOperationsSlice, ProjectOperationsData, ProjectSessionRecord, ProjectWorkspaceRecord } from "./ui/types.js";
 export { WORK_PLUGIN_ID, WORK_PROJECT_PLUGIN_ID, workManifest } from "./manifest.js";
+
+export { SessionMessageService } from "./messages.js";

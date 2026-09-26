@@ -13,12 +13,17 @@ export type { AlchemistUiModel, AlchemistUiPrimitives, AlchemistUiSurface } from
 export { ALCHEMIST_STYLES } from "./styles.js";
 export { ALCHEMIST_EN } from "./en.js";
 export { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "./client.js";
-export { ALCHEMIST_NATIVE_PLUGIN_ROUTES, AlchemistPluginRouteTable } from "./routes.js";
-export type { AlchemistPluginRouteHandler, AlchemistPluginRouteRequest, AlchemistPluginRouteResponse } from "./routes.js";
-export { createAlchemistRouteHandlers, alchemistRouteErrorResponse } from "./route-handlers.js";
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest } from "./manifest.js";
-export { openAlchemistStore, AlchemistStore, demoIdeaCards } from "./store.js";
+export { openAlchemistStore, AlchemistStore } from "./store.js";
 export { AlchemistError } from "./error.js";
 export { createLocalRuntime as createAlchemistStudioRuntime } from "./studio/server/bootstrap/local-runtime.js";
 export type { LocalRuntime as AlchemistStudioRuntime } from "./studio/server/bootstrap/local-runtime.js";
 export type { AlchemistAiPort } from "./studio/server/runtime/host-port.js";
+export { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS } from "./studio/shared/contracts/actions.js";
+export { createAlchemistActionHandlers, AlchemistOperationError } from "./studio/server/services/action-operations.js";
+export type { AlchemistActionInvoker } from "./studio/server/services/action-operations.js";
+export { alchemistLegacyActions, createAlchemistLegacyActionHandlers } from "./legacy-actions.js";
+export { createApp as createAlchemistHttpApp } from "./studio/server/app.js";
+
+export type { WorkReuseHostPort, ReuseSelection, ReuseSnapshot, ReuseCandidates, ReuseReceipt } from "./work-reuse/contracts.js";
+export { WorkReuseService, artifactReuseKey } from "./work-reuse/service.js";

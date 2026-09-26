@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -8,7 +9,7 @@ import { LocalProjectDatabase, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurfac
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
 
@@ -24,15 +25,15 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     frozen: { role_id: role, role_version: 1, execution: role === "planner" ? "read-only" : "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: ["read-file"], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true } },
     usage: { tokens: { input: 0, output: 0 } },
   } as unknown as AgentRunView);
-  const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify(content)), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
+  const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify({ ...content, blockers: "无" })), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
   runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
-  const host = () => ({ store, homeDirectory: home, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: home, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
-      if (definition.capability_id === projectsCapabilities.listWorkspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
+      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
       if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
@@ -62,7 +63,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     for (const run_id of ["malformed", "ordinary", "foreign", "ambiguous", "ambiguous-prose", "trailing"]) assert.equal((await request("/plan", "POST", { run_id, expected_revision: 0 })).status, 400);
     assert.equal((await request("/plan", "POST", { run_id: "proposal", expected_revision: 0 }, "other")).status, 400);
     let response = await request("/plan", "POST", { run_id: "proposal", expected_revision: 0, content: { title: "伪造" } });
-    assert.equal(response.status, 200, JSON.stringify(response.body));assert.deepEqual(response.body.plan.content, content);
+    assert.equal(response.status, 200, JSON.stringify(response.body));assert.deepEqual(response.body.plan.content, content, "a blocker written as 无 means none, so the plan can be confirmed");
     assert.equal((await request("/plan", "POST", { run_id: "proposal", expected_revision: 0 })).status, 400);
     assert.equal((await start()).status, 400, "draft is not executable");
     assert.equal((await request("/plan/confirm", "POST", { expected_revision: 0 })).status, 400);
@@ -117,6 +118,17 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const lost=(await request()).body.taskboard_plans.at(-1);
     assert.equal(lost.run_id,"lost-plan");assert.equal(lost.revision,999);assert.equal(lost.plan,null);assert.match(lost.error,/不能替代/);
     assert.equal((await request()).body.taskboard_plans.length,3,"foreign plan references do not expose another session's plan");
+    const whole=(await request("/taskboard")).body;
+    assert.equal(whole.runs.length,runs.length,"the whole session's TaskBoard lists every round");assert.ok(whole.runs.every((run:any)=>run.light&&run.frozen.directory.canonical_path));
+    assert.deepEqual(whole.taskboard_plans.map((entry:any)=>entry.run_id),(await request()).body.taskboard_plans.map((entry:any)=>entry.run_id),"only rounds that ran a plan are read in full, and none is missed");
+    runs.push(makeRun("labelled","reader","[retained assistant run:3-8qod6]\n结论：边界已核对。"));
+    const labelled=(await request()).body.runs.find((run:any)=>run.ref.run_id==="labelled").turns.find((turn:any)=>turn.kind==="assistant");
+    assert.doesNotMatch(labelled.html,/retained/,"the SDK's compaction label a model copied is not shown to the person");assert.match(labelled.html,/边界已核对/);
+    assert.match(labelled.text,/^\[retained assistant/,"the answer as the model wrote it is kept");
+    // The newer labels, several in a row, go too; a bracket later in the answer is the answer's own and stays.
+    runs.push(makeRun("stacked","reader","[retained current assistant run:4-1ab] [historical assistant run:2-9cd]\n[retained tool-result call:7]\n结论：见 [附注] 一节。"));
+    const stacked=(await request()).body.runs.find((run:any)=>run.ref.run_id==="stacked").turns.find((turn:any)=>turn.kind==="assistant");
+    assert.doesNotMatch(stacked.html,/retained|historical/);assert.match(stacked.html,/结论：见 \[附注\] 一节/);
     assert.equal((await request("", "GET", undefined, "other")).body.taskboard_plans.length,0);
     assert.equal(starts[0].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
     assert.notEqual(starts[1].text_materials![0].source_artifact_id, fixed.confirmed.artifact_id);
@@ -133,6 +145,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     const acceptedReport = await request("/runs/execute-1/report");
     assert.equal(acceptedReport.status, 200, JSON.stringify(acceptedReport.body));
     assert.match(acceptedReport.body.report.body_markdown, /用户已通过此步骤/);
+    assert.match(acceptedReport.body.report.title, new RegExp(`· 第 ${runs.findIndex(run=>run.ref.run_id==="execute-1")+1} 轮 · 执行报告$`), "reports of one session are told apart by their round");
     assert.equal((await request(stepPath,"POST",evaluation)).status,400,"stale assessment never overwrites the original");
     assert.equal((await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"",expected_revision:1})).status,400);
     response=await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"还需核对负数输入",expected_revision:1});assert.equal(response.status,200,JSON.stringify(response.body));

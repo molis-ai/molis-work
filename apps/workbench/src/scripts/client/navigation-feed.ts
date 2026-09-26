@@ -1,7 +1,9 @@
+import { FEED_RULE_AUTHORING_SCRIPT } from "./feed-rule-authoring.js";
 import { OWN_DIRECTORY_SURFACES, pluginTabTitles } from "../../plugin-catalog.js";
 
 /** AP3 Workbench client segment: navigation-feed. */
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
+${FEED_RULE_AUTHORING_SCRIPT}
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
     const PLUGIN_TAB_TITLES = ${JSON.stringify({ goal: "Goals", sources: "Feed", ...pluginTabTitles() })};
     const directoryPanelFor = (directory) => directory;
@@ -287,13 +289,6 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       });
       root?.querySelectorAll("[data-source-action-status]").forEach(status => status.hidden = true);
     };
-    feedSourcesDialog?.addEventListener("close", () => {
-      const config = feedSourcesDialog.querySelector("[data-feed-task-config]:not([hidden])");
-      if (config) resetFeedFields(config);
-    });
-    feedSourcesDialog?.addEventListener("cancel", (event) => {
-      if (feedSourcesDialog.getAttribute("aria-busy") === "true" || feedSourcesDialog.querySelector('[data-feed-add-form][aria-busy="true"]')) event.preventDefault();
-    });
     const resetFeedAddDraft = () => {
       const draft = feedSourcesDialog.querySelector("[data-feed-add-form]");
       draft.reset();
@@ -307,6 +302,39 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       create.textContent = L("创建任务");
       feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = false;
     };
+    const loadFeedConnections = async (detail) => {
+      const region = detail?.querySelector("[data-feed-connection-service]");
+      if (!region || region.dataset.loading === "true") return;
+      const select = region.querySelector('[data-source-config-field="connection_id"]');
+      const status = region.querySelector('[data-feed-connection-status]');
+      const initial = [...select.options].find(option => option.defaultSelected)?.value || "";
+      const selected = select.value;
+      region.dataset.loading = "true"; select.disabled = true;
+      try {
+        const response = await fetch("/api/settings/connectors/connections?service_id=" + encodeURIComponent(region.dataset.feedConnectionService));
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || L("无法读取账号连接，请重试。"));
+        const options = result.connections.map(connection => {
+          const option = document.createElement("option");
+          option.value = connection.connection_id;
+          const state = connection.state === "connected" ? L("可用") : connection.state === "reauth_required" ? L("需要重新授权") : L("已断开");
+          option.textContent = (connection.account_label || connection.display_name) + " · " + connection.auth_method + " · " + state;
+          option.defaultSelected = connection.connection_id === initial;
+          return option;
+        });
+        if (!options.some(option => option.value === selected)) {
+          const placeholder = document.createElement("option"); placeholder.value = selected; placeholder.defaultSelected = selected === initial;
+          placeholder.textContent = selected ? L("原连接已不可用，请重新选择或前往 Connectors") : L("请选择账号连接");
+          placeholder.disabled = true; options.unshift(placeholder);
+        }
+        select.replaceChildren(...options); select.value = selected;
+        select.disabled = !result.connections.length;
+        status.textContent = L(result.connections.length ? "更换账号会创建独立来源并暂停旧来源，原消息会保留。" : "还没有账号连接，请先在 Connectors 添加。" );
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      } catch (error) { status.textContent = error.message || L("无法读取账号连接，请重试。"); }
+      finally { delete region.dataset.loading; }
+    };
+
     const showFeedSetup = (stage = "choose", value = "") => {
       if (feedSourcesDialog?.getAttribute("aria-busy") === "true") return;
       if (!feedSourcesDialog) return;
@@ -317,16 +345,16 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       if (stage === "choose" && draft?.dataset.createdSourceId) { stage = "setup"; value = feedSourcesDialog.querySelector("[data-feed-source-register]").dataset.feedSourceRegister; }
       const setup = stage === "setup";
       const configSave = feedSourcesDialog.querySelector("[data-feed-config-submit]");
-      configSave.hidden = stage !== "config";
+      configSave.hidden = stage !== "config" || feedConfigView === "rules";
       configSave.dataset.sourceId = value;
       configSave.disabled = feedSourcesDialog.querySelector('[data-feed-task-config="' + CSS.escape(value) + '"]')?.dataset.prototype === "true";
 
       const headings = { research_library: "共享研究库", custom_rss: "RSS / Atom", rss: "目录订阅", web_query: "网页搜索", youtube_channel: "YouTube", github: "GitHub", gmail: "Gmail" };
-      const title = stage === "config" ? "任务配置" : setup ? headings[value] : "添加任务";
+      const title = stage === "config" ? (feedConfigView === "rules" ? "捕捉规则" : "来源设置") : setup ? headings[value] : "添加来源";
       feedSourcesDialog.querySelector("h2").textContent = L(title);
-      feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L("取消");
+      feedSourcesDialog.querySelector('footer [data-feed-sources-close]').textContent = L(stage === "config" && feedConfigView === "rules" ? "返回消息" : "取消");
       const description = feedSourcesDialog.querySelector("[data-feed-setup-description]");
-      description.textContent = L(stage === "choose" ? "选一种来源。" : setup ? "填完后会出现在 Feed 目录。" : "范围、计划和捕捉规则。");
+      description.textContent = L(stage === "choose" ? "选择你想关注的内容来源。" : setup ? "添加后可设置拉取计划与捕捉规则。" : feedConfigView === "rules" ? "在这里写规则、预览，再决定哪些消息进入 Inbox。" : "管理来源内容、拉取频率和连接状态。");
       for (const [selector, visible] of [["[data-feed-source-choices]", stage === "choose"], ["[data-feed-source-setup]", setup], ["[data-feed-task-configs]", stage === "config"]]) feedSourcesDialog.querySelector(selector).hidden = !visible;
       feedSourcesDialog.querySelectorAll("[data-feed-task-config]").forEach(panel => panel.hidden = panel.dataset.feedTaskConfig !== value);
       feedSourcesDialog.querySelectorAll("[data-feed-setup-kind]").forEach(panel => {
@@ -340,46 +368,59 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       create.hidden = form.hidden;
       if (!form.hidden) create.dataset.feedSourceRegister = value;
       setFeedSourceFeedback("");
-      if (!feedSourcesDialog.open) feedSourcesDialog.showModal();
+      hydrateFeedRuleDrafts();
+      if (stage === "config" && feedConfigView === "settings") void loadFeedConnections(feedSourcesDialog.querySelector('[data-feed-task-config]:not([hidden])'));
+      feedSourcesDialog.hidden = false;
+      feedWorkbench.dataset.feedView = stage === "config" ? feedConfigView : "add";
+      feedWorkbench.dataset.railOpen = "false";
+      feedSourcesDialog.querySelectorAll("[data-feed-config-section]").forEach(section => section.hidden = section.dataset.feedConfigSection !== feedConfigView);
+      document.querySelectorAll("button[data-feed-view]").forEach(button => { if (button.dataset.feedView === feedWorkbench.dataset.feedView) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); });
       (feedSourcesDialog.querySelector('[data-feed-source-setup]:not([hidden]) [data-feed-setup-kind]:not([hidden]) input') || feedSourcesDialog.querySelector('section:not([hidden]) button'))?.focus();
     };
+    let feedConfigView = "settings";
     const setFeedAddOpen = (open) => {
-      if (open) showFeedSetup(); else feedSourcesDialog?.close();
+      if (open) showFeedSetup();
+      else {
+        if (feedSourcesDialog) feedSourcesDialog.hidden = true;
+        if (feedWorkbench) feedWorkbench.dataset.feedView = "messages";
+        document.querySelectorAll("button[data-feed-view]").forEach(button => { if (button.dataset.feedView === "messages") button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current"); });
+      }
     };
-    const saveFeedAddOutRule = async (form, sourceId) => {
-      if (!form || form.dataset.createdOutRuleId) return;
-      const contains = String(form.querySelector("[data-feed-add-out-rule-contains]")?.value || "").trim();
-      const name = String(form.querySelector("[data-feed-add-out-rule-name]")?.value || "").trim();
-      const functionKey = String(form.querySelector("[data-feed-add-out-rule-function-key]")?.value || "").trim();
-      if (!contains && !name) return;
-      const result = await feedApi("/api/feed/out-rules", "POST", { name: name || contains, contains, source_id: sourceId, admission: form.querySelector("[data-feed-add-out-rule-admission]")?.value || "suggest", ...(functionKey ? { function_key: functionKey } : {}) });
-      form.dataset.createdOutRuleId = result.rule.rule_id;
+    const showFeedView = (view) => {
+      if (view === "messages") { setFeedAddOpen(false); return; }
+      feedConfigView = view;
+      showFeedSetup("config", selectedFeedTask);
     };
-
     const setFeedTask = (taskId, persist = true) => {
-      const available = document.querySelector('[data-feed-task="' + CSS.escape(taskId || "") + '"]');
+      const available = document.querySelector('[data-feed-source-rail] [data-feed-task="' + CSS.escape(taskId || "") + '"]');
       const next = available ? taskId : "all";
+      const changed = selectedFeedTask !== next;
       selectedFeedTask = next;
-      document.querySelectorAll("[data-feed-task]").forEach((task) => {
-        const selected = task.dataset.feedTask === next;
-        if (task.matches("details")) {
-          const summary = task.querySelector(":scope > summary");
-          if (selected) {
-            task.open = true;
-            summary?.setAttribute("aria-current", "page");
-            task.scrollIntoView({ block: "nearest" });
-          } else summary?.removeAttribute("aria-current");
-          return;
-        }
-        const button = task.querySelector("[data-feed-task-toggle]");
-        button?.classList.toggle("is-selected", selected);
-        if (selected) button?.setAttribute("aria-current", "page"); else button?.removeAttribute("aria-current");
+      document.querySelectorAll("[data-feed-source-rail] [data-feed-task]").forEach(button => {
+        const selected = button.dataset.feedTask === next;
+        button.classList.toggle("is-selected", selected);
+        if (selected) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
       });
       const title = document.querySelector("[data-feed-task-title]");
-      if (title) title.textContent = available?.querySelector("strong")?.textContent || L("全部");
-      if (persist) document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: next } }));
+      const summary = document.querySelector("[data-feed-task-summary]");
+      if (title) title.textContent = available?.querySelector("strong")?.textContent || L("全部消息");
+      if (summary) summary.textContent = available?.dataset.feedSourceSummary || L("所有来源的最新内容");
+      const isSource = next !== "all" && next !== "other";
+      document.querySelectorAll('button[data-feed-view]:not([data-feed-view="messages"])').forEach(button => button.hidden = !isSource);
+      const sync = document.querySelector("[data-feed-current-sync]");
+      if (sync) { sync.hidden = !isSource; sync.dataset.feedSourceSync = next; sync.disabled = available?.dataset.feedSourceCanSync !== "true" || available?.dataset.feedSourceState === "syncing"; }
+      if (feedWorkbench) { feedWorkbench.dataset.selectedSource = next; feedWorkbench.dataset.railOpen = "false"; feedWorkbench.querySelector("[data-feed-rail-toggle]")?.setAttribute("aria-expanded", "false"); }
+      if (changed) { collapseFeedStage(); setFeedAddOpen(false); }
+      document.querySelectorAll("[data-feed-stage-group]").forEach(group => { if (group.dataset.feedStageGroup === next) group.open = true; });
+      filterFeedItems(true, false);
+      rememberFeedPresetState();
+      if (persist) { document.dispatchEvent(new CustomEvent("workbench-feed-task", { detail: { taskId: next } })); queueSave(); }
       return true;
     };
+
+    document.addEventListener('workbench-open-group', event => {
+      if (event.detail?.surface === 'feed' && typeof event.detail.id === 'string') setFeedTask(event.detail.id);
+    });
 
     const setFeedDetailPlaceholder = (title, copy, retry = false) => {
       if (!feedDetailEmpty) return;
@@ -462,20 +503,28 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const nextWorkspace = template.content.querySelector("[data-feed-stage-workspace]");
         if (!list || !workspace || !empty || !nextList || !nextWorkspace) throw new Error(L("无法更新 Feed 列表"));
         list.replaceChildren(...nextList.childNodes);
+        const rail = feedWorkbench?.querySelector("[data-feed-source-rail]");
+        const nextRail = template.content.querySelector("[data-feed-source-rail]");
+        if (rail && nextRail) rail.replaceChildren(...nextRail.childNodes);
         const configs = feedSourcesDialog?.querySelector("[data-feed-task-configs]");
         const nextConfigs = template.content.querySelector("[data-feed-task-configs]");
         if (configs && nextConfigs) {
           const visibleId = configs.querySelector("[data-feed-task-config]:not([hidden])")?.dataset.feedTaskConfig;
           const openSections = [...configs.querySelectorAll('details[open]')].map(detail => [detail.closest('[data-feed-task-config]')?.dataset.feedTaskConfig, detail.querySelector('summary')?.textContent]);
-          const drafts = [...configs.querySelectorAll('input[data-source-config-field], textarea[data-source-config-field]')].filter(field => field.value !== field.defaultValue).map(field => ({ id: field.closest('[data-feed-task-config]')?.dataset.feedTaskConfig, name: field.dataset.sourceConfigField, value: field.value }));
+          const drafts = [...configs.querySelectorAll('input, textarea, select')].filter(field => field.tagName === 'SELECT' ? [...field.options].some(option => option.selected !== option.defaultSelected) : field.type === 'checkbox' ? field.checked !== field.defaultChecked : field.value !== field.defaultValue).map(field => ({ id: field.closest('[data-feed-task-config]')?.dataset.feedTaskConfig, attr: [...field.attributes].find(attr => attr.name.startsWith('data-'))?.name, attrValue: [...field.attributes].find(attr => attr.name.startsWith('data-'))?.value || '', value: field.value, checked: field.checked }));
+          for (const old of configs.querySelectorAll('[data-feed-task-config]')) {
+            const replacement = nextConfigs.querySelector('[data-feed-task-config="' + CSS.escape(old.dataset.feedTaskConfig) + '"] [data-feed-rule-composer]');
+            const composer = old.querySelector('[data-feed-rule-composer]');
+            if (replacement && composer) { replacement.closest("[data-feed-out-rules]").dataset.ruleMode = composer.closest("[data-feed-out-rules]").dataset.ruleMode || "keyword"; replacement.replaceWith(composer); }
+          }
           configs.replaceChildren(...nextConfigs.childNodes);
           configs.querySelectorAll('[data-feed-task-config]').forEach(config => {
             config.hidden = config.dataset.feedTaskConfig !== visibleId;
             config.querySelectorAll('details').forEach(detail => { detail.open = openSections.some(([id, label]) => id === config.dataset.feedTaskConfig && label === detail.querySelector('summary')?.textContent); });
           });
           for (const draft of drafts) {
-            const field = configs.querySelector('[data-feed-task-config="' + CSS.escape(draft.id) + '"] [data-source-config-field="' + CSS.escape(draft.name) + '"]');
-            if (field) field.value = draft.value;
+            const field = configs.querySelector('[data-feed-task-config="' + CSS.escape(draft.id) + '"] [' + draft.attr + '="' + CSS.escape(draft.attrValue) + '"]');
+            if (field) { field.value = draft.value; if (field.type === "checkbox") field.checked = draft.checked; }
           }
         }
         workspace.querySelectorAll("[data-feed-entry-detail], [data-feed-detail]").forEach((node) => {
@@ -488,12 +537,15 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
           feedWorkbench.dataset.loaded = "true";
           feedWorkbench.dataset.loadedPreset = activeFeedPreset;
         }
-        filterFeedItems(true, false);
+        setFeedTask(selectedFeedTask, false);
+        feedSourcesDialog?.querySelectorAll("[data-feed-config-section]").forEach(section => section.hidden = section.dataset.feedConfigSection !== feedConfigView);
+        if (!feedSourcesDialog?.hidden && feedConfigView === "rules") hydrateFeedRuleDrafts();
+        if (!feedSourcesDialog?.hidden && feedConfigView === "settings") void loadFeedConnections(feedSourcesDialog.querySelector('[data-feed-task-config]:not([hidden])'));
         if (selectedId) selectFeedItem(selectedId, false, false, false);
         list.scrollTop = scrollTop;
         return true;
       } catch {
-        if (seq === feedStageRefreshSeq) location.reload();
+        if (seq === feedStageRefreshSeq) showToast(L("列表更新失败，当前输入已保留，请重试。"));
         return false;
       }
     };
@@ -667,7 +719,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
       const presetRows = rows.filter((row) => row.dataset.feedEntryType === type);
       const matchesRow = (row) => {
         const matchesType = type === "all" || row.dataset.feedEntryType === type;
-        const matchesSource = source === "all" || row.dataset.feedEntrySource === source;
+        const matchesSource = (selectedFeedTask === "all" || row.dataset.feedEntrySourceId === selectedFeedTask) && (source === "all" || row.dataset.feedEntrySource === source);
         const matchesProvider = providerType === "all" || row.dataset.feedEntryProvider === providerType;
         const occurredAt = Date.parse(row.dataset.feedEntryTime || "");
         const age = Number.isFinite(occurredAt) ? Date.now() - occurredAt : Number.POSITIVE_INFINITY;
@@ -702,7 +754,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         }
         const filtersIdle = source === "all" && providerType === "all" && time === "all" && !query && (status === "active" || status === "all");
         const configured = group.dataset.feedStageGroup !== "other";
-        group.hidden = groupVisible.length === 0 && !(configured && filtersIdle);
+        group.hidden = (selectedFeedTask !== "all" && group.dataset.feedStageGroup !== selectedFeedTask) || (groupVisible.length === 0 && !(configured && filtersIdle));
         const count = group.querySelector("[data-feed-stage-group-count]");
         if (count) count.textContent = String(groupVisible.length);
         const empty = group.querySelector("[data-feed-stage-group-empty]");
@@ -714,7 +766,7 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         });
         visible.push(...groupVisible);
       }
-      if (feedResultCount) feedResultCount.textContent = L("{count} 个 Item", { count: visible.length });
+      if (feedResultCount) feedResultCount.textContent = L("{count} 条消息", { count: visible.length });
       const filteredEmpty = visible.length === 0 && presetRows.length > 0;
       const liveEmpty = list.querySelector("[data-feed-empty]") || feedEmpty;
       if (liveEmpty) {
@@ -722,10 +774,10 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const clearFilters = liveEmpty.querySelector("[data-feed-clear-filters]");
         const addTask = liveEmpty.querySelector("[data-feed-add-toggle]");
         if (emptyTitle) emptyTitle.textContent = filteredEmpty
-          ? L("没有符合当前条件的 Item")
+          ? L("没有符合当前条件的消息")
           : groups.length
-            ? L("这里还没有 Item")
-            : L("还没有拉取任务");
+            ? L("还没有消息，拉取后会出现在这里")
+            : L("添加一个来源，开始收集消息");
         if (clearFilters) clearFilters.hidden = !filteredEmpty;
         if (addTask) addTask.hidden = filteredEmpty;
         liveEmpty.hidden = visible.length > 0 || groups.some((group) => !group.hidden);
@@ -851,6 +903,18 @@ export const CLIENT_NAVIGATION_FEED_SCRIPT = `
         const copy = option.querySelector("span");
         if (copy) copy.textContent = label;
       });
+    };
+
+    const openRequestedFeedRule = () => {
+      const id = new URL(location.href).searchParams.get("feedRule");
+      if (!id) return;
+      const row = document.querySelector('[data-feed-out-rule-row="' + CSS.escape(id) + '"]');
+      const sourceId = row?.closest("[data-feed-out-rules]")?.dataset.feedOutRules;
+      if (!sourceId) { showToast(L("原捕捉规则不存在，可能已经删除。")); return; }
+      tabWorkspace?.openPlugin("feed");
+      setFeedTask(sourceId);
+      showFeedView("rules");
+      requestAnimationFrame(() => row.scrollIntoView({ block: "nearest", behavior: "instant" }));
     };
 
     const setFeedPreset = (preset, restoreSavedState = true) => {

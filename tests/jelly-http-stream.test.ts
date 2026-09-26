@@ -1,3 +1,6 @@
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
+import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer, type Server } from 'node:http';
@@ -9,9 +12,11 @@ import { openJellyStore } from '../plugins/native/jelly/src/store.js';
 import type { JellyAiPorts } from '../plugins/native/jelly/src/ai.js';
 async function fixture(t: {after(fn:()=>void|Promise<void>):void}, ports: JellyAiPorts = {}) {
   const home=mkdtempSync(join(tmpdir(),'jelly-http-'));
-  const server:Server=createServer((request,response)=>{void handleJellyNativePluginHttp(request,response,new URL(request.url!,'http://localhost'),home,ports).then(handled=>{if(!handled){response.writeHead(404);response.end();}}).catch(error=>{response.writeHead(500);response.end(error.message);});});
+  const host=new MolisWorkLocalHost({homeDirectory:home,completeText:ports.completeText??null});
+  const actions=(transport:object)=>bindActionClient(host.homeActionClient(),()=>({actor_id:'user',project_id:null,audience:'user',permissions:JELLY_ACTION_PERMISSIONS,...transport}));
+  const server:Server=createServer((request,response)=>{void handleJellyNativePluginHttp(request,response,new URL(request.url!,'http://localhost'),actions).then(handled=>{if(!handled){response.writeHead(404);response.end();}}).catch(error=>{response.writeHead(500);response.end(error.message);});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
-  t.after(async()=>{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
+  t.after(async()=>{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await host.close();rmSync(home,{recursive:true,force:true});});
   const address=server.address();assert.ok(address&&typeof address==='object');
   return {home,base:'http://127.0.0.1:'+address.port};
 }

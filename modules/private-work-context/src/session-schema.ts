@@ -7,7 +7,7 @@ import type {
 import { MolisWorkSessionError } from "./errors.js";
 
 export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
-export const SESSION_REGISTRY_SCHEMA_VERSION = 5;
+export const SESSION_REGISTRY_SCHEMA_VERSION = 6;
 
 function isOwnedSessionRegistry(owner: unknown): boolean {
   return owner === SESSION_REGISTRY_OWNER;
@@ -96,7 +96,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
       db.prepare("UPDATE session_meta SET value = ? WHERE key = 'schema_version'")
         .run("3");
     })();
-  } else if (version !== 3 && version !== 4 && version !== SESSION_REGISTRY_SCHEMA_VERSION) {
+  } else if (version !== 3 && version !== 4 && version !== 5 && version !== SESSION_REGISTRY_SCHEMA_VERSION) {
     throw new MolisWorkSessionError(
       "session.registry_reader_too_old",
       `Session Registry schema=${version}，当前 reader 支持 ${SESSION_REGISTRY_SCHEMA_VERSION}`,

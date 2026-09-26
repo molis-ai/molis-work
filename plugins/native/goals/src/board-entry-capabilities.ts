@@ -29,6 +29,7 @@ export interface ImportV3CapabilityInput {
 
 export const importV3Capability = {
   capability_id: "io.molis.work.local-host.board.import-v3",
+  host_only: true,
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<ImportV3CapabilityInput, V3ImportReport>;
@@ -61,6 +62,7 @@ export const trashedGoalsCapability = {
 
 export const initializeBoardCapability = {
   capability_id: "io.molis.work.local-host.board.initialize",
+  host_only: true,
   version: 1,
   operation: "command",
 } as HostCapabilityDefinition<InitializeBoardInput, InitializeBoardOutput>;

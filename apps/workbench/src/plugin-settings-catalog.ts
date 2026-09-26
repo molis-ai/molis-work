@@ -8,13 +8,17 @@ export interface PluginSettingsNavItem {
   readonly contribution_id: string;
   readonly plugin_id: string;
   readonly label: string;
-  readonly icon: "library" | "sparkles" | "settings" | "workflow";
+  readonly icon: "library" | "sparkles" | "settings" | "workflow" | "code" | "note" | "clipboard" | "database" | "image";
 }
 
 const PLUGIN_SETTINGS_ICONS: Readonly<Record<string, PluginSettingsNavItem["icon"]>> = {
   shelf: "library",
-  functions: "sparkles",
   planning: "workflow",
+  "coding-settings": "code",
+  pages: "note",
+  form: "clipboard",
+  dataset: "database",
+  ppt: "image",
 };
 
 export function pluginSettingsNavItemsFrom(

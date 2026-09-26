@@ -68,15 +68,19 @@ test("供应商状态分清「没填密钥」「关掉了」「没启用模型�
   assert.equal(providerHealth(provider(), false).detail, "还没有填 API Key");
 });
 
-test("设置页从不渲染 API Key，只说有没有", () => {
+test("模型设置只选择连接，不渲染密钥，并保留失效引用", () => {
   const withKey = renderModelSettingsDocument({
     providers: [provider()],
     health: [providerHealth(provider(), true)],
     selected_provider_id: "minimax",
+    connections: [{ connection_id: "saved-model-account", service_id: "model-api", display_name: "已保存账号", auth_method: "token", source: "managed", state: "connected", account_label: null }],
+    selected_connection_ids: { minimax: "saved-model-account" },
     primitives: p,
   });
-  assert.match(withKey, /type="password"/);
-  assert.match(withKey, /已保存，留空则不改动/);
+  assert.doesNotMatch(withKey, /type="password"/);
+  assert.match(withKey, /data-model-connection/);
+  assert.match(withKey, /value="saved-model-account" selected>已保存账号/);
+  assert.match(withKey, /在 Connectors 管理 API Key/);
 
   const withoutKey = renderModelSettingsDocument({
     providers: [provider()],
@@ -84,7 +88,14 @@ test("设置页从不渲染 API Key，只说有没有", () => {
     selected_provider_id: "minimax",
     primitives: p,
   });
-  assert.match(withoutKey, /还没有填 API Key，这个供应商用不了/);
+  assert.match(withoutKey, /请选择一条已保存的连接/);
+  const unavailable = renderModelSettingsDocument({ providers: [provider()], health: [providerHealth(provider(), false)],
+    selected_provider_id: "minimax", primitives: p, selected_connection_ids: { minimax: "disconnected-account" },
+    connections: [{ connection_id: "disconnected-account", service_id: "model-api", display_name: "原有账号", auth_method: "token", source: "managed", state: "disconnected", account_label: null }] });
+  assert.match(unavailable, /value="disconnected-account" selected disabled>原有账号 · 连接不可用/);
+  const missing = renderModelSettingsDocument({ providers: [provider()], health: [], selected_provider_id: "minimax", primitives: p,
+    selected_connection_ids: { minimax: "missing-account" } });
+  assert.match(missing, /value="missing-account" selected disabled>原连接已不可用，请重新选择/);
   // 两种情况下都不该出现任何像密钥的 value
   for (const html of [withKey, withoutKey]) {
     assert.doesNotMatch(html, /data-model-api-key="[^"]*"\s+value=/, "密钥字段不能带 value");

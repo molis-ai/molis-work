@@ -6,6 +6,8 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
   const messages = JSON.parse(form.dataset.importMessages || '{}');
   const prefix = form.dataset.routePrefix || '';
   const source = form.elements.source;
+  const account = form.elements.connection_id;
+  const connections = JSON.parse(form.dataset.importConnections || '[]');
   const url = form.elements.url;
   const file = form.elements.file;
   const title = form.elements.title;
@@ -30,6 +32,11 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
     form.querySelector('[data-import-help]').textContent = option.dataset.help;
     form.querySelector('[data-import-connection-status]').textContent = option.dataset.connected === 'true' ? messages.ready : messages.missing;
     const connector = source.value === 'google-docs' ? 'google-drive' : source.value;
+    account.disabled = local;
+    account.required = !local;
+    const candidates = connections.filter(row => row.service_id === connector && row.state === 'connected');
+    account.replaceChildren(new Option('选择连接', ''), ...candidates.map(row => new Option(row.display_name, row.connection_id)));
+    if (candidates.length === 1) account.value = candidates[0].connection_id;
     form.querySelector('[data-import-settings]').href = '/settings/connectors?connector=' + encodeURIComponent(connector);
     submit.textContent = messages.submit;
     clearError();
@@ -63,7 +70,7 @@ export const ARTIFACT_IMPORT_CLIENT_SCRIPT = String.raw`
         let parsed;
         try { parsed = new URL(url.value.trim()); } catch { throw new Error(messages.url); }
         if (parsed.protocol !== 'https:') throw new Error(messages.url);
-        input = { source: source.value, url: parsed.href };
+        input = { source: source.value, url: parsed.href, connection_id: account.value };
       }
       const body = JSON.stringify(input);
       // The HTTP gate accepts each key once. Stored document identity and content handle retries safely.

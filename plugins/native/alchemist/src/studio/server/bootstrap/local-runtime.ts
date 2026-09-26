@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Hono } from "hono";
 import { createApp } from "../app.js";
+import type { ApiDependencies } from "../api/dependencies.js";
+import { createAlchemistOperationExecutor, type AlchemistActionInvoker } from "../services/action-operations.js";
 import { SqliteActivityRepository } from "../db/activity-repository.js";
 import { SqliteCalibrationRepository } from "../db/calibration-repository.js";
 import { SqliteConversationRepository } from "../db/conversation-repository.js";
@@ -18,7 +21,7 @@ import { SqlitePulseRepository } from "../db/pulse-repository.js";
 import { SqliteResearchRepository } from "../db/research-repository.js";
 import { SqliteSettingsRepository } from "../db/settings-repository.js";
 import { createJobHandlers } from "../jobs/job-handlers.js";
-import { LocalWorker } from "../jobs/local-worker.js";
+import { LocalWorker, type JobHandler } from "../jobs/local-worker.js";
 import { SqliteJobRunner } from "../jobs/sqlite-job-runner.js";
 import { FixturePulseSource } from "../runtime/fixture-pulse-source.js";
 import { RuleBasedPulseSynthesizer } from "../runtime/pulse-synthesizer.js";
@@ -42,17 +45,25 @@ import { SafePublicHttpClient } from "../sources/http-source-client.js";
 import { ToolifySource } from "../sources/toolify-source.js";
 import { WatchaSource } from "../sources/watcha-source.js";
 
+import { WorkReuseService } from "../../../work-reuse/service.js";
+import type { WorkReuseHostPort } from "../../../work-reuse/contracts.js";
+
 export interface LocalRuntimeOptions {
+  workReuse?: WorkReuseHostPort;
   databasePath: string;
   ai: AlchemistAiPort;
   workerIntervalMs?: number;
   jobLeaseMs?: number;
   pulseSourceMode?: "live" | "fixture";
   localSecurity?: LocalSecurityOptions;
+  /** Production Host supplies its trusted Kernel client; standalone Studio uses the same plugin operations. */
+  actions?: AlchemistActionInvoker;
 }
 
 export interface LocalRuntime {
   app: Hono;
+  actions: AlchemistActionInvoker;
+  actionsFor(actorId: string): AlchemistActionInvoker;
   database: SqliteDatabase;
   worker: LocalWorker;
   runPending(): Promise<void>;
@@ -74,6 +85,10 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const clock = { now: () => new Date().toISOString() };
   const idFactory = { next: (prefix: string) => `${prefix}_${randomUUID()}` };
   seedLocalIdentity(database, clock.now());
+  const actors = new AsyncLocalStorage<string>();
+  const actorId = () => actors.getStore() ?? "actor-local";
+  const ai: AlchemistAiPort = { listModels: () => options.ai.listModels(), search: input => options.ai.search(input),
+    generate: input => options.ai.generate({ ...input, actorId: actorId() }) };
 
   const activity = new SqliteActivityRepository(database);
   if (migrationBackup) {
@@ -98,6 +113,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const ideas = new SqliteIdeaRepository(database);
   const memory = new SqliteMemoryRepository(database);
   const research = new SqliteResearchRepository(database);
+  const workReuse = new WorkReuseService({ database, memory, research, ai, host: options.workReuse, actorId, now: clock.now, workspaceId: "workspace-local" });
   const settings = new SqliteSettingsRepository(database);
   settings.ensureDefaults("workspace-local", clock.now());
   const pulse = new SqlitePulseRepository(database);
@@ -108,16 +124,18 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     clock,
     idFactory,
     leaseMs: options.jobLeaseMs,
+    actorId,
   });
   jobs.recoverExpired();
   const runtimeSettings = new RuntimeSelector({
     workspaceId: "workspace-local",
     settings,
-    ai: options.ai,
+    ai,
     now: clock.now,
   });
   const researchRuntime = new ResearchRuntimeSelector({
-    ai: options.ai,
+    workReuse,
+    ai,
     memory,
   });
   const pulseSources =
@@ -132,9 +150,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
           new WatchaSource(new SafePublicHttpClient(["watcha.cn"])),
           new GitHubSource(new SafePublicHttpClient(["api.github.com"]), process.env.GITHUB_TOKEN),
         ];
-  const worker = new LocalWorker(
-    jobs,
-    createJobHandlers({
+  const handlers = createJobHandlers({
       explorations,
       runtime: runtimeSettings,
       idFactory,
@@ -144,14 +160,20 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
         repository: research,
         ideas,
         runtime: researchRuntime,
+        workReuse,
       },
       pulse: {
         repository: pulse,
         sources: pulseSources,
         synthesizer: new RuleBasedPulseSynthesizer(),
       },
-    }),
-  );
+    });
+  const worker = new LocalWorker(jobs, Object.fromEntries(Object.entries(handlers).map(([kind, handler]) => [kind,
+    ((job, control) => {
+      const owner = (job.input as { actorId?: unknown } | undefined)?.actorId;
+      return actors.run(typeof owner === "string" && owner.length ? owner : "actor-local", () => handler(job, control));
+    }) satisfies JobHandler,
+  ])));
   const createExploration = createExplorationService({
     database,
     directions,
@@ -161,14 +183,15 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     clock,
   });
   const ideaCardActions = createIdeaCardActions({
-    actorId: "actor-local",
+    get actorId() { return actorId(); },
     clock,
     idFactory,
     directions,
     ideas,
   });
   const createResearchPlan = createResearchPlanService({
-    actorId: "actor-local",
+    workReuse,
+    get actorId() { return actorId(); },
     workspaceId: "workspace-local",
     clock,
     idFactory,
@@ -178,12 +201,13 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     runtime: runtimeSettings,
   });
   const getResearchWorkspace = createGetResearchWorkspaceService({
+    workReuse,
     ideas,
     research,
     runtime: runtimeSettings,
   });
   const decisionWorkspace = createDecisionWorkspaceService({
-    actorId: "actor-local",
+    get actorId() { return actorId(); },
     clock,
     idFactory,
     ideas,
@@ -211,7 +235,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const calibrationMemory = createCalibrationMemoryService({
     database,
     workspaceId: "workspace-local",
-    actorId: "actor-local",
+    get actorId() { return actorId(); },
     clock,
     idFactory,
     activity,
@@ -221,17 +245,18 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     research,
   });
   const workspaceExport = new WorkspaceExportService({
+    workReuse,
     database,
     workspaceId: "workspace-local",
     activity,
     idFactory,
     now: clock.now,
   });
-  const app = createApp({
+  const dependencies: ApiDependencies = {
     workspaceId: "workspace-local",
-    actorId: "actor-local",
+    get actorId() { return actorId(); },
     workspaceName: "炼金术士",
-    actorName: "本地创始人",
+    get actorName() { return actorId() === "actor-local" ? "本地创始人" : actorId(); },
     clock,
     idFactory,
     activity,
@@ -258,8 +283,11 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     calibrationMemory,
     runtimeSettings,
     workspaceExport,
+    workReuse,
     ...(options.localSecurity ? { localSecurity: options.localSecurity } : {}),
-  });
+  };
+  const actions = createAlchemistOperationExecutor(dependencies);
+  const app = createApp(dependencies, options.actions ?? actions);
 
   let interval: NodeJS.Timeout | undefined;
   let draining: Promise<void> | undefined;
@@ -278,6 +306,17 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
 
   return {
     app,
+    actions,
+    actionsFor(owner) {
+      if (!owner.trim()) throw new Error("ALCHEMIST_ACTOR_REQUIRED");
+      if (closed) throw new Error("ALCHEMIST_CLOSED");
+      database.prepare("INSERT OR IGNORE INTO workspace_actors (id, workspace_id, kind, name, created_at) VALUES (?, ?, ?, ?, ?)")
+        .run(owner, "workspace-local", "local_user", owner, clock.now());
+      return { invoke: (definition, input, signal) => {
+        if (closed) throw new Error("ALCHEMIST_CLOSED");
+        return actors.run(owner, () => actions.invoke(definition, input, signal));
+      } };
+    },
     database,
     worker,
     runPending,

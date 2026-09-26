@@ -1,4 +1,5 @@
 import type { ContractDescriptor } from "./package.js";
+import type { ActionReference } from "./actions.js";
 
 export const platformPluginMcpContract = {
   contractId: "io.molis.work.platform.plugin-mcp.v1",
@@ -25,7 +26,7 @@ export type PluginMcpEffect = "read" | "write";
 export type PluginMcpAudience = "runtime" | "management" | "all";
 export type PluginMcpScope = "home" | "project";
 
-const TOOL_ID = /^[a-z0-9][a-z0-9-]*$/u;
+const TOOL_ID = /^[a-z0-9][a-z0-9_-]*$/u;
 
 export interface PluginMcpExportDeclaration {
   tool_id: string;
@@ -36,6 +37,8 @@ export interface PluginMcpExportDeclaration {
   audience?: PluginMcpAudience;
   /** Omitted means the bound project must have this Plugin enabled. */
   scope?: PluginMcpScope;
+  /** Compatibility tools require all referenced actions; declarations grant no authority. */
+  required_actions?: readonly ActionReference[];
 }
 
 export interface PluginMcpInputSchema {
@@ -106,6 +109,26 @@ export function inspectMcpExports(exports: PluginMcpExportDeclaration[] | undefi
     }
     if ("name" in entry) {
       problems.push(`mcp_exports ${entry.tool_id} 不能登记对外正式名`);
+    }
+    if (entry.required_actions !== undefined) {
+      if (!Array.isArray(entry.required_actions) || entry.required_actions.length === 0) {
+        problems.push(`mcp_exports ${entry.tool_id} 的 required_actions 必须是非空数组`);
+      } else {
+        const references = new Set<string>();
+        for (const reference of entry.required_actions) {
+          if (!reference || typeof reference !== "object" || Array.isArray(reference)
+            || Object.keys(reference).some(key => !["capability_id", "version", "provider_id"].includes(key))
+            || typeof reference.capability_id !== "string" || !reference.capability_id.trim()
+            || !Number.isSafeInteger(reference.version) || reference.version < 1
+            || (reference.provider_id !== undefined && (typeof reference.provider_id !== "string" || !reference.provider_id.trim()))) {
+            problems.push(`mcp_exports ${entry.tool_id} 的动作引用无效`);
+            continue;
+          }
+          const key = JSON.stringify([reference.capability_id, reference.version, reference.provider_id ?? null]);
+          if (references.has(key)) problems.push(`mcp_exports ${entry.tool_id} 的动作引用重复`);
+          references.add(key);
+        }
+      }
     }
     problems.push(...inspectInputSchema(entry.tool_id, entry.input_schema));
   }

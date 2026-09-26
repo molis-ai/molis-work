@@ -38,6 +38,12 @@ export interface ModelRecord {
  */
 export type ModelPromptCacheMode = "off" | "best-effort" | "required";
 
+/**
+ * Whether the model thinks before answering. `adaptive` lets the model decide how much; it costs more tokens and time,
+ * so it is the user's choice per provider and is off unless they turn it on.
+ */
+export type ModelThinkingMode = "off" | "adaptive";
+
 export interface ModelProviderRecord {
   provider_id: string;
   display_name: string;
@@ -49,6 +55,8 @@ export interface ModelProviderRecord {
   enabled: boolean;
   /** Absent means `off`, which behaves exactly as if caching did not exist. */
   prompt_cache?: ModelPromptCacheMode;
+  /** Absent means `off`: no thinking field is sent at all. */
+  thinking?: ModelThinkingMode;
   models: ModelRecord[];
   created_at: string;
   updated_at: string;
@@ -80,6 +88,12 @@ export function inspectPromptCacheChoice(
   if ((provider.prompt_cache ?? "off") !== "required") return null;
   if (promptCacheIsClientControlled(provider.api_format)) return null;
   return "这个 API 格式没有可以由我们打开的缓存断点，选不了「要求缓存支持」";
+}
+
+/** Why this provider cannot think, or null when it can. Only the Anthropic request shape carries a thinking field. */
+export function inspectThinkingChoice(provider: Pick<ModelProviderRecord, "api_format" | "thinking">): string | null {
+  if ((provider.thinking ?? "off") === "off" || provider.api_format === "anthropic-messages") return null;
+  return "这个 API 格式没有思考档可以打开，选不了「思考」";
 }
 
 /**

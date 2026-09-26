@@ -34,7 +34,7 @@ function localHostname(value: string): boolean {
   return hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]" || hostname === "::1";
 }
 
-function requestHost(request: IncomingMessage): string | null {
+export function requestHost(request: IncomingMessage): string | null {
   const value = request.headers.host?.trim();
   if (!value) return null;
   try {

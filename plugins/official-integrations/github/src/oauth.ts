@@ -95,6 +95,7 @@ export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
     deviceCode: string;
     clientId?: string;
     fetchImpl?: DeviceFetch;
+    bind?: boolean;
   }): Promise<DeviceCodePollResult> {
     const clientId = resolveClientId(opts.clientId);
     if (!clientId) {
@@ -124,7 +125,7 @@ export function createGithubDeviceFlow(ports: GithubDeviceFlowPorts) {
       error_description?: string;
     };
     if (json.access_token) {
-      ports.bindToken(json.access_token);
+      if (opts.bind !== false) ports.bindToken(json.access_token);
       return { status: "authorized", accessToken: json.access_token };
     }
     switch (json.error) {

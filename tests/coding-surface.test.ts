@@ -1,3 +1,4 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,7 +31,7 @@ function project(directory: string) {
 function ports(store: LocalProjectDatabase, goalTitle: (id: string) => string | undefined = () => undefined) {
   return {
     store,
-    boardId: DEMO_BOARD_ID,
+    boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID),
     actorId: "web-user",
     goalTitle,
     escapeHtml,

@@ -1,10 +1,13 @@
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "../plugins/native/cognia/src/index.js";
-import { scanCogniaDirectory } from "../apps/local-host/src/cognia-native-plugin-http.js";
+import { CogniaPluginRouteTable, openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "../plugins/native/cognia/src/index.js";
+import { scanCogniaDirectory } from "../apps/local-host/src/cognia-directory.js";
 const text = (path: string, body: string): ImportFile => ({ path, data: Buffer.from(body).toString("base64") });
 function fixture(fn: (store: CogniaStore, home: string) => void | Promise<void>) { return async () => { const home = mkdtempSync(join(tmpdir(), "cognia-store-")); const store = openCogniaStore(home); try { await fn(store, home); } finally { store.close(); rmSync(home, { recursive: true, force: true }); } }; }
 const preview = (store: CogniaStore, files: ImportFile[], locator = "local:/vault") => store.preview({ name: "vault", kind: "obsidian", locator, files });
@@ -43,4 +46,53 @@ test("local scanner copies source bytes, skips symlinks and unsupported content;
 }));
 test("separate store connections serialize identical preview commits without duplicate versions", fixture((store, home) => {
   const p = preview(store, [text("x.md", "# X")]), other = openCogniaStore(home); try { const first = store.commit(p.id), second = other.commit(p.id); assert.deepEqual(first, second); assert.equal(other.materials().length, 1); assert.equal(other.materials()[0]!.revision, 1); } finally { other.close(); }
+}));
+
+test("资料与来源移出当前列表后固定版本仍可读，领域与草稿可管理", fixture((store) => {
+  const domain = store.createDomain("旧领域");
+  assert.equal(store.renameDomain(domain.id, "新领域").name, "新领域");
+  const manual = store.createMaterial({ title: "原标题", body: "原正文", domain_id: domain.id });
+  const updated = store.updateMaterial(manual.id, { title: "新标题", body: "新正文", domain_id: domain.id });
+  assert.equal(updated.revision, 2);
+  assert.equal(store.read(manual.id, 1).body, "原正文");
+  const draft = store.addDraft({ id: "draft-one", title: "草稿", body: "整理正文", domain_id: domain.id,
+    references: [{ label: "S1", material_id: manual.id, revision: 1, title: "原标题", path: manual.path, body: "原正文" }], mode: "synthesize", saved_id: null, created_at: new Date().toISOString() });
+  const saved = store.saveDraft(draft.id);
+  store.archiveDraft(draft.id);
+  assert.equal(store.drafts().length, 0);
+  assert.equal(store.detail(saved.id).references[0]?.revision, 1);
+  const pendingDomain = store.preview({ name: "待导入", kind: "markdown", locator: "local:/pending-domain", domain_id: domain.id, files: [text("pending.md", "待导入")] });
+  store.deleteMaterial(manual.id);
+  assert.equal(store.materials().some(m => m.id === manual.id), false);
+  assert.equal(store.read(manual.id, 1).body, "原正文");
+  assert.equal(store.download(manual.id, 2).bytes.toString(), "新正文");
+  store.deleteDomain(domain.id);
+  assert.throws(() => store.commit(pendingDomain.id), /预览不存在/);
+  assert.equal(store.read(saved.id).domain_id, null);
+  assert.equal(store.detail(saved.id).references[0]?.material_id, manual.id);
+  const imported = store.commit(preview(store, [text("a.md", "导入正文")]).id);
+  const source = store.sources().find(s => s.id === imported.source_id)!;
+  assert.equal(store.renameSource(source.id, "重命名来源").name, "重命名来源");
+  const pendingSource = preview(store, [text("new.md", "新文件")]);
+  store.deleteSource(source.id);
+  assert.throws(() => store.commit(pendingSource.id), /预览不存在/);
+  assert.equal(store.materials().some(m => m.id === imported.material_ids[0]), false);
+  assert.equal(store.read(imported.material_ids[0]!, 1).body, "导入正文");
+}));
+
+test("Cognia 路由更新和删除资料后，固定版本仍可通过路由读取", fixture(async (store, home) => {
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+  const table = new CogniaPluginRouteTable(bindActionClient(host.homeActionClient(), () => ({ actor_id: "test", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS })));
+  const material = store.createMaterial({ title: "旧标题", body: "旧正文" });
+  const call = (method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}) =>
+    table.handle({ method, pathname, query: new URLSearchParams(), body });
+  const updated = await call("POST", `/api/cognia/materials/${material.id}/update`, { title: "新标题", body: "新正文" });
+  assert.equal((updated?.body as { material: { revision: number } }).material.revision, 2);
+  assert.equal((await call("POST", `/api/cognia/materials/${material.id}/delete`))?.status, 200);
+  assert.equal((await call("GET", "/api/cognia"))?.status, 200);
+  const fixed = await table.handle({ method: "GET", pathname: `/api/cognia/materials/${material.id}`, query: new URLSearchParams({ revision: "1" }), body: {} });
+  assert.equal((fixed?.body as { material: { body: string } }).material.body, "旧正文");
+  await assert.rejects(call("GET", `/api/cognia/materials/${material.id}`), /不存在/);
+  } finally { await host.close(); }
 }));

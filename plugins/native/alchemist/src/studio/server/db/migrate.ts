@@ -35,6 +35,7 @@ const migrations = [
     sql: new URL("./migrations/008_runtime_defaults.sql", import.meta.url),
   },
   { version: 9, sql: new URL("./migrations/009_host_runtime.sql", import.meta.url) },
+  { version: 10, sql: new URL("./migrations/010_work_reuse.sql", import.meta.url) },
 ] as const;
 
 export const LATEST_SCHEMA_VERSION = migrations.at(-1)?.version ?? 0;

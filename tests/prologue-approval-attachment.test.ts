@@ -94,7 +94,7 @@ const AUTHORITY = {
 
 function startRequest(roleId: string): AgentStartRequest {
   return {
-    plugin_id: PLUGIN,
+    board_id: BOARD, plugin_id: PLUGIN, install_id: "install", actor_id: "user",
     session: { session_id: "session-1", runtime_id: "prologue" },
     task: "把重试次数改成 3",
     role_id: roleId,

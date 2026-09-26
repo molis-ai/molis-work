@@ -1,3 +1,4 @@
+import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 
 export interface WebProjectNavigation {
@@ -11,13 +12,13 @@ export interface WebProjectNavigation {
 
 export type WebSettingsSection = "appearance" | "models" | "runtimes" | "mcp" | "connectors" | "projects" | "diagnostics";
 type SettingsNavigationActive = string;
-type ProjectSettingsNavigationActive = "general" | "guidance" | "rules" | "planning";
+type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "rules" | "planning";
 
 
 export interface SettingsNavigationPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles" | "link"): string;
+  icon(name: "database" | "chevron-down" | "check" | "settings" | "panel" | "bell" | "search" | "arrow" | "user" | "system" | "workflow" | "tree" | "activity" | "bug" | "book" | "shield" | "sun" | "terminal" | "tune" | "library" | "sparkles" | "link" | "key" | "network" | "folder" | "code" | "note" | "clipboard" | "image"): string;
   withDesktopQuery(path: string): string;
 }
 export function createWorkbenchSettingsNavigation(primitives: SettingsNavigationPrimitives) {
@@ -27,7 +28,7 @@ function settingsContextHref(
   project: Pick<WebProjectNavigation, "project_id"> | null,
   desktopShell: boolean,
 ): string {
-  const scopedPath = project && path.startsWith("/settings/")
+  const scopedPath = project && (path.startsWith("/settings/") || path.startsWith("/capabilities/"))
     ? path + (path.includes("?") ? "&" : "?") + "project=" + encodeURIComponent(project.project_id)
     : path;
   return desktopShell ? withDesktopQuery(scopedPath) : scopedPath;
@@ -43,7 +44,7 @@ function renderProjectSwitcher(
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
   const options = projects.length ? projects : currentProject ? [currentProject] : [];
   const currentName = currentProject?.display_name ?? L("选择项目");
-  return `<details class="${className} navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="${L("切换项目")}">${icon("database")}<strong title="${escapeHtml(currentName)}">${escapeHtml(currentName)}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>${L("切换项目")}</span><nav>${options.map((project) => `<a class="navigator-project-option${project.project_id === currentProject?.project_id ? " is-current" : ""}" href="${href(`/projects/${encodeURIComponent(project.project_id)}/`)}"${project.project_id === currentProject?.project_id ? ' aria-current="page"' : ""}><span>${icon("database")}<strong>${escapeHtml(project.display_name)}</strong></span>${project.project_id === currentProject?.project_id ? icon("check") : ""}</a>`).join("")}</nav><a class="navigator-project-manage" href="${desktopShell ? withDesktopQuery(manageHref) : manageHref}">${icon("settings")}<span>${L("管理项目")}</span></a></div></details>`;
+  return `<details class="${className} navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="${L("切换项目")}">${currentProject ? renderProjectMonogram(currentProject.display_name, currentProject.project_id, escapeHtml) : icon("database")}<strong title="${escapeHtml(currentName)}">${escapeHtml(currentName)}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>${L("切换项目")}</span><nav>${options.map((project) => `<a class="navigator-project-option${project.project_id === currentProject?.project_id ? " is-current" : ""}" href="${href(`/projects/${encodeURIComponent(project.project_id)}/`)}"${project.project_id === currentProject?.project_id ? ' aria-current="page"' : ""}><span>${renderProjectMonogram(project.display_name, project.project_id, escapeHtml)}<strong>${escapeHtml(project.display_name)}</strong></span>${project.project_id === currentProject?.project_id ? icon("check") : ""}</a>`).join("")}</nav><a class="navigator-project-manage" href="${desktopShell ? withDesktopQuery(manageHref) : manageHref}">${icon("settings")}<span>${L("管理项目")}</span></a></div></details>`;
 }
 
 function renderDesktopProjectChrome(
@@ -64,7 +65,7 @@ function renderDesktopProjectChrome(
     ? `<button class="mw-btn mw-btn--ghost mw-btn--icon-only navigator-directory-toggle" type="button" data-directory-toggle aria-expanded="true" aria-label="${L("收起目录")}" title="${L("收起目录")}">${icon("panel")}</button><button class="mw-btn mw-btn--ghost mw-btn--icon-only immersive-icon-button immersive-show-directory" type="button" data-directory-show aria-label="${L("展开目录")}" title="${L("展开目录")}">${icon("panel")}</button>`
     : "";
   const search = options.globalSearch
-    ? `<button class="mw-btn mw-btn--ghost mw-btn--icon-only navigator-project-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}</button>`
+    ? `<button class="mw-btn mw-btn--ghost mw-btn--icon-only navigator-project-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<span class="navigator-project-search-label" aria-hidden="true">${L("搜索")}</span><kbd aria-hidden="true">⌘K</kbd></button>`
     : "";
   const settings = settingsHref
     ? `<a class="navigator-project-settings" href="${settingsHref}" data-directory-open="project-settings"${options.settingsCurrent ? ' aria-current="page"' : ""} aria-label="${options.settingsCurrent ? L("当前项目设置") : L("打开当前项目设置")}" title="${L("项目设置")}">${icon("settings")}</a>`
@@ -87,12 +88,11 @@ function renderSettingsNavigation(
     <a class="settings-nav-back" href="${href(projectHome)}">${icon("arrow")} ${L("返回项目")}</a>
     <div class="settings-nav-body">
       <div class="settings-nav-group-label">${L("本机")}</div>
-      <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("外观")}</a>
+      <a href="${href("/settings/appearance")}"${current("appearance")}>${icon("sun")}${L("界面与语言")}</a>
       <div class="settings-nav-group-label">${L("工具")}</div>
-      <a href="${href("/settings/models")}"${current("models")}>${icon("settings")}${L("模型设置")}</a>
+      <a href="${href("/settings/models")}"${current("models")}>${icon("key")}${L("模型设置")}</a>
       <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
-      <a href="${href("/settings/mcp")}"${current("mcp")}>${icon("settings")}${L("MCP")}</a>
-      <a href="${href("/settings/connectors")}"${current("connectors")}>${icon("link")}${L("Connectors")}</a>
+      <a href="${href(`/capabilities/library${project ? `?project=${encodeURIComponent(project.project_id)}` : ""}`)}">${icon("sparkles")}${L("能力")}</a>
       <div class="settings-nav-group-label">${L("系统")}</div>
       <a href="${href("/settings/diagnostics")}"${current("diagnostics")}>${icon("bug")}${L("诊断")}</a>
       ${listPluginSettingsNavItems(enabledPlugins, hiddenPlugins).map((page) => `<a href="${href(`/settings/${page.section_id}`)}"${current(page.section_id)}>${icon(page.icon)}${escapeHtml(L(page.label))}</a>`).join("")}
@@ -114,6 +114,7 @@ function renderProjectSettingsNavigation(
     <div class="settings-project-identity"><strong title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</strong><span>${L("项目设置")}</span></div>
     <div class="settings-nav-body">
       <a href="${href(`${routePrefix}/settings`)}"${current("general")}>${icon("tune")}${L("常规")}</a>
+      <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${L("工作目录")}</a>
       <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>
     </div>
   </nav>`;

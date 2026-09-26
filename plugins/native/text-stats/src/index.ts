@@ -40,3 +40,4 @@ export {
   type TextStatsUiPrimitives,
 } from "./ui.js";
 export { createTextStatsPlugin, type TextStatsPluginPorts } from "./plugin.js";
+export { textStatsActions, TEXT_STATS_ACTIONS } from "./actions.js";

@@ -1,4 +1,5 @@
 import { inspectAgentDeclaration } from "./plugin-agent.js";
+import { inspectActionDeclarations } from "./actions.js";
 import { inspectEventDeclarations } from "./plugin-events.js";
 import { inspectMcpExports } from "./plugin-mcp.js";
 import { inspectBehaviors, inspectFunctionScenes, inspectJudgmentSubjects } from "./plugin-behaviors.js";
@@ -24,7 +25,11 @@ export function canonicalPluginId(pluginId: string): string {
   return pluginId;
 }
 
+const PLUGIN_ID = /^io\.molis\.work\.[a-z0-9][a-z0-9.-]*$/u;
 const ROUTE_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
+const NUMERIC = "(?:0|[1-9]\\d*)";
+const PRERELEASE_IDENTIFIER = "(?:0|[1-9]\\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)";
+const SEMVER = new RegExp(`^${NUMERIC}\\.${NUMERIC}\\.${NUMERIC}(?:-${PRERELEASE_IDENTIFIER}(?:\\.${PRERELEASE_IDENTIFIER})*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$`, "u");
 
 /** Validate the public wire shape before authors or tools use any Manifest fields. */
 export function parsePluginManifest(input: unknown): PluginManifest {
@@ -37,8 +42,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同",
     );
   }
-  if (!text(manifest.plugin_id) || !/^io\.molis\.work\.[a-z0-9][a-z0-9.-]*$/u.test(manifest.plugin_id)
-    || !text(manifest.version) || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(manifest.version)
+  if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)
+    || !text(manifest.version) || !SEMVER.test(manifest.version)
     || !text(manifest.name) || !text(publisher.publisher_id) || !text(publisher.signature)
     || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app")) {
     throw new PluginManifestError("plugin_manifest_invalid", "Plugin Manifest 身份、名称、类型或版本不合法");
@@ -46,6 +51,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   if (manifest.kind === "app" && schemaVersion !== 2) {
     throw new PluginManifestError("plugin_manifest_invalid", "app Plugin 必须使用 schema_version 2");
   }
+  inspectUpgradeCompatibility(manifest);
   if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
     throw new PluginManifestError("plugin_entrypoint_missing", "Plugin 至少需要一个 entrypoint");
   }
@@ -87,6 +93,13 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const ui = record(manifest.ui, "ui");
   strings(ui.contributions, "ui.contributions");
+  if (ui.embedded_plugins !== undefined) {
+    strings(ui.embedded_plugins, "ui.embedded_plugins");
+    const ids = ui.embedded_plugins as string[];
+    if (ids.some(id => !PLUGIN_ID.test(id) || id === manifest.plugin_id) || new Set(ids).size !== ids.length) {
+      invalid("ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID");
+    }
+  }
 
   const parsed = input as PluginManifest;
   if (schemaVersion === 1) {
@@ -97,6 +110,59 @@ export function parsePluginManifest(input: unknown): PluginManifest {
 
   const pluginId = canonicalPluginId(parsed.plugin_id);
   return pluginId === parsed.plugin_id ? parsed : { ...parsed, plugin_id: pluginId };
+}
+
+function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {
+  const value = manifest.upgrade_compatibility;
+  if (value === undefined) return;
+  const compatibility = record(value, "upgrade_compatibility");
+  const fields = ["compatible_from_versions", "migratable_from_versions"] as const;
+  const seen = new Set<string>();
+  let count = 0;
+  for (const field of fields) {
+    const versions = compatibility[field];
+    if (versions === undefined) continue;
+    if (!Array.isArray(versions)) invalid(`upgrade_compatibility.${field} 必须为数组`);
+    count += versions.length;
+    for (const version of versions) {
+      if (typeof version !== "string" || !SEMVER.test(version) || seen.has(version)) {
+        invalid("升级来源必须是不重复的精确 SemVer；每个来源只能声明为兼容或可迁移之一");
+      }
+      const isSameVersion = version === manifest.version;
+      if (isSameVersion && field !== "compatible_from_versions") {
+        invalid("同版本 Manifest 只能声明为直接兼容，不能声明为可迁移");
+      }
+      if (!isSameVersion && comparePluginVersions(version, String(manifest.version)) >= 0) {
+        invalid("升级来源版本必须早于当前 Manifest 版本");
+      }
+      seen.add(version);
+    }
+  }
+  if (count === 0) invalid("upgrade_compatibility 至少要声明一个兼容或可迁移来源版本");
+}
+
+export function comparePluginVersions(left: string, right: string): number {
+  const parse = (value: string) => {
+    const withoutBuild = value.split("+", 1)[0]!;
+    const [core, prerelease] = withoutBuild.split("-", 2);
+    return { core: core!.split(".").map(BigInt), prerelease: prerelease?.split(".") ?? null };
+  };
+  const a = parse(left), b = parse(right);
+  for (let index = 0; index < 3; index += 1) {
+    if (a.core[index] !== b.core[index]) return a.core[index]! < b.core[index]! ? -1 : 1;
+  }
+  if (a.prerelease === null || b.prerelease === null) {
+    return a.prerelease === b.prerelease ? 0 : a.prerelease === null ? 1 : -1;
+  }
+  for (let index = 0; index < Math.min(a.prerelease.length, b.prerelease.length); index += 1) {
+    const leftPart = a.prerelease[index]!, rightPart = b.prerelease[index]!;
+    if (leftPart === rightPart) continue;
+    const leftNumeric = /^\d+$/u.test(leftPart), rightNumeric = /^\d+$/u.test(rightPart);
+    if (leftNumeric && rightNumeric) return BigInt(leftPart) < BigInt(rightPart) ? -1 : 1;
+    if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+    return leftPart < rightPart ? -1 : 1;
+  }
+  return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length < b.prerelease.length ? -1 : 1;
 }
 
 /** A v1 Manifest cannot carry v2 declarations: the version must state the contract. */
@@ -111,6 +177,9 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["behaviors", manifest.behaviors],
     ["function_scenes", manifest.function_scenes],
     ["judgment_subjects", manifest.judgment_subjects],
+    ["actions", manifest.actions],
+    ["action_scenes", manifest.action_scenes],
+    ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
     ["ui.commands", ui.commands],
   ];
@@ -126,6 +195,18 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
 
 function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): void {
   const problems: string[] = [];
+  problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes));
+  const declaredPermissions = new Set(parsed.permissions.map(p => p.permission));
+  for (const action of Array.isArray(parsed.actions) ? parsed.actions : []) {
+    for (const permission of Array.isArray(action?.action?.permissions) ? action.action.permissions : []) {
+      if (!declaredPermissions.has(permission)) problems.push(`能力 ${action.capability_id} 使用未声明权限 ${permission}`);
+    }
+  }
+  for (const scene of Array.isArray(parsed.action_scenes) ? parsed.action_scenes : []) {
+    for (const permission of [...(Array.isArray(scene?.permissions) ? scene.permissions : []), ...(Array.isArray(scene?.configuration_permissions) ? scene.configuration_permissions : [])]) {
+      if (!declaredPermissions.has(permission)) problems.push(`场景 ${scene.scene_id} 使用未声明权限 ${permission}`);
+    }
+  }
   problems.push(...inspectPortDeclarations(parsed.ports));
   problems.push(...inspectEventDeclarations(parsed.plugin_id, parsed.events));
   problems.push(...inspectAgentDeclaration(

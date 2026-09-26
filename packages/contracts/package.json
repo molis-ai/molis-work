@@ -146,6 +146,10 @@
       "types": "./dist/platform/plugin.d.ts",
       "import": "./dist/platform/plugin.js"
     },
+    "./platform/plugin-sandbox": {
+      "types": "./dist/platform/plugin-sandbox.d.ts",
+      "import": "./dist/platform/plugin-sandbox.js"
+    },
     "./platform/plugin-agent": {
       "types": "./dist/platform/plugin-agent.d.ts",
       "import": "./dist/platform/plugin-agent.js"
@@ -182,6 +186,10 @@
       "types": "./dist/services/connector-host.d.ts",
       "import": "./dist/services/connector-host.js"
     },
+    "./services/im": {
+      "types": "./dist/services/im.d.ts",
+      "import": "./dist/services/im.js"
+    },
     "./services/listener-host": {
       "types": "./dist/services/listener-host.d.ts",
       "import": "./dist/services/listener-host.js"
@@ -205,6 +213,18 @@
     "./modules/jelly": {
       "types": "./dist/modules/jelly.d.ts",
       "import": "./dist/modules/jelly.js"
+    },
+    "./platform/actions": {
+      "types": "./dist/platform/actions.d.ts",
+      "import": "./dist/platform/actions.js"
+    },
+    "./modules/workspace-action-schemas": {
+      "types": "./dist/modules/workspace-action-schemas.d.ts",
+      "import": "./dist/modules/workspace-action-schemas.js"
+    },
+    "./platform/plugin-builder": {
+      "types": "./dist/platform/plugin-builder.d.ts",
+      "import": "./dist/platform/plugin-builder.js"
     }
   },
   "files": [

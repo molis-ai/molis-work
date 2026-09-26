@@ -30,6 +30,8 @@ export interface FormQuestion {
   readonly options?: readonly FormOption[];
 }
 
+export type FormQuestionInput = Partial<Omit<FormQuestion, "options">> & { readonly options?: readonly Partial<FormOption>[] };
+
 export interface FormRecord {
   readonly id: string;
   readonly project_id: string;
@@ -43,6 +45,7 @@ export interface FormRecord {
   readonly version: number;
   readonly artifact_id: string;
   readonly artifact_version: number;
+  readonly publication_pending?: { readonly version: number; readonly source_version: number };
 }
 
 export interface FormSubmissionRecord {
@@ -50,4 +53,6 @@ export interface FormSubmissionRecord {
   readonly form_id: string;
   readonly answers: Readonly<Record<string, string>>;
   readonly submitted_at: string;
+  readonly form_version: number | null;
+  readonly questions: readonly FormQuestion[] | null;
 }

@@ -21,7 +21,6 @@ pub const BOUNCE_DURATION: Duration = Duration::from_millis(220);
 pub const BOUNCE_SCALE: f64 = 1.06;
 pub const PETAL_PAD: f64 = 14.0;
 pub const LABEL_MAX_WIDTH: f64 = 72.0;
-pub const LABEL_INSET: f64 = 6.0;
 pub const ICON_LIFT: f64 = 10.0;
 pub const LABEL_DROP: f64 = 13.0;
 pub const SHADOW_OFFSET_Y: f64 = -5.0;
@@ -108,11 +107,6 @@ pub fn mid_radius() -> f64 {
 
 pub fn tile_thickness() -> f64 {
     OUTER_RADIUS - INNER_RADIUS
-}
-
-/// Upright label box width for a petal of this horizontal AABB width.
-pub fn label_box_width(petal_width: f64) -> f64 {
-    (petal_width - LABEL_INSET * 2.0).clamp(0.0, LABEL_MAX_WIDTH)
 }
 
 pub fn window_frame(center: Point) -> (Point, f64) {
@@ -696,13 +690,7 @@ mod tests {
         assert_eq!(WINDOW_PADDING, 44.0);
     }
 
-    #[test]
-    fn label_fits_the_petal_box_not_the_padded_view() {
-        assert_eq!(label_box_width(tile_thickness()), 52.0);
-        assert_eq!(label_box_width(90.0), LABEL_MAX_WIDTH);
-        assert!(label_box_width(tile_thickness()) < tile_thickness());
-        assert!(label_box_width(tile_thickness() + PETAL_PAD * 2.0) > label_box_width(tile_thickness()));
-    }
+
 
     #[test]
     fn agent_and_recipe_open_the_other_five_petals() {

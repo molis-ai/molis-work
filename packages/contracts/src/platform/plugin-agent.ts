@@ -19,6 +19,8 @@ export interface AgentRoleDeclaration {
   version: number;
   name: string;
   execution?: AgentRoleExecution;
+  /** Explicit pure inference role. Omission requires an authorized working directory. */
+  workspace?: "required" | "none";
   /**
    * Prompt ids this role is composed from, in order.
    *
@@ -228,6 +230,13 @@ export function inspectAgentDeclaration(
       continue;
     }
     roles.add(role.role_id);
+    if (role.workspace !== undefined && role.workspace !== "required" && role.workspace !== "none") {
+      problems.push(`Agent 角色 ${role.role_id} 的工作区声明无效`);
+    }
+    if (role.workspace === "none" && ((role.execution ?? "read-only") !== "read-only" || role.host_tools?.length
+      || role.subagent_workspaces || agent.subagents?.parent_role_ids.includes(role.role_id))) {
+      problems.push(`无工作区角色 ${role.role_id} 必须为不使用工具或子任务的只读推理`);
+    }
     // A role must resolve to at least one prompt: either the ones it names, or
     // — for a role that names none — a prompt sharing its id. A role running
     // with no prompt at all would be an agent with no instructions.

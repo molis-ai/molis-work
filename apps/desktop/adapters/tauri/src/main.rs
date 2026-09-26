@@ -1,4 +1,9 @@
 mod capsule_window;
+mod context_directories;
+#[cfg(target_os = "macos")]
+mod context_directories_macos;
+#[cfg(target_os = "macos")]
+mod context_directory_files;
 mod drop_wheel;
 #[cfg(target_os = "macos")]
 mod clipboard_watch_macos;
@@ -557,9 +562,9 @@ fn capsule_open_main(
 }
 
 #[tauri::command]
-fn shelf_surface_changed(active: bool) {
+fn shelf_surface_changed(active: bool, language: Option<String>, theme: Option<String>) {
     #[cfg(target_os = "macos")]
-    drop_wheel_macos::set_shelf_surface(active);
+    drop_wheel_macos::set_shelf_surface(active, language.as_deref(), theme.as_deref());
 }
 
 #[derive(serde::Serialize)]
@@ -612,9 +617,6 @@ fn shelf_admit_paths(paths: Vec<String>) -> Result<usize, String> {
     let mut added = 0;
     for path in paths {
         let candidate = std::path::Path::new(&path);
-        if candidate.is_dir() {
-            return Err("这是一个文件夹，请把它拖进 Shelf 工作面".into());
-        }
         shelf_http::admit_file(candidate)?;
         added += 1;
     }
@@ -663,6 +665,14 @@ fn shelf_setup_status() -> ShelfSetupStatus {
         browsers,
         clipboard_readable,
     }
+}
+
+#[tauri::command]
+fn shelf_copy_files(paths: Vec<String>) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    { shelf_drag_macos::copy_files(&paths) }
+    #[cfg(not(target_os = "macos"))]
+    { let _ = paths; Err("这个平台还不支持复制文件".into()) }
 }
 
 /// Drag a shelf file out to Finder, the Desktop, an upload field or a composer.
@@ -790,6 +800,7 @@ fn main() {
     .manage(PtyState::default())
     .manage(WebServiceState::default())
     .manage(CapsuleStatusState::default())
+    .manage(context_directories::ContextDirectoryState::default())
     .invoke_handler(tauri::generate_handler![
       pty_spawn,
       pty_write,
@@ -801,8 +812,14 @@ fn main() {
       capsule_set_locale,
       capsule_open_main,
       external_links::open_external_url,
+      context_directories::context_directory_status,
+      context_directories::context_directory_authorize,
+      context_directories::context_directory_forget,
+      context_directories::context_directory_preview,
+      context_directories::context_directory_read,
       shelf_surface_changed,
       shelf_drag_out,
+      shelf_copy_files,
       shelf_find_files,
       shelf_admit_paths,
       shelf_open_path,

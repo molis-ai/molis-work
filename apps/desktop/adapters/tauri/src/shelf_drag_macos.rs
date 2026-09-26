@@ -12,7 +12,7 @@ use objc2::runtime::AnyObject;
 use objc2_app_kit::{
     NSApplication, NSBezierPath, NSColor, NSCompositingOperation, NSDragOperation, NSDraggingItem,
     NSDraggingSession, NSDraggingSource, NSEvent, NSFont, NSFontAttributeName,
-    NSForegroundColorAttributeName, NSImage, NSStringDrawing, NSView, NSWindow, NSWorkspace,
+    NSForegroundColorAttributeName, NSImage, NSPasteboard, NSStringDrawing, NSView, NSWindow, NSWorkspace,
 };
 use objc2_foundation::{
     MainThreadMarker, NSArray, NSDictionary, NSPoint, NSRect, NSSize, NSString, NSURL,
@@ -69,20 +69,41 @@ define_class!(
 /// A dragging session may only start on the main thread. A Tauri command is not
 /// guaranteed to be there, so hop first and report what the hop itself can tell.
 pub fn begin(app: &AppHandle, paths: &[String], item_ids: &[String]) -> Result<(), String> {
-    if let Ok(mut ids) = DRAGGING.lock() {
-        *ids = item_ids.to_vec();
-    }
-    if MainThreadMarker::new().is_some() {
-        return begin_on_main(app, paths);
-    }
+    let paths = paths.to_vec();
+    let ids = item_ids.to_vec();
     let handle = app.clone();
-    let owned: Vec<String> = paths.to_vec();
-    app.run_on_main_thread(move || {
-        if let Err(error) = begin_on_main(&handle, &owned) {
-            eprintln!("Molis Work 没能开始拖出：{error}");
-        }
-    })
-    .map_err(|error| format!("拖出没能到主线程：{error}"))
+    let start = move || {
+        if let Ok(mut dragging) = DRAGGING.lock() { *dragging = ids; }
+        let result = begin_on_main(&handle, &paths);
+        if result.is_err() { clear_dragging(); }
+        result
+    };
+    if MainThreadMarker::new().is_some() { return start(); }
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || { let _ = tx.send(start()); })
+        .map_err(|error| format!("拖出没能到主线程：{error}"))?;
+    rx.recv().map_err(|error| error.to_string())?
+}
+
+/// A copied file is a file URL on the system pasteboard, including multi-select.
+pub fn copy_files(paths: &[String]) -> Result<(), String> {
+    let root = crate::web_service::molis_work_home().join("shelf").canonicalize()
+        .map_err(|_| "置物架副本目录不存在")?;
+    let mut urls = Vec::new();
+    for path in paths {
+        let path = std::path::Path::new(path).canonicalize().map_err(|_| "这份副本已经不在工作区")?;
+        if !path.starts_with(&root) { return Err("只能复制 Shelf 工作区里的副本".into()); }
+        urls.push(unsafe { NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy())) });
+    }
+    if urls.is_empty() { return Err("请先选择要复制的文件".into()); }
+    write_file_urls(&NSPasteboard::generalPasteboard(), &urls)
+}
+
+fn write_file_urls(board: &NSPasteboard, urls: &[Retained<NSURL>]) -> Result<(), String> {
+    board.clearContents();
+    let objects = NSArray::from_retained_slice(urls);
+    let ok: bool = unsafe { msg_send![board, writeObjects: &*objects] };
+    if ok { Ok(()) } else { Err("没能写入剪贴板，请重试复制".into()) }
 }
 
 /// DropAgent's drag ghost is a small chip — mark plus name — not a screenshot
@@ -195,4 +216,43 @@ fn begin_on_main(app: &AppHandle, paths: &[String]) -> Result<(), String> {
         ];
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use objc2::rc::autoreleasepool;
+    use objc2_foundation::ns_string;
+
+    #[test]
+    fn shelf_file_copy_round_trips_multiple_named_pasteboard_urls() {
+        autoreleasepool(|_| {
+            // A unique named board exercises AppKit without touching the user's clipboard.
+            let board = NSPasteboard::pasteboardWithUniqueName();
+            let paths = [
+                "/tmp/shelf-copy-test/first report.txt",
+                "/tmp/shelf-copy-test/中文材料/第二份 #1.md",
+            ];
+            let urls: Vec<_> = paths.iter().map(|path| {
+                NSURL::fileURLWithPath(&NSString::from_str(path))
+            }).collect();
+
+            write_file_urls(&board, &urls).expect("copy both file URLs");
+
+            let entries = board.pasteboardItems().expect("file URL pasteboard items");
+            let actual: Vec<_> = entries.iter().map(|entry| {
+                let encoded = entry.stringForType(ns_string!("public.file-url"))
+                    .expect("every copied file has a file URL");
+                let url = NSURL::URLWithString(&encoded).expect("valid encoded file URL");
+                assert!(url.isFileURL());
+                url.path().expect("file URL path").to_string()
+            }).collect();
+            assert_eq!(actual, paths);
+
+            // A later copy replaces the previous multi-selection, rather than appending it.
+            write_file_urls(&board, &urls[1..]).expect("replace file copy");
+            assert_eq!(board.pasteboardItems().unwrap().len(), 1);
+            board.clearContents();
+        });
+    }
 }

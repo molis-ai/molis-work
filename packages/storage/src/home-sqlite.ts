@@ -13,7 +13,10 @@ export const PERSONAL_HOME_SQLITE_STORES = [
   "jelly",
   "cognia",
   "alchemist",
+  "workflows",
   "functions",
+  "connectors",
+  "context-onboarding",
 ] as const;
 
 export type PersonalHomeSqliteStore = (typeof PERSONAL_HOME_SQLITE_STORES)[number];

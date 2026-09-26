@@ -1851,7 +1851,9 @@ dependencies = [
 name = "molis-work-desktop"
 version = "0.2.0"
 dependencies = [
+ "base64 0.22.1",
  "block2",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-core-graphics",

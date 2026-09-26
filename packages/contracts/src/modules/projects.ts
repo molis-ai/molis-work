@@ -1,5 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
+import type { ActionMetadata } from "../platform/actions.js";
 
 export const modulesProjectsContract = {
   contractId: "io.molis.work.module.projects.v1",
@@ -200,10 +201,48 @@ export const projectsCapabilities = {
     capability_id: "projects.workspaces.list.v1",
     version: 1,
     operation: "query",
+    action: workspaceQuery("项目工作区", "列出当前项目已授权的工作区目录", false),
   } as HostCapabilityDefinition<[], readonly ProjectWorkspaceRef[]>,
   readWorkspace: {
     capability_id: "projects.workspace.read.v1",
     version: 1,
     operation: "query",
+    action: workspaceQuery("首选工作区", "读取当前项目的首选工作区；没有绑定时返回空值", true),
   } as HostCapabilityDefinition<[], ProjectWorkspaceRef | null>,
 } as const;
+
+/** Current-project settings: each item is independently declared in Manifest consumes.
+ * No project selector, wildcard, private storage access, or arbitrary key bag.
+ */
+export const projectSettingsCapabilities = {
+  workspaces: {
+    capability_id: "projects.settings.workspaces.read.v1",
+    version: 1,
+    operation: "query",
+    action: workspaceQuery("工作区设置", "读取当前项目可供插件选择的工作区", false),
+  } as HostCapabilityDefinition<[], readonly ProjectWorkspaceRef[]>,
+  browsingWorkspace: {
+    capability_id: "projects.settings.browsing-workspace.read.v1",
+    version: 1,
+    operation: "query",
+    action: workspaceQuery("浏览工作区", "读取当前项目选中的浏览工作区；选择已失效时返回空值", true),
+  } as HostCapabilityDefinition<[], ProjectWorkspaceRef | null>,
+} as const;
+
+function workspaceQuery(title: string, description: string, nullable: boolean): ActionMetadata {
+  const workspace = { type: "object", properties: {
+    workspace_id: { type: "string" }, canonical_path: { type: "string" },
+    realpath_verified: { type: "boolean" }, display_name: { type: "string" },
+  }, required: ["workspace_id", "canonical_path", "realpath_verified", "display_name"], additionalProperties: false };
+  return { title, description, kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
+    permissions: [], subject_kinds: ["project"], input_schema: { type: "array", maxItems: 0 },
+    output_schema: nullable ? { anyOf: [workspace, { type: "null" }] } : { type: "array", items: workspace },
+    output_type: nullable ? "project.workspace.optional" : "project.workspace.list",
+  };
+}
+
+/** Explicit projection: catalog records also contain other projects' memberships. */
+export function projectWorkspaceRef(value: ProjectWorkspaceRef): ProjectWorkspaceRef {
+  return { workspace_id: value.workspace_id, canonical_path: value.canonical_path,
+    realpath_verified: value.realpath_verified, display_name: value.display_name };
+}

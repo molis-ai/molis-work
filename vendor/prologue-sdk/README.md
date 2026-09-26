@@ -3,7 +3,7 @@
 当前依赖为 `prologue-sdk-0.0.0-rc.1-claims.tgz`（2026-09-26，协同第一期"认领与任务图摘要"）。在 coding-inference 合成包之上：
 
 - 任务图负责人可以是角色、会话（包括子任务的会话）或人；只有负责人能报告，报告记下是哪个会话、哪个人。
-- 新增 `handOver`：把没结束的一步从一个负责人交给另一个，状态与进展不动，留下交接记录。
+- 新增 `handOver`：把没结束的一步从一个负责人交给另一个，状态与进展不动，留下交接记录；由人交接时记下是谁。
 - 宿主替人记录决定时用 `override` 并写明人，模型的任务图工具不能这样做。
 - `dispatch-subagent` 新增 `claims`：派出前整体核对，子任务开跑前接过这几步，结束时没做完的交回父会话；子任务总能看到读图和回报两个工具（`grantedTools`，不超过父任务本身的工具）。
 - 读图时负责人写成 `you (this session)`、`subagent <引用>`、`the session that dispatched you`。
@@ -14,7 +14,7 @@
 - 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
 - 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`
-- SHA-256：见下方"核对"一行（每次重打包后更新）。
+- SHA-256：`782fa5859481cb04423add795f4594e962bc09591f8c6fe901613e26fa03ad9e`
 
 重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
 

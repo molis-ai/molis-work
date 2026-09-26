@@ -94,12 +94,19 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       following.set(board.id, { ref: board, run, plan, nodes: new Set() });
     },
     unfollow: stopFollowing,
+    /**
+     * The graph as this round starts, given to the round with its task rather than in its fixed instructions: it
+     * changes between rounds, and a model reads what comes last as current.
+     */
+    digest(board: SdkBoard, plan: AgentExecutionPlan, session: string) {
+      return summary(runtime, board, plan, session);
+    },
     /** An earlier round's graph, for a round without a plan of its own: read-only context, and nothing when it has ended. */
     standing(ref: ExactRef<"task-board">, plan: AgentExecutionPlan, session: string) {
       let board: SdkBoard;
       try { board = runtime.boards.get(ref); } catch { return ""; }
       if (board.terminal) return "";
-      return "本会话还有一张没结束的任务图。这一轮没有开放任务图工具，下面的摘要只作参考；要接着执行计划，请用户点「继续计划」。\n" + summary(runtime, board, plan, session);
+      return "本会话还有一张没结束的任务图。这一轮没有任务图工具，不能读取或回报它；要接着执行计划，请用户点「继续计划」。\n" + summary(runtime, board, plan, session);
     },
     /** The unfinished graph of an earlier round in the same session, for a round that continues it. */
     async resume(run: AgentRunRef) {
@@ -114,7 +121,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       + (plan.steps.some(step => step.depends_on) ? "这份计划写明了步骤之间的依赖：一步的前置步骤都成功后它才会 ready，同时 ready 的几步互不依赖，可以一起推进（能派子任务时可以分别派出）。\n" : "")
       + "每一步都有负责人（board-read 里的 owner）：只有负责人能报告这一步。开始时每一步都在本会话名下（owner 显示为 you）；负责人是用户的步骤由用户处理，你不要报告它，要等它完成；负责人是别的会话或子任务的，你也报不了。\n"
       + (round.dispatch ? "派子任务时可以在 dispatch-subagent 里写 claims: {\"board\": 本图, \"nodes\": [步骤编号…]}，把这些步骤交给它：交出后只有它能报告这些步骤，它结束时没做完的会自动回到本会话名下；只能交出本会话名下或没人认领、且还没结束的步骤。子任务报告的进展和交回会作为「任务图有更新」告诉你。\n" : "")
-      + summary(runtime, board, plan, round.session) + "\n"
+      + "这一轮开头附有一份「任务图现状」，是宿主在这一轮开始时读取的，比之前对话里的说法新。\n"
         + "先 board-read 获取当前 version。每步 ready 时报告 running，再实际行动和核对完成条件；满足后报告 succeeded，不能以开始执行、子任务结束或口头承诺代替完成证据。发现阻塞报告 blocked 并说明必要决定；解决后先报告 ready，再 running。失败用 failed。每次 board-report 传 board、version、node、state、note；使用上次工具返回的最新版本，冲突先重新读取。note 最多 500 字，只记录有依据的简短进展和核对结果，不粘贴源码、秘密或全文。按图中的依赖执行；实质变更先说明并等待用户调整计划。图中的 succeeded 只表示你的报告，用户验收由产品入口单独处理。不要为了标绿提前报成功。每完成一步就 board-read，接着做下一个 ready 的步骤；只要图里还有 ready 的步骤，就不要结束这一轮。所有步骤都到终态、或遇到需要用户决定的阻塞时，才总结并结束。";
     },
     async read(run: AgentRunRef): Promise<AgentStepBoard | undefined> {
@@ -142,7 +149,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
         board = await runtime.boards.report({ ref, expectedVersion: board.version, nodeId, by: undefined, human: person, override: true, note, atMs: Date.now(), ...(to ? { to } : {}) });
       };
       const handOver = async (nodeId: string, to: Assignee, note: string) => {
-        board = await runtime.boards.handOver({ ref, expectedVersion: board.version, nodeId, from: node(nodeId).assignee, to, note, atMs: Date.now() });
+        board = await runtime.boards.handOver({ ref, expectedVersion: board.version, nodeId, from: node(nodeId).assignee, to, note, atMs: Date.now(), human: person });
       };
       const roundSession = attempt.session;
       // Each change rewires only the steps it touches: a step still waiting behind a failure stays waiting until a
@@ -289,7 +296,10 @@ function stepLine(runtime: Runtime, node: TaskNode, plan: AgentExecutionPlan, se
 /** The graph at a glance, as a round starts: every step with its holder, and the ones no one holds. */
 function summary(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, session: string): string {
   const nodes = executionOrder(board, plan), open = nodes.filter(node => !node.assignee && !["succeeded", "failed", "cancelled"].includes(node.state));
-  return [`任务图摘要（第 ${board.version} 版，开始这一轮时）：`, ...nodes.map(node => stepLine(runtime, node, plan, session)),
+  // Read by the Host as the round starts, so it is newer than anything said earlier in the conversation: a person may
+  // have reassigned, skipped or finished steps in between.
+  return [`任务图现状（第 ${board.version} 版，宿主在这一轮开始时读取）。它比之前对话里提到的任务图状态更新：用户可能在两轮之间改派、跳过或完成了步骤。被问到谁在做哪一步、哪一步是什么状态时，以这里为准：`,
+    ...nodes.map(node => stepLine(runtime, node, plan, session)),
     ...(open.length ? [`没人认领：${open.map(node => node.id).join("、")}`] : [])].join("\n");
 }
 

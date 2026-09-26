@@ -79,10 +79,15 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       for(const item of children){const node=stepFor(nodes,item.child);if(node)placed.set(node.id,[...(placed.get(node.id)||[]),item]);else loose.push(item);}
       const live=Boolean(entry&&!entry.board.terminal&&['running','starting','paused','pausing','awaiting-review','awaiting-input'].includes(run.phase));
       // The latest round's unfinished graph can still be changed once the round ends; "继续计划" carries on from it.
-      const editable=Boolean(entry&&!entry.board.terminal&&(live||span.includes(runs.length-1)));
+      // A plan round is also the latest one to change when only ended conversation rounds came after it.
+      const lastPlan=runs.reduce((found,other,at)=>plans.some(item=>item.run_id===other.ref.run_id&&item.board)?at:found,-1);
+      const quietAfter=runs.slice(lastPlan+1).every(other=>['completed','failed','stopped','cancelled'].includes(other.phase));
+      const editable=Boolean(entry&&!entry.board.terminal&&(live||span.includes(runs.length-1)||span.includes(lastPlan)&&quietAfter));
       const steps=nodes.map((node,position)=>{
         const step=stepOf(entry.plan,node),verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===entry.board.version?verdict.status:null;
-        const state=decided==='accepted'?STATE.accepted:decided==='needs-work'?STATE['needs-work']:skipped(node)?STATE.skipped:STATE[node.state]||STATE.pending;
+        // A step you hold ends by your own mark, not by a model's report.
+        const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state)?(node.state==='succeeded'?['你标记完成','check','done']:['你标记失败','x','blocked']):null;
+        const state=decided==='accepted'?STATE.accepted:decided==='needs-work'?STATE['needs-work']:skipped(node)?STATE.skipped:yours||STATE[node.state]||STATE.pending;
         const deps=(node.depends_on||[]).map(dep=>nodes.find(other=>other.id===dep)).filter(Boolean).map(dep=>({title:stepOf(entry.plan,dep).title,ready:settled(dep),blocked:['failed','blocked'].includes(dep.state)}));
         const mine=(placed.get(node.id)||[]).map(childRow),last=node.reports.at(-1);
         const holder=node.owner,held=holder?.kind==='subtask'?children.find(item=>item.child.subagent_id===holder.subagent_id)?.child:null;

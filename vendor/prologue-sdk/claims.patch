@@ -3518,7 +3518,7 @@ index 350c0b40..6ce212ab 100644
  
  /** 受信 App 回收来源用的那一份：展示 id 加真实根引用。 */
 diff --git a/packages/sdk/src/orchestration/core/taskboard.ts b/packages/sdk/src/orchestration/core/taskboard.ts
-index b4d79a1e..a27fce1e 100644
+index b4d79a1e..1d946610 100644
 --- a/packages/sdk/src/orchestration/core/taskboard.ts
 +++ b/packages/sdk/src/orchestration/core/taskboard.ts
 @@ -24,6 +24,41 @@ export type NodeState =
@@ -3594,7 +3594,7 @@ index b4d79a1e..a27fce1e 100644
    /** 报上来的那几条，早的在前。条数满了丢最早的。 */
    readonly reports: readonly NodeReport[];
  }
-@@ -199,7 +240,24 @@ export interface TaskBoardStore {
+@@ -199,7 +240,26 @@ export interface TaskBoardStore {
      readonly ref: ExactRef<"task-board">;
      readonly expectedVersion: number;
      readonly nodeId: string;
@@ -3615,12 +3615,14 @@ index b4d79a1e..a27fce1e 100644
 +    readonly to: BoardAssignee | undefined;
 +    readonly note: string;
 +    readonly atMs: number;
++    /** The person who handed it over, when a person did (through the App); recorded on the handover entry. */
++    readonly human?: HumanPrincipal;
 +    /** 不给就用默认上界：说明同样受字数上限、进展条数同样只留最近那些。 */
 +    readonly limits?: BoardLimits;
    }): Promise<TaskBoard>;
    /**
     * 在一个节点上报一条进展，可以顺带把状态改掉。
-@@ -216,6 +274,15 @@ export interface TaskBoardStore {
+@@ -216,6 +276,15 @@ export interface TaskBoardStore {
      readonly nodeId: string;
      /** 谁报的。**没绑档案就是 `undefined`**，那时报不了别人名下的活。 */
      readonly by: ExactRef<"character"> | undefined;
@@ -3636,7 +3638,7 @@ index b4d79a1e..a27fce1e 100644
      readonly note: string;
      readonly atMs: number;
      /** 顺带改状态。不给就只留一条进展。 */
-@@ -247,12 +314,15 @@ export interface TaskBoardStore {
+@@ -247,12 +316,15 @@ export interface TaskBoardStore {
    subscribe(listener: (event: BoardEvent) => void): () => void;
  }
  
@@ -3654,7 +3656,7 @@ index b4d79a1e..a27fce1e 100644
    /** 有人报了一条。**不带那句说明**——事件里只有身份和状态。 */
    | { readonly type: "node-reported"; readonly nodeId: string }
    | { readonly type: "board-cancelled" };
-@@ -354,7 +424,8 @@ export function createTaskBoardStore(
+@@ -354,7 +426,8 @@ export function createTaskBoardStore(
    };
  
    const listeners = new Set<(event: BoardEvent) => void>();
@@ -3664,7 +3666,7 @@ index b4d79a1e..a27fce1e 100644
      for (const listener of listeners) {
        try {
          listener(event);
-@@ -740,7 +811,7 @@ export function createTaskBoardStore(
+@@ -740,7 +813,7 @@ export function createTaskBoardStore(
        normalize(held);
        held.version += 1;
        await save(held);
@@ -3673,7 +3675,7 @@ index b4d79a1e..a27fce1e 100644
        return view(held);
      },
  
-@@ -795,7 +866,7 @@ export function createTaskBoardStore(
+@@ -795,7 +868,7 @@ export function createTaskBoardStore(
        normalize(held);
        held.version += 1;
        await save(held);
@@ -3682,7 +3684,7 @@ index b4d79a1e..a27fce1e 100644
        return view(held);
      },
  
-@@ -820,7 +891,35 @@ export function createTaskBoardStore(
+@@ -820,7 +893,36 @@ export function createTaskBoardStore(
        held.nodes.set(nodeId, { ...node, assignee });
        held.version += 1;
        await save(held);
@@ -3711,7 +3713,8 @@ index b4d79a1e..a27fce1e 100644
 +        throw createPrologueError("TASKBOARD_PROPOSAL_INVALID",
 +          `Handing a task over needs a note saying why, at most ${String(limits.maxReportChars)} characters.`);
 +      }
-+      const report: NodeReport = { by: undefined, handover: { from: input.from, to: input.to }, note: input.note, atMs: input.atMs };
++      const report: NodeReport = { by: undefined, ...(input.human === undefined ? {} : { human: input.human }),
++        handover: { from: input.from, to: input.to }, note: input.note, atMs: input.atMs };
 +      held.nodes.set(node.id, { ...node, assignee: input.to, reports: [...node.reports, report].slice(-limits.maxReportsPerNode) });
 +      held.version += 1;
 +      await save(held);
@@ -3719,7 +3722,7 @@ index b4d79a1e..a27fce1e 100644
        return view(held);
      },
  
-@@ -844,10 +943,13 @@ export function createTaskBoardStore(
+@@ -844,10 +946,13 @@ export function createTaskBoardStore(
         * 没绑档案的那一跑（`by` 是 `undefined`）报不了任何写着名字的
         * 节点：那时根本没有「我是谁」可比，而这一栏正是「这活归谁」。
         */
@@ -3735,7 +3738,7 @@ index b4d79a1e..a27fce1e 100644
          );
        }
        if (input.note.length < 1) {
-@@ -861,7 +963,8 @@ export function createTaskBoardStore(
+@@ -861,7 +966,8 @@ export function createTaskBoardStore(
              "shorten it, or put the long form behind a resource reference.",
          );
        }
@@ -3745,7 +3748,7 @@ index b4d79a1e..a27fce1e 100644
        // 满了丢最早的那条。**不是拒绝**——正在干活的那个不该因为
        // 「说过太多次」就再也报不上来。
        const kept = [...node.reports, report].slice(-limits.maxReportsPerNode);
-@@ -874,15 +977,18 @@ export function createTaskBoardStore(
+@@ -874,15 +980,18 @@ export function createTaskBoardStore(
         * ready 直接报成功」会被拒绝，却已经把那句说明留在了图上——版本
         * 没加、盘上没有，只有这个进程里多了一条谁也解释不了的进展。
         */
@@ -3769,7 +3772,7 @@ index b4d79a1e..a27fce1e 100644
        }
        return view(held);
      },
-@@ -904,7 +1010,7 @@ export function createTaskBoardStore(
+@@ -904,7 +1013,7 @@ export function createTaskBoardStore(
        }
        held.version += 1;
        await save(held);
@@ -3778,7 +3781,7 @@ index b4d79a1e..a27fce1e 100644
        return view(held);
      },
  
-@@ -958,7 +1064,7 @@ export function createTaskBoardStore(
+@@ -958,7 +1067,7 @@ export function createTaskBoardStore(
        held.version += 1;
        // **落下去再返回**：写不下去是稳定错误，不是「改成功了但没存」。
        await save(held);
@@ -4479,10 +4482,10 @@ index 00000000..69d5d723
 +});
 diff --git a/packages/sdk/test/board-claims.test.ts b/packages/sdk/test/board-claims.test.ts
 new file mode 100644
-index 00000000..87019eb6
+index 00000000..31e75198
 --- /dev/null
 +++ b/packages/sdk/test/board-claims.test.ts
-@@ -0,0 +1,183 @@
+@@ -0,0 +1,187 @@
 +import { describe, expect, it } from "vitest";
 +import { createRuntime, type ModelEvent } from "../src/index.js";
 +import { createTaskBoardStore, reportsFor } from "../src/orchestration/core/index.js";
@@ -4549,6 +4552,7 @@ index 00000000..87019eb6
 +    expect(mine.assignee).toEqual(other);
 +    expect(mine.reports.map((one) => one.note)).toEqual(["n", "taken on"]);
 +    expect(mine.reports[1]?.handover).toEqual({ from: session, to: other });
++    expect(mine.reports[1]?.human).toBeUndefined();
 +    // Each change says which board it happened on, so a listener can follow just one.
 +    expect(events.at(-1)).toEqual({ type: "handed-over", board: held.ref.id });
 +    // The one it came from can no longer report; the new holder can.
@@ -4559,6 +4563,9 @@ index 00000000..87019eb6
 +      .rejects.toThrow(/which person decided/);
 +    await boards.report({ ref: held.ref, expectedVersion: boards.get(held.ref).version, nodeId: "theirs", by: undefined, human: { kind: "human", id: "u-2" }, override: true, note: "decided", atMs: 3, to: "blocked" });
 +    expect(boards.get(held.ref).nodes.find((node) => node.id === "theirs")?.reports.at(-1)).toMatchObject({ human: { id: "u-2" }, note: "decided" });
++    // A person's handover says who made it.
++    const byPerson = await boards.handOver({ ref: held.ref, expectedVersion: boards.get(held.ref).version, nodeId: "open", from: undefined, to: person, note: "mine now", atMs: 4, human: person });
++    expect(byPerson.nodes.find((node) => node.id === "open")?.reports.at(-1)).toMatchObject({ human: person, handover: { from: undefined, to: person } });
 +    // A finished step keeps who finished it.
 +    await expect(boards.handOver({ ref: held.ref, expectedVersion: boards.get(held.ref).version, nodeId: "mine", from: other, to: session, note: "back", atMs: 4 }))
 +      .rejects.toThrow(/already succeeded/);

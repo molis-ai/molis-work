@@ -748,9 +748,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan, session.ref) : undefined;
       // A round without a plan of its own still starts knowing where the session's unfinished graph stands.
       const earlier = plan ? undefined : [...index.attempts].reverse().find(attempt => attempt.step_board && attempt.frozen.execution_plan);
-      const standing = earlier ? stepBoards.standing(earlier.step_board!, earlier.frozen.execution_plan!, session.ref.id) : "";
+      // The graph as it stands travels with this round's task, where it reads as newer than the conversation before it.
+      const digest = plan && stepBoard ? stepBoards.digest(stepBoard, plan, session.ref.id)
+        : earlier ? stepBoards.standing(earlier.step_board!, earlier.frozen.execution_plan!, session.ref.id) : "";
+      if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
-        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), standing, (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
+        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
       if (!none) {
         await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
         await mcpLibrary.validateSources(index.owner,input.mcp_sources ?? []);

@@ -64,7 +64,7 @@ async function bench(t: { mock: { method: Function } }, script: (side: "parent" 
 
 test("a coordinator hands a step to a subtask: only the subtask reports on it, the coordinator hears its progress, and an unfinished step comes back", { timeout: 60_000 }, async t => {
   let release!: () => void; const parentDone = new Promise<void>(resolve => { release = resolve; });
-  let board = "", system = "", refused = "", delta = "", subagent = "", childSaw = "";
+  let board = "", system = "", opening = "", refused = "", delta = "", subagent = "", childSaw = "";
   const b = await bench(t, async (side, body, turn) => {
     const messages = JSON.stringify(body.messages);
     const report = (node: string, state: string, note: string) => response("", { name: "board-report", input: { board, node, state, note, version: versionIn(messages) } });
@@ -79,7 +79,7 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
       childSaw = messages; return response("b 只改了一半，轮次用完。");
     }
     if (turn === 1) {
-      system = JSON.stringify(body.system); board = system.match(/任务图：([^。]+)。/)![1]!;
+      system = JSON.stringify(body.system); opening = messages; board = system.match(/任务图：([^。]+)。/)![1]!;
       const character = system.match(/molis-child-[a-z0-9-]+@\d+/)![0];
       return response("", { name: "dispatch-subagent", input: { instruction: "CHILD_TWO 改 b.ts，完成条件：b 的测试通过。", tools: ["read", "search", "context-remaining", "write", "edit", "run-command"],
         character, workspace: "writer-0", idempotencyKey: "two", background: true, claims: { board, nodes: ["step-2"] } } });
@@ -102,10 +102,13 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
     const started = await b.start();
     const done = await b.settle(started.ref);
     assert.equal(done.phase, "completed", JSON.stringify({ phase: done.phase, turns: b.turns }));
-    // The round starts with the graph at a glance: every step and who holds it, and how to hand steps on.
-    assert.match(system, /任务图摘要（第 1 版/);
-    assert.match(system, /step-2「改 b\.ts」可开始（ready），负责：本会话/);
+    // The round starts with the graph at a glance, given with its task: every step and who holds it. The fixed
+    // instructions say how to hand steps on, and that the snapshot is newer than the conversation.
+    assert.match(opening, /任务图现状（第 1 版/);
+    assert.match(opening, /step-2「改 b\.ts」可开始（ready），负责：本会话/);
+    assert.doesNotMatch(system, /任务图现状（第/);
     assert.match(system, /claims/);
+    assert.match(system, /比之前对话里的说法新/);
     // While the subtask held step-2 the coordinator could not report on it.
     assert.match(refused, /TASKBOARD_NOT_ASSIGNED/);
     // What the subtask did reached the coordinator without it asking.
@@ -130,7 +133,7 @@ test("a person takes a step on, records its result, adds a step for themselves a
   let board = "", later = "";
   const b = await bench(t, (side, body, turn) => {
     const messages = JSON.stringify(body.messages);
-    if (JSON.stringify(body.messages).includes("现在每一步谁在负责")) { later = JSON.stringify(body.system); return response("step-1 用户已完成，step-2 在本会话，插入的一步由用户处理。"); }
+    if (JSON.stringify(body.messages).includes("现在每一步谁在负责")) { later = JSON.stringify(body.messages); return response("step-1 用户已完成，step-2 在本会话，插入的一步由用户处理。"); }
     if (turn === 1) { board = JSON.stringify(body.system).match(/任务图：([^。]+)。/)![1]!; return response("", { name: "board-read", input: { board } }); }
     // The round stops early, leaving the graph unfinished for the person.
     return response(messages.includes("board at version") ? "先停在这里，等用户安排。" : "…");
@@ -169,5 +172,8 @@ test("a person takes a step on, records its result, adds a step for themselves a
     assert.match(later, /step-1「改 a\.ts」已完成（succeeded），负责：用户/);
     assert.match(later, /step-2「改 b\.ts」可开始（ready），负责：本会话/);
     assert.match(later, /user-1「手工核对页面」.*负责：用户/);
+    // A question asked after the plan does not close it: the person can still take a step on.
+    await amend({ kind: "assign", node: "step-2", to: "me" });
+    assert.equal(view.nodes.find(node => node.id === "step-2")!.owner?.kind, "person");
   } finally { await b.close(); }
 });

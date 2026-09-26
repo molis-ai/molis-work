@@ -117,7 +117,7 @@ export {
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
 export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
-export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./routes.js";
+export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
 export {
   projectMcp,
   projectSkills,

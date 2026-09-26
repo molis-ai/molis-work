@@ -135,9 +135,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     amend:async(runId,version,amendment,live=true)=>{
       const id=current;
       try{const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
-        if(!live)status('已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
+        if(!live)status(result.board?.terminal?'已记在任务图上。计划的每一步都已结束。':'已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
         else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);}
       catch(error){status(error.message,true);}
+      // The board's copy of rounds outside the loaded window is kept by round count; a change to the graph renews it.
+      boardAll.key='';
       if(id===current)await readCurrent();
     },
     navigate:async(id,target)=>{
@@ -844,7 +846,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const planEntry=planEntries.find(entry=>entry.run_id===run.ref.run_id),boardId=planEntry?.board?.board_id;
       const laterOnSameGraph=boardId && all.slice(all.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.board_id===boardId);
       if(laterOnSameGraph)block.querySelector(':scope > .coding-plan-progress')?.remove();
-      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase),run===all.at(-1));
+      // The latest plan round keeps its graph open to change when only ended conversation rounds came after it.
+      const graphLatest=Boolean(planEntry?.board) && all.slice(all.indexOf(run)+1).every(later=>terminal(later.phase) && !planEntries.some(entry=>entry.run_id===later.ref.run_id));
+      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase),run===all.at(-1) || graphLatest);
       if(planCard){const at=ordered.findIndex(node=>node.dataset?.kind==='user');ordered.splice(at+1,0,planCard);}
       // Children appear right after the step that sent them.
       const children=subagentCards.render(run,subagentGroups.find(group=>group.run_id===run.ref.run_id));
@@ -866,7 +870,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
         const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void Promise.resolve(host.showReviews?.(inline,[run.ref],runtimeSessionId)).then(()=>offerApproval(inline));
       } else inline?.remove();
-      timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy));
+      timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy),run!==all.at(-1) && graphLatest && !recovery && !checkpointBusy);
     }
     renderCommands(all);
     // One row per finished round: its changes and its report, newest first.
@@ -1002,6 +1006,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       page.runs.forEach(run=>olderViews.set(run.ref.run_id,run));olderPlanEntries.push(...(page.taskboard_plans || []));olderSubagents.push(...(page.subagents || []));
       allRuns=allRuns.map(run=>run.light && olderViews.get(run.ref.run_id) || run);
       planEntries=[...olderPlanEntries,...planEntries.filter(entry=>!olderPlanEntries.includes(entry))];subagentGroups=[...olderSubagents,...subagentGroups.filter(group=>!olderSubagents.includes(group))];
+      // The results panel lists every loaded round's subtasks, so an earlier round's "评价并整合成果" finds its row.
+      subagents.update(id,subagentGroups);
       // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; the round being read stays put.
       const pending=page.runs.map(run=>olderViews.get(run.ref.run_id)).reverse();
       while(pending.length){
@@ -1070,7 +1076,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       plans.update(id,data.plan ?? null,allRuns);
-      subagents.update(id,data.subagents ?? []);
+      subagents.update(id,subagentGroups);
       boardUpdate(id,data);
       stepReports.sync(id);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}

@@ -204,7 +204,8 @@ export function createCodingTimeline() {
     "awaiting-input": "等你回答上面的问题", "awaiting-review": "等你决定上面这一步",
   };
   /** The live line at the bottom of an active round, or the closing card of a finished one. */
-  const renderFooter = (block: Element, run: TimelineRun, index: number, latest = false) => {
+  /** `planOpen`: an earlier round whose unfinished graph is still the session's latest plan; only "继续计划" is offered. */
+  const renderFooter = (block: Element, run: TimelineRun, index: number, latest = false, planOpen = false) => {
     let footer = block.querySelector(":scope > .coding-run-footer") as Element | null;
     if (!footer) { footer = document.createElement("div"); footer.className = "coding-run-footer"; }
     // Re-inserting a node restarts its entrance animation, so it only moves when something follows it.
@@ -256,7 +257,7 @@ export function createCodingTimeline() {
       ? explained ? `<p class="coding-run-reason"><strong>${escape(explained.title)}</strong>：${escape(explained.hint)}<br><small>${escape(stated)}</small></p>` : `<p class="coding-run-reason">${escape(stated)}</p>`
       : "";
     // Only the newest unfinished round can be picked up again; an interrupted one is checked first.
-    const resume = !latest ? "" : run.phase === "reconcile-required"
+    const resume = !latest ? (planOpen && left ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}继续计划</button>` : "") : run.phase === "reconcile-required"
       ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}核对并继续</button>`
       : ["failed", "stopped", "cancelled"].includes(run.phase) || left
         ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${left ? "继续计划" : "从断点继续"}</button>`

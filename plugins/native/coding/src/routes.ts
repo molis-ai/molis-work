@@ -158,6 +158,14 @@ function amendmentNote(amendment: AgentStepAmendment, board: AgentStepBoard): st
   }
 }
 
+/**
+ * Whether an earlier round may still be continued: only a plan round whose graph is unfinished, when every round
+ * after it was plain conversation (no plan of its own) and has ended.
+ */
+export function planContinuesAfterTalk(run: Pick<AgentRunView, "step_board">, later: ReadonlyArray<Pick<AgentRunView, "frozen" | "phase">>): boolean {
+  return Boolean(run.step_board && !run.step_board.terminal) && later.every(view => !view.frozen.execution_plan && isTerminalAgentPhase(view.phase));
+}
+
 function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionState {
   if (run.phase === "completed") return "done";
   if (run.phase === "awaiting-input") return "waiting-answer";
@@ -883,8 +891,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再从断点继续");
       const index = snapshot.runs.findIndex(ref => ref.run_id === request.params.runId);
       if (index < 0) throw new Error("这轮执行不属于当前会话");
-      if (index !== snapshot.runs.length - 1) throw new Error("只能从最新一轮继续");
       const ref = snapshot.runs[index]!, run = await api!.invoke(agent.readRun, [session, ref]);
+      // Only the newest round picks up again, with one exception: the latest plan round's unfinished graph, when the
+      // rounds after it were only conversation (a question, say) and have ended. Nothing else is continued out of order.
+      if (index !== snapshot.runs.length - 1) {
+        const later = await Promise.all(snapshot.runs.slice(index + 1).map(entry => api!.invoke(agent.readRun, [session, entry])));
+        if (!planContinuesAfterTalk(run, later)) throw new Error("只能从最新一轮继续");
+      }
       const reviews = await api!.invoke(agent.readRunReviews, [session, ref]);
       // A receipt that cannot be read is reported as such, never skipped: the continuation must not overstate what ran.
       const commands = await Promise.all((run.command_outputs ?? []).map(async command => {

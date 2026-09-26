@@ -190,9 +190,14 @@ export function registerAgentHostCapabilities<Context>(
       return recovery.inspect(session);
     }),
     registrar.register(agentHostCapabilities.recoverRun, async (context, [session, run, expectedVersion]) => {
-      await requireRun(context, session, run);
+      const view = await readScopedSession(context, session);
       const recovery = ports.agentHost(context).adapter(session.runtime_id).recovery;
       if (!recovery) throw new AgentHostError("agent.capability_unavailable", "当前运行时未接通中断恢复");
+      // The session's own round, or the interrupted round of one of its subtasks as this session's recovery lists it.
+      const own = run.session_id === session.session_id && view.runs.some(entry => entry.run_id === run.run_id && entry.session_id === session.session_id);
+      if (!own && (run.session_id !== session.session_id || !(await recovery.inspect(session)).runs.some(entry => entry.run_id === run.run_id && entry.subagent))) {
+        throw new AgentHostError("agent.run_unknown", "当前会话找不到这一轮执行");
+      }
       return recovery.close(session, run.run_id, expectedVersion);
     }),
     registrar.register(agentHostCapabilities.listCheckpoints, async (context, [session]) => {

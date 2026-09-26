@@ -810,8 +810,12 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         catch { return { call_id: command.call_id, output: null }; }
       }));
       const plan = run.step_board && !run.step_board.terminal ? codingTaskBoardPlans(context, record.session_id, [run]).find(entry => entry.board && entry.revision) : undefined;
-      const next = codingContinuation({ number: index + 1, run, reviews, commands, plan_unfinished: Boolean(plan) });
-      return plan ? { ...next, intent: "execute", plan_revision: plan.revision, continue_step_board_of: run.ref.run_id } : next;
+      // A round that dispatched subtasks hands them on as facts; unreadable is said, never read as "none".
+      const subagents = ["coordinator", "writers"].includes(run.frozen.role_id)
+        ? await api!.invoke(agent.listSubagents, [session, ref]).catch(() => null) : [];
+      const next = codingContinuation({ number: index + 1, run, reviews, commands, plan_unfinished: Boolean(plan), subagents });
+      // A plan run in parallel goes on in parallel; any other plan continues as one execution round.
+      return plan ? { ...next, intent: next.intent === "parallel" ? "parallel" : "execute", plan_revision: plan.revision, continue_step_board_of: run.ref.run_id } : next;
     }),
     route("coding.recover-run", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -900,7 +904,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const body = bodyOf(request);
         // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
         const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
-        if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || body.intent !== "execute")) throw new Error("继续计划需要原计划修订，并以执行方式开始");
+        if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
         const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(boardId, record.session_id);
         if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
         const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;

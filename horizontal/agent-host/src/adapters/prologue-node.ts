@@ -3,7 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import { BUILT_IN_ADAPTERS, DEFAULT_CONTEXT_WINDOW_TOKENS, SYSTEM_TOOL_NAMES, createAdapterRegistry, createRuntime, prepareSkillIntent, fillSkillBody, type Skill, type ExactRef, type Runtime, type ModelEvent } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 /** Start refusals the runtime raises before it creates a run: validation and context packing. */
-const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD"]);
+// Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
+const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD", "EFFECT_RECONCILE_REQUIRED"]);
 import path from "node:path";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 
@@ -448,27 +449,48 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       : now >= pending.expiresAtMs ? "这条问题已过期，不能提交原答案"
       : !activeRuns.get(run.run_id)?.live() || !runtime.effects.pendings.hasLiveWaiter(pending.ref)
         ? "原执行者已经停止或离线，不能通过回答重新启动" : undefined;
+  /** A run or open item of the session that no start claims: the only thing a start without a reference could have made. */
+  const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[], open: Awaited<ReturnType<typeof runtime.listOpenWork>>) =>
+    terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))
+    || open.items.some(item => item.origin.session === index.ref.id && !index.attempts.some(attempt => attempt.run_id === item.origin.run || attempt.run_id === item.id));
   const inspectRecovery = async (sessionId: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryReport> => {
     const index = await readIndex(sessionId);
     if (!index) throw new Error("会话执行索引不可用");
     const report = await runtime.sessions.inspectRecovery(index.ref);
     const open = await runtime.listOpenWork();
     const blockers: string[] = [];
-    // Same rule as restoring the session: a start refused while packing its context never created a run.
-    if (index.attempts.some(attempt => !attempt.run_id && !attempt.refused)) blockers.push("一次启动未保存完整引用，暂不能确认它对应的操作。");
+    // Same rule as restoring the session: a start refused before its run existed, or one that provably made no run.
+    if (index.attempts.some(attempt => !attempt.run_id && !attempt.refused)) {
+      const opened = await runtime.sessions.open(index.ref);
+      // Unreadable runs or open work leave the start unexplained; only a full, claimed picture rules it out.
+      if (!opened || open.unavailable.length || unclaimedWork(index, await opened.terminalRuns(), open)) blockers.push("一次启动未保存完整引用，暂不能确认它对应的操作。");
+    }
     if (report.runs.some(run => !index.attempts.some(attempt => attempt.run_id === run.ref.id))) blockers.push("存在未关联到此会话启动记录的轮次，需要核对来源。");
     if (open.unavailable.length) blockers.push("部分运行记录不可读取，请恢复存储访问后重新核对。");
     if (open.items.some(item => item.origin.session === sessionId && !report.runs.some(run => run.ref.id === item.origin.run || run.ref.id === item.id))) blockers.push("还有未关联到中断轮次的等待或操作，暂不能安全继续。");
-    return { session_id: sessionId, blockers, runs: report.runs.map(run => {
+    type RecoveredRun = Awaited<ReturnType<typeof runtime.sessions.inspectRecovery>>["runs"][number];
+    const view = (run: RecoveredRun, subagent?: { subagent_id: string }) => {
       const reasons: string[] = [];
       if (run.live) reasons.push("此会话仍有活动执行，请通过执行控件停止。");
       if (run.operations.some(operation => operation.outcome === "unknown")) reasons.push("有操作缺少可核实的结果；不会自动重复执行，也不能将它标记为成功。");
       if (run.blockers.length && !reasons.length) reasons.push("执行或操作记录尚未核实，请稍后重新核对。");
       return { run_id: run.ref.id, version: run.version, live: run.live, waiting: run.waiting,
         operations: run.operations.map(operation => ({ ...operation })), blockers: reasons,
-        can_close: run.canClose && blockers.length === 0 };
-    }) };
+        can_close: run.canClose && blockers.length === 0, ...(subagent ? { subagent } : {}) };
+    };
+    // A subtask cut off by a restart blocks every new round of its parent until its own interrupted run is closed.
+    const children = [];
+    for (const child of childrenToReconcile(sessionId)) {
+      const own = await runtime.sessions.inspectRecovery(child.session).catch(() => undefined);
+      if (!own) { blockers.push("有子任务的中断记录不可读取，暂不能安全继续。"); continue; }
+      if (!own.runs.length) blockers.push("有子任务的结果需要核对，但找不到它可以结束的中断轮次。");
+      children.push(...own.runs.map(run => view(run, { subagent_id: child.ref.id })));
+    }
+    return { session_id: sessionId, blockers, runs: [...report.runs.map(run => view(run)), ...children] };
   };
+  /** Subtasks of this session left without a known outcome, as the runtime projects them after a restart. */
+  const childrenToReconcile = (sessionId: string) => runtime.subagents.list()
+    .filter(child => child.parentSession.id === sessionId && child.state === "reconcile-required");
   const port: PrologueRuntimePort = {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
@@ -477,10 +499,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       inspect: session => inspectRecovery(session.session_id),
       close: async (session, runId, expectedVersion) => {
         const index = await readIndex(session.session_id);
-        if (!index?.attempts.some(attempt => attempt.run_id === runId)) throw new Error("这轮执行不属于当前会话");
+        // The session's own round, or the interrupted round of one of its subtasks: that one closes in the child's session.
+        const child = childrenToReconcile(session.session_id).find(entry => entry.run.id === runId);
+        if (!index?.attempts.some(attempt => attempt.run_id === runId) && !child) throw new Error("这轮执行不属于当前会话");
         const before = await inspectRecovery(session.session_id);
         if (before.blockers.length || before.runs.some(run => run.run_id === runId && !run.can_close)) throw new Error("仍有待核实的操作，不能关闭中断轮次");
-        await runtime.sessions.recoverRun(index.ref, { kind: "run", id: runId, revision: 1 }, expectedVersion);
+        await runtime.sessions.recoverRun(child ? child.session : index!.ref, { kind: "run", id: runId, revision: 1 }, expectedVersion);
         return inspectRecovery(session.session_id);
       },
     },
@@ -566,11 +590,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         const reasons: string[] = [];
         if (open.unavailable.length) reasons.push("未能查清运行时的未结束工作，暂不能安全继续");
         if (open.items.some(item => item.origin.session === id)) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
+        if (childrenToReconcile(id).length) reasons.push("有子任务在中断后结果待核对：核对并结束它的中断轮次后，才能开始新一轮");
         if (terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))) reasons.push("SDK 有执行记录缺少宿主启动索引，需要核对对应关系");
         const runs: PrologueRestoredSession["runs"] = [];
+        const unclaimed = open.unavailable.length > 0 || unclaimedWork(index, terminal, open);
         for (const attempt of index.attempts) {
-          // A start the runtime refused while packing its context never created a run; only an unexplained gap is unknown.
-          if (!attempt.run_id) { if (!attempt.refused) reasons.push("一次启动没有完整保存执行引用，不能判断是否发生过操作"); continue; }
+          // A start the runtime refused never created a run; one with no reference is only unknown while some run or
+          // open item of this session is claimed by no start, because that is the only run it could have made.
+          if (!attempt.run_id) { if (!attempt.refused && unclaimed) reasons.push("一次启动没有完整保存执行引用，不能判断是否发生过操作"); continue; }
           const ref = terminal.find(ref => ref.id === attempt.run_id);
           const pendingQuestions = !ref ? (await runtime.effects.pendings.readByOrigin({ session: id, run: attempt.run_id })).filter(pending => pending.state !== "settled" && ["text", "questionnaire"].includes(pending.kind)) : [];
           if (!ref) reasons.push("中断轮次仅有已保存的过程，结束状态与操作仍需核对，不会自动重复执行");

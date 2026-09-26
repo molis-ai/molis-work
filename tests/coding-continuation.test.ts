@@ -50,10 +50,9 @@ test("继续的继续仍指回用户的原任务，不层层嵌套", () => {
   assert.match(next.task, /出错结束：MODEL_NETWORK_FAILED/);
 });
 
-test("未结束、已完成或带目录分工的轮次不能一键继续；读不到的回执如实说未知", () => {
+test("未结束或已完成的轮次不能一键继续；读不到的回执如实说未知", () => {
   assert.throws(() => codingContinuation({ number: 1, run: run({ phase: "running" }), reviews: [], commands: [] }), /还没有结束/);
   assert.throws(() => codingContinuation({ number: 1, run: run({ phase: "completed" }), reviews: [], commands: [] }), /已经完成/);
-  assert.throws(() => codingContinuation({ number: 1, run: run({ frozen: { role_id: "writers" } as never }), reviews: [], commands: [] }), /分工/);
   const unknown = codingContinuation({ number: 1, run: run(), reviews: [], commands: [{ call_id: "c2", output: null }] });
   assert.match(unknown.task, /回执无法读取，结果未知：npm test/);
 });
@@ -104,4 +103,21 @@ test("上一轮只宣布了下一步就结束时，继续会说明这一点并�
   assert.match(next.task, /直接调用工具开始/);
   const acted = run({ phase: "completed", stop_reason: undefined, command_outputs: [], step_board: board } as never);
   assert.doesNotMatch(codingContinuation({ number: 3, run: acted, reviews: [], commands: [], plan_unfinished: true }).task, /上一轮你只说了/, "a round that did work is not called idle");
+});
+
+test("并行和协作轮次也能一键继续：列出上一轮子任务的状态、改动和结论，已完成的不重派", () => {
+  const child = (over: object) => ({ subagent_id: "a", parent_run: { session_id: "s", run_id: "r" }, role_id: "coding-builder", role_name: "独立实现",
+    task: "子任务 A：新增 src/export-json.ts 和测试", state: "completed", result: "两个文件已写好，5/5 通过", workspace_path: "/w/writer-08b7", ...over });
+  const next = codingContinuation({ number: 3, run: run({ phase: "failed", stop_reason: "MODEL_NETWORK_FAILED: fetch failed", frozen: { role_id: "writers" } as never }), reviews: [], commands: [],
+    subagents: [
+      child({ activity: [{ call_id: "w1", name: "write", target: "src/export-json.ts", state: "completed" }, { call_id: "w2", name: "write", target: "test/export-json.test.ts", state: "completed" }] }),
+      child({ subagent_id: "b", task: "子任务 B：新增 src/weekly-rate.ts", state: "failed", result: null, error: "TOOL_FAILED", workspace_path: "/w/writer-d7ca" }),
+    ] as never });
+  assert.equal(next.intent, "parallel", "并行轮次按并行继续");
+  assert.match(next.task, /子任务：\n- 「独立实现」（独立目录 writer-08b7）：已完成；任务：子任务 A：新增 src\/export-json\.ts 和测试；改动：src\/export-json\.ts、test\/export-json\.test\.ts；结论：两个文件已写好，5\/5 通过/);
+  assert.match(next.task, /- 「独立实现」（独立目录 writer-d7ca）：失败；任务：子任务 B.*；错误：TOOL_FAILED/);
+  assert.match(next.task, /已完成的不要重派.*只派还没完成或失败的部分/);
+  assert.equal(codingContinuation({ number: 1, run: run({ frozen: { role_id: "coordinator" } as never }), reviews: [], commands: [] }).intent, "collaborate");
+  const unread = codingContinuation({ number: 1, run: run({ frozen: { role_id: "writers" } as never }), reviews: [], commands: [], subagents: null });
+  assert.match(unread.task, /子任务状态不可读取：先让用户在结果区核对，不要凭记忆重派/);
 });

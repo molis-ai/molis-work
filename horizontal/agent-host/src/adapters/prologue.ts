@@ -276,7 +276,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       inspect: async session => { await this.#loadSession(session.session_id); return options.runtime.recovery!.inspect(session); },
       close: async (session, runId, expectedVersion) => {
         const held = await this.#loadSession(session.session_id);
-        if (!held.runs.some(run => run.run_id === runId)) throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于当前会话");
+        // One of this session's rounds, or a subtask's interrupted round that this session's recovery lists as its own.
+        if (!held.runs.some(run => run.run_id === runId)
+          && !(await options.runtime.recovery!.inspect(session)).runs.some(run => run.run_id === runId && run.subagent)) {
+          throw new PrologueAdapterError("agent.run_unknown", "这轮执行不属于当前会话");
+        }
         const latest = held.runs.at(-1);
         const phase = latest && this.#requireRun(latest.run_id).view.phase;
         if (this.#startingSessions.has(session.session_id) || options.runtime.checkpoints?.busy?.(session)

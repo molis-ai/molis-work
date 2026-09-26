@@ -1,4 +1,4 @@
-import type { AgentCommandOutput, AgentReviewReceipt, AgentReviewRequest, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentCommandOutput, AgentReviewReceipt, AgentReviewRequest, AgentRunView, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
  * Continuing an unfinished round from where it stopped.
@@ -19,6 +19,8 @@ const LIMIT = 40;
 /** The intent a role was started with; parallel rounds carry assignments a continuation cannot re-derive. */
 const INTENT_BY_ROLE: Record<string, string> = {
   builder: "execute", writer: "edit", reader: "discuss", planner: "plan", reviewer: "review",
+  // A coordinator or parallel round goes on with its own subtasks; finished ones are listed so they are not sent again.
+  coordinator: "collaborate", writers: "parallel",
 };
 
 export interface ContinuationInput {
@@ -29,6 +31,8 @@ export interface ContinuationInput {
   commands: ReadonlyArray<{ call_id: string; output: AgentCommandOutput | null }>;
   /** The round ran a confirmed plan whose graph still has steps to do; it continues on that same graph. */
   plan_unfinished?: boolean;
+  /** Subtasks the round dispatched, as the Host read them; null when they could not be read. */
+  subagents?: ReadonlyArray<AgentSubagentView> | null;
 }
 
 const shell = (command: string, args: readonly string[]) => [command, ...args].join(" ");
@@ -69,7 +73,7 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
     throw new Error(run.phase === "completed" ? "这一轮已经完成；需要继续时请直接写下一步要求" : "这一轮还没有结束，不能从断点继续");
   }
   const intent = INTENT_BY_ROLE[run.frozen.role_id];
-  if (!intent) throw new Error("并行分工或协作轮次带有目录分工，请在输入框写明要继续的部分再发送");
+  if (!intent) throw new Error("这一轮的方式不支持从断点继续，请在输入框写明要继续的部分再发送");
   const task = originalTask(run).trim();
   if (!task) throw new Error("读不到这一轮的原任务，不能拼出继续说明");
 
@@ -129,16 +133,28 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
   // Blank lines keep each section its own Markdown list when the turn is rendered.
   const section = (title: string, lines: readonly string[]) => lines.length
     ? `\n\n${title}\n${lines.slice(0, LIMIT).map(line => "- " + line).join("\n")}${lines.length > LIMIT ? `\n- 另有 ${lines.length - LIMIT} 项未列出` : ""}` : "";
+  // A subtask's work lives in its own directory until the person integrates it; the next round must not redo it.
+  const SUBTASK_STATE: Record<string, string> = { running: "还在运行（上一轮结束时没有收回）", completed: "已完成", failed: "失败", cancelled: "已停止", "reconcile-required": "结果需要核对" };
+  const subtasks = input.subagents === null ? ["子任务状态不可读取：先让用户在结果区核对，不要凭记忆重派"]
+    : (input.subagents ?? []).map(child => {
+      const changed = [...new Set((child.activity ?? []).filter(entry => ["edit", "write", "edit-file"].includes(entry.name) && entry.state === "completed" && entry.target).map(entry => entry.target))];
+      const where = child.workspace_path ? `（独立目录 ${clip(child.workspace_path.split("/").at(-1) ?? child.workspace_path, 60)}）` : "";
+      return `「${clip(child.role_name ?? child.role_id, 40)}」${where}：${SUBTASK_STATE[child.state] ?? child.state}；任务：${clip(child.task.replace(/\s+/g, " "), 160)}`
+        + (changed.length ? `；改动：${changed.map(path => clip(path, 120)).join("、")}` : "")
+        + (child.result ? `；结论：${clip(child.result.replace(/\s+/g, " "), 240)}` : child.error ? `；错误：${clip(child.error, 200)}` : "");
+    });
+  const subtaskNote = subtasks.length ? "\n\n上一轮派出的子任务以上面列出的状态为准：已完成的不要重派，它们的改动留在各自目录里，等用户经审查整合；只派还没完成或失败的部分。" : "";
   const facts = [
     section("文件写入：", writes),
     section("命令：", commands),
     section("已读取的文件：", reads.map(path => clip(path, 200))),
     section("没有结束的操作（不要当作已完成）：", unfinished),
     section("计划步骤：", steps),
+    section("子任务：", subtasks),
   ].join("");
 
   return {
     intent,
-    task: `${CONTINUATION_MARKER}第 ${input.number} 轮没有完成：${why}。请从断点继续完成原任务。\n\n${ORIGINAL_HEAD}${task}${FACTS_HEAD}（以此为准，不要凭对话记忆推断）：${facts || "\n\n- 这一轮没有经过审查的写入或命令"}\n\n继续时：先读取相关文件的当前内容核对状态；已写入的内容和已运行的命令不要重复，确需重新验证时说明原因；被拒绝的修改按意见调整后再提出；结果未知的操作先核对再决定。${closing}${planNote}${stallNote}`,
+    task: `${CONTINUATION_MARKER}第 ${input.number} 轮没有完成：${why}。请从断点继续完成原任务。\n\n${ORIGINAL_HEAD}${task}${FACTS_HEAD}（以此为准，不要凭对话记忆推断）：${facts || "\n\n- 这一轮没有经过审查的写入或命令"}\n\n继续时：先读取相关文件的当前内容核对状态；已写入的内容和已运行的命令不要重复，确需重新验证时说明原因；被拒绝的修改按意见调整后再提出；结果未知的操作先核对再决定。${closing}${planNote}${subtaskNote}${stallNote}`,
   };
 }

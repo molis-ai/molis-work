@@ -778,6 +778,8 @@ export interface AgentRecoveryReport {
     can_close: boolean;
     blockers: string[];
     operations: Array<{ effect_id: string; kind: string; summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
+    /** The interrupted round belongs to this subtask of the session; closing it settles the subtask. */
+    subagent?: { subagent_id: string };
   }>;
 }
 

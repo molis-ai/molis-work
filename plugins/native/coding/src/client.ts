@@ -917,7 +917,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const labels={completed:'已执行',failed:'执行失败（可能部分生效）','not-dispatched':'未执行',unknown:'结果未知'};
       report.runs.forEach((run,index)=>{
         const section=document.createElement('section');
-        const heading=document.createElement('h4');heading.textContent='中断轮次 '+(index+1);section.append(heading);
+        // A subtask's interrupted round is named after the subtask, so the person knows what closing it settles.
+        const child=run.subagent?subagentGroups.flatMap(group=>group.children||[]).find(entry=>entry.subagent_id===run.subagent.subagent_id):null;
+        // Subtasks of one role read alike; the directory each one worked in tells them apart.
+        const where=child?.workspace_path?'（'+child.workspace_path.split('/').at(-1)+'）':'';
+        const heading=document.createElement('h4');heading.textContent=run.subagent?'子任务「'+(child?.role_name||'子任务')+'」'+where+'的中断轮次':'中断轮次 '+(index+1);section.append(heading);
+        if(run.subagent){const row=document.createElement('p');row.textContent='结束后这个子任务按已核实的结果收尾，不会重跑；它在自己目录里的改动保持原样。';section.append(row);}
         run.operations.forEach(operation=>{const row=document.createElement('p');row.textContent=labels[operation.outcome]+'：'+operation.summary;section.append(row);});
         if(!run.operations.length){const row=document.createElement('p');row.textContent='未发现持久记录的副作用操作；这不代表原任务已完成。';section.append(row);}
         if(run.waiting){const row=document.createElement('p');row.textContent='结束时将关闭 '+run.waiting+' 项遗留等待，旧问题与审批不能继续回答。';section.append(row);}
@@ -1400,7 +1405,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const next=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/continuation');
       if(current!==id)return;
       // A plan round continues on its own graph; everything else starts a fresh round with the Host's facts.
-      await startRound(id,next.task,next.intent,modelValue,currentSelection(id),next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{});
+      // A parallel round goes on with the directories it was given; the saved split is what those subtasks used.
+      const selection=currentSelection(id);if(next.intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
+      await startRound(id,next.task,next.intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{});
       status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
       pinned=true;await refreshState();await readCurrent();
     } catch(error) {if(current===id)status(error.message,true);}
@@ -1413,11 +1420,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const report=await api('/sessions/'+encodeURIComponent(id)+'/recovery');
       const entry=report.runs.find(run=>run.run_id===runId);
-      if(!entry || !entry.can_close || report.blockers.length) {
+      // The round's subtasks were cut off with it; they are settled together, or a new round would be refused.
+      const blocked=report.runs.find(run=>!run.can_close);
+      if(!entry || blocked || report.blockers.length) {
         root.dataset.codingResults='true';recoveryKey='';void readRecovery();
-        status((report.blockers.length?report.blockers.join('；'):entry?.blockers?.join('；') || '这一轮还有结果未知的操作')+'。请在右侧核对后再继续。',true);return;
+        status((report.blockers.length?report.blockers.join('；'):(blocked||entry)?.blockers?.join('；') || '这一轮还有结果未知的操作')+'。请在右侧核对后再继续。',true);return;
       }
-      await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/recover','POST',{expected_version:entry.version});
+      for(const run of [...report.runs.filter(run=>run.subagent),entry])await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run.run_id)+'/recover','POST',{expected_version:run.version});
       if(current!==id)return;
       await continueRound(runId);
     } catch(error) {if(current===id)status(error.message,true);}

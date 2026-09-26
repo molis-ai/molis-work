@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codeTokens, codeLanguage, diffRowTokens, mentionedPaths, attachMentions, workspaceFileIndex, requestText, MENTIONS_MARKER, codingHistoryDigest } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, codeLanguage, diffRowTokens, mentionedPaths, attachMentions, workspaceFileIndex, requestText, MENTIONS_MARKER, codingHistoryDigest, symbolsIn, symbolBlock } from "@molis-ai/molis-work-plugin-coding";
 
 const kinds = (text: string, language: string) => codeTokens(text, language).filter(([kind]) => kind).map(([kind, value]) => `${kind}:${value}`);
 
@@ -120,4 +120,45 @@ test("@ 一个目录时附上它这一层的列表，子目录标上 /；索引�
   assert.deepEqual(bare.attached, ["src/"], "a bare folder name is attached too");
   const index = await workspaceFileIndex(read as never, "w");
   assert.deepEqual(index.files, ["README.md", "src/", "src/habits.ts", "src/lib/", "src/streaks.ts"]);
+});
+
+test("@path#name names one definition: the picker lists a file's definitions and only that block is attached", async () => {
+  const source = [
+    'import type { Habit } from "./habits.ts";',
+    "",
+    "/** Days in a row, counting back from today. */",
+    "export function currentStreak(habit: Habit, options: { today: string }): number {",
+    "  const note = \"a } in a string\"; // and a { in a comment",
+    "  if (options.today) {",
+    "    return 1;",
+    "  }",
+    "  return 0;",
+    "}",
+    "",
+    "export type Range = { from: string; to: string };",
+    "export const LIMIT = 7;",
+    "export interface Summary {",
+    "  total: number;",
+    "}",
+  ].join("\n");
+  assert.deepEqual(symbolsIn("src/streaks.ts", source).map(symbol => `${symbol.kind} ${symbol.name}:${symbol.line}`),
+    ["function currentStreak:4", "type Range:12", "const LIMIT:13", "interface Summary:14"]);
+  // The comment above comes along; an inline object type in the parameters does not end the block early; braces in strings and comments are ignored.
+  assert.deepEqual(symbolBlock("src/streaks.ts", source, "currentStreak"), { start: 3, end: 10, body: source.split("\n").slice(2, 10).join("\n") });
+  assert.equal(symbolBlock("src/streaks.ts", source, "Range")?.body, "export type Range = { from: string; to: string };");
+  assert.equal(symbolBlock("src/streaks.ts", source, "LIMIT")?.end, 13);
+  assert.equal(symbolBlock("src/streaks.ts", source, "missing"), null);
+  const python = ["import os", "", "class Ledger:", "    def add(self, x):", "        return x", "", "    def total(self):", "        return 0", "", "def main():", "    pass"].join("\n");
+  assert.deepEqual(symbolsIn("app.py", python).map(symbol => symbol.name), ["Ledger", "main"]);
+  assert.deepEqual(symbolBlock("app.py", python, "Ledger"), { start: 3, end: 8, body: python.split("\n").slice(2, 8).join("\n") });
+  assert.deepEqual(symbolsIn("main.go", "func (s *Server) Start() error {\n}\ntype Config struct {\n}").map(symbol => symbol.name), ["Start", "Config"]);
+  assert.deepEqual(symbolsIn("notes.md", "# function x"), [], "a language it does not know has no symbols to offer");
+
+  assert.deepEqual(mentionedPaths("看 @src/streaks.ts#currentStreak 和 @src/streaks.ts，@../x.ts#y 不算"), ["src/streaks.ts#currentStreak", "src/streaks.ts"]);
+  const read = async () => ({ outcome: "text", text: source, fingerprint: "f" });
+  const { task, attached } = await attachMentions(read as never, "w", "改 @src/streaks.ts#currentStreak 的边界，再看 @src/streaks.ts#nothing");
+  assert.deepEqual(attached, ["src/streaks.ts#currentStreak"]);
+  assert.match(task, /### src\/streaks\.ts#currentStreak（src\/streaks\.ts 第 3–10 行）\n```\n\/\*\* Days in a row/);
+  assert.doesNotMatch(task, /export interface Summary/, "only the named definition is attached, not the whole file");
+  assert.match(task, /### src\/streaks\.ts#nothing\n（没有附上：在 src\/streaks\.ts 里没找到 nothing 的定义/);
 });

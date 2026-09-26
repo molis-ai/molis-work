@@ -37,7 +37,7 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.46.0",
+  version: "1.47.0",
   name: "Coding",
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
@@ -150,6 +150,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.live", method: "GET", path: "/sessions/:sessionId/runs/:runId/live" },
     { route_id: "coding.commit-draft", method: "POST", path: "/sessions/:sessionId/runs/:runId/commit-draft" },
     { route_id: "coding.files", method: "GET", path: "/sessions/:sessionId/files" },
+    { route_id: "coding.symbols", method: "GET", path: "/sessions/:sessionId/symbols" },
     { route_id: "coding.compact-next", method: "POST", path: "/sessions/:sessionId/compact" },
     { route_id: "coding.delegations", method: "GET", path: "/sessions/:sessionId/delegations" },
     { route_id: "coding.delegate", method: "POST", path: "/sessions/:sessionId/delegations" },

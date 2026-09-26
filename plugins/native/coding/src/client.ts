@@ -1379,6 +1379,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const commandsUi=(${CODING_COMMANDS_CLIENT_FACTORY_SCRIPT})({q,input,status,commands:codingCommands,current:()=>current,
     workspace:()=>workspaceId,files:(key)=>api('/sessions/'+encodeURIComponent(current)+'/files?workspace_id='+encodeURIComponent(key)),
+    symbols:(key,path)=>api('/sessions/'+encodeURIComponent(current)+'/symbols?workspace_id='+encodeURIComponent(key)+'&path='+encodeURIComponent(path)),
     sessions:()=>state.sessions.map(session=>({...session,state_label:SESSION_STATE[session.state] || ''})),
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);}});
   // Esc in the composer stops a live round, as in terminal agents — never mid-IME, never while the + menu is open.

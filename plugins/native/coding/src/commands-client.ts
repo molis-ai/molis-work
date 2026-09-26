@@ -18,19 +18,32 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const draw=()=>{
     menu.replaceChildren();menu.hidden=false;menu.setAttribute('aria-label',mention?'工作区文件':'命令');
     items.forEach((item,index)=>{const option=el('div','coding-slash-item'+(mention?' is-file':''));option.id='coding-slash-'+index;option.setAttribute('role','option');option.setAttribute('aria-selected',String(index===active));
-      if(mention){const slash=item.lastIndexOf('/');option.append(el('span','coding-slash-label',item.slice(slash+1)),el('span','coding-slash-hint',slash>0?item.slice(0,slash):''));}
+      if(mention&&typeof item==='object')option.append(el('span','coding-slash-label',item.name),el('span','coding-slash-hint',item.kind+' · 第 '+item.line+' 行'));
+      else if(mention){const slash=item.lastIndexOf('/');option.append(el('span','coding-slash-label',item.slice(slash+1)),el('span','coding-slash-hint',slash>0?item.slice(0,slash):''));}
       else option.append(el('code','','/'+item.slug),el('span','coding-slash-label',item.label),el('span','coding-slash-hint',item.hint || ''));
       option.addEventListener('mousedown',event=>{event.preventDefault();pick(index);});menu.append(option);});
-    if(mention && !items.length)menu.append(el('p','coding-slash-empty',filesError || (files?'没有匹配的文件':'正在读取工作区文件…')));
+    if(mention && !items.length)menu.append(el('p','coding-slash-empty',mention.file!==undefined?(symbolsError || (symbols.has(symbolKey())?'这个文件里没有匹配的定义':'正在读取文件里的定义…')):(filesError || (files?'没有匹配的文件':'正在读取工作区文件…'))));
     input.setAttribute('aria-activedescendant',items.length?'coding-slash-'+active:'');menu.children[active]?.scrollIntoView({block:'nearest'});
   };
   // "@" at the start of a word names a workspace file; basename matches rank first, then the whole path.
   // Chinese punctuation mode types "、" for "/" and may type "＠" for "@"; both open the same menus.
   let mention=null,files=null,filesFor='',filesError='';
+  // "@path#name" names one definition in a file: after "#", the menu lists that file's functions, classes and types.
+  const symbols=new Map();let symbolsError='';
+  const symbolKey=()=>ports.workspace()+'\u0000'+(mention?.file ?? '');
+  const loadSymbols=async(file)=>{const key=ports.workspace()+'\u0000'+file;if(symbols.has(key) || !ports.symbols || !ports.workspace())return;symbols.set(key,null);symbolsError='';
+    try{const value=await ports.symbols(ports.workspace(),file);symbols.set(key,value.symbols || []);if(value.unreadable)symbolsError='读不到这个文件';refresh();}catch(error){symbols.delete(key);symbolsError=error.message;refresh();}};
   const loadFiles=async()=>{const key=ports.workspace();if(!key){filesError='请先选择工作区';return;}if(filesFor===key && (files || !filesError))return;filesFor=key;files=null;filesError='';
     try{const value=await ports.files(key);if(filesFor===key){files=value.files;refresh();}}catch(error){if(filesFor===key){filesError=error.message;refresh();}}};
   const refresh=()=>{
     const before=input.value.slice(0,input.selectionStart ?? input.value.length),at=/(^|\\s)[@＠]([^\\s@＠]*)$/.exec(before);
+    const hash=at?at[2].search(/[#＃]/):-1;
+    if(at && hash>0){
+      const file=at[2].slice(0,hash),word=at[2].slice(hash+1).toLowerCase();
+      mention={start:before.length-at[2].length-1,query:at[2],file};void loadSymbols(file);
+      items=(symbols.get(symbolKey()) || []).filter(symbol=>matches(word,symbol.name)).sort((a,b)=>Number(!a.name.toLowerCase().startsWith(word))-Number(!b.name.toLowerCase().startsWith(word)) || a.line-b.line).slice(0,12);
+      active=Math.min(active,Math.max(items.length-1,0));draw();return;
+    }
     if(at){
       mention={start:before.length-at[2].length-1,query:at[2]};void loadFiles();
       const word=at[2].toLowerCase(),base=(path)=>{const own=path.replace(/\\/$/,'');return own.slice(own.lastIndexOf('/')+1).toLowerCase();};
@@ -43,7 +56,7 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(!items.length){close();return;}active=Math.min(active,items.length-1);draw();
   };
   const pick=(index)=>{const item=items[index];if(!item)return;
-    if(mention){const end=mention.start+1+mention.query.length,value=input.value.slice(0,mention.start)+'@'+item+' '+input.value.slice(end);input.value=value;const caret=mention.start+item.length+2;input.setSelectionRange(caret,caret);close();input.dispatchEvent(new Event('input',{bubbles:true}));return;}
+    if(mention){const text=typeof item==='object'?mention.file+'#'+item.name:item;const end=mention.start+1+mention.query.length,value=input.value.slice(0,mention.start)+'@'+text+' '+input.value.slice(end);input.value=value;const caret=mention.start+text.length+2;input.setSelectionRange(caret,caret);close();input.dispatchEvent(new Event('input',{bubbles:true}));return;}
     input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));close();void run(item);};
   input.setAttribute('aria-controls','coding-slash-menu');
   input.addEventListener('input',()=>{active=0;refresh();});

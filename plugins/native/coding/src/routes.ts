@@ -18,7 +18,7 @@ import { codingContinuation } from "./continuation.js";
 import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
 import { CodingCooperationStore, DELEGATION_STATE_LABEL, type CodingDelegation } from "./cooperation.js";
-import { attachMentions, readWorkspaceFileCapability, workspaceFileIndex } from "./mentions.js";
+import { attachMentions, readWorkspaceFileCapability, symbolsIn, workspaceFileIndex } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { CODING_CHANGESET_TYPE } from "./artifacts.js";
@@ -631,6 +631,16 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const value = workspaceFileIndex(query => api!.invoke(readWorkspaceFileCapability, query), workspaceId);
       fileIndexes.set(workspaceId, { at: Date.now(), value });
       try { return await value; } catch (error) { fileIndexes.delete(workspaceId); throw error; }
+    }),
+    // The definitions in one file a person can name as "@path#name", read through the same read-only capability.
+    route("coding.symbols", async (request, api, execution) => {
+      selected(request, execution);
+      const workspaceId = text(request.query?.workspace_id, "工作区", 200), path = text(request.query?.path, "文件", 1000);
+      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+      if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw new Error("请先为这个项目选择已授权的工作区目录");
+      if (path.split("/").includes("..")) throw new Error("文件路径无效");
+      const file = await api!.invoke(readWorkspaceFileCapability, { workspace_id: workspaceId, path: path.split("/").filter(Boolean), kind: "text" });
+      return { path, symbols: file.outcome === "text" ? symbolsIn(path, file.text) : [], ...(file.outcome === "text" ? {} : { unreadable: file.outcome }) };
     }),
     // A live round, as it happens: answers as soon as it changes from what the page holds (or after the wait).
     route("coding.live", async (request, api, execution) => {

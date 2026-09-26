@@ -51,6 +51,9 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   await runtime.start(installed.install_id);
+  // Feed offers its own item actions beside the unknown plugin's; the checks name the plugin's offer instead of taking the first button.
+  const TAG = "[...document.querySelectorAll('[data-home-offer]')].find(button => button.textContent === '标记待核查')";
+  const clickTag = async () => click(`[data-home-offer="${await evaluate<string>(`${TAG}.dataset.homeOffer`)}"]`);
   const capture = async (name: string) => { const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64")); };
   try {
     await mkdir(captures, { recursive: true });
@@ -86,11 +89,12 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('正在查找')");
     const talkTop = await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top");
     releaseOffers();
-    await waitFor("document.querySelector('[data-home-offer]')?.textContent==='标记待核查' && !document.querySelector('[data-home-offer]').disabled");
+    await waitFor(`!!${TAG} && !${TAG}.disabled`);
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(button => button.textContent)"), ["加入 Inbox", "保存为资料", "升格为 Goal", "忽略", "标记待核查"]);
     assert.ok(Math.abs(await evaluate<number>("document.querySelector('[data-home-open-talk]').getBoundingClientRect().top") - talkTop) < 1, "async offers keep the Talk button under the pointer");
     await capture("desktop-unknown-action");
-    await click('[data-home-offer]');
-    try { await waitFor("!!document.querySelector('.home-offers-result') && !document.querySelector('[data-home-offer]')"); }
+    await clickTag();
+    try { await waitFor(`!!document.querySelector('.home-offers-result') && !${TAG}`); }
     catch { throw new Error(JSON.stringify({ writes, data: read(), ui: await evaluate("document.querySelector('[data-home-offers]')?.textContent"), requests: await evaluate("window.__homeRequests.filter(p=>p.includes('/api/home/actions/'))") })); }
     assert.equal(writes, 1); assert.deepEqual(read(), { tag: "needs-review", revision: 2 });
     await click('.home-offers-result summary'); await capture("desktop-real-result");
@@ -98,8 +102,10 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await command("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 }, sessionId);
     await click(`[data-home-subject-kind="inbox_entry"][data-home-subject-id="${entry.entry_id}"]`);
-    await waitFor("document.querySelectorAll('[data-home-offer]').length===2 && !document.querySelector('[data-home-offer]').disabled");
-    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(e=>e.textContent)"), ["做完了", "忽略"]);
+    await waitFor("document.querySelectorAll('[data-home-offer]').length===3 && !document.querySelector('[data-home-offer]').disabled");
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(e=>e.textContent)"), ["做完了", "忽略", "整理成文稿"]);
+    // Inbox's own drafting offer is listed with the real reason it cannot run here (this fixture has no text model).
+    assert.equal(await evaluate("document.querySelector('[data-home-offer=\"2\"]').disabled && document.querySelector('[data-home-offers]').textContent.includes('整理成文稿：请先配置文字模型')"), true);
     assert.equal(await evaluate("!!document.querySelector('[data-home-done], [data-home-dismiss]')"), false);
     assert.equal(await evaluate("[...document.querySelectorAll('[data-home-offer]')].every(button=>button.getBoundingClientRect().height>=44)"), true);
     await capture("mobile-inbox-actions");
@@ -117,9 +123,9 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await reloadPage();
     await waitFor(`!!document.querySelector('[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]')`);
     await click(`[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`);
-    await waitFor("!!document.querySelector('[data-home-offer]:not(:disabled)')");
+    await waitFor(`!!${TAG} && !${TAG}.disabled`);
     await evaluate("(()=>{const previous=window.fetch;window.fetch=async(url,options)=>{const response=await previous(url,options);if(String(url).endsWith('/api/home/actions/execute'))throw new TypeError('fixture response lost');return response;}})()");
-    await click('[data-home-offer]');
+    await clickTag();
     await waitFor("document.querySelector('[data-home-offers]')?.textContent.includes('执行结果尚未确认')");
     assert.equal(writes, 2); assert.deepEqual(read(), { tag: "needs-review", revision: 4 });
     assert.equal(await evaluate("!!document.querySelector('[data-home-offer]:not(:disabled)')"), false);
@@ -132,7 +138,7 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     assert.equal(writes, 2, "stopping the provider never converts uncertainty into a retry");
     await runtime.start(installed.install_id);
     await click('[data-home-offers-reload]');
-    await waitFor("document.querySelector('[data-home-offers]')?.textContent === ''");
+    await waitFor(`!document.querySelector('[data-home-offers]').textContent.includes('执行结果尚未确认') && !document.querySelector('[data-home-offers]').textContent.includes('正在查找') && !${TAG}`);
     assert.equal(writes, 2, "the owner confirms the old offer no longer applies without resubmitting it");
     assert.equal(await evaluate("Object.keys(sessionStorage).some(key=>key.startsWith('molis.home-action:'))"), false);
   } finally { releaseOffers(); await runtime.stop(installed.install_id); }

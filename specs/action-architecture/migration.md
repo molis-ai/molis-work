@@ -58,7 +58,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | plugins/native/dataset | 原 HTTP、12 个旧 MCP、工作台编辑/CSV/版本/发布 | [src/actions.ts](../../plugins/native/dataset/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、编辑器、旧名与标准 MCP 共用动作；独立 AI 入口 | 13 项业务与桌面/窄屏实操通过；通用工作流/用途、生产授权及生命周期仍随整体推进 |
 | plugins/native/diff | [src/actions.ts](../../plugins/native/diff/src/actions.ts) | 固定差异读取、纯文本比较 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；嵌入可用性由父插件声明 | 业务查询已迁移并验证；通用配置消费待系统收尾 |
 | plugins/native/experiments | 原 13 项实验 HTTP（列表、读取/导出、新建、删除、运行、取消、复核、参试配置、连接选择、可对比函数） | [src/actions.ts](../../plugins/native/experiments/src/actions.ts) `experiments.*` → Host 在 Home 注册；判断函数经系统 `functions.authoring.list` 以调用者自身授权读取，不再直开 Functions 库 | 工作台 HTTP 薄转发（含 201/202 与导出下载）；Agent/工作流/MCP 只见 list/results | 已迁移并验证（`tests/experiments-actions.test.ts`、`experiments-http`）。参试配置含本机程序与权重路径，配置/运行/读取全文仅限本机界面 |
-| plugins/native/feed | [src/manifest.ts](../../plugins/native/feed/src/manifest.ts), [src/routes.ts](../../plugins/native/feed/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | Inbox 创建事件转统一场景；内容列表/读取/接收和工作流消费已接通；其他 API 及 feed.capture 待迁移 | 部分完成 |
+| plugins/native/feed | [src/manifest.ts](../../plugins/native/feed/src/manifest.ts), [src/routes.ts](../../plugins/native/feed/src/routes.ts) | 插件自有能力定义 → 共同注册/调用；消息去向 [src/item-actions.ts](../../plugins/native/feed/src/item-actions.ts) `feed.items.*` | Inbox 创建事件转统一场景；内容列表/读取/接收、工作流消费、捕捉场景已接通；消息已读/加入 Inbox/保存/忽略/恢复/升格为 Goal 改为动作，原 `/api/feed/items/:id/:action` 薄转发，首页经 `feed.items.offers` 推荐与执行（`tests/feed-item-actions.test.ts`、home-offers e2e、浏览器实操） | 部分完成：来源管理与连接器授权 HTTP 仍为直连 |
 | plugins/native/files | [src/actions.ts](../../plugins/native/files/src/actions.ts) | 四项浏览/读取/快照操作 → Runtime 自动注册 | HTTP 薄转发与 Host 动作共用；保留原个人 owner | 部分：现有路径已迁移；跨主体 SDK、对外读写仍待完成 |
 | plugins/native/form | 原 HTTP、10 个旧 MCP、工作台编辑/填写/结果/发布 | [src/actions.ts](../../plugins/native/form/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、工作台、旧名与标准 MCP 共用动作；独立 AI 入口 | 11 项业务与桌面/窄屏实操通过；通用工作流/用途、生产授权及生命周期仍随整体推进 |
 | 原 plugins/native/functions（已移除） | 原 Manifest、Workbench contribution、HTTP/MCP 导出 | [系统动作](../../modules/functions/src/actions.ts)、[管理动作](../../modules/functions/src/authoring-actions.ts)、[编辑器](../../apps/workbench/src/functions/README.md) | 编辑器、HTTP、内部客户端、旧 MCP 薄转发、动态版本动作 | 编辑/试跑/发布及包移除完成；通用用途编辑、Feed/Home 消费迁移未完成 |
@@ -94,7 +94,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 项目工作区 | packages/contracts/src/modules/projects.ts, apps/local-host/src/project-capabilities.ts | 原消费者及 MCP 使用同一查询能力 | 四项查询已迁移并验证 |
 | 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts | 连接与能力接入共用 | 未迁移 |
 | 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景、使用关系待迁移 |
-| 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 部分完成：系统判断场景、真实事件、初始页/刷新建议及 MCP 已接通；动态动作执行和“说一句”待迁移 |
+| 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 事项按合同类型动态发现；动作按 offers 合同由各插件准备、首页复核后执行（Feed 消息、Inbox 事项、未知插件）；“说一句”按对象上下文选择会话并真实发送（见下文专节）。本地网页调用者的原生权限改由原生清单派生，不再手写 |
 | 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身动作与 F4 幂等交接/中断恢复已完成；判断规则交接与通用字段映射动作步骤已完成 |
 | Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 大部分完成：Agent/Character 精确能力选择经 AgentHost、Prologue 正式工具扩展与原审查队列执行（见“Agent 实际工具执行与 F1–F3 审查修复”）；角色管理本身已是 `characters.*` 动作。浏览器能力选择的最终复跑仍待完成 |
 | 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；编辑器、全量授权/历史待完成 |
@@ -1427,3 +1427,11 @@ Prologue v1 精确源码/消费者补丁与 bounded-inference SDK 已合入主�
 Inbox 原 provider 增加“整理成文稿”声明与完整 prepared offer，固定原 request_id 派生身份和材料版本/内容依据，采集时刻不改变参数。旧手动请求哈希保持；嵌套 Pages 保留原 invocation 授权与生命周期，异步材料检查完成后再次复核。Pages 将 guard 传入 Host completeText 最终派发入口。9 项生产 ActionService+Pages SQLite 用例通过（`/tmp/inbox-prepared-pages-final.log`），覆盖自动目录、输入变化、模型准备及材料检查期间撤权、成功后当前编辑稿恢复。模型为显式测试端口，不等于正式 Home→助理→SDK→Pages 浏览器闭环。
 
 Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist 原 Runtime/Artifact/Ledger 接线、Connector MCP provider、F4、其他全量迁移与系统岛最终实操继续。当前 Form390 在完整 Host 重验，IM 在完成新的表现层验收，未以阶段工程通过宣称“内部完整”。
+
+## Feed 消息去向进入统一动作，首页可推荐与执行（2026-09-26）
+
+- Feed 新增 `feed.items.read/inbox/disposition/restore/promote` 五项命令和 `feed.items.offers` 事项动作查询，全部由 Feed 自己声明并由 Host 在项目目录注册；原 `/api/feed/items/:id/(read|inbox|save|archive|restore|promote|start)` 只把 URL 翻译为这些动作，响应形状（含 `goal_path`）与状态码不变。Feed 存储拒绝（版本冲突、不存在、非法转换）以原错误码作为 ActionError 返回，路由映射回原 404/409。
+- 首页对 Feed 消息显示「加入 Inbox / 保存为资料 / 升格为 Goal / 忽略」，已忽略的显示「恢复到 Feed」；按钮名称来自插件声明，输入带读取时的版本，执行前首页重新准备并核对，过期的选项被拒绝而不是覆盖。升格为 Goal 记录实际调用者，不再固定为本地网页用户。
+- 首页与 Feed 网页调用者的原生权限由原生清单派生（`NATIVE_CONTENT_PERMISSIONS`），不再在 Host 手写权限名单；因此 Inbox 自己的「整理成文稿」在首页出现，并如实显示「请先配置文字模型」这类不可用原因。
+- 验证：`tests/feed-item-actions.test.ts`（真实 Host：首页准备/执行、旧选项拒绝、直接调用版本冲突、加入 Inbox、升格 Goal、缺写权限不可执行、旧路由转发与 404/409）；Feed/Home/Inbox/能力相关 39 个文件 179 项中 177 项通过，失败 2 项在 main 上同样失败或已随本次修正（`functions-system-capability` 断言改为检查真实动作声明）；home-offers e2e 按新增的 Feed 选项更新后通过（main 上原本失败）；`project-home-start`、`workbench-pane-feed` 各 1 项在 main 上同样失败。浏览器实操（1280）：首页执行「保存为资料」→ Feed 详情显示「已保存为资料」→ 在 Feed 点「忽略」经转发路由 200 并从列表移除。
+- 仍直连：Feed 来源管理（新建/修改/删除/计划/暂停/同步）与连接器授权流程；Feed 快照与工作台渲染仍是读取页面。用户本人验收未进行。

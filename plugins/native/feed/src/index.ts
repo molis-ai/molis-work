@@ -29,6 +29,7 @@ export interface FeedNativePluginModules {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { feedRuleActions, createFeedRuleHandlers, type FeedRulePreview, type FeedJudgmentChoice, type FeedJudgmentCatalog } from "./rule-actions.js";
+export { feedItemActions, createFeedItemHandlers, FEED_ITEM_ACTIONS, type FeedItemActionPorts, type FeedItemResult, type FeedPromoteResult } from "./item-actions.js";
 
 export * from "./routes.js";
 export * from "./ui.js";

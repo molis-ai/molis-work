@@ -1,6 +1,7 @@
 import { integerRevision, requireParam } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
+import { feedItemActions } from "./item-actions.js";
 
 export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
   const feed = () => options.feed();
@@ -25,34 +26,26 @@ export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Rec
         }),
       };
     },
-    "feed.item.action": ({ params, request }) => {
+    // The route only translates the old URL; every caller runs the same registered Feed item actions.
+    "feed.item.action": async ({ params, request }) => {
       const itemId = requireParam(params.item_id, "Feed Item 不存在");
       const action = requireParam(params.action, "Feed 动作不存在");
-      const store = feed();
       if (action === "read") {
-        const item = store.markRead(options.boardId, itemId);
+        const result = await options.actions.invoke(feedItemActions.read, { item_id: itemId });
         changed();
-        return { status: 200, body: { item } };
+        return { status: 200, body: result };
       }
       const revision = integerRevision(request.body.expected_revision);
       if (revision == null) return { status: 400, body: { error: "请刷新 Item 后再操作" } };
-      if (action === "restore") {
-        const item = store.restoreToFeed(options.boardId, itemId, revision);
+      const at = { item_id: itemId, expected_revision: revision };
+      if (action === "promote" || action === "start") {
+        const result = await options.actions.invoke(feedItemActions.promote, { ...at, ...(action === "start" ? { start_processing: true } : {}) });
         changed();
-        return { status: 200, body: { item } };
+        return { status: 200, body: { ...result, goal_path: `${options.routePrefix}/goals/${encodeURIComponent(result.goal_id)}` } };
       }
-      if (action === "inbox") {
-        const item = store.addToInbox(options.boardId, itemId, revision);
-        changed();
-        return { status: 200, body: { item } };
-      }
-      if (action === "save" || action === "archive") {
-        const item = store.setDisposition(options.boardId, itemId, action === "save" ? "saved" : "archived", revision);
-        changed();
-        return { status: 200, body: { item } };
-      }
-      const result = options.promote(store, { boardId: options.boardId, routePrefix: options.routePrefix,
-        itemId, startProcessing: action === "start", expectedRevision: revision });
+      const result = action === "restore" ? await options.actions.invoke(feedItemActions.restore, at)
+        : action === "inbox" ? await options.actions.invoke(feedItemActions.inbox, at)
+        : await options.actions.invoke(feedItemActions.disposition, { ...at, disposition: action === "save" ? "saved" : "archived" });
       changed();
       return { status: 200, body: result };
     },

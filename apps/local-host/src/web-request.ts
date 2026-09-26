@@ -149,7 +149,8 @@ export async function handleMolisWorkWebRequest(
             context: () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user",
               permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
         };
-        const homeActions = bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, "inbox:write"]);
+        // Home runs the offers of native stores the local owner already holds; their permissions come from those manifests, not a list kept here.
+        const homeActions = bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS]);
         const goalActions = observedWebGoalsActions(runtime, hostReference,
           bindGoalsWebActions(localHost.actionClient(hostReference), hostReference));
         if (url.pathname === "/api/project-settings/workspaces" && options.project && ["GET", "POST"].includes(request.method ?? "")) {
@@ -418,7 +419,7 @@ export async function handleMolisWorkWebRequest(
           readWebView,
         })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
-          actions: bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]),
+          actions: bindLocalWebActions(localHost, hostReference, [...NATIVE_CONTENT_PERMISSIONS, "functions:invoke"]),
           feedOptions,
           renderer: workbenchRenderer,
           boardId: options.boardId,

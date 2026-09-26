@@ -391,8 +391,20 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
     const record = await this.#loadSession(session.session_id);
     const latest = record.runs.at(-1);
+    // Who holds the unfinished steps of the latest planned round: a directory shows what waits on the person.
+    let steps: AgentSessionStatus["steps"];
+    const planned = [...record.runs].reverse().find(ref => this.#requireRun(ref.run_id).view.frozen.execution_plan);
+    if (planned && this.#runtime.readStepBoard) {
+      try {
+        const board = await this.#runtime.readStepBoard(planned);
+        const open = board && !board.terminal ? board.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
+        const count = (kind: string) => open.filter(node => node.owner?.kind === kind).length;
+        if (open.length) steps = { mine: count("person"), subtasks: count("subtask"), unowned: count("none") };
+      } catch { /* an unreadable graph shows no counts, never made-up ones */ }
+    }
     return { owner: { ...record.owner }, status: { session_id: session.session_id, latest_phase: latest ? this.#requireRun(latest.run_id).view.phase : null,
-      recovery: Boolean(record.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false } };
+      recovery: Boolean(record.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
+      ...(steps && (steps.mine || steps.subtasks || steps.unowned) ? { steps } : {}) } };
   }
 
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {

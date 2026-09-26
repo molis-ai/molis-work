@@ -34,6 +34,9 @@ export interface CodingSessionRecord {
   updated_at: string;
 }
 
+/** Unfinished plan steps by who holds them: the person, subtasks, no one. */
+export interface CodingStepHolders { mine: number; subtasks: number; unowned: number }
+
 export interface CreateCodingSessionInput {
   board_id: string;
   session_id: string;
@@ -78,6 +81,8 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
   `);
   const columns = db.prepare("PRAGMA table_info(coding_sessions)").all() as Array<{ name: string }>;
   if (!columns.some(column => column.name === "archived")) db.exec("ALTER TABLE coding_sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))");
+  // Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
+  if (!columns.some(column => column.name === "steps_json")) db.exec("ALTER TABLE coding_sessions ADD COLUMN steps_json TEXT");
 }
 
 type Row = Record<string, unknown>;
@@ -165,6 +170,17 @@ export class CodingSessionStore {
     return (this.db.prepare(
       "SELECT * FROM coding_sessions WHERE board_id = ? AND archived = 0 ORDER BY updated_at DESC, session_id",
     ).all(boardId) as Row[]).map(mapSession);
+  }
+
+  /** Record who holds the session's unfinished plan steps; null when none are open. Not a change to the session. */
+  setSteps(boardId: string, sessionId: string, steps: CodingStepHolders | null): void {
+    this.db.prepare("UPDATE coding_sessions SET steps_json = ? WHERE board_id = ? AND session_id = ?")
+      .run(steps ? JSON.stringify(steps) : null, boardId, sessionId);
+  }
+
+  stepsOf(boardId: string, sessionId: string): CodingStepHolders | null {
+    const row = this.db.prepare("SELECT steps_json FROM coding_sessions WHERE board_id = ? AND session_id = ?").get(boardId, sessionId) as Row | undefined;
+    return typeof row?.steps_json === "string" ? JSON.parse(row.steps_json) as CodingStepHolders : null;
   }
 
   setState(boardId: string, sessionId: string, state: CodingSessionState, at: string): CodingSessionRecord {

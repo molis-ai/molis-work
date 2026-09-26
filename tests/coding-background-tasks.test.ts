@@ -10,18 +10,22 @@ import { codingBackgroundTasks } from "../apps/local-host/src/coding-background-
 test("the background list shows Coding sessions under way or waiting in every project, and marks ones from before a restart", () => {
   const root = mkdtempSync(join(tmpdir(), "coding-background-"));
   try {
-    const project = (name: string, sessions: Array<[string, string, string]>) => {
+    const project = (name: string, sessions: Array<[string, string, string, { mine: number; subtasks: number; unowned: number }?]>) => {
       const path = join(root, `${name}.db`); seedDemoBoard(path);
       const store = new LocalProjectDatabase(path), coding = new CodingSessionStore(store.db);
-      for (const [id, state, at] of sessions) {
+      for (const [id, state, at, steps] of sessions) {
         coding.create({ board_id: DEMO_BOARD_ID, session_id: id, title: `${name} ${id}`, runtime_id: "prologue", at });
         coding.setState(DEMO_BOARD_ID, id, state as never, at);
+        if (steps) coding.setSteps(DEMO_BOARD_ID, id, steps);
       }
       store.close();
       return path;
     };
     const started = "2026-09-26T10:00:00.000Z";
-    const alpha = project("alpha", [["a1", "running", "2026-09-26T11:00:00.000Z"], ["a2", "done", "2026-09-26T11:30:00.000Z"], ["a3", "waiting-approval", "2026-09-26T11:10:00.000Z"]]);
+    const alpha = project("alpha", [["a1", "running", "2026-09-26T11:00:00.000Z", { mine: 0, subtasks: 2, unowned: 0 }], ["a2", "done", "2026-09-26T11:30:00.000Z"],
+      ["a3", "waiting-approval", "2026-09-26T11:10:00.000Z"],
+      // The round ended, but the person holds one of its open steps: it waits on them. One with only a subtask's step does not.
+      ["a4", "done", "2026-09-26T11:20:00.000Z", { mine: 1, subtasks: 0, unowned: 0 }], ["a5", "done", "2026-09-26T11:25:00.000Z", { mine: 0, subtasks: 1, unowned: 1 }]]);
     const beta = project("beta", [["b1", "running", "2026-09-26T09:00:00.000Z"], ["b2", "reconcile-required", "2026-09-26T08:00:00.000Z"], ["b3", "idle", "2026-09-26T12:00:00.000Z"]]);
     // A project that never used Coding has no such table; a missing or unreadable file lists nothing.
     const plain = join(root, "plain.db"); seedDemoBoard(plain);
@@ -35,12 +39,15 @@ test("the background list shows Coding sessions under way or waiting in every pr
       { project_id: "p-none", display_name: "None" },
     ], started);
     assert.deepEqual(tasks.map(task => [task.project_name, task.session_id, task.state, task.before_restart]), [
+      ["Alpha", "a4", "done", false],
       ["Alpha", "a3", "waiting-approval", false],
       ["Alpha", "a1", "running", false],
       // Recorded as running before this service started: no round survives a restart, so it is waiting to be checked.
       ["Beta", "b1", "running", true],
       ["Beta", "b2", "reconcile-required", false],
     ]);
-    assert.equal(tasks[0]!.title, "alpha a3");
+    assert.equal(tasks[1]!.title, "alpha a3");
+    assert.deepEqual(tasks[0]!.steps, { mine: 1, subtasks: 0, unowned: 0 });
+    assert.deepEqual(tasks[2]!.steps, { mine: 0, subtasks: 2, unowned: 0 });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

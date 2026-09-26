@@ -160,6 +160,8 @@ test("a person takes a step on, records its result, adds a step for themselves a
     const two = view.nodes.find(node => node.id === "step-2")!;
     assert.equal(two.owner?.kind, "session");
     assert.deepEqual(two.reports.map(entry => entry.note), ["本会话 → 用户（用户改派给自己处理）", "用户 → 本会话（用户交回本会话）"]);
+    // A directory reads who holds the open steps without opening the round: the added step is yours.
+    assert.deepEqual((await b.adapter.readSessionStatus!(started.ref as never)).status.steps, { mine: 1, subtasks: 0, unowned: 0 });
     // A later round without a plan of its own starts knowing who holds what on the unfinished graph.
     const asked = await b.startPlain("现在每一步谁在负责？");
     assert.equal((await b.settle(asked.ref)).phase, "completed");

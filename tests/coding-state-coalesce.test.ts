@@ -34,7 +34,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
       if (definition.capability_id === agent.readSessionStatuses.capability_id) {
         batches.push([...(_args as unknown as [string, string[]])[1]]);
         // One session is mid-review, one has never run, and one cannot be read.
-        return (_args as unknown as [string, string[]])[1].map(session_id => session_id === "sdk-a" ? { session_id, latest_phase: "awaiting-review", recovery: false, checkpoint_busy: false }
+        return (_args as unknown as [string, string[]])[1].map(session_id => session_id === "sdk-a" ? { session_id, latest_phase: "awaiting-review", recovery: false, checkpoint_busy: false, steps: { mine: 1, subtasks: 1, unowned: 0 } }
           : session_id === "sdk-b" ? { session_id, latest_phase: null, recovery: false, checkpoint_busy: true } : { session_id, error: "读不到" }) as Output;
       }
       if (definition.capability_id === agent.listSkills.capability_id) return [] as Output;
@@ -60,6 +60,10 @@ test("however many pages poll the Coding directory at once, one read runs and at
     assert.deepEqual(batches.map(batch => [...batch].sort()), [["sdk-a", "sdk-b", "sdk-c"]]);
     const byId = Object.fromEntries(first.body.sessions.map((session: { session_id: string }) => [session.session_id, session]));
     assert.equal(byId.a.state, "waiting-approval");
+    // Who holds the open plan steps travels with the row, and is kept for lists that read the store directly.
+    assert.deepEqual(byId.a.steps, { mine: 1, subtasks: 1, unowned: 0 });
+    assert.deepEqual(sessions.stepsOf(DEMO_BOARD_ID, "a"), { mine: 1, subtasks: 1, unowned: 0 });
+    assert.equal(byId.b.steps, undefined);
     assert.equal(byId.b.state, "idle"); assert.equal(byId.b.checkpoint_busy, true);
     assert.equal(byId.c.state, "reconcile-required", "an unreadable session is never shown as safe to continue");
     reads = 0;

@@ -23,7 +23,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
   const render = () => {
     button.hidden = !tasks.length;
     count.textContent = String(tasks.length);
-    const waiting = tasks.filter(task => !task.before_restart && task.state !== "running").length;
+    const waiting = tasks.filter(task => !task.before_restart && (task.state !== "running" || task.steps?.mine)).length;
     button.dataset.backgroundTasksWaiting = waiting ? "true" : "false";
     button.title = tasks.length ? L("后台任务") + " · " + tasks.length + (waiting ? " · " + waiting + " " + L("个等你处理") : "") : L("后台任务");
     button.setAttribute("aria-label", button.title);
@@ -33,7 +33,12 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
       const head = node("span", undefined, "background-task-head");
       head.append(node("span", task.title, "background-task-title"), node("time", when(task.updated_at)));
       const detail = node("span", undefined, "background-task-detail");
-      detail.append(node("span", task.before_restart ? L("服务重启前没有结束，打开后核对") : LABEL[task.state] || task.state));
+      // The round's standing, then who is on its open plan steps (a step you hold waits on you even after the round ended).
+      const holders = task.steps ? [task.steps.mine ? L("你负责") + " " + task.steps.mine + " " + L("步") : "", task.steps.subtasks ? task.steps.subtasks + " " + L("步在子任务手上") : "",
+        task.steps.unowned ? L("没人认领") + " " + task.steps.unowned + " " + L("步") : ""].filter(Boolean).join(" · ") : "";
+      const standing = task.before_restart ? L("服务重启前没有结束，打开后核对") : LABEL[task.state] || (holders ? L("本轮已结束") : task.state);
+      detail.append(node("span", holders ? standing + " · " + holders : standing));
+      if (task.steps?.mine) row.dataset.state = row.dataset.state === "running" ? "running" : "waiting-answer";
       if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
       row.append(head, detail);
       row.addEventListener("click", (event) => {

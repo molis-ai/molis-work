@@ -565,6 +565,8 @@ export interface AgentSessionStatus {
   /** Persisted work exists but is not safe to continue automatically. */
   recovery: boolean;
   checkpoint_busy: boolean;
+  /** Unfinished steps on the session's latest unfinished plan graph, by who holds them; absent when there are none. */
+  steps?: { mine: number; subtasks: number; unowned: number };
 }
 
 export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";

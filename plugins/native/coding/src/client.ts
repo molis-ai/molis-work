@@ -389,7 +389,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         time.textContent=Number.isNaN(at.getTime()) ? session.updated_at.slice(5,10) : at.toDateString()===now.toDateString() ? pad(at.getHours())+':'+pad(at.getMinutes()) : pad(at.getMonth()+1)+'-'+pad(at.getDate());
         time.dateTime=session.updated_at;time.title=Number.isNaN(at.getTime()) ? session.updated_at : at.toLocaleString('zh-CN');
       }
-      const label=session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state;if(mark.textContent!==label) mark.textContent=label;
+      // Who is on the open plan steps, after the state: what waits on the person first.
+      const holders=session.steps?[session.steps.mine?'你负责 '+session.steps.mine+' 步':'',session.steps.subtasks?session.steps.subtasks+' 步在子任务手上':'',session.steps.unowned?'没人认领 '+session.steps.unowned+' 步':''].filter(Boolean).join(' · '):'';
+      const label=(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(holders?' · '+holders:'');if(mark.textContent!==label) mark.textContent=label;
       mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}

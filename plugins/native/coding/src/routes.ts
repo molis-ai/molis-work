@@ -245,11 +245,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : "会话暂不可读" }); }
     }
     const sessions = records.map(record => {
-      let checkpointBusy = false;
+      let checkpointBusy = false, steps = execution.sessions.stepsOf(boardId, record.session_id);
       if (record.runtime_session_id) {
         const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
         if (status && !("error" in status)) {
           checkpointBusy = status.checkpoint_busy;
+          const read = status.steps ?? null;
+          if (JSON.stringify(read) !== JSON.stringify(steps)) { execution.sessions.setSteps(boardId, record.session_id, read); steps = read; }
           const next = status.recovery ? "reconcile-required" : status.latest_phase ? sessionState({ phase: status.latest_phase }) : "idle";
           if (next !== record.state) record = execution.sessions.setState(boardId, record.session_id, next, record.updated_at);
         } else if (record.state !== "reconcile-required") {
@@ -258,7 +260,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
         }
       }
-      return { ...record, checkpoint_busy: checkpointBusy, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+      return { ...record, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
     });
     const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
     const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];

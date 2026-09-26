@@ -9,9 +9,13 @@ import {
   GoalProjectApplication,
   LocalProjectDatabase,
   openWorkSessionRegistry,
+  molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
 import { buildMcpResumeView, type McpResumeFacts } from "@molis-ai/molis-work-app-mcp";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_status"], boolean]>): McpResumeFacts {
   return {
@@ -112,8 +116,18 @@ test("context_resolve restores Host and Session focus outside the discovery wind
       projectId: project.project_id, webBaseUrl: "http://127.0.0.1:4173",
     };
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
+    const views = await host.inspectActions({ actor_id: "runtime:codex", audience: "mcp", project_id: project.project_id, permissions: [] }, molisWorkHostProjectReference(connection));
+    for (const definition of [goalsActions.guidanceRead, goalsActions.list]) {
+      await writeMcpActionGrant(directory, createMcpActionGrant("runtime:codex", project.project_id,
+        views.find(view => view.capability_id === definition.capability_id)!, true));
+    }
     const resolve = async () => JSON.parse(await runtime!.callTool("molis_work_v1_context_resolve", {}));
     let result = await resolve();
+    assert.equal(result.resume, null, "focus outside the directory window requires its own exact query grant");
+    assert.ok(result.resume_error);
+    await writeMcpActionGrant(directory, createMcpActionGrant("runtime:codex", project.project_id,
+      views.find(view => view.capability_id === goalsActions.directoryItem.capability_id)!, true));
+    result = await resolve();
     assert.equal(result.resume.focus.goal_id, "FOCUS-HOST");
     assert.equal(result.resume.focus.source, "host_focus");
     assert.equal(result.session_registry.session.current_goal_id, "FOCUS-SESSION");

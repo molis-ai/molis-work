@@ -63,15 +63,14 @@ describe("mcp server", () => {
     ];
     for (const name of retired) assert.ok(!names.includes(name), name);
     for (const name of [
-      "molis_work_v1_goal_intent_create", "molis_work_v1_goal_state", "molis_work_v1_event_configure",
-      "molis_work_v1_event_report", "molis_work_v1_event_list", "molis_work_v1_event_read",
-      "molis_work_v1_event_resume", "molis_work_v1_goal_tree_propose", "molis_work_v1_goal_tree_read",
-      "molis_work_v1_goal_trash", "molis_work_v1_project_delete", "molis_work_v1_context_resolve",
-      "molis_work_v1_functions_list", "molis_work_v1_functions_describe", "molis_work_v1_functions_invoke",
+      "molis_work_v1_project_delete", "molis_work_v1_context_resolve",
     ]) assert.ok(names.includes(name), name);
-    const intentTool = listedTools.find((tool) => tool.name === "molis_work_v1_goal_intent_create");
-    assert.ok(!intentTool?.inputSchema.required?.includes("actor_id"));
-    assert.ok(!Object.hasOwn(intentTool?.inputSchema.properties ?? {}, "board_id"));
+    for (const alias of ["list", "describe", "invoke"]) {
+      assert.equal(names.includes(`molis_work_v1_functions_${alias}`), false, "without a Home service, compatibility aliases are not executable");
+    }
+    for (const alias of ["molis_work_v1_goal_tree_propose", "molis_work_v1_goal_tree_read", "molis_work_v1_goal_tree_check", "molis_work_v1_active_goal", "molis_work_v1_goal_trash", "molis_work_v1_goal_restore", "molis_work_v1_goal_trash_list", "molis_work_v1_goal_intent_create", "molis_work_v1_goal_list", "molis_work_v1_event_note", "molis_work_v1_goal_state", "molis_work_v1_event_list", "molis_work_v1_event_read", "molis_work_v1_event_configure", "molis_work_v1_event_report", "molis_work_v1_event_progress", "molis_work_v1_event_concern", "molis_work_v1_event_decision_request", "molis_work_v1_event_cite_decision", "molis_work_v1_event_agree", "molis_work_v1_event_close", "molis_work_v1_event_resume"]) {
+      assert.equal(names.includes(alias), false, "Goals aliases require a bound project and explicit action grants");
+    }
     assert.ok(!names.some((name) => !name.startsWith("molis_work_v1_")));
     assert.ok(listedTools.every((tool) => !("database_path" in (tool.inputSchema.properties ?? {}))));
     assert.ok(listedTools.every((tool) => !("board_id" in (tool.inputSchema.properties ?? {})) || tool.name.startsWith("molis_work_v1_context_") || tool.name === "molis_work_v1_project_delete"));
@@ -135,7 +134,7 @@ describe("mcp server", () => {
       process.env.MOLIS_WORK_WEB_URL = "http://127.0.0.1:4173";
       delete process.env.MOLIS_WORK_RUNTIME_ID;
       const runtime = new MolisWorkServer("runtime");
-      assert.equal(runtime.runtimeConnection, null);
+      assert.deepEqual(runtime.runtimeConnection, null);
       assert.equal(runtime.runtimeContextHost, null);
     } finally {
       for (const key of keys) {
@@ -224,6 +223,7 @@ describe("mcp server", () => {
         },
       };
       const runtime = new MolisWorkServer("runtime", null, host);
+      const readConnection = () => runtime.runtimeConnection;
 
       const listed = await call(runtime, "molis_work_v1_context_list_projects", {});
       assert.equal(listed.result.isError, false, listed.result.content[0]?.text);
@@ -244,7 +244,7 @@ describe("mcp server", () => {
         user_confirmed: true,
       });
       assert.equal(bound.result.isError, false, bound.result.content[0]?.text);
-      assert.equal(runtime.runtimeConnection?.boardId, removable.board_id);
+      assert.equal(readConnection()?.boardId, removable.board_id);
 
       const deniedUnbind = await call(runtime, "molis_work_v1_context_unbind", {
         actor_id: "runtime-codex",
@@ -252,7 +252,7 @@ describe("mcp server", () => {
       });
       assert.equal(deniedUnbind.result.isError, true);
       assert.match(deniedUnbind.result.content[0]?.text ?? "", /明确要求解除绑定/);
-      assert.equal(runtime.runtimeConnection?.boardId, removable.board_id);
+      assert.equal(readConnection()?.boardId, removable.board_id);
 
       const unbound = await call(runtime, "molis_work_v1_context_unbind", {
         actor_id: "runtime-codex",
@@ -265,7 +265,7 @@ describe("mcp server", () => {
       };
       assert.equal(unboundPayload.changed, true);
       assert.equal(unboundPayload.unbound_project?.project_id, removable.project_id);
-      assert.equal(runtime.runtimeConnection, null);
+      assert.deepEqual(runtime.runtimeConnection, null);
       assert.equal(fs.existsSync(removable.database_path), true);
 
       const rebound = await call(runtime, "molis_work_v1_context_bind", {
@@ -274,7 +274,7 @@ describe("mcp server", () => {
         user_confirmed: true,
       });
       assert.equal(rebound.result.isError, false, rebound.result.content[0]?.text);
-      assert.equal(runtime.runtimeConnection?.boardId, removable.board_id);
+      assert.equal(readConnection()?.boardId, removable.board_id);
 
       const deniedDelete = await call(runtime, "molis_work_v1_project_delete", {
         project_id: removable.project_id,
@@ -301,7 +301,7 @@ describe("mcp server", () => {
       assert.equal(deletedPayload.deletion.project_id, removable.project_id);
       assert.equal(deletedPayload.deletion.deleted_binding_count, 1);
       assert.equal(deletedPayload.deletion.staged_directory, undefined);
-      assert.equal(runtime.runtimeConnection, null);
+      assert.deepEqual(runtime.runtimeConnection, null);
       assert.equal(fs.existsSync(removable.database_path), false);
 
       const replay = await call(runtime, "molis_work_v1_project_delete", {

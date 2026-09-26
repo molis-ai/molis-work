@@ -189,15 +189,16 @@ async function notionDocument(id: string, token: string, reader: Reader) {
   };
 }
 
-async function feishuDocument(source: "feishu" | "lark", reference: ReturnType<typeof documentReference>, token: string, reader: Reader) {
+async function feishuDocument(source: "feishu" | "lark", reference: ReturnType<typeof documentReference>, token: string, reader: Reader, tokenKind?: "access_token" | "app_credentials") {
   const separator = token.indexOf(":");
-  if (separator < 1 || !token.slice(separator + 1).trim()) fail("needs_auth", "请在设置中以 app_id:app_secret 格式连接该数据源的自建应用。");
+  const cli = (source === "feishu" && token === "lark-cli") || tokenKind === "access_token";
+  if (!cli && (separator < 1 || !token.slice(separator + 1).trim())) fail("needs_auth", "请在设置中以 app_id:app_secret 格式连接该数据源的自建应用。");
   const origin = source === "feishu" ? "https://open.feishu.cn" : "https://open.larksuite.com";
-  const auth = await reader.json(`${origin}/open-apis/auth/v3/tenant_access_token/internal`, {
+  const auth = cli ? null : await reader.json(`${origin}/open-apis/auth/v3/tenant_access_token/internal`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ app_id: token.slice(0, separator).trim(), app_secret: token.slice(separator + 1).trim() }),
   });
-  const accessToken = string(auth.tenant_access_token);
+  const accessToken = cli ? token : string(auth?.tenant_access_token);
   if (!accessToken) fail("needs_auth", "应用凭据无法换取访问令牌，请检查所选数据源和应用凭据。");
   const headers = { Authorization: `Bearer ${accessToken}` };
   let id = reference.id;
@@ -236,7 +237,7 @@ async function googleDocument(id: string, token: string, reader: Reader) {
 
 export async function readExternalDocument(
   input: { source: ExternalDocumentSource; url: string },
-  ports: { token: string; fetch?: typeof fetch },
+  ports: { token: string; fetch?: typeof fetch; tokenKind?: "access_token" | "app_credentials" },
 ): Promise<ExternalDocument> {
   const reference = documentReference(input);
   const token = ports.token?.trim();
@@ -246,7 +247,7 @@ export async function readExternalDocument(
   const reader = createReader(fetchImpl, AbortSignal.timeout(DEADLINE_MS));
   const content = input.source === "notion" ? await notionDocument(reference.id, token, reader)
     : input.source === "google-docs" ? await googleDocument(reference.id, token, reader)
-      : await feishuDocument(input.source, reference, token, reader);
+      : await feishuDocument(input.source, reference, token, reader, ports.tokenKind);
   if (!content.content.trim()) fail("empty_content", "文档没有可导入的正文。请确认文档内容和当前应用的读取权限。");
   return { source: input.source, source_id: reference.id, source_url: reference.sourceUrl, ...content };
 }

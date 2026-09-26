@@ -119,6 +119,7 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
     nowMs?: number;
     /** Per-installation credential scope (CONN-002c). */
     tokenRefs?: GmailTokenRefs;
+    forceRefresh?: boolean;
   }): Promise<GmailUsableTokenResult> {
     const lifecycle = loadGmailTokenLifecycle(opts?.tokenRefs);
     if (!lifecycle) {
@@ -130,12 +131,14 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
     // Unknown expiry (env paste / legacy bind): reuse until Gmail HTTP rejects.
     const stillFresh =
       expiresAtMs == null || nowMs < expiresAtMs - GMAIL_ACCESS_TOKEN_SKEW_MS;
-    if (stillFresh) {
+    if (stillFresh && !opts?.forceRefresh) {
       return { ok: true, accessToken: lifecycle.accessToken };
     }
 
     const refreshToken = lifecycle.refreshToken;
-    const clientId = resolveGmailClientId();
+    let client: { clientId?: string; clientSecret?: string } = {};
+    try { client = JSON.parse(ports.secrets().get(`${opts?.tokenRefs?.access ?? ports.legacyAuthRef}:client`) || "{}"); } catch { /* Legacy account uses its original shared configuration. */ }
+    const clientId = client.clientId ?? resolveGmailClientId();
     if (!refreshToken || !clientId) {
       return needsAuthResult(
         `Gmail access expired and cannot be refreshed — ${RESTART_HINT}`,
@@ -149,7 +152,7 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
       );
     }
 
-    const clientSecret = resolveGmailClientSecret();
+    const clientSecret = client.clientSecret ?? resolveGmailClientSecret();
     const body = new URLSearchParams({
       client_id: clientId,
       grant_type: "refresh_token",
@@ -197,6 +200,7 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
       );
     }
 
+    if (loadRefreshToken(opts?.tokenRefs) !== refreshToken) return needsAuthResult("Gmail connection changed while refreshing; retry");
     persistGmailAccessLifecycle({
       accessToken: json.access_token.trim(),
       refreshToken: json.refresh_token,

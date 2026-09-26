@@ -5,12 +5,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import {
-  HOME_CONTINUE_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
-  filterSuggestedBehaviorIds,
-  visibleDockBehaviorIds,
-} from "@molis-ai/molis-work-contracts/modules/functions";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID,
@@ -23,11 +17,6 @@ import {
   catalogPublicBehaviorId,
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
-import {
-  createFunctionsService,
-  openFunctionsStore,
-  type TypeSafeProvider,
-} from "@molis-ai/molis-work-module-functions";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
 import {
   DEMO_BOARD_ID,
@@ -66,23 +55,6 @@ const feedPrimitives: FeedUiModel["primitives"] = {
   plainText: (value) => value ?? "",
   safeExternalHref: (value) => value,
 };
-
-function fixtureProvider(choice: string): TypeSafeProvider {
-  return {
-    async evaluate(_apiKey, record) {
-      return {
-        primitive: record.primitive,
-        choice: record.primitive === "choice" ? choice : null,
-        noul: null,
-        score: null,
-        legend: null,
-        probabilities: { [choice]: 1 },
-        confidence: 1,
-        model: "jev-1.13.0",
-      };
-    },
-  };
-}
 
 async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): Promise<T> {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-connectors-"));
@@ -125,7 +97,7 @@ async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): 
   }
 }
 
-function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCatalog>): string[] {
+function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCatalog>): readonly string[] {
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
@@ -141,23 +113,24 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
   const github = HOST_CONNECTOR_DIRECTORY.find((row) => row.connector_id === "github");
   const gmail = HOST_CONNECTOR_DIRECTORY.find((row) => row.connector_id === "gmail");
   assert.equal(github?.availability, "live");
-  assert.match(github?.outbound_note ?? "", /github\.whoami/);
+  assert.match(github?.outbound_note ?? "", /连接设置.*检查当前 GitHub 账号/);
+  assert.doesNotMatch(github?.outbound_note ?? "", /Functions|可勾/);
   assert.equal(gmail?.availability, "live");
   assert.match(gmail?.outbound_note ?? "", /出站动作未兑现/);
   assert.deepEqual(
     HOST_CONNECTOR_DIRECTORY.map((row) => row.connector_id),
-    ["github", "gmail", ...catalogConnectorIds()],
+    ["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail", ...catalogConnectorIds()],
   );
   assert.equal(HOST_CONNECTOR_DIRECTORY.some((row) => row.availability === "placeholder"), false);
   for (const row of HOST_CONNECTOR_DIRECTORY) {
-    const icon = CONNECTOR_MARKS[row.connector_id];
-    assert.ok(icon.includes("<svg"), row.connector_id);
+    const icon = CONNECTOR_MARKS[row.connector_id as keyof typeof CONNECTOR_MARKS];
+    if (icon) assert.ok(icon.includes("<svg"), row.connector_id);
     assert.equal(row.availability, "live", row.connector_id);
     assert.equal(row.capabilities.length, 2, row.connector_id);
     assert.ok(row.capabilities.every((item) => item.label.length > 0), row.connector_id);
     assert.ok(row.capabilities.some((item) => item.fulfillment === "live"), row.connector_id);
-    if (row.connector_id !== "github" && row.connector_id !== "gmail") {
-      assert.equal(row.auth_kind, "token", row.connector_id);
+    if (!["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail"].includes(row.connector_id)) {
+      assert.equal(row.auth_kind, row.connector_id === "notion" || row.connector_id === "feishu" ? row.connector_id : "token", row.connector_id);
       assert.equal(existsSync(join(ROOT, "..", "plugins", "official-integrations", row.connector_id)), false, row.connector_id);
     }
   }
@@ -168,6 +141,10 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
 
 test("Connectors settings cards distinguish account states and never echo the secret", () => {
   const html = renderConnectorsSettings({
+    connector_connections: [
+      { connection_id: "11111111-1111-4111-8111-111111111111", service_id: "github", display_name: "工作 GitHub", account_label: "octocat", auth_method: "token", source: "managed", state: "connected" },
+      { connection_id: "22222222-2222-4222-8222-222222222222", service_id: "gmail", display_name: "私人 Gmail", account_label: "me@example.com", auth_method: "oauth", source: "managed", state: "reauth_required" },
+    ],
     connectors: [
       {
         connector_id: "github",
@@ -225,8 +202,10 @@ test("Connectors settings cards distinguish account states and never echo the se
   assert.match(html, /data-connector-group="live"/);
   assert.doesNotMatch(html, /data-connector-group="placeholder"/);
   assert.match(html, /可以连接/);
-  assert.match(html, /settings-state--success[^>]*>已连接/);
-  assert.match(html, /settings-state--warning[^>]*>要重新授权/);
+  assert.match(html, /工作 GitHub/);
+  assert.match(html, /私人 Gmail/);
+  assert.match(html, /settings-state--neutral[^>]*>凭据已保存/);
+  assert.match(html, /settings-state--warning[^>]*>需重新授权/);
   assert.match(html, /data-connector-open="wechat"/);
   assert.match(html, /data-connector-mark="github"/);
   assert.match(html, /data-connector-mark="wechat"/);
@@ -238,8 +217,8 @@ test("Connectors settings cards distinguish account states and never echo the se
   assert.match(html, /企业微信自建应用/);
   assert.match(html, /type="password"[^>]*data-connector-token="gmail"/);
   assert.match(html, /type="password"[^>]*data-connector-token="wechat"/);
-  assert.doesNotMatch(html, /data-connector-token="github"/);
-  assert.match(html, /…ABCD/);
+  assert.match(html, /data-connector-token="github"/);
+  assert.doesNotMatch(html, /ghp_liveTokenABCD/);
   assert.match(html, /出站动作未兑现/);
 });
 
@@ -250,6 +229,7 @@ test("every connector detail exposes official https setup links", () => {
     icon: () => "",
   };
   for (const row of HOST_CONNECTOR_DIRECTORY) {
+    if (["model-api", "typesafe", "image-api", "mcp-bearer"].includes(row.connector_id)) continue;
     assert.ok((row.setup_links?.length ?? 0) > 0, row.connector_id);
     for (const link of row.setup_links ?? []) {
       assert.match(link.url, /^https:\/\//, `${row.connector_id}:${link.label}`);
@@ -272,12 +252,41 @@ test("every connector detail exposes official https setup links", () => {
   assert.equal(rendered, expected);
 });
 
-test("Feed add-source overlays send GitHub and Gmail to Connectors instead of a PAT field", () => {
+test("an existing Gmail account offers targeted OAuth reauthorization while the form adds another account", () => {
+  const html = renderConnectorsSettings({
+    connector_connections: [{ connection_id: "33333333-3333-4333-8333-333333333333", service_id: "gmail", display_name: "工作邮箱", account_label: "work@example.com", auth_method: "oauth", source: "managed", state: "connected" }],
+    connectors: HOST_CONNECTOR_DIRECTORY
+      .filter((row) => row.connector_id === "gmail")
+      .map((row) => ({ ...row, account_state: "connected" as const, hint: "…ABCD", gmail_oauth_configured: true, connection_method: "oauth" as const })),
+  }, {
+    L: (text) => text,
+    escapeHtml: (value) => String(value ?? ""),
+    icon: () => "",
+  });
+  assert.match(html, /data-connection-reauthorize="33333333-3333-4333-8333-333333333333"/);
+  assert.match(html, /凭据已保存/);
+  assert.match(html, /data-connector-gmail-oauth-start/);
+  assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
+  assert.match(html, /添加新连接/);
+  const manualTokenHtml = renderConnectorsSettings({
+    connectors: HOST_CONNECTOR_DIRECTORY
+      .filter((row) => row.connector_id === "gmail")
+      .map((row) => ({ ...row, account_state: "connected" as const, gmail_oauth_configured: false })),
+  }, {
+    L: (text) => text,
+    escapeHtml: (value) => String(value ?? ""),
+    icon: () => "",
+  });
+  assert.match(manualTokenHtml, /data-connector-gmail-client-id/);
+  assert.match(manualTokenHtml, /data-connector-gmail-oauth-start/);
+});
+
+test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
-  const overlays = host.render({
+  const panel = host.render({
     contribution_id: feedUiContribution.descriptor.contribution_id,
-    surface: "overlays",
+    surface: "workbench",
     model: {
       route_prefix: "/projects/project-test",
       preset: "feed",
@@ -285,24 +294,25 @@ test("Feed add-source overlays send GitHub and Gmail to Connectors instead of a 
       sources: [],
       out_rules: [],
       source_catalog: [],
-      connector_auth: { github: { bound: false }, gmail: { bound: false } },
+      connector_auth: { github: { bound: false }, gmail: { bound: true } },
       primitives: feedPrimitives,
       demo: false,
       active: true,
     },
   });
-  assert.match(overlays, /打开 Connectors/);
-  assert.match(overlays, /href="\/settings\/connectors\?connector=github"/);
-  assert.match(overlays, /href="\/settings\/connectors\?connector=gmail"/);
-  assert.doesNotMatch(overlays, /data-feed-connector-token/);
-  assert.doesNotMatch(overlays, /GitHub 访问令牌/);
+  assert.match(panel, /打开 Connectors/);
+  assert.match(panel, /href="\/settings\/connectors\?connector=github&amp;project=project-test"/);
+  assert.match(panel, /href="\/settings\/connectors\?connector=gmail&amp;project=project-test"/);
+  assert.match(panel, /凭据已保存/);
+  assert.doesNotMatch(panel, /data-feed-connector-token/);
+  assert.doesNotMatch(panel, /GitHub 访问令牌/);
 });
 
 test("Functions and judgment sources do not talk to GitHub", async () => {
   const files = [
     "modules/functions/src/service.ts",
-    "plugins/native/functions/src/route-handlers.ts",
-    "plugins/native/functions/src/client.ts",
+    "apps/local-host/src/functions-http/route-handlers.ts",
+    "apps/workbench/src/functions/client.ts",
   ];
   for (const relative of files) {
     const source = await readFile(join(ROOT, "..", relative), "utf8");
@@ -331,86 +341,13 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
   assert.deepEqual(urls, ["https://api.github.com/user"]);
 });
 
-test("live authoring catalog shows github.whoami only while GitHub is bound", async () => {
+test("legacy credential binding does not invent Agent capabilities absent from the action directory", async () => {
   await withIsolatedHome(async () => {
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false);
+    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
     bindConnectorToken("github", TOKEN);
-    const connected = liveHostFunctionAuthoringCatalog();
-    assert.equal(agentBehaviorIds(connected).includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), true);
-    assert.equal(connected.behaviors.some((row) => row.behavior_id === GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), true);
+    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
     unbindConnectorToken("github");
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false);
-  });
-});
-
-test("judgment ok does not call GitHub and drops a disconnected action back to the default buttons", async () => {
-  await withIsolatedHome(async (homeDirectory) => {
-    const githubCalls: string[] = [];
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-      const url = String(input);
-      if (url.includes("api.github.com")) {
-        githubCalls.push(url);
-        throw new Error("judgment must not call GitHub");
-      }
-      return realFetch(input, init);
-    }) as typeof fetch;
-    const store = openFunctionsStore(homeDirectory);
-    try {
-      const allowed = [HOME_CONTINUE_BEHAVIOR_ID, GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID];
-      const service = createFunctionsService({
-        store,
-        secrets: { put() {}, get() { return "sk-test"; }, delete() { return true; } },
-        env: { TYPESAFE_API_KEY: "sk-test" },
-        provider: fixtureProvider(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-        allowed_behavior_ids: allowed,
-      });
-      const created = service.createChoice({ name: "GitHub 去向", function_key: "pick_github_whoami" });
-      service.updateDraft(created.id, {
-        instructions: "挑已登记动作",
-        scene_id: "agent.mcp",
-        criteria: [
-          { key: HOME_CONTINUE_BEHAVIOR_ID, description: "接着做" },
-          { key: GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID, description: "查看当前 GitHub 账号" },
-        ],
-      });
-      await service.preview(created.id, "样例");
-      const published = service.publish(created.id);
-      assert.equal(published.status, "published");
-      const connected = await service.judge({
-        function_key: published.function_key,
-        input: "看账号",
-        subject: { kind: "mcp_invoke", id: published.function_key },
-        offered_behavior_ids: allowed,
-      });
-      assert.equal(connected.outcome, "ok");
-      assert.deepEqual(connected.suggested_behavior_ids, [GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID]);
-      const disconnected = createFunctionsService({
-        store,
-        secrets: { put() {}, get() { return "sk-test"; }, delete() { return true; } },
-        env: { TYPESAFE_API_KEY: "sk-test" },
-        provider: fixtureProvider(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-        allowed_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      });
-      const judged = await disconnected.judge({
-        function_key: published.function_key,
-        input: "看账号",
-        subject: { kind: "mcp_invoke", id: published.function_key },
-        offered_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      });
-      assert.equal(judged.outcome, "ok");
-      assert.deepEqual(judged.suggested_behavior_ids, []);
-      const defaults = [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID];
-      assert.deepEqual(visibleDockBehaviorIds(judged.suggested_behavior_ids, defaults), defaults);
-      assert.deepEqual(
-        filterSuggestedBehaviorIds(defaults, defaults, GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-        [],
-      );
-      assert.deepEqual(githubCalls, []);
-    } finally {
-      globalThis.fetch = realFetch;
-      store.close();
-    }
+    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
   });
 });
 
@@ -474,16 +411,14 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       assert.equal(JSON.stringify(boundBody).includes(TOKEN), false);
       assert.equal(boundBody.status.hint, "…ABCD");
       const connectedPage = await (await fetch(`${origin}/settings/connectors`)).text();
-      assert.match(connectedPage, /…ABCD/);
+      assert.match(connectedPage, /GitHub · 原有连接/);
       assert.doesNotMatch(connectedPage, new RegExp(TOKEN));
-      assert.doesNotMatch(connectedPage, /data-connector-token="github"/);
+      assert.match(connectedPage, /data-connection-row="legacy-/);
       const liveCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
         catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
       };
-      assert.ok(
-        liveCatalog.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-      );
+      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false,
+        "the legacy connector settings API is not a registered Agent action");
       const whoami = await fetch(`${origin}/api/settings/connectors/github/whoami`, {
         method: "POST",
         headers: headers(),
@@ -551,7 +486,7 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   await withIsolatedHome(async () => {
     assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
     bindConnectorToken("slack", "xoxb-liveTokenABCD");
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), true);
+    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false, "binding a legacy credential does not register an action");
     unbindConnectorToken("slack");
     assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
   });

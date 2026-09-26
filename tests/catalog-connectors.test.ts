@@ -17,7 +17,8 @@ test("every catalog connector has a valid Integration Manifest and identity URL"
     const parsed = parsePluginManifest(catalogIntegrationManifest(spec.id));
     assert.equal(parsed.kind, "integration");
     assert.ok(parsed.behaviors?.some((row) => row.behavior_id === "whoami"), spec.id);
-    assert.ok(spec.token_label.length > 0, spec.id);
+    if (spec.id === "loom") assert.equal(spec.feed_available, false);
+    else assert.ok(spec.token_label.length > 0, spec.id);
     assert.ok(spec.inbound.length > 0, spec.id);
     assert.ok(spec.setup_links.length > 0, spec.id);
     const urls = new Set<string>();
@@ -101,7 +102,7 @@ test("Cloudflare identity uses the official API token verifier not /user", async
     },
   });
   assert.equal(result.ok, true);
-  if (result.ok) assert.equal(result.login, "active");
+  if (result.ok) assert.equal(result.login, "tok1");
 });
 
 test("Jira issue poll uses search/jql after the legacy search sunset", async () => {

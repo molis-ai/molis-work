@@ -194,7 +194,7 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
 
     // Bind identity to the session that started; reject store/env drift.
     const currentClientId =
-      resolveGmailClientId(opts.clientId) || pending.clientId;
+      opts.clientId?.trim() || (pending.clientSecret !== undefined ? pending.clientId : resolveGmailClientId()) || pending.clientId;
     if (currentClientId !== pending.clientId) {
       clearPendingByState(state);
       clearPending();
@@ -209,6 +209,7 @@ export function createGmailPendingSessions(ports: GmailOAuthPorts, configuration
       codeVerifier: pending.codeVerifier,
       redirectUri: pending.redirectUri,
       clientId: pending.clientId,
+      clientSecret: pending.clientSecret,
     };
   }
 

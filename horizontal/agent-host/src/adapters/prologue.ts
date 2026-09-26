@@ -21,6 +21,7 @@ import type {
   AgentRuntimeHealth,
   AgentSessionRef,
   AgentSessionView,
+  AgentSessionStatus,
   AgentStartRequest,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -368,6 +369,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
       ...(record.recovery ? { recovery: { ...record.recovery } } : {}),
     };
+  }
+
+  async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
+    const record = await this.#loadSession(session.session_id);
+    const latest = record.runs.at(-1);
+    return { owner: { ...record.owner }, status: { session_id: session.session_id, latest_phase: latest ? this.#requireRun(latest.run_id).view.phase : null,
+      recovery: Boolean(record.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false } };
   }
 
   async start(request: AgentStartRequest): Promise<AgentRunHandle> {

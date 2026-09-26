@@ -5,7 +5,7 @@ import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
@@ -145,7 +145,7 @@ function amendmentNote(amendment: AgentStepAmendment, board: AgentStepBoard): st
   }
 }
 
-function sessionState(run: AgentRunView): CodingSessionState {
+function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionState {
   if (run.phase === "completed") return "done";
   if (run.phase === "awaiting-input") return "waiting-answer";
   if (run.phase === "awaiting-review") return "waiting-approval";
@@ -223,22 +223,30 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   let stateRead: Promise<unknown> | null = null, stateNext: Promise<unknown> | null = null;
   const readState = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts) => {
     const runtimes = await api.invoke(agent.listRuntimes, []);
-    const sessions = await Promise.all(execution.sessions.list(boardId).map(async record => {
+    // Every session's standing in one Host call per runtime, rather than one queued read per session.
+    const records = execution.sessions.list(boardId);
+    const statuses = new Map<string, AgentSessionStatus | { session_id: string; error: string }>();
+    for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
+      const ids = records.filter(record => record.runtime_id === runtimeId && record.runtime_session_id).map(record => record.runtime_session_id!);
+      try { for (const status of await api.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
+      catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : "会话暂不可读" }); }
+    }
+    const sessions = records.map(record => {
       let checkpointBusy = false;
       if (record.runtime_session_id) {
-        try {
-          const snapshot = await api.invoke(agent.readSession, [{ runtime_id: record.runtime_id, session_id: record.runtime_session_id }]);
-          checkpointBusy = snapshot.checkpoint_busy === true;
-          const next = snapshot.recovery ? "reconcile-required" : snapshot.latest_run ? sessionState(snapshot.latest_run) : "idle";
+        const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
+        if (status && !("error" in status)) {
+          checkpointBusy = status.checkpoint_busy;
+          const next = status.recovery ? "reconcile-required" : status.latest_phase ? sessionState({ phase: status.latest_phase }) : "idle";
           if (next !== record.state) record = execution.sessions.setState(boardId, record.session_id, next, record.updated_at);
-        } catch {
+        } else if (record.state !== "reconcile-required") {
           // One unreadable ledger must not hide other sessions or make the
           // directory call completed work safe to continue.
-          if (record.state !== "reconcile-required") record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
+          record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
         }
       }
       return { ...record, checkpoint_busy: checkpointBusy, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
-    }));
+    });
     const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
     const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
     return { sessions, methods, mcp, models: await execution.models(),

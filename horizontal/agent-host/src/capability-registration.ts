@@ -112,6 +112,25 @@ export function registerAgentHostCapabilities<Context>(
     registrar.register(agentHostCapabilities.readSession, async (context, [session]) =>
       await readScopedSession(context, session)),
 
+    registrar.register(agentHostCapabilities.readSessionStatuses, async (context, [runtimeId, sessionIds]) => {
+      if (!Array.isArray(sessionIds) || sessionIds.length > 1000 || sessionIds.some(id => typeof id !== "string" || !id)) throw new AgentHostError("agent.session_unknown", "会话列表无效");
+      const adapter = ports.agentHost(context).adapter(runtimeId), board = ports.boardId(context);
+      return Promise.all(sessionIds.map(async session_id => {
+        const session = { runtime_id: runtimeId, session_id };
+        try {
+          if (adapter.readSessionStatus) {
+            const { owner, status } = await adapter.readSessionStatus(session);
+            if (owner?.board_id !== board) throw new AgentHostError("agent.session_unknown", "当前项目找不到这条会话");
+            return status;
+          }
+          const view = await readScopedSession(context, session);
+          return { session_id, latest_phase: view.latest_run?.phase ?? null, recovery: Boolean(view.recovery), checkpoint_busy: view.checkpoint_busy === true };
+        } catch (error) {
+          return { session_id, error: error instanceof Error ? error.message : "会话暂不可读" };
+        }
+      }));
+    }),
+
     registrar.register(agentHostCapabilities.startRun, async (context, [runtimeId, request]) => {
       const authority = await ports.authority(context, request.plugin_id);
       if (!request.directory.realpath_verified || !authority.authorizedDirectories.includes(request.directory.canonical_path)) {

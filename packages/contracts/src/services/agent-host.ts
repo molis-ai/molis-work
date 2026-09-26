@@ -502,6 +502,16 @@ export interface AgentSessionView {
   latest_run: AgentRunView | null;
 }
 
+/** Where a session stands, without its rounds: enough for a directory of many sessions. */
+export interface AgentSessionStatus {
+  session_id: string;
+  /** The latest round's phase; null before the first round. */
+  latest_phase: AgentRunPhase | null;
+  /** Persisted work exists but is not safe to continue automatically. */
+  recovery: boolean;
+  checkpoint_busy: boolean;
+}
+
 export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
 
 export interface AgentTextReviewDocument {
@@ -796,6 +806,8 @@ export interface AgentRuntimeAdapter {
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
+  /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
+  readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
   start(request: AgentStartRequest): Promise<AgentRunHandle>;
   read(run: AgentRunRef): Promise<AgentRunView>;
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
@@ -918,6 +930,15 @@ export const agentHostCapabilities = {
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>,
+  /**
+   * Many sessions' standing in one call, for a directory: one queued operation instead of one per session. A session
+   * this project cannot read comes back with an error of its own rather than failing the others.
+   */
+  readSessionStatuses: {
+    capability_id: "agent.sessions.status.v1",
+    version: 1,
+    operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | { session_id: string; error: string }>>,
   listSkills: {
     capability_id: "agent.skills.list.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,

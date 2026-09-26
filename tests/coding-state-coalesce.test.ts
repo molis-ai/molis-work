@@ -19,7 +19,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
     sessions.create({ board_id: DEMO_BOARD_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
     sessions.setRuntimeSession(DEMO_BOARD_ID, id, `sdk-${id}`, new Date().toISOString());
   }
-  let reads = 0, inFlight = 0, most = 0;
+  let reads = 0, inFlight = 0, most = 0; const batches: string[][] = [];
   const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
@@ -31,7 +31,12 @@ test("however many pages poll the Coding directory at once, one read runs and at
         inFlight--;
         return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
       }
-      if (definition.capability_id === agent.readSession.capability_id) return { runs: [], latest_run: null } as Output;
+      if (definition.capability_id === agent.readSessionStatuses.capability_id) {
+        batches.push([...(_args as unknown as [string, string[]])[1]]);
+        // One session is mid-review, one has never run, and one cannot be read.
+        return (_args as unknown as [string, string[]])[1].map(session_id => session_id === "sdk-a" ? { session_id, latest_phase: "awaiting-review", recovery: false, checkpoint_busy: false }
+          : session_id === "sdk-b" ? { session_id, latest_phase: null, recovery: false, checkpoint_busy: true } : { session_id, error: "读不到" }) as Output;
+      }
       if (definition.capability_id === agent.listSkills.capability_id) return [] as Output;
       if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
       if (definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
@@ -51,6 +56,12 @@ test("however many pages poll the Coding directory at once, one read runs and at
     const first = await state();
     assert.equal(first.status, 200, JSON.stringify(first.body));
     assert.equal(first.body.sessions.length, 3);
+    // Every session's standing arrives in one Host call, and is what the directory shows.
+    assert.deepEqual(batches.map(batch => [...batch].sort()), [["sdk-a", "sdk-b", "sdk-c"]]);
+    const byId = Object.fromEntries(first.body.sessions.map((session: { session_id: string }) => [session.session_id, session]));
+    assert.equal(byId.a.state, "waiting-approval");
+    assert.equal(byId.b.state, "idle"); assert.equal(byId.b.checkpoint_busy, true);
+    assert.equal(byId.c.state, "reconcile-required", "an unreadable session is never shown as safe to continue");
     reads = 0;
     // Ten pages ask at once: the first read runs, every later request shares the single read queued behind it.
     const answers = await Promise.all(Array.from({ length: 10 }, () => state()));

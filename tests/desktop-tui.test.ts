@@ -331,6 +331,8 @@ async function catalogFixture() {
       user_confirmed: true,
       binding_scope: "session",
     });
+    // Feed actions honor the project's enabled plugins; these journeys start from Feed, so the project has it.
+    if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test-user" });
     const project = catalog.getProject(created.project_id);
     return { homeDirectory, project };
   } finally {

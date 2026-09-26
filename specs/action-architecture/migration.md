@@ -1455,3 +1455,10 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - Kernel 的执行包装在处理器结束后报告「哪个能力、谁调用、成功或失败」，从不携带输入与结果；报告失败不影响调用本身。Local Host 通过 `actionSettled` 转交给 Home 的 `logs/action-calls.jsonl`，只记录 `operation: command`（查询被页面持续轮询、且不改变任何东西），最多保留约 1000–2000 条并原子重写。
 - 「调用记录」页按项目/全局显示最近操作（能力名称、提供方、调用方：你/内置 Agent/工作流程/MCP 客户端/插件、能力身份、时间、成功或失败及错误说明），与原判断记录并列；页面文案说明不保存输入与返回内容、失败时保留错误说明。嵌套调用各自记录（例如首页执行事项动作与其实际执行的 Feed 动作）。
 - 验证：`tests/action-call-log.test.ts`（成功/失败命令都记录，查询不记录，其他范围看不到，输入文本不会写入文件）；核心动作/Host/Runtime/MCP 相关 47 项通过。浏览器：首页执行「恢复到 Feed」后，调用记录显示「执行事项动作」与「恢复到 Feed」两条成功记录；服务重启后仍在；1280 与 390 下四个分区（能力库、服务连接、对外接入、调用记录）均实操，无横向溢出。
+
+## 全量非浏览器回归与 main 对比（2026-09-26）
+
+- 484 个非浏览器测试文件在本分支与 main（e065b000，同一批文件中 main 已有的部分）各跑一遍：本分支 2625 项中 2545 通过、77 失败；main 2612 项中 2533 通过、76 失败。两边共同失败 74 项（环境与既有问题，如 connectors 设置、Goals 输出合同 enum、Shelf/Coding 若干 e2e 型用例）。
+- 仅本分支失败的 3 项已查明并修正：两项 desktop-tui 用例从未启用 Feed 的新项目直接调用 Feed 路由——Feed 动作现在遵守项目启用插件的策略（旧路由绕过了它），夹具改为为该项目启用 Feed；一项 Coding 运行时恢复用例在没有动作登记服务的 Runtime 中启动已声明动作的 Coding，改为每个进程提供动作登记。修正后两个文件 42 项全部通过。
+- 仅 main 失败的 2 项（Host 不再直接引入 openFunctionsStore、工作区表单不再要求手填路径）在本分支通过。
+- 浏览器 e2e 未做全量对比；本分支改动涉及的 e2e（home-offers、home-events、home-talk、inbox-current、inbox-pages-actions、feed-capture、characters 升级、cross-plugin）已单独运行，失败项均在 main 上同样失败。

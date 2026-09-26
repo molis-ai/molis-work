@@ -1,6 +1,8 @@
-import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive } from "@molis-ai/molis-work-contracts/modules/functions";
+import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
+import { assertReadyToPublish } from "./store.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -14,7 +16,9 @@ const criteria = { oneOf: [
 ] };
 const patchSchema = { type: "object", properties: {
   name: text, function_key: text, instructions: text, criteria, scene_id: nullableText,
+  scene_version: { type: ["integer", "null"], minimum: 1 }, scene_provider_id: nullableText,
   subject_kinds: strings, scene_map: { type: "object", additionalProperties: text },
+  action_map: { type: "object", additionalProperties: { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] } },
 }, additionalProperties: false };
 const recordSchema = { type: "object", properties: {
   ...patchSchema.properties, id, status: { enum: ["draft", "published"] }, primitive,
@@ -45,7 +49,22 @@ export const functionAuthoringActions = {
   delete: define<Revision, { ok: true }>("delete", "删除判断草稿", "仅删除草稿；已发布规则和历史不可删除。", input(revision, ["id"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
   addSample: define<Revision & { input: string; label?: string }, RecordResult>("sample.add", "添加试跑样本", "将输入保存到规则的样本列表。", input({ ...revision, input: text, label: text }, ["id", "input"]), recordResult, true),
   removeSample: define<Revision & { sample_id: string }, RecordResult>("sample.remove", "移除试跑样本", "从当前规则移除指定样本。", input({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true),
-  usages: define<{ id: string }, { usages: FunctionSceneBinding[] }>("legacy-usages", "读取既有判断用途", "读取原场景绑定；通用能力使用位置由场景目录查询。", input({ id }, ["id"]), { type: "object", properties: { usages: { type: "array", items: { type: "object", properties: { scene_id: text, function_key: text }, required: ["scene_id", "function_key"] } } }, required: ["usages"] }),
+} as const;
+
+/** Contextual reads are composed by the Host from the same authorized action and scene clients. */
+export const functionContextActions = {
+  targets: define<{ id: string }, { targets: readonly ActionSceneTarget[] }>("targets", "判断规则可配置位置", "读取消费方提供的真实配置位置、原绑定及修订号；不会创建规则或授予权限。", input({ id }, ["id"]), ACTION_SCENE_TARGETS_SCHEMA),
+  configure: define<{ id: string; scene_id: string; scene_version: number; provider_id: string; binding_id: string; expected_revision: string | null; enabled: boolean }, { ok: true }>("configure", "配置判断使用位置", "在消费方提供的位置启用、替换或停用当前规则；按原修订号写入，过期页面不能覆盖新配置。", input({
+    id, scene_id: id, scene_version: { type: "integer", minimum: 1 }, provider_id: id, binding_id: id, expected_revision: nullableText, enabled: { type: "boolean" },
+  }, ["id", "scene_id", "scene_version", "provider_id", "binding_id", "expected_revision", "enabled"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
+  catalog: define<Record<string, never>, { catalog: FunctionAuthoringCatalog }>("catalog", "判断规则可用场景", "读取当前调用者范围内的消费场景、对象与结果选项；不可用项带原因，目录不授予执行权限。", input({}), {
+    type: "object", properties: { catalog: { type: "object", properties: {
+      subjects: { type: "array", items: { type: "object" } }, destinations: { type: "array", items: { type: "object" } }, behaviors: { type: "array", items: { type: "object" } },
+    }, required: ["subjects", "destinations", "behaviors"] } }, required: ["catalog"],
+  }),
+  usages: define<{ id: string }, { usages: (ActionSceneUsage | FunctionSceneBinding)[] }>("usages", "判断规则实际使用位置", "读取当前范围由消费场景保存的真实绑定与可用状态；草稿没有生效绑定。", input({ id }, ["id"]), {
+    type: "object", properties: { usages: { type: "array", items: { type: "object", properties: { scene_id: id }, required: ["scene_id"] } } }, required: ["usages"],
+  }),
 } as const;
 
 export function functionAuthoringHandlers(ports: FunctionsActionPorts): ActionHandlerBinding[] {
@@ -59,10 +78,17 @@ export function functionAuthoringHandlers(ports: FunctionsActionPorts): ActionHa
     bind(functionAuthoringActions.update, args => ports.read(service => ({ function: service.updateDraft(args.id, args.patch, args.updated_at ?? undefined) }))),
     bind(functionAuthoringActions.preview, (args, caller) => ports.run(async service => ({ function: await service.preview(args.id, args.input, args.updated_at ?? undefined, caller.signal) })),
       () => ports.credentialAvailable() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先连接判断服务" }),
-    bind(functionAuthoringActions.publish, args => ports.read(service => ({ function: service.publish(args.id, args.updated_at ?? undefined) }))),
+    bind(functionAuthoringActions.publish, async (args, caller) => {
+      const record = ports.read(service => service.get(args.id));
+      if (record.status === "published") return { function: record };
+      assertReadyToPublish(record);
+      const scene = await ports.validatePublication?.(record, caller);
+      await caller.validate_authority?.({ ...functionAuthoringActions.publish, provider_id: "system.functions" });
+      caller.signal?.throwIfAborted();
+      return ports.read(service => ({ function: service.publish(args.id, args.updated_at ?? record.updated_at, scene ?? undefined) }));
+    }),
     bind(functionAuthoringActions.delete, args => ports.read(service => { service.deleteDraft(args.id, args.updated_at ?? undefined); return { ok: true }; })),
     bind(functionAuthoringActions.addSample, args => ports.read(service => ({ function: service.addSample(args.id, { input: args.input, label: args.label }, args.updated_at ?? undefined) }))),
     bind(functionAuthoringActions.removeSample, args => ports.read(service => ({ function: service.removeSample(args.id, args.sample_id, args.updated_at ?? undefined) }))),
-    bind(functionAuthoringActions.usages, args => ports.read(service => ({ usages: service.listSceneBindings(service.get(args.id).function_key) }))),
   ];
 }

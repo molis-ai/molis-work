@@ -5,37 +5,58 @@ import {
   ArtifactImportError, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ExternalDocumentSource,
 } from "@molis-ai/molis-work-plugin-artifacts";
-import { connectorCredentialStatus, resolveConnectorToken } from "./connector-credentials.js";
-import { feishuCliFetch, feishuCliMarker } from "./feishu-cli.js";
-import { resolveUsableNotionToken } from "./notion-oauth.js";
+import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { listConnectorConnectionViews } from "./web-connector-connections.js";
+import { resolveApiConnection } from "./connector-access.js";
+import { withConnectorConnections } from "./connector-connection-store.js";
 
 const CONNECTOR_IDS: Record<ExternalDocumentSource, string> = {
   notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive",
 };
 
+export function documentImportConnections(home = resolveMolisWorkHome()) {
+  return listConnectorConnectionViews(home).filter(row => Object.values(CONNECTOR_IDS).includes(row.service_id)
+    && !["mcp", "none"].includes(row.auth_method) && (row.auth_method !== "cli" || row.service_id === "feishu"));
+}
 export function documentImportConnectionStatus(): Record<string, boolean> {
-  return Object.fromEntries(Object.entries(CONNECTOR_IDS).map(([source, connector]) => [source, connectorCredentialStatus(connector).bound]));
+  const connections = documentImportConnections();
+  return Object.fromEntries(Object.entries(CONNECTOR_IDS).map(([source, connector]) => [source, connections.some(row => row.service_id === connector && row.state === "connected")]));
 }
 
 export function importLocalArtifactDocument(input: Record<string, unknown>, ports: Omit<ArtifactDocumentImportPorts, "readExternal" | "readHtml">) {
+  const home = resolveMolisWorkHome();
+  let usedConnection: string | undefined;
+  let usedRevision: string | undefined;
   return importArtifactDocument(input, {
     ...ports,
+    async beforeSave() {
+      if (usedConnection) {
+        const active = withConnectorConnections(home, store => { const row = store.require(usedConnection!); return store.state(row) === "connected" && row.updated_at === usedRevision; });
+        if (!active) throw new ArtifactImportError(422, "document.connection_revoked", "读取期间连接已断开，请重新授权后导入");
+      }
+      await ports.beforeSave?.();
+    },
     readHtml(html) {
       try { return { title: documentTitle(html), content: htmlToMarkdown(html) }; }
       catch { throw new ArtifactImportError(422, "document.html_invalid", "无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
     },
     async readExternal(document) {
-      let token: string | null;
-      try { token = document.source === "notion" ? await resolveUsableNotionToken() : resolveConnectorToken(CONNECTOR_IDS[document.source]); }
-      catch { throw new ArtifactImportError(422, "document.credentials_unavailable", "无法读取连接器凭据，请在连接器设置中重新连接"); }
-      if (!token) throw new ArtifactImportError(422, "document.connection_required", "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
-      const fetch = document.source === "feishu" && token === feishuCliMarker() ? feishuCliFetch : undefined;
-      try { return await readExternalDocument(document, { token, fetch }); }
+      const service = CONNECTOR_IDS[document.source];
+      const candidates = documentImportConnections(home).filter(row => row.service_id === service && row.state === "connected");
+      const id = document.connection_id || (candidates.length === 1 ? candidates[0]!.connection_id : undefined);
+      if (!id) throw new ArtifactImportError(422, "document.connection_required", candidates.length ? "该来源有多个账号，请选择要使用的连接" : "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
+      let access: Awaited<ReturnType<typeof resolveApiConnection>>;
+      try { access = await resolveApiConnection(home, id, service); }
+      catch { throw new ArtifactImportError(422, "document.credentials_unavailable", "所选连接不可用，请在连接器设置中重新授权"); }
+      usedConnection = id;
+      usedRevision = access.connection.updated_at;
+      const read = () => readExternalDocument(document, { token: access.token, fetch: access.fetchImpl,
+        ...(access.connection.auth_method === "oauth" ? { tokenKind: "access_token" as const } : {}) });
+      try { return { ...await read(), connection_id: id }; }
       catch (error) {
-        if (document.source !== "notion" || !(error instanceof ExternalDocumentImportError) || error.code !== "needs_auth") throw error;
-        const renewed = await resolveUsableNotionToken(true);
-        if (!renewed) throw error;
-        return readExternalDocument(document, { token: renewed });
+        if (access.connection.auth_method !== "oauth" || !(error instanceof ExternalDocumentImportError) || error.code !== "needs_auth") throw error;
+        access = await resolveApiConnection(home, id, service, true);
+        return { ...await read(), connection_id: id };
       }
     },
   });

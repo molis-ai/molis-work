@@ -1,15 +1,23 @@
-import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { PagesStore } from "./store.js";
 import { PagesError } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
-export async function generatePagesFromMaterials(withStore: <T>(run: (store: PagesStore) => T) => T, record: PagesGenerationRecord, completeText?: (prompt: string) => Promise<string>, signal?: AbortSignal) {
+export async function generatePagesFromMaterials(withStore: <T>(run: (store: PagesStore) => T) => T, record: PagesGenerationRecord, completeText?: (prompt: string) => Promise<string>, signal?: AbortSignal, beforeEffect?: () => Promise<void>) {
   const existing = withStore(store => store.generation(record.project_id, record.request_id));
   if (existing && existing.request_hash !== record.request_hash) throw new PagesError("pages.invalid", "同一个请求的材料或要求已改变，请重新生成");
   if (existing?.status === "completed" && existing.document_id) return { document: withStore(store => store.get(existing.document_id!, record.project_id)), replayed: true };
   signal?.throwIfAborted();
   const request = withStore(store => store.beginGeneration(record));
   if (request.status === "completed" && request.document_id) return { document: withStore(store => store.get(request.document_id!, record.project_id)), replayed: true };
+  const fail = async (error: unknown): Promise<never> => {
+    // Failure bookkeeping is also an effect. If authority is gone, leave the original running
+    // record for the existing owner recovery path rather than letting this stale call alter it.
+    await beforeEffect?.();
+    withStore(store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
+    throw error;
+  };
+  let body: PagesBody;
   try {
     if (!completeText) throw new PagesError("pages.unavailable", "尚未配置写作模型，材料已保留。请配置模型后重试。");
     const prompt = [
@@ -34,12 +42,14 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
     }).join("\n\n");
     const markdown = `${output}\n\n---\n\n## 采用材料与原始边界\n\n以下为本次采用的材料快照，正文整理不改变其证据等级。\n\n${appendix}`;
     const blocks = blocksFromMarkdown(markdown);
-    const document = withStore(store => store.completeGeneration(request, { type: "doc", content: blocks
+    body = { type: "doc", content: blocks
       ? blocks.map((block) => block.toJSON())
-      : markdown.split(/\n\n+/).map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) }));
+      : markdown.split(/\n\n+/).map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) };
+  } catch (error) { return fail(error); }
+  // A rejected guard must not be caught as a model/storage failure and retried as another write.
+  await beforeEffect?.();
+  try {
+    const document = withStore(store => store.completeGeneration(request, body));
     return { document, replayed: false };
-  } catch (error) {
-    withStore(store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
-    throw error;
-  }
+  } catch (error) { return fail(error); }
 }

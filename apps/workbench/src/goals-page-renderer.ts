@@ -26,6 +26,8 @@ export interface WorkbenchGoalsPageView<TItem extends GoalCollectionItem> extend
    */
   plugin_panels?: Readonly<Record<string, string>>;
   plugin_stages?: readonly string[];
+  /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
+  plugin_rail?: readonly { surface: string; label: string }[];
   project: ProjectOperationsProject | null;
   projects: ProjectOperationsProject[];
   route_prefix: string;
@@ -227,9 +229,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell)}
       <div class="plugin-stack">
-      ${renderAssistantIsland(primitives, enabledPlugins)}
       ${renderWorkspaceChrome(primitives, projectTitlebarChrome)}
-      ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter)}
+      ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter, renderAssistantIsland(primitives, enabledPlugins), view.plugin_rail)}
       </div>
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">

@@ -1,4 +1,4 @@
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
 
@@ -43,7 +43,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
     return caller.project_id;
   };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
@@ -64,6 +64,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
       const reply = (await ports.completeText(prompt, { signal: caller.signal })).trim();
       caller.signal?.throwIfAborted();
       if (!reply) throw new ActionError("lingguang.empty_reply", "模型没有返回正文，输入已保留，可重试");
+      await caller.beforeEffect();
       return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot));
     }, () => ports.modelAvailability()),
   ];

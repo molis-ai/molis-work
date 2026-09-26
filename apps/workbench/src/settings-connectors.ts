@@ -1,6 +1,6 @@
-import { renderHint } from "@molis-ai/molis-work-design-system";
+import { renderHint, icon as designIcon } from "@molis-ai/molis-work-design-system";
 import { renderFunctionsSettings } from "./functions/settings-ui.js";
-import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorConnectionView, ConnectorDirectoryGroupId, ConnectorMethodOption } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorMark } from "./connector-marks.js";
 import type { ConnectorSettingsCardView, MolisWorkSettingsView } from "./settings-view.js";
 
@@ -24,14 +24,17 @@ interface ConnectorsSettingsPrimitives {
 function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsSettingsPrimitives["escapeHtml"]): string {
   const mark = connectorMark(connectorId);
   if (!mark) {
+    const symbol = connectorId === "image-api" ? "image" : connectorId === "mcp-bearer" ? "network" : "sparkles";
+    if (["image-api", "mcp-bearer", "model-api"].includes(connectorId)) return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="light" aria-hidden="true">${designIcon(symbol)}</span>`;
     return `<span class="settings-connector-mark settings-connector-mark--fallback" data-connector-mark="${escapeHtml(connectorId)}" aria-hidden="true">${escapeHtml(connectorId.slice(0, 2).toUpperCase())}</span>`;
   }
-  return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="${mark.on}"${mark.pad ? ` data-pad="1"` : ""} aria-hidden="true">${mark.svg}</span>`;
+  return `<span class="settings-connector-mark" data-connector-mark="${escapeHtml(connectorId)}" data-on="${mark.on}" aria-hidden="true"><img src="data:image/svg+xml,${encodeURIComponent(mark.svg)}" alt="" width="24" height="24"></span>`;
 }
 
 function connectionMethod(method: ConnectorConnectionView["auth_method"], L: ConnectorsSettingsPrimitives["L"]): string {
   if (method === "oauth") return L("OAuth 授权");
   if (method === "cli") return L("本机 CLI");
+  if (method === "mcp") return L("MCP 工具连接");
   if (method === "none") return L("无需鉴权");
   return L("访问令牌");
 }
@@ -47,7 +50,7 @@ function renderConnectionRow(connection: ConnectorConnectionView, card: Connecto
   const state = connectionState(connection.state, L);
   const name = escapeHtml(connection.display_name);
   const serviceTitle = escapeHtml(card?.title || connection.service_id);
-  const canManage = connection.source !== "external";
+  const canManage = connection.source !== "external" || connection.auth_method === "cli";
   const id = escapeHtml(connection.connection_id);
   const serviceId = escapeHtml(connection.service_id);
   return `<div class="settings-connection-row" data-connection-row="${id}" data-connection-service="${serviceId}">
@@ -55,12 +58,39 @@ function renderConnectionRow(connection: ConnectorConnectionView, card: Connecto
     <div class="settings-connection-row__identity"><strong>${name}</strong><small>${serviceTitle} · ${escapeHtml(connectionMethod(connection.auth_method, L))}${connection.account_label ? ` · ${escapeHtml(connection.account_label)}` : ""}</small>${connection.target_origin ? `<small>${escapeHtml(L("绑定地址"))} · ${escapeHtml(connection.target_origin)}</small>` : ""}</div>
     <span class="settings-state settings-state--${state.tone}">${escapeHtml(state.label)}</span>
     ${inDetail ? `<div class="settings-connection-row__actions">
-      ${canManage && connection.auth_method === "oauth" ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-reauthorize="${id}" data-connection-method="${connection.auth_method}">${L("重新授权")}</button>` : ""}
+      ${connection.state !== "disconnected" ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-check="${id}">${L("验证连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-connection-preview="${id}">${L(connection.auth_method === "mcp" ? "查看工具" : "读取预览")}</button>` : ""}
+      ${canManage && ["oauth", "mcp"].includes(connection.auth_method) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-reauthorize="${id}" data-connection-method="${connection.auth_method}">${L(connection.auth_method === "mcp" ? "新增 MCP 授权" : "重新授权")}</button>` : ""}
       ${canManage && connection.auth_method === "token" ? `<details class="settings-connection-inline"><summary>${L("更换令牌")}</summary><form data-connection-replace="${id}"><input class="mw-input" type="password" autocomplete="off" aria-label="${escapeHtml(L("新令牌"))}" required><button class="mw-btn mw-btn--secondary" type="submit">${L("保存")}</button></form></details>` : ""}
       ${canManage ? `<details class="settings-connection-inline"><summary>${L("重命名")}</summary><form data-connection-rename="${id}"><input class="mw-input" value="${name}" maxlength="100" required aria-label="${escapeHtml(L("连接名称"))}"><button class="mw-btn mw-btn--secondary" type="submit">${L("保存")}</button></form></details>
         <button class="mw-btn mw-btn--danger-outline" type="button" data-connection-disconnect="${id}">${L("断开")}</button>` : `<small>${L("由外部环境管理凭据")}</small>`}
-    </div>` : `<button class="mw-btn mw-btn--ghost" type="button" data-connector-open="${serviceId}">${L("管理")}</button>`}
+    </div><div class="settings-connection-result" data-connection-result hidden></div>
+    ${connection.auth_method === "mcp" ? `<details class="settings-connection-tool"><summary>${L("调用 MCP 工具")}</summary><label class="settings-connector-field"><span>${L("工具名称（先查看工具列表）")}</span><input class="mw-input" data-mcp-tool-name></label><label class="settings-connector-field"><span>${L("参数 JSON")}</span><textarea class="mw-input" data-mcp-tool-arguments rows="4">{}</textarea></label><p>${L("根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。")}</p><button type="button" class="mw-btn mw-btn--secondary" data-mcp-tool-call="${id}">${L("执行工具")}</button></details><details class="settings-connection-tool"><summary>${L("读取 MCP 资源")}</summary><label class="settings-connector-field"><span>URI</span><input class="mw-input" data-mcp-resource-uri></label><button type="button" class="mw-btn mw-btn--secondary" data-mcp-resource-read="${id}">${L("读取资源")}</button></details>` : ""}` : `<button class="mw-btn mw-btn--ghost" type="button" data-connector-open="${serviceId}">${L("管理")}</button>`}
   </div>`;
+}
+
+function renderProtocolControls(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorsSettingsPrimitives): string {
+  const { L, escapeHtml: e } = p;
+  const input = (key: string, label: string, value = "", secret = false, placeholder = "") => `<label class="settings-connector-field"><span>${e(L(label))}</span><input class="mw-input" data-protocol-field="${e(key)}" type="${secret ? "password" : "text"}" autocomplete="off" value="${e(value)}" placeholder="${e(placeholder)}"></label>`;
+  let controls = "";
+  if (option.oauth) controls = `${option.oauth.note ? `<p>${e(L(option.oauth.note))}</p>` : ""}
+    ${input("client_id", "Client ID")}${input("client_secret", option.oauth.client_secret_required ? "Client Secret" : "Client Secret（公开客户端可留空）", "", true)}
+    ${option.oauth.fields.map(field => input(`setting:${field.key}`, field.label, "", false, field.placeholder)).join("")}
+    <p>${L("在服务商应用中登记以下回调地址：")}<code data-oauth-callback></code></p>
+    <details><summary>${L("使用已注册的 HTTPS 回调")}</summary>${input("redirect_uri", "HTTPS 回调地址（可选）")}<p>${L("授权后复制浏览器完整返回地址，回到这里完成连接。")}</p></details>
+    <button class="mw-btn mw-btn--secondary" type="button" data-protocol-start="oauth">${L("开始 OAuth 授权")}</button>
+    <div data-oauth-return hidden>${input("returned_url", "完整授权返回地址")}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${L("完成授权")}</button></div>`;
+  if (option.mcp) controls = `${input("endpoint", "官方 MCP 地址", option.mcp.endpoint)}
+    ${input("client_id", "OAuth Client ID / 飞书 App ID（如服务要求）")}${input("client_secret", "Client Secret / App Secret（如服务要求）", "", true)}
+    ${input("token", "MCP 访问令牌（支持令牌的服务可选）", "", true)}
+    <p>${L("在应用中登记回调地址：")}<code data-mcp-callback></code></p><details><summary>${L("使用已注册的 HTTPS 回调")}</summary>${input("redirect_uri", "HTTPS 回调地址（可选）")}</details>
+    ${["feishu", "lark"].includes(card.connector_id) ? `<p>${L("由本机 npx 启动官方 lark-mcp。App 凭据使用租户身份；填写用户访问令牌时使用用户身份。")}</p>` : ""}
+    <button class="mw-btn mw-btn--secondary" type="button" data-protocol-start="mcp">${L("连接并发现工具")}</button>
+    <div data-oauth-return hidden>${input("returned_url", "完整授权返回地址")}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${L("完成授权")}</button></div>`;
+  if (option.cli) controls = `<p>${e(option.cli.binary)} · ${L(option.cli.installed ? "已安装" : "尚未安装")}</p>${option.cli.note ? `<p>${e(L(option.cli.note))}</p>` : ""}
+    <a href="${e(option.cli.install_url)}" target="_blank" rel="noopener noreferrer">${L("官方安装说明")}</a>
+    <div class="settings-connector-actions"><button class="mw-btn mw-btn--secondary" type="button" data-cli-login>${L("运行 CLI 登录")}</button><button class="mw-btn mw-btn--secondary" type="button" data-cli-connect>${L("验证并连接当前账号")}</button></div>
+    <div data-cli-session hidden><pre class="settings-connection-output" data-cli-output aria-live="polite"></pre>${input("cli_input", "CLI 交互输入（空白发送回车）", "", true)}<div class="settings-connector-actions"><button type="button" class="mw-btn mw-btn--secondary" data-cli-input>${L("发送输入")}</button><button type="button" class="mw-btn mw-btn--ghost" data-cli-cancel>${L("结束登录")}</button></div></div>`;
+  return controls ? `<details class="settings-connector-protocol" data-protocol="${option.kind}" data-protocol-service="${e(card.connector_id)}"><summary>${L("配置并连接")}</summary>${controls}<div data-protocol-result role="status"></div></details>` : "";
 }
 
 function renderSetupLinks(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
@@ -74,6 +104,7 @@ function renderSetupLinks(card: ConnectorSettingsCardView, p: ConnectorsSettings
     return `<li class="settings-connector-method" data-connector-method="${option.kind}" data-method-support="${option.support}">
       <div class="settings-connector-method__head"><strong>${escapeHtml(methodTitle[option.kind])}</strong><span class="settings-state settings-state--${option.support === "external" ? "neutral" : "success"}">${escapeHtml(supportTitle[option.support])}</span></div>
       <p>${escapeHtml(L(option.note))}</p>
+      ${renderProtocolControls(card, option, p)}
       ${officialLinks.length ? `<ul>${officialLinks.map((link) => `<li><a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" data-connector-method-link>${icon("link")}${escapeHtml(L(link.label))}</a></li>`).join("")}</ul>` : ""}
     </li>`;
   }).join("");
@@ -106,7 +137,7 @@ function renderGithubDetail(card: ConnectorSettingsCardView, p: ConnectorsSettin
   const reauth = card.account_state === "reauth_required";
   const disconnect = `<button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="github">${L("断开")}</button>`;
   return `<form class="settings-connector-auth" data-connector-auth="github">
-    <p>${L("账号属于这台电脑上的人，不是某个项目。凭据只进本机 SecretStore，这里不显示明文。")}</p>
+    <p>${L("授权信息保存在本机；不同项目可以选择各自的连接。凭据不会回显。")}</p>
     ${renderSetupLinks(card, p)}
     ${renderCapabilities(card, p)}
     ${connected ? `${card.hint ? `<p>${L("本机只显示令牌末四位")} <code>${escapeHtml(card.hint)}</code></p>` : ""}
@@ -130,77 +161,21 @@ function renderGithubDetail(card: ConnectorSettingsCardView, p: ConnectorsSettin
 }
 
 function renderGmailDetail(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
-  const { L, escapeHtml } = p;
-  const connected = card.account_state === "connected";
-  const reauth = card.account_state === "reauth_required";
-  const directOAuth = connected && card.connection_method === "oauth" && card.gmail_oauth_configured;
-  const disconnect = `<button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="gmail">${L("断开")}</button>`;
-  return `<form class="settings-connector-auth" data-connector-auth="gmail">
-    <p>${L("Gmail 授权保存在本机；项目 Feed 按邮箱使用各自的连接。")}</p>
-    ${renderSetupLinks(card, p)}
-    ${renderCapabilities(card, p)}
-    ${connected ? `${card.hint ? `<p>${L("当前连接：")}${escapeHtml(card.connection_method === "oauth" ? L("Google OAuth") : L("访问令牌"))} · <code>${escapeHtml(card.hint)}</code></p>` : ""}
-      <div class="settings-connector-actions">${directOAuth ? `<button class="mw-btn mw-btn--primary" type="button" data-connector-gmail-oauth-start>${L("重新授权 Gmail")}</button>` : ""}${disconnect}</div>` : `${reauth ? `<p>${L("要重新授权")}${card.hint ? ` <code>${escapeHtml(card.hint)}</code>` : ""}</p>` : ""}
-      ${reauth ? disconnect : ""}`}
-      <details class="settings-connector-extra"${!connected ? " open" : ""}><summary>${L("方式一：Google OAuth 授权")}</summary>
-        <p>${L("授权范围：gmail.readonly、openid、email；Molis Work 不发送、删除或修改 Gmail 邮件。")}</p>
-        <p>${L("在 Google Cloud OAuth 客户端登记回调地址：")}<code data-gmail-redirect-uri></code></p>
-        <label class="settings-connector-field"><span>${L("OAuth Client ID")}</span><input class="mw-input" autocomplete="off" data-connector-gmail-client-id></label>
-        <label class="settings-connector-field"><span>${L("Client secret（可选）")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-gmail-client-secret></label>
-        ${directOAuth ? "" : `<button class="mw-btn mw-btn--primary" type="button" data-connector-gmail-oauth-start>${L("打开授权页面")}</button>`}
-      </details>
-      <details class="settings-connector-extra"><summary>${L("方式二：粘贴 Google 访问令牌")}</summary>
-        <p>${L("适合已在 Google OAuth Playground 等工具取得 gmail.readonly 令牌的用户；到期后需要重新粘贴。")}</p>
-        <label class="settings-connector-field"><span>${L("Google 访问令牌")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="gmail" placeholder="ya29.…"></label>
-        <button class="mw-btn mw-btn--secondary" type="submit">${L("使用访问令牌连接")}</button>
-      </details>
-    ${card.outbound_note ? `<p class="settings-connector-note">${escapeHtml(L(card.outbound_note))}</p>` : ""}
-  </form>`;
+  return renderTokenDetail({ ...card, token_label: p.L("Google 访问令牌"),
+    auth_help: p.L("OAuth 会自动刷新授权；也可以粘贴带 gmail.readonly 权限的访问令牌，到期后需要重新提供。") }, p);
 }
 
 function renderNotionDetail(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
-  const { L, escapeHtml } = p;
-  const connected = card.account_state === "connected";
-  return `<form class="settings-connector-auth" data-connector-auth="notion">
-    <p>${L("可以为同一工作区添加不同连接；新增连接不会替换已有授权。")}</p>
-    ${renderSetupLinks(card, p)}${renderCapabilities(card, p)}
-    ${connected ? `<p>${L("当前连接：")}${escapeHtml(card.connection_method === "oauth" ? L("Notion OAuth") : L("内部集成令牌"))}${card.workspace_name ? ` · ${escapeHtml(card.workspace_name)}` : ""}</p><div class="settings-connector-actions"><button class="mw-btn mw-btn--secondary" type="button" data-connector-whoami="notion">${L("查看当前账号")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="notion">${L("断开")}</button></div><p class="settings-connector-whoami" data-connector-whoami-result hidden></p>` : ""}
-    <details class="settings-connector-extra"${!connected ? " open" : ""}><summary>${L("方式一：Notion OAuth 授权")}</summary>
-      <p>${L("适合选择工作区授权。先在 Notion 创建 Public connection，把本机回调地址登记到该连接，然后填写 Client ID 和 Secret。")}</p>
-      <p>${L("在 Notion Public connection 登记回调地址：")}<code data-notion-redirect-uri></code></p>
-      <label class="settings-connector-field"><span>Client ID</span><input class="mw-input" autocomplete="off" data-connector-notion-client-id></label>
-      <label class="settings-connector-field"><span>Client Secret</span><input class="mw-input" type="password" autocomplete="off" data-connector-notion-client-secret></label>
-      <button class="mw-btn mw-btn--primary" type="button" data-connector-notion-oauth-start>${L("打开 Notion 授权页面")}</button>
-    </details>
-    <details class="settings-connector-extra"><summary>${L("方式二：内部集成令牌")}</summary>
-      <p>${L("适合自己的工作区。创建 Internal integration 后，把要读取的页面共享给它。")}</p>
-      <label class="settings-connector-field"><span>${escapeHtml(card.token_label || "Notion Token")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="notion" placeholder="${escapeHtml(card.token_placeholder || "")}"></label>
-      <button class="mw-btn mw-btn--secondary" type="submit">${L("使用令牌连接")}</button>
-    </details>
-    ${card.outbound_note ? `<p class="settings-connector-note">${escapeHtml(L(card.outbound_note))}</p>` : ""}
-  </form>`;
+  return renderTokenDetail({ ...card,
+    auth_help: p.L("使用内部集成令牌时，请把需要读取的页面共享给该集成。OAuth、CLI 和 MCP 可在下方分别配置。") }, p);
 }
 
 function renderFeishuDetail(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
-  const { L, escapeHtml } = p;
-  const connected = card.account_state === "connected";
-  return `<form class="settings-connector-auth" data-connector-auth="feishu">
-    <p>${L("选择用户授权或企业应用凭据。飞书 CLI 的登录凭据由官方 CLI 保管。")}</p>
-    ${renderSetupLinks(card, p)}${renderCapabilities(card, p)}
-    ${connected ? `<p>${L("当前连接：")}${escapeHtml(card.connection_method === "cli" ? L("飞书 CLI 用户授权") : L("企业自建应用"))}${card.hint ? ` · ${escapeHtml(card.hint)}` : ""}</p><div class="settings-connector-actions"><button class="mw-btn mw-btn--secondary" type="button" data-connector-whoami="feishu">${L("查看当前账号")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="feishu">${L("断开")}</button></div><p class="settings-connector-whoami" data-connector-whoami-result hidden></p>` : ""}
-    <details class="settings-connector-extra"${!connected ? " open" : ""}><summary>${L("方式一：飞书 CLI 用户授权")}</summary>
-      <p>${L("先安装官方 lark-cli；首次需要创建 CLI 应用，然后登录并批准只读权限。")}</p>
-      <p><code>npx @larksuite/cli@latest install</code></p>
-      <div class="settings-connector-actions"><button class="mw-btn mw-btn--secondary" type="button" data-connector-feishu-setup>${L("配置 CLI 应用")}</button><button class="mw-btn mw-btn--primary" type="button" data-connector-feishu-login>${L("打开飞书授权页面")}</button><button class="mw-btn mw-btn--secondary" type="button" data-connector-feishu-check>${L("检查授权并连接")}</button></div>
-      <p data-connector-feishu-status aria-live="polite"></p>
-    </details>
-    <details class="settings-connector-extra"><summary>${L("方式二：企业自建应用凭据")}</summary>
-      <p>${escapeHtml(card.auth_help || "")}</p>
-      <label class="settings-connector-field"><span>${escapeHtml(card.token_label || "应用凭据")}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="feishu" placeholder="${escapeHtml(card.token_placeholder || "")}"></label>
-      <button class="mw-btn mw-btn--secondary" type="submit">${L("使用应用凭据连接")}</button>
-    </details>
-    ${card.outbound_note ? `<p class="settings-connector-note">${escapeHtml(L(card.outbound_note))}</p>` : ""}
-  </form>`;
+  const { L } = p;
+  return renderTokenDetail(card, p) + `<details class="settings-connector-extra"><summary>${L("首次配置飞书 CLI 应用")}</summary>
+    <p>${L("安装官方 lark-cli 后，可在这里配置应用；随后使用上方 CLI 入口登录并连接。")}</p>
+    <button class="mw-btn mw-btn--secondary" type="button" data-connector-feishu-setup>${L("配置 CLI 应用")}</button>
+    <p data-connector-feishu-status aria-live="polite"></p></details>`;
 }
 
 function renderTokenDetail(card: ConnectorSettingsCardView, p: ConnectorsSettingsPrimitives): string {
@@ -210,8 +185,7 @@ function renderTokenDetail(card: ConnectorSettingsCardView, p: ConnectorsSetting
   const disconnect = `<button class="mw-btn mw-btn--danger-outline" type="button" data-connector-unbind="${escapeHtml(card.connector_id)}">${L("断开")}</button>`;
   const tokenLabel = card.token_label || L("访问令牌");
   return `<form class="settings-connector-auth" data-connector-auth="${escapeHtml(card.connector_id)}">
-    <p>${L("账号属于这台电脑上的人，不是某个项目。凭据只进本机 SecretStore，这里不显示明文。")}</p>
-    ${card.auth_help ? `<p>${escapeHtml(card.auth_help)}</p>` : ""}
+    <p>${L("授权信息保存在本机；不同项目可以选择各自的连接。凭据不会回显。")}</p>
     ${renderSetupLinks(card, p)}
     ${renderCapabilities(card, p)}
     ${connected ? `${card.hint ? `<p>${L("本机只显示令牌末四位")} <code>${escapeHtml(card.hint)}</code></p>` : ""}
@@ -220,6 +194,7 @@ function renderTokenDetail(card: ConnectorSettingsCardView, p: ConnectorsSetting
         ${disconnect}
       </div>
       <p class="settings-connector-whoami" data-connector-whoami-result hidden></p>` : `${reauth ? `<p>${L("要重新授权")}${card.hint ? ` <code>${escapeHtml(card.hint)}</code>` : ""}</p>` : ""}
+    ${card.auth_help ? `<p>${escapeHtml(card.auth_help)}</p>` : ""}
     <label class="settings-connector-field"><span>${escapeHtml(tokenLabel)}</span><input class="mw-input" type="password" autocomplete="off" data-connector-token="${escapeHtml(card.connector_id)}" placeholder="${escapeHtml(card.token_placeholder || "")}"></label>
       <div class="settings-connector-actions"><button class="mw-btn mw-btn--primary" type="submit">${escapeHtml(L("连接 {name}", { name: card.title }))}</button>${reauth ? disconnect : ""}</div>`}
     ${card.outbound_note ? `<p class="settings-connector-note">${escapeHtml(L(card.outbound_note))}</p>` : ""}
@@ -260,7 +235,7 @@ export function renderConnectorsSettings(
             ? renderFeishuDetail(formCard, primitives)
         : card.auth_kind === "token"
           ? renderTokenDetail(formCard, primitives)
-          : `<div class="settings-connector-auth">${renderCapabilities(card, primitives)}<p>${escapeHtml(L(card.unavailable_reason || card.summary))}</p></div>`;
+          : `<div class="settings-connector-auth">${renderSetupLinks(card, primitives)}${renderCapabilities(card, primitives)}<p>${escapeHtml(L(card.unavailable_reason || card.summary))}</p></div>`;
     return `<section class="settings-connector-detail" data-connector-detail="${escapeHtml(card.connector_id)}" hidden>
       <button class="mw-btn mw-btn--ghost settings-connector-back" type="button" data-connectors-back>${icon("back")}${L("返回列表")}</button>
       <header class="settings-connector-detail__head">

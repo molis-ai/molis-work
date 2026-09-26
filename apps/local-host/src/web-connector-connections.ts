@@ -1,14 +1,17 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { existsSync } from "node:fs";
 import { resolve, sep, join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { LocalSqliteStorage, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
+import { inspectAccountSourceCredentials, refreshSourceConnectionState } from "@molis-ai/molis-work-module-sources";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { authRefFor } from "./connector-credentials.js";
 import { connectorCredentialStatus } from "./connector-credentials.js";
 import { adoptLegacyImageConnections, ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
+import { ModelProviderStore } from "./model-provider-store.js";
+import { withConnectorProtocols } from "./connector-protocol-store.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
@@ -52,42 +55,25 @@ function importLegacyAccounts(homeDirectory: string): void {
     }
     const catalogPath = join(homeDirectory, "projects", "catalog.db");
     if (!existsSync(catalogPath)) return;
-    const catalog = new DatabaseSync(catalogPath, { readOnly: true });
+    const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
     try {
-      if (catalog.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='model_providers'").get()) {
-        const providers = catalog.prepare("SELECT provider_id,display_name,credential_ref FROM model_providers").all() as Array<{
-          provider_id: string; display_name: string; credential_ref: string;
-        }>;
-        for (const provider of providers) {
-          if (!provider.credential_ref.startsWith("model-provider:")) continue;
-          connections.adoptLegacy({ serviceId: "model-api", displayName: `${provider.display_name} · 原有密钥`,
-            credentialRef: provider.credential_ref, authMethod: "token" });
-        }
+      for (const provider of ModelProviderStore.inspectCredentialReferences(catalog.db)) {
+        if (!provider.credential_ref.startsWith("model-provider:")) continue;
+        connections.adoptLegacy({ serviceId: "model-api", displayName: `${provider.display_name} · 原有密钥`,
+          credentialRef: provider.credential_ref, authMethod: "token" });
       }
-      const projectPaths = catalog.prepare("SELECT database_path FROM projects").all() as Array<{ database_path: string }>;
       const root = resolve(homeDirectory, "projects") + sep;
-      for (const entry of projectPaths) {
-        const projectPath = resolve(entry.database_path);
+      for (const databasePath of listProjectDatabasePaths(catalog.db)) {
+        const projectPath = resolve(databasePath);
         if (!projectPath.startsWith(root) || !existsSync(projectPath)) continue;
-        const project = new DatabaseSync(projectPath, { readOnly: true });
+        const project = new LocalSqliteStorage(projectPath, { readonly: true });
         try {
-          const hasSources = project.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get();
-          if (!hasSources) continue;
-          const sources = project.prepare(`SELECT kind, name, config_json, credential_ref, account_label
-            FROM feed_sources WHERE credential_ref IS NOT NULL AND sync_kind IN ('github','gmail','connector')`).all() as Array<{
-            kind: string; name: string; config_json: string; credential_ref: string; account_label: string | null;
-          }>;
-          for (const source of sources) {
+          for (const source of inspectAccountSourceCredentials(project.db)) {
             if (!SERVICE_ID.test(source.kind)) continue;
-            const ref = source.credential_ref;
+            const ref = source.connection_ref;
             if (!ref || !runWithMolisWorkHome(homeDirectory, () => peekSealedEntry(ref))) continue;
-            let tokenRefs: Record<string, unknown> = {};
-            try {
-              const config: unknown = JSON.parse(source.config_json);
-              if (config && typeof config === "object" && "token_refs" in config && config.token_refs && typeof config.token_refs === "object") {
-                tokenRefs = config.token_refs as Record<string, unknown>;
-              }
-            } catch { /* A broken source config does not stop other accounts migrating. */ }
+            const refs = source.config.token_refs;
+            const tokenRefs = refs && typeof refs === "object" && !Array.isArray(refs) ? refs as Record<string, unknown> : {};
             connections.adoptLegacy({
               serviceId: source.kind,
               displayName: source.account_label ? `${source.kind} · ${source.account_label}` : source.name,
@@ -111,10 +97,14 @@ export function listConnectorConnectionViews(homeDirectory: string, serviceId?: 
   importLegacyAccounts(homeDirectory);
   return withConnectorConnections(homeDirectory, (store) => store.list(serviceId).map((row) => {
     const view = store.view(row);
-    if (row.source !== "external") return view;
+    if (row.source !== "external" || row.disconnected_at) return view;
     try {
+      if (row.auth_method === "cli") {
+        const configuration = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
+        if (configuration?.protocol === "cli" && configuration.serviceId === row.service_id) return view;
+      }
       const available = runWithMolisWorkHome(homeDirectory, () => connectorCredentialStatus(row.service_id).bound);
-      return { ...view, state: available && !row.disconnected_at ? "connected" as const : "reauth_required" as const };
+      return { ...view, state: available ? "connected" as const : "reauth_required" as const };
     } catch { return { ...view, state: "reauth_required" as const }; }
   }));
 }
@@ -127,28 +117,15 @@ export function refreshFeedConnectionState(homeDirectory: string, connectionId: 
   });
   const catalogPath = join(homeDirectory, "projects", "catalog.db");
   if (!existsSync(catalogPath)) return;
-  const catalog = new DatabaseSync(catalogPath, { readOnly: true });
+  const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
   try {
     const root = resolve(homeDirectory, "projects") + sep;
-    const projects = catalog.prepare("SELECT database_path FROM projects").all() as Array<{ database_path: string }>;
-    for (const entry of projects) {
-      const path = resolve(entry.database_path);
+    for (const databasePath of listProjectDatabasePaths(catalog.db)) {
+      const path = resolve(databasePath);
       if (!path.startsWith(root) || !existsSync(path)) continue;
       const project = new LocalSqliteStorage(path, { fileMustExist: true });
       try {
-        if (!project.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='feed_sources'").get()) continue;
-        const rows = project.db.prepare("SELECT board_id,source_id,status,enabled,config_json FROM feed_sources WHERE sync_kind IN ('github','gmail','connector')").all() as Array<{
-          board_id: string; source_id: string; status: string; enabled: number; config_json: string;
-        }>;
-        for (const row of rows) {
-          let config: Record<string, unknown>;
-          try { config = JSON.parse(row.config_json) as Record<string, unknown>; } catch { continue; }
-          if (config.connection_id !== connectionId || !row.enabled) continue;
-          const next = available ? (row.status === "disconnected" ? "active" : row.status) : (row.status === "paused" ? "paused" : "disconnected");
-          if (next === row.status) continue;
-          project.db.prepare("UPDATE feed_sources SET status=?,last_error_code=?,updated_at=? WHERE board_id=? AND source_id=?")
-            .run(next, available ? null : "connector_disconnected", new Date().toISOString(), row.board_id, row.source_id);
-        }
+        refreshSourceConnectionState(project.db, { connection_id: connectionId, available });
       } finally { project.close(); }
     }
   } finally { catalog.close(); }
@@ -170,6 +147,8 @@ export async function handleConnectorConnectionsHttp(
     }
     if (request.method === "POST" && collection) {
       const body = await readLocalWebBody(request);
+      const service = HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === body.service_id);
+      if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw new ConnectorConnectionError("invalid", "此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
       const connection = withConnectorConnections(homeDirectory, (store) => store.createToken({
         serviceId: body.service_id as string, displayName: body.display_name as string,
         token: body.token as string,

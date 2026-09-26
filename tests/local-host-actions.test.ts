@@ -136,7 +136,7 @@ test("failed Runtime activation withdraws its actions before a fresh activation"
   } });
   try {
     const client = host.actionClient(ref("recovery"));
-    await assert.rejects(client.discover(context("recovery")), /activation failed/);
+    await assert.rejects(async () => client.discover(context("recovery")), /activation failed/);
     assert.equal(host.status().capabilities.length, 0);
     assert.equal(await client.invoke(context("recovery"), counter, { amount: 0 }), 2);
   } finally { await host.close(); }
@@ -203,7 +203,7 @@ test("home actions share the directory, support nested calls, and close waits fo
     await closing;
     assert.equal(opened, 0);
     assert.equal(host.status().capabilities.length, 0);
-    await assert.rejects(client.discover(caller), { code: "host.closed" });
+    await assert.rejects(async () => client.discover(caller), { code: "host.closed" });
   } finally { release(); await host.close(); }
 });
 
@@ -227,7 +227,7 @@ test("Host scene clients enforce current judgment and consumer policy before app
     await client.bind(caller, { binding_id: "actual-binding", scene_id: scene.scene_id, scene_version: scene.version,
       project_id: project.project_id, title: "saved consumer", function: fn, enabled: true });
     assert.equal((await client.usages(caller))[0]!.availability.available, true);
-    await assert.rejects(client.discoverScenes({ ...caller, project_id: "other" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(async () => client.discoverScenes({ ...caller, project_id: "other" }), { code: "actions.scope_mismatch" });
     duringInvoke = () => { judgmentEnabled = false; };
     await assert.rejects(client.runScene(caller, scene, saved!.binding_id, { amount: 1 }), { code: "fixture.judgment_revoked" });
     assert.equal((await client.usages(caller))[0]!.availability.available, false);

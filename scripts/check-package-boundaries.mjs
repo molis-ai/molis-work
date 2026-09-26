@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
 
 import {
   evaluateImportBoundary,
@@ -633,6 +634,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(...checkGoalStorageOwnership(read(relativePath)).map(error => `${relativePath}: ${error}`));
   }
   errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
+  errors.push(...checkGoalQueryCapabilityAdapters(read("apps/local-host/src/project-capabilities.ts"))
+    .map(error => `apps/local-host/src/project-capabilities.ts: ${error}`));
   for (const relativePath of ["apps/local-host/src/web-request.ts", "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
     const source = read(relativePath);
     errors.push(...checkGoalReadOwnerSql(source).map(error => `${relativePath}: ${error}`));
@@ -644,13 +647,11 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     if (relativePath === "apps/local-host/src/web-request.ts") {
       if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
     } else {
-      const hostSource = read("apps/local-host/src/project-capabilities.ts");
       if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
-      if (source.includes("client.invoke(readGoalContractCapability,")
-        || hostSource.includes("host.register(readGoalContractCapability,")) {
-        errors.push(`${relativePath}: retired public Goal Contract capability must stay unregistered and uninvoked`);
+      if (source.includes("client.invoke(readGoalContractCapability,")) {
+        errors.push(`${relativePath}: Goal Contract reads must use the shared Action client`);
       }
-      if (!source.includes("client.invoke(snapshotBoardCapability,")) {
+      if (relativePath === "apps/cli/src/command-dispatch.ts" && !source.includes("client.invoke(snapshotBoardCapability,")) {
         errors.push(`${relativePath}: remaining CLI Goal reads must invoke the current public snapshot capability`);
       }
     }
@@ -1286,6 +1287,43 @@ function checkRuntimeHostOwnership(repositoryRoot) {
     }
   }
   return { errors };
+}
+
+/** Typed compatibility reads may remain, but only as adapters to the same Action owner. */
+export function checkGoalQueryCapabilityAdapters(source) {
+  const file = ts.createSourceFile("project-capabilities.ts", source, ts.ScriptTarget.Latest, true);
+  const expected = new Map([
+    ["readGoalContractCapability", "contract"],
+    ["snapshotBoardCapability", "snapshot"],
+  ]);
+  const registrations = new Map();
+  const visit = node => {
+    if (ts.isCallExpression(node) && node.expression.getText(file) === "host.register") {
+      const name = node.arguments[0]?.getText(file);
+      if (expected.has(name)) {
+        const callbacks = registrations.get(name) ?? [];
+        callbacks.push(node.arguments[1]);
+        registrations.set(name, callbacks);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  const errors = [];
+  for (const [name, action] of expected) {
+    const callbacks = registrations.get(name) ?? [];
+    const callback = callbacks[0];
+    const body = callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) ? callback.body : undefined;
+    const returns = body && ts.isBlock(body)
+      ? body.statements.filter(ts.isReturnStatement).map(statement => statement.expression) : [body];
+    const call = returns.length === 1 ? returns[0] : undefined;
+    if (callbacks.length !== 1 || !call || !ts.isCallExpression(call)
+      || call.expression.getText(file) !== "goalAction"
+      || call.arguments[1]?.getText(file) !== `goalsActions.${action}`) {
+      errors.push(`${name} must forward its result through goalsActions.${action} via goalAction`);
+    }
+  }
+  return errors;
 }
 
 export function checkGoalReadOwnerSql(source) {

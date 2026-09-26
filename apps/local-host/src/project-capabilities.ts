@@ -1,7 +1,7 @@
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, GOALS_PLUGIN_ID, readGoalResumeFacts, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
 import { registerCasebookCapabilities } from './casebook/integration.js';
 import { importV3Capability, projectResumeFactsCapability, trashedGoalsCapability, initializeBoardCapability, snapshotBoardCapability,
   goalsEntryCapabilities, goalEntryCompositionCapabilities,
@@ -25,7 +25,6 @@ import { readWorkspaceFile } from "./workspace-files.js";
 import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { runPluginDevelopment } from "./plugin-development.js";
-import { importV3Board } from "./board-v3-import.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { registerHostScheduleCapabilities } from "./schedule-runtime.js";
@@ -69,7 +68,7 @@ export function registerProjectCapabilities(
   host.register(goalContextCapabilities.list, (runtime, input, invocation) => goalAction(runtime, goalsActions.list,
     { limit: 100, ...(input.after_cursor ? { after_cursor: input.after_cursor } : {}) }, { actor_id: "local-host" }, invocation));
   host.register(goalContextCapabilities.read, async (runtime, input, invocation) => {
-    const goal = runtime.coordinator.goalQueries.getGoal(runtime.board_id, input.goal_id);
+    const { goal } = await goalAction(runtime, goalsActions.contract, { goal_id: input.goal_id }, { actor_id: "local-host" }, invocation);
     if (!goal || goal.trashed_at || goal.archived_at) throw new Error("这个目标已归档、删除或不属于当前项目，请重新选择");
     const { observed_event_cursor: _cursor, ...state } = await goalAction(runtime, goalsActions.state, { goal_id: goal.goal_id }, { actor_id: "local-host" }, invocation);
     return { goal, state };
@@ -178,12 +177,26 @@ export function registerProjectCapabilities(
     checkGoalBoard(runtime, input.board_id);
     return goalAction(runtime, goalsActions.active, { ...input.goal, idempotency_key: input.write.idempotency_key }, input.write, invocation);
   });
-  host.register(initializeBoardCapability, (runtime, input) =>
-    runtime.coordinator.initializeBoard(input));
-  host.register(snapshotBoardCapability, (runtime, input) =>
-    runtime.store.snapshot(input.board_id));
-  host.register(importV3Capability, (runtime, { legacy, ...input }) =>
-    importV3Board(runtime.store, runtime.coordinator, legacy, input));
+  const managementIdentity = (runtime: MolisWorkProjectRuntime, actorId: string, key: string) => ({
+    actor_id: actorId, actor_kind: "user" as const, user_action: { source: "management" as const,
+      conversation_ref: `management:${runtime.board_id}`, message_ref: `management:${key}` },
+  });
+  host.register(initializeBoardCapability, (runtime, { board_id, actor_id, ...input }, invocation) => {
+    checkGoalBoard(runtime, board_id);
+    return goalAction(runtime, goalsActions.initialize, input, managementIdentity(runtime, actor_id, input.idempotency_key), invocation);
+  });
+  host.register(snapshotBoardCapability, (runtime, input, invocation) => {
+    checkGoalBoard(runtime, input.board_id);
+    return goalAction(runtime, goalsActions.snapshot, {}, { actor_id: "local-host" }, invocation);
+  });
+  host.register(readGoalContractCapability, (runtime, input, invocation) => {
+    checkGoalBoard(runtime, input.board_id);
+    return goalAction(runtime, goalsActions.contract, { goal_id: input.goal_id }, { actor_id: "local-host" }, invocation);
+  });
+  host.register(importV3Capability, (runtime, { target_board_id, actor_id, ...input }, invocation) => {
+    checkGoalBoard(runtime, target_board_id);
+    return goalAction(runtime, goalsActions.importV3, input, managementIdentity(runtime, actor_id, input.idempotency_key), invocation);
+  });
   host.register(projectResumeFactsCapability, async (runtime, input, invocation) => {
     checkGoalBoard(runtime, input.board_id);
     return readGoalResumeFacts({ invoke: (definition, query) => goalAction(runtime, definition, query, { actor_id: "local-host" }, invocation) }, input.focus_goal_ids);

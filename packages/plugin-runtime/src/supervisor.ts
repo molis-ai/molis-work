@@ -340,7 +340,15 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return candidates.sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
   }
 
-  async upgrade(pluginId: string, definition?: PluginDefinition): Promise<PluginSupervisorState> {
+  async upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<PluginSupervisorState> {
+    return this.#changeVersion(pluginId, definition, false, options?.grants);
+  }
+
+  async rollback(pluginId: string, definition: PluginDefinition): Promise<PluginSupervisorState> {
+    return this.#changeVersion(pluginId, definition, true);
+  }
+
+  async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[]): Promise<PluginSupervisorState> {
     const priorEntry = this.#entries.get(pluginId);
     if (!priorEntry) return this.#fail(pluginId, null, "plugin_unknown", "没有登记过这个插件");
     const entry = definition ? { ...priorEntry, definition } : priorEntry;
@@ -365,12 +373,13 @@ export class PluginSupervisor implements PluginHostLifecycle {
     this.#contracts.set(pluginId, candidateContract);
     try {
       await this.#persistReleaseArtifact(entry);
-      const receipt = await this.#runtime.upgrade({
+      const receipt = rollbackCode ? await this.#runtime.rollback({ install_id: current.install_id, definition: entry.definition }) : await this.#runtime.upgrade({
         install_id: current.install_id,
         definition: entry.definition,
         deployment: entry.deployment ?? "local",
+        ...(grants ? { grants } : {}),
       });
-      this.#activeEntries.set(pluginId, entry);
+      this.#activeEntries.set(pluginId, { ...entry, grants: receipt.install.grants });
       return this.#running(pluginId, receipt.install.install_id);
     } catch (error) {
       const failure = {
@@ -534,6 +543,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     let installId: string | null = this.#states.get(pluginId)?.install_id ?? null;
     try {
       if (installId === null) {
+        if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
         await this.#persistReleaseArtifact(entry);
         const grants = entry.grants ?? manifest.permissions
           .filter((permission) => permission.required)

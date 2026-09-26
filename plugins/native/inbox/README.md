@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Host 在项目运行时注册本插件的七项动作和 `inbox.next` 消费场景。HTTP 路由将已认证调用转给同一动作客户端，列表、状态修改、文稿生成和显式判断共用注册处理器。UI 继续接收 Attention 条目与关联对象的展示投影；插件不直接读取 Feed 或 Goals 表，也不依赖 Functions 插件实现。
+Host 在项目运行时注册本插件声明的动作和 `inbox.next` 消费场景。HTTP 路由将已认证调用转给同一动作客户端，列表、状态修改、文稿生成和显式判断共用注册处理器。对象上下文和首页可用动作也由插件查询提供；首页的完成/忽略调用原状态动作，附带当前修订，不单独写 Attention。UI 继续接收 Attention 条目与关联对象的展示投影；插件不直接读取 Feed 或 Goals 表，也不依赖 Functions 插件实现。
 
 ## 从哪里读代码
 
@@ -18,7 +18,7 @@ Host 在项目运行时注册本插件的七项动作和 `inbox.next` 消费场�
 | [src/projection.ts](src/projection.ts) | Attention 记录到展示模型 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
 | [src/route-handlers.ts](src/route-handlers.ts) | HTTP 参数与动作客户端的薄适配 |
-| [src/actions.ts](src/actions.ts) | 七项能力合同及业务端口 |
+| [src/actions.ts](src/actions.ts) | 能力合同、对象上下文、具体动作准备及业务端口 |
 | [src/scenes.ts](src/scenes.ts) | 判断场景、事件上下文准备和结果消费校验 |
 
 可对照现有调用方 [apps/workbench/src/inbox-projection-ui.ts](../../../apps/workbench/src/inbox-projection-ui.ts) 与 [apps/local-host/src/inbox-native-plugin-http.ts](../../../apps/local-host/src/inbox-native-plugin-http.ts)。
@@ -27,9 +27,11 @@ Host 在项目运行时注册本插件的七项动作和 `inbox.next` 消费场�
 
 不依赖 Feed / Goals 插件实现。关联对象标题由 Host 解析后传入。完成 / 忽略只改 Attention 状态，不删除原 Feed Item、Goal 或来源。
 
-“判断下一步”依赖当前项目的真实场景绑定。`prepare` 从事项引用读取内容，`consume` 核对事项和内容未变化后保存建议；建议不会自动完成或忽略事项。兼容性来自注册能力的输入输出合同，其他插件的判断也可以绑定。关闭判断保留引用，旧 Functions 绑定仍从原存储行读取。
+“判断下一步”依赖当前项目的真实场景绑定。`prepare` 从事项引用读取内容，`consume` 核对事项和内容未变化后保存建议；建议不会自动完成或忽略事项。兼容性来自注册能力的输入输出合同，其他插件的判断也可以绑定。关闭判断保留引用，旧 Functions 绑定仍从原存储行读取。`inbox.judgment.read` 返回共同目录中的判断与实际绑定摘要，网页不再根据静态系统函数列表猜测名称或可运行状态。`inbox.judgment.recommendations` 校验当前绑定、提供方、版本、权限和事项原文，只返回当前仍有效的结果；停用、撤权或原文变化会撤回当前建议，原历史保留。新增记录在原历史的 `scene_provenance` 保存这些依据，旧记录缺少依据时仅用于历史查阅。
 
 Feed 创建 Attention 时，通过注入的 `createInboxJudgmentTrigger` 使用同一份绑定。正式 Web 组合根已向 Feed HTTP、来源和连接器同步、定时调度、工作流交接传入该端口。未绑定、停用或失效时不启动自动判断；供应商失败与上下文超限保存为 needs_review，已入箱材料不因此被删除或误报入箱失败。
+
+工作流交接透传原调用者，后续判断不会切换成后台身份。没有模型权限时仍可完成授权的入箱，但不启动判断。每次交接只排出自己创建的 Inbox 事件，不处理其他来源的待判断队列。显式判断及嵌套交接保留发起动作的精确授权，等待期间撤权后不保存结果；已经保存的材料/事项不伪装成回滚。
 
 当前仍有迁移边界：旧 Functions 编辑器的场景选择、完整系统能力页面、其他直接创建 Attention 的业务方，以及中断后尚未执行的自动事件恢复待迁移。不能把本路径通过视为插件全量完成。
 
@@ -60,3 +62,5 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - Status: `partial`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`
+
+`inbox.home.events` 从原注意力记录提供首页事项，只返回 open/in_progress；旧的未处理记录可放到今天，完成或忽略后撤回。正文和目标关联通过共同对象查询读取，读取期间原记录版本变化则不返回旧投影；相关对象不可读时保留原注意力记录与明确提示，不伪造正文。返回的对象、来源分组导航由 `home.events.open` 在点击时重新核对。完成/忽略仍经 `inbox.actions.prepare` 提供原状态动作，使用同一条记录与版本检查。

@@ -44,25 +44,24 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("Math.round(document.querySelector('.plugin-rail-item').getBoundingClientRect().height)"), 32, "Plugin rail icons share a 32px hit target");
   assert.ok(await evaluate(`(()=>{
     const items=document.querySelector('.plugin-rail-items');
+    const island=document.querySelector('.plugin-rail [data-assistant-island]');
     const footer=document.querySelector('.plugin-rail .personal-sidebar-footer');
-    const market=footer?.querySelector('[data-plugin-id=market]');
-    const characters=footer?.querySelector('[data-plugin-id=characters]');
-    const last=[...items?.querySelectorAll('[data-plugin-id]')||[]].at(-1);
-    if(!items||!footer||!market||!characters||!last) return false;
-    const box=items.getBoundingClientRect(), hit=last.getBoundingClientRect();
-    const pad=parseFloat(getComputedStyle(items).paddingBottom)||0;
-    return !items.querySelector('[data-plugin-id=market]')
-      && Math.abs(box.bottom-pad-hit.bottom)<2
-      && market.getBoundingClientRect().bottom<=characters.getBoundingClientRect().top+1;
-  })()`), "Plugin market sits in the bottom card, above Characters");
+    const market=items?.querySelector('[data-plugin-id=market]');
+    const characters=items?.querySelector('[data-plugin-id=characters]');
+    if(!items||!island||!footer||!market||!characters) return false;
+    return Boolean(characters.compareDocumentPosition(market) & Node.DOCUMENT_POSITION_FOLLOWING)
+      && items.getBoundingClientRect().bottom<=island.getBoundingClientRect().top+1
+      && island.getBoundingClientRect().bottom<=footer.getBoundingClientRect().top+1
+      && !footer.querySelector('[data-plugin-id=market], [data-plugin-id=characters]');
+  })()`), "Tools, then 拓展 with the market, then personal tools and the account close the rail");
   assert.ok(await evaluate(`(()=>{
     const titlebar=document.querySelector('.immersive-titlebar').getBoundingClientRect();
     const island=document.querySelector('[data-assistant-island]').getBoundingClientRect();
     const chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect();
     const rail=document.querySelector('.plugin-rail').getBoundingClientRect();
     const stage=document.querySelector('.immersive-plugin-stage').getBoundingClientRect();
-    return island.top>=titlebar.bottom-1
-      && Math.abs(chrome.top-island.bottom-8)<3
+    return chrome.top>=titlebar.bottom-1
+      && island.top>=rail.top && island.bottom<=rail.bottom+1
       && Math.abs(rail.top-chrome.bottom-8)<3
       && Math.abs(chrome.left-rail.left)<2
       && chrome.width<=rail.width+8
@@ -72,16 +71,18 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
       && document.querySelector('[data-assistant-toggle]')
       && !document.querySelector('.plugin-rail-items [data-plugin-id=lingguang]')
       && document.querySelector('[data-workspace-chrome] [data-global-search-open]')
-      && !document.querySelector('.immersive-titlebar [data-global-search-open]');
-  })()`), "On home, the personal island sits above the project island");
+      && !document.querySelector('.immersive-titlebar [data-global-search-open]')
+      && document.querySelector('.immersive-titlebar .workspace-history [data-navigation-labels-toggle]');
+  })()`), "On home, the project opens the rail and personal tools sit above the account; the rail toggle lives in the titlebar");
   const railGaps = await evaluate<{ ok: boolean; dump: string }>(`(()=>{
     const card=document.querySelector('.workspace-chrome .navigator-project-primary');
     const items=document.querySelector('.plugin-rail-items');
+    const island=document.querySelector('.plugin-rail [data-assistant-island]');
     const footer=document.querySelector('.plugin-rail .personal-sidebar-footer');
-    if(!card||!items||!footer) return {ok:false, dump:'missing'};
-    const a=card.getBoundingClientRect(), b=items.getBoundingClientRect(), c=footer.getBoundingClientRect();
-    const upper=b.top-a.bottom, lower=c.top-b.bottom;
-    return {ok: Math.abs(upper-8)<2 && Math.abs(lower-8)<2 && Math.abs(upper-lower)<2, dump: JSON.stringify({upper:Math.round(upper*10)/10, lower:Math.round(lower*10)/10})};
+    if(!card||!items||!island||!footer) return {ok:false, dump:'missing'};
+    const a=card.getBoundingClientRect(), b=items.getBoundingClientRect(), i=island.getBoundingClientRect(), c=footer.getBoundingClientRect();
+    const upper=b.top-a.bottom, middle=i.top-b.bottom, lower=c.top-i.bottom;
+    return {ok: [upper, middle, lower].every(gap => Math.abs(gap-8)<2), dump: JSON.stringify({upper:Math.round(upper*10)/10, middle:Math.round(middle*10)/10, lower:Math.round(lower*10)/10})};
   })()`);
   assert.ok(railGaps.ok, "Plugin rail island gaps match at 8px " + railGaps.dump);
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
@@ -101,7 +102,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
     };
   })()`);
   assert.ok(addLayout.ok, "Add sits with the split on the titlebar right " + addLayout.dump);
-  assert.ok(await evaluate("(()=>{const titlebar=document.querySelector('.immersive-titlebar').getBoundingClientRect(),island=document.querySelector('[data-assistant-island]').getBoundingClientRect(),chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect(),rail=document.querySelector('.plugin-rail').getBoundingClientRect(),stage=document.querySelector('.immersive-plugin-stage').getBoundingClientRect(),back=document.querySelector('[data-workspace-history=back]').getBoundingClientRect(),name=document.querySelector('[data-workspace-chrome] .navigator-project-selector strong');return island.top>=titlebar.bottom-1 && chrome.top>=island.bottom-1 && back.bottom<=titlebar.bottom+1 && Math.abs(stage.top-titlebar.bottom)<2 && chrome.width<=rail.width+8 && (name?.getBoundingClientRect().width??0)<=1 && document.querySelector('[data-workspace-chrome] [data-global-search-open]') && !document.querySelector('.immersive-titlebar [data-global-search-open]');})()"), "Goals keeps a compact project island below the personal island; titlebar only has history and tabs");
+  assert.ok(await evaluate("(()=>{const titlebar=document.querySelector('.immersive-titlebar').getBoundingClientRect(),island=document.querySelector('[data-assistant-island]').getBoundingClientRect(),chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect(),rail=document.querySelector('.plugin-rail').getBoundingClientRect(),stage=document.querySelector('.immersive-plugin-stage').getBoundingClientRect(),back=document.querySelector('[data-workspace-history=back]').getBoundingClientRect(),name=document.querySelector('[data-workspace-chrome] .navigator-project-selector strong');return chrome.top>=titlebar.bottom-1 && island.top>=chrome.bottom-1 && back.bottom<=titlebar.bottom+1 && Math.abs(stage.top-titlebar.bottom)<2 && chrome.width<=rail.width+8 && (name?.getBoundingClientRect().width??0)<=1 && document.querySelector('[data-workspace-chrome] [data-global-search-open]') && !document.querySelector('.immersive-titlebar [data-global-search-open]');})()"), "Goals keeps a compact project island at the top of the rail; titlebar only has the rail toggle, history and tabs");
   const goalsChrome = await evaluate<{ right: number; railRight: number; expected: number; surface: string; cssWidth: string; maxWidth: string }>("(()=>{const chrome=document.querySelector('[data-workspace-chrome]'),box=chrome.getBoundingClientRect(),rail=document.querySelector('.plugin-rail').getBoundingClientRect(),ws=document.querySelector('[data-workspace]'),cs=getComputedStyle(chrome),treeWidth=parseFloat(getComputedStyle(ws).getPropertyValue('--tree-width'))||240;return {right:box.right,railRight:rail.right,expected:rail.width,surface:document.body.dataset.desktopSurface,cssWidth:cs.width,maxWidth:cs.maxWidth};})()");
   assert.equal(goalsChrome.surface, "goal");
   assert.equal(goalsChrome.maxWidth, "none");
@@ -372,7 +373,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await click('[data-plugin-strip] [data-plugin-id="shelf"]');
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-shelf-stage-shell]')");
   assert.ok(await evaluate("(()=>{const h=document.querySelector('.navigator-project').getBoundingClientRect().height;return h>=44 && h<=64;})()"), "Mobile project island stays a compact card row");
-  assert.ok(await evaluate("(()=>{const island=document.querySelector('[data-assistant-island]').getBoundingClientRect(),chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect();return island.height>0 && chrome.top>=island.bottom-1 && document.querySelector('[data-assistant-toggle]');})()"), "Mobile personal island stays above the project island");
+  assert.ok(await evaluate("(()=>{const island=document.querySelector('.plugin-rail [data-assistant-island]');return Boolean(island) && island.getClientRects().length===0 && document.querySelector('[data-assistant-toggle]');})()"), "On a phone personal tools wait in the drawer, so the top keeps one row less");
   assert.ok(await evaluate("document.querySelector('.personal-sidebar-footer').getBoundingClientRect().bottom<=innerHeight"));
   assert.equal(await evaluate("document.querySelector('[data-tree-resizer]').getClientRects().length"), 0);
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));

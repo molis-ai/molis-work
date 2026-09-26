@@ -1,3 +1,4 @@
+import { WORK_REUSE_CLIENT } from "./work-reuse/client.js";
 import { ALCHEMIST_VIEWS } from './client-views.js';
 import { ALCHEMIST_FLOWS } from './client-flows.js';
 /** Uses the same native Workbench client lifecycle and project routes as Pages. */
@@ -21,7 +22,7 @@ export const ALCHEMIST_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const persist=()=>{try{localStorage.setItem(persistenceKey,JSON.stringify({collection,current}));}catch{}};
   const sameCurrent=v=>JSON.stringify(v)===JSON.stringify(current);
   function setTitle(title){$('[data-alc-title]').textContent=title;}
-`+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
+`+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
   async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime')]);if(n!==loadSeq)return;[data,pulse,decisions,runtime]=values;loaded=true;renderList();schedule();}
   function closeDetail(){seq++;current=null;target=null;selection=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('[data-alc-workspace]').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
   async function open(next,save=true){

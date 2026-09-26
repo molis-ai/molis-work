@@ -2,6 +2,7 @@
 # and the supported 0.1.x SDK/release surface.
 packages:
   - 'apps/*'
+  - 'server'
   - 'packages/*'
   - 'modules/*'
   - 'horizontal/*'

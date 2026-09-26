@@ -47,7 +47,7 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     assert.throws(() => verifyPluginPackage(tampered, keys.publicKey), (error: unknown) => error instanceof PluginPackageError
       && error.code === "plugin_signature_invalid");
     const changedManifest = structuredClone(data);
-    changedManifest.payload.manifest.permissions = [];
+    changedManifest.payload.manifest.name = "Changed outer manifest";
     assert.throws(() => parsePluginPackage(changedManifest), PluginPackageError, "outer Manifest cannot differ from imported manifest.json");
     const traversing = structuredClone(data);
     traversing.payload.files[0].path = "../outside";

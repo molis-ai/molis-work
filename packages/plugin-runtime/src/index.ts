@@ -183,6 +183,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
+    if (input.definition.execution === "sandbox" && input.grants === undefined) throw new PluginRuntimeError("plugin_grant_denied", "生成插件安装需要明确授权清单");
+    if (current && (current.execution ?? "host") !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能改变已安装插件的执行信任边界");
     const digest = pluginManifestDigest(manifest);
     if (current && current.version === manifest.version && current.manifest_digest !== digest) {
       const compatibleSameVersion = current.state !== "uninstalled"
@@ -255,6 +257,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       deployment: input.deployment,
       selected_entrypoint: entrypoint.entrypoint,
       grants,
+      execution: input.definition.execution ?? "host",
       state: "installed",
       recovery_count: 0,
       last_error_code: null,
@@ -272,11 +275,22 @@ export class PluginRuntime implements PluginRuntimeApi {
     install_id: string;
     definition: PluginDefinition;
     deployment?: PluginDeployment;
+    grants?: string[];
   }): Promise<PluginLifecycleReceipt> {
+    return this.changeVersion(input, false);
+  }
+
+  async rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt> {
+    return this.changeVersion(input, true);
+  }
+
+  private async changeVersion(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
     return this.runLocked(input.install_id, async () => {
       const target = input.definition.manifest;
       validateManifest(target);
       const current = this.requireInstall(input.install_id);
+      if ((current.execution ?? "host") !== (input.definition.execution ?? "host")) throw new PluginRuntimeError("plugin_definition_conflict", "不能在升级时改变执行信任边界");
+      if (rollbackCode && current.execution !== "sandbox") throw new PluginRuntimeError("plugin_state_invalid", "代码回滚只适用于隔离的生成插件");
       if (current.state === "uninstalled" || current.state === "quarantined") {
         throw new PluginRuntimeError("plugin_state_invalid", `Plugin 当前状态 ${current.state} 不允许升级`);
       }
@@ -286,20 +300,21 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (current.version === target.version && current.manifest_digest !== pluginManifestDigest(target)) {
         throw new PluginRuntimeError("plugin_definition_conflict", "同一版本的 Manifest 指纹不同，不能升级");
       }
-      if (comparePluginVersions(target.version, current.version) <= 0) {
+      if (rollbackCode ? comparePluginVersions(target.version, current.version) >= 0 : comparePluginVersions(target.version, current.version) <= 0) {
         throw new PluginRuntimeError("plugin_upgrade_required", "升级目标必须高于当前安装版本");
       }
       const compatibility = target.upgrade_compatibility;
       const compatible = (compatibility?.compatible_from_versions ?? []).includes(current.version);
       const migratable = (compatibility?.migratable_from_versions ?? []).includes(current.version);
-      if (!compatible && !migratable) {
+      if (!rollbackCode && !compatible && !migratable) {
         throw new PluginRuntimeError("plugin_upgrade_required", "目标 Manifest 未声明支持从当前安装版本升级");
       }
       const declaredPermissions = new Set(target.permissions.map(permission => permission.permission));
-      if (current.grants.some(permission => !declaredPermissions.has(permission))) {
+      if (input.grants === undefined && !rollbackCode && current.grants.some(permission => !declaredPermissions.has(permission))) {
         throw new PluginRuntimeError("plugin_grant_denied", "升级会丢失已有授权，目标 Manifest 未保留全部 grant");
       }
-      assertRequiredGrants(target, current.grants);
+      const targetGrants = normalizeGrants(target, input.grants ?? (rollbackCode ? current.grants.filter(permission => declaredPermissions.has(permission)) : current.grants));
+      assertRequiredGrants(target, targetGrants);
       const deployment = input.deployment ?? current.deployment;
       const entrypoint = target.entrypoints.find(candidate => candidate.deployment === deployment);
       if (!entrypoint) throw new PluginRuntimeError("plugin_entrypoint_missing", "Plugin 没有当前部署环境的 entrypoint");
@@ -313,12 +328,12 @@ export class PluginRuntime implements PluginRuntimeApi {
       let privateDataSnapshot: unknown;
       let hasPrivateDataSnapshot = false;
       try {
-        if (this.executor.capturePrivateData && this.executor.restorePrivateData) {
+        if (current.execution !== "sandbox" && this.executor.capturePrivateData && this.executor.restorePrivateData) {
           privateDataSnapshot = await this.executor.capturePrivateData(input.install_id);
           hasPrivateDataSnapshot = privateDataSnapshot !== undefined;
         }
         if (input.definition.validateUpgrade) {
-          const grants = Object.freeze([...stopped.grants]);
+          const grants = Object.freeze([...targetGrants]);
           const context: PluginUpgradeContext = Object.freeze({
             install_id: stopped.install_id,
             plugin_id: stopped.plugin_id,
@@ -347,6 +362,7 @@ export class PluginRuntime implements PluginRuntimeApi {
           manifest_digest: pluginManifestDigest(target),
           deployment,
           selected_entrypoint: entrypoint.entrypoint,
+          grants: targetGrants,
           state: "installed",
           recovery_count: 0,
           last_error_code: null,
@@ -355,7 +371,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         };
         this.repository.save(upgraded);
         const receipt = await this.startOnce(input.install_id);
-        return { ...receipt, operation: "upgrade", replayed: false };
+        return { ...receipt, operation: rollbackCode ? "rollback" : "upgrade", replayed: false };
       } catch (error) {
         const failed = this.repository.get(input.install_id);
         let dataRollbackError: unknown;
@@ -673,8 +689,27 @@ export class PluginRuntime implements PluginRuntimeApi {
             ...(actions.project_id ? { project_id: actions.project_id } : {}) },
           definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => ({ ...h,
             availability: grantAvailability(manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!.action.permissions, h.availability) })),
-          scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => ({ ...h,
-            availability: grantAvailability(manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!.permissions, h.availability) })),
+          scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
+            const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;
+            const configuration = grantAvailability(declaration.configuration_permissions ?? []);
+            return { ...h, availability: grantAvailability(declaration.permissions, h.availability),
+              configuration_availability: grantAvailability(declaration.configuration_permissions ?? [], h.configuration_availability),
+              ...(h.targets ? { targets: async (caller: ActionCallContext) => {
+                const targets = await h.targets!(caller);
+                const state = configuration(caller);
+                return targets.map(target => {
+                  const activation = grantAvailability(target.activation_permissions ?? [])(caller);
+                  return { ...target, ...(!state.available ? { availability: state } : {}),
+                    ...(!activation.available ? { activation_availability: activation } : {}) };
+                });
+              } } : {}),
+              bind: (caller, binding, options) => {
+                const state = grantAvailability(options?.required_permissions ?? declaration.configuration_permissions ?? [])(caller);
+                if (!state.available) throw new ActionError(state.code, state.reason);
+                return h.bind(caller, binding, options);
+              },
+            };
+          }),
           availability: () => {
             const current = this.repository.get(record.install_id);
             if (!current || current.state !== "running" || !this.contexts.has(record.install_id)) {

@@ -64,13 +64,11 @@ function buildFeedNativePluginModel(
       source_id: rule.match.source_id ?? null,
       source_kind: rule.match.source_kind ?? null,
       function_key: rule.function_key ?? null,
+      judgment: rule.judgment,
     })),
     primitives: feedUiPrimitives,
     demo: view.demo,
     active,
-    judgment: view.function_scenes
-      ? { functions: view.function_scenes.feed_capture_functions }
-      : undefined,
   };
 }
 

@@ -84,6 +84,10 @@ export const PROJECT_HOME_STYLES = `
     font-size: 19px; font-weight: 400; letter-spacing: -.025em; line-height: 1.45;
   }
   .immersive-home .home-hero__lead { margin: 9px 0 0; max-width: 56ch; color: var(--muted); line-height: 1.72; }
+  .immersive-home [data-home-event-status] { max-height: 128px; overflow: auto; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .immersive-home [data-home-event-status]:empty { display: none; }
+  .immersive-home [data-home-event-status] p { margin: 8px 0; overflow-wrap: anywhere; }
+  .immersive-home [data-home-navigation-error] { margin: 0; color: var(--danger, var(--muted)); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
   .immersive-home .home-hero__stats {
     display: flex; align-items: center; gap: 16px;
     margin: 20px 0 0; color: var(--faint); font-size: 12px;
@@ -212,16 +216,25 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-detail__facts dt { color: var(--faint); }
   .immersive-home .home-detail__facts dd { margin: 0; color: var(--ink-soft); }
   .immersive-home .home-detail__act {
-    flex: none; display: flex; flex-wrap: nowrap; align-items: center;
+    flex: none; display: flex; flex-direction: column; align-items: stretch;
     justify-content: space-between; gap: 8px;
     width: 100%; padding: 8px 10px 9px; border-top: 1px solid var(--line);
   }
   .immersive-home .home-detail__act-left {
     display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0;
   }
+  .immersive-home .home-detail__primary { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .immersive-home .home-offers-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+  .immersive-home [data-home-offers] { min-width: 0; max-height: 240px; overflow: auto; }
+  .immersive-home [data-home-offers]:empty { display: none; }
+  .immersive-home [data-home-offers] p { margin: 6px 0; color: var(--muted); font-size: 12px; }
+  .immersive-home [data-home-offers] [role="alert"] { color: var(--red); }
+  .immersive-home .home-offers-result { margin-top: 8px; font-size: 12px; }
+  .immersive-home .home-offers-result summary { cursor: pointer; }
+  .immersive-home .home-offers-result pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 140px; overflow: auto; }
+  @media (pointer: coarse) { .immersive-home :is([data-home-offer], [data-home-offers-reload], [data-home-events-reload], [data-home-open-target]) { min-height: 44px; } }
   .immersive-home .home-detail__act .mw-btn { --control-h: 28px; --control-pad-x: 9px; font-size: 12px; }
   .immersive-home .home-detail__act [data-home-open-talk] { flex: none; margin-left: auto; }
-  .immersive-home .home-detail__error { margin: 0 10px 8px; color: var(--red); font-size: 12px; }
 
   .immersive-home .home-talk {
     position: absolute; z-index: 28; display: none;
@@ -244,6 +257,22 @@ export const PROJECT_HOME_STYLES = `
   .immersive-home .home-talk__head span { color: var(--faint); font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .immersive-home .home-talk__head .mw-btn { margin-left: auto; }
   .immersive-home .home-talk__body { flex: 1; min-height: 0; overflow: auto; padding: 14px; color: var(--ink-soft); line-height: 1.6; }
+  .immersive-home .home-talk-targets { margin: 0 0 12px; }
+  .immersive-home .home-talk-target { display: flex; align-items: center; gap: 8px; padding: 8px 0; cursor: pointer; }
+  .immersive-home .home-talk-target span { display: grid; gap: 3px; min-width: 0; }
+  .immersive-home .home-talk-target b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+  .immersive-home .home-talk-target small { color: var(--muted); font-size: 12px; }
+  .immersive-home .home-talk-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .immersive-home .home-talk-context { margin: 12px 0; font-size: 12px; }
+  .immersive-home .home-talk-context summary { cursor: pointer; color: var(--muted); }
+  .immersive-home .home-talk-context pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-height: 180px; overflow: auto; }
+  .immersive-home .home-talk-status { margin: 10px 0 0; }
+  .immersive-home .home-talk-error { color: var(--red); margin: 8px 0 0; }
+  .immersive-home .home-talk-destination { margin: 0; overflow-wrap: anywhere; }
+  @media (pointer: coarse) {
+    .immersive-home .home-talk :is(.mw-btn, .home-talk-target) { min-height: 44px; }
+    .immersive-home .home-talk__compose .mw-textarea { font-size: 16px; }
+  }
   .immersive-home .home-talk__compose {
     flex: none; display: flex; gap: 8px; align-items: flex-end;
     padding: 10px; border-top: 1px solid var(--line);
@@ -319,4 +348,18 @@ export const PROJECT_HOME_STYLES = `
     .immersive-home .home-talk { width: auto; }
   }
   @media (pointer: coarse) { body.immersive-workbench .home-shortcut-dialog header button { width: 44px; height: 44px; } .immersive-home .home-shortcut-edit { width: 30px; height: 30px; } }
+
+  .immersive-home .home-start { padding: 20px 8px 28px; max-width: 520px; }
+  .immersive-home .home-start h3 { font-size: 17px; font-weight: 500; letter-spacing: -.02em; margin: 0 0 7px; }
+  .immersive-home .home-start > p { color: var(--muted); margin: 0 0 20px; line-height: 1.65; }
+  .immersive-home .home-start-actions { display: flex; flex-direction: column; gap: 4px; }
+  .immersive-home .home-start-action { display: flex; align-items: center; gap: 14px; min-height: 68px; padding: 12px; margin-left: -12px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; font: inherit; transition: background-color 150ms var(--ease-out); }
+  .immersive-home .home-start-action:hover { background: var(--nav-hover); }
+  .immersive-home .home-start-action > svg { width: 19px; height: 19px; flex: none; color: var(--muted); }
+  .immersive-home .home-start-action > svg:last-child { margin-left: auto; width: 14px; }
+  .immersive-home .home-start-action span { display: grid; gap: 4px; }
+  .immersive-home .home-start-action strong { font-size: 14px; font-weight: 500; }
+  .immersive-home .home-start-action small { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .immersive-home .home-start-browse { align-self: flex-start; margin: 14px 0 0 -8px; }
+  @media (prefers-reduced-motion: reduce) { .immersive-home .home-start-action { transition: none; } }
 `;

@@ -1,4 +1,4 @@
-import type { ActionAvailability, ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionSchema, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionAvailability, ActionCallContext, ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { generateCogniaDraft, type CogniaAiPorts } from "./ai.js";
 import type { CogniaStore } from "./store.js";
 import { COGNIA_LIMITS, requireCognia, type Domain, type Draft, type ImportFile, type Material, type Preview, type Receipt, type Source, type SourceKind } from "./types.js";
@@ -52,7 +52,7 @@ export interface CogniaActionPorts {
   scan(path: string, signal?: AbortSignal): Promise<Scan>;
 }
 export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const model = () => { try { return ports.model(); } catch { return {}; } };
   const available = (): ActionAvailability => { const ai = model(); return ai.completeText ? { available: true } : { available: false, code: "actions.connection_required", reason: ai.unavailableReason ?? "尚未配置可用的文字模型，请检查模型设置和服务连接" }; };
   const summarize = (material: Material, query?: string): Summary => { const { body, frontmatter: _, ...rest } = material; const term = query?.trim().split(/\s+/u)[0], index = term ? body.toLocaleLowerCase().indexOf(term.toLocaleLowerCase()) : -1; return { ...rest, excerpt: query === undefined ? body.slice(0, 600) : index < 0 ? "" : body.slice(Math.max(0, index - 60), index + 120) }; };
@@ -74,8 +74,8 @@ export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHand
     bind(cogniaActions.previewDirectory, async (input, caller) => { const actions = ports.actions(caller); const scanned = await actions.invoke(cogniaActions.scan, { path: input.path }); caller.signal?.throwIfAborted(); return actions.invoke(cogniaActions.preview, { ...scanned, kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }); }),
     bind(cogniaActions.commit, input => ports.withStore(store => ({ receipt: store.commit(input.preview_id) }))),
     bind(cogniaActions.cancel, input => ports.withStore(store => { store.cancelPreview(input.preview_id); return { cancelled: true }; })),
-    bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "synthesize" }, ports.ai(caller)) }), available),
-    bind(cogniaActions.query, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "query" }, ports.ai(caller)) }), available),
+    bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
+    bind(cogniaActions.query, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "query" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
     bind(cogniaActions.draft, input => ports.withStore(store => { const draft = store.drafts().find(d => d.id === input.id); requireCognia(draft, "草稿不存在", 404); return { draft }; })),
     bind(cogniaActions.saveDraft, input => ports.withStore(store => ({ material: store.saveDraft(input.id) }))),
     bind(cogniaActions.archiveDraft, input => ports.withStore(store => { store.archiveDraft(input.id); return { deleted: true }; })),

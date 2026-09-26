@@ -7,7 +7,7 @@ import { renderMcpAccessRows } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { L } from "./web-locale.js";
 import { readMcpActionAccess } from "./mcp-action-access.js";
-import { createMcpActionGrant, resolveMcpActionContext } from "./mcp-action-grants.js";
+import { actionClientAudience, createMcpActionGrant, resolveMcpActionContext } from "./mcp-action-grants.js";
 import { actionGrantKey, readMcpToolPreference, writeMcpActionGrant } from "./mcp-settings-store.js";
 
 /** Called only behind the local Web origin/control-token gate. Clients cannot authorize themselves. */
@@ -44,7 +44,7 @@ export async function handleMcpActionSettingsHttp(request: IncomingMessage, resp
       catch (error) { if (request.method === "GET" && (error as { code?: string }).code === "catalog.project_not_found") { scopeMissing = true; return null; } throw error; }
     }) : null;
     const reference = project ? molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path }) : undefined;
-    const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [] };
+    const caller: ActionCallContext = { actor_id: clientId, project_id: projectId, audience: actionClientAudience(clientId), permissions: [] };
     if (request.method === "GET") {
       const access = await readMcpActionAccess(homeDirectory, host, caller, reference, scopeMissing, preference);
       sendJson(response, 200, url.searchParams.get("format") === "html" ? { html: renderMcpAccessRows({ entries: access.entries,

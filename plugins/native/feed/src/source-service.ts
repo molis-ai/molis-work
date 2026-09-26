@@ -195,6 +195,7 @@ export class FeedSourceService {
               match: { ...rule.match, source_id: nextId },
               enabled: rule.enabled,
               function_key: rule.function_key,
+              judgment: rule.judgment,
               admission: rule.admission,
             });
           }

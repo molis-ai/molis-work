@@ -1,6 +1,32 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-parent-reads.tgz`。在子任务带着角色声明的工具去之上，**分派到独立目录的父任务可以只读这些目录**（用户拍板"允许只读"）：并行写入时父任务（协调者）原来只看得见主工作区，核对子任务成果只能靠子任务的文字汇报。现在 `startAgentRun` 的 `subagents.parentReads` 为真时，父任务的 read、list、search 可以带 `workspace`（本轮冻结的子目录标识）只读查看那个目录；不带就是自己的目录。write、edit、命令都不接受这个参数，父任务不能在子目录写入或运行命令。父任务的查看不记进子目录"看过什么"的账：子任务改文件之前仍要自己先读。这项授权进开始指纹（只在授予时出现，未授予的旧运行指纹不变）。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-coding-inference.tgz`（2026-09-26，main 与 Coding 分支 `codex/molis-work-goal-continue` 合并时合成）。它同时包含两条累计补丁线：Coding 线的 [parent-reads.patch](parent-reads.patch)（子任务、角色工具、父任务只读子目录、大文件读、同状态回报等，见下「Coding 线」）与共享推理线的 [bounded-inference.patch](bounded-inference.patch)（有界文字、OpenAI/Gemini 图片、原生 TypeSafe、每次网络 dispatch 前的 Host 权限复核，见下「共享推理线」）。两条线都相对同一基线，回环修复两边都带着。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-molis-integrated`（detached worktree）：先 `git apply parent-reads.patch`，再 `git apply --3way bounded-inference.patch`，三方合并零冲突。
+- 未提交源码修改：[coding-inference.patch](coding-inference.patch)，相对基线的**累计**补丁（72 个文件）。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`76fc2bda33a3f94d28e0f27be3f83dc2a2a2d5f061c080dc5dc977a016b93c03`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/coding-inference.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-coding-inference.tgz`。
+
+核对：SDK 构建与类型检查（`tsconfig.typecheck.json`）通过。SDK 全量 3309 项：3286 通过、20 跳过、3 失败，另有 1 处测试文件类型错误。3 个失败（`live-tree` 的 runtime ↔ tool 模块环、`session-long` 事件账回放、`workstation-wiring` 重开后回执唯一）在共享推理线原工作树 `prologue-action-loopback` 里同样失败，Coding 线 `prologue-output-continuation` 里全部通过，属于共享推理线尚未收口的问题，不是合并引入；类型错误在 `test/host-agnostic-adapters.test.ts`（`ImagePayload` 联合类型取 `bytes`），同属该线。未发布 npm，未替换正式安装版。
+
+## 上一依赖（共享推理线）：有界推理、图片与 TypeSafe
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-bounded-inference.tgz`，SHA-256 `9c6d6c0975334c029328d98306c5d5b58a764390d3196a4cdce94e48d4d8166e`。同一 Runtime 提供有界文字、OpenAI/Gemini 图片、原生 TypeSafe，支持每次真实网络 dispatch 前的 Host 权限复核。正式 Agent workspace:none 保留 Character、文本材料、会话历史、预算和用量，不创建目录；Builder 每次执行的工具/根授权仍走同一 EffectChain，不产生全局 allow。工具超时上限可由可信 App 配置，原工具自身时限不变。
+
+源码基线仍是 `a7e785b8c76149961d25b2f918aeec55554d8420`，当前未提交扩展见 [bounded-inference.patch](bounded-inference.patch)，包含下方既有 loopback 修复。从该基线应用补丁、`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，再在 packages/sdk 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-bounded-inference.tgz`。没有发布 npm 或修改正式安装版。
+
+已验证 SDK 原 image/loopback 23、network/stream/config 50、新真实 Node native 8、取消生命周期 2、Agent scope及相关 70、tool/config 33 项；部分套件重叠，不将数字相加宣称不同测试总数。GoalBoard Agent Host/Local Host 编译通过，消费端 36 项、助理真实 SDK 联验 27 项通过；9 种助理撤权交错实际 fetch=0。
+
+本轮生产使用 Node Host。Tauri 对新 HTTP 下载/认证/响应边界能力明确拒绝，尚未扩展对应原生实现；不宣称跨 Host 功能等价。本地 OCR/Whisper/Laya/Grok 和外部 Agent 调度仍在继续迁移，阶段包不代表“所有 AI 已收敛”。
+
+
+## Coding 线（此前依赖）
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-parent-reads.tgz`。在子任务带着角色声明的工具去之上，**分派到独立目录的父任务可以只读这些目录**（用户拍板"允许只读"）：并行写入时父任务（协调者）原来只看得见主工作区，核对子任务成果只能靠子任务的文字汇报。现在 `startAgentRun` 的 `subagents.parentReads` 为真时，父任务的 read、list、search 可以带 `workspace`（本轮冻结的子目录标识）只读查看那个目录；不带就是自己的目录。write、edit、命令都不接受这个参数，父任务不能在子目录写入或运行命令。父任务的查看不记进子目录"看过什么"的账：子任务改文件之前仍要自己先读。这项授权进开始指纹（只在授予时出现，未授予的旧运行指纹不变）。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
-import { readFunctionScenesView, withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
+import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
 import { callLegacyFunctionsMcp } from "../apps/local-host/src/mcp-functions-tools.ts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -149,7 +149,7 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
     assert.deepEqual(calls(), [], "environment-authenticated preview must not use Keychain");
     assert.equal(withFunctionsService(home, service => service.listPublished()).some(row => row.function_key === live.function_key), true);
     assert.deepEqual(calls(), [], "listing published rules must not use Keychain");
-    assert.ok(readFunctionScenesView(home, "fixture-board").home_dock_functions);
+    assert.ok(withFunctionsService(home, service => service.list().length > 0));
     assert.deepEqual(calls(), [], "construction and environment credentials never unlock the unrelated Keychain");
 
     const adapterUrl = new URL("../apps/local-host/src/mcp-functions-tools.ts", import.meta.url).href;

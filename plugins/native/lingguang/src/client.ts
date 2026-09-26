@@ -16,7 +16,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const selectedCountEl = workbench.querySelector("[data-lingguang-selected-count]");
   const note = workbench.querySelector("[data-lingguang-note]");
   const confirmDialog = workbench.querySelector("[data-lingguang-confirm]");
-  const dispatchDialog = workbench.querySelector("[data-lingguang-dispatch]");
+  const saveStatus = workbench.querySelector('[data-lingguang-save-status]');
+  const saveRetry = workbench.querySelector('[data-lingguang-save-retry]');
+  const showSave = (text, failed = false) => {
+    saveStatus.textContent = L(text);
+    saveStatus.dataset.failed = String(failed);
+    saveRetry.hidden = !failed;
+  };
   const contextEl = workbench.querySelector("[data-lingguang-context]");
   const messagesEl = workbench.querySelector("[data-lingguang-messages]");
   const chatForm = workbench.querySelector("[data-lingguang-chat]");
@@ -118,6 +124,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     workspace.hidden = false;
     showChat(false);
     titleEl.textContent = record.title;
+    showSave("已保存");
     titleInput.value = record.title;
     bodyInput.value = record.body || "";
     markSelected(record.id);
@@ -196,6 +203,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     const pending = saveQueue.then(async () => {
       const current = records.find((item) => item.id === record.id) || record;
       if (current.title === title && current.body === body) return current;
+      if (selected?.id === record.id) showSave('保存中…');
       const payload = await request("POST", "/api/plugins/lingguang/" + encodeURIComponent(record.id), {
         title, body, expected_updated_at: current.updated_at,
       });
@@ -204,12 +212,20 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (titleInput.value === title && document.activeElement !== titleInput) titleInput.value = payload.spark.title;
         if (bodyInput.value === body && document.activeElement !== bodyInput) bodyInput.value = payload.spark.body || "";
       }
+      if (selected?.id === record.id && titleInput.value === title && bodyInput.value === body) {
+        showSave('已保存');
+        showNote('', false);
+      }
       return payload.spark;
+    }).catch(error => {
+      if (selected?.id === record.id) showSave('保存失败', true);
+      throw error;
     });
     saveQueue = pending.catch(() => {});
     return pending;
   };
   const queueSave = () => {
+    showSave("尚未保存");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
@@ -279,21 +295,10 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const copyDispatch = async () => {
     const items = selectedRecords().length ? selectedRecords() : (selected ? [selected] : []);
     if (!items.length) throw new Error(L("先选至少一条"));
-    if (!dispatchDialog) return;
-    dispatchDialog.returnValue = "cancel";
-    const ok = await new Promise((resolve) => {
-      const onClose = () => {
-        dispatchDialog.removeEventListener("close", onClose);
-        resolve(dispatchDialog.returnValue === "ok");
-      };
-      dispatchDialog.addEventListener("close", onClose);
-      dispatchDialog.showModal();
-    });
-    if (!ok) return;
     const text = items.map((item) => item.title + (item.body ? "\\n" + item.body : "")).join("\\n\\n");
     try {
       await navigator.clipboard.writeText(text);
-      showNote(L("已复制，没有写入其他系统。"), false);
+      showNote(L("已复制内容"), false);
     } catch {
       showNote(L("复制失败"), true);
     }
@@ -301,6 +306,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   workbench.addEventListener("click", async (event) => {
     try {
+      if (event.target.closest("[data-lingguang-save-retry]")) { await save(); return; }
       if (event.target.closest("[data-lingguang-capture]")) {
         await save();
         const payload = await request("POST", "/api/plugins/lingguang", {});
@@ -329,6 +335,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-lingguang-dispatch], [data-lingguang-dispatch-current]")) {
+        await save();
         await copyDispatch();
         return;
       }

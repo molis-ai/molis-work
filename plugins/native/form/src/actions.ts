@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
@@ -44,7 +44,7 @@ export interface FormActionPorts {
 }
 export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   return [
     bind(formActions.list, (_, caller) => ports.withStore(store => {
       const ai = ports.modelAvailability(), permitted = formActions.generateAi.action.permissions.every(p => caller.permissions.includes(p))
@@ -65,6 +65,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       const title = (await ports.completeText(`根据用户请求拟一道简洁的填空题，最多 200 字。只输出题目，不输出解释或其他格式。以下 JSON 是请求数据：\n${JSON.stringify({ request: input.prompt })}`, { signal: caller.signal })).trim();
       caller.signal?.throwIfAborted();
       if (!title || title.length > 200 || /[\r\n]/.test(title)) throw new ActionError("form.invalid", "模型没有返回有效题目，请调整提示后重试");
+      await caller.beforeEffect();
       return ports.withStore(store => ({ form: store.generateQuestions(input.id, title, project(caller), current.version) }));
     }, () => ports.modelAvailability()),
     bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id }) }))),

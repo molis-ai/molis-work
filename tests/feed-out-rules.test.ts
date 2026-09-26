@@ -1,3 +1,4 @@
+import { feedCaptureFixture } from "./feed-capture-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -5,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AttentionModule, migrateAttention } from "@molis-ai/molis-work-module-attention-resumption";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import {
@@ -22,11 +25,11 @@ import {
   FeedPluginRouteTable,
   createFeedRouteHandlers,
   feedCaptureArtifactId,
+  createFeedRuleHandlers, feedRuleActions,
 } from "@molis-ai/molis-work-plugin-feed";
 import {
   FEED_CAPTURE_SCENE_ID,
   INBOX_ADMIT_BEHAVIOR_ID,
-  type JudgmentPort,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 
 const TOKEN = "feed-out-rules-test-token-0123456789012345";
@@ -86,36 +89,18 @@ test("new Feed Item matching an out rule leaves an exact Artifact and no success
 });
 
 test("out-rule judgment records a suggestion without admitting the Feed Item", async () => {
-  const judged: string[] = [];
-  const judgments: JudgmentPort = {
-    async judge(input) {
-      judged.push(input.scene_id ?? "");
-      return {
-        judgment_id: "judgment-admit",
-        function_key: input.function_key,
-        function_version: 1,
-        subject: input.subject,
-        scene_id: input.scene_id ?? null,
-        outcome: "ok",
-        suggested_behavior_ids: [INBOX_ADMIT_BEHAVIOR_ID],
-        error_code: null,
-        created_at: "2026-09-21T00:00:00.000Z",
-      };
-    },
-    bindScene(sceneId, functionKey, boardId, ref) {
-      return { scene_id: sceneId, function_key: functionKey, board_id: boardId ?? null, ref: ref ?? null };
-    },
-    unbindScene() {},
-    sceneBinding() { return null; },
-    latest() { return null; },
-  };
-  const data = harness({ judgments });
+  const fixture = feedCaptureFixture(() => ({ status: "ok", suggested_behavior_ids: [INBOX_ADMIT_BEHAVIOR_ID] }));
+  const data = harness(fixture.options);
+  fixture.attach(data.feed, DEMO_BOARD_ID);
   try {
-    data.feed.createOutRule(DEMO_BOARD_ID, {
+    const rule = data.feed.createOutRule(DEMO_BOARD_ID, {
       name: "发布相关",
       match: { contains: "launch" },
-      function_key: "system_admit_inbox",
+      judgment: fixture.reference,
     });
+    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, rule.rule_id, { name: " ", function_key: "replacement" }));
+    assert.throws(() => data.feed.updateOutRule(DEMO_BOARD_ID, "missing-rule", { function_key: "replacement" }));
+    assert.deepEqual(data.feed.listOutRules(DEMO_BOARD_ID)[0]?.judgment, fixture.reference);
     const ingested = data.feed.ingestItem({
       source: data.source,
       externalId: "launch-judge",
@@ -126,7 +111,7 @@ test("out-rule judgment records a suggestion without admitting the Feed Item", a
       attention: false,
     });
     await data.feed.flushPendingJudgments();
-    assert.ok(judged.includes(FEED_CAPTURE_SCENE_ID));
+    assert.equal(fixture.history[0]?.scene_id, FEED_CAPTURE_SCENE_ID);
     assert.equal(
       data.feed.listInboxEntries(DEMO_BOARD_ID).filter((entry) => entry.subject_id === ingested.item.item_id).length,
       0,
@@ -299,6 +284,8 @@ test("source_rule Attention can coexist with a successful out capture", () => {
 test("out-rule CRUD rejects an empty match and can disable a rule", () => {
   const data = harness();
   try {
+    assert.throws(() => data.feed.createOutRule(DEMO_BOARD_ID, { name: "缺少判断服务", match: { contains: "launch" }, function_key: "unavailable" }), /请通过动作服务/);
+    assert.equal(data.feed.listOutRules(DEMO_BOARD_ID).length, 0);
     assert.throws(
       () => data.feed.createOutRule(DEMO_BOARD_ID, { name: "空规则", match: {} }),
       (error: unknown) => error instanceof FeedDomainError && error.code === "feed_out_rule_invalid",
@@ -403,7 +390,9 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
   assert.match(page, /data-feed-rule-instructions/);
-  assert.match(page, /value="system_admit_inbox"/);
+  assert.match(page, /data-feed-out-rule-function-key/);
+  const directory = await (await webFetch(`${origin}${prefix}/api/feed/out-rules/judgments`)).json() as { choices: { reference: { capability_id: string } }[] };
+  assert.ok(directory.choices.some(choice => choice.reference.capability_id === "functions.published.system_admit_inbox"));
   assert.doesNotMatch(page, /data-feed-add-out-rule-function-key/);
 
   const unpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
@@ -501,7 +490,11 @@ test("Feed rule preview matches recent source messages without writes or backfil
     });
     data.feed.ingestItem({ source: another, externalId: "foreign", title: "launch from another source", summary: "foreign", occurredAt: "2026-09-30T00:00:00.000Z", attention: false });
     const unused = (): never => { throw new Error("preview called a mutating or unrelated port"); };
+    const service = new ActionService();
+    service.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: "preview-project" },
+      definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_BOARD_ID, item => item) });
     const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
+      actions: bindActionClient(service, () => ({ actor_id: "preview", project_id: "preview-project", audience: "user", permissions: ["feed:read"] })),
       boardId: DEMO_BOARD_ID, routePrefix: "", feed: () => data.feed, sources: unused, connectors: unused,
       changed: unused, hydrateItem: unused, hydrateSnapshot: unused, sourceCatalog: () => [], renderWorkbench: unused, renderDetail: unused, promote: unused,
     }));
@@ -516,6 +509,30 @@ test("Feed rule preview matches recent source messages without writes or backfil
     assert.deepEqual(data.feed.snapshot(DEMO_BOARD_ID), before);
     assert.deepEqual(data.store.db.prepare("SELECT total_changes() AS n").get(), writesBefore);
     await assert.rejects(() => routes.handle({ ...request, body: { source_id: "source-from-another-project", contains: "launch" } }), /请选择当前项目的来源/);
-    await assert.rejects(() => routes.handle({ ...request, body: { source_id: data.source.source_id, contains: "x".repeat(201) } }), /不能超过/);
+    await assert.rejects(() => routes.handle({ ...request, body: { source_id: data.source.source_id, contains: "x".repeat(201) } }), { code: "actions.input_invalid" });
+  } finally { close(data); }
+});
+
+test("Feed rule validation cannot overwrite a rule edited while its selected capability was being checked", async () => {
+  const data = harness();
+  try {
+    const rule = data.feed.createOutRule(DEMO_BOARD_ID, { name: "原规则", match: { contains: "launch" } });
+    const service = new ActionService();
+    let entered!: () => void, release!: () => void;
+    const ready = new Promise<void>(resolve => { entered = resolve; });
+    service.registerProvider({ provider: { provider_id: "fixture.feed", title: "Feed", kind: "plugin", project_id: DEMO_BOARD_ID },
+      definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_BOARD_ID, item => item, {
+        legacyReference: () => null, catalog: async () => ({ choices: [], usages: [] }), recommendations: async () => ({ recommendations: [] }),
+        preview: async () => ({ status: "ok", suggested_behavior_ids: [] }),
+        validate: async reference => { entered(); await new Promise<void>(resolve => { release = resolve; }); return reference; },
+      }) });
+    const client = bindActionClient(service, () => ({ actor_id: "fixture", project_id: DEMO_BOARD_ID, audience: "user", permissions: ["feed:read", "feed:write"] }));
+    const pending = client.invoke(feedRuleActions.update, { rule_id: rule.rule_id, patch: {
+      judgment: { capability_id: "fixture.judgment", version: 1, provider_id: "fixture" }, name: "旧页面修改" } });
+    await ready;
+    data.feed.updateOutRule(DEMO_BOARD_ID, rule.rule_id, { name: "另一窗口的新修改" });
+    release(); await assert.rejects(pending, { code: "feed_revision_conflict" });
+    const saved = data.feed.listOutRules(DEMO_BOARD_ID).find(value => value.rule_id === rule.rule_id)!;
+    assert.equal(saved.name, "另一窗口的新修改"); assert.equal(saved.judgment, null);
   } finally { close(data); }
 });

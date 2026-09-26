@@ -42,7 +42,6 @@ function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
 export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
   return `<footer class="personal-sidebar-footer">
-    <a class="immersive-plugin-link plugin-rail-item" href="__SYSTEM_CAPABILITIES__" aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link plugin-rail-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
     <button class="personal-account" type="button" data-account-link aria-label="${L("账号管理")}" title="${L("账号管理")}">
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>

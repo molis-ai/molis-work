@@ -96,7 +96,7 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
         return [{ relative, bytes: Buffer.from(encoded, "base64"), mime: stringValue(record.mime) || undefined }];
       });
       if (!entries.length) return { status: 400, body: { error: "这个文件夹里没有可以加入的文件" } };
-      const item = options.admitFolder({ name, entries });
+      const item = options.admitFolder({ name, entries, origin_realpath: stringValue(request.body.origin_realpath) || null });
       return { status: 200, body: { item, snapshot: options.snapshot() } };
     },
     "shelf.hide": ({ params }) => {

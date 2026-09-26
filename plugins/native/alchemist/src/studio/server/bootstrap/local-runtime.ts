@@ -45,7 +45,11 @@ import { SafePublicHttpClient } from "../sources/http-source-client.js";
 import { ToolifySource } from "../sources/toolify-source.js";
 import { WatchaSource } from "../sources/watcha-source.js";
 
+import { WorkReuseService } from "../../../work-reuse/service.js";
+import type { WorkReuseHostPort } from "../../../work-reuse/contracts.js";
+
 export interface LocalRuntimeOptions {
+  workReuse?: WorkReuseHostPort;
   databasePath: string;
   ai: AlchemistAiPort;
   workerIntervalMs?: number;
@@ -109,6 +113,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const ideas = new SqliteIdeaRepository(database);
   const memory = new SqliteMemoryRepository(database);
   const research = new SqliteResearchRepository(database);
+  const workReuse = new WorkReuseService({ database, memory, research, ai, host: options.workReuse, actorId, now: clock.now, workspaceId: "workspace-local" });
   const settings = new SqliteSettingsRepository(database);
   settings.ensureDefaults("workspace-local", clock.now());
   const pulse = new SqlitePulseRepository(database);
@@ -129,6 +134,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     now: clock.now,
   });
   const researchRuntime = new ResearchRuntimeSelector({
+    workReuse,
     ai,
     memory,
   });
@@ -154,6 +160,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
         repository: research,
         ideas,
         runtime: researchRuntime,
+        workReuse,
       },
       pulse: {
         repository: pulse,
@@ -183,6 +190,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     ideas,
   });
   const createResearchPlan = createResearchPlanService({
+    workReuse,
     get actorId() { return actorId(); },
     workspaceId: "workspace-local",
     clock,
@@ -193,6 +201,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     runtime: runtimeSettings,
   });
   const getResearchWorkspace = createGetResearchWorkspaceService({
+    workReuse,
     ideas,
     research,
     runtime: runtimeSettings,
@@ -236,6 +245,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     research,
   });
   const workspaceExport = new WorkspaceExportService({
+    workReuse,
     database,
     workspaceId: "workspace-local",
     activity,
@@ -273,6 +283,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     calibrationMemory,
     runtimeSettings,
     workspaceExport,
+    workReuse,
     ...(options.localSecurity ? { localSecurity: options.localSecurity } : {}),
   };
   const actions = createAlchemistOperationExecutor(dependencies);

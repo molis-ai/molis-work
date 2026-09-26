@@ -4,6 +4,7 @@ export { artifactReferenceUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
 export type { ArtifactReferenceUiPrimitives, ArtifactReferenceUiModel } from "./reference-ui.js";
 export { readArtifactBrowser, matchArtifactBrowserRoute, exportArtifactVersion, artifactVersionPath, artifactDisplayTitle, ArtifactBrowserError } from "./browser.js";
 export type { ArtifactBrowserView, ArtifactBrowserRoute } from "./browser.js";
+export { requireArtifactAnalysisRecord, artifactAnalysisContext } from "./browser.js";
 export { artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
 export type { ArtifactBrowserUiModel } from "./browser-ui.js";
 export { ARTIFACT_EN } from "./en.js";

@@ -1,7 +1,7 @@
 import type {IncomingMessage,ServerResponse} from 'node:http';
-import {createHttpTypeSafeProvider} from '@molis-ai/molis-work-module-functions';
+import {createPrologueTypeSafeProvider} from './typesafe-prologue.js';
 import {FUNCTIONS_DEFAULT_MODEL,type FunctionRecord} from '@molis-ai/molis-work-contracts/modules/functions';
-import {typeSafeCredential} from './typesafe-connection.js';
+import {typeSafeCredential,typeSafeConfiguration} from './typesafe-connection.js';
 import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
 import {UiHost} from '@molis-ai/molis-work-ui-host';
 import {ArtifactsModule} from '@molis-ai/molis-work-module-artifacts';
@@ -17,11 +17,11 @@ import {readLocalWebBody,sendLocalWebJson} from './web-http.js';
 interface GeneratedSurface {platform:PluginPlatform;control:GeneratedPluginControl;release:Release}
 interface BuilderSurface {platform:PluginPlatform;workflow:BuilderWorkflow;generated:Map<string,Promise<GeneratedSurface>>}
 const surfaces=new WeakMap<LocalProjectDatabase,Map<string,Promise<BuilderSurface>>>();
-function selectionPorts(homeDirectory?:string){
+export function selectionPorts(homeDirectory?:string){
  const key=()=>process.env.TYPESAFE_API_KEY?.trim()||(homeDirectory?typeSafeCredential(homeDirectory,'functions'):null);
  return {selectionAvailable:()=>Boolean(key()),async choose(question:ChoiceQuestion){
   const credential=key();if(!credential)throw new Error('请在 Functions 设置中配置 TypeSafe Key');
-  const provider=createHttpTypeSafeProvider();const started=performance.now(),now=new Date().toISOString();
+  const provider=createPrologueTypeSafeProvider(homeDirectory,{resolveCredential:key,configuration:()=>process.env.TYPESAFE_API_KEY?.trim()?'env':homeDirectory?typeSafeConfiguration(homeDirectory,'functions'):null});const started=performance.now(),now=new Date().toISOString();
   // A transient choice question: never listed, published or stored as a user function.
   const record:FunctionRecord={id:question.key,name:'插件创作零件选择',status:'draft',version:null,instructions:question.instructions,scene_id:null,subject_kinds:[],scene_map:{},config_hash:'',last_preview:null,samples:[],published_at:null,created_at:now,updated_at:now,function_key:question.key,primitive:'choice',model:FUNCTIONS_DEFAULT_MODEL,criteria:question.candidates.map(c=>({key:c.key,description:c.description}))};
   const result=await provider.evaluate(credential,record,question.state);
@@ -104,7 +104,27 @@ export async function handleBuilderHttp(request:IncomingMessage,response:ServerR
 }
 export async function releaseBuilderSurface(store:LocalProjectDatabase,boardId:string){const boards=surfaces.get(store),pending=boards?.get(boardId);if(!pending)return;boards!.delete(boardId);const surface=await pending.catch(()=>null);if(!surface)return;for(const platform of [surface.platform,...(await Promise.all([...surface.generated.values()])).map(value=>value.platform)]){for(const id of platform.supervisor.enabledPluginIds()){const state=platform.supervisor.state(id);platform.supervisor.revoke(id);if(state?.status==='running'&&state.install_id)await platform.runtime.stop(state.install_id);}}}
 
+/**
+ * The studio asks the workbench to open a plugin it installed, through the same rail entry a person would click.
+ * A plugin installed since the page loaded has no entry yet, so the page reloads once and then opens it; an
+ * uninstalled plugin's entry and stage leave the page at once.
+ */
+const STUDIO_STAGE_SCRIPT=`(()=>{const KEY="molis-studio-open";const valid=s=>typeof s==="string"&&/^app-[a-f0-9-]{36}$/.test(s);
+const entry=s=>[...document.querySelectorAll("[data-work-surface-open]")].find(el=>el.dataset.workSurfaceOpen===s);
+addEventListener("message",event=>{const frame=document.querySelector(".pb-studio-frame");if(event.origin!==location.origin||!frame||event.source!==frame.contentWindow||!valid(event.data?.surface))return;
+ if(event.data.type==="molis-studio-open-plugin"){const button=entry(event.data.surface);if(button)button.click();else{try{sessionStorage.setItem(KEY,event.data.surface)}catch{}location.reload()}}
+ if(event.data.type==="molis-studio-plugin-removed"){entry(event.data.surface)?.remove();[...document.querySelectorAll("[data-work-surface]")].find(el=>el.dataset.workSurface===event.data.surface)?.remove()}});
+let pending=null;try{pending=sessionStorage.getItem(KEY);sessionStorage.removeItem(KEY)}catch{}
+if(valid(pending))addEventListener("load",()=>setTimeout(()=>entry(pending)?.click(),0),{once:true});})();`;
+
+/**
+ * The workbench entry opens the agent-built plugin studio. It is a host page (no plugin script runs in it), framed
+ * in place and loaded only when the entry is opened; the earlier interpreter-based builder is no longer the entry.
+ */
 export async function builderWorkbenchPanel(ports:CodingSurfacePorts):Promise<string>{
- try{const surface=await ensureBuilder(ports);const view=surface.platform.supervisor.contribution(BUILDER_PLUGIN_ID);const ui=view?.kind==='app'?view.views?.[0]:null;if(!ui)throw new Error('创作插件未启动');return ui.render({contribution_id:ui.descriptor.contribution_id,surface:'workbench',model:{}});}
- catch(error){return '<section class="desktop-work-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden><p role="alert">'+escapeHtml(error instanceof Error?error.message:'创作插件未启动')+'</p></section>';}
+ const source=(ports.routePrefix??'')+'/plugin-builder/studio';
+ return '<section class="desktop-work-surface pb-surface" data-work-surface="plugin-builder" data-work-surface-label="插件创作工作台" hidden>'
+  +'<iframe class="pb-studio-frame" src="'+escapeHtml(source)+'" title="插件创作工作台" loading="lazy" style="display:block;width:100%;height:100%;min-height:calc(100vh - 64px);border:0;background:#f3f3f1"></iframe>'
+  +'<script>'+STUDIO_STAGE_SCRIPT+'</script></section>';
 }
+

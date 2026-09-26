@@ -102,7 +102,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const name = hostActionToolName(goalsActions.create);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
     const views = (await host.inspectActions(caller, ref)).filter(view => Object.values(goalsActions).some(action => action.capability_id === view.capability_id));
-    assert.equal(views.length, 40);
+    assert.equal(views.length, 43);
     assert.equal(views.some(view => view.capability_id === goalsActions.decide.capability_id), false);
     for (const view of views) await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, view, true));
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), true);
@@ -174,6 +174,36 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const legacyList = await sdk.callTool({ name: "molis_work_v1_goal_trash_list", arguments: {} });
     assert.equal(legacyList.isError, false, JSON.stringify(legacyList));
     const parseLegacy = (result: Awaited<ReturnType<typeof sdk.callTool>>) => JSON.parse((result.content as Array<{ type: string; text: string }>).find(item => item.type === "text")!.text);
+    const snapshotName = hostActionToolName(goalsActions.snapshot);
+    const expectedSnapshot = await host.withProject(ref, r => r.store.snapshot(project.board_id));
+    const fullSnapshot = await sdk.callTool({ name: snapshotName, arguments: {} });
+    assert.equal(fullSnapshot.isError, false, JSON.stringify(fullSnapshot));
+    assert.deepEqual(fullSnapshot.structuredContent, expectedSnapshot);
+    const legacySnapshot = await sdk.callTool({ name: "molis_work_v1_snapshot", arguments: {} });
+    assert.equal(legacySnapshot.isError, false, JSON.stringify(legacySnapshot));
+    assert.deepEqual(parseLegacy(legacySnapshot), expectedSnapshot);
+    const fullContract = await sdk.callTool({ name: hostActionToolName(goalsActions.contract), arguments: { goal_id: input.goal_id } });
+    assert.equal(fullContract.isError, false, JSON.stringify(fullContract));
+    assert.deepEqual(fullContract.structuredContent,
+      await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(project.board_id, input.goal_id)));
+    const collectionName = hostActionToolName(goalsActions.collection);
+    const collection = await sdk.callTool({ name: collectionName, arguments: {} });
+    assert.equal(collection.isError, false, JSON.stringify(collection));
+    assert.equal((collection.structuredContent as { trashed_goals: Array<{ goal: { goal_id: string } }> }).trashed_goals[0]?.goal.goal_id, input.goal_id);
+    await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id,
+      views.find(v => v.capability_id === goalsActions.collection.capability_id)!, false));
+    assert.equal((await sdk.listTools()).tools.some(tool => tool.name === collectionName), false);
+    assert.equal((await sdk.callTool({ name: collectionName, arguments: {} })).isError, true);
+    for (const args of [{ board_id: "foreign" }, { database_path: project.database_path }, { actor_id: "forged" }]) {
+      assert.equal((await sdk.callTool({ name: "molis_work_v1_snapshot", arguments: args })).isError, true);
+    }
+    await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id,
+      views.find(v => v.capability_id === goalsActions.snapshot.capability_id)!, false));
+    const afterSnapshotRevoke = (await sdk.listTools()).tools;
+    for (const name of [snapshotName, "molis_work_v1_snapshot"]) {
+      assert.equal(afterSnapshotRevoke.some(tool => tool.name === name), false);
+      assert.equal((await sdk.callTool({ name, arguments: {} })).isError, true);
+    }
     assert.equal(parseLegacy(legacyList).goals[0].goal_id, input.goal_id);
     const legacyTrash = { ...lifecycleInput, user_confirmed: true, idempotency_key: "legacy-restore" };
     assert.equal((await sdk.callTool({ name: "molis_work_v1_goal_restore", arguments: { ...legacyTrash, trashed: true } })).isError, true);

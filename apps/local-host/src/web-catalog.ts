@@ -47,6 +47,7 @@ import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
 import { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
 import { handleConnectorConnectionsHttp } from "./web-connector-connections.js";
+import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
 import { listConnectorConnectionViews } from "./web-connector-connections.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
@@ -301,6 +302,7 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalMcpSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;

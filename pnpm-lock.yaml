@@ -167,6 +167,9 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-sandbox':
+        specifier: workspace:*
+        version: link:packages/plugin-sandbox
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:plugins/native/schedule
@@ -288,6 +291,9 @@ importers:
       '@adeptify/search-evidence-layer':
         specifier: file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
         version: file:vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.30.1
+        version: 1.30.1(zod@4.4.3)
       '@molis-ai/molis-work-app-cli':
         specifier: workspace:*
         version: link:../cli
@@ -303,6 +309,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:../../packages/im-ui
       '@molis-ai/molis-work-integration-catalog':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/catalog
@@ -429,6 +438,9 @@ importers:
       '@molis-ai/molis-work-plugin-runtime':
         specifier: workspace:*
         version: link:../../packages/plugin-runtime
+      '@molis-ai/molis-work-plugin-sandbox':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sandbox
       '@molis-ai/molis-work-plugin-schedule':
         specifier: workspace:*
         version: link:../../plugins/native/schedule
@@ -447,6 +459,9 @@ importers:
       '@molis-ai/molis-work-plugin-workspace':
         specifier: workspace:*
         version: link:../../plugins/native/workspace
+      '@molis-ai/molis-work-server':
+        specifier: workspace:*
+        version: link:../../server
       '@molis-ai/molis-work-service-agent-host':
         specifier: workspace:*
         version: link:../../horizontal/agent-host
@@ -471,6 +486,15 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
+      pdfjs-dist:
+        specifier: 6.3.289
+        version: 6.3.289
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
       ws:
         specifier: ^8.21.3
         version: 8.21.3
@@ -488,6 +512,30 @@ importers:
         specifier: workspace:*
         version: link:../../plugins/native/goals
 
+  apps/server:
+    dependencies:
+      '@molis-ai/molis-work-app-desktop':
+        specifier: workspace:*
+        version: link:../desktop
+      '@molis-ai/molis-work-app-local-host':
+        specifier: workspace:*
+        version: link:../local-host
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:../../packages/im-ui
+      '@molis-ai/molis-work-plugin-runtime':
+        specifier: workspace:*
+        version: link:../../packages/plugin-runtime
+      '@molis-ai/molis-work-server':
+        specifier: workspace:*
+        version: link:../../server
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
   apps/workbench:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -496,6 +544,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:../../packages/im-ui
       '@molis-ai/molis-work-integration-gmail':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/gmail
@@ -590,8 +641,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-coding-inference.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-coding-inference.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -740,6 +791,15 @@ importers:
         specifier: ^1.31.0
         version: 1.31.0
 
+  packages/im-ui:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@molis-ai/molis-work-design-system':
+        specifier: workspace:*
+        version: link:../design-system
+
   packages/kernel:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -753,6 +813,12 @@ importers:
         version: 3.0.1(ajv@8.20.0)
 
   packages/plugin-runtime:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
+  packages/plugin-sandbox:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -1186,6 +1252,15 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
 
+  server:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../packages/storage
+
   tooling/plugin-cli:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -1387,11 +1462,86 @@ packages:
       '@cfworker/json-schema':
         optional: true
 
+  '@napi-rs/canvas-android-arm64@1.0.9':
+    resolution: {integrity: sha512-4LGXk2/0HVzE29K8SzML5WubgCp++B1FH3qgl35XmSZE+lLdr6P9VRQEnZ0MCLZMTSuJP41yyhtoiVNEuvrTIA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [android]
+
+  '@napi-rs/canvas-darwin-arm64@1.0.9':
+    resolution: {integrity: sha512-YNdfLBzY0W/Pep9fo2L6RmoNlNksnn05LRnX66W63R3ij58S25QOTcjdtEt2v8+PnCESzqZsYzUo+QPeIR44NA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@napi-rs/canvas-darwin-x64@1.0.9':
+    resolution: {integrity: sha512-ceZQSknTEcy3dOXoekv59LTCkXjvnLsq+VW5PeNNDHEPQbRS5Ervkm1EaDa7WLAjiYWMLuSQTRTHao1dEX4prg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@1.0.9':
+    resolution: {integrity: sha512-XhfI0Wwv4llhd6nnWDtY3kQKjq0r+y1i91PlJlJI24ag2U9WrnwbG1qS3+fDLEyouwEVFchiKkTEHozK+5iUNA==}
+    engines: {node: '>= 10'}
+    cpu: [arm]
+    os: [linux]
+
+  '@napi-rs/canvas-linux-arm64-gnu@1.0.9':
+    resolution: {integrity: sha512-012oiYtKaE7i9oxc8q7nraT7kDOpLcaCmFLzVe9Ty34RHDdoDzbWLrVh827CNxYh/EADX1eSikA3ymLjo/nNuw==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@napi-rs/canvas-linux-arm64-musl@1.0.9':
+    resolution: {integrity: sha512-Ls5UWYFFn63casTZEczbeyEg3vRDRkv9lscuGwfchtY5yLLQhgOB8SN4YGxmfJ5vTaBwZ2YUxBS3NtmjJmFXdA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@napi-rs/canvas-linux-riscv64-gnu@1.0.9':
+    resolution: {integrity: sha512-hLKEGxV7ZiRHqndePTokgDMdBlo/rDfzg7P4p4QIv9pUhuYobnu3R2NIFLCRghG0nwfo+s2sw+c1xZFeCmEAsw==}
+    engines: {node: '>= 10'}
+    cpu: [riscv64]
+    os: [linux]
+    libc: [glibc]
+
+  '@napi-rs/canvas-linux-x64-gnu@1.0.9':
+    resolution: {integrity: sha512-6kaz3w0QMy77PDWk6rJ1ksIihdad3qzEyX2o2oGT8GwCaypfT5mhjr8buOO5hstyLxcWXDScuz56RsINLtBPIQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@napi-rs/canvas-linux-x64-musl@1.0.9':
+    resolution: {integrity: sha512-xrGvmS3v55hmZ86ls/kBLVNMUTYio3f6Ik0DireemG994VfPAwiA3ZXA0Uf1bByctkB3NQ1Sfb+H5bkdUnnzfQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@napi-rs/canvas-win32-arm64-msvc@1.0.9':
+    resolution: {integrity: sha512-yjmVS3ArZeRVCP7jqbPq4rpZa/BhTeI7ELE2XqJg3snICQBDevLZyArxswHkiTnT34KRic33/4fLirrHI+SY8A==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@napi-rs/canvas-win32-x64-msvc@1.0.9':
+    resolution: {integrity: sha512-QlSYQdMQslB81nlABo9wNfQ6npFhE7/O+saCZdqVGueGanyRk4jCogD5EwQenfP3kIq9e+mm6GreQBjX5MrA8g==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@napi-rs/canvas@1.0.9':
+    resolution: {integrity: sha512-QviPdJImDi/jMAvBfqaw+19BndMd/sizXVW3NnpMd3VJGz++QXkOHcP9kWR/smHG0hNjHeyuHFyrx/5lD0oNcQ==}
+    engines: {node: '>= 10'}
+
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz':
-    resolution: {integrity: sha512-L96fHPseFq6iF71c9P9puTqgISWVTfcjqcrMTu7UPNtrgIA67LlkSt7jaSdNJMFs6TWcJ7pdhzJRaiGg9zC/4w==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-coding-inference.tgz':
+    resolution: {integrity: sha512-wcb0dZMCui+9ZLTW1DZ2ek4ndfTfGxPIKqBShNzB4OLpcPiy3Ody8UptX9Owi8qIQXZS7nn2wbA1cjgSsi70bQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-coding-inference.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':
@@ -2243,6 +2393,10 @@ packages:
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
+  pdfjs-dist@6.3.289:
+    resolution: {integrity: sha512-ZHjSVpDa3D6izMq8/04lvkhkATUmL9px6ChPaXc1k6nU2Mrhlg1/7F0bdUqCwUjw3NsPTfPZsMDUU6ZIcRaeQw==}
+    engines: {node: '>=22.13.0 || >=24'}
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -2737,9 +2891,57 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@napi-rs/canvas-android-arm64@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-darwin-arm64@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-darwin-x64@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm-gnueabihf@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-gnu@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-linux-arm64-musl@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-linux-riscv64-gnu@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-gnu@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-linux-x64-musl@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-win32-arm64-msvc@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas-win32-x64-msvc@1.0.9':
+    optional: true
+
+  '@napi-rs/canvas@1.0.9':
+    optionalDependencies:
+      '@napi-rs/canvas-android-arm64': 1.0.9
+      '@napi-rs/canvas-darwin-arm64': 1.0.9
+      '@napi-rs/canvas-darwin-x64': 1.0.9
+      '@napi-rs/canvas-linux-arm-gnueabihf': 1.0.9
+      '@napi-rs/canvas-linux-arm64-gnu': 1.0.9
+      '@napi-rs/canvas-linux-arm64-musl': 1.0.9
+      '@napi-rs/canvas-linux-riscv64-gnu': 1.0.9
+      '@napi-rs/canvas-linux-x64-gnu': 1.0.9
+      '@napi-rs/canvas-linux-x64-musl': 1.0.9
+      '@napi-rs/canvas-win32-arm64-msvc': 1.0.9
+      '@napi-rs/canvas-win32-x64-msvc': 1.0.9
+    optional: true
+
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parent-reads.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-coding-inference.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 
@@ -3494,6 +3696,10 @@ snapshots:
   path-to-regexp@8.4.2: {}
 
   pathe@2.0.3: {}
+
+  pdfjs-dist@6.3.289:
+    optionalDependencies:
+      '@napi-rs/canvas': 1.0.9
 
   picocolors@1.1.1: {}
 

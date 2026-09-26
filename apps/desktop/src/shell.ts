@@ -29,12 +29,13 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   const notifyShelfSurface=()=>{
     try{
       const on=document.body&&document.body.dataset.desktopSurface==="shelf";
-      globalThis.__TAURI__?.core?.invoke("shelf_surface_changed",{active:Boolean(on)}).catch(()=>{});
+      globalThis.__TAURI__?.core?.invoke("shelf_surface_changed",{active:Boolean(on),language:document.documentElement.lang,theme:document.documentElement.dataset.resolvedTheme}).catch(()=>{});
     }catch{}
   };
   const watchShelfSurface=()=>{
     if(!document.body)return;
     new MutationObserver(notifyShelfSurface).observe(document.body,{attributes:true,attributeFilter:["data-desktop-surface"]});
+    new MutationObserver(notifyShelfSurface).observe(document.documentElement,{attributes:true,attributeFilter:["lang","data-resolved-theme"]});
     notifyShelfSurface();
   };
   if(document.body)watchShelfSurface();

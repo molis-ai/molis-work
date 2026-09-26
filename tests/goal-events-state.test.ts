@@ -629,7 +629,14 @@ test("protected Web user entry records a decision; Host-injected identity is req
     const actions = new ActionService();
     actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: "project" },
       definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, boardId: BOARD,
-        readGoal: goalId => data.app.goalQueries.getGoal(BOARD, goalId), history: {
+        board: { immediate: operation => data.store.immediate(operation), query: data.store.goalsQuery,
+        initializeBoard: input => data.app.initializeBoard(input), commands: data.app.goals.commands,
+        adoptOwner: input => data.app.goalEvents.adoptOwner(input) },
+      collection: { snapshot: boardId => data.store.snapshot(boardId), events: boardId => data.store.readEventsDescending(boardId),
+        goals: data.app.goalQueries, inputs: data.app.goalInputs, eventWork: data.app.goalEvents,
+        projectGoalLifecycle: (snapshot, goalId) => data.app.projectGoalLifecycle(snapshot, goalId) },
+      readGoal: goalId => data.app.goalQueries.getGoal(BOARD, goalId),
+        readContract: goalId => data.app.goalQueries.readGoalContract(BOARD, goalId), history: {
         snapshot: () => data.store.snapshot(BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
       }, planning: { planning: data.app.goals.planning, baseMethods: () => [] }, guidance: { commands: data.app.goals.commands, read: boardId => data.app.goalQueries.readProjectGuidance(boardId) },
       lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => data.store.eventCursor(BOARD) },

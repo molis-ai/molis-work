@@ -11,9 +11,11 @@ export function renderCogniaWorkbench({ primitives: p }: CogniaUiModel): string 
   return renderPluginStageShell({ surface: "cognia", label: "Cognia", dataset: "cognia", body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree cognia-list" data-cognia="directory">
       <header class="plugin-stage-chrome cognia-toolbar">${tool("导入知识库", "import", "upload", true)}${tool("添加材料", "add", "plus")}${tool("新建领域", "domain", "folder")}</header>
-      <div class="cognia-filters"><label class="cognia-search">${icon("search")}<input class="mw-input" type="search" data-cognia-search aria-label="${t("搜索资料全文")}" placeholder="${t("搜索资料全文")}"></label><select class="mw-select" data-cognia-domain aria-label="${t("领域")}"><option value="">${t("全部领域")}</option></select><select class="mw-select" data-cognia-source aria-label="${t("来源")}"><option value="">${t("全部来源")}</option></select>${button("重命名领域", "rename-domain")}${button("删除领域", "delete-domain")}${button("重命名来源", "rename-source")}${button("删除来源", "delete-source")}</div>
+      <p class="cognia-scope">${t("个人知识库 · 所有项目可见")}</p>
+      <div class="cognia-filters"><label class="cognia-search">${icon("search")}<input class="mw-input" type="search" data-cognia-search aria-label="${t("搜索资料全文")}" placeholder="${t("搜索资料全文")}"></label><select class="mw-select" data-cognia-domain aria-label="${t("领域")}"><option value="">${t("全部领域")}</option></select><select class="mw-select" data-cognia-source aria-label="${t("来源")}"><option value="">${t("全部来源")}</option></select><details class="cognia-manage"><summary class="mw-btn mw-btn--ghost">${icon("more")}${t("管理分类")}</summary><div>${button("重命名领域", "rename-domain")}${button("删除领域", "delete-domain")}${button("重命名来源", "rename-source")}${button("删除来源", "delete-source")}</div></details></div>
       <div class="cognia-selection">${tool("整理选中材料", "synthesize", "sparkles")}<span data-cognia-selected>${t("选择 1–5 份材料")}</span><span class="cognia-selection__gap" aria-hidden="true"></span>${tool("检索问答", "query", "message")}${tool("审阅草稿", "drafts", "review")}</div>
       <p class="cognia-model-note" data-cognia-model hidden>${t("尚未配置文字模型，导入、搜索和阅读仍可使用。")}</p>
+      <button class="mw-btn mw-btn--ghost cognia-model-settings" type="button" data-cognia-action="model-settings" hidden>${t("打开模型设置")}</button>
       <div data-cognia-rows aria-live="polite"><p class="cognia-empty">${t("正在读取资料…")}</p></div>
     </div>
     <section class="plugin-stage-workspace cognia-workspace" data-cognia-workspace hidden>

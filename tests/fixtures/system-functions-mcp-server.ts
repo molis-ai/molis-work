@@ -5,7 +5,7 @@ const home = process.argv[2];
 if (!home) throw new Error("Missing fixture Home");
 // Only the remote judgment provider is a fixture; Host, catalog, transport and history are production code.
 const host = new MolisWorkLocalHost({ homeDirectory: home, functions: {
-  env: { TYPESAFE_API_KEY: "fixture-only" }, allowed_behavior_ids: [],
+  env: { TYPESAFE_API_KEY: "fixture-only" },
   provider: { async evaluate(_key, record) { return { primitive: record.primitive,
     choice: "yes", noul: null, score: null, legend: null, probabilities: { yes: 1 }, confidence: 1, model: "jev-1.13.0" }; } },
 } });

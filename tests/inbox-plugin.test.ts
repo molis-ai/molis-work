@@ -1,5 +1,5 @@
 import { projectActionAvailability } from "../apps/local-host/src/project-action-availability.js";
-import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxManifest, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
@@ -51,7 +51,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
 
   // No Inbox page has been opened: project activation must already register every action.
   const discovered = (await actions.discover(caller)).filter(action => action.provider.plugin_id === "io.molis.work.inbox");
-  assert.equal(discovered.length, 7);
+  const declared = inboxManifest.actions!.filter(definition => definition.action.permissions.every(permission => caller.permissions.includes(permission)));
+  assert.deepEqual(discovered.map(action => action.capability_id).sort(), declared.map(action => action.capability_id).sort());
   assert.ok(discovered.filter(action => ![inboxActions.generatePages.capability_id, inboxActions.evaluateJudgment.capability_id].includes(action.capability_id))
     .every(action => action.availability.available));
   assert.equal(discovered.find(action => action.capability_id === inboxActions.evaluateJudgment.capability_id)?.availability.available, false);

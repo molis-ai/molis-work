@@ -1,19 +1,32 @@
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import type { ImportFile, Reference } from "@molis-ai/molis-work-plugin-cognia";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
-export type ContextSourceKind = "files" | "directory" | "browser" | "gmail" | "chat";
+export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat";
+export interface ImportFile { path: string; data?: string; reason?: string }
+export interface ContextFileMetadata { path: string; size: number; modified_ms: number; identity: string }
+export interface ContextReference {
+  source_id: string; version: 1; label: string; title: string; path: string; body: string;
+  original: { filename: string; mime: string; data_base64: string };
+  artifact?: ArtifactReference;
+}
 export interface ContextSource {
   kind: ContextSourceKind; selected: boolean; path?: string; files?: ImportFile[];
-  text?: string; url?: string; connection_id?: string; days?: 7 | 30;
-  preview_id?: string; references?: Reference[]; skipped?: number; error?: string;
+  text?: string; url?: string; connection_id?: string; days?: 0 | 7 | 30 | 90;
+  metadata?: { files: ContextFileMetadata[]; skipped: number; truncated: boolean };
+  excluded?: string[];
+  references?: ContextReference[]; skipped?: number; issues?: { path: string; reason: string }[]; error?: string;
 }
 export interface ContextJourney {
   id: string; phase: "selecting" | "reading" | "review" | "failed" | "adopting" | "complete";
   sources: ContextSource[]; model: string | null; error: string | null;
-  summary: { title: string; body: string; references: Reference[] } | null;
+  summary: { title: string; body: string; references: ContextReference[] } | null;
   project_id: string; document_id: string | null; updated_at: string;
-  adoption?: { title: string; body: string };
+  adoption?: { title: string; body: string; blank: boolean };
   auto_start?: boolean;
+  previewed?: boolean;
+  artifact_references?: ArtifactReference[];
+  requires_reselection?: boolean;
+  needs_model?: boolean;
   oauth_status?: "pending" | "connected" | "cancelled" | "failed";
   oauth_state?: string;
   oauth_expires_at?: number;

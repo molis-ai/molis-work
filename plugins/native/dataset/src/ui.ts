@@ -61,6 +61,7 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         <strong>${p.text("还没有数据表")}</strong>
         <p>${p.text("先建一张表，再加列和行。可以粘贴 CSV，也能存一版再回滚。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <button class="mw-btn mw-btn--primary" type="button" data-dataset-new>${icon("plus")}<span>${p.text("新建数据表")}</span></button>
       </div>
       <div data-dataset-rows></div>
     </div>
@@ -69,11 +70,16 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
         <button class="plugin-stage-back" type="button" data-dataset-back aria-label="${p.text("返回数据表列表")}" title="${p.text("返回数据表列表")}">${icon("chevron-right")}</button>
         <h1 data-dataset-editor-title>${p.text("数据表")}</h1>
         <span data-dataset-editor-status></span>
-        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-artifact="" data-dataset-artifact-bar>${p.text("存成 Artifact")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-dataset-artifact="" data-dataset-artifact-bar>${p.text("保存成果版本")}</button>
+        <details class="plugin-stage-more">
+          <summary class="mw-btn mw-btn--ghost" aria-label="${p.text("更多操作")}">${icon("more")}<span>${p.text("更多")}</span></summary>
+          <div class="plugin-stage-more-actions">
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-csv>${p.text("导出 CSV")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-export-json>${p.text("导出 JSON")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-reload>${p.text("重新读取")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-dataset-delete>${p.text("删除")}</button>
+          </div>
+        </details>
       </div>
       <div class="dataset-workspace">
         <p class="dataset-note" data-dataset-note role="status" aria-live="polite" hidden></p>
@@ -92,12 +98,14 @@ export function renderDatasetWorkbench(model: DatasetUiModel): string {
           <button class="mw-btn mw-btn--secondary" type="button" data-dataset-add-column>${p.text("加一列")}</button>
           <button class="mw-btn mw-btn--secondary" type="button" data-dataset-add-row>${p.text("加一行")}</button>
         </div>
+        <details class="dataset-assist"><summary>${icon("sparkles")}${p.text("AI 辅助加列")}</summary>
         <div class="dataset-prompt">
           <label class="dataset-field">${p.text("列名或 AI 提示")}<input class="mw-input" data-dataset-ai-prompt autocomplete="off" placeholder="${p.text("例如：完成日期")}"></label>
           <button class="mw-btn mw-btn--ghost" type="button" data-dataset-generate><span>${p.text("按列名加列")}</span></button>
           <button class="mw-btn mw-btn--ghost" type="button" data-dataset-generate-ai disabled>${icon("sparkles")}<span>${p.text("AI 拟列名加列")}</span></button>
         </div>
         <p class="dataset-note" data-dataset-ai-reason></p>
+        </details>
         <p class="dataset-note" data-dataset-publication-note hidden></p>
         <div class="dataset-table-wrap">
           <p class="dataset-table-empty" data-dataset-table-empty hidden>${p.text("还没有列。先加一列，或打开下面粘贴 CSV。")}</p>

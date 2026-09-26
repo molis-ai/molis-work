@@ -15,6 +15,14 @@ export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActio
   const none = () => ({}), identity = (c: Context) => ({ id: c.req.param("id") });
   const version = (c: Context) => ({ ...identity(c), version: Number(c.req.param("version")) });
   const lens = (c: Context) => ({ ...identity(c), lens: c.req.param("lens") });
+  route("GET", "/reuse/methods/:id/context", "playbookContext", c => ({ subject_id: c.req.param("id") }));
+  route("POST", "/reuse/candidates", "reuseCandidates", body);
+  route("POST", "/reuse/assess", "reuseAssess", body);
+  route("POST", "/reuse/publish", "reusePublish", body);
+  route("GET", "/reuse/receipts/:id", "reuseReceipt", c => ({ planId: c.req.param("id") }));
+  route("POST", "/reuse/receipts/:id/reconcile", "reuseReconcile", c => ({ planId: c.req.param("id") }));
+  route("POST", "/reuse/feedback", "reuseFeedback", body);
+  route("POST", "/memory/playbook/:id/revise", "playbookRevise", c => body(c, identity(c)));
   route("GET", "/bootstrap", "bootstrap", none);
   route("POST", "/directions", "directionCreate", body, 201);
   route("PATCH", "/directions/:id", "directionUpdate", c => body(c, identity(c)));
@@ -44,6 +52,8 @@ export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActio
   route("POST", "/annotations/:id/resolve", "annotationResolve", identity);
   route("GET", "/memory", "memoryGet", none);
   route("POST", "/annotations/:id/playbook-proposals", "playbookPropose", c => body(c, identity(c)), 201);
+  route("GET", "/action-proposals/pending", "proposalList", none);
+  route("POST", "/action-proposals/:id/reject", "proposalReject", identity);
   route("POST", "/action-proposals/:id/apply", "proposalApply", identity);
   route("POST", "/memory/taste", "tasteCreate", body, 201);
   route("POST", "/memory/taste/:id/disable", "tasteDisable", identity);

@@ -1,3 +1,4 @@
+import type { ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,
   AgentPromptText,
@@ -56,6 +57,8 @@ export type AgentCapabilitySupport = "supported" | "partial" | "unsupported";
 export type AgentRuntimeCapabilityMatrix = Record<AgentRuntimeCapability, AgentCapabilitySupport>;
 
 export interface AgentRuntimeDescriptor {
+  supports_action_tools?: boolean;
+  supports_workspace_none?: boolean;
   runtime_id: string;
   display_name: string;
   provider_version: string;
@@ -113,6 +116,11 @@ export interface AgentWorkingDirectory {
   realpath_verified: boolean;
 }
 
+/** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
+export type AgentWorkspace =
+  | { workspace?: "required"; directory: AgentWorkingDirectory }
+  | { workspace: "none"; directory?: never };
+
 export interface AgentTextMaterial {
   material_id: string;
   title: string;
@@ -160,6 +168,20 @@ export interface AgentRunBudget {
   max_output_tokens?: number;
   max_total_tokens?: number;
   max_duration_ms?: number;
+}
+
+/** Runtime limits are explicit positive safe integers; omitted values keep SDK defaults. */
+export function parseAgentRunBudget(value: AgentRunBudget | undefined): AgentRunBudget | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("执行预算格式无效");
+  const budget: AgentRunBudget = {};
+  for (const field of ["max_turns", "max_output_tokens", "max_total_tokens", "max_duration_ms"] as const) {
+    const limit = value[field];
+    if (limit === undefined) continue;
+    if (!Number.isSafeInteger(limit) || limit < 1 || field === "max_duration_ms" && limit > 2_147_483_647) throw new Error(`执行预算 ${field} 必须为有效的正整数`);
+    budget[field] = limit;
+  }
+  return budget;
 }
 
 /** Ordered steps supplied by the caller from its immutable confirmed Artifact. */
@@ -210,7 +232,8 @@ export interface AgentFrozenCharacter extends CharacterContent {
   published_at: string;
 }
 
-export interface AgentFrozenStart {
+interface AgentFrozenStartFields {
+  action_tools?: ExactActionReference[];
   /** Exact imported Skill ids used by this Run; the full Character snapshot remains immutable. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
@@ -249,17 +272,20 @@ export interface AgentFrozenStart {
   host_tools: string[];
   text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
   budget: AgentRunBudget | null;
-  directory: AgentWorkingDirectory;
 }
+export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
 
-export interface AgentCreateSessionInput {
+interface AgentCreateSessionFields {
   board_id: string;
   plugin_id: string;
   install_id: string;
   actor_id: string;
-  directory: AgentWorkingDirectory;
   title: string;
 }
+export type AgentCreateSessionInput = AgentCreateSessionFields & (
+  | { workspace?: "required"; directory: AgentWorkingDirectory; role_id?: string }
+  | { workspace: "none"; directory?: never; role_id: string }
+);
 
 /**
  * The role as the Host froze it, taken from the Plugin's own declarations.
@@ -278,7 +304,15 @@ export interface AgentSubagentWorkspace {
   directory: AgentWorkingDirectory;
 }
 
+export interface AgentActionClient {
+  discover(): Promise<readonly ActionView[]>;
+  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
+}
+
 export interface AgentFrozenRole {
+  workspace?: "required" | "none";
+  /** Trusted Host composition only. Never serialized into run history. */
+  actions?: { tools: ActionView[]; client: AgentActionClient };
   character_skill_ids?: string[];
   subagent_workspaces?: AgentSubagentWorkspace[];
   subagents?: AgentFrozenSubagentRole[];
@@ -296,7 +330,8 @@ export interface AgentFrozenRole {
   host_tools: string[];
 }
 
-export interface AgentStartRequest {
+interface AgentStartRequestFields {
+  action_tools?: ExactActionReference[];
   /** Explicit subset of the selected Character's imported Skills. Empty uses rules only. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
@@ -330,13 +365,13 @@ export interface AgentStartRequest {
    * adapter call, which an adapter must refuse rather than guess around.
    */
   role?: AgentFrozenRole;
-  directory: AgentWorkingDirectory;
   text_materials?: AgentTextMaterial[];
   skills?: AgentSkillRef[];
   mcp_tools?: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   budget?: AgentRunBudget;
 }
+export type AgentStartRequest = AgentStartRequestFields & AgentWorkspace;
 
 export interface AgentRunHandle {
   ref: AgentRunRef;
@@ -491,11 +526,13 @@ export interface AgentRunView {
 }
 
 export interface AgentSessionView {
+  /** Immutable session mode; missing historical values mean required. */
+  workspace?: "required" | "none";
   /** A manual rewind is in progress or has an unresolved execution outcome. */
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery?: { required: true; reason: string };
-  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id">;
+  owner: Pick<AgentCreateSessionInput, "board_id" | "plugin_id" | "install_id"> & { actor_id?: string };
   session: AgentSessionRef;
   title: string;
   runs: AgentRunRef[];
@@ -800,6 +837,13 @@ export interface AgentRecoveryCapability {
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
 }
 
+/** Host-owned, in-memory authority checks; never part of a Plugin payload or persisted run. */
+export interface AgentStartExecution {
+  beforeStart?(): void | Promise<void>;
+  /** Live owner authority, valid beyond the start invocation's lifetime. */
+  beforeDispatch?(): void | Promise<void>;
+}
+
 export interface AgentRuntimeAdapter {
   readonly recovery?: AgentRecoveryCapability;
   readonly descriptor: AgentRuntimeDescriptor;
@@ -808,7 +852,7 @@ export interface AgentRuntimeAdapter {
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
-  start(request: AgentStartRequest): Promise<AgentRunHandle>;
+  start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
   read(run: AgentRunRef): Promise<AgentRunView>;
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
   control(run: AgentRunRef, control: AgentRunControl): Promise<void>;
@@ -892,6 +936,7 @@ export interface AgentDraftTextResult {
 }
 
 export const agentHostCapabilities = {
+  listActions: { capability_id: "agent.actions.list.v1", version: 1, operation: "query" } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], readonly ActionView[]>,
   /** Which Runtimes exist and what each one really supports. */
   listRuntimes: {
     capability_id: "agent.runtimes.v1",
@@ -1047,3 +1092,43 @@ export const agentHostCapabilities = {
 
 export type AgentHostCapabilityId =
   (typeof agentHostCapabilities)[keyof typeof agentHostCapabilities]["capability_id"];
+
+/** Dedicated generated-plugin authoring port; implementations remain in Agent Host. */
+export interface BuilderAgentActivity {
+  type: 'file' | 'check' | 'tool';
+  name: string;
+  detail: string;
+  path?: string;
+}
+export interface BuilderAgentRequest {
+  /** `model` is a generated plugin's own model call: one turn, no tools, the plugin's instructions. */
+  role: 'designer' | 'coder' | 'model';
+  instruction: string;
+  promptVersion: string;
+  task: string;
+  contractRevision: string;
+  operationIds?: readonly string[];
+  signal?: AbortSignal;
+  checks?(operationIds: readonly string[], signal: AbortSignal): Promise<unknown>;
+  onActivity?(activity: BuilderAgentActivity): void;
+}
+export interface BuilderAgentRecord {
+  id: string;
+  role: BuilderAgentRequest['role'];
+  promptVersion: string;
+  contractRevision: string;
+  instruction: string;
+  input: string;
+  output: string;
+  configuredModel: string;
+  /** Empty means the provider did not report its actual model; never substitute the requested model. */
+  reportedModels: string[];
+  sessionId?: string;
+  runId?: string;
+  phase: 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  startedAt: string;
+  finishedAt?: string;
+  error?: string;
+  activity: BuilderAgentActivity[];
+  usage: unknown[];
+}

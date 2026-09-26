@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { ArtifactsApplicationApi, ArtifactJsonValue } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactsManifest } from "./manifest.js";
 import { artifactVersionPath } from "./browser.js";
@@ -12,11 +13,13 @@ export interface ImportedArtifactDocument {
   source: ExternalDocumentSource | "file";
   source_id: string;
   source_url: string | null;
+  connection_id?: string;
   title: string;
   content: string;
   format: "markdown" | "text";
   warnings: string[];
   original_html?: string;
+  original_file?: { filename: string; mime: string; data_base64: string };
 }
 
 export class ArtifactImportError extends Error {
@@ -31,7 +34,7 @@ export interface ArtifactDocumentImportPorts {
   actorId: string;
   routePrefix: string;
   artifacts: ArtifactsApplicationApi;
-  readExternal(input: { source: ExternalDocumentSource; url: string }): Promise<ImportedArtifactDocument>;
+  readExternal(input: { source: ExternalDocumentSource; url: string; connection_id?: string }): Promise<ImportedArtifactDocument>;
   readHtml(html: string): { title: string; content: string };
   now?: () => string;
   /** Trusted Host checks cancellation/revocation again after external reads and before writes. */
@@ -45,7 +48,8 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   if (source === "file") document = readFileDocument(input, ports.readHtml);
   else if (EXTERNAL_DOCUMENT_SOURCES.includes(source as ExternalDocumentSource)) {
     const url = requiredString(input.url, "请输入文档链接", 4096);
-    document = await ports.readExternal({ source: source as ExternalDocumentSource, url });
+    const connection_id = input.connection_id === undefined ? undefined : requiredString(input.connection_id, "请选择有效连接", 100);
+    document = await ports.readExternal({ source: source as ExternalDocumentSource, url, ...(connection_id ? { connection_id } : {}) });
   } else throw new ArtifactImportError(400, "document.source_invalid", "请选择支持的文档来源");
 
   if (!document.content.trim()) throw new ArtifactImportError(422, "document.empty", "没有读到可导入的正文；请检查文档内容与访问权限");
@@ -59,7 +63,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
   const payload = JSON.parse(JSON.stringify(document)) as ArtifactJsonValue;
   const previous = latest?.payload;
   const sameContent = previous && typeof previous === "object" && !Array.isArray(previous)
-    && Object.entries(document).every(([key, value]) => key === "source_url" || JSON.stringify(previous[key]) === JSON.stringify(value));
+    && Object.entries(document).every(([key, value]) => key === "source_url" || isDeepStrictEqual(previous[key], value));
   if (latest && sameContent && latest.lifecycle_state === "active" && latest.availability === "available") {
     return { artifact_id: artifactId, version: latest.version, reused: true,
       url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings };
@@ -72,7 +76,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
       binding_signature: artifactsManifest.publisher.signature },
     content: { kind: "inline", payload },
     metadata: { source: document.source, source_id: document.source_id, source_url: document.source_url,
-      title: document.title, imported_at: (ports.now ?? (() => new Date().toISOString()))() },
+      title: document.title, imported_at: (ports.now ?? (() => new Date().toISOString()))(), ...(document.connection_id ? { connection_id: document.connection_id } : {}) },
     scope: "personal", supersedes_version: latest?.version ?? null,
   });
   return { artifact_id: artifactId, version: result.artifact.version, reused: false,
@@ -92,15 +96,30 @@ function readFileDocument(input: Record<string, unknown>, readHtml: ArtifactDocu
   const extracted = html ? readHtml(original) : null;
   const title = input.title == null || input.title === "" ? extracted?.title || filename.replace(/\.[^.]+$/u, "")
     : requiredString(input.title, "文档标题无效", 500);
+  let originalFile: ImportedArtifactDocument["original_file"];
+  if (input.original_file !== undefined) {
+    const file = input.original_file as Record<string, unknown>;
+    if (!file || typeof file !== "object") throw new ArtifactImportError(400, "document.original_invalid", "原文件快照无效");
+    const name = requiredString(file.filename, "原文件名无效", 255);
+    if (/[\\/\u0000-\u001f]/u.test(name)) throw new ArtifactImportError(400, "document.original_invalid", "原文件名无效");
+    const mime = requiredString(file.mime, "原文件类型无效", 128);
+    const data = file.data_base64;
+    if (typeof data !== "string" || data.length > 8_000_000 || data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(data)
+      || Buffer.from(data, "base64").toString("base64") !== data || Buffer.from(data, "base64").length > 6_000_000) {
+      throw new ArtifactImportError(413, "document.original_invalid", "原文件必须为有效的 base64，最大 6 MB");
+    }
+    originalFile = { filename: name, mime, data_base64: data };
+  }
   return {
     source: "file",
     // A filename is not a durable remote document ID. Different files with the same name remain separate snapshots.
-    source_id: `${filename}:${digest(original)}`,
+    source_id: input.source_id === undefined ? `${filename}:${digest(original)}` : requiredString(input.source_id, "文档来源标识无效", 512),
     source_url: null, title,
     content: extracted?.content ?? original,
     format: extension === "txt" ? "text" : "markdown",
     warnings: html ? ["HTML 已提取为文本快照，复杂排版、图片和附件未导入；原始 HTML 保存在版本数据中。"] : [],
     ...(html ? { original_html: original } : {}),
+    ...(originalFile ? { original_file: originalFile } : {}),
   };
 }
 

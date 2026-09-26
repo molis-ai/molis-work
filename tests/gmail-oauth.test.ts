@@ -28,13 +28,12 @@ function refs(account: string): GmailTokenRefs {
   return { access: `account:${account}:access`, refresh: `account:${account}:refresh`, expiresAt: `account:${account}:expires` };
 }
 
-test("Gmail rejects invalid callback state, session time, redirect and client drift before exchange or token writes", async () => {
+test("Gmail rejects invalid callback state, session time, redirect before exchange or token writes", async () => {
   const nowMs = Date.now();
-  for (const scenario of ["missing-state", "wrong-state", "expired", "future", "client-drift", "redirect"] as const) {
-    const { flow, values, writes, environment } = fixture();
+  for (const scenario of ["missing-state", "wrong-state", "expired", "future", "redirect"] as const) {
+    const { flow, values, writes } = fixture();
     const createdAt = new Date(nowMs + (scenario === "expired" ? -600001 : scenario === "future" ? 1 : 0)).toISOString();
     const started = await flow.startGmailOAuthFlow({ redirectUri: callback, createdAt });
-    if (scenario === "client-drift") environment.MOLIS_WORK_GMAIL_CLIENT_ID = "other-client";
     if (scenario === "redirect") {
       const ref = `connector:gmail:oauth:pending:${started.state}`;
       const pending = JSON.parse(values.get(ref)!);
@@ -47,7 +46,6 @@ test("Gmail rejects invalid callback state, session time, redirect and client dr
       "wrong-state": /OAuth state mismatch/,
       expired: /session expired/,
       future: /session clock invalid/,
-      "client-drift": /client identity changed/,
       redirect: /redirect must use http/,
     }[scenario];
     await assert.rejects(flow.completeGmailOAuthFlow({
@@ -59,7 +57,7 @@ test("Gmail rejects invalid callback state, session time, redirect and client dr
     assert.equal(values.has(legacy), false);
     assert.equal(values.has("connector:gmail:refresh"), false);
     assert.ok(writes.every((ref) => ref === "connector:gmail:oauth:pending:index"), scenario);
-    if (["expired", "future", "client-drift"].includes(scenario)) {
+    if (["expired", "future"].includes(scenario)) {
       assert.equal(values.has(`connector:gmail:oauth:pending:${started.state}`), false);
       assert.equal(values.has("connector:gmail:oauth:pending"), false);
       await assert.rejects(flow.completeGmailOAuthFlow({ code: "again", state: started.state, nowMs, fetchImpl: async () => assert.fail("cleared session reached provider") }), /No pending Gmail OAuth session/);
@@ -153,4 +151,26 @@ test("Gmail scoped refresh preserves credentials on failure, rotates one account
   assert.equal(values.get(legacy), "other-account-access");
   assert.deepEqual(writes, [tokenRefs.access, tokenRefs.refresh, tokenRefs.expiresAt]);
   assert.deepEqual(await flow.resolveUsableGmailAccessToken({ tokenRefs, nowMs, fetchImpl: async () => assert.fail("fresh access refreshed again") }), result);
+});
+
+
+test("Gmail authorization and forced refresh retain each account's original OAuth application", async () => {
+  const { flow, environment } = fixture();
+  const a = await flow.startGmailOAuthFlow({ redirectUri: callback });
+  environment.MOLIS_WORK_GMAIL_CLIENT_ID = "client-b";
+  const b = await flow.startGmailOAuthFlow({ redirectUri: callback });
+  for (const [account, started] of [["a", a], ["b", b]] as const) {
+    await flow.completeGmailOAuthFlow({ code: "test-code", state: started.state, resolveRefs: () => refs(account), fetchImpl: async (url, init) => {
+      if (url.includes("/token")) {
+        assert.equal(new URLSearchParams(String(init?.body)).get("client_id"), `client-${account}`);
+        return Response.json({ access_token: `access-${account}`, refresh_token: `refresh-${account}`, expires_in: 3600 });
+      }
+      return Response.json({ emailAddress: `${account}@example.test` });
+    } });
+  }
+  const refreshed = await flow.resolveUsableGmailAccessToken({ tokenRefs: refs("a"), forceRefresh: true, fetchImpl: async (_url, init) => {
+    assert.equal(new URLSearchParams(String(init?.body)).get("client_id"), "client-a");
+    return Response.json({ access_token: "fresh-a", expires_in: 3600 });
+  } });
+  assert.deepEqual(refreshed, { ok: true, accessToken: "fresh-a" });
 });

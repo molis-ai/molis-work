@@ -418,6 +418,10 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       return true;
     };
 
+    document.addEventListener('workbench-open-group', event => {
+      if (event.detail?.surface === 'feed' && typeof event.detail.id === 'string') setFeedTask(event.detail.id);
+    });
+
     const setFeedDetailPlaceholder = (title, copy, retry = false) => {
       if (!feedDetailEmpty) return;
       const titleNode = feedDetailEmpty.querySelector("[data-feed-detail-empty-title]");
@@ -535,6 +539,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         }
         setFeedTask(selectedFeedTask, false);
         feedSourcesDialog?.querySelectorAll("[data-feed-config-section]").forEach(section => section.hidden = section.dataset.feedConfigSection !== feedConfigView);
+        if (!feedSourcesDialog?.hidden && feedConfigView === "rules") hydrateFeedRuleDrafts();
         if (!feedSourcesDialog?.hidden && feedConfigView === "settings") void loadFeedConnections(feedSourcesDialog.querySelector('[data-feed-task-config]:not([hidden])'));
         if (selectedId) selectFeedItem(selectedId, false, false, false);
         list.scrollTop = scrollTop;
@@ -898,6 +903,18 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         const copy = option.querySelector("span");
         if (copy) copy.textContent = label;
       });
+    };
+
+    const openRequestedFeedRule = () => {
+      const id = new URL(location.href).searchParams.get("feedRule");
+      if (!id) return;
+      const row = document.querySelector('[data-feed-out-rule-row="' + CSS.escape(id) + '"]');
+      const sourceId = row?.closest("[data-feed-out-rules]")?.dataset.feedOutRules;
+      if (!sourceId) { showToast(L("原捕捉规则不存在，可能已经删除。")); return; }
+      tabWorkspace?.openPlugin("feed");
+      setFeedTask(sourceId);
+      showFeedView("rules");
+      requestAnimationFrame(() => row.scrollIntoView({ block: "nearest", behavior: "instant" }));
     };
 
     const setFeedPreset = (preset, restoreSavedState = true) => {

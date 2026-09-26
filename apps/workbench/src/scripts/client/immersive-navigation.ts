@@ -164,7 +164,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   // The plugin list is one Tab stop: the current plugin is tabbable, arrows move between plugins.
   const railItems = pluginRail?.querySelector(".plugin-rail-items");
   if (railItems) {
-    const railButtons = () => [...railItems.querySelectorAll("[data-plugin-id]")].filter((button) => button.getClientRects().length && !button.disabled);
+    const railButtons = () => [...railItems.querySelectorAll("[data-plugin-id], a.plugin-rail-item")].filter((button) => button.getClientRects().length && !button.disabled);
     const syncRailTabStop = () => {
       const buttons = railButtons();
       const current = buttons.find((button) => button.classList.contains("is-current") || button.getAttribute("aria-current") === "page") || buttons[0];
@@ -173,7 +173,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     railItems.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
       const buttons = railButtons();
-      const index = buttons.indexOf(event.target.closest("[data-plugin-id]"));
+      const index = buttons.indexOf(event.target.closest("[data-plugin-id], a.plugin-rail-item"));
       if (index < 0) return;
       event.preventDefault();
       const next = event.key === "Home" ? buttons[0] : event.key === "End" ? buttons.at(-1)

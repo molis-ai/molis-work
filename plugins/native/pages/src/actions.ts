@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord, PagesInputSnapshot, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { preparePagesImport, type PagesImportFile, type PreparedPagesImport } from "./import-files.js";
@@ -60,7 +60,7 @@ export const PAGES_ACTIONS: readonly ActionDefinition[] = Object.values(pagesAct
 export const PAGES_ACTION_PERMISSIONS = [...new Set(PAGES_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface PagesActionPorts {
   withStore<T>(run: (store: PagesStore) => T): T;
-  completeText?(prompt: string, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: string, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   modelAvailability(): ActionAvailability;
   publishArtifact?: (input: Parameters<PagesPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesPublishArtifactPort>;
   readArtifact?: (input: Parameters<PagesReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesReadArtifactPort>;
@@ -70,7 +70,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
     return caller.project_id;
   };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
@@ -91,7 +91,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       const documents = prepared.documents.filter(document => input.selected_keys.includes(document.key));
       const folder_id = input.folder_id?.trim() ?? "";
       const request_hash = createHash("sha256").update(JSON.stringify({ files: input.files, selected_keys: [...input.selected_keys].sort(), folder_id })).digest("hex");
-      caller.signal?.throwIfAborted();
+      await caller.beforeEffect();
       return ports.withStore(store => ({ documents: store.importDocuments({ project_id: project(caller), request_id: input.request_id.toLowerCase(), request_hash, folder_id, documents }),
         warnings: [...new Set([...prepared.warnings, ...documents.flatMap(document => document.warnings)])] }));
     }),
@@ -101,13 +101,13 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.generate, (input, caller) => {
       if (input.inputs.reduce((sum, item) => sum + item.body.length, 0) > 100_000) throw new ActionError("pages.invalid", "材料过长，请减少所选条目");
       const record: PagesGenerationRecord = { ...input, project_id: project(caller), status: "running", document_id: null, error: null, updated_at: new Date().toISOString() };
-      return generatePagesFromMaterials(ports.withStore, record, ports.completeText ? prompt => ports.completeText!(prompt, { signal: caller.signal }) : undefined, caller.signal);
+      return generatePagesFromMaterials(ports.withStore, record, ports.completeText ? prompt => ports.completeText!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined, caller.signal, caller.beforeEffect);
     }, () => ports.modelAvailability()),
     bind(pagesActions.ai, async (input, caller) => {
       const snapshot = ports.withStore(store => store.get(input.id, project(caller)));
       if (input.expected_version !== undefined && snapshot.version !== input.expected_version) throw new ActionError("pages.conflict", "文档已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
-      const result = await runPagesAi(input, ports.completeText ? prompt => ports.completeText!(prompt, { signal: caller.signal }) : undefined);
+      const result = await runPagesAi(input, ports.completeText ? prompt => ports.completeText!(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }) : undefined);
       caller.signal?.throwIfAborted();
       const current = ports.withStore(store => store.get(input.id, project(caller)));
       if (current.version !== snapshot.version) throw new ActionError("pages.conflict", "生成期间文档已改变，请重新生成");

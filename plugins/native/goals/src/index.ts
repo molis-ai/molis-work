@@ -122,7 +122,7 @@ export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsCoverageIt
 
 export { countGoalDecisions } from "./decision-groups.js";
 
-export { buildGoalsDocumentCollection } from "./document-collection.js";
+export { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 export type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 export * from "./board-v3-import.js";
 export { handleGoalsWebHttp } from "./http/index.js";

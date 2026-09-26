@@ -1,7 +1,3 @@
-import {
-  FUNCTION_AUTHORING_SUBJECTS,
-  functionAuthoringDestinations,
-} from "@molis-ai/molis-work-contracts/modules/functions";
 import { icon } from "@molis-ai/molis-work-design-system";
 
 export interface FunctionsUiPrimitives {
@@ -16,15 +12,6 @@ export interface FunctionsUiModel {
 
 export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
   const { primitives: p } = model;
-  const sources = FUNCTION_AUTHORING_SUBJECTS.map((row) => (
-    `<label class="functions-chip"><input class="mw-check" type="checkbox" data-functions-source="${p.escape(row.subject_kind)}"><span>${p.text(row.title)}</span></label>`
-  )).join("");
-  const destinations = functionAuthoringDestinations().map((row) => (
-    `<button class="functions-dest" type="button" data-functions-destination="${p.escape(row.destination_id)}" data-kind="${p.escape(row.kind)}">
-      <strong>${p.text(row.title)}</strong>
-      <small>${p.text(row.when)}</small>
-    </button>`
-  )).join("");
   return `<section class="functions-system-editor plugin-stage-shell" data-functions="workbench" data-expanded="false">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-functions="directory">
       <header class="plugin-stage-chrome functions-stage-chrome">
@@ -61,7 +48,6 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
               <p class="functions-hint">${p.text("选择用途后，再写判断规则。也可以先做一个独立函数。")}</p>
               <div class="functions-dest-list">
                 <button class="functions-dest" type="button" data-functions-destination="" data-kind="none"><strong>${p.text("独立使用")}</strong><small>${p.text("先写规则、试跑，暂不接入页面。")}</small></button>
-                ${destinations}
               </div>
               <p class="functions-hint" data-functions-choice-only hidden>${p.text("评分用于独立试跑或 Agent 调用；页面按钮需要选择或是非判断。")}</p>
               <p class="functions-context-note" data-functions-destination-hint></p>
@@ -69,7 +55,7 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
             <details class="functions-details" data-functions-subject-details><summary>${p.text("限定判断对象（可选）")}</summary>
               <fieldset class="functions-fieldset" data-functions-sources><legend>${p.text("判断对象")}</legend>
                 <p class="functions-hint">${p.text("不选时显示该用途的全部动作；选择对象只筛选建议动作，不会自动读取数据。")}</p>
-                <div class="functions-chips" data-functions-subject-list>${sources}</div>
+                <div class="functions-chips" data-functions-subject-list></div>
               </fieldset>
             </details>
           </section>
@@ -87,8 +73,8 @@ export function renderFunctionsWorkbench(model: FunctionsUiModel): string {
               </details>
             </section>
             <section class="functions-map" data-functions-map-panel>
-              <div class="functions-criteria-head"><strong>${p.text("结果对应的页面动作")}</strong></div>
-              <p class="functions-hint">${p.text("每个结果都需要对应一个动作，才能在所选页面启用。")}</p>
+              <div class="functions-criteria-head"><strong data-functions-map-title>${p.text("结果对应的页面动作")}</strong></div>
+              <p class="functions-hint" data-functions-map-hint>${p.text("每个结果都需要对应一个动作，才能在所选页面启用。")}</p>
               <div data-functions-map></div>
             </section>
             <details class="functions-details"><summary>${p.text("高级：调用标识")}</summary><label class="functions-field">${p.text("函数 key")}<input class="mw-input" data-functions-key spellcheck="false" autocomplete="off"><small>${p.text("供 Agent 和接口调用，已自动生成；发布后不能改。")}</small></label></details>

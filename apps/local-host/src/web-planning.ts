@@ -81,7 +81,7 @@ export function createLocalPlanningHttp(ports: {
     return false;
   }
   async function project(request: IncomingMessage, response: ServerResponse, url: URL,
-    controlToken: string, readWebView: () => MolisWorkWebView, actions: BoundActionClient, homeActions: BoundActionClient,
+    controlToken: string, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, actions: BoundActionClient, homeActions: BoundActionClient,
   ): Promise<boolean> {
     const route = request.method === "GET" ? matchGoalsPlanningRoute(url.pathname, "project") : null;
     let pageMethods: PlanningMethodPack[] = [];
@@ -89,8 +89,9 @@ export function createLocalPlanningHttp(ports: {
       try { pageMethods = (await actions.invoke(goalsActions.planningRead, {})).methods; }
       catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) }); return true; }
     }
+    const pageView = route ? await readWebView() : null;
     const projectPlanningPage = renderWorkbenchPlanningRequest(request.method, url.pathname, "project", () => {
-      const view = readWebView();
+      const view = pageView!;
       const methods = pageMethods;
       return {
         methods,

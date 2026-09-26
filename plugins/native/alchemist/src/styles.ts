@@ -1,4 +1,5 @@
-export const ALCHEMIST_STYLES = `
+import { WORK_REUSE_STYLES } from "./work-reuse/ui.js";
+export const ALCHEMIST_STYLES = WORK_REUSE_STYLES + `
 [data-alchemist=workbench] { color:var(--ink); font-size:13px; }
 [data-alchemist=workbench] button,[data-alchemist=workbench] input,[data-alchemist=workbench] textarea { font:inherit; }
 .alc-list { padding-top:58px; }

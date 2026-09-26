@@ -1,9 +1,12 @@
+import { HOME_TALK_PERMISSIONS } from "./home-talk-actions.js";
+import { localWebActionContext } from "./local-web-actions.js";
+import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
+import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CapabilitiesView, CapabilitySection } from "@molis-ai/molis-work-app-workbench";
 import { INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
@@ -19,10 +22,10 @@ export async function capabilitiesView(options: {
   const project = projectId && (section === "library" || section === "history") ? await withCatalog({ homeDirectory }, catalog => catalog.getProject(projectId)) : null;
   const reference = project ? molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id }) : undefined;
   // Same local-user grants as the existing Inbox/Functions HTTP composition; never from query parameters.
-  const caller: ActionCallContext = { actor_id: "web-user", project_id: projectId, audience: "user",
-    permissions: [...COGNIA_ACTION_PERMISSIONS, ...JELLY_ACTION_PERMISSIONS, ...(reference ? [...INBOX_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, ...LINGGUANG_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, "functions:manage"] : ["functions:invoke", "functions:manage"])] };
+  const builtinPermissions = [...COGNIA_ACTION_PERMISSIONS, ...JELLY_ACTION_PERMISSIONS, ...(reference ? [...WORK_ACTION_PERMISSIONS, ...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, ...INBOX_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, ...LINGGUANG_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, "functions:manage"] : ["functions:invoke", "functions:manage"])];
   const model: CapabilitiesView = { section, actions: [], query: url.searchParams.get("q") ?? "", kind: url.searchParams.get("kind") ?? "" };
   if (section === "library") {
+    const caller = await localWebActionContext(host, reference, builtinPermissions);
     const actions = await (reference ? host.actionClient(reference) : host.homeActionClient()).discover(caller);
     const selectedId = url.searchParams.get("action");
     const selected = actions.find(item => item.capability_id === selectedId && item.version === Number(url.searchParams.get("version")));

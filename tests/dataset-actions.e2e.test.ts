@@ -60,6 +60,7 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   await evaluate('window.restoreDatasetFetch()');
   await input('[data-dataset-version-note]', '两行快照'); await click('[data-dataset-snapshot]'); await idle();
   const snapshotColumns = read()[0]!.columns.length;
+  await click('.dataset-assist > summary');
   await input('[data-dataset-ai-prompt]', '本地列'); await click('[data-dataset-generate]'); await idle();
   assert.equal(modelCalls, 0); assert.equal(read()[0]!.columns.at(-1)!.name, '本地列');
   await input('[data-dataset-ai-prompt]', '截止时间'); await click('[data-dataset-generate-ai]'); await idle();
@@ -79,9 +80,13 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
       await new Promise(resolve => setTimeout(resolve, 50));
     }
   };
-  await click('[data-dataset-export-csv]'); await idle();
+  const moreClick = async (selector: string) => {
+    if (!await evaluate("document.querySelector('[data-dataset-stage-workspace] .plugin-stage-more').open")) await click('[data-dataset-stage-workspace] .plugin-stage-more > summary');
+    await click(selector);
+  };
+  await moreClick('[data-dataset-export-csv]'); await idle();
   assert.deepEqual(parseCsv(await exportedFile('第二笔.csv', toCsv(read()[0]!))).rows.map(row => Object.values(row.cells)), read()[0]!.rows.map(row => Object.values(row.cells)));
-  await click('[data-dataset-export-json]'); await idle();
+  await moreClick('[data-dataset-export-json]'); await idle();
   assert.deepEqual(JSON.parse(await exportedFile('第二笔.json', JSON.stringify(read()[0]!, null, 2))).rows, read()[0]!.rows);
   // An external writer changes the version. A stale publish must retain input and do nothing.
   const other = openDatasetStore(homeDirectory);
@@ -95,7 +100,7 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   const output = new URL('../.impeccable/review/action-service/', import.meta.url); await mkdir(output, { recursive: true });
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(new URL(`dataset-conflict-${width}.png`, output), Buffer.from((await command<{data:string}>('Page.captureScreenshot', {format:'png'}, sessionId)).data, 'base64'));
-  await click('[data-dataset-reload]'); await waitFor("document.querySelector('[data-dataset-confirm]').open");
+  await moreClick('[data-dataset-reload]'); await waitFor("document.querySelector('[data-dataset-confirm]').open");
   await click('[data-dataset-confirm] [data-confirm-ok]'); await idle();
   assert.equal(await evaluate("document.querySelector('[data-dataset-title]').value"), '另一客户端修改');
   // Interrupted Artifact association is visible and can be resumed after fresh reading.
@@ -106,7 +111,7 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
     assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '恢复发布');
     db.exec('DROP TRIGGER fail_dataset_ui_publication');
   } finally { db.close(); }
-  await click('[data-dataset-reload]'); await idle();
+  await moreClick('[data-dataset-reload]'); await idle();
   assert.equal(await evaluate("document.querySelector('[data-dataset-artifact-bar]').textContent"), '恢复发布');
   await input('[data-dataset-description]', '发布中继续编辑'); await saved();
   await evaluate("document.querySelector('[data-dataset-publication-note]').scrollIntoView({block:'nearest'})");
@@ -139,6 +144,7 @@ test('Dataset without a model disables AI while local creation and column edits 
   await waitFor("document.querySelector('[data-plugin-id=dataset]')");
   if (await evaluate('document.body.dataset.desktopSurface') !== 'dataset') await click('[data-plugin-strip] [data-plugin-id=dataset]');
   await click('[data-dataset-new]'); await waitFor("document.querySelector('[data-dataset=workbench]').getAttribute('aria-busy') === 'false'");
+  await click('.dataset-assist > summary');
   assert.equal(await evaluate("document.querySelector('[data-dataset-generate-ai]').disabled"), true);
   assert.match(await evaluate<string>("document.querySelector('[data-dataset-ai-reason]').textContent"), /模型/);
   await evaluate("document.querySelector('[data-dataset-ai-prompt]').value='手工列'"); await click('[data-dataset-generate]');

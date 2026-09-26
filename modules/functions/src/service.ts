@@ -1,7 +1,10 @@
 import {
+  AGENT_MCP_DESTINATION_ID,
   FUNCTIONS_CREDENTIAL_REF,
+  NOUL_POSITIVE_THRESHOLD,
   filterSuggestedBehaviorIds,
   functionFitsScene,
+  functionOutputKeys,
   mapJudgmentChoice,
   type FunctionDescribe,
   type FunctionDraftPatch,
@@ -14,7 +17,6 @@ import {
   type FunctionsPrimitive,
   type FunctionsSecretPort,
   type FunctionsSettingsStatus,
-  type JudgeFunctionInput,
   type JudgmentRecord,
   type TypeSafeEvaluateResult,
   type TypeSafeProvider,
@@ -29,7 +31,6 @@ export interface FunctionsServiceOptions {
   readonly secrets: FunctionsSecretPort;
   readonly env?: NodeJS.Dict<string>;
   readonly provider?: TypeSafeProvider;
-  readonly allowed_behavior_ids?: readonly string[] | (() => readonly string[]);
 }
 
 const missingProvider: TypeSafeProvider = {
@@ -43,18 +44,12 @@ export class FunctionsService {
   private readonly secrets: FunctionsSecretPort;
   private readonly env: NodeJS.Dict<string>;
   private readonly provider: TypeSafeProvider;
-  private readonly behaviorIds: readonly string[] | (() => readonly string[]);
 
   constructor(options: FunctionsServiceOptions) {
     this.store = options.store;
     this.secrets = options.secrets;
     this.env = options.env ?? {};
     this.provider = options.provider ?? missingProvider;
-    this.behaviorIds = options.allowed_behavior_ids ?? [];
-  }
-
-  private get allowedBehaviorIds(): readonly string[] {
-    return typeof this.behaviorIds === "function" ? this.behaviorIds() : this.behaviorIds;
   }
 
   list(): FunctionRecord[] {
@@ -153,17 +148,24 @@ export class FunctionsService {
     return this.store.savePreview(id, preview, expectedUpdatedAt);
   }
 
-  async invokePublished(functionKey: string, input: string, context: { version?: number; config_hash?: string; project_id?: string; signal?: AbortSignal; record_history?: boolean; before_result?: () => void | Promise<void> } = {}): Promise<FunctionInvokeResult> {
+  async invokePublished(functionKey: string, input: string, context: { version?: number; config_hash?: string; project_id?: string; signal?: AbortSignal; record_history?: boolean;
+    before_evaluate?: (record: FunctionRecord) => void | Promise<void>; before_result?: (record: FunctionRecord) => void | Promise<void> } = {}): Promise<FunctionInvokeResult> {
     const current = this.store.requirePublishedByKey(functionKey);
     if ((context.version !== undefined && context.version !== current.version)
       || (context.config_hash !== undefined && context.config_hash !== current.config_hash)) {
       throw new FunctionsError("functions.version_conflict", "判断规则版本已变化，请重新确认绑定");
     }
+    await context.before_evaluate?.(current);
     const result = await this.evaluate(current, input, context.signal);
     const outcome = outcomeOf(result);
-    const allowed = this.allowedBehaviorIds;
-    const suggested = outcome === "ok" ? filterSuggestedBehaviorIds(allowed, allowed, mapJudgmentChoice(current, result)) : [];
-    await context.before_result?.();
+    // A published rule returns its authored symbols; only the consumer can decide
+    // whether a referenced business action is currently authorized and prepared.
+    const targets = functionOutputKeys(current).map(key => current.scene_map[key] ?? key);
+    const suggested = outcome === "ok" && current.scene_id !== AGENT_MCP_DESTINATION_ID && (current.scene_id || Object.keys(current.scene_map).length)
+      ? filterSuggestedBehaviorIds(targets, targets, mapJudgmentChoice(current, result)) : [];
+    const outputKey = current.primitive === "choice" ? result.choice : current.primitive === "noul" && result.noul !== null ? result.noul >= NOUL_POSITIVE_THRESHOLD ? "true" : "false" : null;
+    const action = outcome === "ok" && outputKey ? current.action_map?.[outputKey] : undefined;
+    await context.before_result?.(current);
     context.signal?.throwIfAborted();
     if (context.record_history !== false) this.store.recordJudgment({
       function_key: current.function_key,
@@ -172,11 +174,13 @@ export class FunctionsService {
       scene_id: null,
       outcome,
       suggested_behavior_ids: suggested,
+      recommended_actions: action ? [{ ...action }] : [],
       error_code: null,
     });
     return {
       status: outcome,
       suggested_behavior_ids: suggested,
+      recommended_actions: action ? [{ ...action }] : [],
       function_key: current.function_key,
       version: current.version!,
       model: result.model || current.model,
@@ -198,8 +202,8 @@ export class FunctionsService {
     return this.store.getActionSceneBinding(sceneId, boardId, ref);
   }
 
-  saveActionSceneBinding(boardId: string, binding: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneBinding, legacyKey = "") {
-    return this.store.setActionSceneBinding(boardId, binding, legacyKey);
+  saveActionSceneBinding(boardId: string, binding: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneBinding, legacyKey = "", expectedRevision?: string | null) {
+    return this.store.setActionSceneBinding(boardId, binding, legacyKey, expectedRevision);
   }
 
   sceneBinding(sceneId: string, boardId?: string | null, ref?: string | null): FunctionSceneBinding | null {
@@ -226,46 +230,16 @@ export class FunctionsService {
     return this.store.listJudgments();
   }
 
+  latestSceneJudgments(boardId: string, sceneId: string): JudgmentRecord[] {
+    return this.store.latestSceneJudgments(boardId, sceneId);
+  }
+
   latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, boardId?: string, sceneId?: string | null): JudgmentRecord | null {
     return this.store.latestJudgment(kind, id, boardId, sceneId);
   }
 
-  async judge(input: JudgeFunctionInput): Promise<JudgmentRecord> {
-    const available = this.allowedBehaviorIds;
-    const allowed = available.length > 0 ? available : input.offered_behavior_ids;
-    const offered = input.offered_behavior_ids;
-    try {
-      const current = this.store.requirePublishedByKey(input.function_key);
-      const result = await this.evaluate(current, input.input);
-      const outcome = outcomeOf(result);
-      const suggested = outcome === "ok"
-        ? filterSuggestedBehaviorIds(offered, allowed, mapJudgmentChoice(current, result))
-        : [];
-      return this.store.recordJudgment({
-        function_key: current.function_key,
-        function_version: current.version!,
-        subject: input.subject,
-        scene_id: input.scene_id ?? null,
-        outcome,
-        suggested_behavior_ids: suggested,
-        error_code: null,
-      });
-    } catch (error) {
-      const code = error instanceof FunctionsError ? error.code : "functions.failed";
-      return this.store.recordJudgment({
-        function_key: input.function_key,
-        function_version: 0,
-        subject: input.subject,
-        scene_id: input.scene_id ?? null,
-        outcome: "needs_review",
-        suggested_behavior_ids: [],
-        error_code: code,
-      });
-    }
-  }
-
-  publish(id: string, expectedUpdatedAt?: string): FunctionRecord {
-    return this.store.publish(id, expectedUpdatedAt);
+  publish(id: string, expectedUpdatedAt?: string, scene?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference): FunctionRecord {
+    return this.store.publish(id, expectedUpdatedAt, scene);
   }
 
   private async evaluate(record: FunctionRecord, input: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult> {

@@ -3,7 +3,7 @@ import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectRef
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { readProjectReference } from "@molis-ai/molis-work-module-evidence-verification";
 import { runWithMolisWorkHome, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
+import { documentImportConnections, documentImportConnectionStatus, importLocalArtifactDocument } from "./artifact-document-import.js";
 import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./project-host.js";
 
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor" | "actionAvailability">): ActionProviderRegistration {
@@ -16,6 +16,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       boardId: runtime.board_id, artifacts: runtime.coordinator.artifacts,
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.board_id }).query,
       importSources: () => runWithMolisWorkHome(home, documentImportConnectionStatus),
+      importConnections: () => documentImportConnections(home),
       importDocument: (input, caller, definition) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
         boardId: runtime.board_id, actorId: caller.actor_id, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
         artifacts: runtime.coordinator.artifacts,

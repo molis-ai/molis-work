@@ -105,6 +105,10 @@ test("项目那一层由宿主补，而且被强制标成 project —— 不管�
     async createSession() {
       return { session_id: "session-1", runtime_id: "probe" };
     },
+    async readSession(session: unknown) {
+      return { session, owner: { board_id: "board-1", plugin_id: "io.molis.work.coding", install_id: "install-1", actor_id: "tester" },
+        title: "probe", runs: [], latest_run: null };
+    },
     async start(request) {
       for (const prompt of request.role.prompts) {
         captured.push({ prompt_id: prompt.prompt_id, layer: prompt.layer });

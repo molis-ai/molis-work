@@ -144,6 +144,7 @@ export const FUNCTIONS_STYLES = `
   .functions-preview-head small { color: var(--muted); }
   .functions-usages strong { font-size: 12px; font-weight: 500; color: var(--ink); }
   .functions-usages p { margin: 0; color: var(--ink-soft); }
+  .functions-usage-target { display: grid; gap: 6px; padding-top: 6px; overflow-wrap: anywhere; }
   .functions-usages .mw-btn { align-self: start; }
   .functions-meter { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
   .functions-meter > i { display: block; height: 100%; background: var(--ink); }

@@ -3,7 +3,7 @@ import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
-  const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem } = host;
+  const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
   const market = document.querySelector('[data-work-surface="market"]');
   const selector = market.querySelector("[data-market-project]");
   const trigger = market.querySelector("[data-market-project-trigger]");
@@ -113,6 +113,12 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       button.dataset.marketMembership = added ? "added" : "available";
       button.textContent = added ? L("移除") : L("添加");
       const currentProject = selector.value === projectId;
+      const openButton = card.querySelector('[data-market-open]');
+      openButton.hidden = !added || !currentProject;
+      openButton.disabled = pending;
+      button.classList.toggle('mw-btn--ghost', added);
+      button.classList.toggle('mw-btn--secondary', !added);
+      button.setAttribute('aria-label', (added ? L('移除') : L('添加')) + ' ' + card.querySelector('h2').textContent);
       const update = added && currentProject ? updates.find(item => item.project_plugin_id === card.dataset.marketPlugin && item.plugin_id === card.dataset.marketRuntimeId) : null;
       const upgradeButton = card.querySelector("[data-market-upgrade]");
       upgradeButton.dataset.marketUpgrade = update?.plugin_id || "";
@@ -173,6 +179,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   market.querySelector(".plugin-market-body").addEventListener("scroll", placeProjectMenu, { passive: true });
   addEventListener("resize", placeProjectMenu);
   market.addEventListener("click", async event => {
+    const open = event.target.closest('[data-market-open]');
+    if (open) { openPlugin?.(open.dataset.marketOpen); if (matchMedia('(max-width: 600px)').matches) setMobileView('document'); return; }
     const chosen = event.target.closest("[data-market-project-option]");
     if (chosen) {
       selector.value = chosen.dataset.marketProjectOption;
@@ -244,7 +252,13 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (storedPath === route("/artifacts") || storedPath?.startsWith(route("/artifacts/"))) artifactPath = storedPath;
   } catch {}
   const loadArtifacts = async (path = artifactPath || route("/artifacts")) => {
-    if (!artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) return;
+    if (!artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) {
+      const selected = Boolean(detail.querySelector('[data-artifact-id]'));
+      document.querySelector('[data-artifact-stage-shell]')?.setAttribute('data-expanded', String(selected));
+      const workspace = document.querySelector('[data-artifact-stage-workspace]');
+      if (workspace) workspace.hidden = !selected;
+      return;
+    }
     artifactRequest?.abort();
     const controller = new AbortController(); artifactRequest = controller;
     const message = document.createElement("p"); message.textContent = L("正在读取成果…"); message.role = "status";
@@ -278,7 +292,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const collapse = event.target.closest("[data-artifact-collapse]");
     if (collapse) {
       event.preventDefault();
-      setSurface("artifacts");
+      openPlugin?.("artifacts");
       void loadArtifacts(route("/artifacts"));
       return;
     }
@@ -295,6 +309,12 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     void loadArtifacts(url.pathname);
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });
+  document.querySelector('[data-work-surface=artifacts]')?.addEventListener('molis-work:select-item', event => {
+    const base = route('/artifacts');
+    const path = event.detail.itemId || base;
+    if (path !== base && !path.startsWith(base + '/')) return;
+    void loadArtifacts(path);
+  });
   void refreshUpdates();
-  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(route("/artifacts")); } };
+  return { open: surface => { if (surface === "market") void loadMarket(); if (surface === "artifacts" && !artifactRequest) void loadArtifacts(); } };
 }`;

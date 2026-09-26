@@ -97,7 +97,11 @@ Plugin Builder 将每次发布保存为独立版本记录。发布新版只产�
 
 Host 的动作客户端和场景客户端共享项目运行时与执行队列。兼容场景通过输入输出及语义合同发现，使用位置从原业务配置读取；新增插件不改中央能力或场景 ID 名单。插件有业务权限不代表外部 MCP 客户端有同样权限。细节与示例见 [SDK](../../packages/plugin-sdk/README.md#动作与判断消费场景)、[Inbox 场景](../../plugins/native/inbox/src/scenes.ts)、[实际自动触发验证](../../tests/inbox-automatic-scenes.test.ts)。
 
-当前范围：Inbox 显式判断、入箱事件、来源/连接器同步、定时故障入箱和工作流交接已进入共同场景；Feed 筛选、首页建议、部分旧编辑器及完整系统管理 UI 尚在迁移。下面的 `mcp_exports` 和 `function_scenes` 说明用于维护存量兼容入口，不作为新增能力需要再建一套目录或白名单的理由。
+系统规则编辑器通过场景 owner 的 `targets` / `bind` 自动显示真实配置位置。场景声明 `configuration_permissions`，配置保存携带准确提供方和原 revision；原 owner 原子拒绝过期修改。目录查询不创建规则，停用保留原引用。具体接口和权限边界见 SDK。
+
+无需再手写一份 MCP 管理工具。Host 会从上述合同生成查看位置、启用、停用三项动作，沿用场景的版本、提供方和生命周期，进入现有能力目录及对外授权设置。只有消费场景、没有自定义动作的插件也适用。配置权限与运行权限独立；缺少模型或执行权限时，有配置权的用户仍能停用原绑定。外部客户端须获具体管理动作的授权，不能借其他动作的同名权限执行。
+
+当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者。Agent 旧行为目录、其他存量消费者和完整系统管理体验仍在迁移。以下 `mcp_exports` 仅用于维护已有兼容入口，不作为新增能力再建目录或名单的理由。
 
 ## 对外 MCP
 
@@ -137,42 +141,15 @@ Functions「用在哪」里，首页 / Inbox / Feed 是事件去向：判断本�
 
 Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等收据归 Pages，Attention 仍归 Inbox 对应 Module。Workbench 助手复用这些 HTTP 动作；未新增对外 MCP 或 Native 事件总线。标签对象恢复与调用约定见 [Host 接线](../../skills/molis-plugin-dev/host.md#信息整理的-host-组合)。
 
-**判断能选的动作，是人正盯着这个对象时、已经能点的下一步处置。不是插件所有能改数据的事。**
+**判断可推荐的动作，必须是该对象上真实可执行的处置。** 推荐不是执行授权；用户执行建议时仍要准备实际参数并核对当前对象和权限。
 
-一个动作要出现在某个事件去向，四问都要过：
+首页从插件的 subject offers 声明派生推荐选项。动作身份包含原查询、版本、提供方及 offer_id，插件返回真实事项对应的输入；不能用同名字符串把两个插件的处置混为一谈。未声明为规则选项的按钮仍可手动操作，不因此自动进入判断结果。
 
-1. **现在盯着的就是这个对象吗？** 看的是这封邮件，不是这个来源的设置页。
-2. **这颗按钮现在就在这个画面上，点了真会发生吗？** 没接线的写最多进 Agent，不进首页 / Inbox / Feed。
-3. **它是「这件事接下来怎么处理」里的选项吗？** 进 Inbox、存起来、变成 Goal、忽略、做完了——是。打开看看、说一句、重新打开、标已读——通常不是，那些常驻或留给别的时刻。
-4. **AI 选中它，只是建议人去点，不会自己写吗？** 自己执行的写放到 Agent。
+新增判断消费者应声明 `action_scenes`，说明触发时机、实际输入、接受的结果和消费效果，并兑现原数据的读取与写入。系统从合同检查兼容性；不能靠加入 `function_scenes` 或 Host 白名单获得一个看似可用的用途。仅有场景名称、没有业务触发和消费，不能宣称接入完成。
 
-四问都过：写入该去向的 `function_scenes` 行为池，并在 Manifest `behaviors` 声明（公开名 `{插件短名}.{behavior_id}`，与系统已有 id 撞号时沿用系统项）。  
-1、2 过、3 不过：画面上留着，不给判断挑。  
-只有插件能写、这画面没有这颗按钮：最多给 Agent。  
-没有「对象到来 / 点开这件事、从几颗处置里挑一个」这种时刻：不要新开「用在哪」一行。
+例如 Feed 捕捉读取原消息，只有规则明确配置自动入箱时才消费相应结果；Home 返回推荐，执行仍由原 offers 处理器完成。导航、来源设置和账号管理是否出现在某个场景，应由实际对象和消费合同决定，不把插件所有能力都加入一个统一选项池。
 
-现有事件去向：
-
-| 去向 | 何时 | 进池的处置 | 不进池 |
-| --- | --- | --- | --- |
-| `home.dock` | 点开首页事件 | 接着做、做完了、忽略、重新授权、问问怎么回事、打开 | 说一句（永远在）；MCP |
-| `inbox.next` | Inbox 新事项 | 做完了、忽略 | 查看原消息、重新打开 |
-| `feed.capture` | Feed 消息到来 / 详情处置 | 加入 Inbox、保存为资料、升格为 Goal、忽略；`feed.open` 只用于映射「留在 Feed」，不画成 footer 按钮 | 打开原文、标已读、恢复、来源设置 / token / 计划 |
-| `agent.mcp` | 给 Agent 调 | 行为总表（含 MCP） | 不画进首页 / Inbox / Feed 卡底 |
-
-### 判例
-
-- **Feed 详情四条去向**进 `feed.capture`。详情已经能点，且互为「这条消息接下来去哪」。
-- **打开原文、查看来源**不进池。人已经在看这条消息；那是导航，不是处置。
-- **说一句**不进首页池。规定永远在，判断不能把它藏掉。
-- **Inbox 重新打开、Feed 恢复**不进池。那是历史条目上的反向动作，不是新事项到来时的下一步。
-- **来源立刻拉取、改计划、存 token、重新授权出现在来源页时**不进 `feed.capture`。对象是来源，不是这条消息。`feed.reauth` 只因为首页事件卡上已经有这颗按钮，才进 `home.dock`。
-- **Pages / Forms / Dataset / PPT 的 create、update、promote** 走 MCP，进 Agent。它们的工作台是编辑工具，不是「一条外来消息该去哪」。
-- **GitHub `whoami`、Connectors 连接/断开**在设置页，进 Agent 或设置，不进 Feed / Inbox。
-- **Goals 采用/退回方案、灵光丢掉/分发**是对象上的处置，但今天没有 Functions 事件场景（判断何时跑、建议如何亮按钮都未接线）。先不要新开去向行；要进 Functions 时另写场景和接线，不塞进 Feed / Inbox。
-- **标已读、目录筛选、保存演示配置**不是下一步处置。
-
-插件作者改 Manifest 时：先给现场接好点击路径，再声明 `behaviors`，最后才把 id 放进某个 `function_scenes` 的池。只声明能写、现场没有按钮，函数页会建议一颗点不了的动作。现场池的合同入口是 `packages/contracts` 的 `sceneBehaviorIds` / `defaultFeedCaptureBehaviorIds`；Host 合成总表见 `apps/local-host` 的 `behavior-catalog.ts`。这些是存量页面的旧池，新增判断消费者使用上面的统一 `action_scenes`，不要继续扩充硬编码去向。接线见 Skill [host.md · 统一判断场景](../../skills/molis-plugin-dev/host.md#接到统一判断场景)。需求书：[事件去向的动作范围](../../specs/archive/function-scene-action-scope/spec.md)。整插件怎么排顺序、MCP/事件/UI 怎么一起考量： [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md)。
+接入步骤与当前迁移边界见 [SDK](../../packages/plugin-sdk/README.md#动作与判断消费场景)、[Host 接线](../../skills/molis-plugin-dev/host.md#接到统一判断场景)及[迁移清单](../../specs/action-architecture/migration.md)。旧 Agent 行为目录尚待清理，新增消费者不再扩充旧池。
 
 ## 打包与签名
 

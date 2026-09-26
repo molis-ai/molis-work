@@ -1,3 +1,6 @@
+import { MolisWorkSessionError } from "./errors.js";
+import { SessionMessageRepository } from "./session-messages.js";
+import type { SessionMessageApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { SessionAssociationRepository } from "./session-associations.js";
@@ -56,6 +59,7 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
     private readonly eventsRepository: SessionEventRepository,
     private readonly handoffs: SessionHandoffRepository,
     private readonly migration: LegacySessionMigrator,
+    readonly messages: SessionMessageApi,
   ) {
     this.homeDirectory = homeDirectory;
     this.databasePath = path.join(homeDirectory, "sessions", "sessions.db");
@@ -74,26 +78,29 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
       db.pragma("busy_timeout = 5000");
       const now = options.now ?? (() => new Date());
       const contentStore = createSessionContentStore(path.join(sessionsDirectory, "content"));
-      initializeOrValidateSessionSchema(db);
-      const { associations, handoffAssociations } = db.transaction(() => {
-        const ledger = options.createLedger(db);
-        const owner = new SessionAssociationRepository(ledger);
-        owner.migrate(db);
-        const handoffOwner = new HandoffAssociationRepository(ledger);
-        handoffOwner.migrate(db);
-        return { associations: owner, handoffAssociations: handoffOwner };
-      }).immediate();
-      const sessions = new SessionRecordRepository(db, now, associations);
-      const handoffs = new SessionHandoffRepository(db, now, contentStore, sessions, handoffAssociations);
-      const registry = new MolisWorkSessionRegistry(
-        db,
-        homeDirectory,
-        sessions,
-        new SessionEventRepository(db, now, contentStore, sessions),
-        handoffs,
-        new LegacySessionMigrator(db, now, sessions),
-      );
-      handoffs.recoverInterrupted();
+      // Schema, association migrations and message storage publish as one upgrade.
+      // Rebuilding old CHECK constraints requires FK enforcement disabled before the transaction.
+      db.pragma("foreign_keys = OFF");
+      let registry: MolisWorkSessionRegistry;
+      try {
+        registry = db.transaction(() => {
+          initializeOrValidateSessionSchema(db);
+          const ledger = options.createLedger(db);
+          const associations = new SessionAssociationRepository(ledger);
+          associations.migrate(db);
+          const handoffAssociations = new HandoffAssociationRepository(ledger);
+          handoffAssociations.migrate(db);
+          const sessions = new SessionRecordRepository(db, now, associations);
+          const handoffs = new SessionHandoffRepository(db, now, contentStore, sessions, handoffAssociations);
+          const events = new SessionEventRepository(db, now, contentStore, sessions);
+          const messages = new SessionMessageRepository(db, now, contentStore, sessions, events);
+          messages.migrate();
+          if (db.prepare("PRAGMA foreign_key_check").all().length) throw new MolisWorkSessionError("session.invalid_input", "Session 升级发现失效引用，已保留原数据库");
+          return new MolisWorkSessionRegistry(db, homeDirectory, sessions, events, handoffs,
+            new LegacySessionMigrator(db, now, sessions), messages);
+        }).immediate();
+      } finally { db.pragma("foreign_keys = ON"); }
+      registry.handoffs.recoverInterrupted();
       return registry;
     } catch (error) {
       db.close();

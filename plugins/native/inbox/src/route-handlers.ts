@@ -3,11 +3,17 @@ import { inboxActions, type InboxPagesInput, type InboxStatusInput } from "./act
 import type { InboxPluginRouteHandler } from "./routes.js";
 
 export interface InboxJudgmentChoice { readonly function_key: string; readonly name: string }
-export interface InboxJudgmentState { readonly function_key: string | null; readonly functions: readonly InboxJudgmentChoice[]; readonly binding?: ActionSceneBinding | null; readonly capabilities?: readonly ActionView[] }
+export interface InboxJudgmentSummary {
+  readonly name: string | null;
+  readonly enabled: boolean;
+  readonly available: boolean;
+  readonly reason: string | null;
+}
+export interface InboxJudgmentState { readonly summary?: InboxJudgmentSummary; readonly function_key: string | null; readonly functions: readonly InboxJudgmentChoice[]; readonly binding?: ActionSceneBinding | null; readonly capabilities?: readonly ActionView[] }
 export interface InboxRouteHandlerPorts {
   actions: BoundActionClient;
   changed(): void;
-  renderWorkbench?(): string;
+  renderWorkbench?(): string | Promise<string>;
 }
 
 /** HTTP adapts presentation and legacy parameters; validation and business work belong to actions. */
@@ -32,7 +38,7 @@ export function createInboxRouteHandlers(options: InboxRouteHandlerPorts): Recor
     "inbox.workbench": async () => {
       if (!options.renderWorkbench) return { status: 501, body: { error: "Inbox 工作区不可用" } };
       await options.actions.invoke(inboxActions.list, {});
-      return { status: 200, html: options.renderWorkbench() };
+      return { status: 200, html: await options.renderWorkbench() };
     },
   };
 }

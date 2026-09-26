@@ -74,6 +74,7 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
       state,
       redirectUri,
       clientId,
+      clientSecret: secret ?? "",
       createdAt: opts?.createdAt ?? new Date().toISOString(),
     });
 
@@ -129,7 +130,8 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
       clientId: opts.clientId,
     });
 
-    const clientSecret = resolveGmailClientSecret(opts.clientSecret);
+    const clientSecret = exchange.clientSecret ?? resolveGmailClientSecret(opts.clientSecret);
+    cancelGmailOAuthFlow(exchange.state);
     const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);
     if (!fetchImpl) throw new Error("fetch unavailable");
 
@@ -193,6 +195,9 @@ export function createGmailOAuth(ports: GmailOAuthPorts) {
       mirrorLegacy: opts.mirrorLegacy !== false,
     });
     const authRef = scopedRefs?.access ?? ports.legacyAuthRef;
+    const snapshot = JSON.stringify({ clientId: exchange.clientId, clientSecret: clientSecret || "" });
+    ports.secrets().put(`${authRef}:client`, snapshot);
+    if (opts.mirrorLegacy !== false) ports.secrets().put(`${ports.legacyAuthRef}:client`, snapshot);
     const hasRefreshToken = Boolean(
       json.refresh_token || loadRefreshToken(scopedRefs),
     );

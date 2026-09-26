@@ -10,6 +10,7 @@ import { presentGoalTrashResult } from "./goal-trash-presentation.js";
 
 /** Existing names only. New Goals capabilities are discovered from the plugin's action contracts. */
 export const LEGACY_GOALS_MCP = [
+  { name: "molis_work_v1_snapshot", action: goalsActions.snapshot, session_actor: false },
   { name: "molis_work_v1_goal_tree_propose", action: goalsActions.treeSubmit, session_actor: true },
   { name: "molis_work_v1_goal_tree_read", action: goalsActions.treeRead, session_actor: false },
   { name: "molis_work_v1_goal_tree_check", action: goalsActions.treeCheck, session_actor: true },

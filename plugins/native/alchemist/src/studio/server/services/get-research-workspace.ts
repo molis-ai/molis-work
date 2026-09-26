@@ -11,15 +11,17 @@ import type {
 } from "../../shared/contracts/research.js";
 import type { SqliteIdeaRepository } from "../db/idea-repository.js";
 import type { SqliteResearchRepository } from "../db/research-repository.js";
+import type { WorkReuseService } from "../../../work-reuse/service.js";
 
 interface Dependencies {
   ideas: SqliteIdeaRepository;
   research: SqliteResearchRepository;
   runtime: AiRuntimePort;
+  workReuse?: WorkReuseService;
 }
 
 export function createGetResearchWorkspaceService(dependencies: Dependencies) {
-  return async (ideaId: string, ideaVersion: number): Promise<IdeaResearchWorkspaceDto> => {
+  return async (ideaId: string, ideaVersion: number, signal?: AbortSignal): Promise<IdeaResearchWorkspaceDto> => {
     const version = dependencies.ideas.getVersion(ideaId, ideaVersion);
     if (!version) throw new Error("IDEA_VERSION_NOT_FOUND");
     const scope = dependencies.research.getMvpScopeForIdeaVersion(ideaId, ideaVersion);
@@ -30,18 +32,20 @@ export function createGetResearchWorkspaceService(dependencies: Dependencies) {
       ideaVersion,
       models: await dependencies.runtime.listModels(),
       lenses: {
-        market_space: lensWorkspace(dependencies.research, marketKey),
+        market_space: await lensWorkspace(dependencies, marketKey, signal),
         build_cost: costKey
-          ? lensWorkspace(dependencies.research, costKey)
+          ? await lensWorkspace(dependencies, costKey, signal)
           : { lens: "build_cost", status: "not_started" },
       },
     };
   };
 }
 
-function lensWorkspace(repository: SqliteResearchRepository, key: LensCompatibilityKey): LensWorkspaceDto {
-  const plan = repository.getLatestPlan(key);
-  const run = repository.getLatestRun(key);
+async function lensWorkspace(dependencies: Dependencies, key: LensCompatibilityKey, signal?: AbortSignal): Promise<LensWorkspaceDto> {
+  const repository = dependencies.research;
+  const storedPlan = repository.getLatestPlan(key);
+  const plan = storedPlan ? await dependencies.workReuse?.projectPlan(storedPlan, signal) ?? storedPlan : undefined;
+  const run = plan ? repository.getRunForPlan(plan.id) : repository.getLatestRun(key);
   const report = repository.getLatestReport(key);
   return {
     lens: key.lens,
@@ -61,8 +65,8 @@ function deriveStatus(
     if (run.status === "interrupted") return "queued";
     return run.status;
   }
-  if (report) return report.status;
-  return plan ? "planned" : "not_started";
+  if (plan) return "planned";
+  return report ? report.status : "not_started";
 }
 
 export type GetResearchWorkspace = ReturnType<typeof createGetResearchWorkspaceService>;

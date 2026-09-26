@@ -8,6 +8,7 @@ import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } fr
 import { bindConnectorToken, bindFeishuCli, clearGmailOAuthForManualToken, connectorCredentialStatus, resolveConnectorToken, unbindConnectorToken } from "../apps/local-host/src/connector-credentials.ts";
 import { feishuCliFetch, feishuCliStatus } from "../apps/local-host/src/feishu-cli.ts";
 import { completeNotionOAuth, resolveUsableNotionToken, startNotionOAuth } from "../apps/local-host/src/notion-oauth.ts";
+import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/src/connector-directory.ts";
 import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
 
 async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
@@ -166,7 +167,7 @@ test("settings show the available method choices for Gmail, Notion, and Feishu",
     { connector_id: "feishu", title: "飞书", auth_kind: "feishu", group_id: "chat" },
   ] as const;
   const html = renderConnectorsSettings({ connectors: cards.map((card) => ({
-    ...card, availability: "live" as const, summary: card.title, account_state: "disconnected" as const,
+    ...card, method_options: HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === card.connector_id)!.method_options, availability: "live" as const, summary: card.title, account_state: "disconnected" as const,
   })) }, { L: (value) => value, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
-  for (const marker of ["data-connector-gmail-oauth-start", "data-connector-token=\"gmail\"", "data-connector-notion-oauth-start", "data-connector-token=\"notion\"", "data-connector-feishu-login", "data-connector-token=\"feishu\""]) assert.ok(html.includes(marker), marker);
+  for (const marker of ["data-protocol-start=\"oauth\"", "data-connector-token=\"gmail\"", "data-connector-token=\"notion\"", "data-cli-login", "data-connector-token=\"feishu\""]) assert.ok(html.includes(marker), marker);
 });

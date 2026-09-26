@@ -36,10 +36,11 @@ test("我们的引用换成 Prologue 的引用，密钥只交接一次", async (
   });
 
   const first = await bridge.prologueRefFor("model-provider:minimax");
+  const afterFirst = resolved;
   const second = await bridge.prologueRefFor("model-provider:minimax");
   assert.deepEqual(first, { kind: "credential", id: "prologue-cred-1", revision: 1 });
   assert.equal(second, first, "同一个引用不该反复写进 Prologue");
-  assert.equal(resolved, 2, "每轮确认密钥未被更新或撤销");
+  assert.ok(afterFirst > 0 && resolved > afterFirst, "包括缓存命中在内的每轮都重新确认密钥");
   assert.equal(written.length, 1);
   assert.equal(written[0]?.label, "model-provider:minimax");
   assert.equal(written[0]?.seen, "sk-super-secret-value");

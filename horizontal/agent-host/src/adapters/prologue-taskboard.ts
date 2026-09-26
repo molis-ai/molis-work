@@ -10,6 +10,7 @@ export interface PrologueStepBinding { step_board?: ExactRef<"task-board">; froz
 export const codingExecutionRules: readonly PolicyRule[] = [
   ...SYSTEM_TOOL_NAMES.filter(name => name !== "board-report").map(name => ({ source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name } })),
   { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "mcp:" } },
+  { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "molis-action-" } },
   ...(["path", "command", "network", "surface"] as const).map(what => ({ source: "runtime" as const, effect: "ask" as const, match: { what } })),
   { source: "runtime", effect: "ask", match: { what: "other", labelPrefix: "" } },
 ];

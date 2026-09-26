@@ -1,4 +1,5 @@
 import { icon, ICON_LIBRARY } from "../icons.js";
+import { renderProjectMonogram } from "../monogram.js";
 import {
   MW_ACTION_TONES,
   MW_CONTENT_MARKS,
@@ -150,6 +151,40 @@ function typefaceSection(): string {
       <p class="mw-type-sample__mix">Molis Work 把目标和会话放在同一张工作台上</p>
     </div>`)}
   </div>`);
+}
+
+/** Craft finish: the desk-and-sheet space, depth, corners, motion and the few moments that get one. */
+function craftSection(): string {
+  const escape = (value: string) => value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char);
+  const lifts = [["--lift-1", "静止卡片 · 选中行"], ["--lift-2", "悬停 · 菜单"], ["--lift-3", "对话框"], ["--sheet-shadow", "纸页"]]
+    .map(([token, role]) => `<div class="mw-craft-lift" style="box-shadow: var(${token})"><code>${token}</code><small>${role}</small></div>`).join("");
+  const radii = [["--r-tag", "5"], ["--r-row", "8"], ["--r-control", "9"], ["--r-card", "12"], ["--r-sheet", "12"], ["--r-dialog", "16"]]
+    .map(([token, px]) => `<div class="mw-craft-radius" style="border-radius: var(${token})"><code>${token}</code><small>${px}px</small></div>`).join("");
+  const motion = [
+    ["--dur-press", "110ms", "按下的那一下：缩到 .97，再弹回"],
+    ["--dur-hover", "140ms", "悬停：色调一步，不抬起"],
+    ["--dur-move", "220ms", "位置与抬升：芯片滑动、卡片浮起"],
+    ["--dur-arrive", "320ms", "内容到达：上浮 6px 同时淡入"],
+    ["--dur-moment", "640ms", "只属于完成与落地的一刻"],
+  ].map(([token, value, role]) => `<tr><td><code>${token}</code></td><td>${value}</td><td>${role}</td></tr>`).join("");
+  const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
+    .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<small>${escape(name)}</small></span>`).join("");
+  return section("craft", "质感 · 空间 · 动效", `<p class="mw-catalog__hint">桌面承载栏、目录与标签；工作是桌面上的一张纸页，每个插件都一样。按下有回弹，内容到达时上浮淡入，只有完成和新到达的东西拥有自己的一刻。减少动态效果时这些全部静止。</p>
+    <div class="mw-catalog__specimens">
+      ${specimen("空间 · 桌面与纸页", `<div class="mw-craft-space" aria-hidden="true"><i class="mw-craft-space__rail"></i><i class="mw-craft-space__dir"></i><div class="mw-craft-space__main"><i class="mw-craft-space__tabs"></i><div class="mw-craft-space__sheet"><b></b><b></b><b></b></div></div></div>`)}
+      ${specimen("抬升", `<div class="mw-craft-row">${lifts}</div>`)}
+      ${specimen("圆角", `<div class="mw-craft-row">${radii}</div>`)}
+      ${specimen("动效时长", `<table class="mw-table mw-craft-motion"><thead><tr><th>Token</th><th>时长</th><th>用在哪里</th></tr></thead><tbody>${motion}</tbody></table>`)}
+      ${specimen("试一下", `<div class="mw-craft-row">
+        ${renderButton({ label: "按一下", variant: "primary" })}
+        ${renderButton({ label: "重放到达", variant: "secondary", attrs: { "data-craft-demo": "rise" } })}
+        ${renderButton({ label: "新条目落地", variant: "secondary", attrs: { "data-craft-demo": "land" } })}
+        ${renderButton({ label: "完成这一条", variant: "secondary", attrs: { "data-craft-demo": "celebrate" } })}
+      </div>
+      <div class="mw-craft-stage" data-craft-demo-target><span class="mw-craft-stage__title">让第一次使用的人顺利完成一轮目标协作</span><span class="goal-status goal-status--in_progress" data-craft-demo-status>${icon("play")}<span>正在推进</span></span></div>`)}
+      ${specimen("项目徽标 · 首字母 + 由 id 决定的色", `<div class="mw-craft-row">${monograms}</div>`)}
+      ${specimen("位置芯片 · 标签 · 提示", `<div class="mw-craft-row mw-craft-strip"><button type="button" class="tab-view-chip" data-plugin="goals" aria-current="page">${icon("target")}<span>Goals</span></button><span class="tab-view-divider" aria-hidden="true"></span><span class="mw-craft-tab">${icon("home")}<span>项目首页</span></span><span class="craft-tip mw-craft-tip" data-shown>Inbox<kbd>⌥5</kbd></span></div>`)}
+    </div>`);
 }
 
 function iconSection(): string {
@@ -446,6 +481,7 @@ export function renderPrimitiveCatalog(): string {
     ${paletteSection()}
     ${typefaceSection()}
     ${iconSection()}
+    ${craftSection()}
     ${section("button", "Button", `<div class="mw-catalog__specimens">
       ${specimen("主操作", `${primary}${secondary}${ghost}`)}
       ${specimen("破坏性", `${danger}${dangerOutline}`)}
@@ -556,6 +592,21 @@ export function renderPrimitiveCatalog(): string {
     ${sections}
   </div>
   <script>
+    document.addEventListener("click", (event) => {
+      const demo = event.target.closest("[data-craft-demo]");
+      if (!demo) return;
+      const target = document.querySelector("[data-craft-demo-target]");
+      const status = document.querySelector("[data-craft-demo-status]");
+      if (!target || !status) return;
+      if (demo.dataset.craftDemo === "rise") { target.classList.remove("is-rising"); void target.offsetWidth; target.classList.add("is-rising"); }
+      if (demo.dataset.craftDemo === "land") globalThis.molisCraft?.land(target);
+      if (demo.dataset.craftDemo === "celebrate") {
+        const done = status.classList.toggle("goal-status--completed");
+        status.classList.toggle("goal-status--in_progress", !done);
+        status.querySelector("span").textContent = done ? "已完成" : "正在推进";
+        if (done) globalThis.molisCraft?.celebrate(target);
+      }
+    });
     (() => {
       const scroller = document.querySelector(".mw-catalog");
       const links = new Map([...document.querySelectorAll("[data-catalog-index] a")].map((link) => [link.getAttribute("href").slice(1), link]));

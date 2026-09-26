@@ -1,3 +1,4 @@
+import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
@@ -51,6 +52,10 @@ export interface CodingExecutionPorts {
 function bodyOf(request: PluginRouteRequest): Record<string, unknown> {
   if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) return {};
   return request.body as Record<string, unknown>;
+}
+function savedActions(context: PluginStartContext, id: string) {
+  const value = context.services?.storage?.get(`actions:${id}`);
+  return typeof value === "string" ? parseExactActionReferences(JSON.parse(value)) : [];
 }
 function text(value: unknown, label: string, maximum = 200): string {
   if (typeof value !== "string" || !value.trim() || value.length > maximum) throw new Error(`${label}不能为空，且不能超过 ${maximum} 字符`);
@@ -446,6 +451,21 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const record = selected(request, execution);
       return { materials: materialChoices(context, savedMaterials(context, record.session_id), execution.materialReferences?.(), sessionOutputs(execution), sessionTitle(execution), record.session_id) };
     }),
+    route("coding.actions", async (request, api, execution) => {
+      const record = selected(request, execution), runtimes = await api!.invoke(agent.listRuntimes, []);
+      const tools = runtimes.some(runtime => runtime.runtime_id === record.runtime_id && runtime.supports_action_tools)
+        ? await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]) : [];
+      const characterRef = savedCharacter(context, record.session_id);
+      let character: ReturnType<NonNullable<CodingExecutionPorts["characters"]>["resolve"]> | undefined;
+      let character_error: string | undefined;
+      try { if (characterRef) character = execution.characters?.resolve(characterRef); }
+      catch (error) { character_error = error instanceof Error ? error.message : "原角色不可用"; }
+      if (characterRef && !character && !character_error) character_error = "原角色不可用";
+      return { actions: tools.map(view => ({ ...view, availability: character_error
+        ? { available: false, code: "agent.character_unavailable", reason: character_error }
+        : character?.action_tools && !character.action_tools.some(ref => ref.capability_id === view.capability_id && ref.version === view.version && ref.provider_id === view.provider.provider_id)
+          ? { available: false, code: "agent.character_scope", reason: "当前 Character 未开放此能力" } : view.availability })), selected: savedActions(context, record.session_id) };
+    }),
     route("coding.state", async (_request, api, execution) => {
       // Every open page polls this, and each read asks the Host about every session, one call at a time in the
       // project's queue. However many pages ask, one read runs and at most one waits behind it; a request that arrives
@@ -618,6 +638,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const savedConfiguration = context.services?.storage?.get(`configuration:${record.session_id}`);
       const configuration = typeof savedConfiguration === "string" ? nextConfiguration(JSON.parse(savedConfiguration)) : null;
       const savedMcp = context.services?.storage?.get(`mcp:${record.session_id}`);
+      const action_tools = savedActions(context, record.session_id);
       const mcp_tools = typeof savedMcp === "string" ? mcpSelection(JSON.parse(savedMcp)) : [];
       const savedSources = context.services?.storage?.get(`mcp-sources:${record.session_id}`);
       const mcp_sources = typeof savedSources === "string" ? mcpSources(JSON.parse(savedSources)) : [];
@@ -626,7 +647,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
+      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -645,7 +666,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(record.session_id)),
@@ -655,7 +676,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
-        return { session, runs: [], draft, question_drafts, materials, methods, configuration, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
+        return { session, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
@@ -924,6 +945,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
+      const actionTools = body.action_tools === undefined ? undefined : parseExactActionReferences(body.action_tools);
+      if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
       if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
       if (body.mcp_sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(mcpSources(body.mcp_sources)));
       if (body.mcp_tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(mcpSelection(body.mcp_tools)));
@@ -1051,7 +1074,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
           ...(mode === "digest" ? { history: "digest" as const } : {}),
           budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-          model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+          model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
         let run;
         try { run = await start(history); }
         catch (error) {

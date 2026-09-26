@@ -129,7 +129,7 @@ function itemEntry(overrides: {
       priority: "normal",
       tags: [],
       author: null,
-      disposition: "feed",
+      disposition: "inbox",
       linked_goal_id: null,
       read_at: null,
       revision: 1,
@@ -182,7 +182,7 @@ function persistedDetail(overrides: Partial<PersistedFeedDetailModel["item"]> = 
       priority: "normal",
       tags: [],
       author: null,
-      disposition: "feed",
+      disposition: "inbox",
       linked_goal_id: null,
       read_at: null,
       revision: 1,
@@ -312,7 +312,7 @@ test("Feed capture rules belong to a task, not the directory", () => {
   assert.doesNotMatch(panelB, /A launch|Global/);
 });
 
-test("Feed task capture rules pick a published function instead of typing a key", () => {
+test("Feed capture rule selector loads the shared directory instead of embedding a function list", () => {
   const host = new UiHost();
   host.register(feedUiContribution);
   const overlays = host.render({
@@ -320,17 +320,12 @@ test("Feed task capture rules pick a published function instead of typing a key"
     surface: "workbench",
     model: model({
       sources: [source()],
-      judgment: {
-        functions: [
-          { function_key: "system_admit_inbox", name: "是否进 Inbox" },
-        ],
-      },
     }),
   });
   const panel = taskConfigPanel(overlays, "source-a");
   assert.match(panel, /data-feed-out-rule-function-key/);
-  assert.match(panel, /不用判断/);
-  assert.match(panel, /value="system_admit_inbox"/);
+  assert.match(panel, /请选择判断能力/);
+  assert.doesNotMatch(panel, /value="system_admit_inbox"/);
   assert.doesNotMatch(panel, /placeholder="system_admit_inbox"/);
   assert.match(panel, /data-feed-rule-instructions/);
   assert.match(panel, /data-feed-rule-preview-run/);
@@ -573,6 +568,8 @@ test("Feed Plugin route table owns matching while the Host supplies handlers", a
   const handlers = Object.fromEntries([
     "feed.snapshot",
     "feed.workbench",
+    "feed.out-rules.judgments",
+    "feed.out-rules.preview-judgment",
     "feed.out-rules.list",
     "feed.out-rules.evaluate",
     "feed.out-rules.preview",
@@ -628,6 +625,7 @@ test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", as
     throw new Error("unused Feed workbench port");
   };
   const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
+    actions: { discover: unused, invoke: unused },
     boardId: "board",
     routePrefix: "",
     feed: unused,

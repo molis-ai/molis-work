@@ -43,7 +43,7 @@ export interface PluginHostExecutorOptions {
 
 /** Trusted in-process Host composition, not an isolation boundary for arbitrary JavaScript. */
 export class PluginHostExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, { context: PluginStartContext; dispose(): void }>();
+  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void }>();
   private options: PluginHostExecutorOptions;
 
   constructor(options: PluginHostExecutorOptions) {
@@ -79,6 +79,12 @@ export class PluginHostExecutor implements PluginExecutor {
     const dispose = () => { active = false; disposeArtifacts(); ui.dispose(); };
     try {
       const manifest = definition.manifest;
+      const pluginCaller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller = Object.freeze({
+        plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actor_id,
+        board_id: this.options.board_id, project_id: this.options.actions.project_id,
+        declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }),
+        assertActive: () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
+      });
       const artifactService = createPluginArtifactClient({ api: this.options.artifacts, manifest, context, actions: this.options.actions,
         board_id: this.options.board_id, actor_id: this.options.actor_id });
       const artifacts = artifactService.client;
@@ -134,11 +140,11 @@ export class PluginHostExecutor implements PluginExecutor {
             ? { outputs: createPluginOutputsClient(wiringInput) }
             : {}),
           ...(declaresCapabilities && this.options.capabilities !== undefined
-            ? { capabilities: createPluginCapabilityClient(manifest, withScheduleCaller(manifest.plugin_id, this.options.capabilities), () => active) }
+            ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, this.options.capabilities), () => active) }
             : {}),
         }) });
       const contribution = await definition.start(hostedContext);
-      this.sessions.set(context.install_id, { context: hostedContext, dispose });
+      this.sessions.set(context.install_id, { context: hostedContext, revoke: () => { active = false; }, dispose });
       return { contribution };
     } catch (error) {
       dispose();
@@ -148,6 +154,9 @@ export class PluginHostExecutor implements PluginExecutor {
 
   async stop(definition: PluginDefinition, context: PluginStartContext): Promise<void> {
     const session = this.sessions.get(context.install_id);
+    // The plugin owns its cleanup hook, so it may yield indefinitely. Revoke
+    // invocation authority before waiting for it, while retaining cleanup data.
+    session?.revoke();
     try {
       await definition.stop?.(session?.context ?? context);
     } finally {
@@ -160,7 +169,7 @@ export class PluginHostExecutor implements PluginExecutor {
     if (!definition.validateUpgrade) return;
     const manifest = definition.manifest;
     const services = manifest.permissions.some(item => item.permission === "storage:private")
-      ? { storage: this.options.privateStorageFor(context, manifest) }
+      ? { storage: Object.freeze({ get: (key: string) => this.options.privateStorageFor(context, manifest).get(key) }) }
       : {};
     const hostedContext: PluginUpgradeContext = Object.freeze({
       ...context,
@@ -171,20 +180,24 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 }
 
-function withScheduleCaller(pluginId: string, port: PluginCapabilityPort): PluginCapabilityPort {
+function withPluginCaller(caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller, port: PluginCapabilityPort): PluginCapabilityPort {
   return {
     ...(port.availability ? { availability: (capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference,
       options?: Pick<import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
     invoke(capability, input, options) {
+      caller.assertActive();
+      const bound = { ...options, consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
+        caller.assertActive(); await options?.before_effect?.(); caller.assertActive();
+      } };
       if (
         capability.capability_id.startsWith("schedule.")
         && input !== null
         && typeof input === "object"
         && !Array.isArray(input)
       ) {
-        return port.invoke(capability, { ...input, plugin_id: pluginId }, options);
+        return port.invoke(capability, { ...input, plugin_id: caller.plugin_id }, bound);
       }
-      return port.invoke(capability, input, options);
+      return port.invoke(capability, input, bound);
     },
   };
 }

@@ -4,12 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, readGoalEventStateCapability, listGoalEventsCapability, listLatestGoalEventsCapability,
-  listLatestGoalTimelineCapability, readGoalEventCapability, projectResumeFactsCapability } from "@molis-ai/molis-work-plugin-goals";
+  listLatestGoalTimelineCapability, readGoalEventCapability, projectResumeFactsCapability,
+  snapshotBoardCapability, readGoalContractCapability } from "@molis-ai/molis-work-plugin-goals";
 import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventV35Fixture, goalEventV35Kinds } from "./goal-event-v35-fixture.js";
+import { readTestGoalCollection } from "./fixtures/web-view.js";
 
 test("Goals query actions preserve full bodies, cursor order, scope and live policy for typed consumers", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-query-actions-"));
@@ -32,6 +34,24 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     assert.equal(state.intent.title, "保持原始记录");
     assert.equal(state.agreement.outcome, "分页能读到全部原文");
     assert.equal(state.work_status, "open");
+    const snapshot = await actions.invoke(goalsActions.snapshot, {});
+    assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(board_id)));
+    assert.deepEqual(await typed.invoke(snapshotBoardCapability, { board_id }), snapshot);
+    const contract = await actions.invoke(goalsActions.contract, { goal_id });
+    assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(board_id, goal_id)));
+    assert.deepEqual(await typed.invoke(readGoalContractCapability, { board_id, goal_id }), contract);
+    const checkReadBoundary = async <Input, Output>(action: ActionDefinition<Input, Output>, input: Input) => {
+      await assert.rejects(actions.invoke(action, { ...input, actor_id: "forged" } as never), { code: "actions.input_invalid" });
+      await assert.rejects(host.actionClient(ref).invoke({ actor_id: "reader", audience: "mcp", project_id: ref.project_id, permissions: [] }, action, input), { code: "actions.forbidden" });
+    };
+    await checkReadBoundary(goalsActions.snapshot, {});
+    await checkReadBoundary(goalsActions.contract, { goal_id });
+    const collection = await actions.invoke(goalsActions.collection, {});
+    assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, board_id)));
+    assert.equal(collection.goals[0]?.goal.goal_id, goal_id);
+    await checkReadBoundary(goalsActions.collection, {});
+    await assert.rejects(typed.invoke(snapshotBoardCapability, { board_id: "foreign" }), { code: "actions.scope_mismatch" });
+    await assert.rejects(typed.invoke(readGoalContractCapability, { board_id: "foreign", goal_id }), { code: "actions.scope_mismatch" });
     const document = await actions.invoke(goalsActions.document, { goal_id });
     assert.deepEqual(document.state, state);
     assert.equal(document.description.title, "保持原始记录");
@@ -101,6 +121,13 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     await assert.rejects(typed.invoke(projectResumeFactsCapability, { board_id }), { code: "actions.plugin_disabled" });
     denied = goalsActions.document.capability_id;
     await assert.rejects(actions.invoke(goalsActions.document, { goal_id }), { code: "actions.plugin_disabled" });
+    denied = goalsActions.snapshot.capability_id;
+    await assert.rejects(typed.invoke(snapshotBoardCapability, { board_id }), { code: "actions.plugin_disabled" });
+    denied = goalsActions.contract.capability_id;
+    await assert.rejects(typed.invoke(readGoalContractCapability, { board_id, goal_id }), { code: "actions.plugin_disabled" });
+    await assert.rejects(typed.invoke(goalContextCapabilities.read, { goal_id }), { code: "actions.plugin_disabled" });
+    denied = goalsActions.collection.capability_id;
+    await assert.rejects(actions.invoke(goalsActions.collection, {}), { code: "actions.plugin_disabled" });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -112,6 +139,18 @@ test("query contracts retain migrated completion, human requirements and origina
     const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "migration-reader", audience: "user",
       project_id: ref.project_id, permissions: ["goals:read"] }));
     try {
+      const snapshot = await actions.invoke(goalsActions.snapshot, {});
+      assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(ref.board_id)));
+      assert.ok(snapshot.claims.length > 0);
+      assert.ok(snapshot.runs.length > 0);
+      assert.ok(snapshot.evidence.length > 0);
+      const collection = await actions.invoke(goalsActions.collection, {});
+      assert.deepEqual(collection, await host.withProject(ref, r => readTestGoalCollection(r.store, r.coordinator, ref.board_id)));
+      assert.deepEqual(await actions.invoke(goalsActions.snapshot, {}), snapshot, "collection reads must not write history or attention");
+      for (const goal of snapshot.goals) {
+        assert.deepEqual(await actions.invoke(goalsActions.contract, { goal_id: goal.goal_id }),
+          await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(ref.board_id, goal.goal_id)));
+      }
       const core = await actions.invoke(goalsActions.state, { goal_id: "CORE" });
       assert.equal(core.work_status, "completed");
       assert.equal(core.imported_completion?.historical.journal_type, "goal.satisfied");
@@ -138,4 +177,33 @@ test("query contracts retain migrated completion, human requirements and origina
       }
     } finally { await host.close(); await rm(fixture.directory, { recursive: true, force: true }); }
   }
+});
+
+
+test("Web cache keeps the cursor of its authorized collection when a write lands before composition", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goals-collection-cache-"));
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Cache", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "cache-user", audience: "user", project_id: project.project_id,
+    permissions: ["goals:read", "goals:write"] }));
+  try {
+    await actions.invoke(goalsActions.create, { goal_id: "before", title: "原目标", idempotency_key: "before" });
+    const runtime = await host.withProject(ref, r => r);
+    let interleave = true;
+    const delayed: BoundActionClient = { discover: actions.discover, async invoke(definition, input) {
+      const result = await actions.invoke(definition, input);
+      if (interleave) {
+        interleave = false;
+        await actions.invoke(goalsActions.create, { goal_id: "after", title: "读取期间新增", idempotency_key: "after" });
+      }
+      return result;
+    } };
+    const cache = new Map(), options = { databasePath: project.database_path, boardId: project.board_id, homeDirectory: home };
+    const first = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);
+    assert.equal(first.goals.some(item => item.goal.goal_id === "after"), false);
+    const next = await cachedMolisWorkWebView(cache, runtime.store, options, delayed);
+    assert.equal(next.goals.some(item => item.goal.goal_id === "after"), true);
+    assert.ok(next.snapshot.cursor > first.snapshot.cursor);
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

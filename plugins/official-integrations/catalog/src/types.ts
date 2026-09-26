@@ -37,6 +37,8 @@ export interface CatalogConnectorSpec {
   readonly auth_help: string;
   readonly setup_links: readonly ConnectorSetupLink[];
   readonly permission_host: string;
+  readonly additional_permission_hosts?: readonly string[];
+  readonly feed_available?: boolean;
   parseToken?(raw: string): CatalogAuthContext;
   prepare?(ctx: CatalogAuthContext, http: CatalogHttp): Promise<CatalogAuthContext>;
   identity: CatalogEndpoint<string>;

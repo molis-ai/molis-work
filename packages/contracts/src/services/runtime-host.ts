@@ -8,6 +8,7 @@ export const RUNTIME_SESSION_CAPABILITIES = [
   "resume",
   "events",
   "handoff",
+  "message",
 ] as const;
 
 export type RuntimeSessionCapability = (typeof RUNTIME_SESSION_CAPABILITIES)[number];

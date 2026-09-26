@@ -13,3 +13,7 @@
 发布先保存固定快照，再交给原 Artifact owner。中断后显示“恢复发布”，恢复原内容及版本，保留此后本地编辑；完成后可另存新版。未恢复的发布不能删除，表和本机快照的删除在同一事务完成。
 
 开发合同见 [Plugin 开发](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。对应验证为 `tests/dataset-actions.test.ts`、`tests/dataset-mcp.test.ts` 和 `tests/dataset-actions.e2e.test.ts`。这项迁移不代表全系统工作流、客户端授权或其他插件已完成迁移。
+
+- Status: `partial`
+- Contract: `@molis-ai/molis-work-contracts/platform/plugin`
+- Migration: `goal-reorg-f2`

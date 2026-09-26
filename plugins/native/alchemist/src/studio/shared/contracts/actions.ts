@@ -1,3 +1,4 @@
+import { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { z } from "zod";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createDirectionInputSchema } from "./direction.js";
@@ -9,6 +10,8 @@ import { annotationTargetSchema, createAnnotationSchema, listAnnotationsQuerySch
 import { createPlaybookProposalSchema, createTasteRuleSchema } from "./memory.js";
 import { createDecisionRequestSchema } from "./decision.js";
 import { startPulseRunRequestSchema, pulseSourceParamsSchema } from "./pulse.js";
+
+import { reuseCandidateInputSchema, reuseCandidatesSchema, reuseAssessInputSchema, reuseAssessmentSchema, reuseSelectionSchema, reuseSnapshotSchema, reuseReceiptSchema, reuseFeedbackSchema, reuseReviseSchema, reuseReferenceSchema } from "../../../work-reuse/contracts.js";
 
 const text = z.string(), id = text.min(1), version = z.number().int().positive();
 const object = z.strictObject, strings = z.array(text), empty = object({});
@@ -37,7 +40,7 @@ const ideaModel = object({ ...briefFields, sourceLabel: text, kind: z.literal("i
 export const runtimeModelSchema = object({ id, label: text, runtimeLabel: text, costVisibility: z.enum(["priced", "unobservable"]) });
 const budget = object({ kind: z.literal("calls"), limit: z.number().int().min(1).max(40) });
 export const researchPlanSchema = object({ id, key: lensCompatibilityKeySchema, scopeSummary: text, modelPolicy: z.enum(["auto", "fixed"]), modelId: text,
-  runtimeLabel: text, estimatedDuration: object({ minMinutes: z.number(), maxMinutes: z.number() }), budget, appliedPlaybookRuleIds: strings, createdAt: text });
+  runtimeLabel: text, estimatedDuration: object({ minMinutes: z.number(), maxMinutes: z.number() }), budget, appliedPlaybookRuleIds: strings, reuse: reuseSnapshotSchema.optional(), createdAt: text });
 export const lensRunSchema = object({ id, planId: id, key: lensCompatibilityKeySchema, status: runStatusSchema,
   stage: z.enum(["planning", "collecting", "cross_checking", "synthesizing"]), runtimeLabel: text, jobId: id, errorCode: text.optional(), createdAt: text, updatedAt: text });
 const lensWorkspace = object({ lens: z.enum(["market_space", "build_cost"]), status: z.enum(["not_started", "planned", "queued", "running", "completed", "partial", "failed", "cancelled"]),
@@ -94,6 +97,18 @@ function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title
 
 /** One contract feeds discovery, function calls and the HTTP adapter. No Host IDs or credentials are accepted as input. */
 export const alchemistOperations = {
+  playbookContext: {
+    definition: defineSubjectContextAction("alchemist.playbook.context", "alchemist-playbook", "已确认研究方法", ["alchemist:read"]),
+    input: object({ subject_id: id }),
+    output: object({ subject: object({ kind: z.literal("alchemist-playbook"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null() }),
+  },
+  reuseCandidates: operation("reuse.candidates", "寻找可沿用成果与方法", "读取当前授权范围内固定版本成果与适用方法；查询不运行模型，不代表已采用", "query", reuseCandidateInputSchema, reuseCandidatesSchema),
+  reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, ["alchemist:generate"]),
+  reusePublish: operation("reuse.publish", "保存研究固定版本", "将研究与证据幂等登记为当前项目私有 Artifact，不公开发布", "command", object({ reportId: id }), object({ reference: reuseReferenceSchema })),
+  reuseReceipt: operation("reuse.receipt", "读取实际复用记录", "区分已选择、已实际消费和关系补写状态，返回固定方法及成果版本", "query", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
+  reuseReconcile: operation("reuse.reconcile", "补写复用关系", "仅补写已实际消费的 Context Ledger 关系，不重复模型调用", "command", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
+  reuseFeedback: operation("reuse.feedback", "记录复用效果", "如实记录解释、准备、修正和结果，不推算节省比例", "command", reuseFeedbackSchema, object({ receipt: reuseReceiptSchema })),
+  playbookRevise: operation("memory.playbook.revise", "修改研究方法", "确认保存方法新版本；旧计划和实际采用版本保留，已创建未执行计划需重核", "command", reuseReviseSchema, object({ rule: playbookRule })),
   conversationList: operation("conversation.list", "读取炼金术士讨论", "读取当前项目的讨论消息、关联对象及实际回复状态", "query", empty, object({ messages: z.array(conversationMessage) })),
   conversationSend: operation("conversation.send", "与炼金术士讨论", "保存消息，使用所选对象、历史与启用的 Taste 生成回复；不可用或失败时保留消息并明确状态", "command",
     createConversationMessageSchema.extend({ context: conversationContext }), z.union([object({ message: conversationMessage, assistantMessage: conversationMessage }),
@@ -111,6 +126,8 @@ export const alchemistOperations = {
     object({ taste: z.array(tasteRule), playbook: z.array(playbookRule.extend({ applications: z.array(object({ planId: id, runId: id.optional() })) })) })),
   playbookPropose: operation("memory.propose", "提出研究方法校准", "依据市场研究报告注释提出方法、正反例和适用范围；应用前不改变长期规则", "command",
     createPlaybookProposalSchema.extend({ id }), object({ proposal })),
+  proposalList: operation("proposals.pending", "继续待确认方法", "读取当前调用者尚未确认的持久化方法提案", "query", empty, object({ proposals: z.array(proposal) })),
+  proposalReject: operation("proposals.reject", "不采用方法提案", "撤回尚未确认的方法提案，保留原批注", "command", identity, object({ proposal })),
   proposalApply: operation("memory.apply", "应用研究方法提案", "应用待处理提案并解决来源注释；同一提案不能重复应用", "command", identity, object({ proposal, rule: playbookRule })),
   tasteCreate: operation("memory.taste.create", "添加个人偏好", "保存带适用范围与例外的 Taste，不将其当作市场证据", "command", createTasteRuleSchema, object({ rule: tasteRule })),
   tasteDisable: operation("memory.taste.disable", "停用个人偏好", "保留偏好记录，后续构思与讨论不再使用", "command", identity, object({ rule: tasteRule })),
@@ -143,7 +160,7 @@ export const alchemistOperations = {
   researchGet: operation("research.workspace", "读取研究工作区", "读取 Idea 指定版本的市场和成本研究、计划、报告及证据", "query", ideaIdentity,
     object({ ideaId: id, ideaVersion: version, models: z.array(runtimeModelSchema), lenses: object({ market_space: lensWorkspace, build_cost: lensWorkspace }) })),
   researchPlan: operation("research.plan", "创建研究计划", "设置研究模型和调用次数上限；仅创建计划，不执行研究", "command",
-    researchPlanRequestSchema.safeExtend({ id, lens: z.enum(["market_space", "build_cost"]) }), object({ plan: researchPlanSchema })),
+    researchPlanRequestSchema.safeExtend({ id, lens: z.enum(["market_space", "build_cost"]), reuse: reuseSelectionSchema.optional() }), object({ plan: researchPlanSchema })),
   researchStart: operation("research.start", "启动研究", "执行已确认的研究计划并返回后台任务引用", "command",
     object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), ["alchemist:generate"]),
   runCancel: operation("research.cancel", "取消研究", "按研究 run.jobId 取消市场或成本研究；不接受 run.id，也不取消探索或脉搏任务", "command", identity, object({ run: lensRunSchema })),

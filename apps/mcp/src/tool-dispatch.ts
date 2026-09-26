@@ -1,4 +1,4 @@
-import { importV3Capability, initializeBoardCapability, snapshotBoardCapability, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+import { importV3Capability, initializeBoardCapability, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
 import { createMcpGoalEventHandlers } from "./goal-event-commands.js";
 import type { LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
@@ -33,9 +33,6 @@ export async function dispatchMcpProjectTool(
           actor_id: String(arguments_.actor_id),
           idempotency_key: String(arguments_.idempotency_key),
         });
-        break;
-      case "molis_work_v1_snapshot":
-        result = await client.invoke(snapshotBoardCapability, { board_id: String(arguments_.board_id) });
         break;
       case "molis_work_v1_event_decide":
         result = await eventTools[name](arguments_);

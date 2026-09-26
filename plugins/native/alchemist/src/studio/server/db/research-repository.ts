@@ -36,6 +36,7 @@ interface PlanRow {
   budget_limit: number;
   budget_currency: string | null;
   applied_playbook_rule_ids_json: string;
+  reuse_json: string | null;
   created_at: string;
 }
 
@@ -142,8 +143,8 @@ export class SqliteResearchRepository {
         `INSERT INTO research_plans
          (id, idea_id, idea_version, mvp_scope_version, lens, scope_summary, model_policy,
           model_id, runtime_label, estimated_min_minutes, estimated_max_minutes,
-          budget_kind, budget_limit, budget_currency, applied_playbook_rule_ids_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          budget_kind, budget_limit, budget_currency, applied_playbook_rule_ids_json, created_at, reuse_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         plan.id,
@@ -162,6 +163,7 @@ export class SqliteResearchRepository {
         plan.budget.kind === "money" ? plan.budget.currency : null,
         JSON.stringify(plan.appliedPlaybookRuleIds),
         plan.createdAt,
+        plan.reuse ? JSON.stringify(plan.reuse) : null,
       );
     return plan;
   }
@@ -479,6 +481,7 @@ function mapPlan(row: PlanRow): ResearchPlan {
     },
     budget,
     appliedPlaybookRuleIds: JSON.parse(row.applied_playbook_rule_ids_json) as string[],
+    ...(row.reuse_json ? { reuse: JSON.parse(row.reuse_json) as NonNullable<ResearchPlan["reuse"]> } : {}),
     createdAt: row.created_at,
   };
 }

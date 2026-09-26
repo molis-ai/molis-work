@@ -4,6 +4,8 @@
 
 包名：`@molis-ai/molis-work-plugin-cli`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+`create` 默认生成 v2 Integration 插件。Manifest 注册健康查询、个人结果读取和保存动作；生成代码从这份定义绑定 handler，轮询调用同一个注册保存动作。健康查询可单独授权给 MCP，个人成果入口保留本地 owner 限制。原私人计数、Artifact 版本和 UI 仍由原服务持有；生成模板不会给未知消费者伪造场景或业务触发。需要判断场景时按 [SDK 合同](../../packages/plugin-sdk/README.md#动作与判断消费场景)声明真实 targets、绑定和消费。
+
 ## 一次典型调用
 
 runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，pack 生成显式文件列表的 JSON bundle，签名和验证使用 Plugin Runtime 的公开包验证接口。dev 通过注入的 PluginCliHost 使用真实 Local Host。

@@ -203,4 +203,23 @@ export const PLUGIN_STAGE_STYLES = `
   body.immersive-workbench .plugin-stage-workspace .feed-stage-item-detail .feed-detail-body {
     max-height: none; overflow: visible; padding: 0;
   }
+
+  .plugin-stage-list .mw-empty { padding-top: 24px; max-width: min(100%, 38em); }
+  .plugin-stage-list .mw-empty > strong { font-size: 18px; font-weight: 500; line-height: 1.4; letter-spacing: -.02em; }
+  .plugin-stage-list .mw-empty > p { font-size: 13px; line-height: 1.75; }
+  .plugin-stage-list .mw-empty > .mw-btn { margin-top: 12px; width: fit-content; }
+  .plugin-stage-more { position: relative; flex: none; }
+  .plugin-stage-more > summary { list-style: none; cursor: pointer; gap: 5px; }
+  .plugin-stage-more > summary::-webkit-details-marker { display: none; }
+  .plugin-stage-more[open] > summary { background: var(--nav-hover); }
+  .plugin-stage-more-actions { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; min-width: 160px; max-height: min(300px, 60dvh); overflow: auto; padding: 5px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+  .plugin-stage-more-actions > .mw-btn { width: 100%; justify-content: flex-start; margin: 0; min-height: 34px; }
+  [data-lingguang-save-status] { color: var(--muted); font-size: 12px; }
+  [data-lingguang-save-status][data-failed=true] { color: var(--red); }
+  @media(max-width: 600px) {
+    .plugin-stage-list .mw-empty { padding-top: 20px; }
+    .plugin-stage-more-actions > .mw-btn { min-height: 44px; }
+    .plugin-stage-more > summary { min-height: 40px; }
+    [data-lingguang-save-status] { order: 2; flex-basis: 100%; }
+  }
 `;

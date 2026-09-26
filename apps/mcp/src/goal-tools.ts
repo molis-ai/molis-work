@@ -9,25 +9,15 @@ import {
 export const V1_TOOLS: McpToolDefinition[] = [
   {
     name: "molis_work_v1_initialize",
-    description: "初始化 SQLite Molis Work 真相源。",
+    description: goalsActions.initialize.action.description,
     inputSchema: {
       type: "object",
       properties: {
         ...V1_COMMON,
-        title: { type: "string" },
+        ...goalsActions.initialize.action.input_schema.properties as Record<string, unknown>,
         actor_id: { type: "string" },
-        idempotency_key: { type: "string" },
       },
       required: ["board_id", "title", "actor_id", "idempotency_key"],
-    },
-  },
-  {
-    name: "molis_work_v1_snapshot",
-    description: "读取 Molis Work 当前真相快照。",
-    inputSchema: {
-      type: "object",
-      properties: V1_COMMON,
-      required: ["board_id"],
     },
   },
   {
@@ -58,8 +48,8 @@ export const V1_TOOLS: McpToolDefinition[] = [
   },
   v1PayloadTool(
     "molis_work_v1_import_v3",
-    "导入 V3 可安全映射字段，并返回必须重新生成的语义。",
-    { legacy: { type: "object" }, actor_id: V1_STRING, idempotency_key: V1_STRING },
+    goalsActions.importV3.action.description,
+    { ...goalsActions.importV3.action.input_schema.properties as Record<string, unknown>, actor_id: V1_STRING },
     ["legacy", "actor_id", "idempotency_key"],
   ),
 ];

@@ -93,7 +93,7 @@ test("steps that wait on nothing run side by side on the SDK graph, and a joinin
     assert.deepEqual(done.frozen.execution_plan, plan);
     // A directory reads the same standing without copying the round.
     const standing = await adapter.readSessionStatus!(session);
-    assert.deepEqual(standing, { owner: { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i" },
+    assert.deepEqual(standing, { owner,
       status: { session_id: session.session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false } });
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

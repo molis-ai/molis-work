@@ -1,3 +1,4 @@
+import { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApiDependencies } from "../api/dependencies.js";
 import type { AlchemistOperationInput } from "../../shared/contracts/actions.js";
 import { AlchemistOperationError } from "./action-error.js";
@@ -6,6 +7,14 @@ import { sendConversationMessage } from "./conversation-message.js";
 /** Discussion, decisions, calibration and Pulse operate on the same original Studio repositories. */
 export function createWorkspaceOperations(d: ApiDependencies) {
   return {
+    playbookContext: (input: AlchemistOperationInput<"playbookContext">) => {
+      const rule = d.memory.getPlaybookRule(input.subject_id);
+      if (!rule || rule.workspaceId !== d.workspaceId) throw new AlchemistOperationError("PLAYBOOK_RULE_NOT_FOUND", "没有找到这条已确认方法。", 404);
+      return subjectContext({ subject: { kind: "alchemist-playbook", id: rule.id }, revision: String(rule.version) + ":" + rule.status,
+        title: rule.methodChange.slice(0, 120), content: JSON.stringify({ version: rule.version, status: rule.status, method: rule.methodChange,
+          applicableExamples: rule.positiveExamples, invalidExamples: rule.negativeExamples, scope: rule.scope, source: rule.source,
+          originalFeedback: rule.originalFeedback, limitation: "仅在明确确认后沿用；停用方法不可用于新任务。" }), goal_ids: [], session_id: null });
+    },
     conversationList: () => ({ messages: d.conversations.list(d.workspaceId) }),
     conversationSend: (input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal) => sendConversationMessage(d, input, signal),
     decisionsList: () => {
@@ -31,8 +40,10 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     },
     annotationResolve: (input: AlchemistOperationInput<"annotationResolve">) => ({ annotation: d.calibration.markAnnotationResolved(input.id, d.clock.now()) }),
     memoryGet: () => ({ taste: d.memory.listTasteRules(d.workspaceId), playbook: d.memory.listPlaybookRules(d.workspaceId).map(rule => ({ ...rule,
-      applications: d.memory.listApplications(rule.id).map(({ planId, runId }) => ({ planId, ...(runId ? { runId } : {}) })) })) }),
+      applications: d.memory.listApplications(rule.id).filter(application => Boolean(application.runId)).map(({ planId, runId }) => ({ planId, ...(runId ? { runId } : {}) })) })) }),
     playbookPropose: ({ id, ...input }: AlchemistOperationInput<"playbookPropose">) => ({ proposal: d.calibrationMemory.createPlaybookProposal(id, input) }),
+    proposalList: () => ({ proposals: d.calibration.listPendingProposals(d.workspaceId, d.actorId) }),
+    proposalReject: (input: AlchemistOperationInput<"proposalReject">) => ({ proposal: d.calibration.rejectProposal(input.id, d.workspaceId, d.actorId, d.clock.now()) }),
     proposalApply: (input: AlchemistOperationInput<"proposalApply">) => d.calibrationMemory.applyProposal(input.id),
     tasteCreate: (input: AlchemistOperationInput<"tasteCreate">) => {
       const now = d.clock.now();

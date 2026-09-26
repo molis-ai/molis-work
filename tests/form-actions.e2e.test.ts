@@ -107,10 +107,14 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   assert.equal(await evaluate("document.querySelector('[data-form-description]').value"),'必须保留的本地编辑');
   assert.equal(await evaluate("document.querySelector('[data-form-stage-workspace]').hidden"),false);
   await screenshot('editor-conflict');
-  await click('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");
+  const moreClick = async (selector: string) => {
+    if (!await evaluate("document.querySelector('[data-form-stage-workspace] .plugin-stage-more').open")) await click('[data-form-stage-workspace] .plugin-stage-more > summary');
+    await click(selector);
+  };
+  await moreClick('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");
   await evaluate("document.querySelector('[data-form-confirm]').close('cancel')");await idle();
   assert.equal(await evaluate("document.querySelector('[data-form-description]').value"),'必须保留的本地编辑');
-  await click('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");
+  await moreClick('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");
   await click('[data-form-confirm] [data-confirm-ok]');await idle();
   assert.equal(await evaluate("document.querySelector('[data-form-title]').value"),'编辑冲突远端版本');
   assert.equal(await evaluate("document.querySelector('[data-form-note]').hidden"),true);
@@ -120,7 +124,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   await click('[data-form-submit]');await idle();assert.equal(read().submissions.length,1);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(answer('text'))}).value`),'尚未提交的答案');
   await screenshot('conflict');
-  await click('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");await click('[data-form-confirm] [data-confirm-ok]');await idle();
+  await moreClick('[data-form-reload]');await waitFor("document.querySelector('[data-form-confirm]').open");await click('[data-form-confirm] [data-confirm-ok]');await idle();
   await click('[data-form-tab=editor]');await idle();
   const db=openHomeSqliteDatabase(homeDirectory,'form');
   try{

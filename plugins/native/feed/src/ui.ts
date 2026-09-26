@@ -123,6 +123,7 @@ export interface FeedUiOutRule {
   readonly source_id: string | null;
   readonly source_kind: string | null;
   readonly function_key: string | null;
+  readonly judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference | null;
 }
 
 export interface FeedUiModel {
@@ -140,11 +141,6 @@ export interface FeedUiModel {
   readonly demo: boolean;
   readonly active?: boolean;
   readonly error?: string | null;
-  readonly judgment?: FeedUiJudgment;
-}
-
-export interface FeedUiJudgment {
-  readonly functions: readonly { readonly function_key: string; readonly name: string }[];
 }
 
 export interface PersistedFeedDetailModel {
@@ -533,15 +529,14 @@ function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string
   const rules = model.out_rules.filter((rule) => rule.source_id === source.source_id);
   const rows = rules.length
     ? rules.map((rule) => {
-      const judgmentName = model.judgment?.functions.find((fn) => fn.function_key === rule.function_key)?.name
-        ?? rule.function_key;
+      const judgmentName = rule.judgment ? p.text("已绑定判断能力") : rule.function_key ? p.text("原判断规则不可用") : null;
       const filter = [
         rule.contains ? p.text("包含 “{contains}”", { contains: rule.contains }) : p.text("该来源的全部新消息"),
-        rule.function_key ? (judgmentName ?? "") : "",
+        judgmentName ?? "",
         p.text(rule.admission === "inbox" ? "筛选后自动入 Inbox，待复核单独标明" : "仅建议"),
         rule.source_kind ? p.text("来源类型 {kind}", { kind: rule.source_kind }) : "",
       ].filter(Boolean).join(" · ");
-      return `<article class="feed-capture-rule" data-feed-out-rule-row="${p.escape(rule.rule_id)}"><div class="feed-capture-rule-copy"><strong>${p.escape(rule.name)}</strong><p>${p.escape(filter)}</p><small>${rule.enabled ? p.text("已启用") : p.text("已停用")}</small></div><div class="feed-capture-rule-actions"><button class="mw-btn mw-btn--ghost" type="button" data-feed-out-rule-toggle="${p.escape(rule.rule_id)}" data-enabled="${rule.enabled ? "true" : "false"}"${source.prototype ? " disabled" : ""}>${rule.enabled ? p.text("停用") : p.text("启用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-feed-out-rule-delete="${p.escape(rule.rule_id)}"${source.prototype ? " disabled" : ""}>${p.text("删除")}</button></div></article>`;
+      return `<article class="feed-capture-rule" data-feed-out-rule-row="${p.escape(rule.rule_id)}"><div class="feed-capture-rule-copy"><strong>${p.escape(rule.name)}</strong><p>${p.escape(filter)}</p><small data-feed-rule-binding-status>${rule.enabled ? p.text(rule.judgment || rule.function_key ? "已启用，正在检查判断能力" : "已启用") : p.text("已停用")}</small></div><div class="feed-capture-rule-actions"><button class="mw-btn mw-btn--ghost" type="button" data-feed-out-rule-toggle="${p.escape(rule.rule_id)}" data-enabled="${rule.enabled ? "true" : "false"}"${source.prototype ? " disabled" : ""}>${rule.enabled ? p.text("停用") : p.text("启用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-feed-out-rule-delete="${p.escape(rule.rule_id)}"${source.prototype ? " disabled" : ""}>${p.text("删除")}</button></div></article>`;
     }).join("")
     : `<p class="feed-source-empty">${p.text("还没有捕捉规则。在下方直接添加，无需离开 Feed。")}</p>`;
   const form = source.prototype ? `<p>${p.text("添加真实来源后，即可试跑和保存规则。")}</p>` : `<section class="feed-rule-composer" data-feed-rule-composer>
@@ -549,7 +544,7 @@ function renderOutRulesSection(model: FeedUiModel, source: FeedUiSource): string
     <div class="feed-rule-modes" role="group" aria-label="${p.text("匹配方式")}"><button type="button" data-feed-rule-mode="keyword" aria-pressed="true">${p.text("关键词")}</button><button type="button" data-feed-rule-mode="natural" aria-pressed="false">${p.text("用自然语言描述")}</button><button type="button" data-feed-rule-mode="existing" aria-pressed="false">${p.text("复用规则")}</button></div>
     <label><span>${p.text("规则名称")}</span><input data-feed-out-rule-name maxlength="80" placeholder="${p.text("例如：需要跟进的产品反馈")}"></label>
     <label data-feed-rule-field="keyword"><span>${p.text("消息包含")}</span><input data-feed-out-rule-contains maxlength="200" placeholder="${p.text("例如：bug")}"><small>${p.text("按完整关键词匹配标题、摘要、标签和正文。")}</small></label>
-    <label data-feed-rule-field="natural" hidden><span>${p.text("什么样的消息值得关注？")}</span><textarea data-feed-rule-instructions rows="4" maxlength="4000" placeholder="${p.text("例如：用户反馈无法登录、付款失败或数据丢失；忽略日常通知和推广。")}"></textarea><small>${p.text("AI 会按这段描述判断消息；试跑使用已配置的 Functions 服务。")} <a href="/settings/connectors?connector=typesafe">${p.text("管理 AI 连接")}</a></small></label>
+    <label data-feed-rule-field="natural" hidden><span>${p.text("什么样的消息值得关注？")}</span><textarea data-feed-rule-instructions rows="4" maxlength="4000" placeholder="${p.text("例如：用户反馈无法登录、付款失败或数据丢失；忽略日常通知和推广。")}"></textarea><small>${p.text("AI 会按这段描述判断消息；试跑使用能力服务中配置的模型。")} <a href="/capabilities/connections?connector=typesafe">${p.text("管理 AI 连接")}</a></small></label>
     <div data-feed-rule-field="existing" hidden>${renderCaptureJudgmentSelect(model, "data-feed-out-rule-function-key")}<p>${p.text("使用已发布的判断规则，仍可在这里预览结果。")}</p></div>
     ${renderAdmissionSelect(model, "data-feed-out-rule-admission")}
     <div class="feed-rule-preview" data-feed-rule-preview hidden aria-live="polite"></div>
@@ -564,20 +559,9 @@ function renderAdmissionSelect(model: FeedUiModel, attr: string): string {
   return `<label><span>${p.text("处理方式")}</span><select ${attr}><option value="suggest">${p.text("仅建议，手动处理")}</option><option value="inbox">${p.text("筛选后自动入 Inbox")}</option></select></label>`;
 }
 
-function renderCaptureJudgmentSelect(model: FeedUiModel, attr: string, selected: string | null = null): string {
-  const judgment = model.judgment;
-  if (!judgment) return "";
+function renderCaptureJudgmentSelect(model: FeedUiModel, attr: string): string {
   const p = model.primitives;
-  const current = selected ?? "";
-  const emptySelected = current === "" ? " selected" : "";
-  const options = [
-    `<option value=""${emptySelected}>${p.text("不用判断")}</option>`,
-    ...judgment.functions.map((fn) => {
-      const on = fn.function_key === current ? " selected" : "";
-      return `<option value="${p.escape(fn.function_key)}"${on}>${p.escape(fn.name)}</option>`;
-    }),
-  ].join("");
-  return `<label><span>${p.text("判断")} <small>${p.text("可选")}</small></span><select ${attr}>${options}</select></label>`;
+  return `<label><span>${p.text("判断能力")}</span><select ${attr}><option value="">${p.text("请选择判断能力")}</option></select></label>`;
 }
 
 function renderSourceDetail(source: FeedUiSource, selected: boolean, model: FeedUiModel): string {

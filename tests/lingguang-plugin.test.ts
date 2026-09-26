@@ -136,8 +136,8 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
   const islandAt = stack.indexOf("data-assistant-island");
   const projectAt = stack.indexOf("data-project-island");
   const railAt = stack.indexOf("data-plugin-strip");
-  assert.ok(islandAt >= 0 && projectAt > islandAt && railAt > projectAt, "个人岛在项目岛上面");
-  const items = stack.slice(stack.indexOf("plugin-rail-items"), stack.indexOf("personal-sidebar-footer"));
+  assert.ok(projectAt >= 0 && railAt > projectAt && islandAt > railAt, "项目在上、工具居中、个人岛收在底部");
+  const items = stack.slice(stack.indexOf("plugin-rail-items"), islandAt);
   assert.doesNotMatch(items, /data-plugin-id="lingguang"/);
   assert.match(stack, /data-assistant-toggle/);
   assert.match(stack, /data-assistant-composer/);

@@ -207,7 +207,7 @@ function dataJson(view: MolisWorkWebView): string {
     goals: summarize(view.goals),
     archived_goals: summarize(view.archived_goals),
     trashed_goals: summarize(view.trashed_goals),
-    function_scenes: view.function_scenes ?? null,
+    inbox_judgment: view.inbox_judgment ?? null,
   }).replaceAll("<", "\\u003c");
 }
 

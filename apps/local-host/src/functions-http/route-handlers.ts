@@ -1,11 +1,10 @@
-import { functionsActions, functionAuthoringActions } from "@molis-ai/molis-work-module-functions";
+import { functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-functions";
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { assembleFunctionAuthoringCatalog, type FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsHttpRouteContext, FunctionsHttpRouteHandler } from "./routes.js";
 
 /** HTTP names remain stable; all rule business calls enter the registered service. */
 export function createFunctionsRouteHandlers(
-  options: { actions: BoundActionClient; catalog?: () => FunctionAuthoringCatalog },
+  options: { actions: BoundActionClient },
 ): Record<string, FunctionsHttpRouteHandler> {
   const call = (definition: ActionDefinition, args: (context: FunctionsHttpRouteContext) => unknown): FunctionsHttpRouteHandler =>
     async context => ({ status: 200, body: await options.actions.invoke(definition, args(context)) });
@@ -13,7 +12,7 @@ export function createFunctionsRouteHandlers(
   return {
     "functions.list": call(functionAuthoringActions.list, () => ({})),
     "functions.create": call(functionAuthoringActions.create, ({ request }) => request.body),
-    "functions.catalog": () => ({ status: 200, body: { catalog: (options.catalog ?? assembleFunctionAuthoringCatalog)() } }),
+    "functions.catalog": call(functionContextActions.catalog, () => ({})),
     "functions.published": call(functionsActions.list, () => ({})),
     "functions.describe": call(functionsActions.describe, ({ params }) => ({ function_key: params.function_key })),
     "functions.invoke": call(functionsActions.invoke, ({ params, request }) => ({ ...request.body, function_key: params.function_key })),
@@ -27,6 +26,8 @@ export function createFunctionsRouteHandlers(
     "functions.delete": call(functionAuthoringActions.delete, revision),
     "functions.sample.add": call(functionAuthoringActions.addSample, revision),
     "functions.sample.delete": call(functionAuthoringActions.removeSample, revision),
-    "functions.usages": call(functionAuthoringActions.usages, ({ params }) => ({ id: params.id })),
+    "functions.targets": call(functionContextActions.targets, ({ params }) => ({ id: params.id })),
+    "functions.configure": call(functionContextActions.configure, ({ params, request }) => ({ ...request.body, id: params.id })),
+    "functions.usages": call(functionContextActions.usages, ({ params }) => ({ id: params.id })),
   };
 }

@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import { ImagesError } from "./error.js";
-import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageFetch, type ImageProviderRequest } from "./providers.js";
+import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageGeneration, type ImageProviderRequest } from "./providers.js";
 import { ImagesStore, type StoredConnection } from "./store.js";
 
 export interface ImagesSecretPort {
@@ -14,7 +14,7 @@ export interface ImagesSecretPort {
 export interface ImagesServiceOptions {
   homeDirectory: string;
   secrets: ImagesSecretPort;
-  fetch?: ImageFetch;
+  generate?: ImageGeneration;
   resolveConnectionKey?: (imageConnectionId: string, baseUrl: string) => string | null | undefined;
   selectConnection?: (imageConnectionId: string, authConnectionId: string) => void;
   selectedConnectionId?: (imageConnectionId: string) => string | null;
@@ -157,10 +157,25 @@ export class ImagesService {
     if (concurrent) return concurrent;
     const controller = new AbortController();
     const request: ImageProviderRequest = {
-      api_format: connection.api_format, base_url: connection.base_url, model: connection.model, api_key: key,
+      api_format: connection.api_format, base_url: connection.base_url, model: connection.model, credential_ref: credentialRef(connection.id),
+      resolveCredential: ref => { assertCurrent(); return ref === credentialRef(connection.id) ? key : null; },
       prompt: job.prompt, size: job.size, aspect_ratio: job.aspect_ratio,
     };
-    const promise = Promise.resolve().then(() => this.run(job, request, controller, authorization?.revision)).finally(() => this.active.delete(job.id));
+    const assertCurrent = () => {
+      const current = this.store.getConnection(connection.id);
+      if (!current || current.base_url !== connection.base_url || current.api_format !== connection.api_format || current.model !== connection.model) {
+        throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+      }
+      const status = this.options.connectionStatus?.(current);
+      if (authorization && (!status?.available || status.revision !== authorization.revision)) {
+        throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+      }
+      // A standalone service uses its original secret port, without Connector metadata.
+      const selected = this.options.resolveConnectionKey?.(current.id, current.base_url);
+      const currentKey = selected === undefined ? this.options.secrets.get(credentialRef(current.id)) ?? "" : selected;
+      if (currentKey === null || currentKey !== key) throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
+    };
+    const promise = Promise.resolve().then(() => this.run(job, request, controller, assertCurrent)).finally(() => this.active.delete(job.id));
     this.active.set(job.id, { controller, promise, projectId: projectIdValue });
     return job;
   }
@@ -201,7 +216,7 @@ export class ImagesService {
     return this.closing;
   }
 
-  private async run(job: ImageJob, request: ImageProviderRequest, controller: AbortController, authorizationRevision?: string): Promise<void> {
+  private async run(job: ImageJob, request: ImageProviderRequest, controller: AbortController, assertCurrent: () => void): Promise<void> {
     const files: string[] = [];
     const timeout = setTimeout(() => controller.abort(new ImagesError("images.timeout", "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。", 504)), REQUEST_TIMEOUT_MS);
     timeout.unref();
@@ -214,13 +229,11 @@ export class ImagesService {
     observeCancellation.unref();
     try {
       if (controller.signal.aborted) return;
-      const results = await generateProviderImages(request, controller.signal, this.options.fetch);
+      assertCurrent();
+      if (!this.options.generate) throw new ImagesError("images.runtime_unavailable", "Prologue 图片执行服务尚未接通，请稍后重试。", 503);
+      const results = await generateProviderImages(request, controller.signal, this.options.generate);
       if (controller.signal.aborted || this.store.getJob(job.project_id, job.id).status !== "running") return;
-      if (authorizationRevision !== undefined) {
-        const connection = this.store.getConnection(job.connection_id);
-        const current = connection && this.options.connectionStatus?.(connection);
-        if (!current?.available || current.revision !== authorizationRevision) throw new ImagesError("images.connection_changed", "图像连接已改变或撤销，本次结果未保存。请检查连接后重新生成。", 409);
-      }
+      assertCurrent();
       const images = results.map((result): GeneratedImage => {
         const id = randomUUID();
         const extension = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[result.mime];
@@ -232,6 +245,10 @@ export class ImagesService {
       });
       if (this.store.finish(job.project_id, job.id, "succeeded", images, "")) files.length = 0;
     } catch (error) {
+      // A native dispatch/result guard may reject first; preserve the current business reason.
+      if (!controller.signal.aborted) {
+        try { assertCurrent(); } catch (changed) { error = changed; }
+      }
       this.store.finish(job.project_id, job.id, "failed", [], error instanceof ImagesError ? error.message : "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。");
     } finally {
       clearTimeout(timeout);

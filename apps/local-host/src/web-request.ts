@@ -1,3 +1,8 @@
+import { feedRuleActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { HOME_TALK_PERMISSIONS } from "./home-talk-actions.js";
+import { bindLocalWebActions } from "./local-web-actions.js";
+import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
+import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
@@ -20,10 +25,11 @@ import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-linggu
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleBuilderHttp } from "./plugin-builder-surface.js";
+import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
 import { observedWebGoalsActions } from './casebook/web-observer.js';
 import { bindGoalsWebActions } from "./goals-actions.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -41,7 +47,7 @@ import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host
 import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
-import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
+import { createLocalFeedApplication } from "./feed-application.js";
 import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
@@ -131,11 +137,16 @@ export async function handleMolisWorkWebRequest(
       await localHost.withProject(hostReference, async (runtime) => {
         const { store, coordinator } = runtime;
         const feedOptions = {
-          ...withLocalFeedJudgments(serverOptions.homeDirectory),
+          captureJudgment: createFeedCaptureTrigger({ scenes: localHost.sceneClient(hostReference), boardId: hostReference.board_id,
+            context: () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user",
+              permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"] }) }),
+          homeJudgment: createHomeJudgmentTrigger({ scenes: localHost.sceneClient(hostReference), boardId: hostReference.board_id,
+            context: () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: HOME_ACTION_PERMISSIONS.filter(permission => permission !== "home:write") }) }),
           inboxJudgment: createInboxJudgmentTrigger({ scenes: localHost.sceneClient(hostReference), boardId: hostReference.board_id,
             context: () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user",
               permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
         };
+        const homeActions = bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, "inbox:write"]);
         const goalActions = observedWebGoalsActions(runtime, hostReference,
           bindGoalsWebActions(localHost.actionClient(hostReference), hostReference));
         if (url.pathname === "/api/project-settings/workspaces" && options.project && ["GET", "POST"].includes(request.method ?? "")) {
@@ -168,6 +179,11 @@ export async function handleMolisWorkWebRequest(
             }),
           },
         };
+        // The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends.
+        if (await handleAgentStudioHttp(request, response, url, { store, boardId: options.boardId, homeDirectory: serverOptions.homeDirectory,
+          routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
+          models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user", actions: codingServices.actions,
+          ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken)) return;
         if (await handleBuilderHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
           routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
           actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,
@@ -209,8 +225,29 @@ export async function handleMolisWorkWebRequest(
           if (result.completed || result.failed) webViewCache.delete(options.databasePath);
         }).catch(() => undefined);
       }
-      const readWebView = (): MolisWorkWebView =>
-        cachedMolisWorkWebView(webViewCache, store, coordinator, options);
+      const readWebView = async (): Promise<MolisWorkWebView> => {
+        coordinator.goalDecisionAttention.reconcile(options.boardId);
+        let view = await cachedMolisWorkWebView(webViewCache, store, options, goalActions);
+        const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
+        try {
+          const [{ rules }, { recommendations }] = await Promise.all([feedActions.invoke(feedRuleActions.list, {}), feedActions.invoke(feedRuleActions.recommendations, {})]);
+          view = { ...view, feed: { ...view.feed, out_rules: rules, feed_items: view.feed.feed_items.map(item => ({ ...item,
+            suggested_behavior_ids: recommendations.find(result => result.item_id === item.item_id)?.suggested_behavior_ids ?? [] })) } };
+        } catch (error) {
+          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
+        }
+        const inboxActionsClient = bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS);
+        try {
+          const [state, { judgments }] = await Promise.all([inboxActionsClient.invoke(inboxActions.readJudgment, {}), inboxActionsClient.invoke(inboxActions.recommendations, {})]);
+          const byEntry = new Map(judgments.map(judgment => [judgment.subject.id, judgment]));
+          view = { ...view, inbox_judgment: state.summary, feed: { ...view.feed,
+            inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
+              return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
+        } catch (error) {
+          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
+        }
+        return view;
+      };
       {
         const projectSessionWorkspaceMatch = url.pathname.match(/^\/(sessions|workspaces)$/);
         if (request.method === "GET" && projectSessionWorkspaceMatch) {
@@ -223,10 +260,11 @@ export async function handleMolisWorkWebRequest(
           return;
         }
         if (await handleSessions(request, response, url, serverOptions.homeDirectory, options, sessionResources, readWebView,
-          (goalId) => {
-            const history = coordinator.goalQueries.readGoalContract(options.boardId, goalId);
-            const event_work = coordinator.goalEvents.isEventStateOwner(options.boardId, goalId);
-            const state = event_work ? coordinator.goalEvents.readState(options.boardId, goalId) : null;
+          async (goalId) => {
+            const [history, currentState] = await Promise.all([goalActions.invoke(goalsActions.contract, { goal_id: goalId }),
+              goalActions.invoke(goalsActions.state, { goal_id: goalId })]);
+            const event_work = currentState.owner !== null;
+            const state = event_work ? currentState : null;
             return {
               board: history.board,
               goal: history.goal,
@@ -249,7 +287,8 @@ export async function handleMolisWorkWebRequest(
                   }
                 : null,
             };
-          })) return;
+          }, bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", actor_kind: "user",
+            project_id: hostReference.project_id, audience: "user", permissions: WORK_ACTION_PERMISSIONS })))) return;
         if (await goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions)) return;
         if (await planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient()))) return;
         if (request.method === "GET" && url.pathname === "/health") {
@@ -292,13 +331,11 @@ export async function handleMolisWorkWebRequest(
           },
         })) return;
         if (request.method === "GET" && url.pathname === "/api/board") {
-          sendJson(response, 200, readWebView());
+          sendJson(response, 200, await readWebView());
           return;
         }
         if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({
-            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: ["functions:invoke", "functions:manage"],
-          })),
+          actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
         })) return;
         if (serverOptions.homeDirectory && await handleLingguangNativePluginHttp(request, response, url, {
           projectId: hostReference.project_id,
@@ -360,16 +397,13 @@ export async function handleMolisWorkWebRequest(
           invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleInboxNativePluginHttp(request, response, url, {
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({
-            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS],
-          })),
+          actions: bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS),
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           renderer: workbenchRenderer,
           readWebView,
         })) return;
         if (await handleHomeDockJudgmentHttp(request, response, url, {
-          boardId: options.boardId,
-          homeDirectory: serverOptions.homeDirectory,
+          actions: homeActions,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleScheduleNativePluginHttp(request, response, url, {
@@ -380,6 +414,7 @@ export async function handleMolisWorkWebRequest(
           readWebView,
         })) return;
         if (await handleFeedNativePluginHttp(request, response, url, {
+          actions: bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]),
           feedOptions,
           renderer: workbenchRenderer,
           boardId: options.boardId,
@@ -397,7 +432,7 @@ export async function handleMolisWorkWebRequest(
             return;
           }
           const directory = await goalActions.invoke(goalsActions.list, { limit: 100 });
-          sendJson(response, 200, buildCapsuleSnapshot(readWebView(), directory.goals));
+          sendJson(response, 200, buildCapsuleSnapshot(await readWebView(), directory.goals));
           return;
         }
         if (options.project?.project_id) {
@@ -431,7 +466,7 @@ export async function handleMolisWorkWebRequest(
             audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })), controlToken,
           desktopShell: isDesktopShellRequest(request, url), pageCsp: PAGE_CSP,
         })) return;
-        if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, sessionResources, controlToken, goalActions,
+        if (await goalsReadHttp.page(request, response, url, options, serverOptions.homeDirectory, readWebView, bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: WORK_ACTION_PERMISSIONS })), controlToken, goalActions,
           bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: ARTIFACT_ACTION_PERMISSIONS })), coordinator, store, codingServices)) return;
         sendJson(response, 404, { error: L("页面或接口不存在") });
       }

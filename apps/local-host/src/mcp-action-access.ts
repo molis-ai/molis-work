@@ -3,7 +3,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { McpAccessEntry } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { readMcpToolPreference, type McpActionGrant, type McpToolPreference, isMcpToolEnabled } from "./mcp-settings-store.js";
-import { resolveMcpActionContext, hostActionToolName } from "./mcp-action-grants.js";
+import { actionClientAudience, resolveMcpActionContext, hostActionToolName } from "./mcp-action-grants.js";
 
 const same = (grant: McpActionGrant, view: ActionView) => grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id;
 
@@ -51,6 +51,7 @@ export async function mcpAccessPageModel(options: {
   const clientId = (selected === "custom" ? url.searchParams.get("client_custom") : selected)?.trim() || null;
   const projectId = url.searchParams.get("project") || null;
   const clients = [...options.clients];
+  if (!clients.some(client => client.id === "agent:prologue")) clients.push({ id: "agent:prologue", title: "内置 Agent（Prologue）" });
   for (const grant of preference.action_grants ?? []) if (!clients.some(client => client.id === grant.client_id)) clients.push({ id: grant.client_id, title: grant.client_id });
   const missingProjects = [...new Set((preference.action_grants ?? []).flatMap(grant => grant.client_id === clientId && grant.project_id && !projects.some(project => project.project_id === grant.project_id) ? [grant.project_id] : []))];
   const project = projectId ? projects.find(project => project.project_id === projectId) : undefined;
@@ -58,7 +59,7 @@ export async function mcpAccessPageModel(options: {
   if (missing && !missingProjects.includes(projectId)) missingProjects.push(projectId);
   const record = project ? await options.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(project.project_id)) : undefined;
   const reference = record ? { project_id: record.project_id, board_id: record.board_id, storage_key: record.database_path } : undefined;
-  const access = clientId ? await readMcpActionAccess(home, host, { actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [] }, reference, missing, preference) : null;
+  const access = clientId ? await readMcpActionAccess(home, host, { actor_id: clientId, project_id: projectId, audience: actionClientAudience(clientId), permissions: [] }, reference, missing, preference) : null;
   return { client_id: clientId, project_id: projectId, clients, entries: access?.entries ?? [],
     query: url.searchParams.get("q") ?? "", filter: url.searchParams.get("filter") ?? "", unavailable_projects: missingProjects,
     ...(missing ? { scope_error: "所选项目已不存在。原授权记录仍保留，可在此撤销。" } : {}),

@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { MolisWorkHomeInstallError } from "./home-contract.js";
 import { pathState } from "./home-files.js";
+import { vendorReleaseAssetPaths } from "./release-assets.js";
 
 const OPTIONAL_RELEASE_DOCS = ["LICENSE", "README.md"] as const;
 
@@ -31,7 +32,8 @@ export async function declaredReleaseFileEntries(
       if (!declared.includes(entry)) continue;
       throw new Error(`Missing release asset in ${metadata.name}: ${entry}`);
     }
-    entries.push(entry);
+    if (entry === "vendor") entries.push(...await vendorReleaseAssetPaths(source));
+    else entries.push(entry);
   }
   return entries;
 }

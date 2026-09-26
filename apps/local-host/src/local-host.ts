@@ -1,3 +1,4 @@
+import { withSceneConfigurationActions } from "./scene-configuration-actions.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type {
@@ -8,8 +9,8 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
-import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
+import { ActionService, CapabilityRegistry, judgmentRecommendationKeys, subjectOfferChoices, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
+import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface LocalHostRuntimeFactory<Runtime> {
@@ -17,11 +18,17 @@ export interface LocalHostRuntimeFactory<Runtime> {
   close(runtime: Runtime, reference: LocalHostProjectReference): void | Promise<void>;
 }
 
+type ActionAvailabilityCheck = (context: ActionCallContext, action: ActionView) => ActionAvailability | Promise<ActionAvailability>;
+export type ActionAvailabilityPolicy = ActionAvailabilityCheck & {
+  /** One directory read may share a snapshot; invocation and effect checks always use the live function. */
+  snapshotForDiscovery?(context: ActionCallContext): ActionAvailabilityCheck | Promise<ActionAvailabilityCheck>;
+};
+
 export interface LocalHostOptions<Runtime> {
   runtimeFactory: LocalHostRuntimeFactory<Runtime>;
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
-  actionAvailability?(context: ActionCallContext, action: ActionView): ActionAvailability | Promise<ActionAvailability>;
+  actionAvailability?: ActionAvailabilityPolicy;
   observation?: {
     before(runtime: Runtime, reference: LocalHostProjectReference, capability: HostCapabilityDefinition, input: unknown, caller: ActionCallContext): unknown;
     after(runtime: Runtime, ticket: unknown, result: unknown, threw: boolean): void;
@@ -82,11 +89,18 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
 export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
-  private readonly actionService = new ActionService(this.capabilities);
+  private readonly actionService = new ActionService(this.capabilities, { beforeEffect: async (caller, reference) => {
+    const assertActive = () => {
+      if (this.state !== "running" || this.executionScope.getStore()?.entry.state === "closing") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+    };
+    assertActive();
+    await this.checkActionAvailability(caller, reference);
+    assertActive();
+  } });
   private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
   /** A restriction on legacy SDK adapters, independent of their existing action audience. */
   private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();
-  private readonly executionScope = new AsyncLocalStorage<{ entry: RuntimeEntry<Runtime>; active: boolean }>();
+  private readonly executionScope = new AsyncLocalStorage<{ entry: RuntimeEntry<Runtime>; runtime: Runtime; active: boolean }>();
   private readonly entries = new Map<string, RuntimeEntry<Runtime>>();
   private readonly closingKeys = new Set<string>();
   private readonly homeScope = new AsyncLocalStorage<{ active: boolean }>();
@@ -107,7 +121,8 @@ export class LocalHost<Runtime> {
     const invoke = (caller: ActionCallContext, input: Input) => {
       if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
       const token = this.capabilities.registrationToken(definition);
-      return handler(this.invocationRuntimes.get(caller)!, input, { beforeEffect: async () => {
+      return handler(this.invocationRuntimes.get(caller)!, input, { ...(caller.host_plugin ? { plugin: caller.host_plugin } : {}),
+        ...(this.pluginCapabilityCallers.has(caller) ? { consumer: "plugin" as const } : {}), beforeEffect: async () => {
         caller.signal?.throwIfAborted();
         if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
         await caller.validate_authority?.({ ...definition, provider_id: definition.action_provider?.provider_id ?? "platform" });
@@ -122,7 +137,13 @@ export class LocalHost<Runtime> {
     if (definition.action) return this.actionService.registerProvider({
       provider: definition.action_provider ?? { provider_id: "platform", title: "Molis Work", kind: "system" },
       definitions: [definition as ActionDefinition<Input, Output>],
-      handlers: [{ ...definition, handle: (caller, input) => invoke(caller, input as Input) }],
+      handlers: [{ ...definition, handle: (caller, input) => {
+        // ActionService supplies a per-invocation execution context. Runtime identity remains
+        // bound to this Host's active project scope, rather than the caller object's identity.
+        const scope = this.executionScope.getStore();
+        if (!scope?.active || scope.entry.reference.project_id !== caller.project_id) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
+        return handler(scope.runtime, input as Input, { ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), beforeEffect: caller.beforeEffect });
+      } }],
     });
     const hostOnly = definition.host_only === true;
     return this.capabilities.register(definition, invoke, { availability: caller => hostOnly
@@ -143,7 +164,8 @@ export class LocalHost<Runtime> {
       if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
-      const remove = this.actionService.registerProvider({ ...registration,
+      const expanded = withSceneConfigurationActions(registration, this.sceneClient(project));
+      const remove = this.actionService.registerProvider({ ...expanded,
         provider: { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) },
         availability: caller => this.state !== "running" || entry?.state === "closing"
           ? { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" }
@@ -163,9 +185,7 @@ export class LocalHost<Runtime> {
     if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "目录上下文与项目不一致");
     const bound = snapshotCaller(caller);
     if (project) await this.withRuntime(project, () => undefined);
-    return Promise.all(this.actionService.inspect(bound).map(async view => ({ ...view,
-      availability: await this.resolveActionAvailability(bound, view),
-    })));
+    return this.projectActionViews(bound, this.actionService.inspect(bound));
   }
 
   homeActionClient(): ActionClient {
@@ -178,8 +198,7 @@ export class LocalHost<Runtime> {
       discover: async caller => this.discoverActions(contextFor(caller)),
       invoke: async (caller, capability, input) => {
         const context = contextFor(caller);
-        const descriptor = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
-          && d.version === capability.version && !d.action_provider?.project_id)[0];
+        const descriptor = this.capabilities.descriptor(capability);
         return this.runHome(async () => {
           await this.checkActionAvailability(context, capability);
           return this.actionService.invoke(context, capability, input);
@@ -214,14 +233,26 @@ export class LocalHost<Runtime> {
       if (project) await this.withRuntime(project, () => undefined);
       return bound;
     };
-    const scenes = async (caller: ActionCallContext, judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference) =>
-      Promise.all(this.actionService.discoverScenes(caller, judgment).map(async scene => ({ ...scene,
-        availability: scene.availability.available ? await this.options.sceneAvailability?.(caller, scene) ?? scene.availability : scene.availability,
-      })));
-    const check = async (caller: ActionCallContext, sceneId: string, version: number) => {
-      const scene = (await scenes(caller)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
+    const scenes = async (caller: ActionCallContext, judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference) => {
+      const rows = this.actionService.discoverScenes(caller, judgment);
+      const directory = judgment && rows.some(scene => scene.compatible && scene.definition.recommendation_source === "subject-offers")
+        ? await this.discoverActions(caller) : [];
+      const fn = judgment ? directory.find(action => action.capability_id === judgment.capability_id && action.version === judgment.version) : undefined;
+      return Promise.all(rows.map(async scene => {
+        const reason = scene.compatible && fn && scene.definition.recommendation_source === "subject-offers"
+          ? subjectOfferCompatibilityReason(fn, directory) : undefined;
+        const policy = await this.options.sceneAvailability?.(caller, scene);
+        return { ...scene, ...(reason ? { compatible: false, reason } : {}),
+          configuration_availability: scene.configuration_availability.available ? policy ?? scene.configuration_availability : scene.configuration_availability,
+          availability: scene.availability.available ? policy ?? scene.availability : scene.availability };
+      }));
+    };
+    const check = async (caller: ActionCallContext, sceneId: string, version: number, judgment?: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, configuration = false) => {
+      const scene = (await scenes(caller, judgment)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
       if (!scene) throw new ActionError("actions.scene_missing", "场景不存在或不可访问");
-      if (!scene.availability.available) throw new ActionError(scene.availability.code, scene.availability.reason);
+      const availability = configuration ? scene.configuration_availability : scene.availability;
+      if (!availability.available) throw new ActionError(availability.code, availability.reason);
+      if (!scene.compatible) throw new ActionError("actions.scene_incompatible", scene.reason ?? "判断能力与场景不兼容");
     };
     const queue = <Result>(caller: ActionCallContext, id: string, version: number, event: unknown, operation: () => Promise<Result>) => project
       ? this.enqueue(project, { capability_id: `scene.${id}`, version, operation: "command" }, event, caller, operation)
@@ -234,27 +265,53 @@ export class LocalHost<Runtime> {
         return uses.map(use => {
           const source = availableScenes.find(scene => scene.definition.scene_id === use.scene_id && scene.definition.version === use.scene_version);
           const fn = actions.find(action => action.capability_id === use.function.capability_id && action.version === use.function.version);
+          const reason = fn && source?.definition.recommendation_source === "subject-offers" ? subjectOfferCompatibilityReason(fn, actions) : undefined;
           return { ...use, availability: !use.availability.available ? use.availability
-            : source && !source.availability.available ? source.availability : fn?.availability ?? use.availability };
+            : source && !source.availability.available ? source.availability
+              : reason ? { available: false as const, code: "actions.binding_invalid", reason } : fn?.availability ?? use.availability };
         });
       },
-      bind: async (caller, binding) => {
+      targets: async (caller, judgment, selection) => {
+        const bound = await prepare(caller);
+        const [targets, availableScenes, actions] = await Promise.all([this.actionService.targets(bound, judgment, selection), scenes(bound, judgment), this.discoverActions(bound)]);
+        const fn = judgment ? actions.find(action => action.capability_id === judgment.capability_id && action.version === judgment.version && (!judgment.provider_id || judgment.provider_id === action.provider.provider_id)) : undefined;
+        return targets.map(target => {
+          const source = availableScenes.find(scene => scene.definition.scene_id === target.scene_id && scene.definition.version === target.scene_version && scene.provider.provider_id === target.provider_id);
+          const management = source ? sceneConfigurationActions(source.definition) : undefined;
+          const managed = (definition: ActionDefinition | undefined) => actions.find(action => action.capability_id === definition?.capability_id
+            && action.version === definition.version && action.provider.provider_id === target.provider_id)?.availability
+            ?? { available: false as const, code: "actions.forbidden", reason: "当前调用者未获此场景操作的授权" };
+          const disable = managed(management?.disable), enable = managed(management?.enable);
+          const configurationAvailability = !target.configuration_availability.available ? target.configuration_availability
+            : !source ? { available: false as const, code: "actions.scene_missing", reason: "消费场景已不存在" } : !source.configuration_availability.available ? source.configuration_availability : disable;
+          return { ...target, configuration_availability: configurationAvailability, availability: !target.availability.available ? target.availability
+            : !source ? { available: false as const, code: "actions.scene_missing", reason: "消费场景已不存在" }
+              : !source.availability.available ? source.availability : !source.compatible ? { available: false as const, code: "actions.scene_incompatible", reason: source.reason ?? "判断与场景不兼容" }
+                : !enable.available ? enable : judgment ? fn?.availability ?? { available: false as const, code: "actions.forbidden", reason: "判断能力不可访问" } : target.availability };
+        });
+      },
+      bind: async (caller, binding, options) => {
         const bound = await prepare(caller);
         await queue(bound, binding.scene_id, binding.scene_version, binding, async () => {
-          await check(bound, binding.scene_id, binding.scene_version);
+          await check(bound, binding.scene_id, binding.scene_version, binding.enabled ? binding.function : undefined, Boolean(options && !binding.enabled));
           if (binding.enabled) await this.checkActionAvailability(bound, binding.function);
-          await this.actionService.bind(bound, binding);
+          await this.actionService.bind(bound, binding, options ? { ...options, before_write: async () => {
+            await check(bound, binding.scene_id, binding.scene_version, binding.enabled ? binding.function : undefined, Boolean(options && !binding.enabled));
+            if (binding.enabled) await this.checkActionAvailability(bound, binding.function);
+            await options.before_write?.();
+          } } : undefined);
         });
       },
       runScene: async (caller, scene, bindingId, event) => {
         const bound = await prepare(caller);
         return queue(bound, scene.scene_id, scene.version, event, async () => {
-          await check(bound, scene.scene_id, scene.version);
+          const binding = (await this.actionService.usages(bound)).find(use => use.binding_id === bindingId && use.scene_id === scene.scene_id && use.scene_version === scene.version);
+          await check(bound, scene.scene_id, scene.version, binding?.function);
           const client = project ? this.actionClient(project) : this.homeActionClient();
           return this.actionService.runScene(bound, scene, bindingId, event, {
             invoke: (context, fn, input) => client.invoke(context, fn, input),
             beforeConsume: async judgment => {
-              await check(bound, scene.scene_id, scene.version);
+              await check(bound, scene.scene_id, scene.version, judgment);
               await this.checkActionAvailability(bound, judgment);
             },
           });
@@ -312,8 +369,7 @@ export class LocalHost<Runtime> {
       invoke: async (caller, capability, input) => {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
-        const descriptor = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
-          && d.version === capability.version && (!d.action_provider?.project_id || d.action_provider.project_id === bound.project_id))[0];
+        const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return Promise.reject(new ActionError("actions.missing", "能力未注册或版本已失效"));
         return this.enqueue(project, descriptor, input, bound, () => this.actionService.invoke(bound, capability, input));
       },
@@ -328,8 +384,7 @@ export class LocalHost<Runtime> {
       project,
       availability: (capability, options) => {
         if (this.state !== "running" || this.closingKeys.has(project.storage_key)) return { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" };
-        const definition = this.capabilities.descriptors(d => d.capability_id === capability.capability_id && d.version === capability.version
-          && (!d.action_provider?.project_id || d.action_provider.project_id === project.project_id))[0];
+        const definition = this.capabilities.descriptor(capability, project.project_id);
         if (!definition) return { available: false, code: "actions.dependency_missing", reason: `所需宿主能力未注册：${capability.capability_id}@${capability.version}` };
         if (capability.provider_id && capability.provider_id !== (definition.action_provider?.provider_id ?? "platform")) return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化" };
         const caller: ActionCallContext = { actor_id: "local-host", project_id: project.project_id, audience: "user", permissions: [] };
@@ -353,39 +408,50 @@ export class LocalHost<Runtime> {
     input: Input,
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
-    const beforeEffect = options?.before_effect;
-    const caller: ActionCallContext = { actor_id: "local-host", project_id: reference.project_id, audience: "user", permissions: [],
+    const beforeEffect = options?.before_effect, plugin = options?.plugin_caller;
+    if (plugin && (plugin.project_id !== reference.project_id || plugin.board_id !== reference.board_id)) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
+    plugin?.assertActive();
+    const caller: ActionCallContext = { actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: "user", permissions: [],
+      ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
       ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}) };
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
     // A typed identity may omit the activation scope; only the bound Host supplies it.
-    const registered = this.capabilities.descriptors(d => d.capability_id === capability.capability_id && d.version === capability.version
-      && (!d.action_provider?.project_id || d.action_provider.project_id === reference.project_id))[0];
+    const registered = this.capabilities.descriptor(capability, reference.project_id);
     const scoped = { ...capability, action_provider: registered?.action_provider };
     return this.enqueue(reference, scoped, input, caller, () => this.capabilities.invoke<Input, Output>(caller, scoped, input));
   }
 
   private async discoverActions(caller: ActionCallContext): Promise<ActionView[]> {
-    return Promise.all(this.actionService.discover(caller).map(async view => ({ ...view,
-      availability: await this.resolveActionAvailability(caller, view),
+    const views = this.actionService.discover(caller);
+    return this.projectActionViews(caller, views, views);
+  }
+
+  private async projectActionViews(caller: ActionCallContext, views: ActionView[], dependencySnapshot?: readonly ActionView[]): Promise<ActionView[]> {
+    const policy = await this.options.actionAvailability?.snapshotForDiscovery?.(caller) ?? this.options.actionAvailability;
+    // One dependency directory per discovery, including metadata inspection. Invocation uses live reads.
+    let dependencies = dependencySnapshot;
+    const dependencyDirectory = () => dependencies ??= this.actionService.discover(caller);
+    return Promise.all(views.map(async view => ({ ...view,
+      availability: await this.resolveActionAvailability(caller, view, new Set(), policy, dependencyDirectory),
     })));
   }
 
-  private async resolveActionAvailability(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set()): Promise<ActionAvailability> {
+  private async resolveActionAvailability(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy = this.options.actionAvailability, dependencyDirectory?: () => readonly ActionView[]): Promise<ActionAvailability> {
     if (!view.availability.available) return view.availability;
     const key = JSON.stringify([view.capability_id, view.version, view.provider.provider_id]);
     if (ancestors.has(key)) return { available: false, code: "actions.dependency_cycle", reason: "能力或消费场景存在循环依赖，请修正配置" };
     const path = new Set(ancestors).add(key);
-    const state = await this.options.actionAvailability?.(caller, view) ?? view.availability;
+    const state = await policy?.(caller, view) ?? view.availability;
     if (!state.available) return state;
     if (!view.action.required_actions?.length && !view.action.required_scene) return state;
-    const actions = this.actionService.discover(caller);
+    const actions = dependencyDirectory?.() ?? this.actionService.discover(caller);
     for (const reference of view.action.required_actions ?? []) {
       const dependency = actions.find(action => action.capability_id === reference.capability_id && action.version === reference.version);
       if (!dependency) return { available: false, code: "actions.dependency_missing", reason: "所需能力不存在或不可访问" };
       if (reference.provider_id && dependency.provider.provider_id !== reference.provider_id) {
         return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化，原引用不能自动替换" };
       }
-      const dependencyState = await this.resolveActionAvailability(caller, dependency, path);
+      const dependencyState = await this.resolveActionAvailability(caller, dependency, path, policy, dependencyDirectory);
       if (!dependencyState.available) return dependencyState;
     }
     if (!view.action.required_scene) return state;
@@ -399,15 +465,24 @@ export class LocalHost<Runtime> {
     const states = await Promise.all(bindings.map(async binding => {
       if (!binding.availability.available) return binding.availability;
       const fn = actions.find(action => action.capability_id === binding.function.capability_id && action.version === binding.function.version);
-      return fn ? await this.resolveActionAvailability(caller, fn, path)
-        : { available: false as const, code: "actions.binding_invalid", reason: "已绑定的判断能力不可访问" };
+      if (!fn) return { available: false as const, code: "actions.binding_invalid", reason: "已绑定的判断能力不可访问" };
+      const fnState = await this.resolveActionAvailability(caller, fn, path, policy, dependencyDirectory);
+      if (!fnState.available || scene.definition.recommendation_source !== "subject-offers") return fnState;
+      const keys = judgmentRecommendationKeys(fn) ?? [];
+      const choices = subjectOfferChoices(actions).filter(choice => keys.includes(choice.key));
+      for (const choice of choices) for (const reference of [choice.source, choice.action]) {
+        const dependency = actions.find(action => action.capability_id === reference.capability_id && action.version === reference.version && action.provider.provider_id === reference.provider_id);
+        if (!dependency) return { available: false as const, code: "actions.binding_invalid", reason: "推荐动作已不可访问" };
+        const available = await this.resolveActionAvailability(caller, dependency, path, policy, dependencyDirectory);
+        if (!available.available) return available;
+      }
+      return fnState;
     }));
     return states.find(state => state.available) ?? states[0]!;
   }
 
   private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDefinition, "capability_id" | "version">): Promise<void> {
-    const definition = this.capabilities.descriptors(d => d.capability_id === capability.capability_id && d.version === capability.version
-      && (!d.action_provider?.project_id || d.action_provider.project_id === caller.project_id))[0];
+    const definition = this.capabilities.descriptor(capability, caller.project_id);
     if (!definition?.action || !definition.action_provider || definition.operation === "wait") return;
     const availability = this.capabilities.availability(caller, definition);
     if (!availability.available) return;
@@ -425,7 +500,7 @@ export class LocalHost<Runtime> {
     const entry = this.ensureEntry(reference);
     const run = async () => {
       const runtime = await entry.runtime;
-      const scope = { entry, active: true };
+      const scope = { entry, runtime, active: true };
       return this.executionScope.run(scope, async () => {
         this.invocationRuntimes.set(caller, runtime);
         let ticket: unknown;
@@ -460,8 +535,7 @@ export class LocalHost<Runtime> {
     // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
     // waiting. The registry still refuses a caller claiming "wait" for another operation, and concurrency is read from
     // the registered descriptor, never from the caller's.
-    const registered = this.capabilities.descriptors(d => d.capability_id === capability.capability_id
-      && d.version === capability.version && d.action_provider?.project_id === capability.action_provider?.project_id)[0];
+    const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
     if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, run);
     const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);

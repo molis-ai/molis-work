@@ -64,7 +64,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
           if (!port?.clientWidth) return false;
           if (needsInitialCenter) {
             needsInitialCenter = false;
-            view.centerGoal();
+            view.introduceGoalGraph();
           } else view.layout();
           return true;
         };
@@ -187,7 +187,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
             pendingView = null;
             needsInitialCenter = false;
           } else if (!graphLoadedOnce) {
-            view.centerGoal();
+            view.introduceGoalGraph();
             if (graph.querySelector("[data-graph-viewport]")?.clientWidth) needsInitialCenter = false;
           }
           graphLoadedOnce = true;

@@ -1,5 +1,8 @@
 import type { ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
+import { API_OAUTH_PROVIDERS } from "./connector-api-oauth-providers.js";
+import { MCP_SERVERS } from "./connector-mcp.js";
+import { CONNECTOR_CLIS, cliAvailability } from "./connector-cli.js";
 
 function link(label: string, url: string): ConnectorSetupLink {
   if (!url.startsWith("https://")) throw new Error(`connector_method_link_must_be_https:${url}`);
@@ -43,5 +46,13 @@ const HOST_METHODS: Readonly<Record<string, readonly ConnectorMethodOption[]>> =
 };
 
 export function connectorMethodsFor(connectorId: string): readonly ConnectorMethodOption[] {
-  return HOST_METHODS[connectorId] ?? officialMethodsFor(connectorId);
+  return HOST_METHODS[connectorId] ?? officialMethodsFor(connectorId).map(method => {
+    const oauth = API_OAUTH_PROVIDERS[connectorId];
+    if (method.kind === "oauth" && oauth) return { ...method, support: "in_app", note: "配置自己的官方应用后，在浏览器完成授权；每条连接独立刷新。",
+      oauth: { client_secret_required: !oauth.optionalSecret, fields: oauth.fields ?? [], note: oauth.note } };
+    if (method.kind === "cli" && CONNECTOR_CLIS[connectorId]) return { ...method, support: "in_app", note: "在这里运行官方 CLI 登录，再用真实只读请求验证并连接当前账号。", cli: cliAvailability(connectorId) };
+    const mcp = MCP_SERVERS[connectorId];
+    if (method.kind === "mcp" && mcp) return { ...method, support: "in_app", mcp: { endpoint: mcp.endpoint, client_registration: mcp.registration ?? "dynamic" }, note: method.note.replace(/Molis Work 尚未[^。]*。?/gu, "") + " 在这里授权、发现工具并显式调用；服务商资格和许可仍需满足。" };
+    return method;
+  });
 }

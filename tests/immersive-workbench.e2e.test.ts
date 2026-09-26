@@ -96,8 +96,8 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  assert.equal(await evaluate("document.querySelector('.plugin-rail-items [data-plugin-id=market]')"), null);
-  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-work-surface-open=market]')?.dataset.pluginId"), "market");
+  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-plugin-id=market]')"), null);
+  assert.equal(await evaluate("document.querySelector('.plugin-rail-items [data-work-surface-open=market]')?.dataset.pluginId"), "market");
   const railColors = await evaluate<{ current: string; idle: string; market: string; idleId: string }>(`(() => {
     const items = [...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].map((node) => ({
       id: node.dataset.pluginId,
@@ -106,7 +106,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
     }));
     const current = items.find((item) => item.current);
     const idle = items.find((item) => !item.current);
-    const marketNode = document.querySelector('.personal-sidebar-footer [data-plugin-id=market] svg');
+    const marketNode = document.querySelector('.plugin-rail-items [data-plugin-id=market] svg');
     return { current: current?.color || '', idle: idle?.color || '', idleId: idle?.id || '', market: marketNode ? getComputedStyle(marketNode).color : '' };
   })()`);
   assert.ok(railColors.idle && railColors.current && railColors.market, "rail has current, idle and market icons: " + JSON.stringify(railColors));

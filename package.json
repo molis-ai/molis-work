@@ -51,10 +51,10 @@
     "typecheck:all": "pnpm typecheck && pnpm boundary:check && pnpm workspace:typecheck",
     "test": "pnpm build && pnpm test:run",
     "test:run": "node scripts/run-tests.mjs",
-    "workspace:build": "pnpm workspace:clean && pnpm -r --filter './apps/**' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run build",
+    "workspace:build": "pnpm workspace:clean && pnpm -r --filter './apps/**' --filter './server' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run build",
     "workspace:check": "node scripts/workspace-packages.mjs",
-    "workspace:clean": "pnpm -r --filter './apps/**' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run clean",
-    "workspace:typecheck": "pnpm -r --filter './apps/**' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run typecheck",
+    "workspace:clean": "pnpm -r --filter './apps/**' --filter './server' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run clean",
+    "workspace:typecheck": "pnpm -r --filter './apps/**' --filter './server' --filter './packages/**' --filter './modules/**' --filter './horizontal/**' --filter './plugins/**' --filter './tooling/plugin-cli' run typecheck",
     "workspace:verify": "pnpm boundary:test && pnpm boundary:check && pnpm workspace:build && pnpm workspace:typecheck",
     "prepack": "node -e \"console.error('Use pnpm package:npm to build a standalone distribution from this workspace.'); process.exit(1)\"",
     "package:npm": "pnpm build && node apps/local-host/tooling/pack-npm.mjs",
@@ -136,7 +136,8 @@
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "better-sqlite3": "12.8.0",
     "node-pty": "^1.1.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "@molis-ai/molis-work-plugin-sandbox": "workspace:*"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.30.1",

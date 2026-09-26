@@ -1,3 +1,9 @@
+import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
+import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { homeActionProvider, createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
+import { SessionRuntimeService } from "./session-runtime-resources.js";
+import { workActionProvider } from "./work-actions.js";
+import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 import { PersonalPlanningActions } from "./personal-planning-actions.js";
@@ -15,7 +21,7 @@ import { jellyActionProvider } from "./jelly-actions.js";
 import { lingguangActionProvider } from "./lingguang-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
-import { createLocalFeedApplication, withLocalFeedJudgments } from "./feed-application.js";
+import { createLocalFeedApplication } from "./feed-application.js";
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
@@ -23,6 +29,8 @@ import { releaseBuilderSurface } from "./plugin-builder-surface.js";
 import { InteractionObserver, goalActionObservation } from './casebook/observer.js';
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { ProjectRecoveryError } from "./project-migrations.js";
 import { LocalHost, LocalHostError, type LocalHostOptions } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
@@ -51,6 +59,7 @@ export interface MolisWorkLocalHostOptions {
   clock?: () => Date;
   instanceId?: string;
   homeDirectory?: string;
+  runtimeSessionTransport?: RuntimeSessionTransport;
   functions?: FunctionsHostOptions;
   alchemist?: AlchemistHostOptions;
   /** Shared text provider injection; null explicitly disables model completion. */
@@ -98,8 +107,10 @@ export class MolisWorkLocalHost {
   private readonly existingOnly = new Set<string>();
   private agents?: { home: string; service: AgentHostComposition };
   private closing?: Promise<void>;
+  private readonly sessions: SessionRuntimeService;
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
+    this.sessions = new SessionRuntimeService(options);
     this.personalPlanningHome = options.homeDirectory ? path.resolve(options.homeDirectory) : undefined;
     this.host = new LocalHost({
       instanceId: options.instanceId,
@@ -138,21 +149,33 @@ export class MolisWorkLocalHost {
           };
           try {
             const scenes = this.sceneClient(reference);
-            const feed = createLocalFeedApplication(store.db, { ...withLocalFeedJudgments(options.homeDirectory),
+            const feed = createLocalFeedApplication(store.db, {
+              captureJudgment: createFeedCaptureTrigger({ scenes, boardId: reference.board_id,
+                context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow",
+                  permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"] }) }),
+              homeJudgment: createHomeJudgmentTrigger({ scenes, boardId: reference.board_id,
+                context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow", permissions: HOME_ACTION_PERMISSIONS.filter(permission => permission !== "home:write") }) }),
               inboxJudgment: createInboxJudgmentTrigger({ scenes, boardId: reference.board_id,
                 context: () => ({ actor_id: "workflow-events", project_id: reference.project_id, audience: "workflow",
                   permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
             });
             const registry = this.host.actionRegistry(reference);
             registry.registerProvider(goalsActionProvider(runtime, personalMethods));
+            registry.registerProvider(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
             registry.registerProvider(artifactActionProvider(runtime, options));
-            for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory)) registry.registerProvider(provider);
+            for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) registry.registerProvider(provider);
             if (options.homeDirectory) registry.registerProvider(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) registry.registerProvider(pptActionProvider(options.homeDirectory, runtime));
             if (options.homeDirectory) registry.registerProvider(formActionProvider(options.homeDirectory, runtime, options.completeText));
             if (options.homeDirectory) registry.registerProvider(datasetActionProvider(options.homeDirectory, runtime, options.completeText));
             if (options.homeDirectory) registry.registerProvider(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             registry.registerProvider(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
+            if (options.homeDirectory) registry.registerProvider(homeActionProvider(options.homeDirectory, reference.project_id, reference.board_id,
+              { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
+                new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, boardId: reference.board_id, actorId: caller.actor_id,
+                  objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
+                  payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
+              }));
             return runtime;
           } catch (error) {
             store.close();
@@ -175,13 +198,18 @@ export class MolisWorkLocalHost {
       this.alchemist = new AlchemistHostService(options.homeDirectory, options.alchemist);
       this.host.actionRegistry().registerProvider(this.alchemist.provider());
     }
-    if (options.homeDirectory) this.systemFunctions = new SystemFunctionsActions(this.host.actionRegistry(), options.homeDirectory, options.functions);
+    if (options.homeDirectory) this.systemFunctions = new SystemFunctionsActions(this.host.actionRegistry(), options.homeDirectory, options.functions ?? {}, caller => {
+      const project = caller.project_id ? this.host.status().projects.find(row => row.project_id === caller.project_id) : undefined;
+      if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
+      return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), boardId: project?.board_id };
+    });
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
     registerProjectCapabilities(
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor },
     );
+    if (options.homeDirectory) ensureSystemAgentService(this, options.homeDirectory, undefined, { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor });
   }
 
   /** Platform startup injects the existing Catalog owner before accepting requests. */
@@ -280,7 +308,8 @@ export class MolisWorkLocalHost {
     return {
       discoverScenes: async (caller, judgment) => { refresh(); return client.discoverScenes(caller, judgment); },
       usages: async (caller, judgment) => { refresh(); return client.usages(caller, judgment); },
-      bind: async (caller, binding) => { refresh(); return client.bind(caller, binding); },
+      targets: async (caller, judgment, selection) => { refresh(); return client.targets(caller, judgment, selection); },
+      bind: async (caller, binding, options) => { refresh(); return client.bind(caller, binding, options); },
       runScene: async (caller, scene, id, event) => { refresh(); return client.runScene(caller, scene, id, event); },
     };
   }
@@ -307,12 +336,16 @@ export class MolisWorkLocalHost {
     return this.host.closeProject(referenceOrStorageKey);
   }
 
+  configureSessionRuntime(home: string, transport?: RuntimeSessionTransport): void { this.sessions.configure(home, transport); }
+  sessionResources() { return this.sessions.resources(); }
+
   close(): Promise<void> {
     return this.closing ??= (async () => {
+      releaseSystemAgentService(this);
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();
-        await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close()]);
+        await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close(), this.sessions.close()]);
       }
     })();
   }

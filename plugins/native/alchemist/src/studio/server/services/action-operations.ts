@@ -28,6 +28,13 @@ function implementations(d: ApiDependencies): Implementations {
   };
   return {
     ...createWorkspaceOperations(d),
+    reuseCandidates: (input, signal) => d.workReuse.candidates(input, signal),
+    reuseAssess: (input, signal) => d.workReuse.assess(input, signal),
+    reusePublish: async (input, signal) => ({ reference: await d.workReuse.publish(input.reportId, signal) }),
+    reuseReceipt: async (input, signal) => ({ receipt: await d.workReuse.receipt(input.planId, signal) }),
+    reuseReconcile: async (input, signal) => ({ receipt: await d.workReuse.reconcile(input.planId, signal) }),
+    reuseFeedback: async (input, signal) => ({ receipt: await d.workReuse.feedback(input, signal) }),
+    playbookRevise: input => ({ rule: d.workReuse.revise(input) }),
     bootstrap: () => ({
       workspace: { id: d.workspaceId, name: d.workspaceName ?? "炼金术士" }, actor: { id: d.actorId, name: d.actorName ?? "本地创始人" },
       directions: d.directions.list(), explorations: d.explorations.list(),
@@ -57,9 +64,13 @@ function implementations(d: ApiDependencies): Implementations {
     cardRestore: input => ({ card: d.ideaCardActions.restore(input.id) }),
     ideaGet: input => d.ideaCardActions.getIdeaVersionView(input.id, input.version),
     models: async () => ({ models: await d.listRuntimeModels() }),
-    researchGet: input => d.getResearchWorkspace(input.id, input.version),
-    researchPlan: async ({ id, ...input }) => ({ plan: await d.createResearchPlan({ ideaId: id, ...input }) }),
-    researchStart: ({ id, ...input }) => ({ run: d.startLensRun({ ideaId: id, ...input }) }),
+    researchGet: (input, signal) => d.getResearchWorkspace(input.id, input.version, signal),
+    researchPlan: async ({ id, ...input }, signal) => ({ plan: await d.workReuse.projectPlan(await d.createResearchPlan({ ideaId: id, ...input }), signal) }),
+    researchStart: async ({ id, ...input }, signal) => {
+      const plan = d.research.getPlan(input.planId);
+      if (plan) await d.workReuse.validate(plan, signal);
+      return { run: d.startLensRun({ ideaId: id, ...input }) };
+    },
     runCancel: input => {
       try { return { run: d.cancelLensRun(input.id) }; }
       catch (error) {
@@ -75,8 +86,8 @@ function implementations(d: ApiDependencies): Implementations {
     settingsGet: () => d.runtimeSettings.getPublicSettings(),
     settingsUpdate: input => d.runtimeSettings.update(input),
     settingsVerify: () => d.runtimeSettings.verifyAndEnable(),
-    workspaceExport: input => {
-      const file = d.workspaceExport.create(input.format);
+    workspaceExport: async (input, signal) => {
+      const file = await d.workspaceExport.create(input.format, signal);
       return { filename: file.filename, mimeType: file.contentType, encoding: "base64", content: Buffer.from(file.body).toString("base64") };
     },
   };

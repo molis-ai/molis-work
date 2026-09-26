@@ -4,7 +4,6 @@ import type {
   ConnectorDirectoryEntry,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { peekSealedEntry, readProductEnv } from "@molis-ai/molis-work-storage";
-import { GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID } from "@molis-ai/molis-work-integration-github";
 import { CATALOG_CONNECTORS, setupLinksFor } from "@molis-ai/molis-work-integration-catalog";
 import { gmailOAuthConfigured } from "./gmail-oauth.js";
 import { GITHUB_CLIENT_ID_REF, connectorCredentialStatus } from "./connector-credentials.js";
@@ -61,13 +60,13 @@ const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
     availability: "live",
     auth_kind: "github",
     group_id: "code",
-    summary: "本机账号。Feed 拉未读通知，Functions 可勾已兑现动作。",
+    summary: "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
     capabilities: capabilities(
       "Feed 拉未读通知",
-      `Functions 可勾查看当前账号（github.whoami）`,
+      "在连接设置中检查当前账号",
       { inbound: true, outbound: true },
     ),
-    outbound_note: `已兑现动作：查看当前 GitHub 账号（${GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID}）。判断只挑，不会自动调用。`,
+    outbound_note: "连接设置可检查当前 GitHub 账号。Agent 可用能力以能力库为准。",
     setup_links: setupLinksFor("github"),
   },
   {
@@ -85,15 +84,15 @@ const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
     connector_id: spec.id,
     title: spec.title,
     availability: "live" as const,
-    auth_kind: (spec.id === "notion" ? "notion" : spec.id === "feishu" ? "feishu" : "token") as "notion" | "feishu" | "token",
+    auth_kind: (spec.id === "loom" ? "none" : spec.id === "notion" ? "notion" : spec.id === "feishu" ? "feishu" : "token") as "none" | "notion" | "feishu" | "token",
     group_id: spec.group_id,
     summary: spec.summary,
     token_label: spec.token_label,
     token_placeholder: spec.token_placeholder,
     auth_help: spec.auth_help,
     setup_links: spec.setup_links,
-    capabilities: capabilities(spec.inbound, "Functions 可勾查看当前账号", { inbound: true, outbound: true }),
-    outbound_note: "已兑现动作：查看当前账号。判断只挑，不会自动调用。",
+    capabilities: capabilities(spec.inbound, "在连接设置中检查当前账号", { inbound: spec.feed_available !== false, outbound: true }),
+    outbound_note: "连接设置可检查当前账号。Agent 可用能力以能力库为准。",
   })),
 ];
 

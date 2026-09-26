@@ -28,6 +28,7 @@ import {
   SYSTEM_INBOX_NEXT_FUNCTION_KEY,
   functionFitsScene,
   choiceCriteriaFollowContext,
+  type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
   FunctionsError,
@@ -66,7 +67,7 @@ function memorySecrets(initial: Record<string, string> = {}): FunctionsSecretPor
 
 function fixtureProvider(result: { choice?: string | null; noul?: number; score?: number } = { choice: "yes" }, calls: { count: number } = { count: 0 }): TypeSafeProvider {
   return {
-    async evaluate(_apiKey, record) {
+    async evaluate(_apiKey, record): Promise<TypeSafeEvaluateResult> {
       calls.count += 1;
       if (record.primitive === "noul") {
         return {
@@ -406,11 +407,7 @@ test("Functions client clears leftover preview text when switching records and h
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /criteriaForDestination/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /subject_kinds: dest\?\.subject_kinds/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /selected = record;\s*records = records\.some/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /item\.textContent = destTitle\(row\.scene_id\)/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/home\/dock-judgment/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /用在 Inbox/);
-  assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /用在首页/);
+  assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/inbox\/judgment|\/api\/home\/dock-judgment/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /row\.board_id \? " · " \+ row\.board_id/);
 });
 
@@ -430,7 +427,7 @@ test("system judgment editor and connection settings render without plugin contr
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /mw-status--plain feed-entry-status/);
   assert.doesNotMatch(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /className = "functions-row/);
   assert.match(stage, /data-functions-destinations/);
-  assert.match(stage, /这条消息该进 Inbox、存资料、升格还是忽略/);
+  assert.match(stage, /data-functions-subject-list/);
   assert.doesNotMatch(stage, /要不要出现「加入 Inbox」/);
   assert.match(stage, /data-functions-sources/);
   assert.match(stage, /data-functions-columns/);
@@ -453,7 +450,6 @@ test("system judgment editor and connection settings render without plugin contr
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /哪里配/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /Inbox 列表的「下一步判断」/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /开关仍在现场/);
-  assert.match(renderFunctionsWorkbench({ functions: [], primitives }), /给 Agent 选动作/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /molis_work_v1_functions_invoke/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /functions-define/);
   assert.doesNotMatch(renderFunctionsWorkbench({ functions: [], primitives }), /发布给 Agent 调用/);
@@ -543,31 +539,15 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.equal(listed.functions.find((row) => row.function_key === SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, "home.dock");
   const catalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
     catalog: {
-      destinations: Array<{ destination_id: string; configure_at: string; kind: string; when?: string; behavior_ids?: string[] }>;
-      behaviors: Array<{ behavior_id: string; source: string; effect: string }>;
+      destinations: Array<{ destination_id: string; configure_at: string; kind: string; when?: string; behavior_ids?: string[]; availability?: { available: boolean; code?: string } }>;
+      behaviors: Array<{ behavior_id: string; source: string; effect: string; action_ref?: { capability_id: string; version: number; provider_id: string } }>;
     };
   };
-  const destIds = catalog.catalog.destinations.map((row) => row.destination_id);
-  assert.ok(destIds.includes("home.dock"));
-  assert.ok(destIds.includes("inbox.next"));
-  assert.ok(destIds.includes("feed.capture"));
-  assert.ok(destIds.includes("agent.mcp"));
-  assert.equal(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.kind, "event");
-  assert.match(catalog.catalog.destinations.find((row) => row.destination_id === "home.dock")?.configure_at ?? "", /发布后打开/);
-  const feedDest = catalog.catalog.destinations.find((row) => row.destination_id === "feed.capture");
-  assert.match(feedDest?.when ?? "", /升格还是忽略/);
-  assert.ok(feedDest?.behavior_ids?.includes("feed.save"));
-  assert.ok(feedDest?.behavior_ids?.includes("feed.promote"));
-  assert.ok(feedDest?.behavior_ids?.includes("feed.archive"));
-  const behaviorIds = catalog.catalog.behaviors.map((row) => row.behavior_id);
-  assert.ok(behaviorIds.includes("home.continue"));
-  assert.ok(behaviorIds.includes("feed.save"));
-  assert.ok(behaviorIds.includes("feed.promote"));
-  assert.ok(behaviorIds.includes("feed.archive"));
-  assert.ok(behaviorIds.includes("molis_work_v1_functions_invoke"));
-  assert.ok(behaviorIds.includes("molis_work_v1_form_create"));
-  assert.equal(catalog.catalog.behaviors.find((row) => row.behavior_id === "molis_work_v1_form_create")?.source, "mcp");
-  assert.equal(catalog.catalog.behaviors.find((row) => row.behavior_id === "molis_work_v1_form_create")?.effect, "write");
+  assert.deepEqual(catalog.catalog.destinations.map(row => row.destination_id), ["agent.mcp"], "global authoring lists actual registered scenes only");
+  assert.ok(catalog.catalog.behaviors.some(row => row.action_ref?.capability_id === "functions.invoke"));
+  assert.ok(catalog.catalog.behaviors.every(row => row.action_ref?.provider_id && row.action_ref.version > 0));
+  assert.equal(catalog.catalog.behaviors.some(row => row.behavior_id === "molis_work_v1_form_create" || row.behavior_id === "feed.save"), false,
+    "global authoring must not invent unavailable project actions or legacy MCP aliases");
   const created = await fetch(`${origin}/api/functions`, {
     method: "POST",
     headers: headers(),

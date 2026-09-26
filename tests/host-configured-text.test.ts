@@ -21,7 +21,7 @@ const listen = async (server: Server) => {
 };
 const close = (server: Server) => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
 async function fixture(run: (f: {
-  home: string; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
+  home: string; host: MolisWorkLocalHost; catalog: Awaited<ReturnType<typeof openMolisWorkProjectCatalog>>;
   modelOrigin: string; requests: { url: string; headers: Record<string, unknown>; body: any }[];
   answer: (handler: (body: any) => Promise<unknown>) => void;
 }) => Promise<void>) {
@@ -30,6 +30,7 @@ async function fixture(run: (f: {
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   for (const key of ["MOLIS_WORK_TEXT_API_KEY", "MINIMAX_API_KEY", "MOLIS_WORK_TEXT_BASE_URL", "MOLIS_WORK_TEXT_MODEL", "MOLIS_WORK_TEXT_API_FORMAT"]) delete process.env[key];
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const homeOwner = new MolisWorkLocalHost({ homeDirectory: home });
   const requests: { url: string; headers: Record<string, unknown>; body: any }[] = [];
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
   const server = createServer(async (request, response) => {
@@ -37,11 +38,29 @@ async function fixture(run: (f: {
     const body = JSON.parse(raw);
     requests.push({ url: request.url!, headers: request.headers, body });
     const value = await handler(body);
-    if (!response.destroyed) { response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify(value)); }
+    if (!response.destroyed) {
+      const payload = value as any;
+      if (!body.stream) { response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify(value)); }
+      else {
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        if (request.url?.endsWith("/messages")) {
+          const emit = (type: string, event: unknown) => response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...event as object })}\n\n`);
+          emit("message_start", { message: { id: "fixture", type: "message", role: "assistant", model: body.model, content: [], usage: { input_tokens: 4, output_tokens: 0 } } });
+          emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
+          emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: payload.content?.map((part: any) => part.text ?? "").join("\n") ?? "" } });
+          emit("content_block_stop", { index: 0 }); emit("message_delta", { delta: { stop_reason: "end_turn" }, usage: { output_tokens: 4 } }); emit("message_stop", {});
+        } else {
+          response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: payload.choices?.[0]?.message?.content ?? "" }, finish_reason: null }] })}\n\n`);
+          response.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 4, completion_tokens: 4, total_tokens: 8 } })}\n\n`);
+          response.write("data: [DONE]\n\n");
+        }
+        response.end();
+      }
+    }
   });
   const modelOrigin = await listen(server);
-  try { await run({ home, catalog, modelOrigin, requests, answer: next => { handler = next; } }); }
-  finally { await close(server); catalog.close(); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
+  try { await run({ home, host: homeOwner, catalog, modelOrigin, requests, answer: next => { handler = next; } }); }
+  finally { await homeOwner.close(); await close(server); catalog.close(); resetSecretStoreCache(); process.env = old; await rm(home, { recursive: true, force: true }); }
 }
 function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId = "configured", format: "openai-chat-completions" | "anthropic-messages" = "openai-chat-completions") {
   const connection = withConnectorConnections(f.home, store => {
@@ -57,7 +76,7 @@ function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId =
 test("production settings HTTP -> shared connection -> Lingguang action actually calls the configured server", async () => fixture(async f => {
   const created = await f.catalog.createProject({ display_name: "模型调用", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
-  const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+  const host = f.host;
   const token = "configured-model-01234567890123456789";
   const web = createMolisWorkWebServer({ homeDirectory: f.home, localHost: host, controlToken: token });
   const origin = await listen(web);
@@ -121,14 +140,14 @@ test("discovery and Jelly settings never decrypt; explicit selections stay inval
   assert.ok(second.connection_id);
 }));
 
-for (const change of ["disconnect", "disable", "replace-model", "delete"] as const) {
+for (const change of ["disconnect", "disable", "replace-model", "replace-key", "delete"] as const) {
   test(`a real pending request rejects its result after ${change}`, async () => fixture(async f => {
     const connection = configure(f);
     let entered!: () => void, release!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
     const resumed = new Promise<void>(resolve => { release = resolve; });
     f.answer(async () => { entered(); await resumed; return { choices: [{ message: { content: "stale" } }] }; });
-    const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+    const host = f.host;
     const ref = molisWorkHostProjectReference({ databasePath: join(f.home, "project.sqlite"), projectId: "a", boardId: "a" });
     const caller = { actor_id: "test", project_id: "a", audience: "user" as const, permissions: LINGGUANG_ACTION_PERMISSIONS };
     const client = host.actionClient(ref);
@@ -138,6 +157,7 @@ for (const change of ["disconnect", "disable", "replace-model", "delete"] as con
     const rejected = assert.rejects(pending, { code: "actions.configuration_changed" });
     await started;
     try {
+      if (change === "replace-key") withConnectorConnections(f.home, store => store.replaceToken(connection.connection_id, "replacement-fixture-key"));
       if (change === "disconnect") withConnectorConnections(f.home, store => store.disconnect(connection.connection_id));
       if (change === "disable") f.catalog.models.upsert({ ...f.catalog.models.get("configured")!, enabled: false });
       if (change === "replace-model") f.catalog.models.upsert({ ...f.catalog.models.get("configured")!, models: [{ model_id: "replacement", enabled: true }] });
@@ -168,7 +188,7 @@ test("protocol, cache preference, cancellation and scoped Home are preserved on 
   assert.equal(f.requests.length, 1);
   // Simulate a transport that ignores cancellation: the completion must still reject the late reply.
   const late = new AbortController();
-  const ignored = hostCompleteText({ homeDirectory: f.home, fetch: async () => { late.abort(); return Response.json({ content: [{ type: "text", text: "late" }] }); } })!;
+  const ignored = hostCompleteText({ homeDirectory: f.home, resolveInference: async () => ({ completeText: async () => { late.abort(); return "late"; } }) as never })!;
   await assert.rejects(ignored("cancel during send", { signal: late.signal }), { name: "AbortError" });
 }));
 
@@ -176,6 +196,8 @@ test("two configured Homes keep account credentials separate even under another 
   configure(f);
   const homeB = join(f.home, "other-home");
   const catalogB = await openMolisWorkProjectCatalog({ homeDirectory: homeB });
+  // Each Home's inference is owned by that Home's Host.
+  const hostB = new MolisWorkLocalHost({ homeDirectory: homeB });
   try {
     const connectionB = configure({ ...f, home: homeB, catalog: catalogB });
     withConnectorConnections(homeB, store => store.replaceToken(connectionB.connection_id, "other-home-fixture-key"));
@@ -187,7 +209,7 @@ test("two configured Homes keep account credentials separate even under another 
     resetSecretStoreCache();
     await hostCompleteText({ homeDirectory: f.home })!("After cache restart");
     assert.equal(f.requests[2]!.headers.authorization, "Bearer configured-fixture-key");
-  } finally { catalogB.close(); }
+  } finally { await hostB.close(); catalogB.close(); }
 }));
 
 test("legacy stored key remains usable only without catalog configuration and respects disconnect during a request", async () => fixture(async f => {
@@ -235,7 +257,7 @@ test("Dataset uses the configured model connection, keeps local columns offline 
   const created = await f.catalog.createProject({ display_name: "Dataset model", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
-  const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+  const host = f.host;
   try {
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: DATASET_ACTION_PERMISSIONS };
@@ -269,7 +291,7 @@ test("Form uses the configured model connection, keeps local questions offline a
   const created = await f.catalog.createProject({ display_name: "Form model", actor_id: "test" });
   const project = f.catalog.getProject(created.project_id);
   const connection = configure(f);
-  const host = new MolisWorkLocalHost({ homeDirectory: f.home });
+  const host = f.host;
   try {
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
     const caller = { actor_id: "test", project_id: project.project_id, audience: "user" as const, permissions: FORM_ACTION_PERMISSIONS };

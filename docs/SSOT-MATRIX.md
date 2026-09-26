@@ -1,6 +1,6 @@
 # Molis Work 架构 SSOT 索引
 
-2026-09-08 Cutover：现有产品实现已退出旧混合目录，正式调用链位于 39 个实际 workspace 包；产品启动器已归 apps/desktop/launchers，0.1.x SDK 兼容出口已归 apps/local-host/sdk。完整用户验收与当前证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
+2026-09-08 Cutover 后，现有产品实现已退出旧混合目录；正式调用链位于实际 workspace 包，当前清单以 [`scripts/workspace-packages.mjs`](../scripts/workspace-packages.mjs) 为准，数量由 `pnpm boundary:check` 的 `packageCount` 输出。产品启动器已归 apps/desktop/launchers，0.1.x SDK 兼容出口已归 apps/local-host/sdk。历史验收证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)，不能替代后续变更的验收。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
 
 权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 

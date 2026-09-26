@@ -62,3 +62,35 @@
 工程证据：相关包构建通过；14 项 context + 8 项 Gmail/连接选择 + 3 项入口回归，共 25 项通过。未跑有大量既有改动的全仓测试。原生 QA 壳与 4173 后端已退出，4339 保留实际项目预览。
 
 边界保持：浏览器通过粘贴正文、IM 通过导出文本；自动标签页捕获、实时 IM Connector、多项目自动归类和持续同步尚未实现。正式 OAuth 发布配置、发布安装包与更广泛的摘要质量评估不包含在已完成的功能等级中。
+
+## 2026-09-26 扩展：macOS 独立目录授权与工作准备体验
+
+状态：用户已确认上述方向并授权开工；本轮已实现并达到功能可用，原生授权/恢复/读取与浏览器最终采用通过，最终构建的整轮原生采用仍受宿主启动健康探针延迟和随后 CUA 故障影响，未宣称通过。保留既有 Prologue、Pages、OAuth 和空白开始；在当前中性色产品视觉内升级完整交互，不迁移全局设计系统。与 Cognia 2 owner 对齐：通用资料由 Host Artifacts 持有，Cognia 2 消费项目内固定版本引用，不延续旧 Cognia 导入链路。
+
+### 场景与行为
+
+首次与新项目采用四步连续流程：选来源 → 补齐访问权限 → 预览本次内容 → 整理与采用。下载、文稿、桌面、其他文件夹分别勾选和记录授权；邮件/网页/聊天保留已有能力。统一主动作依次处理所选未授权来源，可跳过或失败后继续。勾选不触发系统授权或正文读取，目录预览仅读文件元数据；用户点击开始后才读取明确选中的正文、交给模型。原生授权由系统选择器完成，拒绝、取消、目录失效要保留其余状态，不冒充系统 TCC 总状态。
+
+每个目录可选最近 7/30/90 天或全部；目录元数据按最近修改排序、显示数量/大小/文件类型，可逐文件或子目录排除。预览有界并明确上限，不静默把未列出内容送给模型。取消选择后不参与读取；取消连接清除 Molis 的目录访问凭据，不删除已导入快照，也不声称能撤销 macOS 系统权限。授权凭据跨应用重启保存；每次预览和读取重新验证，过期提示重新选择。浏览器版继续显式上传，不能伪装持有原生授权。
+
+PDF 文本层与 DOCX 正文接入本次导入（本地解析、不获取外部资源）；扫描 PDF、加密/损坏/无正文文件明确跳过并显示原因。采用前原始文件及抽取文本暂存于本轮 journey；采用创建目标项目后，经 artifacts.import.file@1 幂等注册 io.molis.work.document@1，保存原始文件、抽取文本及准确 ArtifactReference。不会把 Home 引用直接搬进项目。历史未完成 Cognia 批次保留原记录并明确提示重新选择；不把旧 material_id 强转为新 Artifact 身份，不恢复旧 Cognia 导入。扩展该公开导入契约以容纳有界原文件快照，保留旧文本调用。正常材料不因单个失败全部丢失。现有上限保持 50 份、总原始文件 6 MB，超出时引导缩小范围。摘要亦注册固定版本，Pages 保存可编辑阅读文档；后续研究复用接收 project_id、固定引用及本次意图，不复制旧 Cognia 数据。
+
+整理页显示真实来源读取/分批进度；结果以工作主题、正文要点、待确认事项和来源阅读开始，保留编辑、重新整理和采用，不伪造模型尚未产出的发现，不自动多建项目。
+
+### 模块与原生契约
+
+原生桥拥有目录授权、security-scoped bookmark 持久化与 scope 内访问。主窗口 onboarding 调用（拒绝非本机 onboarding 页面/非主窗口）；不把绝对路径交给 Node 后端当授权凭证。所有正文由原生在授权 scope 内读取，再交给现有本机服务。符号链接、隐藏/依赖目录、越界路径不读取。
+
+- `context_directory_status()` → `[{id: downloads|documents|desktop|custom, name, path: string|null, state: unconnected|ready|unavailable, message?:string}]`。已存授权才验证，未授权位置不试读。
+- `context_directory_authorize({id})` → 同一条状态；系统目录选择器，取消返回旧状态或 unconnected。内置 id 默认定位对应目录，选择其他路径时将返回 path 作为实际范围在 UI 明示。
+- `context_directory_forget({id})` → unconnected；仅清除本应用记录。
+- `context_directory_preview({id, days:0|7|30|90})` → `{files:[{path, size, modified_ms, identity}], skipped:number, truncated:boolean}`。只列支持的 md/markdown/txt/csv/json/html/htm/pdf/docx；最多 200 项、遍历最多 10,000 项、有界深度；缺少授权/被撤销返回可恢复错误。
+- `context_directory_read({id, files:[{path,size,modified_ms,identity}]})` → `{files:[{path,data?:base64,reason?:string}]}`。最多 50 份、总原始文件 6 MB；identity 绑定 device/inode 与纳秒 mtime/ctime；重新验证同一文件、范围、修改时间与大小，拒绝越界及链接；单个文件错误保留对应 reason。
+
+Local Host 扩展 sources kinds/范围持久化与文档解析；Workbench 接桥、顺序授权、预览/排除/恢复及状态 UI。保留既有 actions owner，不直接写插件私有数据。
+
+### 验收
+
+用隔离测试目录验证取消、授权、重启恢复、范围筛选、文件/子目录排除、符号链接/路径越界拒绝、文件变更与部分失败；测试 PDF/DOCX 正文、空/损坏文件和既有 Gmail/摘要恢复回归。运行相关 TypeScript 构建与定向 tests、Cargo check/test；真实当前源码原生壳操作选择器/预览/采用。未经具体授权不读取个人下载/文稿内容，不自动发送新私密材料给模型。实现完成后在验证文档区分工程、原生实操和用户本人验收。
+
+完成证据见 `docs/design/molis-work-onboarding/mac-access/verification.md`。无模型主路径改为“资料已经准备好 → 保存资料，开始工作”，真实暂存正文可先采用；摘要仍经 Prologue，采用前容量上限对有无模型路径一致。17 项服务完整回归、随后 2 项定向边界回归（含一项复测）、2 项文档、1 项 Artifact、9 项原生测试通过。隔离目录实际保存为一个项目，3 份原始字节与 4 份 Pages/Artifact 核对通过，排除内容未带入。界面独立评审为 ship；原生完整最终采用及发布等级仍保留上述验证缺口。

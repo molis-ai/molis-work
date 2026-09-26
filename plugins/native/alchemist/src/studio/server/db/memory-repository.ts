@@ -5,6 +5,8 @@ import {
   type TasteRule,
 } from "../../domain/memory/rules.js";
 import type { SqliteDatabase } from "./open-database.js";
+import { AlchemistOperationError } from "../services/action-error.js";
+import type { ReuseSnapshot } from "../../../work-reuse/contracts.js";
 
 interface TasteRow {
   id: string;
@@ -47,6 +49,8 @@ export interface MemoryRuleApplication {
   planId: string;
   runId?: string;
   appliedAt: string;
+  ruleVersion?: number;
+  methodSnapshot?: ReuseSnapshot["methods"][number];
 }
 
 interface ApplicationRow {
@@ -55,6 +59,8 @@ interface ApplicationRow {
   plan_id: string;
   run_id: string | null;
   applied_at: string;
+  rule_version: number | null;
+  method_snapshot_json: string | null;
 }
 
 export class SqliteMemoryRepository {
@@ -163,6 +169,21 @@ export class SqliteMemoryRepository {
     return this.getPlaybookRule(id) as PlaybookRule;
   }
 
+  revisePlaybookRule(input: { id: string; expectedVersion: number; methodChange: string; positiveExamples: string[]; negativeExamples: string[] }, now: string): PlaybookRule {
+    return this.database.transaction(() => {
+      const previous = this.getPlaybookRule(input.id);
+      if (!previous || previous.version !== input.expectedVersion || previous.status !== "active")
+        throw new AlchemistOperationError("REUSE_METHOD_CHANGED", "方法已被修改或停用，请刷新后继续。", 409);
+      this.database.prepare("INSERT OR IGNORE INTO research_playbook_revisions (rule_id, version, snapshot_json) VALUES (?, ?, ?)")
+        .run(previous.id, previous.version, JSON.stringify(previous));
+      const result = this.database.prepare(`UPDATE research_playbook_rules SET version = version + 1, method_change = ?,
+        positive_examples_json = ?, negative_examples_json = ?, updated_at = ? WHERE id = ? AND version = ? AND status = 'active'`)
+        .run(input.methodChange, JSON.stringify(input.positiveExamples), JSON.stringify(input.negativeExamples), now, input.id, input.expectedVersion);
+      if (result.changes !== 1) throw new AlchemistOperationError("REUSE_METHOD_CHANGED", "方法已被修改，请刷新后继续。", 409);
+      return this.getPlaybookRule(input.id)!;
+    })();
+  }
+
   listApplicablePlaybookRules(input: {
     workspaceId: string;
     reportId?: string;
@@ -181,7 +202,7 @@ export class SqliteMemoryRepository {
     this.database
       .prepare(
         `INSERT OR IGNORE INTO memory_rule_applications
-         (id, rule_id, plan_id, run_id, applied_at) VALUES (?, ?, ?, ?, ?)`,
+         (id, rule_id, plan_id, run_id, applied_at, rule_version, method_snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         application.id,
@@ -189,6 +210,8 @@ export class SqliteMemoryRepository {
         application.planId,
         application.runId ?? null,
         application.appliedAt,
+        application.ruleVersion ?? null,
+        application.methodSnapshot ? JSON.stringify(application.methodSnapshot) : null,
       );
     return application;
   }
@@ -204,6 +227,8 @@ export class SqliteMemoryRepository {
       planId: row.plan_id,
       ...(row.run_id ? { runId: row.run_id } : {}),
       appliedAt: row.applied_at,
+      ...(row.rule_version ? { ruleVersion: row.rule_version } : {}),
+      ...(row.method_snapshot_json ? { methodSnapshot: JSON.parse(row.method_snapshot_json) } : {}),
     }));
   }
 }

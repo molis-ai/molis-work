@@ -23,8 +23,9 @@ function protectedHandler(binding: ActionHandlerBinding): ActionHandlerBinding {
 const policyFields = { goal_mode: enumeration(["disabled", "preferred", "required"]), required_capabilities: array(identifier),
   self_verification: boolean, cross_reviewers: count, adversarial_reviewers: count, human_approval: boolean,
   max_lease_seconds: { type: "integer", minimum: 1 } };
-const policy = object(policyFields);
-const binding = object({ policy_binding_id: text, goal_id: nullable(text), scope: enumeration(["project_default", "ancestor_minimum", "goal"]),
+export const goalPolicySchema = object(policyFields);
+const policy = goalPolicySchema;
+export const goalPolicyBindingSchema = object({ policy_binding_id: text, goal_id: nullable(text), scope: enumeration(["project_default", "ancestor_minimum", "goal"]),
   policy: object(policyFields, []), state: enumeration(["active", "replaced", "withdrawn"]), created_by: text, reason: text, created_at: text });
 const endpoints = { from_goal_id: identifier, to_goal_id: identifier, type: { ...enumeration(goalRelationTypes),
   description: "part_of：子目标到父目标；depends_on：消费目标到前置目标。其他类型同样按 from → to 保存，不能颠倒。" } };
@@ -45,7 +46,7 @@ export const goalsConfigurationActions = {
     object({ relation_id: identifier, reason: identifier, idempotency_key: identifier }), object({ relation, replayed: boolean, observed_event_cursor: count }))),
   policyHistory: goalAction<Record<string, never>, { bindings: GoalPolicyHistoryRecord[]; observed_event_cursor: number }>("goals.policy.history", "读取项目规则历史",
     "读取当前项目的规则绑定历史，保留作用范围、原作者及 active、replaced、withdrawn 状态；历史绑定不代表当前最终生效规则", "query",
-    object({}), object({ bindings: array(binding), observed_event_cursor: count })),
+    object({}), object({ bindings: array(goalPolicyBindingSchema), observed_event_cursor: count })),
   policyResolve: goalAction<{ goal_id: string }, { policy: GoalPolicy; observed_event_cursor: number }>("goals.policy.resolve", "读取目标生效规则",
     "按原业务规则合并项目基线与目标要求，返回指定目标当前真正生效的规则；不会变更历史领取或审阅记录", "query",
     object({ goal_id: identifier }), object({ policy, observed_event_cursor: count })),

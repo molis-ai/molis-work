@@ -744,6 +744,10 @@ test("public install command is human-readable by default and JSON when requeste
 test("home install copies declared workspace assets and native files, not excluded caches or nested payloads", async () => {
   await withTemporaryDirectory(async (directory) => {
     const fixture = await fixtureScopedRuntimeSource(directory, "1.0.0");
+    const sdkSources = join(fixture.source, "vendor", "prologue-sdk");
+    await mkdir(sdkSources, { recursive: true });
+    await writeFile(join(sdkSources, "README.md"), "SDK provenance");
+    await writeFile(join(sdkSources, "historical.tgz"), "historical source archive");
     const external = join(directory, "outside-cache");
     await mkdir(external, { recursive: true });
     await writeFile(join(external, "secret.txt"), "not-in-release");
@@ -751,6 +755,9 @@ test("home install copies declared workspace assets and native files, not exclud
     const home = join(directory, "home", ".molis-work");
     const first = await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixture.source });
     assert.equal(first.status, "installed");
+    assert.equal(await readFile(join(first.release_directory, "vendor", "prologue-sdk", "README.md"), "utf8"), "SDK provenance");
+    await assert.rejects(stat(join(first.release_directory, "vendor", "prologue-sdk", "historical.tgz")), { code: "ENOENT" });
+    assert.equal(await readFile(join(sdkSources, "historical.tgz"), "utf8"), "historical source archive");
     const installedDesktop = join(first.release_directory, "node_modules", "fixture-desktop");
     const installedNative = join(first.release_directory, "node_modules", "fixture-native");
     assert.equal(await readFile(join(installedDesktop, "dist", "index.js"), "utf8"), "export const shipped = 'workspace-dist';\n");
@@ -764,6 +771,7 @@ test("home install copies declared workspace assets and native files, not exclud
 
     await writeFile(fixture.cacheSentinel, "changed-build-cache\n");
     await writeFile(fixture.payloadSentinel, "changed-nested-payload\n");
+    await writeFile(join(sdkSources, "historical.tgz"), "updated source archive");
     assert.equal((await installMolisWorkHome({ homeDirectory: home, sourceDirectory: fixture.source })).status, "unchanged");
     assert.equal(await readFile(join(installedDesktop, "dist", "index.js"), "utf8"), "export const shipped = 'workspace-dist';\n");
 

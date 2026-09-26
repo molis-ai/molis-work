@@ -1,6 +1,6 @@
 import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_BEHAVIOR_ID, INBOX_ADMIT_BEHAVIOR_ID } from '@molis-ai/molis-work-contracts/modules/functions';
 
-/** Feed composes the public Functions authoring API; Functions owns every AI draft and published rule. */
+/** Feed reads judgment choices from the shared directory; system authoring owns natural-language drafts. */
 export const FEED_RULE_AUTHORING_SCRIPT = `
     const feedRuleDrafts = new Map();
     const feedRuleKey = (section) => route("/") + ":feed-rule:" + section.dataset.feedOutRules;
@@ -25,14 +25,49 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
       section.querySelectorAll("[data-feed-rule-mode]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.feedRuleMode === mode)));
       section.querySelectorAll("[data-feed-rule-field]").forEach(field => field.hidden = field.dataset.feedRuleField !== mode);
     };
+    let feedJudgmentCatalogRequest = null;
+    const readFeedJudgmentCatalog = () => {
+      if (!feedJudgmentCatalogRequest) feedJudgmentCatalogRequest = feedApi("/api/feed/out-rules/judgments", "GET").finally(() => { feedJudgmentCatalogRequest = null; });
+      return feedJudgmentCatalogRequest;
+    };
+    const loadFeedJudgments = async (section) => {
+      const select = section.querySelector("[data-feed-out-rule-function-key]");
+      if (!select) return;
+      const state = feedRuleState(section);
+      const request = String(Number(select.dataset.catalogRequest || 0) + 1);
+      select.dataset.catalogRequest = request;
+      try {
+        const result = await readFeedJudgmentCatalog();
+        if (!select.isConnected || select.dataset.catalogRequest !== request) return;
+        const selected = select.value || state.fields?.["data-feed-out-rule-function-key"] || "";
+        select.replaceChildren(new Option(L("请选择判断能力"), ""));
+        for (const choice of result.choices) {
+          const value = JSON.stringify(choice.reference);
+          const option = new Option(choice.title + (choice.available ? "" : " · " + choice.reason), value);
+          option.disabled = !choice.available; select.append(option);
+        }
+        if (selected && !Array.from(select.options).some(option => option.value === selected)) {
+          const missing = new Option(L("原判断能力不可用，请重新选择"), selected); missing.disabled = true; select.append(missing);
+        }
+        select.value = selected;
+        for (const row of section.querySelectorAll("[data-feed-out-rule-row]")) {
+          const usage = result.usages.find(usage => usage.binding_id === "feed.capture:" + row.dataset.feedOutRuleRow);
+          const label = row.querySelector("[data-feed-rule-binding-status]");
+          if (usage && label) label.textContent = !usage.enabled ? L("已停用") : usage.availability.available ? L("已启用") : usage.availability.reason;
+          else if (label?.textContent.includes(L("正在检查判断能力"))) label.textContent = L("原判断能力不可用，请重新配置");
+        }
+      } catch (error) { feedRuleStatus(section, error.message || L("无法读取判断能力，请重试。"), true); }
+    };
     const hydrateFeedRuleDrafts = () => {
       feedSourcesDialog?.querySelectorAll("[data-feed-out-rules]").forEach(section => {
         const composer = section.querySelector("[data-feed-rule-composer]");
-        if (!composer || composer.dataset.hydrated) return;
+        if (!composer) return;
+        if (composer.dataset.hydrated) { void loadFeedJudgments(section); return; }
         const state = feedRuleState(section);
         for (const [attr, value] of Object.entries(state.fields || {})) { const field = section.querySelector("[" + attr + "]"); if (field) field.value = value; }
         setFeedRuleMode(section, state.mode || "keyword");
         composer.dataset.hydrated = "true";
+        void loadFeedJudgments(section);
       });
     };
     document.addEventListener("input", event => {
@@ -52,11 +87,13 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
       const mode = section.dataset.ruleMode || "keyword";
       const instructions = value("data-feed-rule-instructions");
       const contains = mode === "keyword" ? value("data-feed-out-rule-contains") : "";
-      const functionKey = mode === "existing" ? value("data-feed-out-rule-function-key") : "";
+      const selectedJudgment = mode === "existing" ? value("data-feed-out-rule-function-key") : "";
+      const judgment = selectedJudgment ? JSON.parse(selectedJudgment) : null;
+      const functionKey = "";
       if (mode === "keyword" && !contains) throw new Error(L("填写一个关键词，再预览匹配结果。"));
       if (mode === "natural" && !instructions) throw new Error(L("先描述你想捕捉什么消息。"));
-      if (mode === "existing" && !functionKey) throw new Error(L("请选择一条已发布规则。"));
-      return { mode, instructions, contains, functionKey, name: value("data-feed-out-rule-name") || contains || instructions.slice(0, 40), admission: value("data-feed-out-rule-admission") || "suggest" };
+      if (mode === "existing" && !judgment) throw new Error(L("请选择一条已发布规则。"));
+      return { mode, instructions, contains, functionKey, judgment, name: value("data-feed-out-rule-name") || contains || instructions.slice(0, 40), admission: value("data-feed-out-rule-admission") || "suggest" };
     };
     const ensureFeedFunctionDraft = async (section, rule) => {
       const state = feedRuleState(section);
@@ -94,6 +131,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
       if (modeButton) {
         const section = modeButton.closest("[data-feed-out-rules]");
         setFeedRuleMode(section, modeButton.dataset.feedRuleMode); rememberFeedRule(section);
+        if (modeButton.dataset.feedRuleMode === "existing") await loadFeedJudgments(section);
         section.querySelector("[data-feed-rule-preview]").hidden = true;
         feedRuleStatus(section, ""); return true;
       }
@@ -113,7 +151,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
           if (!result.samples.length) throw new Error(L("还没有可预览的消息。先拉取来源内容，再试一次。"));
           if (rule.mode === "natural") {
             const settings = await feedApi("/api/functions/settings", "GET");
-            if (!settings.has_credential) throw new Error(L("AI 判断还未连接。请在 Connectors 配置 TypeSafe，并在 Functions 选择该连接；当前输入已保留。"));
+            if (!settings.has_credential) throw new Error(L("AI 判断还未连接。请在能力服务的连接设置中配置模型；当前输入已保留。"));
             await ensureFeedFunctionDraft(section, rule);
           }
           const rows = [];
@@ -128,12 +166,9 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
               matched = !needsReview && evaluated.noul >= 0.5;
               rememberFeedRule(section);
             } else if (rule.mode === "existing") {
-              const evaluated = await feedApi("/api/functions/by-key/" + encodeURIComponent(rule.functionKey) + "/invoke", "POST", { input: sample.input });
-              const described = await feedApi("/api/functions", "GET");
-              const fn = described.functions.find(fn => fn.function_key === rule.functionKey);
-              const key = fn?.primitive === "noul" ? (evaluated.data?.noul >= 0.5 ? "true" : "false") : evaluated.data?.choice;
+              const evaluated = await feedApi("/api/feed/out-rules/preview-judgment", "POST", { judgment: rule.judgment, item_id: sample.item_id });
               needsReview = evaluated.status !== "ok";
-              matched = !needsReview && (fn?.scene_map?.[key] || key) === ${JSON.stringify(INBOX_ADMIT_BEHAVIOR_ID)};
+              matched = !needsReview && evaluated.suggested_behavior_ids.includes(${JSON.stringify(INBOX_ADMIT_BEHAVIOR_ID)});
             }
             rows.push({ title: sample.title, matched, needsReview });
           }
@@ -159,7 +194,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
             rule.functionKey = state.function.function_key;
             rememberFeedRule(section);
           }
-          await feedApi("/api/feed/out-rules", "POST", { name: rule.name || L("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, function_key: rule.functionKey || null });
+          await feedApi("/api/feed/out-rules", "POST", { name: rule.name || L("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, ...(rule.judgment ? { judgment: rule.judgment } : { function_key: rule.functionKey || null }) });
           feedRuleDrafts.delete(feedRuleKey(section));
           try { sessionStorage.removeItem(feedRuleKey(section)); } catch {}
           section.querySelectorAll("[data-feed-rule-composer] input, [data-feed-rule-composer] textarea").forEach(field => field.value = "");

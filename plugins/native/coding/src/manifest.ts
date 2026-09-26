@@ -114,6 +114,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.save-plan", method: "POST", path: "/sessions/:sessionId/plan" },
     { route_id: "coding.confirm-plan", method: "POST", path: "/sessions/:sessionId/plan/confirm" },
     { route_id: "coding.characters", method: "GET", path: "/sessions/:sessionId/characters" },
+    { route_id: "coding.actions", method: "GET", path: "/sessions/:sessionId/actions" },
     { route_id: "coding.read-changeset", method: "GET", path: "/sessions/:sessionId/runs/:runId/changeset" },
     { route_id: "coding.save-changeset", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset" },
     { route_id: "coding.changeset-feedback", method: "POST", path: "/sessions/:sessionId/runs/:runId/changeset/feedback" },

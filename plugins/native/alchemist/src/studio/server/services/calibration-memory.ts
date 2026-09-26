@@ -46,6 +46,8 @@ export function createCalibrationMemoryService(dependencies: Dependencies) {
             before: "当前默认判断方法",
             after: parsed.methodChange,
           },
+          { field: "适用示例", before: "", after: parsed.positiveExamples.join("；") },
+          { field: "不适用示例", before: "", after: parsed.negativeExamples.join("；") },
         ],
         versionImpact: "不会改写当前报告；后续兼容研究会显示是否应用。",
         costImpact: "确认本身不触发模型或搜索调用。",

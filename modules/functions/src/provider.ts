@@ -9,44 +9,28 @@ import type {
 import { FunctionsError } from "./keys.js";
 
 export const TYPESAFE_SYSTEMONE_URL = "https://api.typesafe.ai/v1/systemone";
-const PREVIEW_TIMEOUT_MS = 30_000;
+/** The Host executes the native structured protocol through Prologue. */
+export type TypeSafeExecution = (input: {
+  model: string; state: string; questions: Record<string, unknown>; api_key: string; signal?: AbortSignal;
+}) => Promise<unknown>;
 
-export function createHttpTypeSafeProvider(fetchImpl: typeof fetch = fetch): TypeSafeProvider {
+export function createTypeSafeProvider(execute: TypeSafeExecution): TypeSafeProvider {
   return {
     async evaluate(apiKey, record, state, signal) {
-      const timeout = AbortSignal.timeout(PREVIEW_TIMEOUT_MS);
-      const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
-      let response: Response;
+      signal?.throwIfAborted();
+      let body: unknown;
       try {
-        response = await fetchImpl(TYPESAFE_SYSTEMONE_URL, {
-          method: "POST",
-          headers: {
-            authorization: `Bearer ${apiKey}`,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            model: record.model,
-            state,
-            questions: {
-              [record.function_key]: questionBody(record),
-            },
-          }),
-          signal: combined,
-        });
+        body = await execute({ model: record.model, state,
+          questions: { [record.function_key]: questionBody(record) }, api_key: apiKey, signal });
       } catch (error) {
-        if (signal?.aborted) throw signal.reason;
-        if (isAbortError(error)) {
-          throw new FunctionsError("functions.provider_timeout", "TypeSafe 超时，没有自动重试");
-        }
+        signal?.throwIfAborted();
+        if (error instanceof FunctionsError) throw error;
+        if (isAbortError(error)) throw new FunctionsError("functions.provider_timeout", "TypeSafe 超时，没有自动重试");
+        const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
+        if (status === 401 || status === 403) throw new FunctionsError("functions.provider_unauthorized", "TypeSafe Key 无效");
         throw new FunctionsError("functions.provider_failed", "TypeSafe 请求失败");
       }
-      if (response.status === 401 || response.status === 403) {
-        throw new FunctionsError("functions.provider_unauthorized", "TypeSafe Key 无效");
-      }
-      if (!response.ok) {
-        throw new FunctionsError("functions.provider_failed", `TypeSafe 返回 ${response.status}`);
-      }
-      const body = await response.json().catch(() => null);
+      signal?.throwIfAborted();
       return readAnswer(body, record);
     },
   };

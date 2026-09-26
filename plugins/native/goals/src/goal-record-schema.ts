@@ -1,6 +1,11 @@
 import { text, count, boolean, array, object, nullable, enumeration } from "./event-action-schemas.js";
 
 const strings = array(text), maybeText = nullable(text);
+export const goalRiskSchema = object({ risk_id: text, board_id: text, description: text, probability: text, impact: text, affected_surfaces: strings,
+  trigger: text, treatment: enumeration(["accept", "mitigate", "avoid", "defer"]), treatment_plan: text,
+  blocking_mode: enumeration(["none", "claim", "completion", "invalidate_on_trigger"]), revisit_condition: text, owner: text,
+  state: enumeration(["open", "triggered", "resolved", "accepted", "expired"]),
+  resolution_basis: nullable(object({ summary: text, evidence_refs: strings, residual_gaps: strings })), created_at: text, updated_at: text });
 const coverageStatus = enumeration(["complete", "partial", "integration_required", "uncovered"]);
 export const goalDecompositionReviewSchema = object({ status: enumeration(["complete", "paused"]), method_pack_ids: strings,
   task_context: enumeration(["game", "app", "ai_data", "content_research", "operations", "other"]), product_context: enumeration(["game", "app", "other"]),

@@ -13,7 +13,8 @@ export interface GoalsGuidanceActionPorts {
 const kind = enumeration(["context", "requirement", "constraint", "convention", "workflow", "quality_bar"]);
 const common = { guidance_id: text, board_id: text, revision: count, active: boolean, kind, content: text,
   content_hash: text, source_refs: array(text), confirmation_summary: text, reason: text, created_at: text };
-const entry = object({ ...common, position: count, created_by: text, updated_by: text, updated_at: text });
+export const projectGuidanceEntrySchema = object({ ...common, position: count, created_by: text, updated_by: text, updated_at: text });
+const entry = projectGuidanceEntrySchema;
 const revision = object({ ...common, revision_id: text, changed_by: text, change_kind: enumeration(["created", "edited", "deactivated", "restored"]) });
 const write = { reason: identifier, confirmation_summary: identifier, user_confirmed: boolean, idempotency_key: identifier };
 export const goalsGuidanceActions = {

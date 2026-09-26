@@ -1,19 +1,16 @@
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction } from "./action-contract.js";
-import { text, identifier, object, array, boolean, enumeration, nullable, goalStateSchema, goalHistoryPageSchema, eventType } from "./event-action-schemas.js";
+import { text, identifier, object, array, boolean, enumeration, goalStateSchema, goalHistoryPageSchema, eventType } from "./event-action-schemas.js";
 import { goalRelationSchema } from "./configuration-actions.js";
 import { planningMethodSchema } from "./planning-action-schemas.js";
 import { createGoalEventDocumentView, type GoalEventDocumentView, type GoalEventDocumentPorts } from "./event-document-model.js";
 import type { GoalsPlanningActionPorts } from "./planning-actions.js";
 import type { GoalHistoryQueryPorts } from "./history-query.js";
+import { goalRiskSchema } from "./goal-record-schema.js";
 
 const strings = array(text);
-const risk = object({ risk_id: text, board_id: text, description: text, probability: text, impact: text, affected_surfaces: strings,
-  trigger: text, treatment: enumeration(["accept", "mitigate", "avoid", "defer"]), treatment_plan: text,
-  blocking_mode: enumeration(["none", "claim", "completion", "invalidate_on_trigger"]), revisit_condition: text, owner: text,
-  state: enumeration(["open", "triggered", "resolved", "accepted", "expired"]),
-  resolution_basis: nullable(object({ summary: text, evidence_refs: strings, residual_gaps: strings })), created_at: text, updated_at: text, goal_ids: strings });
+const risk = object({ ...goalRiskSchema.properties as Record<string, object>, goal_ids: strings });
 export const goalDocumentAction = goalAction<{ goal_id: string }, GoalEventDocumentView>("goals.document.read", "读取目标正文",
   "读取指定目标的当前状态、完整历史首屏及游标、原始说明、关系、风险和可选规划方法；保留归档及回收站历史，不启动工作或变更已采用要求", "query",
   object({ goal_id: identifier }), object({ state: goalStateSchema, timeline: goalHistoryPageSchema,

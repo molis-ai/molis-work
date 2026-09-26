@@ -5,6 +5,7 @@ import { oauthConnectionRefs } from "./connector-oauth-targets.js";
 
 const PREFIX = "connector:notion:";
 const PENDING_REF = `${PREFIX}oauth:pending`;
+const PENDING_INDEX = `${PENDING_REF}:index`;
 const CLIENT_ID_REF = `${PREFIX}client_id`;
 const CLIENT_SECRET_REF = `${PREFIX}client_secret`;
 const REFRESH_REF = `${PREFIX}refresh`;
@@ -12,8 +13,17 @@ const WORKSPACE_REF = `${PREFIX}workspace`;
 const CALLBACK_PATH = "/api/settings/connectors/notion/oauth/callback";
 const PENDING_TTL_MS = 10 * 60_000;
 
-type Pending = { state: string; clientId: string; redirectUri: string; createdAt: number; connectionId?: string; displayName?: string };
+type Pending = { state: string; clientId: string; clientSecret?: string; redirectUri: string; createdAt: number; connectionId?: string; displayName?: string };
 const refreshInFlight = new Map<string, Promise<string>>();
+function pendingIndex(): Array<{ state: string; at: number }> {
+  try { return JSON.parse(createFileSecretStore().get(PENDING_INDEX) || "[]"); } catch { return []; }
+}
+function removePending(state: string): void {
+  const store = createFileSecretStore();
+  store.delete(`${PENDING_REF}:${state}`);
+  store.put(PENDING_INDEX, JSON.stringify(pendingIndex().filter(row => row.state !== state)));
+  try { if (JSON.parse(store.get(PENDING_REF) || "{}").state === state) store.delete(PENDING_REF); } catch { /* Invalid legacy slot. */ }
+}
 type TokenRefs = { access: string; refresh: string; workspace: string };
 
 function scopedRefs(connectionId: string): TokenRefs {
@@ -82,14 +92,20 @@ export function startNotionOAuth(input: {
   callback.hostname = "localhost";
   const redirectUri = callback.toString();
   const state = randomBytes(24).toString("base64url");
-  store.put(PENDING_REF, JSON.stringify({ state, clientId, redirectUri, createdAt: input.nowMs ?? Date.now(),
+  const now = input.nowMs ?? Date.now();
+  for (const entry of pendingIndex()) if (entry.at > now || now - entry.at > PENDING_TTL_MS) removePending(entry.state);
+  store.put(PENDING_INDEX, JSON.stringify([...pendingIndex(), { state, at: now }]));
+  const pendingValue = JSON.stringify({ state, clientId, clientSecret, redirectUri, createdAt: input.nowMs ?? Date.now(),
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
-    ...(input.displayName ? { displayName: input.displayName } : {}) } satisfies Pending));
+    ...(input.displayName ? { displayName: input.displayName } : {}) } satisfies Pending);
+  store.put(`${PENDING_REF}:${state}`, pendingValue);
+  store.put(PENDING_REF, pendingValue);
   return { authorizationUrl: notionAuthorizationUrl({ clientId, redirectUri, state }), redirectUri };
 }
 
 function readPending(state: string, nowMs: number): Pending {
-  const raw = createFileSecretStore().get(PENDING_REF);
+  if (!/^[A-Za-z0-9_-]{32}$/u.test(state)) throw new Error("Notion 授权状态不匹配");
+  const raw = createFileSecretStore().get(`${PENDING_REF}:${state}`) ?? createFileSecretStore().get(PENDING_REF);
   if (!raw) throw new Error("Notion 授权会话不存在，请重新开始授权");
   let pending: Pending;
   try { pending = JSON.parse(raw) as Pending; }
@@ -98,10 +114,11 @@ function readPending(state: string, nowMs: number): Pending {
   const actual = Buffer.from(state);
   if (!state || actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error("Notion 授权状态不匹配");
   if (!Number.isFinite(pending.createdAt) || nowMs < pending.createdAt || nowMs - pending.createdAt > PENDING_TTL_MS) {
+    removePending(state);
     throw new Error("Notion 授权已过期，请重新开始");
   }
   assertLoopback(new URL(pending.redirectUri));
-  if (pending.clientId !== credentials().clientId) throw new Error("Notion 应用配置已改变，请重新开始授权");
+  if (pending.clientSecret === undefined && pending.clientId !== credentials().clientId) throw new Error("Notion 应用配置已改变，请重新开始授权");
   return pending;
 }
 
@@ -116,15 +133,18 @@ export async function completeNotionOAuth(input: {
   const pending = readPending(input.state, input.nowMs ?? Date.now());
   if (input.callbackUrl.origin + input.callbackUrl.pathname !== pending.redirectUri) throw new Error("Notion 回调地址不匹配");
   if (!input.code.trim()) throw new Error("Notion 未返回授权码");
-  const { clientSecret } = credentials();
+  const clientSecret = pending.clientSecret ?? credentials().clientSecret;
+  const store = createFileSecretStore();
+  removePending(input.state);
   const tokens = await notionOAuthToken({
     clientId: pending.clientId, clientSecret,
     grant: { type: "authorization_code", code: input.code.trim(), redirectUri: pending.redirectUri },
     fetchImpl: input.fetchImpl,
   });
   input.validateAccount?.(tokens, pending.connectionId);
-  saveTokens(tokens, pending.connectionId ? scopedRefs(pending.connectionId) : undefined);
-  createFileSecretStore().delete(PENDING_REF);
+  const refs = pending.connectionId ? scopedRefs(pending.connectionId) : undefined;
+  saveTokens(tokens, refs);
+  store.put(`${refs?.access ?? "connector:notion:token"}:client`, JSON.stringify({ clientId: pending.clientId, clientSecret }));
   return { ...tokens, ...(pending.connectionId ? { connectionId: pending.connectionId } : {}),
     ...(pending.displayName ? { displayName: pending.displayName } : {}) };
 }
@@ -141,7 +161,8 @@ export async function resolveUsableNotionToken(forceRefresh = false, fetchImpl?:
   if (!refreshInFlight.has(key)) {
     const pending = (async () => {
       const refreshToken = store.get(refs.refresh)?.trim();
-      const { clientId, clientSecret } = credentials();
+      const snapshot = store.get(`${refs.access}:client`);
+      const { clientId, clientSecret } = snapshot ? JSON.parse(snapshot) as ReturnType<typeof credentials> : credentials();
       if (!refreshToken || !clientId || !clientSecret) throw new Error("Notion 缺少刷新凭据，请重新授权");
       let tokens: NotionOAuthTokens;
       try {
@@ -154,6 +175,7 @@ export async function resolveUsableNotionToken(forceRefresh = false, fetchImpl?:
         }
         throw error;
       }
+      if (store.get(refs.refresh)?.trim() !== refreshToken) throw new Error("Notion 连接在刷新期间已改变，请重试");
       saveTokens(tokens, refs);
       return tokens.accessToken;
     })().finally(() => { refreshInFlight.delete(key); });
@@ -164,5 +186,6 @@ export async function resolveUsableNotionToken(forceRefresh = false, fetchImpl?:
 
 export function clearNotionOAuth(): void {
   const store = createFileSecretStore();
-  for (const ref of [PENDING_REF, REFRESH_REF, WORKSPACE_REF]) store.delete(ref);
+  for (const entry of pendingIndex()) removePending(entry.state);
+  for (const ref of [PENDING_REF, PENDING_INDEX, REFRESH_REF, WORKSPACE_REF, "connector:notion:token:client"]) store.delete(ref);
 }

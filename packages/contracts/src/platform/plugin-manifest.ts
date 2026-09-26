@@ -203,7 +203,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
     }
   }
   for (const scene of Array.isArray(parsed.action_scenes) ? parsed.action_scenes : []) {
-    for (const permission of Array.isArray(scene?.permissions) ? scene.permissions : []) {
+    for (const permission of [...(Array.isArray(scene?.permissions) ? scene.permissions : []), ...(Array.isArray(scene?.configuration_permissions) ? scene.configuration_permissions : [])]) {
       if (!declaredPermissions.has(permission)) problems.push(`场景 ${scene.scene_id} 使用未声明权限 ${permission}`);
     }
   }

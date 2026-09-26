@@ -1,3 +1,4 @@
+import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { resolve } from "node:path";
 import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ImagesService, ImagesError, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
@@ -24,6 +25,29 @@ export class ImagesHostService {
       const secrets = () => runWithMolisWorkHome(home, () => createFileSecretStore());
       const sealed = (ref: string | null) => ref ? runWithMolisWorkHome(home, () => peekSealedEntry(ref)) : null;
       shared = { owners: new Set(), service: new ImagesService({ homeDirectory: home,
+        generate: async (input, signal) => {
+          const inference = await resolvePrologueInference(home);
+          signal.throwIfAborted();
+          const endpoint = input.api_format === "openai-images" ? `${input.base_url}/images/generations`
+            : `${input.base_url}/models/${encodeURIComponent(input.model)}:generateContent`;
+          try {
+            return await inference.generateImages({ protocol: input.api_format, endpoint, model: input.model,
+              credential_ref: input.credential_ref, resolveCredential: input.resolveCredential,
+              prompt: input.prompt, ...(input.size ? { size: input.size } : {}),
+              ...(input.aspect_ratio ? { aspect_ratio: input.aspect_ratio } : {}), signal, timeout_ms: 180_000 });
+          } catch (error) {
+            const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
+            const guidance: Record<number, string> = {
+              400: "厂商拒绝了生成参数，请检查模型、尺寸和提示词。", 401: "API Key 无效或已过期，请更新服务密钥。",
+              403: "此密钥没有所选模型的权限，或请求被厂商策略拒绝。", 404: "找不到接口或模型，请检查 API 基址、模型名称与协议。",
+              413: "厂商拒绝了过大的请求，请缩短提示词。", 429: "厂商限流或额度不足，请检查用量与余额，稍后再手动重试。",
+            };
+            if (typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599) {
+              throw new ImagesError("images.provider_http", `HTTP ${status}：${guidance[status] ?? "厂商服务暂时不可用，请稍后再手动重试。"}`, 502);
+            }
+            throw error; // ImagesService publishes only its own typed errors; unknown SDK details stay private.
+          }
+        },
         secrets: { get: ref => secrets().get(ref), put: (ref, key) => secrets().put(ref, key), delete: ref => secrets().delete(ref) },
         resolveConnectionKey: (id, baseUrl) => withConnectorConnections(home, store => {
           const selected = store.binding("home", "images", id);

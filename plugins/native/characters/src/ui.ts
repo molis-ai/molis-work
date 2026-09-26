@@ -23,7 +23,12 @@ export function renderCharacters(model: CharactersUiModel): string {
         ${CHARACTER_SOURCE_HTML}
         <fieldset><legend>内置工具范围</legend><label class="characters-check"><input class="mw-check" type="checkbox" data-character-inherit checked>沿用调用方允许的内置工具</label>
           <label data-character-tools-field hidden>限制为这些工具<input class="mw-input" data-character-tools placeholder="read-file, search" autocomplete="off" spellcheck="false"><small>英文名称以逗号分隔；留空表示不用内置工具。选择超出调用方范围的工具会阻止执行。</small></label>
-          <small>MCP 工具由调用方另行选择，仍需原有权限和审查。</small>
+          <small>这些限制用于 Molis 内置引擎。外部原生 Agent 使用自己的工具与权限。</small>
+        </fieldset>
+        <fieldset><legend>动作能力范围</legend><label class="characters-check"><input class="mw-check" type="checkbox" data-character-actions-inherit checked>沿用任务选择的能力</label>
+          <div data-character-actions-field hidden><p>只允许使用下列能力；留空表示不使用动作能力。选择角色不会自动选择工具或授予权限。</p><div data-character-actions-list></div></div>
+          <p data-character-actions-status role="status"></p><button class="mw-btn mw-btn--ghost" type="button" data-character-actions-refresh>刷新能力目录</button>
+          <a href="/capabilities/access?client=agent%3Aprologue">管理内置 Agent 授权</a>
         </fieldset>
         <div class="characters-actions"><button class="mw-btn mw-btn--primary" type="submit" data-character-save>保存草稿</button><button class="mw-btn mw-btn--secondary" type="button" data-character-preview>预览并发布</button><button class="mw-btn mw-btn--ghost" type="button" data-character-toggle>停用</button><button class="mw-btn mw-btn--ghost" type="button" data-character-delete>删除</button></div>
         <p class="characters-hint" data-character-draft-note></p><button class="mw-btn mw-btn--ghost" type="button" data-character-reload>重新读取已保存的草稿</button>

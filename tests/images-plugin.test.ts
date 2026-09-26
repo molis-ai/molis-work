@@ -23,7 +23,7 @@ test("图片插件通过Manifest进入个人导航和市场，客户端可解析
 test("HTTP route 使用Host项目，拒绝伪造project_id，图片下载同样隔离", async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "images-routes-"));
   const keys = new Map<string, string>();
-  const service = new ImagesService({homeDirectory, secrets: {get: (k) => keys.get(k) ?? null, put: (k, v) => {keys.set(k, v);}, delete: (k) => {keys.delete(k);}}, fetch: async () => new Response(JSON.stringify({data: [{b64_json: PNG}]}), {headers: {"content-type": "application/json"}})});
+  const service = new ImagesService({homeDirectory, secrets: {get: (k) => keys.get(k) ?? null, put: (k, v) => {keys.set(k, v);}, delete: (k) => {keys.delete(k);}}, generate: async () => [{bytes: Buffer.from(PNG, "base64"), mime: "image/png"}]});
   try {
     const route = (input: Parameters<typeof handleImagesRoute>[1]) => handleImagesRoute(imagesTestClient(service, input.projectId), input);
     const connection = service.saveConnection({name:"受控本地服务", api_format:"openai-images",base_url:"http://127.0.0.1:9999/v1",model:"fixture-image"});

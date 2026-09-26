@@ -23,18 +23,55 @@ struct AdmitItem {
 }
 
 pub fn admit_file(path: &Path) -> Result<String, String> {
+    if path.is_dir() { return admit_folder(path); }
     let bytes = fs::read(path).map_err(|error| format!("读不了这份文件：{error}"))?;
     let filename = path
         .file_name()
         .and_then(|name| name.to_str())
         .ok_or_else(|| "文件名无效".to_string())?;
+    admit_bytes(filename, &bytes, Some(path))
+}
+
+pub fn admit_bytes(filename: &str, bytes: &[u8], origin: Option<&Path>) -> Result<String, String> {
     let body = serde_json::json!({
         "filename": filename,
-        "bytes_base64": encode_base64(&bytes),
+        "bytes_base64": encode_base64(bytes),
         "mime": mime_for(filename),
+        "origin_realpath": origin.and_then(|path| path.to_str()),
     });
-    post_json("/api/shelf/items", &body)
-        .and_then(parse_item_id)
+    post_json("/api/shelf/items", &body).and_then(parse_item_id)
+}
+
+fn folder_entries(root: &Path) -> Result<Vec<serde_json::Value>, String> {
+    fn walk(root: &Path, at: &Path, entries: &mut Vec<serde_json::Value>, size: &mut u64) -> Result<(), String> {
+        let mut children = fs::read_dir(at).map_err(|error| format!("读不了这个文件夹：{error}"))?
+            .collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?;
+        children.sort_by_key(|entry| entry.file_name());
+        for entry in children {
+            let kind = entry.file_type().map_err(|error| error.to_string())?;
+            let file = entry.path();
+            // Do not follow symlinks out of the selected folder or into cycles.
+            if kind.is_symlink() { continue; }
+            if kind.is_dir() { walk(root, &file, entries, size)?; }
+            else if kind.is_file() {
+                *size += entry.metadata().map_err(|error| error.to_string())?.len();
+                if *size > 64 * 1024 * 1024 { return Err("这个文件夹超过 64 MB".into()); }
+                let bytes = fs::read(&file).map_err(|error| format!("读不了这份文件：{error}"))?;
+                let relative = file.strip_prefix(root).map_err(|error| error.to_string())?.to_string_lossy();
+                entries.push(serde_json::json!({"relative": relative, "bytes_base64": encode_base64(&bytes), "mime": mime_for(&relative)}));
+            }
+        }
+        Ok(())
+    }
+    let mut entries = Vec::new();
+    walk(root, root, &mut entries, &mut 0)?;
+    Ok(entries)
+}
+
+fn admit_folder(path: &Path) -> Result<String, String> {
+    let name = path.file_name().and_then(|name| name.to_str()).ok_or("文件夹名称无效")?;
+    let body = serde_json::json!({"name": name, "entries": folder_entries(path)?, "origin_realpath": path});
+    post_json("/api/shelf/folders", &body).and_then(parse_item_id)
 }
 
 pub fn admit_text(text: &str) -> Result<String, String> {
@@ -104,12 +141,16 @@ pub fn wheel_gates() -> (bool, bool) {
 }
 
 pub fn refresh_wheel_gates() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static REFRESHING: AtomicBool = AtomicBool::new(false);
+    if REFRESHING.swap(true, Ordering::AcqRel) { return; }
     thread::spawn(|| {
-        let parsed = get_json("/api/shelf")
-            .ok()
-            .and_then(|payload| parse_wheel_gates(&payload))
-            .unwrap_or((false, false));
-        write_gate_cache(gate_now(), parsed.0, parsed.1);
+        let parsed = get_json("/api/shelf").ok().and_then(|payload| parse_wheel_gates(&payload));
+        // A temporarily unavailable host should not grey out a working agent.
+        let (_, agent, recipe) = read_gate_cache(gate_now());
+        let (agent, recipe) = parsed.unwrap_or((agent, recipe));
+        write_gate_cache(gate_now(), agent, recipe);
+        REFRESHING.store(false, Ordering::Release);
     });
 }
 
@@ -205,7 +246,7 @@ fn post_json(path: &str, body: &serde_json::Value) -> Result<String, String> {
          {encoded}",
         encoded.len()
     );
-    exchange_http(&request, Duration::from_millis(800), Duration::from_secs(30))
+    exchange_http(&request, Duration::from_millis(800), Duration::from_secs(if path == "/api/shelf/jobs" { 620 } else { 30 }))
 }
 
 fn get_json(path: &str) -> Result<String, String> {
@@ -327,6 +368,8 @@ fn mime_for(filename: &str) -> &'static str {
     match filename.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
         "pdf" => "application/pdf",
         "png" => "image/png",
+        "tif" | "tiff" => "image/tiff",
+        "heic" | "heif" => "image/heic",
         "jpg" | "jpeg" => "image/jpeg",
         "gif" => "image/gif",
         "webp" => "image/webp",
@@ -364,7 +407,71 @@ fn encode_base64(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_base64, http_payload, parse_wheel_gates};
+    use super::{encode_base64, folder_entries, http_payload, parse_wheel_gates};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> Self {
+            let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+            let path = std::env::temp_dir().join(format!("molis-shelf-folder-{}-{stamp}", std::process::id()));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn shelf_folder_reads_nested_files_with_their_names_and_contents() {
+        let temp = TestDirectory::new();
+        fs::create_dir_all(temp.0.join("中文目录/deep")).unwrap();
+        fs::write(temp.0.join("first file.txt"), b"hello").unwrap();
+        fs::write(temp.0.join("中文目录/deep/note.md"), b"# note\n").unwrap();
+
+        assert_eq!(folder_entries(&temp.0).unwrap(), vec![
+            serde_json::json!({"relative": "first file.txt", "bytes_base64": "aGVsbG8=", "mime": "text/plain"}),
+            serde_json::json!({"relative": "中文目录/deep/note.md", "bytes_base64": "IyBub3RlCg==", "mime": "text/markdown"}),
+        ]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shelf_folder_skips_symlink_files_directories_and_cycles() {
+        use std::os::unix::fs::symlink;
+        let temp = TestDirectory::new();
+        let source = temp.0.join("source");
+        let outside = temp.0.join("outside");
+        fs::create_dir(&source).unwrap();
+        fs::create_dir(&outside).unwrap();
+        fs::write(source.join("kept.txt"), b"hello").unwrap();
+        fs::write(outside.join("private.txt"), b"must stay outside").unwrap();
+        symlink(outside.join("private.txt"), source.join("linked-file.txt")).unwrap();
+        symlink(&outside, source.join("linked-directory")).unwrap();
+        symlink(&source, source.join("cycle")).unwrap();
+
+        assert_eq!(folder_entries(&source).unwrap(), vec![
+            serde_json::json!({"relative": "kept.txt", "bytes_base64": "aGVsbG8=", "mime": "text/plain"}),
+        ]);
+        assert_eq!(fs::read(outside.join("private.txt")).unwrap(), b"must stay outside");
+    }
+
+    #[test]
+    fn shelf_folder_rejects_a_total_over_64_mib_before_reading_the_large_file() {
+        let temp = TestDirectory::new();
+        fs::write(temp.0.join("a.txt"), b"x").unwrap();
+        // A sparse file exercises the actual metadata limit without allocating 64 MiB.
+        fs::File::create(temp.0.join("z-large.bin")).unwrap().set_len(64 * 1024 * 1024).unwrap();
+        let error = folder_entries(&temp.0).expect_err("the limit applies to the combined folder size");
+        assert_eq!(error, "这个文件夹超过 64 MB");
+    }
 
     #[test]
     fn base64_encodes_padding() {

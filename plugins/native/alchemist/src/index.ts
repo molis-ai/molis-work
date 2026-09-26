@@ -24,3 +24,6 @@ export { createAlchemistActionHandlers, AlchemistOperationError } from "./studio
 export type { AlchemistActionInvoker } from "./studio/server/services/action-operations.js";
 export { alchemistLegacyActions, createAlchemistLegacyActionHandlers } from "./legacy-actions.js";
 export { createApp as createAlchemistHttpApp } from "./studio/server/app.js";
+
+export type { WorkReuseHostPort, ReuseSelection, ReuseSnapshot, ReuseCandidates, ReuseReceipt } from "./work-reuse/contracts.js";
+export { WorkReuseService, artifactReuseKey } from "./work-reuse/service.js";

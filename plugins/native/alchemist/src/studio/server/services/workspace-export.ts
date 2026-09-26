@@ -2,6 +2,8 @@ import type { IdFactory } from "../../domain/kernel/identity.js";
 import type { SqliteActivityRepository } from "../db/activity-repository.js";
 import type { SqliteDatabase } from "../db/open-database.js";
 import { formatSystemLocalCalendarDate } from "../utils/local-calendar.js";
+import type { WorkReuseService } from "../../../work-reuse/service.js";
+import type { ReuseSnapshot } from "../../../work-reuse/contracts.js";
 
 const exportTables = [
   "workspaces",
@@ -50,10 +52,11 @@ export class WorkspaceExportService {
       activity: SqliteActivityRepository;
       idFactory: IdFactory;
       now(): string;
+      workReuse?: WorkReuseService;
     },
   ) {}
 
-  create(format: "json" | "zip"): WorkspaceExportResult {
+  async create(format: "json" | "zip", signal?: AbortSignal): Promise<WorkspaceExportResult> {
     const generatedAt = this.options.now();
     this.options.activity.create({
       id: this.options.idFactory.next("activity"),
@@ -65,6 +68,11 @@ export class WorkspaceExportService {
       createdAt: generatedAt,
     });
     const data = Object.fromEntries(exportTables.map((table) => [table, this.rows(table)]));
+    if (this.options.workReuse) {
+      for (const row of data.research_plans! as Record<string, unknown>[]) {
+        if (row.reuse) row.reuse = await this.options.workReuse.projectSnapshot(row.reuse as ReuseSnapshot, signal);
+      }
+    }
     const runtime = this.options.database
       .prepare(
         `SELECT provider, model_id, model_policy, market_budget_kind, market_budget_limit,

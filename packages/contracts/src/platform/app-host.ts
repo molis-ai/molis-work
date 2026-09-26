@@ -124,13 +124,29 @@ export interface LocalHostStatus {
   capabilities: HostCapabilityDescriptor[];
 }
 
+/** Bound by the original Plugin Host executor; never parsed from a request body. */
+export interface HostPluginCaller {
+  readonly plugin_id: string;
+  readonly install_id: string;
+  readonly actor_id: string;
+  readonly board_id: string;
+  readonly project_id: string;
+  readonly declaration: Pick<import("./plugin.js").PluginDefinition, "manifest" | "agent_prompts" | "agent_skills">;
+  /** Installation lifetime, also usable by the original Agent after this typed call ends. */
+  readonly assertActive: () => void;
+}
+
 /** In-process authority callbacks are separate from serializable business inputs. */
 export interface HostCapabilityCallOptions {
+  /** Host-only binding. The Plugin SDK executor always overrides a supplied value. */
+  plugin_caller?: HostPluginCaller;
   before_effect?: () => void | Promise<void>;
   /** SDK-enforced restriction, not caller authority; plugins cannot remove it through invocation options. */
   consumer?: "plugin";
 }
 export interface HostCapabilityInvocation {
+  readonly plugin?: HostPluginCaller;
+  readonly consumer?: "plugin";
   /** Recheck original authority and live project policy immediately before a side effect. */
   beforeEffect(): Promise<void>;
 }

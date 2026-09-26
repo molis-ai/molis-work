@@ -1,3 +1,5 @@
+import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { importedCharacterInstructions } from "./character-import.js";
 import type {
   AgentManifest,
@@ -8,6 +10,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
+  AgentActionClient,
   AgentHostApi,
   AgentHostErrorCode,
   AgentRunHandle,
@@ -49,6 +52,8 @@ export type {
 } from "./capability-registration.js";
 export { PrologueAgentAdapter, PrologueAdapterError, PROLOGUE_RUNTIME_ID } from "./adapters/prologue.js";
 export { createPrologueNodeAdapter, SUBAGENT_DEFAULT_TURNS } from "./adapters/prologue-node.js";
+export { createPluginBuilderAgent } from "./adapters/plugin-builder.js";
+export type { PluginBuilderAgentOptions, BuilderAgentRequest, BuilderAgentRecord, BuilderAgentActivity } from "./adapters/plugin-builder.js";
 export { resolveModelHostname } from "./adapters/node-model-dns.js";
 export { PrologueApprovalBridge, PrologueApprovalError } from "./adapters/prologue-approvals.js";
 export {
@@ -188,7 +193,21 @@ function roleExecution(role: AgentRoleDeclaration): AgentRoleExecution {
   return role.execution ?? "read-only";
 }
 
+function assertInferenceRole(role: AgentRoleDeclaration, manifest: AgentManifest): void {
+  if (role.workspace !== "none" || roleExecution(role) !== "read-only" || role.host_tools?.length
+    || role.subagent_workspaces || manifest.subagents?.parent_role_ids.includes(role.role_id)) {
+    throw new AgentHostError("agent.role_execution_exceeded", "此角色没有声明无工作区、无工具的推理方式");
+  }
+}
+
 export interface AgentStartAuthority {
+  /** Original invocation guard, after all asynchronous preparation and before starting the Runtime. */
+  beforeStart?(): void | Promise<void>;
+  /** Recheck installation/material authority at real dispatch, without retaining a completed invocation. */
+  beforeDispatch?(): void | Promise<void>;
+  /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
+  /** The trusted guard must run again at dispatch, including after the Host queue. */
+  actions?(runtimeId: string, validate?: () => void | Promise<void>): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -269,6 +288,10 @@ export class AgentHost implements AgentHostApi {
   }> {
     const capabilities = this.adapter(runtimeId).descriptor.capabilities;
     return manifest.roles.map((role) => {
+      if (role.workspace === "none") {
+        try { assertInferenceRole(role, manifest); } catch (error) { return { role_id: role.role_id, available: false, reason: (error as Error).message }; }
+        if (!this.adapter(runtimeId).descriptor.supports_workspace_none) return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通无工作区推理" };
+      }
       if (role.subagent_workspaces && (!this.adapter(runtimeId).subagents?.workspaces || !manifest.subagents?.parent_role_ids.includes(role.role_id)) || manifest.subagents?.parent_role_ids.includes(role.role_id) && capabilities.subagents === "unsupported") return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通这个协作方式" };
       const missing = EXECUTION_CAPABILITIES[roleExecution(role)]
         .filter((capability) => capabilities[capability] === "unsupported");
@@ -280,6 +303,21 @@ export class AgentHost implements AgentHostApi {
           reason: `${runtimeId} 不支持 ${missing.join("、")}`,
         };
     });
+  }
+
+  async createSession(runtimeId: string, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionInput, authority: AgentStartAuthority) {
+    const adapter = this.adapter(runtimeId);
+    if (input.workspace === "none") {
+      const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
+      if (!role) throw new AgentHostError("agent.role_not_declared", "无工作区会话需要插件声明的推理角色");
+      assertInferenceRole(role, authority.manifest);
+      if (!adapter.descriptor.supports_workspace_none) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无工作区推理");
+      if (input.directory !== undefined || !input.actor_id?.trim()) throw new AgentHostError("agent.directory_unauthorized", "无工作区会话不能携带目录且必须有明确用户归属");
+    } else if (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path)) {
+      throw new AgentHostError("agent.directory_unauthorized", "这个目录没有被授权给当前项目");
+    }
+    await authority.beforeStart?.();
+    return adapter.createSession(input);
   }
 
   /**
@@ -331,7 +369,7 @@ export class AgentHost implements AgentHostApi {
     request: AgentStartRequest,
     authority: AgentStartAuthority,
   ): Promise<AgentRunHandle> {
-    request = { ...request, execution_plan: freezeExecutionPlan(request) };
+    request = { ...request, budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     const adapter = this.adapter(runtimeId);
     const role = authority.manifest.roles.find((item) => item.role_id === request.role_id);
     if (!role) {
@@ -349,12 +387,28 @@ export class AgentHost implements AgentHostApi {
         `${runtimeId} 不支持 ${missing.join("、")}，角色 ${role.role_id} 不能在它上面运行`,
       );
     }
-    if (!request.directory.realpath_verified
+    const workspace = role.workspace ?? "required";
+    if (workspace !== (request.workspace ?? "required")) throw new AgentHostError("agent.directory_unauthorized", "请求与角色的工作区方式不一致");
+    if (request.workspace === "none") {
+      assertInferenceRole(role, authority.manifest);
+      if (!adapter.descriptor.supports_workspace_none) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无工作区推理");
+      if (request.directory !== undefined || request.action_tools?.length || request.mcp_tools?.length || request.mcp_sources?.length
+        || request.subagent_workspaces?.length || request.execution_plan || request.skills?.length) {
+        throw new AgentHostError("agent.role_execution_exceeded", "无工作区推理不能选择目录、工具、工作区方法或子任务");
+      }
+    } else if (!request.directory?.realpath_verified
       || !authority.authorizedDirectories.includes(request.directory.canonical_path)) {
       throw new AgentHostError(
         "agent.directory_unauthorized",
         "这个目录没有被授权给当前插件",
       );
+    }
+    const session = await adapter.readSession(request.session);
+    if (request.session.runtime_id !== runtimeId || session.session.runtime_id !== runtimeId || session.session.session_id !== request.session.session_id
+      || session.owner.board_id !== request.board_id || session.owner.plugin_id !== request.plugin_id || session.owner.install_id !== request.install_id
+      || (session.owner.actor_id !== undefined || workspace === "none") && session.owner.actor_id !== request.actor_id
+      || (session.workspace ?? "required") !== workspace) {
+      throw new AgentHostError("agent.session_unknown", "执行请求与原会话的身份或工作区方式不一致");
     }
 
     let character: AgentFrozenCharacter | undefined;
@@ -379,6 +433,16 @@ export class AgentHost implements AgentHostApi {
       }
     }
 
+    const validateCharacter = character ? () => {
+      const current = authority.resolveCharacter!(character.reference, request.actor_id);
+      if (current.reference.artifact_id !== character.reference.artifact_id || current.reference.version !== character.reference.version
+        || current.content_digest !== character.content_digest || current.board_id !== request.board_id || current.source.owner_actor_id !== request.actor_id) {
+        throw new AgentHostError("agent.capability_unavailable", "原 Character 版本已变化，请重新选择后执行");
+      }
+    } : undefined;
+    const beforeStart = async () => { await authority.beforeStart?.(); validateCharacter?.(); };
+    const beforeDispatch = async () => { await authority.beforeDispatch?.(); validateCharacter?.(); };
+
     if (character && request.character_skill_ids !== undefined) {
       const ids = request.character_skill_ids;
       if (!Array.isArray(ids) || ids.length > 200 || new Set(ids).size !== ids.length || ids.some(id => typeof id !== "string" || !character!.import_snapshot?.skills.some(skill => skill.id === id))) throw new Error("本轮选择的 Skill 不在 Character 固定版本中");
@@ -399,6 +463,29 @@ export class AgentHost implements AgentHostApi {
     const skills = await Promise.all(selected.map(ref => this.readSkill(runtimeId, authority, ref)));
     for (const skill of skills) if (skill.tools.some(tool => !hostTools.includes(tool))) {
       throw new AgentHostError("agent.role_execution_exceeded", `方法“${skill.name}”需要当前执行方式未开放的工具，请更换方式或取消选择`);
+    }
+    const actionRefs = parseExactActionReferences(request.action_tools ?? []);
+    let actions: NonNullable<AgentStartRequest["role"]>["actions"];
+    if (actionRefs.length) {
+      if (!adapter.descriptor.supports_action_tools || !authority.actions) throw new AgentHostError("agent.capability_unavailable", "当前执行引擎尚未接入动作服务");
+      const key = (ref: { capability_id: string; version: number; provider_id: string }) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id]);
+      if (character?.action_tools && actionRefs.some(ref => !character.action_tools!.some(allowed => key(allowed) === key(ref)))) {
+        throw new AgentHostError("agent.role_execution_exceeded", "所选能力超出了这个 Character 的工具范围");
+      }
+      const source = await authority.actions(runtimeId, validateCharacter);
+      const client: AgentActionClient = {
+        discover: async () => { validateCharacter?.(); return source.discover(); },
+        invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
+      };
+      const directory = await client.discover();
+      const tools = actionRefs.map(ref => {
+        const view = directory.find(view => view.capability_id === ref.capability_id && view.version === ref.version && view.provider.provider_id === ref.provider_id);
+        if (!view || !view.action.audiences.includes("agent")) throw new AgentHostError("agent.capability_unavailable", "原能力、版本或提供方已不可用，或尚未授权给内置 Agent");
+        if (!view.availability.available) throw new AgentHostError("agent.capability_unavailable", view.availability.reason);
+        if (execution !== "workspace-write" && view.operation !== "query") throw new AgentHostError("agent.role_execution_exceeded", "当前执行方式只允许查询能力，请移除操作能力或更换执行方式");
+        return structuredClone(view);
+      });
+      actions = { tools, client };
     }
     let mcp = request.mcp_tools ?? [];
     if (!Array.isArray(mcp) || mcp.length > 100 || new Set(mcp.map(ref => JSON.stringify([ref.server, ref.tool]))).size !== mcp.length) throw new AgentHostError("agent.capability_unavailable", "MCP 选择重复或超过数量限制");
@@ -434,7 +521,7 @@ export class AgentHost implements AgentHostApi {
         const path = grant.directory?.canonical_path;
         if (!/^[A-Za-z0-9][A-Za-z0-9._~-]{0,63}$/.test(grant.workspace_id) || ids.has(grant.workspace_id)
           || !grant.directory?.realpath_verified || !authority.authorizedDirectories.includes(path)
-          || path === request.directory.canonical_path || paths.has(path)) throw new AgentHostError("agent.directory_unauthorized", "子任务目录未授权、重复或指向主工作区");
+          || path === request.directory?.canonical_path || paths.has(path)) throw new AgentHostError("agent.directory_unauthorized", "子任务目录未授权、重复或指向主工作区");
         ids.add(grant.workspace_id); paths.add(path); return structuredClone(grant);
       });
     } else if (request.subagent_workspaces?.length) throw new AgentHostError("agent.directory_unauthorized", "当前角色没有声明独立子目录");
@@ -457,15 +544,19 @@ export class AgentHost implements AgentHostApi {
     } else if (hostTools.some(tool => ["dispatch-subagent", "await-subagents", "steer-subagent"].includes(tool))) throw new AgentHostError("agent.role_not_declared", "没有声明子角色的执行方式不能分派子任务");
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
-    const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory.canonical_path, characterSkillIds) : undefined);
+    const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
+    await beforeStart();
     const handle = await adapter.start({
       ...request,
+      ...(actionRefs.length || request.action_tools !== undefined || character?.action_tools ? { action_tools: actionRefs } : {}),
       mcp_tools: mcp,
       mcp_sources: sources,
       role: {
+        ...(workspace === "none" ? { workspace: "none" as const } : {}),
         role_id: role.role_id,
         version: role.version,
         execution,
+        ...(actions ? { actions } : {}),
         ...(subagents ? { subagents } : {}),
         ...(childWorkspaces ? { subagent_workspaces: childWorkspaces } : {}),
         ...(character ? { character } : {}),
@@ -475,10 +566,14 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}),
         host_tools: hostTools,
       },
-    });
+    }, { beforeStart, beforeDispatch });
     // The Runtime cannot widen what the Manifest froze. A mismatch is the
     // adapter's fault, and the run does not continue on a wider authority.
-    if (JSON.stringify(handle.frozen.character) !== JSON.stringify(character)
+    if ((handle.frozen.workspace ?? "required") !== workspace
+      || JSON.stringify(handle.frozen.directory) !== JSON.stringify(request.directory)
+      || workspace === "none" && handle.frozen.host_tools.length !== 0
+      || JSON.stringify(handle.frozen.action_tools ?? []) !== JSON.stringify(actionRefs)
+      || JSON.stringify(handle.frozen.character) !== JSON.stringify(character)
       || JSON.stringify(handle.frozen.character_skill_ids) !== JSON.stringify(characterSkillIds)
       || JSON.stringify(handle.frozen.subagent_workspaces) !== JSON.stringify(childWorkspaces)
       || character && JSON.stringify(handle.frozen.host_tools) !== JSON.stringify(hostTools)
@@ -498,3 +593,6 @@ export class AgentHost implements AgentHostApi {
     return handle;
   }
 }
+
+export { PrologueInferenceError } from "./inference.js";
+export type { PrologueCredentialInput, PrologueTextInput, PrologueTextResult, PrologueImageInput, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";

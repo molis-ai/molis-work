@@ -203,7 +203,8 @@ test("Web relations and rules use live action policy for writes and selected pag
     assert.equal((await fetch(prefix + "/settings/rules")).status, 200);
     assert.equal((await fetch(prefix + "/goals/parent")).status, 200);
     for (const [definition, path] of [[goalsActions.policyHistory, "/settings/rules"], [goalsActions.relations, "/goals/parent"], [goalsActions.policyResolve, "/goals/parent"],
-      [goalsActions.document, "/goals/parent"], [goalsActions.document, "/api/goals/parent/document"]] as const) {
+      [goalsActions.document, "/goals/parent"], [goalsActions.document, "/api/goals/parent/document"],
+      ...["/goals/parent", "/api/board", "/api/board/refresh", "/api/goals/parent/document", "/api/capsule"].map(path => [goalsActions.collection, path] as const)] as const) {
       denied.add(definition.capability_id);
       const response = await fetch(prefix + path);
       assert.ok(response.status >= 400); assert.match(await response.text(), /Configuration disabled/);

@@ -2,6 +2,8 @@ import type {
   ArtifactConsumptionCompatibility, ArtifactConsumerType, ArtifactReference,
   ArtifactsQueryApi, ArtifactJsonValue, ArtifactVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ARTIFACT_SUBJECT_KIND, artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface ArtifactBrowserView {
   readonly versions: readonly ArtifactVersionRecord[];
@@ -38,6 +40,40 @@ export function readArtifactSelection(
     compatibility: selected ? query.consumptionCompatibility(boardId,
       { artifact_id: selected.artifact_id, version: selected.version }, supportedTypes) : null,
   };
+}
+
+/** Called only after the original Action gate; this checks the owner's exact record, not grants. */
+export function requireArtifactAnalysisRecord(
+  record: ArtifactVersionRecord | null,
+  access: { board_id: string; actor_id: string; reference: ArtifactReference },
+): ArtifactVersionRecord {
+  if (!record || record.board_id !== access.board_id || record.artifact_id !== access.reference.artifact_id
+    || record.version !== access.reference.version) throw new ActionError("actions.subject_unavailable", "当前项目中找不到这个成果版本");
+  if (record.scope === "personal" && record.owner_actor_id !== access.actor_id) {
+    throw new ActionError("artifacts.forbidden", "不能读取其他用户的个人成果");
+  }
+  if (record.lifecycle_state !== "active" || record.availability !== "available") {
+    throw new ActionError("actions.subject_unavailable", "这个成果版本已归档或不可用");
+  }
+  if (record.content_kind !== "inline" || record.payload === null) {
+    throw new ActionError("actions.subject_unavailable", "这个成果版本没有可供分析的正文，请选择文本成果");
+  }
+  return record;
+}
+
+/** Provenance comes from immutable owner fields. Opaque payload metadata cannot replace it. */
+export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: string[] = []): ActionSubjectContext {
+  const relatedGoals = [...new Set(goalIds)].sort();
+  return subjectContext({
+    subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
+    revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: artifactDisplayTitle(record),
+    content: JSON.stringify({ artifact_id: record.artifact_id, version: record.version,
+      artifact_type_id: record.artifact_type_id, schema_version: record.schema_version,
+      producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version,
+        binding_signature: record.producer_binding_signature },
+      created_at: record.created_at, payload: record.payload, metadata: record.metadata }),
+    goal_ids: relatedGoals, session_id: null,
+  });
 }
 
 export type ArtifactBrowserRoute =

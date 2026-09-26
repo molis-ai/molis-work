@@ -1,3 +1,6 @@
+import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { authorizeMcpActions } from "./mcp-action-client.js";
 import {
   AgentHost,
   CliAgentAdapter,
@@ -57,6 +60,8 @@ export interface AgentHostCompositionOptions {
 }
 
 export interface AgentHostComposition {
+  readonly inference: PrologueInferenceClient;
+  createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
   readonly ready: Promise<void>;
   /** Unregisters the Capabilities this composition added. */
@@ -103,11 +108,15 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   };
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
-      register: (definition, handler) => options.localHost.registerCapability(definition, handler),
+      register: (definition, handler) => options.localHost.registerCapability(definition, async (project, input, invocation) => {
+        await initialize();
+        return handler(project, input, invocation);
+      }),
     },
     {
       agentHost: () => agentHost,
-      authority: (runtime, pluginId) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory),
+      authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
+      legacyActorId: () => "web-user",
       boardId: (runtime) => runtime.board_id,
     },
   );
@@ -264,10 +273,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     if (!child || !["completed", "failed", "cancelled"].includes(child.state) || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
     const granted = options.workspacesFor ? await options.workspacesFor(project.project_id)
       : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
-    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === run.frozen.directory.canonical_path);
+    const originalDirectory = run.frozen.directory;
+    if (!originalDirectory) throw new Error("无目录会话不能整合工作区");
+    const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === originalDirectory.canonical_path);
     if (!originalParent) throw new Error("原主工作区已取消授权");
     const { grants, parent } = await writerParent(project.project_id, originalParent.workspace_id);
-    if (parent.canonical_path !== run.frozen.directory.canonical_path) throw new Error("原主工作区授权已改变");
+    if (parent.canonical_path !== originalDirectory.canonical_path) throw new Error("原主工作区授权已改变");
     const frozen = run.frozen.subagent_workspaces?.find(w => w.directory.canonical_path === child.workspace_path);
     const writer = frozen && grants.find(g => g.workspace_id === frozen.workspace_id && g.realpath_verified && g.canonical_path === child.workspace_path);
     if (!writer) throw new Error("原子任务目录没有本轮独立写入授权");
@@ -288,7 +299,14 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id };
   });
 
-  return { agentHost, get ready() { return initialize(); }, dispose() {
+  const inference: PrologueInferenceClient = {
+    async completeText(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeText(input); },
+    async completeTextResult(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeTextResult(input); },
+    async generateImages(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.generateImages(input); },
+    async evaluateTypeSafe(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.evaluateTypeSafe(input); },
+  };
+  const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
+  return { agentHost, inference, createBuilderAgent, get ready() { return initialize(); }, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -323,9 +341,13 @@ async function startAuthority(
   localHost: MolisWorkLocalHost,
   workspacesFor?: AgentHostCompositionOptions["workspacesFor"],
   homeDirectory?: string,
+  caller?: HostPluginCaller,
 ): Promise<AgentStartAuthority> {
-  const declared = BUILTIN_PLUGIN_AGENTS.get(pluginId);
-  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+  // Plugin declarations come from its actual activation. The bundled lookup is
+  // retained only for trusted Host composition that calls this API directly.
+  const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills }
+    : BUILTIN_PLUGIN_AGENTS.get(pluginId);
+  const manifest = caller?.declaration.manifest ?? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];
@@ -335,6 +357,15 @@ async function startAuthority(
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
     method_owner: { board_id: runtime.board_id, plugin_id: pluginId },
+    actions: async (runtimeId, validate) => {
+      const reference = { project_id: runtime.project_id, board_id: runtime.board_id, storage_key: runtime.store.path };
+      const current = (signal?: AbortSignal) => authorizeMcpActions(localHost, { actor_id: `agent:${runtimeId}`, actor_kind: "runtime",
+        project_id: runtime.project_id, audience: "agent", permissions: [], ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); });
+      return {
+        discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
+        invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+      };
+    },
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.board_id, runtime.coordinator.artifacts.query, reference) } : {}),
     project_prompts: await projectPrompts(runtime, localHost),
   };

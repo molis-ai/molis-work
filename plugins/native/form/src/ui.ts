@@ -61,6 +61,7 @@ export function renderFormWorkbench(model: FormUiModel): string {
         <strong>${p.text("还没有问卷")}</strong>
         <p>${p.text("先建一份，再加题目。预览里可以自己填一遍，看结果。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <button class="mw-btn mw-btn--primary" type="button" data-form-new>${icon("plus")}<span>${p.text("新建问卷")}</span></button>
       </div>
       <div data-form-rows></div>
     </div>
@@ -74,9 +75,14 @@ export function renderFormWorkbench(model: FormUiModel): string {
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="preview">${p.text("预览")}</button>
           <button class="mw-btn mw-btn--ghost" type="button" role="tab" aria-selected="false" data-form-tab="results">${p.text("结果")}</button>
         </div>
-        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar>${p.text("存成 Artifact")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-form-reload>${p.text("重新读取")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${p.text("删除")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-form-artifact="" data-form-artifact-bar>${p.text("保存成果版本")}</button>
+        <details class="plugin-stage-more">
+          <summary class="mw-btn mw-btn--ghost" aria-label="${p.text("更多操作")}">${icon("more")}<span>${p.text("更多")}</span></summary>
+          <div class="plugin-stage-more-actions">
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-reload>${p.text("重新读取")}</button>
+            <button class="mw-btn mw-btn--ghost" type="button" data-form-delete>${p.text("删除")}</button>
+          </div>
+        </details>
       </div>
       <p class="form-note" data-form-note role="status" aria-live="polite" hidden></p>
       <p class="form-note" data-form-publication-note hidden></p>

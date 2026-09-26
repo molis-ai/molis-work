@@ -1,3 +1,4 @@
+import { createLocalImServer } from "./im-server.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { closeExperiments } from "./experiments-native-plugin-http.js";
@@ -16,7 +17,6 @@ import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken } from "./web-control-token.js";
 import { sendLocalWebJson as sendJson, authorizeLocalWebRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
-import { openSessionRuntimeResources } from "./web-session.js";
 import { seedDemoBoard } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
@@ -41,9 +41,15 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const catalogAvailability = projectActionAvailability(platform.withCatalog, storageHome);
     // Explicit single-database mode predates project installation records. Its
     // configured board is the authority; other project callers still use catalog policy.
-    const actionAvailability: ReturnType<typeof projectActionAvailability> = (caller, action) =>
+    const actionAvailability = Object.assign((...args: Parameters<typeof catalogAvailability>) => {
+      const [caller, action] = args;
+      return fixture && caller.project_id === fixture.boardId
+        ? { available: true as const } : catalogAvailability(caller, action);
+    }, {
+      snapshotForDiscovery: async (caller: Parameters<typeof catalogAvailability>[0]) =>
       fixture && caller.project_id === fixture.boardId
-        ? { available: true } : catalogAvailability(caller, action);
+        ? () => ({ available: true as const }) : catalogAvailability.snapshotForDiscovery(caller),
+    });
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({
       homeDirectory: serverOptions.homeDirectory,
     });
@@ -76,10 +82,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
-    const sessionResources = openSessionRuntimeResources(serverOptions);
+    localHost.configureSessionRuntime(storageHome, serverOptions.runtimeSessionTransport);
+    const sessionResources = localHost.sessionResources();
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const pty = { host: null as MolisWorkPtyHost | null };
+    const im = createLocalImServer(storageHome);
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
@@ -113,6 +121,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
               pathname => resolveWebRequest(serverOptions,pathname,composition.withCatalog))) return;
           }
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
+          if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, platform.withCatalog)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
@@ -143,6 +152,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
     }));
+    // SSE is an active HTTP response, so stop its streams before close waits.
+    const closeServer = server.close.bind(server);
+    server.close = (callback) => { im.stop(); return closeServer(callback); };
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
       onData(panelId, sessionId, data) {
         void sessionResources
@@ -171,17 +183,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     }), 30_000);
     schedulerTimer.unref();
     server.once("close", () => {
+      im.close();
       void closeExperiments(storageHome);
       clearInterval(schedulerTimer);
       feedSchedulers.clear();
       if (ownsLocalHost) void localHost.close();
-      void sessionResources
-        .then((resources) => {
-          resources.recorder.close();
-          resources.ownedCodexTransport?.close();
-          resources.registry.close();
-        })
-        .catch(() => undefined);
     });
     return server;
   }

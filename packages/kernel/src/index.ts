@@ -3,6 +3,7 @@ import type {
   HostCapabilityDescriptor,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError, requireSynchronous, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-kernel",
@@ -111,6 +112,13 @@ export class CapabilityRegistry<Context> {
     return (match ? this.ordered.filter(match) : this.ordered).map(descriptor => structuredClone(descriptor));
   }
 
+  /** Resolve one visible identity without cloning the complete directory. Returned metadata stays isolated. */
+  descriptor(reference: Pick<HostCapabilityDescriptor, "capability_id" | "version">, projectId?: string | null): HostCapabilityDescriptor | undefined {
+    const local = projectId ? this.entries.get(JSON.stringify([reference.capability_id, reference.version, projectId])) : undefined;
+    const entry = local ?? this.entries.get(capabilityKey({ capability_id: reference.capability_id, version: reference.version }));
+    return entry ? structuredClone(entry.descriptor) : undefined;
+  }
+
   availability(context: Context, reference: RegistryReference): ActionAvailability {
     const entry = this.entries.get(capabilityKey(reference));
     return entry ? entry.availability?.(context) ?? { available: true }
@@ -151,4 +159,5 @@ export class CapabilityRegistry<Context> {
   }
 }
 
-export { ActionService } from "./action-service.js";
+export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
+export { assertActionInput } from "./action-schema.js";

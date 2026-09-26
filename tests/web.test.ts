@@ -1,4 +1,5 @@
-import { buildMolisWorkWebView, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { buildMolisWorkWebView, cachedMolisWorkWebView } from "./fixtures/web-view.js";
+
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
@@ -581,13 +582,13 @@ test("Web health identifies the process serving the response", async () => {
   }
 });
 
-test("Web View cache follows canonical Board events instead of SQLite file lifecycle", () => {
+test("Web View cache follows canonical Board events instead of SQLite file lifecycle", async () => {
   const { databasePath } = webFixture();
   const cache = new Map() as Parameters<typeof cachedMolisWorkWebView>[0];
   const options = { databasePath, boardId: DEMO_BOARD_ID, demo: true };
 
   const firstStore = new LocalProjectDatabase(databasePath);
-  const first = cachedMolisWorkWebView(
+  const first = await cachedMolisWorkWebView(
     cache,
     firstStore,
     new GoalProjectApplication(firstStore),
@@ -598,7 +599,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
   const reopenedStore = new LocalProjectDatabase(databasePath);
   try {
     const coordinator = new GoalProjectApplication(reopenedStore);
-    const unchanged = cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
+    const unchanged = await cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
     assert.strictEqual(unchanged, first, "opening the SQLite WAL must not invalidate an unchanged Board");
 
     coordinator.goals.commands.createGoal(
@@ -615,7 +616,7 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
       },
       { actor_id: "test-user", idempotency_key: "web-cache-event" },
     );
-    const changed = cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
+    const changed = await cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
     assert.notStrictEqual(changed, first);
     assert.ok(changed.goals.some((item) => item.goal.goal_id === "CACHE-EVENT"));
 

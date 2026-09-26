@@ -5,12 +5,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import {
-  HOME_CONTINUE_BEHAVIOR_ID,
-  INBOX_DONE_BEHAVIOR_ID,
-  filterSuggestedBehaviorIds,
-  visibleDockBehaviorIds,
-} from "@molis-ai/molis-work-contracts/modules/functions";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID,
@@ -23,11 +17,6 @@ import {
   catalogPublicBehaviorId,
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
-import {
-  createFunctionsService,
-  openFunctionsStore,
-  type TypeSafeProvider,
-} from "@molis-ai/molis-work-module-functions";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
 import {
   DEMO_BOARD_ID,
@@ -66,23 +55,6 @@ const feedPrimitives: FeedUiModel["primitives"] = {
   plainText: (value) => value ?? "",
   safeExternalHref: (value) => value,
 };
-
-function fixtureProvider(choice: string): TypeSafeProvider {
-  return {
-    async evaluate(_apiKey, record) {
-      return {
-        primitive: record.primitive,
-        choice: record.primitive === "choice" ? choice : null,
-        noul: null,
-        score: null,
-        legend: null,
-        probabilities: { [choice]: 1 },
-        confidence: 1,
-        model: "jev-1.13.0",
-      };
-    },
-  };
-}
 
 async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): Promise<T> {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-connectors-"));
@@ -125,7 +97,7 @@ async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): 
   }
 }
 
-function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCatalog>): string[] {
+function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCatalog>): readonly string[] {
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
@@ -141,7 +113,8 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
   const github = HOST_CONNECTOR_DIRECTORY.find((row) => row.connector_id === "github");
   const gmail = HOST_CONNECTOR_DIRECTORY.find((row) => row.connector_id === "gmail");
   assert.equal(github?.availability, "live");
-  assert.match(github?.outbound_note ?? "", /github\.whoami/);
+  assert.match(github?.outbound_note ?? "", /连接设置.*检查当前 GitHub 账号/);
+  assert.doesNotMatch(github?.outbound_note ?? "", /Functions|可勾/);
   assert.equal(gmail?.availability, "live");
   assert.match(gmail?.outbound_note ?? "", /出站动作未兑现/);
   assert.deepEqual(
@@ -150,7 +123,7 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
   );
   assert.equal(HOST_CONNECTOR_DIRECTORY.some((row) => row.availability === "placeholder"), false);
   for (const row of HOST_CONNECTOR_DIRECTORY) {
-    const icon = CONNECTOR_MARKS[row.connector_id];
+    const icon = CONNECTOR_MARKS[row.connector_id as keyof typeof CONNECTOR_MARKS];
     if (icon) assert.ok(icon.includes("<svg"), row.connector_id);
     assert.equal(row.availability, "live", row.connector_id);
     assert.equal(row.capabilities.length, 2, row.connector_id);
@@ -368,86 +341,13 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
   assert.deepEqual(urls, ["https://api.github.com/user"]);
 });
 
-test("live authoring catalog shows github.whoami only while GitHub is bound", async () => {
+test("legacy credential binding does not invent Agent capabilities absent from the action directory", async () => {
   await withIsolatedHome(async () => {
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false);
+    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
     bindConnectorToken("github", TOKEN);
-    const connected = liveHostFunctionAuthoringCatalog();
-    assert.equal(agentBehaviorIds(connected).includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), true);
-    assert.equal(connected.behaviors.some((row) => row.behavior_id === GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), true);
+    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
     unbindConnectorToken("github");
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false);
-  });
-});
-
-test("judgment ok does not call GitHub and drops a disconnected action back to the default buttons", async () => {
-  await withIsolatedHome(async (homeDirectory) => {
-    const githubCalls: string[] = [];
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
-      const url = String(input);
-      if (url.includes("api.github.com")) {
-        githubCalls.push(url);
-        throw new Error("judgment must not call GitHub");
-      }
-      return realFetch(input, init);
-    }) as typeof fetch;
-    const store = openFunctionsStore(homeDirectory);
-    try {
-      const allowed = [HOME_CONTINUE_BEHAVIOR_ID, GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID];
-      const service = createFunctionsService({
-        store,
-        secrets: { put() {}, get() { return "sk-test"; }, delete() { return true; } },
-        env: { TYPESAFE_API_KEY: "sk-test" },
-        provider: fixtureProvider(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-        allowed_behavior_ids: allowed,
-      });
-      const created = service.createChoice({ name: "GitHub 去向", function_key: "pick_github_whoami" });
-      service.updateDraft(created.id, {
-        instructions: "挑已登记动作",
-        scene_id: "agent.mcp",
-        criteria: [
-          { key: HOME_CONTINUE_BEHAVIOR_ID, description: "接着做" },
-          { key: GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID, description: "查看当前 GitHub 账号" },
-        ],
-      });
-      await service.preview(created.id, "样例");
-      const published = service.publish(created.id);
-      assert.equal(published.status, "published");
-      const connected = await service.judge({
-        function_key: published.function_key,
-        input: "看账号",
-        subject: { kind: "mcp_invoke", id: published.function_key },
-        offered_behavior_ids: allowed,
-      });
-      assert.equal(connected.outcome, "ok");
-      assert.deepEqual(connected.suggested_behavior_ids, [GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID]);
-      const disconnected = createFunctionsService({
-        store,
-        secrets: { put() {}, get() { return "sk-test"; }, delete() { return true; } },
-        env: { TYPESAFE_API_KEY: "sk-test" },
-        provider: fixtureProvider(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-        allowed_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      });
-      const judged = await disconnected.judge({
-        function_key: published.function_key,
-        input: "看账号",
-        subject: { kind: "mcp_invoke", id: published.function_key },
-        offered_behavior_ids: [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID],
-      });
-      assert.equal(judged.outcome, "ok");
-      assert.deepEqual(judged.suggested_behavior_ids, []);
-      const defaults = [HOME_CONTINUE_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID];
-      assert.deepEqual(visibleDockBehaviorIds(judged.suggested_behavior_ids, defaults), defaults);
-      assert.deepEqual(
-        filterSuggestedBehaviorIds(defaults, defaults, GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-        [],
-      );
-      assert.deepEqual(githubCalls, []);
-    } finally {
-      globalThis.fetch = realFetch;
-      store.close();
-    }
+    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
   });
 });
 
@@ -517,10 +417,8 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       const liveCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
         catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
       };
-      assert.ok(
-        liveCatalog.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
-      );
+      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false,
+        "the legacy connector settings API is not a registered Agent action");
       const whoami = await fetch(`${origin}/api/settings/connectors/github/whoami`, {
         method: "POST",
         headers: headers(),
@@ -588,7 +486,7 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   await withIsolatedHome(async () => {
     assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
     bindConnectorToken("slack", "xoxb-liveTokenABCD");
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), true);
+    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false, "binding a legacy credential does not register an action");
     unbindConnectorToken("slack");
     assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
   });

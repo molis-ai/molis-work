@@ -41,7 +41,7 @@ export interface ScheduleRouteHandlerPorts {
   setTaskEnabled(taskId: string, enabled: boolean): ScheduleConversationTaskView;
   openTask(taskId: string): ScheduleConversationTaskView;
   changed(): void;
-  renderWorkbench?(): string;
+  renderWorkbench?(): string | Promise<string>;
 }
 
 export function createScheduleRouteHandlerPorts(options: {
@@ -110,8 +110,8 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
       status: 200,
       body: { jobs: options.listJobs(), tasks: options.listTasks() },
     }),
-    "schedule.workbench": () => options.renderWorkbench
-      ? { status: 200, html: options.renderWorkbench() }
+    "schedule.workbench": async () => options.renderWorkbench
+      ? { status: 200, html: await options.renderWorkbench() }
       : { status: 501, body: { error: "Schedule 工作区不可用" } },
     "schedule.job.enabled": ({ params, request }) => {
       const enabled = request.body.enabled;

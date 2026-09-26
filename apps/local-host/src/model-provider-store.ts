@@ -152,6 +152,12 @@ export class ModelProviderStore {
     createModelProviderTables(this.#db);
   }
 
+  /** Read existing credential references without schema writes or secret access. */
+  static inspectCredentialReferences(db: Pick<ModelProviderSqlite, "prepare">): Array<Pick<ModelProviderRecord, "provider_id" | "display_name" | "credential_ref">> {
+    if (!db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'model_providers'").get()) return [];
+    return db.prepare("SELECT provider_id, display_name, credential_ref FROM model_providers").all() as Array<Pick<ModelProviderRecord, "provider_id" | "display_name" | "credential_ref">>;
+  }
+
   list(): ModelProviderRecord[] {
     return (this.#db.prepare(
       "SELECT * FROM model_providers ORDER BY display_name, provider_id",

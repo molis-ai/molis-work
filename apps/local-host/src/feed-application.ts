@@ -36,25 +36,11 @@ import {
 } from "@molis-ai/molis-work-service-listener-host";
 import { FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
-import type { JudgmentPort } from "@molis-ai/molis-work-contracts/modules/functions";
-import { createFunctionsJudgmentPort } from "./functions-host.js";
-import { hostOfferedBehaviorsForScene, liveHostAllowedBehaviorIds } from "./behavior-catalog.js";
-
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
-  judgments?: JudgmentPort;
+  captureJudgment?: FeedApplicationPorts["captureJudgment"];
+  homeJudgment?: FeedApplicationPorts["homeJudgment"];
   inboxJudgment?: FeedApplicationPorts["inboxJudgment"];
-  offered_behavior_ids?: readonly string[];
-  offeredBehaviorsForScene?: (sceneId: string, subjects: readonly string[]) => readonly string[];
-}
-
-export function withLocalFeedJudgments(homeDirectory?: string): LocalFeedApplicationOptions {
-  if (!homeDirectory) return {};
-  return {
-    judgments: createFunctionsJudgmentPort(homeDirectory),
-    offered_behavior_ids: liveHostAllowedBehaviorIds(),
-    offeredBehaviorsForScene: hostOfferedBehaviorsForScene,
-  };
 }
 
 /** Assemble every Feed operation against the same local connection. */
@@ -132,10 +118,9 @@ export function createLocalFeedApplication(
       registerVersion: (input) => artifactsModule.commands.registerVersion(input),
       latestVersion: (boardId, artifactId) => artifactsModule.query.latestArtifactVersion(boardId, artifactId),
     },
-    judgments: options.judgments,
+    captureJudgment: options.captureJudgment,
     inboxJudgment: options.inboxJudgment,
-    offered_behavior_ids: options.offered_behavior_ids,
-    offeredBehaviorsForScene: options.offeredBehaviorsForScene ?? hostOfferedBehaviorsForScene,
+    homeJudgment: options.homeJudgment,
     transaction: (operation) => db.transaction(operation).immediate(),
     listener: {
       listRuns: (boardId) => listListenerRuns(db, boardId),

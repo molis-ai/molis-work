@@ -1,3 +1,4 @@
+import { feedCaptureFixture } from "./feed-capture-fixture.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -8,7 +9,6 @@ import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
 import { generatePagesFromMaterials, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { JudgmentPort } from "@molis-ai/molis-work-contracts/modules/functions";
 import { hostCompleteText } from "../apps/local-host/src/host-complete-text.js";
 import { planInformationWork } from "../apps/local-host/src/assistant-http.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
@@ -107,14 +107,13 @@ test("Pages retries saved input, rejects concurrent generation and preserves lat
 test("explicit auto admission separates positive, negative and review outcomes and dedupes Inbox", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-loop-rules-"));
   const dbPath = join(home, "project.db"); seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const judgments: JudgmentPort = {
-    async judge(input) { return { judgment_id: "judgment-" + input.subject.id, function_key: input.function_key, function_version: 1, subject: input.subject, scene_id: input.scene_id ?? null, outcome: input.input.includes("review-item") ? "needs_review" : "ok", suggested_behavior_ids: input.input.includes("admit-item") ? ["inbox.admit"] : ["feed.open"], error_code: null, created_at: new Date().toISOString() }; },
-    bindScene(scene_id, function_key, board_id, ref) { return { scene_id, function_key, board_id: board_id ?? null, ref: ref ?? null }; }, unbindScene() {}, sceneBinding() { return null; }, latest() { return null; },
-  };
+  const fixture = feedCaptureFixture(content => ({ status: content.includes("review-item") ? "needs_review" : "ok",
+    suggested_behavior_ids: content.includes("admit-item") ? ["inbox.admit"] : ["feed.open"] }));
   try {
-    const feed = createLocalFeedApplication(store.db, { judgments });
+    const feed = createLocalFeedApplication(store.db, fixture.options);
+    fixture.attach(feed, DEMO_BOARD_ID);
     const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
-    feed.createOutRule(DEMO_BOARD_ID, { name: "语义筛选", match: { source_id: source.source_id }, function_key: "filter", admission: "inbox" });
+    feed.createOutRule(DEMO_BOARD_ID, { name: "语义筛选", match: { source_id: source.source_id }, judgment: fixture.reference, admission: "inbox" });
     const ids = ["admit-item", "leave-item", "review-item"].map(id => feed.ingestItem({ source, externalId: id, title: id, summary: "", occurredAt: new Date().toISOString(), attention: false }).item.item_id);
     await feed.flushPendingJudgments();
     const entries = feed.listInboxEntries(DEMO_BOARD_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule");
@@ -126,9 +125,9 @@ test("explicit auto admission separates positive, negative and review outcomes a
 });
 
 test("Host uses configured model transport and never fabricates text on failure", async () => {
-  const complete = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, fetch: async (_url, init) => { assert.equal(JSON.parse(String(init?.body)).model, "MiniMax-M3"); return Response.json({ content: [{ type: "text", text: "真实接口形状" }] }); } });
+  const complete = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, resolveInference: async () => ({ completeText: async (input: {model:string}) => { assert.equal(input.model, "MiniMax-M3"); return "真实接口形状"; } }) as never });
   assert.equal(await complete!("input"), "真实接口形状");
-  const failed = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, fetch: async () => new Response("private error", { status: 500 }) });
+  const failed = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, resolveInference: async () => ({ completeText: async () => { throw Object.assign(new Error("private error"), { status: 500 }); } }) as never });
   await assert.rejects(failed!("input"), /模型返回 500/);
   assert.equal(hostCompleteText({ env: {} }), undefined);
   new Function("return " + ASSISTANT_ISLAND_FACTORY_SCRIPT);
@@ -154,4 +153,24 @@ test("Multi-material document retains every source and a project-scoped return l
     assert.match(body, /\/projects\/project-a\/\?inbox_entry=entry-2/);
     assert.deepEqual(store.generation("project-a", record.request_id)?.inputs.map(i => i.entry_id), ["entry-1", "entry-2"]);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+test("an Inbox operation drains only its own queued event with its original caller", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "inbox-event-owner-"));
+  const databasePath = join(directory, "project.db"); seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  const received: { id: string; actor: string | undefined }[] = [];
+  const feed = createLocalFeedApplication(store.db, { inboxJudgment: async (entry, caller) => { received.push({ id: entry.entry_id, actor: caller?.actor_id }); } });
+  try {
+    const source = createLocalFeedSourceService(store.db, DEMO_BOARD_ID).register({ kind: "research_library", repository: "fixture/events", research_source: "queue" }).source;
+    const create = (id: string) => feed.ingestItem({ source, externalId: id, title: id, summary: "材料", occurredAt: new Date().toISOString(), attention: false }).item;
+    const background = feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, create("background").item_id, "manual").entry;
+    const own = feed.ensureInboxEntryForFeedItem(DEMO_BOARD_ID, create("own").item_id, "manual").entry;
+    await feed.flushPendingInboxJudgments({ actor_id: "workflow-user", project_id: "project", audience: "workflow", permissions: [] }, [own.entry_id]);
+    assert.deepEqual(received, [{ id: own.entry_id, actor: "workflow-user" }]);
+    await feed.flushPendingInboxJudgments();
+    assert.deepEqual(received, [{ id: own.entry_id, actor: "workflow-user" }, { id: background.entry_id, actor: undefined }]);
+    await feed.flushPendingInboxJudgments();
+    assert.equal(received.length, 2, "each event is removed once and other producers' events are preserved");
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

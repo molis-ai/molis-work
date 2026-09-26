@@ -23,6 +23,8 @@ RuntimeHostRouter 选择具备所需能力的 Adapter；Codex Session Adapter �
 
 ## 接入与边界
 
+Runtime Session 能力矩阵新增 `message`，Adapter 必须明确声明 native 或 unsupported。Codex 的 message 只向给定现有 threadId 调用 turn/start，收到 turn ID 才报告已接收；无回执或连接故障不能推定安全重发。它不创建 thread，不创建 Handoff 包，也不负责消息持久化或幂等去重；这些归 Work/Private Work Context owner。
+
 Runtime 进程、Molis Work Session 和 Execution Run 是不同身份。Adapter 不创建 Goal/Claim，也不负责 Session 关联；原生终端依赖 node-pty 和可用的本机命令。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。

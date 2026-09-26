@@ -25,7 +25,7 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
   let calls = 0;
   host.register(protectedEntry, () => ++calls);
   const port = host.client({ project_id: "plugin-test", board_id: DEMO_BOARD_ID, storage_key: file });
-  const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, DEMO_BOARD_ID),
+  const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
     board_id: DEMO_BOARD_ID, actor_id: "user", capabilities: port,
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
@@ -52,7 +52,7 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
     assert.equal(calls, 0);
     assert.equal(await port.invoke(protectedEntry, {}), 1);
   } finally {
-    if (installId) await runtime.stop(installId);
+    if (installId && runtime.get(installId).state === "running") await runtime.stop(installId);
     await host.close(); store.close(); rmSync(directory, { recursive: true, force: true });
   }
 });

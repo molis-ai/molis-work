@@ -4,9 +4,9 @@
 //! `EdgeDropController`.
 
 use crate::drop_wheel::{
-    self, arc_angles, label_box_width, mid_radius, slice_index, tile_thickness, window_frame,
+    self, arc_angles, mid_radius, slice_index, tile_thickness, window_frame,
     window_size, DropWheelSession, MouseUpOutcome, Point, WheelAction, WheelFrame, WheelSlice,
-    BOUNCE_DURATION, BOUNCE_SCALE, CONCEAL_DURATION, ICON_LIFT, LABEL_DROP, PETAL_PAD,
+    BOUNCE_DURATION, BOUNCE_SCALE, CONCEAL_DURATION, ICON_LIFT, LABEL_DROP, LABEL_MAX_WIDTH, PETAL_PAD,
     REVEAL_DELAY, REVEAL_FADE, SHADOW_OFFSET_Y, SHADOW_OPACITY, SHADOW_OPACITY_DISABLED,
     SHADOW_OPACITY_HOT, SHADOW_RADIUS, SHADOW_RADIUS_HOT, SLICE_COUNT,
 };
@@ -19,10 +19,10 @@ use objc2_app_kit::{
     NSAnimatablePropertyContainer, NSAnimationContext, NSAppearance, NSAppearanceCustomization,
     NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSAppearanceNameVibrantDark,
     NSAppearanceNameVibrantLight, NSAttributedStringNSExtendedStringDrawing,
-    NSAttributedStringNSStringDrawing, NSBezierPath, NSColor, NSCompositingOperation,
+    NSAttributedStringNSStringDrawing, NSAttributedStringAppKitDocumentFormats, NSBezierPath, NSColor, NSCompositingOperation,
     NSDragOperation, NSDraggingInfo, NSEvent, NSEventMask, NSEventType, NSFont,
     NSFontAttributeName, NSFontWeightMedium, NSFontWeightRegular, NSForegroundColorAttributeName,
-    NSGraphicsContext, NSImage, NSImageSymbolConfiguration, NSLineBreakMode,
+    NSImage, NSImageSymbolConfiguration, NSLineBreakMode,
     NSMutableParagraphStyle, NSPanel,
     NSParagraphStyleAttributeName, NSPasteboard, NSScreen, NSStringDrawingOptions, NSTextAlignment,
     NSView, NSViewLayerContentsRedrawPolicy, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
@@ -32,7 +32,7 @@ use objc2_app_kit::{
 use objc2_core_graphics::{CGLineCap, CGLineJoin, CGPath};
 use objc2_foundation::{
     ns_string, MainThreadMarker, NSArray, NSAttributedString, NSNumber, NSObjectNSKeyValueCoding,
-    NSObjectProtocol, NSPoint, NSRect, NSSize, NSString,
+    NSObjectProtocol, NSPoint, NSRect, NSSize, NSString, NSURL,
 };
 use objc2_quartz_core::{
     CALayer, CAMediaTiming, CAMediaTimingFunction, CAShapeLayer, CASpringAnimation, CATransaction,
@@ -54,6 +54,10 @@ static HOST: AtomicPtr<Host> = AtomicPtr::new(ptr::null_mut());
 static REVEAL_GEN: AtomicU64 = AtomicU64::new(0);
 static WATCHDOG_GEN: AtomicU64 = AtomicU64::new(0);
 static CATCHER: AtomicBool = AtomicBool::new(false);
+static FADE_GEN: AtomicU64 = AtomicU64::new(0);
+static ENGLISH: AtomicBool = AtomicBool::new(false);
+// Zero follows macOS until the web surface supplies its resolved theme.
+static THEME: AtomicU64 = AtomicU64::new(0);
 
 struct Host {
     session: Mutex<DropWheelSession>,
@@ -71,11 +75,13 @@ struct Cargo {
     text: Option<String>,
     url: Option<String>,
     types: Vec<String>,
+    image: Option<(std::sync::Arc<Vec<u8>>, &'static str)>,
 }
 
 impl Cargo {
     fn has_content(&self) -> bool {
         !self.files.is_empty()
+            || self.image.is_some()
             || self
                 .text
                 .as_ref()
@@ -99,7 +105,7 @@ impl Cargo {
     fn has_cargo(&self) -> bool {
         drop_wheel::has_drag_cargo(
             &self.types.iter().map(String::as_str).collect::<Vec<_>>(),
-            !self.files.is_empty(),
+            !self.files.is_empty() || self.image.is_some(),
             self.text
                 .as_ref()
                 .is_some_and(|value| !value.trim().is_empty()),
@@ -490,8 +496,10 @@ impl DropWheelView {
     }
 }
 
-pub fn set_shelf_surface(active: bool) {
+pub fn set_shelf_surface(active: bool, language: Option<&str>, theme: Option<&str>) {
     SHELF_SURFACE.store(active, Ordering::SeqCst);
+    if let Some(language) = language { ENGLISH.store(language.starts_with("en"), Ordering::SeqCst); }
+    if let Some(theme) = theme { THEME.store(if theme == "dark" { 2 } else { 1 }, Ordering::SeqCst); }
 }
 
 pub fn is_shelf_surface() -> bool {
@@ -622,10 +630,7 @@ fn on_drag() {
         return;
     };
     // Appearance can turn the wheel off; the menu bar icon and the panel still take drops.
-    if !shelf_http::drop_wheel_enabled() {
-        disarm(host);
-        return;
-    }
+    let show_wheel = shelf_http::drop_wheel_enabled();
     let mouse = mouse_point();
     let now = Instant::now();
     let live = read_cargo();
@@ -642,6 +647,7 @@ fn on_drag() {
         Err(_) => return,
     };
     let starting = !session.has_origin();
+    session.show_wheel = show_wheel;
     if starting && !drop_wheel::new_drag_has_payload(change, consumed, live_cargo) {
         drop(session);
         if CATCHER.load(Ordering::SeqCst) {
@@ -768,6 +774,7 @@ fn spawn_admit(action: WheelAction, cargo: Cargo) {
                     if let Err(error) = shelf_http::run_recipe(recipe, &staged) {
                         quiet_notice(&error);
                     }
+                    refresh_shelf(&[]);
                 }
             }
         });
@@ -776,31 +783,45 @@ fn spawn_admit(action: WheelAction, cargo: Cargo) {
     thread::spawn(move || {
         // 发给终端 hands the link over as a link; every other petal captures pages.
         let admitted = admit_cargo(&cargo, action != WheelAction::Send);
-        if admitted.is_empty() {
-            return;
-        }
+        if admitted.is_empty() { return; }
+        refresh_shelf(&admitted);
         match action {
             WheelAction::Shelf => {}
-            WheelAction::Send => send_to_terminal(&admitted),
+            WheelAction::Send => {
+                if cargo.files.is_empty() && cargo.image.is_none() {
+                    send_terminal_text(&admitted, cargo.url.as_deref().or(cargo.text.as_deref()));
+                } else { send_to_terminal(&admitted); }
+            },
             _ => {
                 let Some(recipe) = action.recipe_id() else { return };
                 if let Err(error) = shelf_http::run_recipe(recipe, &admitted) {
                     // The materials stay on the shelf; the panel says why next time it opens.
                     quiet_notice(&error);
                 }
+                refresh_shelf(&[]);
             }
         }
     });
 }
 
+fn refresh_shelf(ids: &[String]) {
+    let Some(host) = host() else { return };
+    let Some(window) = host.app.get_webview_window("main") else { return };
+    let ids = serde_json::to_string(ids).unwrap_or_else(|_| "[]".into());
+    let _ = window.eval(&format!(r#"window.dispatchEvent(new CustomEvent("molis-shelf-refresh", {{ detail: {{ item_ids: {ids} }} }}));"#));
+}
+
 /// Hand the copies to the terminal session without opening the panel.
-fn send_to_terminal(items: &[String]) {
+fn send_to_terminal(items: &[String]) { send_terminal_text(items, None); }
+
+fn send_terminal_text(items: &[String], text: Option<&str>) {
     let Some(host) = host() else { return };
     let Some(window) = host.app.get_webview_window("main") else { return };
     let encoded = serde_json::to_string(items).unwrap_or_else(|_| "[]".into());
+    let text = serde_json::to_string(&text).unwrap_or_else(|_| "null".into());
     let script = format!(
         r#"(() => {{
-          window.dispatchEvent(new CustomEvent("molis-shelf-send-tui", {{ detail: {{ item_ids: {encoded} }} }}));
+          window.dispatchEvent(new CustomEvent("molis-shelf-send-tui", {{ detail: {{ item_ids: {encoded}, text: {text} }} }}));
         }})();"#
     );
     let _ = window.eval(&script);
@@ -813,8 +834,7 @@ fn quiet_notice(message: &str) {
     let encoded = serde_json::to_string(message).unwrap_or_else(|_| "\"\"".into());
     let script = format!(
         r#"(() => {{
-          const notice = globalThis.molisWorkShelfNotice;
-          if (typeof notice === "function") notice({encoded});
+          window.dispatchEvent(new CustomEvent("molis-shelf-notice", {{ detail: {{ message: {encoded} }} }}));
         }})();"#
     );
     let _ = window.eval(&script);
@@ -827,32 +847,25 @@ fn admit_cargo(cargo: &Cargo, capture_pages: bool) -> Vec<String> {
         for path in &cargo.files {
             match shelf_http::admit_file(path) {
                 Ok(item_id) => admitted.push(item_id),
-                Err(error) => eprintln!("Molis Work 轮盘未能收下文件：{error}"),
+                Err(error) => quiet_notice(&error),
             }
         }
         return admitted;
     }
-    if let Some(text) = cargo
-        .text
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.trim().is_empty())
-    {
-        match shelf_http::admit_text_capturing(text, capture_pages) {
-            Ok(item_id) => admitted.push(item_id),
-            Err(error) => eprintln!("Molis Work 轮盘未能收下文字：{error}"),
+    if let Some((bytes, extension)) = &cargo.image {
+        match shelf_http::admit_bytes(&format!("image.{extension}"), bytes, None) {
+            Ok(id) => admitted.push(id),
+            Err(error) => quiet_notice(&error),
         }
         return admitted;
     }
-    if let Some(url) = cargo
-        .url
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.trim().is_empty())
-    {
-        match shelf_http::admit_text_capturing(url, capture_pages) {
-            Ok(item_id) => admitted.push(item_id),
-            Err(error) => eprintln!("Molis Work 轮盘未能收下链接：{error}"),
+    // Browser drags can include a page title as text beside the actual URL.
+    let content = cargo.url.as_deref().filter(|url| url.starts_with("https://") || url.starts_with("http://"))
+        .or(cargo.text.as_deref()).map(str::trim).filter(|value| !value.is_empty());
+    if let Some(content) = content {
+        match shelf_http::admit_text_capturing(content, capture_pages) {
+            Ok(id) => admitted.push(id),
+            Err(error) => quiet_notice(&error),
         }
     }
     admitted
@@ -870,7 +883,10 @@ fn apply_frame(host: &Host, frame: WheelFrame) {
 }
 
 fn reveal(host: &Host, center: Point, hot: Option<usize>) {
-    CATCHER.store(true, Ordering::SeqCst);
+    let was_armed = CATCHER.swap(true, Ordering::SeqCst);
+    if !was_armed && host.panel.isVisible() {
+        fade_panel(&host.panel, 1.0, REVEAL_FADE.as_secs_f64(), None);
+    }
     let slices = host
         .session
         .lock()
@@ -886,7 +902,7 @@ fn reveal(host: &Host, center: Point, hot: Option<usize>) {
         let _: () = msg_send![&host.panel, setLevel: 33isize];
     }
     if host.panel.isVisible() {
-        host.panel.setAlphaValue(1.0);
+        // Pointer updates must not cut the in-flight reveal animation short.
         return;
     }
     if skip_wheel_motion() {
@@ -905,6 +921,7 @@ fn disarm(host: &Host) {
 }
 
 fn conceal(host: &Host) {
+    FADE_GEN.fetch_add(1, Ordering::SeqCst);
     host.view.clear_hot();
     if !host.panel.isVisible() {
         return;
@@ -933,6 +950,7 @@ fn finish_conceal() {
 }
 
 fn fade_panel(panel: &NSPanel, alpha: f64, duration: f64, on_done: Option<fn()>) {
+    let generation = FADE_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     let panel = panel.retain();
     let changes = RcBlock::new(move |ctx: NonNull<NSAnimationContext>| {
         let ctx = unsafe { ctx.as_ref() };
@@ -943,7 +961,7 @@ fn fade_panel(panel: &NSPanel, alpha: f64, duration: f64, on_done: Option<fn()>)
         NSAnimatablePropertyContainer::animator(&*panel).setAlphaValue(alpha);
     });
     if let Some(done) = on_done {
-        let completion = RcBlock::new(move || done());
+        let completion = RcBlock::new(move || { if FADE_GEN.load(Ordering::SeqCst) == generation { done(); } });
         NSAnimationContext::runAnimationGroup_completionHandler(&changes, Some(&completion));
     } else {
         NSAnimationContext::runAnimationGroup(&changes);
@@ -1093,10 +1111,25 @@ fn drag_board() -> Option<Retained<NSPasteboard>> {
     Some(NSPasteboard::pasteboardWithName(ns_string!(DRAG_BOARD)))
 }
 
+thread_local! {
+    static CARGO_CACHE: RefCell<Option<(isize, Cargo)>> = const { RefCell::new(None) };
+}
+
 fn read_cargo() -> Cargo {
-    let Some(board) = drag_board() else {
-        return Cargo::default();
-    };
+    let Some(board) = drag_board() else { return Cargo::default(); };
+    let change = board.changeCount();
+    CARGO_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some((last, cargo)) = &*cache {
+            if *last == change { return cargo.clone(); }
+        }
+        let cargo = read_board_cargo(&board);
+        *cache = Some((change, cargo.clone()));
+        cargo
+    })
+}
+
+fn read_board_cargo(board: &NSPasteboard) -> Cargo {
     let types = board
         .types()
         .map(|array| array.iter().map(|item| item.to_string()).collect())
@@ -1111,11 +1144,17 @@ fn read_cargo() -> Cargo {
             }
         }
     }
+    // Modern Finder/WebKit drags carry one URL per pasteboard item.
     if files.is_empty() {
-        if let Some(url) = board.stringForType(ns_string!("public.file-url")) {
-            let raw = url.to_string();
-            if let Some(path) = raw.strip_prefix("file://") {
-                files.push(PathBuf::from(path));
+        if let Some(entries) = board.pasteboardItems() {
+            for entry in entries.iter() {
+                if let Some(raw) = entry.stringForType(ns_string!("public.file-url")) {
+                    if let Some(url) = NSURL::URLWithString(&raw) {
+                        if url.isFileURL() {
+                            if let Some(path) = url.path() { files.push(PathBuf::from(path.to_string())); }
+                        }
+                    }
+                }
             }
         }
     }
@@ -1123,17 +1162,21 @@ fn read_cargo() -> Cargo {
         .stringForType(ns_string!("public.utf8-plain-text"))
         .or_else(|| board.stringForType(ns_string!("NSStringPboardType")))
         .map(|value| value.to_string())
-        .filter(|value| !value.trim().is_empty());
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| board.dataForType(ns_string!("public.rtf")).and_then(|data| unsafe {
+            NSAttributedString::initWithRTF_documentAttributes(NSAttributedString::alloc(), &data, None)
+                .map(|text| text.string().to_string()).filter(|text| !text.trim().is_empty())
+        }));
     let url = board
         .stringForType(ns_string!("public.url"))
         .map(|value| value.to_string())
         .filter(|value| !value.trim().is_empty());
-    Cargo {
-        files,
-        text,
-        url,
-        types,
-    }
+    let image = if files.is_empty() {
+        [("public.png", "png"), ("public.tiff", "tiff"), ("public.jpeg", "jpg"), ("public.heic", "heic")]
+            .into_iter().find_map(|(kind, extension)| board.dataForType(&NSString::from_str(kind))
+                .filter(|data| data.length() > 0).map(|data| (std::sync::Arc::new(data.to_vec()), extension)))
+    } else { None };
+    Cargo { files, text, url, types, image }
 }
 
 fn drop_point(view: &DropWheelView, sender: &ProtocolObject<dyn NSDraggingInfo>) -> Point {
@@ -1183,6 +1226,7 @@ fn drag_operation(
 }
 
 fn is_dark() -> bool {
+    match THEME.load(Ordering::SeqCst) { 1 => return false, 2 => return true, _ => {} }
     let Some(mtm) = MainThreadMarker::new() else {
         return false;
     };
@@ -1295,20 +1339,21 @@ fn draw_chrome(view: &DropWheelChromeView) {
         box_bounds.origin.x + box_bounds.size.width / 2.0,
         box_bounds.origin.y + box_bounds.size.height / 2.0,
     );
-    NSGraphicsContext::saveGraphicsState_class();
-    path.addClip();
     draw_symbol(
         action,
         NSPoint::new(center.x, center.y + ICON_LIFT),
         &glyph,
     );
     draw_label(
-        slices[index].title,
+        if ENGLISH.load(Ordering::SeqCst) { match action {
+            WheelAction::Shelf => "Add files", WheelAction::Send => "To terminal",
+            WheelAction::Summarize => "Summarize", WheelAction::Extract => "Extract data",
+            WheelAction::Translate => "Translate", WheelAction::ToMarkdown => "To MD",
+        }} else { slices[index].title },
         NSPoint::new(center.x, center.y - LABEL_DROP),
         &ink,
-        label_box_width(box_bounds.size.width),
+        LABEL_MAX_WIDTH,
     );
-    NSGraphicsContext::restoreGraphicsState_class();
 }
 
 fn draw_symbol(action: WheelAction, point: NSPoint, color: &NSColor) {
@@ -1345,7 +1390,7 @@ fn draw_symbol(action: WheelAction, point: NSPoint, color: &NSColor) {
 
 fn draw_label(title: &str, point: NSPoint, color: &NSColor, width: f64) {
     let paragraph = NSMutableParagraphStyle::new();
-    paragraph.setAlignment(NSTextAlignment(2));
+    paragraph.setAlignment(NSTextAlignment::Center);
     // A long petal label wraps onto a second line; DropAgent never truncates it.
     paragraph.setLineBreakMode(NSLineBreakMode::ByWordWrapping);
     let font = NSFont::systemFontOfSize_weight(10.5, unsafe { NSFontWeightMedium });
@@ -1381,4 +1426,124 @@ fn draw_label(title: &str, point: NSPoint, color: &NSColor, width: f64) {
         NSSize::new(width, height.max(14.0)),
     );
     text.drawInRect(rect);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine;
+    use objc2::rc::autoreleasepool;
+    use objc2_app_kit::NSPasteboardItem;
+    use objc2_foundation::NSData;
+
+    struct TestPasteboard(Retained<NSPasteboard>);
+
+    impl TestPasteboard {
+        fn new() -> Self {
+            Self(NSPasteboard::pasteboardWithUniqueName())
+        }
+
+        fn write(&self, items: &[Retained<NSPasteboardItem>]) {
+            self.0.clearContents();
+            let array = NSArray::from_retained_slice(items);
+            let ok: bool = unsafe { msg_send![&*self.0, writeObjects: &*array] };
+            assert!(ok, "write isolated pasteboard fixture");
+        }
+    }
+
+    impl Drop for TestPasteboard {
+        fn drop(&mut self) {
+            self.0.clearContents();
+        }
+    }
+
+    #[test]
+    fn drop_wheel_reads_all_modern_file_urls_with_spaces_and_unicode() {
+        autoreleasepool(|_| {
+            let board = TestPasteboard::new();
+            let paths = ["/tmp/first file.txt", "/tmp/中文目录/材料 #2.md"];
+            let entries: Vec<_> = paths.iter().map(|path| {
+                let item = NSPasteboardItem::new();
+                let url = NSURL::fileURLWithPath(&NSString::from_str(path));
+                assert!(item.setString_forType(&url.absoluteString().unwrap(), ns_string!("public.file-url")));
+                item
+            }).collect();
+            board.write(&entries);
+            // AppKit synthesizes the legacy list from modern URLs. An explicit
+            // empty legacy value makes this exercise the per-item fallback.
+            let empty = NSArray::<NSString>::from_slice(&[]);
+            assert!(unsafe {
+                board.0.setPropertyList_forType(&empty, ns_string!("NSFilenamesPboardType"))
+            });
+            let legacy = board.0.propertyListForType(ns_string!("NSFilenamesPboardType"))
+                .unwrap().downcast::<NSArray>().expect("legacy file list");
+            assert_eq!(legacy.len(), 0, "modern URLs must exercise the fallback path");
+
+            let cargo = read_board_cargo(&board.0);
+            assert_eq!(cargo.files, paths.map(PathBuf::from));
+            assert!(cargo.has_content());
+            assert!(cargo.has_cargo());
+            assert!(cargo.image.is_none());
+        });
+    }
+
+    #[test]
+    fn drop_wheel_retains_png_bytes_and_shares_the_snapshot_buffer() {
+        autoreleasepool(|_| {
+            let board = TestPasteboard::new();
+            let png = base64::engine::general_purpose::STANDARD.decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+            ).unwrap();
+            let item = NSPasteboardItem::new();
+            assert!(item.setData_forType(&NSData::with_bytes(&png), ns_string!("public.png")));
+            board.write(&[item]);
+
+            let cargo = read_board_cargo(&board.0);
+            assert!(cargo.files.is_empty());
+            assert!(cargo.has_content());
+            assert!(cargo.has_cargo());
+            let (bytes, extension) = cargo.image.as_ref().expect("actual image cargo");
+            assert_eq!(extension, &"png");
+            assert_eq!(bytes.as_slice(), png);
+            let snapshot = cargo.clone();
+            assert!(std::sync::Arc::ptr_eq(bytes, &snapshot.image.unwrap().0));
+        });
+    }
+
+    #[test]
+    fn drop_wheel_decodes_rtf_when_plain_text_is_empty() {
+        autoreleasepool(|_| {
+            let board = TestPasteboard::new();
+            let item = NSPasteboardItem::new();
+            let rtf = br"{\rtf1\ansi This is \b rich\b0  text.}";
+            assert!(item.setData_forType(&NSData::with_bytes(rtf), ns_string!("public.rtf")));
+            // Avoid AppKit asking a pasteboard converter to synthesize a plain
+            // text promise on libtest's worker thread; exercise our RTF decoder.
+            assert!(item.setString_forType(ns_string!(""), ns_string!("public.utf8-plain-text")));
+            board.write(&[item]);
+
+            let cargo = read_board_cargo(&board.0);
+            assert_eq!(cargo.text.as_deref(), Some("This is rich text."));
+            assert!(cargo.has_content());
+            assert!(cargo.has_cargo());
+        });
+    }
+
+    #[test]
+    fn drop_wheel_preserves_http_url_beside_a_browser_display_title() {
+        autoreleasepool(|_| {
+            let board = TestPasteboard::new();
+            let item = NSPasteboardItem::new();
+            let url = "https://example.com/docs?topic=shelf#files";
+            assert!(item.setString_forType(&NSString::from_str(url), ns_string!("public.url")));
+            assert!(item.setString_forType(ns_string!("文档标题"), ns_string!("public.utf8-plain-text")));
+            board.write(&[item]);
+
+            let cargo = read_board_cargo(&board.0);
+            assert_eq!(cargo.url.as_deref(), Some(url));
+            assert_eq!(cargo.text.as_deref(), Some("文档标题"));
+            assert!(cargo.is_http_url());
+            assert!(cargo.has_content());
+        });
+    }
 }

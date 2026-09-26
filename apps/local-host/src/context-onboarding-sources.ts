@@ -1,16 +1,24 @@
 import { Buffer } from "node:buffer";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-import type { ImportFile } from "@molis-ai/molis-work-plugin-cognia";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
-import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ContextSource, ContextSourceKind } from "./context-onboarding-store.js";
+import type { ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
 
-const KINDS: ContextSourceKind[] = ["files", "directory", "browser", "gmail", "chat"];
+export const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
+const KINDS: ContextSourceKind[] = ["files", "directory", ...CONTEXT_DIRECTORY_KINDS, "browser", "gmail", "chat"];
+export const isContextDirectory = (kind: ContextSourceKind) => CONTEXT_DIRECTORY_KINDS.some(id => id === kind);
+export const supportedContextFile = (path: string) => /\.(?:md|markdown|txt|csv|json|html?|pdf|docx)$/iu.test(path);
+function relativePath(value: unknown): string {
+  if (typeof value !== "string" || !value || value.length > 4096 || /[\\\u0000-\u001f]/u.test(value)
+    || value.split("/").some(part => !part || part === ".." || part.startsWith(".") || ["node_modules", "vendor", "dist", "build"].includes(part))) throw new Error("文件范围无效");
+  return value;
+}
+export function includedContextFiles(source: ContextSource): ContextFileMetadata[] {
+  return (source.metadata?.files ?? []).filter(file => !(source.excluded ?? []).some(path => file.path === path || file.path.startsWith(path + "/")));
+}
 export function contextSources(value: unknown): ContextSource[] {
-  if (!Array.isArray(value) || value.length > 5) throw new Error("来源清单无效");
-  const seen = new Set<string>();
+  if (!Array.isArray(value) || value.length > KINDS.length) throw new Error("来源清单无效");
+  const seen = new Set<string>(); let totalBytes = 0, totalFiles = 0;
   return value.map((raw: unknown) => {
     if (!raw || typeof raw !== "object") throw new Error("来源无效");
     const source = raw as Record<string, unknown>;
@@ -24,35 +32,50 @@ export function contextSources(value: unknown): ContextSource[] {
       }
     }
     if (result.url) { const url = new URL(result.url); if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("请输入有效的网页网址"); }
+    if (source.days !== undefined) {
+      if (![0, 7, 30, 90].includes(Number(source.days))) throw new Error("时间范围无效");
+      result.days = Number(source.days) as ContextSource["days"];
+    }
+    if (result.kind === "gmail") result.days = source.days === 7 ? 7 : 30;
+    if (source.metadata !== undefined) {
+      const metadata = source.metadata as Record<string, unknown>;
+      if (!metadata || !Array.isArray(metadata.files) || metadata.files.length > 200) throw new Error("文件预览无效");
+      const paths = new Set<string>();
+      result.metadata = { files: metadata.files.map((file: ContextFileMetadata) => {
+        const path = relativePath(file?.path);
+        if (paths.has(path) || !supportedContextFile(path) || !Number.isSafeInteger(file.size) || file.size < 0 || !Number.isSafeInteger(file.modified_ms) || file.modified_ms < 0 || typeof file.identity !== "string" || file.identity.length > 200) throw new Error("文件元数据无效");
+        paths.add(path); return { path, size: file.size, modified_ms: file.modified_ms, identity: file.identity };
+      }), skipped: Number.isSafeInteger(metadata.skipped) && Number(metadata.skipped) >= 0 ? Number(metadata.skipped) : 0, truncated: metadata.truncated === true };
+    }
+    if (source.excluded !== undefined) {
+      if (!Array.isArray(source.excluded) || source.excluded.length > 400) throw new Error("排除范围无效");
+      result.excluded = [...new Set(source.excluded.map(relativePath))];
+    }
     if (source.files !== undefined) {
-      if (!Array.isArray(source.files) || source.files.length > 50) throw new Error("每次最多选择 50 份文本文件");
-      let bytes = 0;
-      result.files = source.files.map((file: unknown) => {
-        if (!file || typeof file !== "object" || !("path" in file) || !("data" in file) || typeof file.path !== "string" || typeof file.data !== "string") throw new Error("文件内容无效");
-        bytes += Buffer.byteLength(file.data); if (bytes > 8_000_000) throw new Error("文件总大小超过 6 MB，请减少选择");
-        if (!/\.(?:md|markdown|txt|csv|json|html?)$/iu.test(file.path)) throw new Error("请使用 Markdown、文本、CSV、JSON 或保存的网页文件");
-        // HTML is imported as inert text; no scripts or remote requests are executed.
-        const path = /\.(?:html?|csv|json)$/iu.test(file.path) ? file.path + ".txt" : file.path;
+      if (!Array.isArray(source.files) || source.files.length > 50) throw new Error("每次最多选择 50 份文件");
+      const paths = new Set<string>();
+      result.files = source.files.map((file: ImportFile) => {
+        const path = relativePath(file?.path);
+        if (paths.has(path) || !supportedContextFile(path)) throw new Error("文件类型无效或重复");
+        paths.add(path);
+        if ((isContextDirectory(result.kind) || result.metadata) && !includedContextFiles(result).some(f => f.path === path)) throw new Error("文件不在本次预览选定范围内");
+        if (typeof file.reason === "string" && file.reason.length <= 600 && file.data === undefined) return { path, reason: file.reason };
+        if (typeof file.data !== "string" || file.data.length > 8_000_000 || file.data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(file.data)) throw new Error("文件内容无效");
+        if (result.selected) { totalFiles++; totalBytes += Buffer.from(file.data, "base64").length; }
+        if (totalFiles > 50 || totalBytes > 6_000_000) throw new Error("本次最多 50 份文件、总大小 6 MB，请缩小选择");
         return { path, data: file.data };
       });
     }
-    if (result.kind === "gmail") result.days = source.days === 7 ? 7 : 30;
     return result;
   });
 }
-export async function readContextSource(home: string, source: ContextSource, actions?: BoundActionClient): Promise<{ name: string; locator: string; files: ImportFile[] }> {
-  if (source.kind === "directory" && !source.files?.length) {
-    if (!source.path?.trim()) throw new Error("请先选择要读取的目录");
-    if (!actions) throw new Error("本机目录读取需要 Home 动作服务");
-    const scanned = await actions.invoke(cogniaActions.scan, { path: source.path.trim() });
-    return { ...scanned, files: scanned.files.filter(file => /\.(?:md|markdown|txt|csv|json)$/iu.test(file.path) || file.reason) };
-  }
+export async function readContextSource(home: string, source: ContextSource): Promise<{ name: string; locator: string; files: ImportFile[] }> {
   if (source.kind === "browser") {
     if (!source.text?.trim()) throw new Error("请粘贴要整理的网页正文");
     return { name: "浏览器内容", locator: "upload", files: [{ path: "网页内容.md", data: Buffer.from(`# 网页内容\n\n${source.url ? `原网址：${source.url}\n\n` : ""}${source.text}`).toString("base64") }] };
   }
   if (source.kind === "gmail") return readOnboardingGmail(home, source);
-  if (!source.files?.length) throw new Error(source.kind === "chat" ? "请选择导出的聊天文本文件" : "请选择要整理的文件");
+  if (!source.files?.length) throw new Error(isContextDirectory(source.kind) ? "请返回预览，在应用中读取已选文件" : "请选择要整理的文件");
   return { name: source.kind === "chat" ? "聊天记录导出" : "本地文件", locator: "upload", files: source.files };
 }
 

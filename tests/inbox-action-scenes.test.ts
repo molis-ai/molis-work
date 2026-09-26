@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
-import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -18,7 +18,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
   const inputs: string[] = [];
   let duringJudgment: (() => void) | undefined;
-  const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, allowed_behavior_ids: ["inbox.verify", "inbox.done"],
+  const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" },
     provider: { async evaluate(_key, record, content) {
       inputs.push(content); duringJudgment?.();
       return { primitive: "choice", choice: "inbox.done", probabilities: { "inbox.done": 1 }, confidence: null,
@@ -54,6 +54,9 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     assert.equal(result.judgments.length, 1);
     assert.deepEqual(result.judgments[0]!.suggested_behavior_ids, ["inbox.done"]);
     assert.deepEqual(result.judgments[0]!.subject, { kind: "inbox_entry", id: entry.entry_id, board_id: reference.board_id });
+    const recommendations = async () => (await actions.invoke(caller, inboxActions.recommendations, {}) as { judgments: JudgmentRecord[] }).judgments;
+    assert.deepEqual(await recommendations(), result.judgments);
+    assert.equal((await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState).summary?.available, true);
     assert.equal(history().length, 1, "the scene commits one consumer history, not an extra MCP invocation record");
     assert.match(inputs[0]!, /原文内容/);
     await host.withProject(reference, runtime => {
@@ -71,10 +74,12 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     duringJudgment = () => { disabled = true; };
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.plugin_disabled" });
     assert.equal(history().length, 1);
+    assert.deepEqual(await recommendations(), []);
     disabled = false; duringJudgment = undefined;
     await actions.invoke(caller, inboxActions.writeJudgment, { function_key: null });
     const stopped = (await scenes.usages(caller, fn))[0]!;
     assert.equal(stopped.enabled, false);
+    assert.deepEqual(await recommendations(), []);
     assert.equal(withFunctionsService(home, service => service.sceneBinding(inboxNextScene.scene_id, reference.board_id), options), null);
     await host.close(); host = makeHost(); scenes = host.sceneClient(reference); actions = host.actionClient(reference);
     assert.equal((await scenes.usages(caller, fn))[0]!.enabled, false, "disable preserves the binding across restart");
@@ -96,10 +101,21 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     const configured = await actions.invoke(caller, inboxActions.readJudgment, {}) as { capabilities: ActionDefinition[]; binding: ActionSceneBinding };
     assert.ok(configured.capabilities.some(action => action.capability_id === unknown.capability_id));
     assert.equal(configured.binding.function.capability_id, unknown.capability_id);
+    const summary = (await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState).summary!;
+    assert.equal(summary.name, "本地规则"); assert.equal(summary.available, true);
+    const legacy = withFunctionsService(home, service => service.recordSceneJudgment({ function_key: unknown.capability_id, function_version: 1,
+      subject: { kind: "inbox_entry", id: entry.entry_id, board_id: reference.board_id }, scene_id: inboxNextScene.scene_id,
+      outcome: "ok", suggested_behavior_ids: ["inbox.done"], error_code: null }), options);
+    assert.deepEqual(await recommendations(), [], "old history without binding and content provenance is retained but cannot claim current advice");
     const consumed = await scenes.runScene(caller, inboxNextScene, inboxSceneBindingId(reference.project_id), { entry_id: entry.entry_id }) as JudgmentRecord;
     assert.equal(consumed.function_key, unknown.capability_id);
     assert.deepEqual(consumed.suggested_behavior_ids, ["inbox.done"]);
-    assert.equal(history().length, 2);
+    assert.equal(history().length, 3);
+    assert.deepEqual(await recommendations(), [consumed]);
+    await host.withProject(reference, runtime => runtime.store.db.prepare("UPDATE feed_items SET body = ? WHERE item_id = ? AND board_id = ?").run("原文已更正", entry.subject_id, reference.board_id));
+    assert.deepEqual(await recommendations(), [], "changing the underlying material also withdraws advice without changing the Inbox entry");
+    assert.ok(history().some(record => record.judgment_id === consumed.judgment_id));
+    assert.ok(history().some(record => record.judgment_id === legacy.judgment_id));
     for (const recommendation of ["inbox.compose", "inbox.verify"]) {
       next = recommendation;
       const result = await actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }) as { judgments: JudgmentRecord[] };
@@ -110,16 +126,28 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     assert.equal(review.judgments[0]!.outcome, "needs_review");
     assert.deepEqual(review.judgments[0]!.suggested_behavior_ids, [], "uncertain judgments cannot recommend an action");
     const count = history().length;
+    let revoked = false;
+    unknownEffect = () => { revoked = true; };
+    const revocableCaller: ActionCallContext = { ...caller, validate_authority: reference => {
+      if (revoked && reference.capability_id === inboxActions.evaluateJudgment.capability_id && reference.provider_id === "io.molis.work.inbox") {
+        throw Object.assign(new Error("origin revoked"), { code: "fixture.origin_revoked" });
+      }
+    } };
+    await assert.rejects(actions.invoke(revocableCaller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "fixture.origin_revoked" });
+    assert.equal(history().length, count, "revoking the initiating operation while its judgment runs must prevent history consumption");
     // Change the actual entry while the provider is executing, through its business owner.
     const feed = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db));
     unknownEffect = () => feed.setInboxEntryStatus(reference.board_id, entry.entry_id, "in_progress", entry.revision);
     await assert.rejects(scenes.runScene(caller, inboxNextScene, binding.binding_id, { entry_id: entry.entry_id }), { code: "actions.subject_changed" });
     assert.equal(history().length, count);
+    assert.deepEqual(await recommendations(), [], "an edited entry invalidates previously saved advice");
     const current = feed.getInboxEntry(reference.board_id, entry.entry_id);
     feed.setInboxEntryStatus(reference.board_id, entry.entry_id, "dismissed", current.revision);
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.subject_unavailable" });
     assert.equal(history().length, count);
     stop();
+    assert.deepEqual(await recommendations(), []);
+    assert.equal((await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState).summary?.available, false);
     const orphan = (await scenes.usages(caller))[0]!;
     assert.equal(orphan.function.capability_id, unknown.capability_id);
     assert.equal(orphan.availability.available, false);

@@ -1,6 +1,7 @@
 import type { ArtifactBrowserUiModel } from "./browser-ui.js";
 
 export interface ArtifactImportUiModel {
+  connections?: readonly { connection_id: string; service_id: string; display_name: string; state: string }[];
   readonly routePrefix: string;
   readonly controlToken: string;
   readonly connectionStatus: Readonly<Record<string, boolean>>;
@@ -78,11 +79,12 @@ export function renderArtifactImportSurface(model: ArtifactImportUiModel): strin
     <p class="artifact-import-project">${p.escape(model.projectTitle)}</p>
     <h1>${p.text("导入文档")}</h1>
     <p class="artifact-import-intro">${p.text("把外部文档保存为当前项目的 Artifact。保留本次读取的正文和来源；原文后续修改不会自动同步。")}</p>
-    <form class="artifact-import-form" data-artifact-import-form data-route-prefix="${p.escape(model.routePrefix)}" data-import-messages="${p.escape(JSON.stringify(messages))}">
+    <form class="artifact-import-form" data-artifact-import-form data-route-prefix="${p.escape(model.routePrefix)}" data-import-messages="${p.escape(JSON.stringify(messages))}" data-import-connections="${p.escape(JSON.stringify(model.connections ?? []))}">
       <fieldset data-import-fields>
         <label>${p.text("文档来源")}<select name="source" data-import-source>${SOURCES.map(source => `<option value="${source.id}" data-connected="${Boolean(model.connectionStatus[source.id])}" data-placeholder="${p.escape(source.placeholder)}" data-help="${p.escape(p.text(source.help))}">${p.text(source.label)}</option>`).join("")}</select></label>
         <p class="artifact-import-help" data-import-help>${p.text(SOURCES[0].help)}</p>
         <div data-import-online>
+          <label>${p.text("账号连接")}<select name="connection_id" data-import-account required><option value="">${p.text("选择连接")}</option></select></label>
           <div class="artifact-import-connection"><span data-import-connection-status>${p.text(model.connectionStatus.notion ? "凭据已配置，导入时验证文档访问权限。" : "尚未配置此连接器。请先配置凭据，再返回这里导入。")}</span><br><a href="/settings/connectors?connector=notion" data-import-settings>${p.text("配置连接器")}</a></div>
           <label>${p.text("文档链接")}<input name="url" type="url" placeholder="${SOURCES[0].placeholder}" required autocomplete="off" spellcheck="false"></label>
         </div>

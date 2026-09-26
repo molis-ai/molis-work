@@ -5,7 +5,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { FunctionsHttpRouteTable } from "./functions-http/routes.js";
 import { createFunctionsRouteHandlers } from "./functions-http/route-handlers.js";
 import { functionsRouteErrorResponse } from "./functions-http/route-error.js";
-import { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
 import { bindTypeSafeConnection, unbindTypeSafeConnection } from "./typesafe-connection.js";
 
@@ -31,10 +30,7 @@ export async function handleFunctionsHttp(
         } else throw new Error("请在 Connectors 中选择 TypeSafe 连接");
         return { status: 200, body: functionsConnectionStatus(homeDirectory) };
       }
-      return new FunctionsHttpRouteTable(createFunctionsRouteHandlers({
-          actions: options.actions,
-          catalog: () => liveHostFunctionAuthoringCatalog(),
-        })).handle(input);
+      return new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions: options.actions })).handle(input);
     },
     mapError: functionsRouteErrorResponse,
   });

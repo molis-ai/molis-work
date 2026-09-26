@@ -1,3 +1,4 @@
+import { renderProjectMonogram } from "@molis-ai/molis-work-design-system";
 import { CONTROL_CLIENT_SCRIPT, PROJECT_INDEX_CLIENT_SCRIPT } from "./browser-assets.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./scripts/client/background-tasks.js";
 import type { WebProjectNavigation } from "./settings-navigation.js";
@@ -33,7 +34,7 @@ function renderMolisWorkProjectIndex(
     .map((project) => {
       const kind = projectIndexKind(project);
       const searchRow = `${project.display_name} ${kind.chip} ${kind.detail} ${project.data_class ?? ""}`.toLocaleLowerCase();
-      return `<a class="mw-card project-card" data-slot="card" role="listitem" href="${href(`/projects/${encodeURIComponent(project.project_id)}`)}" data-project-search-row="${escapeHtml(searchRow)}"><header><span class="project-card-icon" aria-hidden="true">${icon("database")}</span><span class="project-card-kind">${kind.chip}</span></header><div><h2 title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</h2><p>${kind.detail}</p></div><footer><span>${L("打开项目")}</span>${icon("arrow")}</footer></a>`;
+      return `<a class="mw-card project-card" data-slot="card" role="listitem" href="${href(`/projects/${encodeURIComponent(project.project_id)}`)}" data-project-search-row="${escapeHtml(searchRow)}"><header>${renderProjectMonogram(project.display_name, project.project_id, escapeHtml)}<span class="project-card-kind">${kind.chip}</span></header><div><h2 title="${escapeHtml(project.display_name)}">${escapeHtml(project.display_name)}</h2><p>${kind.detail}</p></div><footer><span>${L("打开项目")}</span>${icon("arrow")}</footer></a>`;
     })
     .join("");
   return `<!doctype html>
@@ -57,7 +58,7 @@ function renderMolisWorkProjectIndex(
   </header>
   <main class="project-index">
     <section class="project-index-panel" aria-labelledby="project-index-title">
-      <header class="project-index-heading"><div><h1 id="project-index-title">${L("选择一个项目")}</h1><p>${L("把同一项工作的资料、文档和进展放在一起。")}</p></div><div class="project-index-actions">${projects.length ? `<label class="project-index-search">${icon("search")}<input type="search" data-project-search placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}"></label>` : ""}<a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${icon("plus")}${L("新建项目")}</a></div></header>
+      <header class="project-index-heading"><div><p class="craft-greeting" data-craft-greeting hidden></p><h1 id="project-index-title">${L("选择一个项目")}</h1><p>${L("把同一项工作的资料、文档和进展放在一起。")}</p></div><div class="project-index-actions">${projects.length ? `<label class="project-index-search">${icon("search")}<input type="search" data-project-search placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}"></label>` : ""}<a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${icon("plus")}${L("新建项目")}</a></div></header>
       <div class="project-index-body">${projects.length
         ? `<div class="project-card-grid" role="list">${projectCards}</div><p class="project-index-search-empty" data-project-search-empty hidden aria-live="polite">${L("没有匹配的项目，换一个关键词。")}</p>`
         : `<div class="project-index-empty"><h2>${L("从一个真实项目开始")}</h2><p>${L("带入已有资料，整理成项目；也可以直接空白开始。")}</p><div class="project-index-start"><a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${L("开始建立第一个项目")}</a><a class="mw-btn mw-btn--secondary" href="${href("/settings/projects")}">${L("直接进入项目设置")}</a></div></div>`}</div>

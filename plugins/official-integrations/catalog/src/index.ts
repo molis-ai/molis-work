@@ -35,7 +35,7 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     host_api_version: 2,
     entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
     permissions: [
-      { permission: `network:${spec.permission_host}`, required: true, reason: `读取 ${spec.title} 身份与入站更新` },
+      ...[spec.permission_host, ...(spec.additional_permission_hosts ?? [])].map(host => ({ permission: `network:${host}`, required: true, reason: `读取 ${spec.title} 身份与入站更新` })),
       { permission: `secret:${connectorId}`, required: true, reason: `使用不可导出的 ${spec.title} credential reference` },
     ],
     capabilities: {
@@ -64,7 +64,7 @@ export function createCatalogIntegrationPlugin(input: {
   return definePollingIntegrationPlugin({
     manifest: catalogIntegrationManifest(input.connectorId),
     createProvider(context) {
-      context.requireGrant(`network:${spec.permission_host}`);
+      for (const host of [spec.permission_host, ...(spec.additional_permission_hosts ?? [])]) context.requireGrant(`network:${host}`);
       context.requireGrant(`secret:${input.connectorId}`);
       return input.provider;
     },

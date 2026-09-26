@@ -1,6 +1,6 @@
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { functionsActionProvider } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions, functionsActionProvider } from "@molis-ai/molis-work-module-functions";
 /** Isolated Functions QA: real SQLite/routes/UI, deterministic provider; no external calls. */
 import { createServer } from 'node:http';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -14,24 +14,29 @@ import { createFunctionsService, openFunctionsStore } from '@molis-ai/molis-work
 import { createFunctionsRouteHandlers } from '../apps/local-host/src/functions-http/route-handlers.ts';
 import { FunctionsHttpRouteTable } from '../apps/local-host/src/functions-http/routes.ts';
 import { functionsRouteErrorResponse } from '../apps/local-host/src/functions-http/route-error.ts';
-import { hostFunctionAuthoringCatalog, hostAllowedBehaviorIds } from '../apps/local-host/src/behavior-catalog.ts';
+import { liveHostFunctionAuthoringCatalog } from '../apps/local-host/src/behavior-catalog.ts';
 import { renderMolisWorkWorkbenchStylesheet } from '../tests/workbench-renderer-fixture.ts';
 import { renderIconSprite } from '@molis-ai/molis-work-design-system';
 const home = await mkdtemp(join(tmpdir(), 'functions-ux-'));
 const store = openFunctionsStore(home);
-const service = createFunctionsService({ store, env: {}, secrets: { get: () => 'fixture-only', put() {}, delete() {} }, allowed_behavior_ids: hostAllowedBehaviorIds(), provider: {
+const service = createFunctionsService({ store, env: {}, secrets: { get: () => 'fixture-only', put() {}, delete() {} }, provider: {
   async evaluate(_key, record) {
     await new Promise(resolve => setTimeout(resolve, 250));
-    return { primitive: record.primitive, choice: record.primitive === 'choice' ? (record.criteria as {key: string}[])[0].key : null, noul: record.primitive === 'noul' ? .8 : null, score: record.primitive === 'score' ? 1 : null, legend: record.primitive === 'score' ? record.criteria as string[] : null, probabilities: record.primitive === 'choice' ? Object.fromEntries((record.criteria as {key:string}[]).map((c, i) => [c.key, i === 0 ? .9 : .1 / ((record.criteria as unknown[]).length - 1)])) : {}, confidence: .9, model: 'jev-1.13.0' };
+    return { primitive: record.primitive, choice: record.primitive === 'choice' ? (record.criteria as readonly {key: string}[])[0].key : null, noul: record.primitive === 'noul' ? .8 : null, score: record.primitive === 'score' ? 1 : null, legend: record.primitive === 'score' ? record.criteria as readonly string[] : null, probabilities: record.primitive === 'choice' ? Object.fromEntries((record.criteria as readonly {key:string}[]).map((c, i) => [c.key, i === 0 ? .9 : .1 / ((record.criteria as readonly unknown[]).length - 1)])) : {}, confidence: .9, model: 'jev-1.13.0' };
   }
 } });
 for (const primitive of ['choice', 'noul', 'score'] as const) service.create({ primitive, name: primitive === 'choice' ? '筛选值得跟进的消息' : primitive === 'noul' ? '材料是否足够' : '评估紧急程度' });
-const catalog = hostFunctionAuthoringCatalog();
-const authoringCatalog = { ...catalog, subjects: [...catalog.subjects, { subject_kind: 'fixture_document', title: '扩展文档对象' }] };
 const registry = new ActionService();
 registry.registerProvider(functionsActionProvider({ read: run => run(service), run: run => run(service), credentialAvailable: () => true }));
 const actions = bindActionClient(registry, () => ({ actor_id: "fixture", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] }));
-const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions, catalog: () => authoringCatalog }));
+registry.registerProvider({ provider: { provider_id: "fixture.context", title: "Isolated preview", kind: "system" },
+  definitions: [functionContextActions.catalog, functionContextActions.targets, functionContextActions.usages], handlers: [
+    { ...functionContextActions.catalog, handle: async caller => ({ catalog: liveHostFunctionAuthoringCatalog(await registry.discover(caller)) }) },
+    { ...functionContextActions.targets, handle: () => ({ targets: [] }) },
+    { ...functionContextActions.usages, handle: () => ({ usages: [] }) },
+  ],
+});
+const routes = new FunctionsHttpRouteTable(createFunctionsRouteHandlers({ actions }));
 const escape = (value: unknown) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1');

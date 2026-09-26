@@ -69,6 +69,7 @@ export function renderPptWorkbench(model: PptUiModel): string {
         <strong>${p.text("还没有演示稿")}</strong>
         <p>${p.text("先建一份，再加幻灯片。预览区按页展示，可以导出 JSON。")}</p>
         <p>${p.text("内容属于当前项目，保存在这台电脑。")}</p>
+        <button class="mw-btn mw-btn--primary" type="button" data-ppt-new>${icon("plus")}<span>${p.text("新建演示稿")}</span></button>
       </div>
       <div data-ppt-rows></div>
     </div>
@@ -77,10 +78,15 @@ export function renderPptWorkbench(model: PptUiModel): string {
         <button class="plugin-stage-back" type="button" data-ppt-back aria-label="${p.text("返回演示稿列表")}" title="${p.text("返回演示稿列表")}">${icon("chevron-right")}</button>
         <h1 data-ppt-editor-title>${p.text("演示稿")}</h1>
         <span data-ppt-editor-status></span>
-        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-artifact="" data-ppt-artifact-bar>${p.text("存成 Artifact")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-ppt-artifact="" data-ppt-artifact-bar>${p.text("保存成果版本")}</button>
+        <details class="plugin-stage-more">
+          <summary class="mw-btn mw-btn--ghost" aria-label="${p.text("更多操作")}">${icon("more")}<span>${p.text("更多")}</span></summary>
+          <div class="plugin-stage-more-actions">
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-export>${p.text("导出 JSON")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-reload>${p.text("重新读取")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-ppt-delete>${p.text("删除")}</button>
+          </div>
+        </details>
       </div>
       <p class="ppt-note" data-ppt-note role="status" aria-live="polite" hidden></p>
       <p class="ppt-note" data-ppt-publication-note hidden></p>

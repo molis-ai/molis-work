@@ -1,4 +1,3 @@
-import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextOnboardingHttp } from "./web-context-onboarding.js";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -23,10 +22,10 @@ interface OnboardingHttpPorts extends OnboardingRuntimePorts {
 
 export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
   return async function handleOnboarding(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, localHost: MolisWorkLocalHost, controlToken: string): Promise<boolean> {
-    if (await createContextOnboardingHttp({ ...ports, homeActions: () => bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS })), actions: async (home, projectId) => {
+    if (await createContextOnboardingHttp({ ...ports, actions: async (home, projectId) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
-      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["pages:write"] }));
+      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"] }));
     } })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));

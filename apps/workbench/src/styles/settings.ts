@@ -117,11 +117,18 @@ export const SETTINGS_STYLES = `
   .settings-connection-list, .settings-connection-detail-list { display: grid; gap: 8px; }
   .settings-connection-empty { padding: 22px; border: 1px dashed var(--line-strong); border-radius: 10px; }
   .settings-connection-empty strong { font-size: 13px; font-weight: 500; }
-  .settings-connection-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface, transparent); }
+  .settings-connection-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface, transparent); }
   .settings-connection-row__identity { min-width: 0; display: grid; gap: 3px; }
   .settings-connection-row__identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
   .settings-connection-row__identity small { color: var(--muted); font-size: 11px; }
   .settings-connection-row__actions { grid-column: 2 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+  .settings-connection-result, .settings-connection-tool { grid-column: 1 / -1; min-width: 0; }
+  .settings-connection-output { max-height: 360px; max-width: 100%; overflow: auto; padding: 14px; border: 1px solid var(--line); border-radius: 8px; font: 12px/1.6 var(--font-mono, monospace); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--rail); }
+  .settings-connector-protocol { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .settings-connector-protocol > summary, .settings-connection-tool > summary { cursor: pointer; font-size: 13px; }
+  .settings-connector-protocol[open] { display: grid; gap: 12px; }
+  .settings-connector-protocol code { display: block; overflow-wrap: anywhere; }
+  .settings-connector-protocol [data-protocol-result] { overflow-wrap: anywhere; }
   .settings-connection-inline { font-size: 12px; color: var(--muted); }
   .settings-connection-inline summary { cursor: pointer; }
   .settings-connection-inline form { display: flex; gap: 6px; margin-top: 8px; }
@@ -142,7 +149,7 @@ export const SETTINGS_STYLES = `
     min-width: 0;
     padding: 14px;
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-columns: 40px minmax(0, 1fr);
     align-items: start;
     gap: 12px;
     text-align: left;
@@ -159,9 +166,11 @@ export const SETTINGS_STYLES = `
   .settings-connector-card__title strong { font-size: 14px; font-weight: 400; }
   .settings-connector-card__copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
   .settings-connector-mark {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+    box-sizing: border-box;
+    border-radius: 10px;
     display: grid;
     place-items: center;
     overflow: hidden;
@@ -169,9 +178,9 @@ export const SETTINGS_STYLES = `
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
     flex: 0 0 auto;
   }
+  .settings-connector-mark[data-on="light"] { color: #242424; }
   .settings-connector-mark[data-on="dark"] { background: #111; box-shadow: none; }
-  .settings-connector-mark svg { width: 32px; height: 32px; display: block; }
-  .settings-connector-mark[data-pad="1"] svg { width: 22px; height: 22px; }
+  .settings-connector-mark img, .settings-connector-mark svg { width: 24px; height: 24px; display: block; object-fit: contain; }
   .settings-connector-mark--fallback { background: var(--rail); color: var(--ink-soft); font-size: 10px; font-weight: 600; letter-spacing: -.05em; }
   .settings-connector-capabilities {
     margin: 0;
@@ -326,7 +335,7 @@ export const SETTINGS_STYLES = `
   @media (max-width: 760px) {
     .settings-connection-section > header { align-items: stretch; flex-direction: column; }
     .settings-connection-section > header .mw-btn { align-self: flex-start; }
-    .settings-connection-row { grid-template-columns: 32px minmax(0, 1fr) auto; }
+    .settings-connection-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
     .settings-connection-row > .mw-btn { grid-column: 2 / -1; justify-self: start; }
     .settings-connection-row__actions { grid-column: 1 / -1; }
     .settings-page > .topbar { height: 52px; min-height: 52px; }

@@ -56,7 +56,11 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   assert.equal(await evaluate('window.pptSaveRequests'),2);await evaluate('window.restorePptFetch()');
   await evaluate("document.querySelector('.ppt-workspace').scrollTop=0");await screenshot('editor');
   const downloads=join(homeDirectory,'exports');await mkdir(downloads);await command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
-  await click('[data-ppt-export]');await idle();
+  const moreClick = async (selector: string) => {
+    if (!await evaluate("document.querySelector('[data-ppt-stage-workspace] .plugin-stage-more').open")) await click('[data-ppt-stage-workspace] .plugin-stage-more > summary');
+    await click(selector);
+  };
+  await moreClick('[data-ppt-export]');await idle();
   const deadline=Date.now()+4000;let exported='';
   while(!exported){try{exported=await readFile(join(downloads,'季度回顾.json'),'utf8');}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
     if(!exported){if(Date.now()>deadline)throw new Error('PPT JSON download missing');await new Promise(resolve=>setTimeout(resolve,50));}}
@@ -65,13 +69,13 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   const other=openPptStore(homeDirectory);try{other.update(id,{description:'远端修改'},projectId!);}finally{other.close();}
   const remoteVersion=read()[0]!.version;
   await input('[data-ppt-title]','不能丢失的本地标题');await waitFor("document.querySelector('[data-ppt-editor-status]').textContent.endsWith('保存失败')");
-  for(const selector of ['[data-ppt-artifact-bar]','[data-ppt-export]','[data-ppt-back]']){await click(selector);await idle();}
+  for(const selector of ['[data-ppt-artifact-bar]','[data-ppt-export]','[data-ppt-back]']){if(selector==='[data-ppt-export]') await moreClick(selector); else await click(selector);await idle();}
   assert.equal(read()[0]!.version,remoteVersion);assert.equal(read()[0]!.artifact_version,0);
   assert.equal(await evaluate("document.querySelector('[data-ppt-title]').value"),'不能丢失的本地标题');
   assert.equal(await evaluate("document.querySelector('[data-ppt-stage-workspace]').hidden"),false);await screenshot('conflict');
-  await click('[data-ppt-reload]');await waitFor("document.querySelector('[data-ppt-confirm]').open");
+  await moreClick('[data-ppt-reload]');await waitFor("document.querySelector('[data-ppt-confirm]').open");
   await evaluate("document.querySelector('[data-ppt-confirm]').close('cancel')");await idle();assert.equal(await evaluate("document.querySelector('[data-ppt-title]').value"),'不能丢失的本地标题');
-  await click('[data-ppt-reload]');await waitFor("document.querySelector('[data-ppt-confirm]').open");await click('[data-ppt-confirm] [data-confirm-ok]');await idle();
+  await moreClick('[data-ppt-reload]');await waitFor("document.querySelector('[data-ppt-confirm]').open");await click('[data-ppt-confirm] [data-confirm-ok]');await idle();
   assert.equal(await evaluate("document.querySelector('[data-ppt-description]').value"),'远端修改');
   const db=openHomeSqliteDatabase(homeDirectory,'ppt');
   try{db.exec("CREATE TRIGGER fail_ppt_ui BEFORE UPDATE OF artifact_version ON presentations WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
@@ -84,5 +88,5 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   assert.equal(denied,403);assert.equal(read().length,1);
   assert.equal(await evaluate("document.querySelector('[data-ppt-stage-workspace]').scrollLeft"),0);
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'));
-  await click('[data-ppt-delete]');await waitFor("document.querySelector('[data-ppt-confirm]').open");await click('[data-ppt-confirm] [data-confirm-ok]');await idle();assert.equal(read().length,0);
+  await moreClick('[data-ppt-delete]');await waitFor("document.querySelector('[data-ppt-confirm]').open");await click('[data-ppt-confirm] [data-confirm-ok]');await idle();assert.equal(read().length,0);
 });

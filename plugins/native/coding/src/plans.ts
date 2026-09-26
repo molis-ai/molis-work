@@ -77,6 +77,7 @@ export function planTask(chain: readonly AgentRunView[]): string {
 }
 export function planFromRun(sessionId: string, run: AgentRunView, earlier: readonly AgentRunView[] = []): Omit<CodingPlanDraft, "revision" | "confirmed"> {
   if (run.phase !== "completed" || run.frozen.role_id !== "planner") throw new Error("请等待规划轮次完成，再查看提案");
+  if (!run.frozen.directory) throw new Error("代码计划需要原授权工作区");
   const answer = run.turns.filter(turn => turn.kind === "assistant").at(-1)?.text.trim() ?? "";
   return { content: parseCodingPlanAnswer(answer), source: { session_id: sessionId, run_id: run.ref.run_id, task: planTask([...earlier, run]), workspace_path: run.frozen.directory.canonical_path } };
 }

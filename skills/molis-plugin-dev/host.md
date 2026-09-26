@@ -53,7 +53,9 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 
 Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/native/inbox/src/scenes.ts`、`apps/local-host/src/inbox-scene.ts` 及 `tests/inbox-automatic-scenes.test.ts`。Feed 各触发源通过组合根注入 `feedOptions.inboxJudgment`，共享绑定但不共享待处理队列。
 
-迁移边界：旧 `function_scenes`、`behaviors` 池仍为尚未迁移的首页与 Feed 规则服务；判断作者页面已迁入系统能力入口；不要复制它们的新去向枚举或 `requires: functions.evaluate` 作为新消费者接入方法。完整系统能力 UI、工作流能力选择和生成插件模板尚未完成，不能承诺所有页面已自动呈现新场景。
+要让用户在系统判断编辑器里直接启用，场景声明 `configuration_permissions` 并提供 `targets(caller)`，返回原配置位置、名称、链接和 revision。系统绑定会携带准确场景提供方及 `expected_revision`，原 `bind` 必须在同一存储中原子核对；null 只代表业务已提供但尚未绑定的固定位置。发现过程不新建规则，停用保留原引用。仅启用所需的额外权限用 `activation_permissions` 声明，详见 SDK。
+
+迁移边界：Home、Inbox、Feed 及系统规则编辑器已接共同场景和配置位置；旧 Agent 行为池及其他消费者仍需迁移。不要复制 `function_scenes` 名单或 `requires: functions.evaluate` 作为新接入方法。完整系统管理 UI、工作流输入映射和生成模板闭环尚未完成；具体证据见迁移清单。
 
 ## 接到插件事件总线
 

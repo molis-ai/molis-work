@@ -1,16 +1,36 @@
-import { Ajv, type ValidateFunction } from "ajv";
+import { Ajv, type AnySchemaObject, type ValidateFunction } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { ActionError, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** No coercion/default injection: callers must send the data the handler receives. */
 export function compileActionSchema(schema: ActionSchema): ValidateFunction {
+  return createActionSchemaCompiler()(schema);
+}
+
+/** Reuse dialect metadata within one registration, never another business schema's references. */
+export function createActionSchemaCompiler(): (schema: ActionSchema) => ValidateFunction {
   const options = { allErrors: true, strict: false, strictSchema: true, validateFormats: true };
-  const ajv = schema.$schema === "https://json-schema.org/draft/2020-12/schema"
-    ? new Ajv2020(options) : new Ajv(options);
-  addFormats.default(ajv);
-  try { return ajv.compile(schema); }
-  catch (error) { throw new ActionError("actions.schema_invalid", `能力 schema 无效：${error instanceof Error ? error.message : String(error)}`); }
+  const instances: Partial<Record<"draft7" | "2020", Ajv | Ajv2020>> = {};
+  return schema => {
+    const dialect = schema.$schema === "https://json-schema.org/draft/2020-12/schema" ? "2020" : "draft7";
+    let ajv = instances[dialect];
+    if (!ajv) {
+      ajv = dialect === "2020" ? new Ajv2020(options) : new Ajv(options);
+      addFormats.default(ajv);
+      // AJV installs this built-in alias as a string reference, which removeSchema()
+      // would discard. Register its original meta schema under the same public key
+      // so cleanup retains it and business schemas still cannot claim that identity.
+      const metaAlias = "http://json-schema.org/schema";
+      const meta = ajv.getSchema(metaAlias)!;
+      ajv.removeSchema(metaAlias);
+      ajv.addMetaSchema(meta.schema as AnySchemaObject, metaAlias, false);
+      instances[dialect] = ajv;
+    }
+    try { return ajv.compile(schema); }
+    catch (error) { throw new ActionError("actions.schema_invalid", `能力 schema 无效：${error instanceof Error ? error.message : String(error)}`); }
+    finally { ajv.removeSchema(); }
+  };
 }
 
 export function validateActionValue(validate: ValidateFunction, value: unknown, side: "input" | "output"): void {
@@ -18,6 +38,11 @@ export function validateActionValue(validate: ValidateFunction, value: unknown, 
   // Report paths and constraints, never the user's values or credentials.
   const detail = (validate.errors ?? []).map(e => `${e.instancePath || "/"} ${e.keyword}`).join(", ");
   throw new ActionError(`actions.${side}_invalid`, `${side === "input" ? "输入" : "结果"}不符合能力合同：${detail}`);
+}
+
+/** Consumers preparing inputs use exactly the same validation as actual dispatch. */
+export function assertActionInput(schema: ActionSchema, value: unknown): void {
+  validateActionValue(compileActionSchema(schema), value, "input");
 }
 
 /** Conservative assignability. Unsupported relations require an explicit conversion. */

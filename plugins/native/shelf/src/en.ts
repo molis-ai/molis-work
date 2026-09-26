@@ -1,5 +1,13 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
+  "下载文件": "Download file",
+  "新建动作": "New action",
+  "无法添加材料": "Could not add material",
+  "请选择至少一种材料": "Choose at least one material type",
+  "动作已加入动作栏": "Action added to the bar",
+  "已复制": "Copied",
+  "浏览器已下载副本；桌面版可直接复制文件。": "Copy downloaded. The desktop app can copy files directly.",
+  "终端尚未连接，输入已保留。": "The terminal is not connected yet. Your input is retained.",
   "副本未保存，输入已保留。请重试完成编辑或返回。": "The copy was not saved. Your edits are retained. Try finishing the edit or going back again.",
   "接收项目成果": "Receive project results",
   "选择固定成果": "Choose a saved result",

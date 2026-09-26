@@ -47,6 +47,8 @@ export const FUNCTIONS_HTTP_ROUTES = [
   route("functions.delete", "POST", /^\/api\/functions\/([^/]+)\/delete$/u, ["id"]),
   route("functions.sample.add", "POST", /^\/api\/functions\/([^/]+)\/samples$/u, ["id"]),
   route("functions.sample.delete", "POST", /^\/api\/functions\/([^/]+)\/samples\/delete$/u, ["id"]),
+  route("functions.targets", "GET", /^\/api\/functions\/([^/]+)\/targets$/u, ["id"]),
+  route("functions.configure", "POST", /^\/api\/functions\/([^/]+)\/configure$/u, ["id"]),
   route("functions.usages", "GET", /^\/api\/functions\/([^/]+)\/usages$/u, ["id"]),
 ] as const satisfies readonly FunctionsHttpRouteDefinition[];
 

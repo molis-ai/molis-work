@@ -1,23 +1,12 @@
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { SessionRuntimeResources } from "./session-runtime-resources.js";
 import fs from "node:fs";
-import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
-import { SessionContentService, SessionDirectoryService, SessionHandoffService, SessionTuiRecorder, RegistryFallbackSessionAdapter, buildWorkSessionView, type ProjectOperationsData } from "@molis-ai/molis-work-plugin-work";
-import type { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
-import { CodexAppServerTransport, CodexRuntimeSessionAdapter, RuntimeHostRouter } from "@molis-ai/molis-work-service-runtime-host";
+import { buildWorkSessionView, workActions, type ProjectOperationsData } from "@molis-ai/molis-work-plugin-work";
 import { type MolisWorkProjectCatalog, type MolisWorkWorkspaceDirectoryRecord, normalizeRuntimeWorkContext } from "./project-catalog.js";
-import { SUPPORTED_RUNTIME_IDS } from "./installer/runtime-integration-contract.js";
 import { openWorkSessionRegistry } from "./session-registry.js";
 import { reconcileLegacySessionCatalog } from "./session-migration.js";
 
-export interface SessionRuntimeResources {
-  registry: MolisWorkSessionRegistry;
-  router: RuntimeHostRouter;
-  directory: SessionDirectoryService;
-  content: SessionContentService;
-  handoff: SessionHandoffService;
-  recorder: SessionTuiRecorder;
-  ownedCodexTransport: CodexAppServerTransport | null;
-}
 
 export async function desktopPanelSessionIds(
   catalog: MolisWorkProjectCatalog,
@@ -38,43 +27,28 @@ export async function desktopPanelSessionIds(
   }
 }
 
-export async function openSessionRuntimeResources(options: { homeDirectory?: string; runtimeSessionTransport?: RuntimeSessionTransport }): Promise<SessionRuntimeResources> {
-  const registry = await openWorkSessionRegistry({ homeDirectory: options.homeDirectory });
-  const router = new RuntimeHostRouter(
-    (runtimeId) => new RegistryFallbackSessionAdapter(runtimeId, registry),
-  );
-  const ownedCodexTransport = options.runtimeSessionTransport ? null : new CodexAppServerTransport();
-  router.register(new CodexRuntimeSessionAdapter(options.runtimeSessionTransport ?? ownedCodexTransport!));
-  const directory = new SessionDirectoryService(registry, router);
-  const content = new SessionContentService(registry, router);
-  return {
-    registry,
-    router,
-    directory,
-    content,
-    handoff: new SessionHandoffService(registry, router, directory, content),
-    recorder: new SessionTuiRecorder(registry),
-    ownedCodexTransport,
-  };
-}
 
 export function createSessionProjectOperations(runtimeTitle: (runtimeKind: string) => string) {
-  return function sessionProjectOperationsData(
-    resources: SessionRuntimeResources,
+  return async function sessionProjectOperationsData(
+    actions: BoundActionClient,
     projectId: string,
     view: MolisWorkWebView,
     projects: readonly WebProjectNavigation[] = [],
     catalogWorkspaces: readonly MolisWorkWorkspaceDirectoryRecord[] = [],
-  ): ProjectOperationsData {
+  ): Promise<ProjectOperationsData> {
+    const directory = await actions.invoke(workActions.directory, {});
+    const byId = new Map(directory.records.map(row => [row.session.session_id, row]));
+    const runtimes = new Map(directory.runtimes.map(row => [row.runtime_id, row.capabilities]));
     return buildWorkSessionView({
       projectId,
-      sessions: resources.registry,
-      runtime: resources.router,
+      sessions: { list: () => directory.records.map(row => row.session), goalHistory: id => byId.get(id)!.goal_history,
+        eventCount: id => byId.get(id)!.event_count },
+      runtime: { capabilities: id => runtimes.get(id)! },
       goals: view.goals.map((item) => item.goal),
       allGoals: [...view.goals, ...view.archived_goals, ...view.trashed_goals].map((item) => item.goal),
       projects,
       catalogWorkspaces,
-      supportedRuntimeIds: SUPPORTED_RUNTIME_IDS,
+      supportedRuntimeIds: directory.runtimes.map(row => row.runtime_id),
       runtimeTitle,
       workspaceExists: fs.existsSync,
       normalizeWorkspace: (canonicalPath) => normalizeRuntimeWorkContext({

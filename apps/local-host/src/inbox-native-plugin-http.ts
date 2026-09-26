@@ -12,7 +12,7 @@ export interface InboxNativePluginHttpOptions {
   readonly actions: BoundActionClient;
   readonly invalidateWebView: () => void;
   readonly renderer?: Pick<WorkbenchRenderer, "renderInboxWorkbenchFragment">;
-  readonly readWebView?: () => MolisWorkWebView;
+  readonly readWebView?: () => MolisWorkWebView | Promise<MolisWorkWebView>;
 }
 
 export async function handleInboxNativePluginHttp(
@@ -29,7 +29,7 @@ export async function handleInboxNativePluginHttp(
     actions: options.actions,
     changed: () => options.invalidateWebView(),
     renderWorkbench: options.renderer && options.readWebView
-      ? () => options.renderer!.renderInboxWorkbenchFragment(options.readWebView!())
+      ? async () => options.renderer!.renderInboxWorkbenchFragment(await options.readWebView!())
       : undefined,
   }));
   try {

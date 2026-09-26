@@ -139,6 +139,18 @@ export class SqliteCalibrationRepository {
     return row ? { proposal: mapProposal(row), payload: JSON.parse(row.payload_json) as unknown } : undefined;
   }
 
+  listPendingProposals(workspaceId: string, actorId: string): ActionProposal[] {
+    return (this.database.prepare("SELECT * FROM action_proposals WHERE workspace_id = ? AND actor_id = ? AND status = 'pending' ORDER BY created_at DESC, id")
+      .all(workspaceId, actorId) as ProposalRow[]).map(mapProposal);
+  }
+
+  rejectProposal(id: string, workspaceId: string, actorId: string, now: string): ActionProposal {
+    const result = this.database.prepare("UPDATE action_proposals SET status = 'rejected', rejected_at = ? WHERE id = ? AND workspace_id = ? AND actor_id = ? AND status = 'pending'")
+      .run(now, id, workspaceId, actorId);
+    if (result.changes !== 1) throw new Error("ACTION_PROPOSAL_NOT_PENDING");
+    return this.getProposal(id)!.proposal;
+  }
+
   markProposalApplied(id: string, now: string): ActionProposal {
     const stored = this.getProposal(id);
     if (!stored) throw new Error("ACTION_PROPOSAL_NOT_FOUND");

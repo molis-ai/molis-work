@@ -12,7 +12,8 @@ test("every catalog service and the two host account services have official meth
     const methods = officialMethodsFor(id);
     assert.ok(methods.length > 0, id);
     assert.equal(new Set(methods.map((method) => method.kind)).size, methods.length, id);
-    assert.ok(methods.some((method) => method.kind === "token" && method.support === "paste"), id);
+    if (id !== "loom") assert.ok(methods.some((method) => method.kind === "token" && method.support === "paste"), id);
+    else assert.deepEqual(methods.map(method => method.kind), ["mcp"]);
     for (const method of methods) {
       assert.ok(method.note.trim().length > 0, `${id}:${method.kind}`);
       assert.ok(method.links.length > 0, `${id}:${method.kind}`);
@@ -39,7 +40,7 @@ test("restricted or preview methods retain their real availability limits", () =
     assert.match(officialMethodsFor(id).find((method) => method.kind === kind)?.note ?? "", fragment);
   hasNote("gmail", "mcp", /开发者预览/);
   hasNote("figma", "mcp", /获准/);
-  hasNote("loom", "token", /不提供公开 API 令牌/);
+  hasNote("loom", "mcp", /Rovo|Atlassian/);
   hasNote("bitbucket", "token", /App Password 已停用/);
 });
 
@@ -61,9 +62,24 @@ test("all current Connector cards expose a method directory with safe official l
     connectors: HOST_CONNECTOR_DIRECTORY.map((row) => ({ ...row, account_state: "disconnected" as const })),
   }, { L: (value) => value, escapeHtml: (value) => String(value ?? ""), icon: () => "" });
   const notionDetail = html.match(/data-connector-detail="notion"[\s\S]*?(?=<section class="settings-connector-detail"|<\/section>\s*<section class="settings-connector-subgroup")/)?.[0] ?? "";
-  assert.match(notionDetail, /data-connector-method="mcp" data-method-support="external"/);
+  assert.match(notionDetail, /data-connector-method="mcp" data-method-support="in_app"/);
   assert.match(notionDetail, /需另行授权/);
   assert.match(html, /data-connector-method="cli" data-method-support="in_app"/);
   assert.match(html, /data-connector-method="token" data-method-support="paste"/);
   assert.match(html, /target="_blank" rel="noopener noreferrer" data-connector-method-link/);
+});
+
+
+test("every displayed official method has an executable host adapter and configuration controls", () => {
+  const html = renderConnectorsSettings({ connectors: HOST_CONNECTOR_DIRECTORY.map(row => ({ ...row, account_state: "disconnected" as const })) }, { L: value => value, escapeHtml: value => String(value ?? ""), icon: () => "" });
+  for (const service of HOST_CONNECTOR_DIRECTORY) {
+    for (const method of service.method_options ?? []) {
+      assert.notEqual(method.support, "external", `${service.connector_id}:${method.kind}`);
+      if (method.kind !== "token" && service.connector_id !== "mcp-bearer") {
+        assert.ok(method.oauth || method.cli || method.mcp, `${service.connector_id}:${method.kind} adapter configuration`);
+        assert.ok(html.includes(`data-protocol="${method.kind}" data-protocol-service="${service.connector_id}"`));
+      }
+    }
+    assert.ok(html.includes(`data-connector-mark="${service.connector_id}"`));
+  }
 });

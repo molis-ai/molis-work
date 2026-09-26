@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { inspectActionDeclarations, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+
+test("scene result labels belong to a finite recommendation contract", () => {
+  const scene: ActionSceneDefinition = { scene_id: "example.review", version: 1, title: "Review", description: "Review the original note", trigger: "Note submitted",
+    scope: "project", subject_kinds: ["note"], permissions: [], input_schema: { type: "object" },
+    result_type: "molis.behavior-recommendation.v1", recommendation_labels: { ack: "Accept" },
+    result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { enum: ["ack", "later"] } } } } };
+  assert.deepEqual(inspectActionDeclarations([], [scene]), []);
+  for (const invalid of [
+    { ...scene, recommendation_labels: { absent: "Not in contract" } },
+    { ...scene, recommendation_labels: { ack: " " } },
+    { ...scene, recommendation_source: "subject-offers" },
+    { ...scene, result_type: "molis.judgment.v1" },
+    { ...scene, result_schema: { type: "object" } },
+  ]) assert.ok(inspectActionDeclarations([], [invalid]).some(problem => problem.includes("推荐名称")));
+});
 
 const PLUGIN_ID = "io.molis.work.coding";
 

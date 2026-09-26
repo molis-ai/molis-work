@@ -54,6 +54,8 @@ const checkpointSchema = z
   })
   .strict();
 
+import type { WorkReuseService } from "../../../work-reuse/service.js";
+
 interface JobHandlerDependencies {
   explorations: SqliteExplorationRepository;
   runtime: AiRuntimePort;
@@ -64,6 +66,7 @@ interface JobHandlerDependencies {
     repository: SqliteResearchRepository;
     ideas: SqliteIdeaRepository;
     runtime: ResearchExecutionRuntimePort;
+    workReuse?: WorkReuseService;
   };
   pulse?: {
     repository: SqlitePulseRepository;

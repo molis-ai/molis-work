@@ -64,6 +64,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   let dirty = false;
   let editRevision = 0;
   let listSeq = 0;
+  let usagesSeq = 0;
+  const configurationRequests = new WeakMap();
   let catalog = { subjects: [], destinations: [], behaviors: [] };
   const keepListScroll = (paint) => {
     const top = list?.scrollTop || 0;
@@ -84,8 +86,25 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     node.textContent = text;
     return node;
   };
-  const destOf = (id) => catalog.destinations.find((row) => row.destination_id === id) || null;
-  const behaviorOf = (id) => catalog.behaviors.find((row) => row.behavior_id === id) || {
+  const matchesScene = (row, record) => row.destination_id === record?.scene_id
+    && (!record.scene_version || row.scene_version === record.scene_version)
+    && (!record.scene_provider_id || row.provider_id === record.scene_provider_id);
+  const destOf = (id, record = selected) => {
+    const reference = record?.scene_id === id ? record : { scene_id: id };
+    const matches = catalog.destinations.filter(row => matchesScene(row, reference));
+    return matches.length === 1 ? matches[0] : id ? {
+      destination_id: id, scene_version: reference.scene_version, provider_id: reference.scene_provider_id,
+      kind: "event", title: L("原用途不可用"), when: "", subject_kinds: [], behavior_ids: [],
+      availability: { available: false, reason: L(matches.length > 1 ? "请为原用途选择具体版本。" : "当前范围未注册原用途，请检查插件状态或重新选择。") },
+    } : null;
+  };
+  const behaviorMatches = (row, destId, record = selected) => {
+    const dest = destOf(destId, record);
+    return row.destination_id === destId && (!row.scene_version || row.scene_version === dest?.scene_version)
+      && (!row.provider_id || row.provider_id === dest?.provider_id);
+  };
+  const behaviorOf = (id, destId = selectedDestId()) => catalog.behaviors.find((row) => row.behavior_id === id && behaviorMatches(row, destId))
+    || catalog.behaviors.find((row) => row.behavior_id === id && !row.destination_id) || {
     behavior_id: id,
     title: id,
     effect: "read",
@@ -99,33 +118,28 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     ? L(behavior.hint).split(/[。\\n]/)[0]
     : L(behavior.title);
   const outputLabel = (record, key) => {
-    const behavior = catalog.behaviors.find((row) => row.behavior_id === key);
+    const behavior = catalog.behaviors.find((row) => row.behavior_id === key && (!row.destination_id || behaviorMatches(row, record.scene_id, record)));
     if (behavior) return behaviorTitle(behavior);
     const criterion = Array.isArray(record.criteria) && record.criteria.find((row) => row.key === key);
     return criterion?.description || key;
   };
-  const boardScenePath = (sceneId) => {
-    if (sceneId === "inbox.next") return "/api/inbox/judgment";
-    if (sceneId === "home.dock") return "/api/home/dock-judgment";
-    return "";
-  };
   const destTitle = (recordOrId) => {
     const id = recordOrId && typeof recordOrId === "object" ? recordOrId.scene_id : recordOrId;
-    const title = destOf(id)?.title;
-    if (title) return L(title);
+    const dest = destOf(id, typeof recordOrId === "object" ? recordOrId : selected);
+    if (dest?.title) return L(dest.title) + (dest.scene_version ? " · v" + dest.scene_version : "");
     return id === "home.dock" ? L("首页") : id === "inbox.next" ? L("Inbox") : id === "feed.capture" ? L("Feed") : id === "agent.mcp" ? L("Agent") : L("还没选");
   };
-  const catalogBehaviorIds = () => new Set(catalog.behaviors.map((row) => row.behavior_id));
+  const catalogBehaviorIds = () => new Set(catalog.behaviors.filter(row => !row.destination_id || behaviorMatches(row, selectedDestId())).map((row) => row.behavior_id));
   const matchesSubjects = (behavior, kinds) => {
-    if (!kinds.length) return true;
+    if (!kinds.length || !behavior.subject_kinds?.length) return true;
     return (behavior.subject_kinds || []).some((kind) => kinds.includes(kind));
   };
   const suggestedBehaviors = (destId, kinds) => {
     const dest = destOf(destId);
     const match = (row) => matchesSubjects(row, kinds);
-    if (!destId) return kinds.length ? catalog.behaviors.filter(match) : [];
-    if (destId === "agent.mcp" || dest?.kind === "mcp") return catalog.behaviors.filter(match);
-    return (dest?.behavior_ids || []).map((id) => catalog.behaviors.find((row) => row.behavior_id === id)).filter((row) => row && match(row));
+    if (!destId) return kinds.length ? catalog.behaviors.filter(row => !row.destination_id && match(row)) : [];
+    if (destId === "agent.mcp" || dest?.kind === "mcp") return catalog.behaviors.filter(row => row.destination_id === "agent.mcp" && match(row));
+    return (dest?.behavior_ids || []).map((id) => behaviorOf(id, destId)).filter(match);
   };
   const defaultChoiceRows = () => [{ key: "yes", description: "" }, { key: "no", description: "" }];
   const criteriaFollowContext = (keys) => {
@@ -153,11 +167,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const pruneSceneMap = (map, destId) => {
     const dest = destOf(destId);
     if (!destId || destId === "agent.mcp" || dest?.kind !== "event") return {};
-    const pool = new Set(dest.behavior_ids || []);
     const keys = new Set(outputKeysFromForm());
     const next = {};
     Object.entries(map || {}).forEach(([key, value]) => {
-      if (keys.has(key) && pool.has(value)) next[key] = value;
+      if (keys.has(key)) next[key] = value;
     });
     return next;
   };
@@ -168,7 +181,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (dest && dest.kind === "event" && follow && suggested.length >= 2 && outputKeysFromForm().every((key) => catalogBehaviorIds().has(key))) {
       criteriaHint.textContent = L("已按用途提供动作。请补充每个动作的选择条件；切换用途会更新默认动作，自定义结果会保留。");
     } else if (dest && dest.kind === "event" && follow && suggested.length < 2) {
-      criteriaHint.textContent = L("所选对象没有足够的适用动作。请返回选择用途，调整判断对象，或自定义结果。");
+      criteriaHint.textContent = destId === "home.dock" && !feedApi
+        ? L("请先选择项目，再配置这个项目可用的首页动作。")
+        : suggested.length ? L("可以设置多个判断结果，再为每个结果选择对应动作。") : L("当前没有可用的推荐动作，请检查对象类型、插件状态和权限。");
     } else {
       criteriaHint.textContent = L("至少保留两个结果，说明各自在什么情况下被选中。");
     }
@@ -178,6 +193,11 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const destId = selectedDestId();
     const kinds = subjectKindsFromForm();
     const suggested = suggestedBehaviors(destId, kinds);
+    if (destOf(destId)?.availability?.available === false) {
+      selected = { ...selected, scene_id: destId || null, subject_kinds: kinds };
+      renderPalette(selected); renderMap(selected);
+      return;
+    }
     if (selected.status === "published" || primitiveOf(selected) !== "choice") {
       selected = { ...selected, scene_id: destId || null, subject_kinds: kinds };
       updateCriteriaHint(destId, suggested);
@@ -194,7 +214,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (follow && eventDest && suggested.length >= 2) {
       applyChoiceRows(suggested.map((row) => ({ key: row.behavior_id, description: row.title || "" })));
       nextMap = {};
-    } else if (follow && hasCatalogKeys) {
+    } else if (follow && hasCatalogKeys && destId !== "agent.mcp") {
       applyChoiceRows(defaultChoiceRows());
       nextMap = {};
     } else if (!eventDest) {
@@ -258,6 +278,13 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!current) return selected?.scene_id || "";
     return current.dataset.functionsDestination || "";
   };
+  const destinationReference = (node) => ({ scene_id: node?.dataset.functionsDestination || null,
+    scene_version: Number(node?.dataset.sceneVersion) || null, scene_provider_id: node?.dataset.sceneProvider || null });
+  const selectedSceneReference = () => {
+    const current = workbench.querySelector("[data-functions-destination].is-current");
+    return current ? destinationReference(current) : { scene_id: selected?.scene_id || null,
+      scene_version: selected?.scene_version || null, scene_provider_id: selected?.scene_provider_id || null };
+  };
   const subjectKindsFromForm = () => [...workbench.querySelectorAll("[data-functions-source]:checked")]
     .map((node) => node.dataset.functionsSource)
     .filter(Boolean);
@@ -282,6 +309,16 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
     return mapped;
   };
+  const actionMapFromForm = () => {
+    if (selectedDestId() !== "agent.mcp") return {};
+    const mapped = {};
+    mapEl.querySelectorAll("[data-map-key]").forEach((select) => {
+      if (select.dataset.mapKey && select.value) mapped[select.dataset.mapKey] = JSON.parse(select.value);
+    });
+    return mapped;
+  };
+  const actionReferenceValue = (reference) => reference ? JSON.stringify({ capability_id: reference.capability_id,
+    version: reference.version, provider_id: reference.provider_id }) : "";
   const criteriaFromForm = () => {
     const kind = primitiveOf(selected);
     if (kind === "noul") {
@@ -302,9 +339,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const mappingReady = (record) => {
     const destId = record.scene_id || "";
     if (!destId || destId === "agent.mcp") return true;
-    const dest = destOf(destId);
+    const dest = destOf(destId, record);
+    if (dest?.availability?.available === false) return false;
     const pool = dest?.behavior_ids || [];
-    if (!pool.length) return true;
+    if (!pool.length) return false;
     const kind = primitiveOf(record);
     const keys = kind === "noul"
       ? ["true", "false"]
@@ -313,7 +351,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         : [];
     if (!keys.length) return false;
     const map = record.scene_map || {};
-    return keys.every((key) => pool.includes(map[key] || key));
+    return keys.every((key) => pool.includes(map[key] || key) && behaviorOf(map[key] || key).availability?.available !== false);
   };
   const addScoreRow = (value) => {
     const row = document.createElement("div");
@@ -360,7 +398,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     const label = document.createElement("label");
     label.className = "functions-field functions-option-condition";
-    const behavior = catalog.behaviors.find((item) => item.behavior_id === key);
+    const behavior = catalog.behaviors.find((item) => item.behavior_id === key && (!item.destination_id || behaviorMatches(item, selectedDestId())));
     const caption = document.createElement("span");
     caption.textContent = behavior ? behaviorTitle(behavior) : L("结果") + " · " + (key || "");
     label.append(caption, desc);
@@ -394,6 +432,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     add.className = "mw-btn mw-btn--ghost";
     add.dataset.paletteAdd = behavior.behavior_id;
     add.textContent = L("加入");
+    add.disabled = behavior.availability?.available === false;
     row.append(body, effect, add);
     parent.append(row);
   };
@@ -441,13 +480,18 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderMap = (record) => {
     mapEl.replaceChildren();
     const destId = record.scene_id || "";
-    const dest = destOf(destId);
+    const dest = destOf(destId, record);
     const eventDest = dest && dest.kind === "event";
     const kind = primitiveOf(record);
-    if (mapPanel) mapPanel.hidden = !eventDest || kind === "score";
-    if (!eventDest || kind === "score") return;
-    const pool = dest.behavior_ids || [];
-    const map = record.scene_map || {};
+    const agentDest = destId === "agent.mcp";
+    if (mapPanel) mapPanel.hidden = !(eventDest || agentDest) || kind === "score";
+    if (!(eventDest || agentDest) || kind === "score") return;
+    mapPanel.querySelector("[data-functions-map-title]").textContent = L(agentDest ? "结果推荐的能力" : "结果对应的页面动作");
+    mapPanel.querySelector("[data-functions-map-hint]").textContent = L(agentDest
+      ? "可为每个结果选择推荐能力，也可只返回判断。推荐不会自动执行动作。"
+      : "每个结果都需要对应一个动作，才能在所选页面启用。");
+    const pool = agentDest ? suggestedBehaviors(destId, subjectKindsFromForm()) : (dest.behavior_ids || []).map(id => behaviorOf(id));
+    const map = agentDest ? record.action_map || {} : record.scene_map || {};
     const rows = kind === "noul"
       ? [
         { key: "true", label: L("成立") },
@@ -469,15 +513,24 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       select.dataset.mapKey = row.key;
       const empty = document.createElement("option");
       empty.value = "";
-      empty.textContent = L("请选择对应动作");
+      empty.textContent = L(agentDest ? "只返回判断" : "请选择对应动作");
       select.append(empty);
-      pool.forEach((id) => {
+      pool.forEach((behavior) => {
         const option = document.createElement("option");
-        option.value = id;
-        option.textContent = behaviorOf(id).title;
+        option.value = agentDest ? actionReferenceValue(behavior.action_ref) : behavior.behavior_id;
+        option.textContent = behavior.title + (agentDest ? " · " + behavior.plugin_title + " · v" + behavior.action_ref.version : "")
+          + (behavior.availability?.available === false ? " · " + behavior.availability.reason : "");
+        option.disabled = behavior.availability?.available === false;
         select.append(option);
       });
-      const current = map[row.key] || (pool.includes(row.key) ? row.key : "");
+      const current = agentDest ? actionReferenceValue(map[row.key]) : map[row.key] || row.key;
+      if (current && ![...select.options].some(option => option.value === current)) {
+        const missing = document.createElement("option");
+        missing.value = current;
+        missing.textContent = L("原动作不可用，请重新选择");
+        missing.disabled = true;
+        select.append(missing);
+      }
       select.value = current;
       select.disabled = record.status === "published";
       line.append(title, select);
@@ -521,18 +574,40 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const kind = primitiveOf(record);
     const destId = record.scene_id || "";
     const selectedKinds = new Set(record.subject_kinds || []);
+    const list = workbench.querySelector(".functions-dest-list");
+    list.replaceChildren();
+    const destinations = [{ destination_id: "", kind: "none", title: L("独立使用"), when: L("先写规则、试跑，暂不接入页面。") }, ...catalog.destinations];
+    const chosen = destOf(destId, record);
+    if (destId && !catalog.destinations.includes(chosen)) destinations.push(chosen);
+    destinations.forEach(destination => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "functions-dest";
+      button.dataset.functionsDestination = destination.destination_id; button.dataset.kind = destination.kind;
+      if (destination.scene_version) button.dataset.sceneVersion = String(destination.scene_version);
+      if (destination.provider_id) button.dataset.sceneProvider = destination.provider_id;
+      const title = document.createElement("strong"); title.textContent = L(destination.title) + (destination.scene_version ? " · v" + destination.scene_version : "");
+      const hint = document.createElement("small"); hint.textContent = destination.availability?.available === false ? L(destination.availability.reason) : L(destination.when || "");
+      button.append(title, hint); list.append(button);
+    });
+    for (const kindId of selectedKinds) if (![...workbench.querySelectorAll("[data-functions-source]")].some(node => node.dataset.functionsSource === kindId)) {
+      const label = document.createElement("label"); label.className = "functions-chip";
+      const input = document.createElement("input"); input.type = "checkbox"; input.className = "mw-check"; input.dataset.functionsSource = kindId;
+      const text = document.createElement("span"); text.textContent = kindId + " · " + L("原对象类型");
+      label.append(input, text); workbench.querySelector("[data-functions-subject-list]").append(label);
+    }
     workbench.querySelectorAll("[data-functions-destination]").forEach((node) => {
       const id = node.dataset.functionsDestination || "";
-      const on = id === destId;
+      const reference = destinationReference(node);
+      const on = id === destId && (id ? reference.scene_version === (chosen?.scene_version || null) && reference.scene_provider_id === (chosen?.provider_id || null) : true);
       node.classList.toggle("is-current", on);
       node.setAttribute("aria-pressed", String(on));
-      const dest = destOf(id);
+      const dest = destOf(id, reference);
       const related = dest && dest.subject_kinds && dest.subject_kinds.some((item) => selectedKinds.has(item));
       node.classList.toggle("is-related", Boolean(related && !on));
-      node.disabled = record.status === "published" || (kind === "score" && dest && dest.kind === "event");
+      node.disabled = record.status === "published" || dest?.availability?.available === false || (kind === "score" && dest && dest.kind === "event");
     });
     if (choiceOnlyHint) choiceOnlyHint.hidden = kind !== "score";
-    destinationHint.textContent = destId === "agent.mcp"
+    destinationHint.textContent = destOf(destId)?.availability?.available === false ? L(destOf(destId).availability.reason) : destId === "agent.mcp"
       ? L("返回建议给 Agent；不会自动执行工具。实际调用取决于工具启用状态和权限。")
       : destId === "feed.capture" ? L("发布后，到 Feed 任务的捕捉规则中选择此函数；具体处理由该规则决定。")
       : destId ? L("判断结果用于推荐页面动作。发布后还需要在当前项目启用。")
@@ -627,98 +702,73 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       lastPreview.append(legend);
     }
   };
+  const ruleRequest = (record, suffix, method = "GET", body) => {
+    const path = "/api/functions/" + encodeURIComponent(record.id) + "/" + suffix;
+    return feedApi ? feedApi(path, method, body) : request(method, path, body);
+  };
   const renderUsages = async (record) => {
     if (!usagesEl) return;
-    const token = record.id;
+    const sequence = ++usagesSeq;
+    const current = () => selected?.id === record.id && sequence === usagesSeq;
     usagesEl.replaceChildren();
-    const head = document.createElement("strong");
-    head.textContent = L("使用状态");
-    usagesEl.append(head);
-    if (!record.scene_id) {
-      const line = document.createElement("p");
-      line.textContent = L("独立使用：未绑定页面。");
-      usagesEl.append(line);
-      return;
-    }
-    if (record.scene_id === "agent.mcp") {
-      const line = document.createElement("p");
-      line.textContent = record.status === "published" ? L("已发布，可通过 Functions 调用工具按函数 key 请求判断。") : L("发布后，Agent 可以按函数 key 请求判断。");
-      usagesEl.append(line);
-      return;
-    }
-    const path = boardScenePath(record.scene_id);
-    if (path) {
-      const status = document.createElement("p");
-      status.dataset.functionsUsageStatus = "";
-      if (record.status !== "published") {
-        status.textContent = L("草稿尚未生效。发布后将在这里显示启用入口。");
-        usagesEl.append(status);
-        return;
-      }
-      if (!mappingReady(record)) {
-        status.textContent = L("对上之后才能用在这里。");
-        usagesEl.append(status);
-        return;
-      }
-      if (!feedApi) {
-        status.textContent = L("先打开项目。");
-        usagesEl.append(status);
-        return;
-      }
-      try {
-        const payload = await feedApi(path, "GET");
-        if (selected?.id !== token) return;
-        const current = payload.function_key || "";
-        const bind = document.createElement("button");
-        bind.type = "button";
-        bind.className = "mw-btn mw-btn--secondary";
-        if (current === record.function_key) {
-          status.textContent = record.scene_id === "inbox.next"
-            ? L("Inbox 在用。")
-            : L("首页在用。");
-          bind.textContent = L("停用");
-          bind.dataset.functionsSceneBind = "off";
-          usagesEl.append(status, bind);
-        } else if (current) {
-          const other = (payload.functions || []).find((row) => row.function_key === current);
-          status.textContent = other && other.name ? L("正在用") + "「" + other.name + "」" : L("正在用另一个。");
-          bind.textContent = L("换成这个");
-          bind.dataset.functionsSceneBind = "on";
-          usagesEl.append(status, bind);
-        } else {
-          bind.textContent = record.scene_id === "inbox.next" ? L("用在 Inbox") : L("用在首页");
-          bind.dataset.functionsSceneBind = "on";
-          usagesEl.append(bind);
-        }
-      } catch (error) {
-        if (selected?.id !== token) return;
-        status.textContent = error.message || L("没读到");
-        usagesEl.append(status);
-      }
+    const head = document.createElement("strong"); head.textContent = L("使用状态"); usagesEl.append(head);
+    const line = (text) => { const p = document.createElement("p"); p.textContent = L(text); usagesEl.append(p); return p; };
+    if (record.status !== "published") {
+      line("草稿尚未生效。发布后将在这里显示可配置的位置。");
       return;
     }
     try {
-      const payload = record.status === "published"
-        ? await request("GET", "/api/functions/" + encodeURIComponent(record.id) + "/usages")
-        : { usages: [] };
-      if (selected?.id !== token) return;
-      const usages = payload.usages || [];
-      if (usages.length) {
-        usages.forEach((row) => {
-          const item = document.createElement("p");
-          const scene = destOf(row.scene_id);
-          item.textContent = destTitle(row.scene_id) + (scene ? " · " + L(scene.configure_at) : "");
-          usagesEl.append(item);
-        });
-        return;
-      }
-    } catch {
-      // Fall through to the unbound copy.
+      const [uses, locations] = await Promise.all([ruleRequest(record, "usages"), ruleRequest(record, "targets")]);
+      if (!current()) return;
+      const usages = uses.usages || [];
+      const sameRule = (binding) => binding?.function?.capability_id === "functions.published." + record.function_key
+        && binding.function.version === record.version && binding.function.provider_id === "system.functions";
+      const targets = (locations.targets || []).filter(target => target.availability.available || sameRule(target.binding) || target.scene_id === record.scene_id);
+      const title = (container, row) => {
+        if (row.href?.startsWith("/") && !row.href.startsWith("//")) {
+          const link = document.createElement("a"); link.href = row.href; link.textContent = row.title; container.append(link);
+        } else container.append(document.createTextNode(row.title || destTitle(row.scene_id)));
+      };
+      const targetKey = (row) => JSON.stringify([row.scene_id, row.scene_version, row.binding_id, row.project_id]);
+      const shown = new Set();
+      targets.forEach(target => {
+        const own = sameRule(target.binding);
+        const active = own && target.binding.enabled;
+        const section = document.createElement("div"); section.className = "functions-usage-target";
+        const summary = document.createElement("p"); title(summary, target);
+        const state = own ? (active ? "已启用" : "已停用") : target.binding?.enabled ? "正在使用另一条判断规则" : "尚未启用此判断";
+        section.append(summary);
+        const detail = document.createElement("p");
+        detail.textContent = destTitle({ scene_id: target.scene_id, scene_version: target.scene_version, scene_provider_id: target.provider_id }) + " · " + L(state); section.append(detail);
+        const availability = active ? target.configuration_availability : target.availability;
+        if (!target.availability.available) {
+          const reason = document.createElement("p"); reason.textContent = L(target.availability.reason); section.append(reason);
+        }
+        const button = document.createElement("button"); button.type = "button"; button.className = "mw-btn mw-btn--secondary";
+        button.textContent = L(active ? "停用" : target.binding && !own ? "换成这个" : "在此启用");
+        button.dataset.functionsSceneBind = active ? "off" : "on";
+        button.dataset.functionsBindingId = target.binding_id;
+        button.dataset.functionsSceneId = target.scene_id;
+        button.dataset.functionsSceneVersion = String(target.scene_version);
+        button.disabled = !availability.available;
+        configurationRequests.set(button, { id: record.id, scene_id: target.scene_id, scene_version: target.scene_version,
+          provider_id: target.provider_id, binding_id: target.binding_id, expected_revision: target.revision, enabled: !active });
+        section.append(button); usagesEl.append(section);
+        if (own) shown.add(targetKey(target));
+      });
+      usages.filter(row => !shown.has(targetKey(row))).forEach(row => {
+        const summary = document.createElement("p"); title(summary, row);
+        const state = row.availability?.available === false ? row.availability.reason : row.enabled === false ? "已停用" : row.enabled === true ? "已启用" : "";
+        if (state) summary.append(document.createTextNode(" · " + L(state)));
+        usagesEl.append(summary);
+      });
+      if (!targets.length && !usages.length) line(record.scene_id === "agent.mcp"
+        ? "已发布，可供授权的 Agent 调用。返回判断和推荐能力，具体动作需另行调用。"
+        : record.scene_id ? "当前范围没有可配置的位置。请先在对应场景中创建规则或检查插件状态。"
+        : "当前范围未绑定消费场景，可独立调用。");
+    } catch (error) {
+      if (current()) line(error.message || "未能读取实际使用位置，请重试。");
     }
-    if (selected?.id !== token) return;
-    const line = document.createElement("p");
-    line.textContent = L("去 Feed 任务里选。");
-    usagesEl.append(line);
   };
   const fillEditor = (record) => {
     const switching = selected?.id !== record.id;
@@ -811,7 +861,7 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const loadCatalog = async () => {
-    const payload = await request("GET", "/api/functions/catalog");
+    const payload = feedApi ? await feedApi("/api/functions/catalog", "GET") : await request("GET", "/api/functions/catalog");
     if (payload.catalog) catalog = payload.catalog;
     const subjects = workbench.querySelector("[data-functions-subject-list]");
     if (catalog.subjects.length && subjects) {
@@ -858,9 +908,10 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     function_key: keyInput.value,
     instructions: instructionsInput.value,
     criteria: criteriaFromForm(),
-    scene_id: selectedDestId() || null,
+    ...selectedSceneReference(),
     subject_kinds: subjectKindsFromForm(),
     scene_map: sceneMapFromForm(),
+    action_map: actionMapFromForm(),
     updated_at: selected.updated_at,
   });
   let saving = null;
@@ -1012,18 +1063,19 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   usagesEl?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-functions-scene-bind]");
-    if (!button || !selected || !feedApi) return;
-    const path = boardScenePath(selected.scene_id);
-    if (!path) return;
+    const args = button && configurationRequests.get(button);
+    if (!args || button.disabled || selected?.id !== args.id) return;
+    const record = selected;
     button.disabled = true;
     try {
-      const on = button.dataset.functionsSceneBind !== "off";
-      await feedApi(path, "POST", { function_key: on ? selected.function_key : null });
-      await renderUsages(selected);
+      await ruleRequest(record, "configure", "POST", args);
+      if (selected?.id === record.id) await renderUsages(selected);
     } catch (error) {
-      const status = usagesEl.querySelector("[data-functions-usage-status]");
-      if (status) status.textContent = error.message || L("没打开");
-      button.disabled = false;
+      if (selected?.id !== record.id) return;
+      await renderUsages(selected);
+      if (selected?.id !== record.id) return;
+      const status = document.createElement("p"); status.setAttribute("role", "alert");
+      status.textContent = error.message || L("配置未保存，请重试。"); usagesEl.append(status);
     }
   });
   workbench.querySelector("[data-functions-destinations]").addEventListener("click", (event) => {
@@ -1034,11 +1086,14 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       showNote(L("Score 不能绑 Inbox、首页、Feed。"), true);
       return;
     }
-    if (destId === (selected.scene_id || "")) return;
+    const reference = destinationReference(button);
+    if (destId === (selected.scene_id || "") && reference.scene_version === (selected.scene_version || null)
+      && reference.scene_provider_id === (selected.scene_provider_id || null)) return;
     selected = {
       ...selected,
-      scene_id: destId || null,
+      ...reference,
       scene_map: destId && destId !== "agent.mcp" ? (selected.scene_map || {}) : {},
+      action_map: destId === "agent.mcp" ? (selected.action_map || {}) : {},
     };
     renderRoute(selected);
     syncCriteriaPanel();
@@ -1050,20 +1105,21 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   form.addEventListener("input", (event) => {
     if (event.target.matches("[data-functions-palette-search], [data-functions-preview-input]")) return;
     if (event.target.matches("[data-choice-key], [data-choice-description]")) {
-      if (selected) renderMap({ ...selected, criteria: criteriaFromForm(), scene_map: sceneMapFromForm() });
+      if (selected) renderMap({ ...selected, criteria: criteriaFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() });
     }
     queueSave();
   });
   form.addEventListener("change", (event) => {
     if (event.target.matches("[data-functions-source]")) {
       if (selected && selected.status !== "published") {
-        selected = { ...selected, subject_kinds: subjectKindsFromForm() };
+        selected = { ...selected, subject_kinds: subjectKindsFromForm(), scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
         renderRoute(selected);
         syncCriteriaPanel();
       }
     }
     if (event.target.matches("[data-map-key]") && selected) {
-      void renderUsages({ ...selected, scene_map: sceneMapFromForm(), criteria: criteriaFromForm() });
+      selected = { ...selected, scene_map: sceneMapFromForm(), action_map: actionMapFromForm(), criteria: criteriaFromForm() };
+      void renderUsages(selected);
     }
     queueSave();
   });
@@ -1071,6 +1127,8 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     const paletteAdd = event.target.closest("[data-palette-add]");
     if (paletteAdd && selected?.status !== "published" && primitiveOf(selected) === "choice") {
       const behavior = behaviorOf(paletteAdd.dataset.paletteAdd);
+      selected = { ...selected, scene_map: sceneMapFromForm(), action_map: actionMapFromForm() };
+      if (behavior.action_ref && selectedDestId() === "agent.mcp") selected.action_map[behavior.behavior_id] = behavior.action_ref;
       if (!outputKeysFromForm().includes(behavior.behavior_id)) {
         addChoiceRow(behavior.behavior_id, behaviorTitle(behavior));
       }
@@ -1202,9 +1260,9 @@ export const FUNCTIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       await saveDraft();
       if (selected?.id !== publishId) return;
-      const payload = await request("POST", "/api/functions/" + encodeURIComponent(publishId) + "/publish", {
-        updated_at: selected.updated_at,
-      });
+      const path = "/api/functions/" + encodeURIComponent(publishId) + "/publish";
+      const body = { updated_at: selected.updated_at };
+      const payload = feedApi ? await feedApi(path, "POST", body) : await request("POST", path, body);
       if (selected?.id !== publishId) return;
       remember(payload.function);
       await loadList();

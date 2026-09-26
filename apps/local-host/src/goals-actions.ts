@@ -9,7 +9,14 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
   return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, boardId: runtime.board_id,
-      readGoal: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId), history: {
+      board: { immediate: operation => runtime.store.immediate(operation), query: runtime.store.goalsQuery,
+        initializeBoard: input => runtime.coordinator.initializeBoard(input), commands: runtime.coordinator.goals.commands,
+        adoptOwner: input => runtime.coordinator.goalEvents.adoptOwner(input) },
+      collection: { snapshot: boardId => runtime.store.snapshot(boardId), events: boardId => runtime.store.readEventsDescending(boardId),
+        goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents,
+        projectGoalLifecycle: (snapshot, goalId) => runtime.coordinator.projectGoalLifecycle(snapshot, goalId) },
+      readGoal: goalId => runtime.coordinator.goalQueries.getGoal(runtime.board_id, goalId),
+      readContract: goalId => runtime.coordinator.goalQueries.readGoalContract(runtime.board_id, goalId), history: {
       snapshot: () => runtime.store.snapshot(runtime.board_id), journalEvents: () => runtime.store.readEventsDescending(runtime.board_id),
     }, planning: { planning: runtime.coordinator.goals.planning, baseMethods: () => resolvePlanningMethodPacks(personalMethods()) },
     guidance: { commands: runtime.coordinator.goals.commands, read: boardId => runtime.coordinator.goalQueries.readProjectGuidance(boardId) },

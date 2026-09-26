@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { openCogniaStore, COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { withContextJourneys } from "../apps/local-host/src/context-onboarding-store.js";
 import { selectContextSources, startContextJourney, waitContextJourney, adoptContextJourney, parseContextSummary, readContextJourney, reopenContextJourney, updateContextDraft } from "../apps/local-host/src/context-onboarding-service.js";
@@ -25,17 +25,17 @@ const withCatalog = withMolisWorkProjectCatalog;
 const hosts = new Map<string, MolisWorkLocalHost>();
 async function home(t: Parameters<Parameters<typeof test>[1]>[0]) {
   const dir = await mkdtemp(join(tmpdir(), 'molis-context-'));
-  const host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host);
-  t.after(async () => { await host.close(); hosts.delete(dir); await rm(dir, {recursive:true,force:true}); }); return dir;
+  t.after(async () => { await hosts.get(dir)?.close(); hosts.delete(dir); await rm(dir, {recursive:true,force:true}); }); return dir;
 }
 function pagesPorts(dir: string) {
-  return { withCatalog, homeActions: () => bindActionClient(hosts.get(dir)!.homeActionClient(), () => ({ actor_id: "context-test", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS })), actions: async (_home: string, projectId: string) => {
+  return { withCatalog, actions: async (_home: string, projectId: string) => {
     const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId });
-    return bindActionClient(hosts.get(dir)!.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:write"] }));
+    let host = hosts.get(dir); if (!host) { host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host); }
+    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"] }));
   } };
 }
-const refs = [{label:'S1',material_id:'m1',revision:1,title:'Alpha',path:'alpha.md',body:'Launch October 8'}];
+const refs = [{label:'S1',source_id:'m1',version:1 as const,original:{filename:'alpha.md',mime:'text/markdown',data_base64:Buffer.from('Launch October 8').toString('base64')},title:'Alpha',path:'alpha.md',body:'Launch October 8'}];
 
 test('adoption resumes after the summary action fails without replacing imported material edits or accepted intent', async t => {
   const dir = await home(t), id = randomUUID();
@@ -100,7 +100,7 @@ test('a batch cannot cite a source outside its input or pass invented evidence t
 test('local scope → grounded summary → one real project and editable source documents; retries preserve edits', async t => {
   const dir=await home(t), folder=join(dir,'selected');await mkdir(folder);await writeFile(join(folder,'brief.md'),'# Brief\nLaunch October 8');await writeFile(join(folder,'.secret.txt'),'private hidden');await symlink(join(folder,'brief.md'),join(folder,'link.md'));
   const id=randomUUID();withContextJourneys(dir,s=>s.create(id));
-  selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,path:folder},{kind:'gmail',selected:true,days:7}]});
+  selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,files:[{path:'brief.md',data:Buffer.from('# Brief\nLaunch October 8').toString('base64')}]},{kind:'gmail',selected:true,days:7}]});
   let calls=0;
   const ports={...pagesPorts(dir),model:async()=>({runtimeLabel:'test model',completeText:async(prompt:string)=>{calls++;assert.match(prompt,/Launch October 8/);assert.doesNotMatch(prompt,/private hidden/);return '# 秋季发布\n## 当前进展\n计划于 10 月 8 日发布。[S1]\n## 下一步\n建议核对发布物料。[S1]';}})};
   startContextJourney(dir,id,ports);startContextJourney(dir,id,ports);
@@ -111,7 +111,13 @@ test('local scope → grounded summary → one real project and editable source 
   const pages=openPagesStore(dir);try{assert.equal(pages.list(a.project_id).length,2);const summary=pages.get(a.document_id!,a.project_id);assert.match(JSON.stringify(summary.body),/openPlugin=pages/);pages.update(summary.id,{title:'手动修改后'});}finally{pages.close();}
   await adoptContextJourney(dir,id,{title:'重复请求'},ports);
   const reopened=openPagesStore(dir);try{assert.equal(reopened.get(a.document_id!).title,'手动修改后');assert.equal(reopened.list(a.project_id).length,2);}finally{reopened.close();}
-  const store=openCogniaStore(dir);try{assert.equal(store.materials().length,1);}finally{store.close();}
+  assert.equal(a.artifact_references!.length,2);
+  const actions=await ports.actions(dir,a.project_id);
+  const stored=await actions.invoke(artifactsActions.read,{reference:a.artifact_references![0]!});
+  assert.ok(stored.selected);const payload=stored.selected!.payload as any;
+  assert.match(payload.content,/Launch October 8/);assert.equal(Buffer.from(payload.original_file.data_base64,'base64').toString(),'# Brief\nLaunch October 8');
+  const versions=await actions.invoke(artifactsActions.browser,{});assert.equal(versions.versions.length,2);
+
 });
 
 test('long source and project titles fit Pages while full titles, original bodies and retry identity survive',async t=>{
@@ -134,8 +140,8 @@ test('long source and project titles fit Pages while full titles, original bodie
 test('missing model preserves imported bodies, restart/retry does not re-read, invalid citations cannot be adopted',async t=>{
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'Only October 8 is confirmed',url:'https://example.com/brief'}]});
-  const ports={...pagesPorts(dir),model:async()=>({})};startContextJourney(dir,id,ports);let result=await waitContextJourney(dir,id);assert.equal(result.phase,'failed');assert.match(result.error!,/文字模型/);const materialId=result.sources[0]!.references![0]!.material_id;
-  startContextJourney(dir,id,{...pagesPorts(dir),readSource:async()=>{throw Error('must not read twice');},model:async()=>({completeText:async()=> '# Confirmed launch\nOctober 8 [S1]'})});result=await waitContextJourney(dir,id);assert.equal(result.phase,'review');assert.equal(result.summary!.references[0]!.material_id,materialId);
+  const ports={...pagesPorts(dir),model:async()=>({})};startContextJourney(dir,id,ports);let result=await waitContextJourney(dir,id);assert.equal(result.phase,'failed');assert.match(result.error!,/文字模型/);assert.equal(result.needs_model,true);const materialId=result.sources[0]!.references![0]!.source_id;
+  startContextJourney(dir,id,{...pagesPorts(dir),readSource:async()=>{throw Error('must not read twice');},model:async()=>({completeText:async()=> '# Confirmed launch\nOctober 8 [S1]'})});result=await waitContextJourney(dir,id);assert.equal(result.phase,'review');assert.equal(result.summary!.references[0]!.source_id,materialId);
   assert.throws(()=>parseContextSummary('# Bad\nNo citations',refs),/有效来源/);assert.throws(()=>parseContextSummary('# Bad\nWrong [S2]',refs),/有效来源/);
   assert.throws(()=>contextSources([{kind:'browser',selected:true,url:'javascript:alert(1)',text:'x'}]),/网址/);
   const cancelled=randomUUID();withContextJourneys(dir,s=>{const j=s.create(cancelled);j.phase='reading';s.save(j);});assert.equal(readContextJourney(dir,cancelled).phase,'failed');
@@ -149,15 +155,14 @@ test('empty project is real, idempotent, and has no implicit root Goal',async t=
   const {DatabaseSync}=await import('node:sqlite');const db=new DatabaseSync(join(dir,'projects',result.project_id,'molis-work.db'));try{const table=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='goals'").get();assert.ok(table);assert.equal((db.prepare('SELECT COUNT(*) AS n FROM goals').get() as {n:number}).n,0);}finally{db.close();}
 });
 
-test('removed import preview can be rebuilt from retained material on retry',async t=>{
+test('failed source read retains input and retry stages exactly one immutable snapshot',async t=>{
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
-  selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'Preserved after preview cleanup'}]});
-  const store=openCogniaStore(dir);let previewId:string;
-  try {previewId=store.preview({kind:'markdown',name:'Interrupted upload',locator:'upload',files:[{path:'page.md',data:Buffer.from('Preserved after preview cleanup').toString('base64')}]}).id;store.cancelPreview(previewId);} finally {store.close();}
-  withContextJourneys(dir,s=>{const j=s.get(id);j.sources[0]!.preview_id=previewId;s.save(j);});
-  const ports={...pagesPorts(dir),model:async()=>({completeText:async()=> '# Recovered\nPreserved after preview cleanup [S1]'})};
-  startContextJourney(dir,id,ports);const failed=await waitContextJourney(dir,id);assert.equal(failed.phase,'failed');assert.equal(failed.sources[0]!.preview_id,undefined);assert.equal(failed.sources[0]!.text,'Preserved after preview cleanup');
-  startContextJourney(dir,id,ports);const recovered=await waitContextJourney(dir,id);assert.equal(recovered.phase,'review');assert.equal(recovered.summary!.references.length,1);assert.match(recovered.summary!.references[0]!.body,/Preserved after preview cleanup/);
+  selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'Preserved across restart'}]});
+  const ports={...pagesPorts(dir),model:async()=>({completeText:async()=> '# Recovered\nPreserved across restart [S1]'})};
+  startContextJourney(dir,id,{...ports,readSource:async()=>{throw Error('Temporary read failure');}});
+  const failed=await waitContextJourney(dir,id);assert.equal(failed.phase,'failed');assert.equal(failed.sources[0]!.text,'Preserved across restart');
+  startContextJourney(dir,id,ports);const recovered=await waitContextJourney(dir,id);assert.equal(recovered.phase,'review');assert.equal(recovered.summary!.references.length,1);
+  assert.equal(Buffer.from(recovered.summary!.references[0]!.original.data_base64,'base64').toString(),'# 网页内容\n\nPreserved across restart');
 });
 
 test('Gmail reads only chosen account/time with real MIME body parsing; network requests stay on Gmail',async t=>{
@@ -235,12 +240,12 @@ test('partial failure can be adjusted and retried while successful material snap
   selectContextSources(dir,id,{sources:[{kind:'browser',selected:true,text:'First confirmed fact'},{kind:'chat',selected:true,files:[{path:'chat.txt',data:Buffer.from('Second confirmed fact').toString('base64')}]}]});
   let browserReads=0,chatReads=0;
   const ports={...pagesPorts(dir),readSource:async(h:string,s:Parameters<typeof readContextSource>[1])=>{if(s.kind==='browser')browserReads++;if(s.kind==='chat'&&++chatReads===1)throw Error('Temporary chat import failure');return readContextSource(h,s);},model:async()=>({completeText:async()=> '# Work\nConfirmed fact [S1]'})};
-  startContextJourney(dir,id,ports);let j=await waitContextJourney(dir,id);assert.equal(j.phase,'review');assert.match(j.sources[1]!.error!,/Temporary/);const savedId=j.sources[0]!.references![0]!.material_id;
+  startContextJourney(dir,id,ports);let j=await waitContextJourney(dir,id);assert.equal(j.phase,'review');assert.match(j.sources[1]!.error!,/Temporary/);const savedId=j.sources[0]!.references![0]!.source_id;
   j=reopenContextJourney(dir,id);assert.ok(j.summary,'existing draft survives until user starts again');selectContextSources(dir,id,{sources:j.sources});
-  startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);assert.equal(j.summary!.references.length,2);assert.equal(browserReads,1);assert.equal(chatReads,2);assert.equal(j.sources[0]!.references![0]!.material_id,savedId);
+  startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);assert.equal(j.summary!.references.length,2);assert.equal(browserReads,1);assert.equal(chatReads,2);assert.equal(j.sources[0]!.references![0]!.source_id,savedId);
   j=reopenContextJourney(dir,id);j.sources[0]!.text='Changed scope';j.sources[1]!.selected=false;
   selectContextSources(dir,id,{sources:j.sources});startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);
-  assert.equal(browserReads,2);assert.equal(chatReads,2,'unselected chat must not be read');assert.equal(j.summary!.references.length,1);assert.match(j.summary!.references[0]!.body,/Changed scope/);assert.notEqual(j.summary!.references[0]!.material_id,savedId);
+  assert.equal(browserReads,2);assert.equal(chatReads,2,'unselected chat must not be read');assert.equal(j.summary!.references.length,1);assert.match(j.summary!.references[0]!.body,/Changed scope/);assert.notEqual(j.summary!.references[0]!.source_id,savedId);
 });
 
 test('interrupted blank adoption resumes persisted acceptance without requiring a nonexistent summary',async t=>{
@@ -253,4 +258,30 @@ test('interrupted blank adoption resumes persisted acceptance without requiring 
   const saved=await adoptContextJourney(dir,id,{}, {...pagesPorts(dir)});assert.equal(saved.phase,'complete');assert.equal(saved.project_id,accepted.project_id);
   await withCatalog({homeDirectory:dir},catalog=>assert.equal(catalog.listProjects().length,1));
   const pages=openPagesStore(dir);try{assert.equal(pages.list(saved.project_id).length,1);assert.equal(pages.get(saved.document_id!).title,'Accepted blank project · 工作摘要');}finally{pages.close();}
+});
+
+
+test('blank start after a prior summary never adopts old sources, including a failed-save retry',async t=>{
+  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='review';j.summary={title:'Old summary',body:'Old facts [S1]',references:refs};s.save(j);});
+  reopenContextJourney(dir,id);
+  const failAfterCreate:typeof withCatalog=async(options,operation)=>{await withCatalog(options,operation);throw Error('Response lost');};
+  const failed=await adoptContextJourney(dir,id,{title:'Blank after summary',blank:true},{...pagesPorts(dir),withCatalog:failAfterCreate});assert.equal(failed.phase,'failed');
+  const result=await adoptContextJourney(dir,id,{},pagesPorts(dir));assert.equal(result.phase,'complete');assert.deepEqual(result.artifact_references,[]);
+  const pages=openPagesStore(dir);try{assert.equal(pages.list(result.project_id).length,1);assert.doesNotMatch(JSON.stringify(pages.get(result.document_id!).body),/Old facts|Alpha/);}finally{pages.close();}
+});
+
+test('old unfinished Cognia identities remain intact and cannot become undefined Artifact identities',async t=>{
+  const dir=await home(t),id=randomUUID();
+  withContextJourneys(dir,s=>{const j=s.create(id);j.phase='review';j.summary={title:'Historical',body:'Fact [S1]',references:[{label:'S1',material_id:'old-1',revision:1,title:'Old',body:'Historical body',path:'old.md'} as any]};s.save(j);});
+  const result=readContextJourney(dir,id);assert.equal(result.requires_reselection,true);assert.match(result.error!,/旧版存储/);
+  assert.throws(()=>startContextJourney(dir,id,pagesPorts(dir)),/重新选择/);
+  await assert.rejects(adoptContextJourney(dir,id,{title:'Unsafe adoption'},pagesPorts(dir)),/重新选择/);
+  assert.equal((withContextJourneys(dir,s=>s.get(id)).summary!.references[0] as any).material_id,'old-1');
+});
+
+
+test('materials-only adoption cannot bypass the total file budget',async t=>{
+  const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>{const j=s.create(id);j.phase='failed';j.sources=[{kind:'files',selected:true,references:Array.from({length:51},(_,i)=>({...refs[0]!,source_id:'file-'+i}))}];s.save(j);});
+  await assert.rejects(adoptContextJourney(dir,id,{title:'Too many',materials_only:true},pagesPorts(dir)),/50 份/);
+  assert.equal(readContextJourney(dir,id).adoption,undefined);
 });

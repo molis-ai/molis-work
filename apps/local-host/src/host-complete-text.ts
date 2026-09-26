@@ -1,10 +1,12 @@
 import { createFileSecretStore, peekSealedEntry, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
+import { resolvePrologueInference } from "./prologue-inference-host.js";
+import { prologueProtocolFor } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openConfiguredModels, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
-export type HostCompleteText = (prompt: string, options?: { signal?: AbortSignal }) => Promise<string>;
-export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; fetch?: typeof fetch; env?: NodeJS.ProcessEnv }
+export type HostCompleteText = (prompt: string, options?: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }) => Promise<string>;
+export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; resolveInference?: typeof resolvePrologueInference; env?: NodeJS.ProcessEnv }
 interface TextConfiguration { base_url: string; api_format: ModelApiFormat; model_id: string; prompt_cache?: ModelPromptCacheMode }
 const unavailable = () => new ActionError("actions.connection_required", "所选文字模型或连接已不可用，请检查模型设置和服务连接");
 
@@ -19,7 +21,10 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
         const selection = { provider_id: selected.provider.provider_id, model_id: selected.model.model_id };
         const current = () => {
           const catalog = openConfiguredModels(home);
-          try { return catalog && selectConfiguredTextModel(home, catalog.store, selection); }
+          try {
+            const selected = catalog && selectConfiguredTextModel(home, catalog.store, selection);
+            return selected && { ...selected, credential_snapshot: runWithMolisWorkHome(home, () => peekSealedEntry(selected.provider.credential_ref)) };
+          }
           finally { catalog?.storage.close(); }
         };
         return async (prompt, request) => {
@@ -30,7 +35,11 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
           const apiKey = runWithMolisWorkHome(home, () => createFileSecretStore().get(before.provider.credential_ref))?.trim();
           if (!apiKey) throw unavailable();
           if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
-          const result = await completeTextRequest(config, apiKey, prompt, request?.signal, options.fetch);
+          const result = await completeTextRequest(config, before.provider.credential_ref, () => {
+            if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
+            return apiKey;
+          }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch,
+          () => JSON.stringify(current()) !== JSON.stringify(before));
           if (JSON.stringify(current()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
           return result;
         };
@@ -60,7 +69,8 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
     return { config: { ...config,
       base_url: validateTextModelUrl(env.MOLIS_WORK_TEXT_BASE_URL?.trim() || "https://api.minimaxi.com/anthropic"),
       api_format: env.MOLIS_WORK_TEXT_API_FORMAT?.trim() || "anthropic-messages", model_id: env.MOLIS_WORK_TEXT_MODEL?.trim() || "MiniMax-M3" },
-      environmentKey: key, revision: credential.revision };
+      environmentKey: key, revision: credential.revision,
+      credential_snapshot: key ? undefined : runWithMolisWorkHome(home, () => peekSealedEntry(legacyRef)) };
   };
   if (!legacyState()) return undefined;
   return async (prompt, request) => {
@@ -69,7 +79,11 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
     if (!before || JSON.stringify(before.config) !== JSON.stringify(config)) throw unavailable();
     const key = before.environmentKey || (options.env ? undefined : runWithMolisWorkHome(home, () => createFileSecretStore().get(legacyRef))?.trim());
     if (!key) throw unavailable();
-    const result = await completeTextRequest(config, key, prompt, request?.signal, options.fetch);
+    const result = await completeTextRequest(config, legacyRef, () => {
+      if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw unavailable();
+      return key;
+    }, prompt, home, request?.signal, options.resolveInference, request?.beforeDispatch,
+    () => JSON.stringify(legacyState()) !== JSON.stringify(before));
     if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     return result;
   };
@@ -79,24 +93,50 @@ function validatePrompt(prompt: string): void {
   if (!prompt.trim() || prompt.length > 180_000) throw new Error("写作输入为空或过长，请减少材料后重试");
 }
 
-async function completeTextRequest(config: TextConfiguration, apiKey: string, prompt: string, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<string> {
+async function completeTextRequest(config: TextConfiguration, credentialRef: string, credential: () => string, prompt: string,
+  home: string, signal?: AbortSignal, resolveInference: typeof resolvePrologueInference = resolvePrologueInference, beforeDispatch?: () => void | Promise<void>,
+  changed?: () => boolean): Promise<string> {
   signal?.throwIfAborted();
-  const shape = modelRequestShape(config, apiKey);
-  const cache = config.api_format === "anthropic-messages" && config.prompt_cache !== undefined && config.prompt_cache !== "off";
-  const content = cache ? [{ type: "text", text: prompt, cache_control: { type: "ephemeral" } }] : prompt;
-  let response: Response;
+  // Before dispatch a revoked source keeps its own reason; once sent, a failure after a change is that change.
+  let dispatched = false;
+  const boundedSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000);
+  let text: string;
   try {
-    response = await fetcher(shape.url, { method: "POST", redirect: "error", headers: shape.headers,
-      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000),
-      body: JSON.stringify({ model: config.model_id, max_tokens: 5000, messages: [{ role: "user", content }] }) });
-  } catch { signal?.throwIfAborted(); throw new Error("模型请求失败或超时，材料已保留，可重试"); }
+    text = await waitForText((async () => {
+      const inference = await resolveInference(home);
+      boundedSignal.throwIfAborted();
+      await beforeDispatch?.();
+      credential();
+      dispatched = true;
+      return inference.completeText({
+        beforeDispatch,
+        protocol: prologueProtocolFor(config.api_format), endpoint: modelRequestShape(config, "").url,
+        model: config.model_id, credential_ref: credentialRef,
+        resolveCredential: (ref: string) => { boundedSignal.throwIfAborted(); return ref === credentialRef ? credential() : null; },
+        prompt, signal: boundedSignal, max_output_tokens: 5000, timeout_ms: 120_000,
+        ...(config.prompt_cache === undefined || config.prompt_cache === "off" ? {} : { prompt_cache: config.prompt_cache }),
+      });
+    })(), boundedSignal);
+  } catch (error) {
+    signal?.throwIfAborted();
+    if (dispatched && changed?.()) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
+    if (error instanceof ActionError) throw error;
+    const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
+    throw new Error(typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599
+      ? `模型返回 ${status}，请检查模型配置后重试` : "模型请求失败或超时，材料已保留，可重试");
+  }
   signal?.throwIfAborted();
-  if (!response.ok) throw new Error(`模型返回 ${response.status}，请检查模型配置后重试`);
-  let result: { content?: Array<{ type: string; text?: string }>; choices?: Array<{ message?: { content?: string } }> };
-  try { result = await response.json() as typeof result; } catch { throw new Error("模型没有返回有效内容，请重试"); }
-  signal?.throwIfAborted();
-  const text = config.api_format === "openai-chat-completions" ? result?.choices?.[0]?.message?.content
-    : Array.isArray(result?.content) ? result.content.filter(part => part?.type === "text" && typeof part.text === "string").map(part => part.text).join("\n") : undefined;
+  await beforeDispatch?.();
   if (typeof text !== "string" || !text.trim()) throw new Error("模型没有返回正文，材料已保留，可重试");
   return text.trim();
+}
+
+/** Cancellation also covers lazy Runtime startup; it never dispatches a model after an aborted wait. */
+function waitForText(pending: Promise<string>, signal: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+    if (signal.aborted) abort();
+  });
 }

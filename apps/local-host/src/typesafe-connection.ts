@@ -1,4 +1,4 @@
-import { createLazyFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createLazyFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
 import { withConnectorConnections } from "./connector-connection-store.js";
 
@@ -25,4 +25,14 @@ export function typeSafeCredential(home: string, consumer: TypeSafeConsumer): st
     });
   }
   return runWithMolisWorkHome(home, () => createLazyFileSecretStore(home).get(FUNCTIONS_CREDENTIAL_REF))?.trim() || null;
+}
+
+/** Source identity and sealed revision for a single inference; never returns plaintext. */
+export function typeSafeConfiguration(home: string, consumer: TypeSafeConsumer): unknown {
+  return withConnectorConnections(home, store => {
+    const binding = store.binding("home", consumer, "typesafe");
+    const connection = binding && store.get(binding.connection_id);
+    const ref = connection?.credential_ref ?? FUNCTIONS_CREDENTIAL_REF;
+    return { binding, connection, sealed: runWithMolisWorkHome(home, () => peekSealedEntry(ref)) };
+  });
 }

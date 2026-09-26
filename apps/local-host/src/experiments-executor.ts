@@ -3,9 +3,9 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-import { createHttpTypeSafeProvider } from "@molis-ai/molis-work-module-functions";
+import { createPrologueTypeSafeProvider } from "./typesafe-prologue.js";
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
-import { typeSafeCredential } from "./typesafe-connection.js";
+import { typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
 import type { ExecutionPort, Participant } from "@molis-ai/molis-work-plugin-experiments";
 import { JsonWorker } from "./experiments-process.js";
 import { runGrok } from "./experiments-grok.js";
@@ -37,7 +37,8 @@ export function createExperimentExecutor(home?: string): ExecutionPort {
         return {...answer,model:`laya-multilingual@${p.revision}`};
       }
       const key = jevCredential(home); if (!key) throw new Error("Jev 未配置：请在 Connectors 中添加 TypeSafe 连接并在实验中选择");
-      const answer = await createHttpTypeSafeProvider().evaluate(key, {
+      const answer = await createPrologueTypeSafeProvider(home, { resolveCredential: () => jevCredential(home),
+        configuration: () => process.env.TYPESAFE_API_KEY?.trim() ? "env" : home ? typeSafeConfiguration(home, "experiments") : "legacy" }).evaluate(key, {
         id:p.id, function_key:"decision", name:p.name, primitive:"choice", status:"draft", version:null,
         model:p.model, instructions:request.task.instructions, criteria:request.task.criteria,
         scene_id:null, subject_kinds:[], scene_map:{},

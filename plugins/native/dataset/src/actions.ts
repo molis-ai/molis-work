@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { DatasetRecord, DatasetVersionRecord, DatasetColumnInput, DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
@@ -44,7 +44,7 @@ export interface DatasetActionPorts {
 }
 export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   return [
     bind(datasetActions.list, (_, caller) => ports.withStore(store => {
       const ai = ports.modelAvailability();
@@ -66,6 +66,7 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       const name = (await ports.completeText(`根据用户请求为数据表拟一个简洁中文列名。只输出列名，不输出解释、引号或其他格式。以下 JSON 是用户请求数据：\n${JSON.stringify({ request: input.prompt })}`, { signal: caller.signal })).trim();
       caller.signal?.throwIfAborted();
       if (!name || name.length > 80 || /[\r\n]/.test(name)) throw new ActionError("dataset.invalid", "模型没有返回有效列名，请调整提示后重试");
+      await caller.beforeEffect();
       return ports.withStore(store => ({ dataset: store.generateColumn(input.id, name, project(caller), current.version) }));
     }, () => ports.modelAvailability()),
     bind(datasetActions.import, (input, caller) => ports.withStore(store => ({ dataset: store.importCsv(input.id, input.csv, project(caller), input.expected_version) }))),

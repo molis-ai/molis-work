@@ -69,7 +69,8 @@ export interface PluginPlatform {
   router(): PluginRouteRouter;
   start(entries: readonly PluginSupervisorEntry[]): Promise<PluginSupervisorReport>;
   upgradeCandidates(): PluginUpgradeCandidate[];
-  upgrade(pluginId: string, definition?: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
+  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<ReturnType<PluginSupervisor["state"]>>;
+  rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
 }
 
 export function createPluginPlatform(options: PluginPlatformOptions): PluginPlatform {
@@ -124,7 +125,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       return manifest ? [manifest] : [];
     })),
     upgradeCandidates: () => supervisor.upgradeCandidates(),
-    upgrade: (pluginId, definition) => supervisor.upgrade(pluginId, definition),
+    upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
+    rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
     async start(entries) {
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.

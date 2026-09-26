@@ -1,3 +1,4 @@
+import type { InboxJudgmentSummary } from "./route-handlers.js";
 import type {
   UiContribution,
   UiContributionDescriptor,
@@ -24,7 +25,7 @@ export interface InboxUiPrimitives {
 }
 
 export interface InboxUiModel {
-  readonly judgment?: { readonly function_key: string | null; readonly name: string | null };
+  readonly judgment?: InboxJudgmentSummary;
   readonly route_prefix: string;
   readonly entries: readonly InboxUiEntry[];
   readonly filter: InboxUiFilter;
@@ -70,7 +71,7 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
       <header class="plugin-stage-chrome inbox-compose-toolbar"><button class="mw-btn mw-btn--ghost tree-create" type="button" data-inbox-compose-open="">${p.icon("note")}<span>${p.text("整理材料到 Pages")}</span></button></header>
-      ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${p.text("下一步建议")}</summary><p>${p.escape(model.judgment.name || p.text("尚未绑定规则"))}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${p.text("在 Functions 配置")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.function_key && active.length ? "" : " disabled"}>${p.text("更新前 20 条待处理建议")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
+      ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${p.text("下一步建议")}</summary><p>${p.escape(model.judgment.name || p.text("尚未绑定规则"))}${model.judgment.name && model.judgment.reason ? ` · ${p.escape(p.text(model.judgment.reason))}` : ""}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${p.text("配置判断规则")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.available && active.length ? "" : " disabled"}>${p.text("更新前 20 条待处理建议")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
       ${renderInboxFold("active", p.text("待处理"), "alert", active, p)}
       ${renderInboxFold("history", p.text("历史"), "check", history, p)}
     </div>

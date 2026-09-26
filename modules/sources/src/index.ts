@@ -150,6 +150,57 @@ function rebuildFeedSourcesTable(
   }
 }
 
+export type AccountSourceCredential = Pick<SourceRecord,
+  "kind" | "name" | "connection_ref" | "account_label" | "config">;
+
+function hasStoredSources(db: Pick<SourcesSqliteDatabase, "prepare">): boolean {
+  return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get());
+}
+
+function storedSourceConfig(value: unknown): Record<string, unknown> {
+  const parsed = parseJson<unknown>(value, {});
+  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown> : {};
+}
+
+/** Read legacy account references without migrating Sources or opening credentials. */
+export function inspectAccountSourceCredentials(db: Pick<SourcesSqliteDatabase, "prepare">): AccountSourceCredential[] {
+  if (!hasStoredSources(db)) return [];
+  const rows = db.prepare(`SELECT kind, name, credential_ref, account_label, config_json
+    FROM feed_sources WHERE credential_ref IS NOT NULL AND sync_kind IN ('github', 'gmail', 'connector')`).all() as Row[];
+  return rows.map(row => ({
+    kind: asText(row.kind), name: asText(row.name), connection_ref: optionalText(row.credential_ref),
+    account_label: optionalText(row.account_label), config: storedSourceConfig(row.config_json),
+  })).filter(source => sourceDeletedAt(source) === null);
+}
+
+/** Connection availability changes Source state through its normal command/event path. */
+export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
+  connection_id: string; available: boolean; at?: string;
+}): number {
+  if (!hasStoredSources(db)) return 0;
+  const sources = new SourcesModule(db);
+  const at = input.at ?? new Date().toISOString();
+  return db.transaction(() => {
+    const rows = db.prepare(`SELECT board_id, source_id, enabled, config_json FROM feed_sources
+      WHERE sync_kind IN ('github', 'gmail', 'connector')`).all() as Row[];
+    let changed = 0;
+    for (const row of rows) {
+      const config = storedSourceConfig(row.config_json);
+      if (config.connection_id !== input.connection_id || !Number(row.enabled) || sourceDeletedAt({ config })) continue;
+      const source = sources.query.get(asText(row.board_id), asText(row.source_id));
+      const status = input.available
+        ? source.status === "disconnected" ? "active" : source.status
+        : source.status === "paused" ? "paused" : "disconnected";
+      if (status === source.status) continue;
+      sources.commands.save({ ...source, status, updated_at: at,
+        last_error_code: input.available ? null : "connector_disconnected" });
+      changed++;
+    }
+    return changed;
+  }).immediate();
+}
+
 export class SourcesModule implements SourcesApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),

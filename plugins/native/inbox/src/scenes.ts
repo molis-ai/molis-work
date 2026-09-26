@@ -1,14 +1,15 @@
-import { ActionError, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export const inboxNextScene: ActionSceneDefinition = {
   scene_id: INBOX_NEXT_SCENE_ID, version: 1, title: "Inbox 下一步",
   description: "根据事项内容推荐下一步，保存建议供用户选择，不自动执行建议。",
   trigger: "事项进入 Inbox 或用户要求重新判断", scope: "project", subject_kinds: ["inbox_entry"],
-  permissions: ["inbox:read", "model:invoke"],
+  permissions: ["inbox:read", "model:invoke"], configuration_permissions: ["inbox:write"],
   event_schema: { type: "object", properties: { entry_id: { type: "string", minLength: 1 } }, required: ["entry_id"], additionalProperties: false },
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
   result_type: "molis.behavior-recommendation.v1",
+  recommendation_labels: { "inbox.compose": "整理成稿", "inbox.verify": "先核查", "inbox.done": "做完了", "inbox.dismiss": "忽略" },
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },
     suggested_behavior_ids: { type: "array", items: { enum: ["inbox.compose", "inbox.verify", "inbox.done", "inbox.dismiss"] } } },
   required: ["status", "suggested_behavior_ids"] },
@@ -20,7 +21,7 @@ export interface InboxJudgmentSubject {
 export interface InboxScenePorts {
   projectId: string;
   binding(): ActionSceneBinding | null;
-  save(binding: ActionSceneBinding): void;
+  save(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void;
   resolve(entryId: string): InboxJudgmentSubject;
   record(subject: InboxJudgmentSubject, binding: ActionSceneBinding, result: { status: "ok" | "needs_review"; suggested_behavior_ids: string[]; error_code?: string }): JudgmentRecord;
 }
@@ -40,10 +41,12 @@ export function createInboxSceneHandler(ports: InboxScenePorts): ActionSceneHand
   return {
     scene_id: inboxNextScene.scene_id, version: inboxNextScene.version,
     bindings: () => { const binding = ports.binding(); return binding ? [binding] : []; },
-    bind: (caller, binding) => {
+    targets: () => { const binding = ports.binding(); return [{ binding_id: inboxSceneBindingId(ports.projectId), title: "Inbox 下一步",
+      href: `/projects/${encodeURIComponent(ports.projectId)}/?openPlugin=inbox`, revision: binding?.revision ?? null }]; },
+    bind: (caller, binding, options) => {
       if (!caller.permissions.includes("inbox:write")) throw new ActionError("actions.forbidden", "缺少 Inbox 配置权限");
       if (binding.binding_id !== inboxSceneBindingId(ports.projectId)) throw new ActionError("actions.binding_invalid", "Inbox 只接受当前项目的下一步绑定");
-      ports.save(binding);
+      ports.save(binding, options);
     },
     prepare: (_caller, event) => {
       const subject = ports.resolve((event as { entry_id: string }).entry_id);
@@ -65,9 +68,9 @@ export function createInboxSceneHandler(ports: InboxScenePorts): ActionSceneHand
 
 /** An automatic trigger has the same caller and scope as its host-owned event source. */
 export function createInboxJudgmentTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; boardId: string }) {
-  return async (entry: { board_id: string; entry_id: string }): Promise<void> => {
+  return async (entry: { board_id: string; entry_id: string }, explicitCaller?: ActionCallContext): Promise<void> => {
     if (entry.board_id !== options.boardId) throw new ActionError("actions.scope_mismatch", "入箱事件不属于当前项目");
-    const caller = options.context();
+    const caller = explicitCaller ?? options.context();
     const usage = (await options.scenes.usages(caller)).find(binding => binding.scene_id === inboxNextScene.scene_id
       && binding.scene_version === inboxNextScene.version && binding.binding_id === inboxSceneBindingId(caller.project_id!));
     if (!usage?.enabled || !usage.availability.available) return;

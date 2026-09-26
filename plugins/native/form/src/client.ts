@@ -358,7 +358,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderList = () => {
     keepListScroll(() => paintList());
   };
-  const artifactLabel = (record) => record?.publication_pending ? L("恢复发布") : record && record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+  const artifactLabel = (record) => record?.publication_pending ? L("恢复发布") : record && record.artifact_version > 0 ? L("再存一版") : L("保存成果版本");
   const artifactControl = (record, key) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -511,7 +511,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        showNote(L("已存成 Artifact"), false);
+        showNote(L("已保存成果版本"), false);
         await loadList();
         if (payload.form && selected && selected.id === payload.form.id) remember(payload.form, false);
         return;

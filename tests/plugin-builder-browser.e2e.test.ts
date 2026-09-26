@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { LocalProjectDatabase } from "../apps/local-host/src/project-database.js";
 import { seedDemoBoard, DEMO_BOARD_ID } from "../apps/local-host/src/demo-seed.js";
 import { handleBuilderHttp, releaseBuilderSurface } from "../apps/local-host/src/plugin-builder-surface.js";
@@ -20,7 +21,9 @@ test("plugin builder browser completes creation, installed data, publishing and 
   const databasePath = join(directory, "project.db"); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), runtime = new BrowserFixtureRuntime(directory);
   const token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>(), mutationHeaders: string[] = [];
-  const ports = { store, boardId: DEMO_BOARD_ID, actorId: "browser-test", homeDirectory: directory, goalTitle: () => undefined, escapeHtml, translate: (value: string) => value, capabilities: runtime,
+  // The Plugin executor runs every plugin action through the project's action service, as the product host does.
+  const actionService = new ActionService();
+  const ports = { actions: { registry: actionService, client: actionService, project_id: DEMO_BOARD_ID }, store, boardId: DEMO_BOARD_ID, actorId: "browser-test", homeDirectory: directory, goalTitle: () => undefined, escapeHtml, translate: (value: string) => value, capabilities: runtime,
     execution: { async ready() {}, async models() { return [{ provider_id: "fixture", model_id: "fixture-prologue", label: "Fixture Prologue · browser test" }]; } },
   };
   const server = createServer((request, response) => {

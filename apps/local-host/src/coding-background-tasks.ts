@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { DatabaseSync } from "node:sqlite";
+import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 
 /** Coding session states that mean a round is under way or waiting on the person. */
@@ -32,10 +32,10 @@ export function codingBackgroundTasks(projects: readonly WebProjectNavigation[],
   const tasks: CodingBackgroundTask[] = [];
   for (const project of projects) {
     if (!project.database_path || !existsSync(project.database_path)) continue;
-    let db: DatabaseSync | undefined;
+    let store: LocalSqliteStorage | undefined;
     try {
-      db = new DatabaseSync(project.database_path, { readOnly: true });
-      const rows = db.prepare(`SELECT session_id, title, state, updated_at FROM coding_sessions
+      store = new LocalSqliteStorage(project.database_path, { readonly: true });
+      const rows = store.db.prepare(`SELECT session_id, title, state, updated_at FROM coding_sessions
         WHERE archived = 0 AND state IN (${ACTIVE_STATES.map(() => "?").join(", ")}) ORDER BY updated_at DESC`).all(...ACTIVE_STATES) as Array<{
         session_id: string; title: string; state: CodingBackgroundTask["state"]; updated_at: string }>;
       for (const row of rows) tasks.push({ project_id: project.project_id, project_name: project.display_name, session_id: row.session_id,
@@ -43,7 +43,7 @@ export function codingBackgroundTasks(projects: readonly WebProjectNavigation[],
         before_restart: row.state !== "reconcile-required" && row.updated_at < startedAt });
     } catch {
       // No Coding table yet, or a store this service cannot read: nothing is listed for that project.
-    } finally { db?.close(); }
+    } finally { store?.close(); }
   }
   return tasks.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id));
 }

@@ -27,8 +27,9 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 ## 接入与边界
 
-`goalsActions` 当前提供 45 项 project 动作，由 Manifest 声明并在项目动作服务中注册，其中 40 项可按授权供 MCP 使用，5 项仅供受保护的用户操作：
+`goalsActions` 当前提供 50 项 project 动作，由 Manifest 声明并在项目动作服务中注册，其中 43 项可按授权供 MCP 使用，7 项仅供受保护的用户操作：
 
+- 本地管理：`goals.board.initialize`、`goals.board.import-v3`，只接受可信 management 用户上下文。CLI/管理 MCP 和 host-only typed 入口薄转发同一动作；普通 MCP/Agent/插件不获管理权。原初始化回执、导入事务与禁止覆盖保持。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。
 - 结构提案：`goals.tree.submit`、`goals.tree.read`、`goals.tree.check`、`goals.tree.decide`。提交只保存提案，检查保存检查结果并回滚预检变更；审批为受保护的用户操作。历史提案保持可读，退役类型不能重新批准。
 - 目标生命周期：`goals.active.set`、`goals.archive.set`、`goals.trash.set`、`goals.trash.list`。当前目标不启动工作；归档须已完成；回收站操作须明确确认，保留阻塞、完整历史及关系恢复结果。
@@ -36,6 +37,8 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 - 项目长期说明：`goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update`。读取完整修订与提示词；新增/编辑/停用/恢复保留明确确认、原因、确认摘要、原去重及幂等回执。
 - 工作记录与状态写入：`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume`。
 - 项目规划：`goals.planning.read`、`goals.planning.save`、`goals.planning.apply`、`goals.planning.impact`、`goals.planning.graph.check`。方法与组合、版本、事件类型及默认要求沿用原 Planning Engine；保存/采用要求明确确认，每次保存生成新版本，不自动重试。
+- 完整资料：`goals.snapshot.read` 返回原项目快照，`goals.contract.read` 返回目标约定及相关历史。CLI/typed 快照和旧 MCP snapshot 均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
+- 完整集合：`goals.collection.read` 返回当前/归档/回收站集合、历史、覆盖和输入/规则绑定；整页、Board JSON、fragment 和复用页面资料的消费者等待同一动作，缓存命中仍重新校验权限。
 - 目标正文：`goals.document.read`，组合当前状态、原始说明、混合历史首屏、关系、风险、规划方法与继续方式。网页完整页和正文 fragment 与标准 MCP 共同读取，归档/回收站历史保持。
 - 当前状态与目录项：`goals.state.read`、`goals.directory.read`。
 - 进展保存回执：`goals.progress.receipt`，按可信调用者、目标和原幂等键读取；不存在时返回 null，不接受指定其他作者。
@@ -45,13 +48,13 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 查询需要 `goals:read`，普通工作写入需要 `goals:write`；MCP 客户端须显式授权精确动作。输入不接受 board、actor 或权限，Host 从项目与调用上下文绑定。有幂等合同的写入沿用原事务及 idempotency key，新旧入口读写同一记录；记录便笺不代表完成目标或作出用户决定。输出合同包含完整类型定义、报告原文和历史状态字段。
 
-对应 typed Capability、Coding 目标目录/状态/进展、项目恢复目录与焦点查询、Web 创建/便笺/工作操作/状态/事件/历史及首页胶囊目录已经转调统一动作。旧 MCP 的目录、创建、状态、事件查询、普通工作写入、项目规划、长期说明、生命周期和目标树（共 29 个兼容名称）共用逐客户端动作授权和常驻 Host，不再通过这些名称指定数据库或自填作者。旧写入口保留可信 Runtime Session 作者及原幂等域，新公共动作保留客户端作者；权限始终按客户端与项目判断。Casebook 的 Web 和 MCP 观察渠道各自保留，异步返回后只记一次结果，完整历史组合内部的查询不重复观察。可信旧调用者未记录 actor kind 时保持未知分类，不补写成用户身份。
+对应 typed Capability、Coding 目标目录/状态/进展、项目恢复目录与焦点查询、Web 创建/便笺/工作操作/状态/事件/历史及首页胶囊目录已经转调统一动作。旧 MCP 的目录、创建、状态、事件查询、普通工作写入、项目规划、长期说明、生命周期和目标树（共 30 个兼容名称）共用逐客户端动作授权和常驻 Host，不再通过这些名称指定数据库或自填作者。旧写入口保留可信 Runtime Session 作者及原幂等域，新公共动作保留客户端作者；权限始终按客户端与项目判断。Casebook 的 Web 和 MCP 观察渠道各自保留，异步返回后只记一次结果，完整历史组合内部的查询不重复观察。可信旧调用者未记录 actor kind 时保持未知分类，不补写成用户身份。
 
 Coding 的进展回执查询也转入统一动作，保留原保存回执和重启恢复行为。进展附带的成果来源是提交者的引用，不表示系统已验证成果内容，也不构成用户授权。
 
 用户决定的 Web 和管理 typed 入口也使用共同动作。Web 的直接事件端口及同步观察包装已删除。管理 MCP `event_decide` 保留受保护渠道的薄适配，从同一动作派生业务 schema；它不能作为普通 MCP 授权能力导出。旧 typed 决定入口声明 `host_only`，插件即使声明 consumes 也不能使用它提交自填 authority。
 
-文档页完整组合仍在迁移，不能代表本插件已全部迁完。MCP 连接恢复摘要已使用当前客户端的精确动作授权与常驻服务；typed 恢复和 MCP 共用原目录/焦点组合，缺权限或服务不可用时返回缺失内容原因，连接状态保持真实。同步事务和历史合并内部继续使用原业务 owner。
+文档页完整集合和所选正文已共用动作；Host 仅组合已授权资料，正文另读当前规划方法，个人方法更新不会被页面缓存遮蔽。初始化/旧数据导入管理入口也已转入动作；与其他插件的剩余消费和系统生命周期仍待全量审计。MCP 连接恢复摘要已使用当前客户端的精确动作授权与常驻服务；typed 恢复和 MCP 共用原目录/焦点组合，缺权限或服务不可用时返回缺失内容原因，连接状态保持真实。同步事务和历史合并内部继续使用原业务 owner。
 
 请求或引用决定不等于作出用户决定。普通动作不接受 actor/authority 等身份授权字段；项目规划保存/采用的 user_confirmed 只保留原业务确认前提，不产生用户决定权；用户验收、放宽约定和接受风险仍执行原领域校验。标准公共动作和兼容名称均拒绝未授权调用，管理模式也不能通过已迁移名称自填用户作者。
 
@@ -67,6 +70,6 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 
 旧 MCP 提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经过常驻服务网关保持；typed 旧调用也保留原会话与回执哈希。业务输入不能覆盖该字段。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。Casebook 将新入口映射至原操作记录合同，Web 保留原渠道，单次调用只记录一组尝试和结果。
 
-关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的其余历史组合尚未全部迁移。
+关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的历史组合也通过集合动作读取。
 
-个人方法读取已改为原 Catalog 的实时端口：默认 Host 使用自己的 Home，每次查询/采用读取当前版本；Web 与 MCP 不再各自装配一份默认读取规则。全局保存不再关闭项目 Runtime 或清空 Feed scheduler；项目 URL 另存为个人方法也立即影响所有打开项目的后续选择。页面缓存包含方法身份、来源和版本。项目覆盖副本及已保存 Goal config 保持原版本，模板编辑不会重写历史。Home 目录/保存已使用 `personalPlanningActions` 的两项共同动作（`goals.planning.personal.list/save`），Manifest 声明，Host 在启动时作为 Home 系统服务注册，无需项目或页面。全局和项目 URL 的个人保存共用原 Catalog owner；普通 MCP 经明确 Home 授权查询，保存为 user 专用，要求可信 web/management 操作出处。未配置原 Catalog 写入端口时明确不可用，不另建数据库。合计 47 项动作：45 项 project、2 项 Home，其中 41 项可按授权供普通 MCP 使用。
+个人方法读取已改为原 Catalog 的实时端口：默认 Host 使用自己的 Home，每次查询/采用读取当前版本；Web 与 MCP 不再各自装配一份默认读取规则。全局保存不再关闭项目 Runtime 或清空 Feed scheduler；项目 URL 另存为个人方法也立即影响所有打开项目的后续选择。所选正文与规划页实时读取当前方法，页面缓存不保存个人方法选择。项目覆盖副本及已保存 Goal config 保持原版本，模板编辑不会重写历史。Home 目录/保存已使用 `personalPlanningActions` 的两项共同动作（`goals.planning.personal.list/save`），Manifest 声明，Host 在启动时作为 Home 系统服务注册，无需项目或页面。全局和项目 URL 的个人保存共用原 Catalog owner；普通 MCP 经明确 Home 授权查询，保存为 user 专用，要求可信 web/management 操作出处。未配置原 Catalog 写入端口时明确不可用，不另建数据库。合计 52 项动作：50 项 project、2 项 Home，其中 44 项可按授权供普通 MCP 使用。

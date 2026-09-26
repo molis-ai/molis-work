@@ -151,7 +151,7 @@ test("one directory isolates same capability and scene identities activated in d
 
 test("a changed binding during an asynchronous judgment cannot consume the stale result", async () => {
   const service = new ActionService();
-  const bindings = new Map<string, ActionSceneBinding>([[binding.binding_id, binding]]);
+  const bindings = new Map<string, ActionSceneBinding>([[binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id } }]]);
   let release!: (value: unknown) => void;
   let entered!: () => void;
   const started = new Promise<void>(r => { entered = r; });
@@ -179,7 +179,7 @@ test("registration fails atomically for unfulfilled handlers or invalid schemas"
 test("reloading either provider during a judgment cannot deliver an old result into the replacement", async () => {
   for (const replace of ["judgment", "scene"] as const) {
     const service = new ActionService();
-    const bindings = new Map<string, ActionSceneBinding>([[binding.binding_id, binding]]);
+    const bindings = new Map<string, ActionSceneBinding>([[binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id } }]]);
     let release!: (result: unknown) => void;
     let entered!: () => void;
     const started = new Promise<void>(resolve => { entered = resolve; });
@@ -215,14 +215,14 @@ test("invalid provider output does not reach the scene consumer", async () => {
   const service = new ActionService();
   let consumed = false;
   service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: () => ({ follow_up: "yes" }) }],
-    scenes: [scene], scene_handlers: [consumer(new Map([[binding.binding_id, binding]]), () => { consumed = true; })] });
+    scenes: [scene], scene_handlers: [consumer(new Map([[binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id } }]]), () => { consumed = true; })] });
   await assert.rejects(service.runScene(context, scene, binding.binding_id, { text: "broken" }), (e: ActionError) => e.code === "actions.output_invalid");
   assert.equal(consumed, false);
 });
 
 test("scene prepares private context from a validated event and snapshots the binding before preparation", async () => {
   const service = new ActionService();
-  const current = { ...binding, revision: "before" };
+  const current = { ...binding, function: { ...binding.function, provider_id: provider.provider_id }, revision: "before" };
   const eventScene = { ...scene, event_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false } };
   let prepared = 0, invoked = 0, consumed = 0, mutate = true;
   service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: (_caller, input) => {
@@ -245,7 +245,7 @@ test("scene prepares private context from a validated event and snapshots the bi
 
 test("scene failure consumption cannot bypass changed bindings or cancellation", async () => {
   const service = new ActionService();
-  const saved = new Map([[binding.binding_id, { ...binding, revision: "1" }]]);
+  const saved = new Map([[binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id }, revision: "1" }]]);
   let failures = 0, beforeFailure: (() => void) | undefined;
   service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: () => {
     beforeFailure?.(); throw new Error("provider failed");
@@ -256,12 +256,183 @@ test("scene failure consumption cannot bypass changed bindings or cancellation",
     },
   }] });
   assert.deepEqual(await service.runScene(context, scene, binding.binding_id, { text: "valid" }), { outcome: "needs_review" });
-  beforeFailure = () => { saved.set(binding.binding_id, { ...binding, revision: "2" }); };
+  beforeFailure = () => { saved.set(binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id }, revision: "2" }); };
   await assert.rejects(service.runScene(context, scene, binding.binding_id, { text: "valid" }), { code: "actions.binding_changed" });
   assert.equal(failures, 1);
-  saved.set(binding.binding_id, { ...binding, revision: "1" });
+  saved.set(binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id }, revision: "1" });
   const controller = new AbortController();
   beforeFailure = () => controller.abort(new Error("cancelled"));
   await assert.rejects(service.runScene({ ...context, signal: controller.signal }, scene, binding.binding_id, { text: "valid" }), /cancelled/);
   assert.equal(failures, 1);
+});
+
+test("scene bindings pin the registered provider and cannot silently follow a replacement with the same action ID", async () => {
+  const service = new ActionService();
+  const bindings = new Map<string, ActionSceneBinding>();
+  let consumed = 0;
+  const stop = service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }] });
+  service.registerProvider({ provider: { provider_id: "feedback", title: "Feedback", kind: "plugin" }, definitions: [], handlers: [], scenes: [scene],
+    scene_handlers: [consumer(bindings, () => { consumed++; })] });
+  await service.bind(context, binding);
+  assert.equal(bindings.get(binding.binding_id)!.function.provider_id, provider.provider_id);
+  stop();
+  const replacement = { ...provider, provider_id: "replacement.judge" };
+  service.registerProvider({ provider: replacement, definitions: [judgment], handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }] });
+  assert.equal((await service.usages(context))[0]!.availability.available, false);
+  await assert.rejects(service.runScene(context, scene, binding.binding_id, { text: "old reference" }), { code: "actions.scene_incompatible" });
+  assert.equal(consumed, 0);
+  await service.bind(context, { ...binding, function: { ...binding.function, provider_id: replacement.provider_id } });
+  await service.runScene(context, scene, binding.binding_id, { text: "explicit new binding" });
+  assert.equal(consumed, 1);
+  bindings.set(binding.binding_id, binding);
+  const unpinned = (await service.usages(context))[0]!;
+  assert.equal(unpinned.enabled, true);
+  assert.equal(unpinned.availability.available, false, "an old unpinned binding remains visible but cannot follow a new provider");
+  await assert.rejects(service.runScene(context, scene, binding.binding_id, { text: "legacy unpinned reference" }), { code: "actions.binding_invalid" });
+  assert.equal(consumed, 1);
+  await service.bind(context, binding);
+  assert.equal(bindings.get(binding.binding_id)!.function.provider_id, replacement.provider_id);
+});
+
+test("single capability lookups keep metadata and project isolation without copying unrelated descriptors", async () => {
+  const { CapabilityRegistry } = await import("@molis-ai/molis-work-kernel");
+  class CountingRegistry extends CapabilityRegistry<ActionCallContext> {
+    directoryCopies = 0;
+    override descriptors() { this.directoryCopies++; return super.descriptors(); }
+  }
+  const registry = new CountingRegistry(); const service = new ActionService(registry);
+  const read: ActionDefinition = { capability_id: "lookup.note.read", version: 1, operation: "query", action: {
+    title: "Original title", description: "Read this project's record", kind: "query", scope: "project", audiences: ["user"], permissions: [], subject_kinds: ["note"],
+    input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "object", properties: { project: { type: "string" } }, required: ["project"], additionalProperties: false } } };
+  const write = { ...read, capability_id: "lookup.note.update", operation: "command" as const, action: { ...read.action, kind: "operation" as const, required_actions: [{ capability_id: read.capability_id, version: 1 }] } };
+  const register = (project: string) => service.registerProvider({ provider: { provider_id: "notes-" + project, title: "Notes", kind: "plugin", project_id: project },
+    definitions: [read, write], handlers: [{ ...read, handle: () => ({ project }) }, { ...write, handle: () => ({ project }) }] });
+  const stopA = register("a"), stopB = register("b");
+  const copy = registry.descriptor(read, "a")!;
+  (copy.action as { title: string }).title = "Changed by consumer";
+  assert.equal(registry.descriptor(read, "a")!.action!.title, "Original title");
+  assert.equal(registry.descriptor(read)?.action_provider, undefined);
+  assert.deepEqual(await service.invoke({ ...context, project_id: "a" }, write, {}), { project: "a" });
+  assert.deepEqual(await service.invoke({ ...context, project_id: "b" }, write, {}), { project: "b" });
+  assert.equal(registry.directoryCopies, 0, "normal dispatch and dependency checks resolve only their target");
+  const visible = service.discover({ ...context, project_id: "a" });
+  assert.ok(visible.every(view => view.provider.project_id === "a" && view.availability.available));
+  assert.equal(registry.directoryCopies, 1, "one full directory copy serves discovery; dependency checks do not copy it again");
+  await assert.rejects(service.invoke({ ...context, project_id: "foreign" }, write, {}), { code: "actions.scope_mismatch" });
+  await assert.rejects(service.invoke({ ...context, project_id: "a" }, { ...write, provider_id: "notes-b" }, {}), { code: "actions.provider_changed" });
+  stopA(); assert.equal(registry.descriptor(read, "a"), undefined);
+  assert.deepEqual(await service.invoke({ ...context, project_id: "b" }, write, {}), { project: "b" }); stopB();
+});
+
+test("persisted consumer bindings cannot run a judgment authored for a different scene provider", async () => {
+  const service = new ActionService();
+  let consumed = 0;
+  const intent = { scene_id: scene.scene_id, version: scene.version, provider_id: "original-scene" };
+  const authored = { ...judgment, action: { ...judgment.action, result_scene: intent } };
+  service.registerProvider({ provider, definitions: [authored], handlers: [{ ...authored, handle: () => ({ follow_up: true }) }] });
+  const saved = new Map([[binding.binding_id, { ...binding, function: { capability_id: judgment.capability_id, version: judgment.version, provider_id: provider.provider_id } }]]);
+  const register = (provider_id: string) => service.registerProvider({ provider: { provider_id, title: "Consumer", kind: "plugin" }, definitions: [], handlers: [],
+    scenes: [scene], scene_handlers: [consumer(saved, () => { consumed++; return "consumed"; })] });
+  const stop = register(intent.provider_id);
+  assert.equal(await service.runScene(context, scene, binding.binding_id, { text: "Original feedback" }), "consumed");
+  stop(); register("replacement-scene");
+  assert.equal(service.discoverScenes(context, authored)[0]!.compatible, false);
+  await assert.rejects(service.runScene(context, scene, binding.binding_id, { text: "Original feedback" }), { code: "actions.scene_incompatible" });
+  assert.equal(consumed, 1, "original persisted bindings do not delegate authored intent to a replacement provider");
+  assert.deepEqual(await service.invoke(context, authored, { text: "Independent judgment" }), { follow_up: true });
+});
+
+test("unknown Runtime scene exposes actual configuration targets and preserves owner CAS, grants and provider identity", async () => {
+  const service = new ActionService();
+  let stopJudgment = service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }] });
+  const db = new DatabaseSync(":memory:");
+  db.exec("CREATE TABLE config (id TEXT PRIMARY KEY, revision TEXT NOT NULL, binding TEXT NOT NULL)");
+  let serial = 0;
+  let needsActivation = false;
+  const current = () => {
+    const row = db.prepare("SELECT revision, binding FROM config WHERE id = 'real-slot'").get() as { revision: string; binding: string } | undefined;
+    return row ? { ...JSON.parse(row.binding), revision: row.revision } as ActionSceneBinding : null;
+  };
+  const configurable = { ...scene, configuration_permissions: ["notes:write"] };
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.configurable", version: "1.0.0", name: "配置位置插件",
+    kind: "app", publisher: { publisher_id: "example", signature: "fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: ["notes:write", "notes:activate"].map(permission => ({ permission, required: false, reason: "配置原业务规则" })), capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [] }, actions: [], action_scenes: [configurable] }, async start() { return { kind: "app", action_scenes: [{ ...configurable,
+      targets: () => [{ binding_id: "real-slot", title: "实际客户反馈规则", href: "/real-settings", revision: current()?.revision ?? null, activation_permissions: needsActivation ? ["notes:activate"] : [] }],
+      bindings: () => { const value = current(); return value ? [value] : []; },
+      bind: (_caller, value, options) => {
+        const revision = String(++serial);
+        const write = options?.expected_revision === null
+          ? db.prepare("INSERT INTO config VALUES ('real-slot', ?, ?) ON CONFLICT(id) DO NOTHING").run(revision, JSON.stringify(value))
+          : db.prepare("UPDATE config SET revision = ?, binding = ? WHERE id = 'real-slot' AND revision = ?").run(revision, JSON.stringify(value), options?.expected_revision ?? current()?.revision ?? "");
+        if (write.changes !== 1) throw new ActionError("fixture.conflict", "原配置已变化");
+      }, consume: (_caller, _input, result) => result,
+    }] }; } });
+  const repository = new MemoryPluginRuntimeRepository();
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: context.project_id! } });
+  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install;
+  await runtime.start(installed.install_id);
+  try {
+    const fn = { ...judgment, provider_id: provider.provider_id };
+    let target = (await service.targets(context, fn))[0]!;
+    assert.equal(target.binding, null); assert.equal(target.binding_id, "real-slot");
+    assert.equal(target.availability.available, false, "the caller's permission is not a plugin installation grant");
+    const value = { ...binding, binding_id: target.binding_id, function: fn, title: "forged title", href: "/forged" };
+    await assert.rejects(service.bind(context, value, { provider_id: target.provider_id, expected_revision: null }), { code: "actions.plugin_permission" });
+    repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write"] });
+    target = (await service.targets(context, fn))[0]!;
+    assert.equal(target.availability.available, true);
+    assert.equal((await service.targets({ ...context, permissions: [] }, fn))[0]!.availability.available, false);
+    assert.deepEqual(await service.targets({ ...context, project_id: "other" }, fn), []);
+    await assert.rejects(service.bind(context, value, { provider_id: "wrong-provider", expected_revision: null }), { code: "actions.provider_changed" });
+    await service.bind(context, value, { provider_id: target.provider_id, expected_revision: null });
+    assert.equal(current()?.title, "实际客户反馈规则"); assert.equal(current()?.href, "/real-settings");
+    assert.equal(current()?.function.provider_id, provider.provider_id);
+    await assert.rejects(service.bind(context, value, { provider_id: target.provider_id, expected_revision: null }), { code: "actions.binding_changed" });
+    needsActivation = true;
+    const activationCaller = { ...context, permissions: [...context.permissions, "notes:activate"] };
+    repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write", "notes:activate"] });
+    await assert.rejects(service.bind(activationCaller, value, { provider_id: target.provider_id, expected_revision: current()!.revision!, before_write: () => {
+      repository.save({ ...runtime.get(installed.install_id), grants: ["notes:write"] });
+    } }), { code: "actions.plugin_permission" });
+    assert.equal(current()?.enabled, true, "revoking an activation permission during the shared check prevents the owner write");
+    needsActivation = false;
+    const revision = current()!.revision!;
+    await assert.rejects(service.bind({ ...context, validate_authority: () => { db.prepare("UPDATE config SET revision = 'concurrent-edit' WHERE id = 'real-slot'").run(); } },
+      value, { provider_id: target.provider_id, expected_revision: revision }), { code: "fixture.conflict" });
+    assert.equal(current()?.revision, "concurrent-edit", "the original owner prevents a write after asynchronous checks used an older target");
+    await assert.rejects(service.bind(context, value, { provider_id: target.provider_id, expected_revision: "concurrent-edit", before_write: () => {
+      stopJudgment();
+      stopJudgment = service.registerProvider({ provider, definitions: [judgment], handlers: [{ ...judgment, handle: () => ({ follow_up: false }) }] });
+    } }), { code: "actions.provider_changed" });
+    assert.equal(current()?.revision, "concurrent-edit", "same identity reloaded during authorization cannot change the original config");
+    await assert.rejects(service.bind(context, { ...current()!, enabled: false }, { provider_id: target.provider_id, expected_revision: "concurrent-edit",
+      before_write: () => { throw new ActionError("actions.forbidden", "management grant revoked"); } }), { code: "actions.forbidden" });
+    assert.equal(current()?.enabled, true, "disable also rechecks its originating management grant");
+    await service.bind(context, { ...current()!, enabled: false }, { provider_id: target.provider_id, expected_revision: "concurrent-edit" });
+    assert.equal(current()?.enabled, false);
+    repository.save({ ...runtime.get(installed.install_id), grants: [] });
+    assert.equal((await service.targets(context, fn))[0]!.availability.available, false);
+    await runtime.stop(installed.install_id);
+    assert.deepEqual(await service.targets(context, fn), []);
+    assert.ok(current(), "stopping a scene provider preserves its original configuration");
+  } finally { await runtime.stop(installed.install_id); db.close(); }
+});
+
+test("shared registration schemas retain independent validation and later registration adopts changed contracts", async () => {
+  const service = new ActionService();
+  const shared = { type: "object", properties: { nested: { type: "object", properties: { count: { type: "integer", minimum: 1 } }, required: ["count"] } }, required: ["nested"] };
+  const definitions = ["shared.first", "shared.second"].map(capability_id => ({ ...judgment, capability_id, action: { ...judgment.action, input_schema: shared, output_schema: shared } }));
+  const register = () => service.registerProvider({ provider, definitions, handlers: definitions.map(definition => ({ ...definition, handle: (_caller, input) => input })) });
+  let dispose = register();
+  try {
+    for (const definition of definitions) {
+      assert.deepEqual(await service.invoke(context, definition, { nested: { count: 2 } }), { nested: { count: 2 } });
+      await assert.rejects(service.invoke(context, definition, { nested: { count: "2" } }), { code: "actions.input_invalid" });
+    }
+    shared.properties.nested.properties.count.minimum = 5;
+    assert.deepEqual(await service.invoke(context, definitions[0]!, { nested: { count: 2 } }), { nested: { count: 2 } }, "active registration keeps its frozen contract");
+    dispose(); dispose = register();
+    for (const definition of definitions) await assert.rejects(service.invoke(context, definition, { nested: { count: 2 } }), { code: "actions.input_invalid" });
+  } finally { dispose(); }
 });

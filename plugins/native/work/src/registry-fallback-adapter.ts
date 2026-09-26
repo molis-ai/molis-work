@@ -14,6 +14,7 @@ const FALLBACK_CAPABILITIES: RuntimeSessionCapabilities = {
   resume: "unsupported",
   events: "unsupported",
   handoff: "unsupported",
+  message: "unsupported",
 };
 
 export class RegistryFallbackSessionAdapter implements RuntimeSessionAdapter {

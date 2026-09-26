@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { COGNIA_LIMITS, requireCognia, stringField, type Draft, type Reference } from "./types.js";
 import type { CogniaStore } from "./store.js";
-export interface CogniaAiPorts { runtimeLabel?: string; unavailableReason?: string; completeText?: (prompt: string, options?: { signal?: AbortSignal }) => Promise<string>; signal?: AbortSignal }
+export interface CogniaAiPorts { runtimeLabel?: string; unavailableReason?: string; completeText?: (prompt: string, options?: { signal?: AbortSignal }) => Promise<string>; signal?: AbortSignal; beforeEffect?: () => Promise<void> }
 export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStore) => T) => T, input: Record<string, unknown>, ports: CogniaAiPorts): Promise<Draft> {
   requireCognia(ports.completeText, ports.unavailableReason ?? "尚未配置文字模型。请在宿主配置文字模型后重试；导入、搜索和阅读仍可使用。", 503);
   requireCognia(input.mode === "synthesize" || input.mode === "query", "整理方式无效");
@@ -42,5 +42,6 @@ export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStor
   const citations = [...body.matchAll(/\[S(\d+)\]/gu)].map(m => "S" + m[1]);
   requireCognia(citations.length > 0 && citations.every(c => references.some(r => r.label === c)), "模型缺少来源引用或引用了不存在的资料，未写入知识库；请重试。", 502);
   const domain_id = materials.every(m => m.domain_id === materials[0]!.domain_id) ? materials[0]!.domain_id : null;
+  await ports.beforeEffect?.();
   return withStore(store => store.addDraft({ id: randomUUID(), title, body, references, mode, domain_id, saved_id: null, created_at: new Date().toISOString() }));
 }

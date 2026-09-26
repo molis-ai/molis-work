@@ -73,6 +73,7 @@ export interface GmailOAuthExchangeInput {
   codeVerifier: string;
   redirectUri: string;
   clientId: string;
+  clientSecret?: string;
 }
 
 export interface PendingSession {
@@ -80,6 +81,7 @@ export interface PendingSession {
   state: string;
   redirectUri: string;
   clientId: string;
+  clientSecret?: string;
   createdAt: string;
 }
 

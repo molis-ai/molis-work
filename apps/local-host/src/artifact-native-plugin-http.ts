@@ -60,8 +60,9 @@ export function createLocalArtifactHttp(ports: { nativeDesktopBootstrapScript: s
       }
       if (request.method !== "GET") return false;
       if (pathname === "/artifacts/import") {
+        const available = await context.actions.invoke(artifactsActions.importSources, {});
         const html = renderArtifactImportPage({
-          ...context, connectionStatus: (await context.actions.invoke(artifactsActions.importSources, {})).sources,
+          ...context, connectionStatus: available.sources, connections: available.connections,
           lang: htmlLang(), nativeDesktopBootstrapScript: ports.nativeDesktopBootstrapScript, primitives,
         });
         response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": context.pageCsp });

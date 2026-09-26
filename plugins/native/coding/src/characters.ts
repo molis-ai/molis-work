@@ -9,6 +9,7 @@ export interface CodingCharacterChoice {
   title: string;
   instructions: string;
   host_tools: string[] | null;
+  action_tools?: import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null;
   available: boolean;
   reason?: string;
 }

@@ -118,4 +118,9 @@ export const DATASET_STYLES = `
     .dataset-table-wrap tbody tr { transition: none; }
   }
   body.immersive-workbench .plugin-stage-workspace > .dataset-workspace { flex: 1; min-height: 0; }
+
+.dataset-assist { border-top:1px solid var(--line); padding-top:12px; }
+.dataset-assist > summary { display:flex; align-items:center; gap:7px; width:fit-content; cursor:pointer; color:var(--muted); font-size:13px; min-height:32px; }
+.dataset-assist > summary svg { width:15px; height:15px; }
+.dataset-assist[open] > summary { color:var(--ink); margin-bottom:10px; }
 `;

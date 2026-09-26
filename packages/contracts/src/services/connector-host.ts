@@ -113,6 +113,9 @@ export interface ConnectorMethodOption {
   readonly support: ConnectorMethodSupport;
   readonly note: string;
   readonly links: readonly ConnectorSetupLink[];
+  readonly mcp?: { readonly endpoint: string; readonly client_registration?: "dynamic" | "manual"; readonly note?: string };
+  readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string };
+  readonly cli?: { readonly binary: string; readonly installed: boolean; readonly install_url: string; readonly note?: string };
 }
 
 export interface ConnectorDirectoryEntry {
@@ -133,7 +136,7 @@ export interface ConnectorDirectoryEntry {
 }
 
 /** A single account or API credential managed at Home scope. Never contains plaintext. */
-export type ConnectorConnectionAuthMethod = "oauth" | "token" | "cli" | "none";
+export type ConnectorConnectionAuthMethod = "oauth" | "token" | "cli" | "mcp" | "none";
 export type ConnectorConnectionState = "connected" | "reauth_required" | "disconnected";
 
 export interface ConnectorConnectionRecord {

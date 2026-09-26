@@ -9,7 +9,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { functionsActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
+import { functionsActions, publishedFunctionAction, functionContextActions } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FunctionRecord, FunctionsPrimitive, FunctionCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/src/functions-host.ts";
@@ -141,11 +141,21 @@ test("global HTTP published invocation uses the same system handler and separate
     const invokeView = (await host.inspectActions({ actor_id: "runtime:codex", project_id: null, audience: "mcp", permissions: [] }))
       .find(view => view.capability_id === functionsActions.invoke.capability_id)!;
     await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, invokeView, true));
+    for (const definition of Object.values(functionContextActions)) {
+      const view = (await host.inspectActions({ actor_id: "runtime:codex", project_id: null, audience: "mcp", permissions: [] })).find(row => row.capability_id === definition.capability_id)!;
+      await writeMcpActionGrant(home, createMcpActionGrant("runtime:codex", null, view, true));
+    }
     await external.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
       fileURLToPath(new URL("./fixtures/system-functions-mcp-server.ts", import.meta.url)), home], stderr: "pipe" }));
     const tools = await external.listTools();
     const directoryName = "molis_work_v1_action_functions.list__v1";
     assert.ok(tools.tools.some(tool => tool.name === directoryName));
+    const authoringCatalog = await external.callTool({ name: "molis_work_v1_action_functions.authoring.catalog__v1", arguments: {} });
+    assert.notEqual(authoringCatalog.isError, true, JSON.stringify(authoringCatalog));
+    assert.ok(Array.isArray((authoringCatalog.structuredContent as { catalog: { destinations: unknown[] } }).catalog.destinations));
+    const usages = await external.callTool({ name: "molis_work_v1_action_functions.authoring.usages__v1", arguments: { id: record.id } });
+    assert.notEqual(usages.isError, true, JSON.stringify(usages));
+    assert.deepEqual((usages.structuredContent as { usages: unknown[] }).usages, []);
     const directory = await external.callTool({ name: directoryName, arguments: {} });
     assert.ok((directory.structuredContent as { functions: { function_key: string }[] }).functions.some(row => row.function_key === record.function_key));
     const result = await external.callTool({ name: "molis_work_v1_functions_invoke", arguments: { function_key: record.function_key, input: "external MCP" } });

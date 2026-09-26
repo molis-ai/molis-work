@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionProviderRegistration, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID, type FunctionRecord, FunctionSummary, FunctionDescribe, FunctionInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsService } from "./service.js";
 import { functionAuthoringActions, functionAuthoringHandlers } from "./authoring-actions.js";
@@ -11,6 +11,7 @@ const summary = { type: "object", properties: { function_key: text, name: text, 
   required: ["function_key", "name", "primitive", "version", "model"] };
 const resultSchema = { type: "object", properties: {
   suggested_behavior_ids: { type: "array", items: text },
+  recommended_actions: { type: "array", items: { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] } },
   status: { enum: ["ok", "needs_review"] }, function_key: text, version: integer, model: text, config_hash: text, primitive,
   data: { type: "object", properties: { choice: { type: ["string", "null"] }, noul: { type: "number" }, score: { type: "number" }, legend: { type: "array", items: text } }, additionalProperties: false },
   probabilities: { type: "object", additionalProperties: { type: "number" } }, confidence: { type: ["number", "null"] },
@@ -51,6 +52,8 @@ export function publishedFunctionAction(record: FunctionRecord): ActionDefinitio
   const choices = record.primitive === "choice" ? (record.criteria as readonly { key: string }[]).map(item => record.scene_map[item.key] ?? item.key)
     : Object.values(record.scene_map ?? {});
   return { ...definition, version: record.version, action: { ...definition.action, subject_kinds: [...record.subject_kinds],
+    ...(Object.keys(record.action_map ?? {}).length ? { required_actions: Object.values(record.action_map!) } : {}),
+    ...(record.scene_id && record.scene_version && record.scene_provider_id ? { result_scene: { scene_id: record.scene_id, version: record.scene_version, provider_id: record.scene_provider_id } } : {}),
     output_type: recommendations ? "molis.behavior-recommendation.v1" : "molis.judgment.v1",
     ...(recommendations && choices.length ? { output_schema: { ...definition.action.output_schema,
       properties: { ...(definition.action.output_schema!.properties as Record<string, unknown>),
@@ -61,6 +64,8 @@ export function publishedFunctionAction(record: FunctionRecord): ActionDefinitio
 
 export interface FunctionsActionPorts {
   credentialAvailable(): boolean;
+  validatePublication?(record: FunctionRecord, caller: ActionCallContext): Promise<import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference | void>;
+  validateRecommendations?(record: FunctionRecord, caller: ActionCallContext): Promise<void>;
   read<T>(operation: (service: FunctionsService) => T): T;
   run<T>(operation: (service: FunctionsService) => Promise<T>): Promise<T>;
 }
@@ -77,7 +82,9 @@ export function functionsActionProvider(ports: FunctionsActionPorts): ActionProv
       const args = input as { function_key: string; input: string };
       return ports.run(service => service.invokePublished(args.function_key, args.input, { project_id: caller.project_id ?? undefined,
         signal: caller.signal, record_history: !caller.scene_binding,
-        before_result: () => caller.validate_authority?.({ ...functionsActions.invoke, provider_id: provider.provider_id }) }));
+        before_evaluate: record => ports.validateRecommendations?.(record, caller),
+        before_result: async record => { await ports.validateRecommendations?.(record, caller);
+          await caller.validate_authority?.({ ...functionsActions.invoke, provider_id: provider.provider_id }); } }));
     } },
   ] };
 }
@@ -88,6 +95,8 @@ export function publishedFunctionProvider(record: FunctionRecord, ports: Functio
     availability: () => credentialAvailability(ports),
     handle: (caller, input) => ports.run(service => service.invokePublished(record.function_key, (input as { content: string }).content,
       { version: record.version!, config_hash: record.config_hash, project_id: caller.project_id ?? undefined, signal: caller.signal,
-        record_history: !caller.scene_binding, before_result: () => caller.validate_authority?.({ ...definition, provider_id: provider.provider_id }) })),
+        record_history: !caller.scene_binding, before_evaluate: current => ports.validateRecommendations?.(current, caller),
+        before_result: async current => { await ports.validateRecommendations?.(current, caller);
+          await caller.validate_authority?.({ ...definition, provider_id: provider.provider_id }); } })),
   }] };
 }

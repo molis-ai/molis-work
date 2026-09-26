@@ -2,11 +2,14 @@ import { ActionError, type ActionCallContext, type ActionReference, type ActionV
 import { actionMcpToolName } from "@molis-ai/molis-work-app-mcp";
 import { isMcpToolEnabled, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
 
+/** Internal runtimes cannot be impersonated by external MCP runtime: identities. */
+export const actionClientAudience = (clientId: string) => clientId.startsWith("agent:") ? "agent" as const : "mcp" as const;
+
 export const hostActionToolName = (reference: ActionReference) => actionMcpToolName({ ...reference, capability_id: `molis_work_v1_action_${reference.capability_id}` });
 
 /** Only the local management owner calls this with a definition from Host inspection. */
 export function createMcpActionGrant(clientId: string, projectId: string | null, action: ActionView, enabled: boolean): McpActionGrant {
-  if (!clientId.trim() || !action.action.audiences.includes("mcp")) throw new ActionError("mcp.grant_invalid", "缺少客户端身份或此能力不支持 MCP");
+  if (!clientId.trim() || !action.action.audiences.includes(actionClientAudience(clientId))) throw new ActionError("mcp.grant_invalid", "缺少客户端身份或此能力不支持 MCP");
   if (action.action.scope === "project" && !projectId) throw new ActionError("actions.project_required", "请为此能力选择具体项目");
   if (action.action.scope === "home" && projectId) throw new ActionError("mcp.grant_scope", "全局能力必须在全局范围单独授权");
   if (action.provider.project_id && action.provider.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "能力属于其他项目");
@@ -26,7 +29,7 @@ function matches(grant: McpActionGrant, view: ActionView, caller: ActionCallCont
 /** Declarations are not authority. Only explicit, unchanged grants produce permissions. */
 export function resolveMcpActionContext(caller: ActionCallContext, catalog: readonly ActionView[], preference: McpToolPreference): ActionCallContext {
   const accepted = catalog.filter(view => {
-    if (!view.action.audiences.includes("mcp") || (view.provider.project_id && view.provider.project_id !== caller.project_id)) return false;
+    if (!view.action.audiences.includes(caller.audience === "agent" ? "agent" : "mcp") || (view.provider.project_id && view.provider.project_id !== caller.project_id)) return false;
     const publicSystem = view.provider.kind === "system" && view.action.permissions.length === 0;
     const records = (preference.action_grants ?? []).filter(grant => grant.client_id === caller.actor_id
       && grant.project_id === (view.action.scope === "home" ? null : caller.project_id)

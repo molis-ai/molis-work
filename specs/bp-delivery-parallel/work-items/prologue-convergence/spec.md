@@ -98,3 +98,55 @@ SDK workspace:none 与 per-run grants 及效果隔离共70项定向通过，最�
 当前AgentHost、LocalHost、Desktop均编译通过；consumer36项通过。个人助理owner在新SDK/dist联验27项通过，9种prepare/credential/final dispatch撤权交错均fetch=0、无建议写入；这是受控协议的真实SDK执行，不代表商业模型质量。阶段集成包 /tmp/prologue-convergence-integration-v1 已交Action owner，SDK源码补丁可逆检查与callerpatch基线apply-check通过，原树未写入。Builder真实模型另由其owner联验。
 
 本地模型采用SDK正式localInference prepare/invoke/close与NodeHost冻结程序handle。一次性OCR/Whisper/Grok及JSONL Laya同一生命周期；Host实际spawn、限制bytes/timeout、取消进程树，SDK持有handles/资源/回执并在shutdown收尾。可信App冻结程序和环境，invoke仅给有界输入，不开放任意executor函数或旧spawn回调。产品已有解析器保留confidence/coverage/timestamps/choice/usage与Grok审计；确定性UTF8/HTML仍原实现。详细可验证合同已写SDK docs/slices/bounded-inference.md；不是仅重命名旧进程调用。外部Claude/Codex的持续会话桥仍需按原能力接入，目标范围未缩减。
+
+## 收尾：口径、审计与 MiniMax 实测（2026-09-26）
+
+### 口径（用户确认）
+
+要求的是**模型调用经过 Prologue**（同一 Home 的 Prologue Runtime 发出请求），不是把模型搬到本地。据此：
+
+- **暂缓，代码不动**：Jelly 本地 OCR/Whisper、实验台 Laya/Grok 本地模型；Claude Code CLI、Codex app-server、Shelf 的 CLI 引擎、Characters 原生执行这类外部 Agent 运行时（它们用自家模型，属于外部产品集成）。
+- 上一节「本地模型采用 SDK 正式 localInference」只停在 `prologue-action-loopback` 的未提交源码里，没有打进 vendored 包，也不再推进。
+
+### 审计结果
+
+全仓生产代码（apps/horizontal/modules/plugins/packages，排除测试与 dist）没有绕过 Prologue 的模型调用：唯一的 AI 依赖是 `@prologue/sdk`；所有模型接口字符串、`fetch`/`http(s).request`/undici、`Authorization`/`x-api-key` 构造和模型凭据读取都已核对。文字经 `resolvePrologueInference(home).completeText`，图片经 `generateImages`，TypeSafe 经 `evaluateTypeSafe`，其余是 Prologue Agent run。`modelRequestShape` 的头部构造在生产里只取 `.url`；`scripts/verify-model.mjs` 等开发脚本仍直连，不属于生产。
+
+审计发现并修复：
+
+- **到点执行（Schedule）实际跑在 Claude Code CLI 上。** `schedule-task-runner.ts` 取 `descriptors()[0]`，而 Runtime 按 id 排序，`claude-code` 排在 `prologue` 前，且 Claude Code 适配器总会注册（Prologue 又是懒注册，启动初期根本不在列表里）。改为先等 Home 的 Prologue 适配器就绪、按 `PROLOGUE_RUNTIME_ID` 明确选用；没有 Prologue 时报错，不退回 CLI。
+- **Anthropic 缓存档位在无系统段时失效。** SDK 只在系统段上挂 `cache_control`，宿主文字生成只发一条用户消息，`best-effort`/`required` 实际一个缓存字段都没带。SDK 改为无系统段时挂在最后一条用户消息的末块；新包 `prologue-sdk-0.0.0-rc.1-cache-breakpoint.tgz`，见 `vendor/prologue-sdk/README.md`。
+
+另记：个人助理（`personal-assistant-*`）只有测试与脚本调用，生产未挂路由——不是绕过，是未上线，本项不接。
+
+### MiniMax 实测
+
+隔离 Home（临时目录），模型设为 MiniMax-M3（anthropic-messages，`https://api.minimaxi.com/anthropic`）。密钥由测试脚本在进程内从真实 Home 的密钥库读出、只发给本机测试服务，不落日志。每条从产品真实入口（插件 HTTP 路由或页面）触发，并核对结果写进原业务数据。
+
+| 入口 | 链路 | 结果 |
+| --- | --- | --- |
+| 模型连接测试 | Settings → `createPrologueNodeAdapter` | 通过，1.5 s，回报 input/output/cached_input 用量 |
+| Context Onboarding | 页面粘贴资料 → Cognia Prologue 端口 | 通过，生成带 [S1] 引用的项目摘要，采用后建项目并写成 Pages 文档 |
+| Pages 写作助手 | `/api/pages/:id/ai` → `completeText` | 通过，2.4 s；采用后文档 v2，重读含结果 |
+| 材料生成文稿（Inbox 同一动作） | `pages.generate`（经 Action 网关，授权后） → `completeText` | 通过，3.9 s，新文档落库 |
+| Form AI 拟题 | `/api/form/:id/generate-ai-question` | 通过，1.1 s，题目追加、问卷 v2 |
+| Dataset AI 加列 | `/api/dataset/:id/generate-ai-column` | 3 次通过（0.8–1.5 s）；首次模型答了多行，被原有校验拒绝且未写入 |
+| 灵光对话 | `/api/lingguang/conversations/:id/messages` | 通过，10 s，重开保留历史 |
+| Jelly 提炼 / 拆解 | `/api/jelly/ai` digest、decompose | 通过，7 s / 2.2 s；摘要带证据存回灵感、原文保留，计划含排期 |
+| Workflows AI 交接 | `/api/workflows/instances/:id/continue`（灵光→Pages，ai 段） | 通过，1.6 s，交接结果落成 Pages 文档 |
+| 信息助手 | `/api/assistant/plan` | 通过，1.5 s；Inbox 为空时如实说明、不给动作 |
+| Cognia 知识问答 | `/api/cognia/ai` query（Prologue Agent run） | 通过，2.3 s，带引用草稿 |
+| Alchemist 对话 | studio `/conversation/messages` | 通过，6.6 s，回复标注 `Prologue · Minimax · MiniMax-M3` 并落库 |
+| Coding | 会话 runtime `prologue`，discuss 轮 | 通过，4 s；list/read 工作区文件后给出正确合计 |
+| 插件创作台 | studio builds（designer run） | 通过；run 记录 `configuredModel`/`reportedModels` 均为 MiniMax-M3，按产品流程停在 3 个澄清问题 |
+| TypeSafe | Functions 试跑 → `evaluateTypeSafe`（真实 TypeSafe 服务） | 通过，0.9 s，model `jev-1.13.0`，结果存为 last_preview |
+| 缓存档位 | provider 设 `best-effort` 后发文字请求 | MiniMax 接受用户消息上的断点，两次 200 |
+| 到点执行（修复后） | Schedule 任务 → AgentHost `prologue` 只读角色 | 通过：10:09 到点，30 s 轮询内执行，读 budget.md 后回写一轮回复；本机装有 Claude Code CLI，但测试工作区没有产生任何 CLI 会话记录 |
+
+未实测：**图片生成**——本机没有配置图片服务（OpenAI/Gemini），MiniMax 不是这两种协议；仍靠既有注入测试与 SDK 回环测试。
+
+证据说明：文字类调用走一次性会话，不留 run 文件；判断依据是审计已确认生产里没有 Prologue 以外能发出模型请求的路径，加上 Alchemist/插件创作台/Coding 回执中的 Prologue 标记与厂商回报模型名。
+
+### 状态
+
+在上述口径下，现有生产 AI 调用已全部经 Prologue，并已用 MiniMax 逐条实测（图片除外，原因见上）。暂缓项另行立项。

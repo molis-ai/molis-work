@@ -1,6 +1,19 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-coding-inference.tgz`（2026-09-26，main 与 Coding 分支 `codex/molis-work-goal-continue` 合并时合成）。它同时包含两条累计补丁线：Coding 线的 [parent-reads.patch](parent-reads.patch)（子任务、角色工具、父任务只读子目录、大文件读、同状态回报等，见下「Coding 线」）与共享推理线的 [bounded-inference.patch](bounded-inference.patch)（有界文字、OpenAI/Gemini 图片、原生 TypeSafe、每次网络 dispatch 前的 Host 权限复核，见下「共享推理线」）。两条线都相对同一基线，回环修复两边都带着。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-cache-breakpoint.tgz`（2026-09-26）。在下面的 coding-inference 之上，**没有系统段时把 Anthropic 缓存断点挂到最后一条用户消息的末块上**：宿主文字生成只发一条用户消息，原来缓存档位开着、请求体里却一个 `cache_control` 都没有，`required` 照价收费而调用方以为命中。有系统段时仍只挂系统段；`off` 档一个字段都不加。另修了 `test/host-agnostic-adapters.test.ts` 那处 `ImagePayload` 类型错误。
+
+- 源仓库、基线、本地源码同下（`/Users/yijunwang/code/prologue-molis-integrated`，基线 `a7e785b8`）。
+- 未提交源码修改：[cache-breakpoint.patch](cache-breakpoint.patch)，相对基线的**累计**补丁（74 个文件），在干净的基线 checkout 上 `git apply --check` 通过。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`61bb2ee7a56b70c42e5a65dbbec3159cf08620a9f75f1d9672238aaa5d7bb964`
+
+重建：同下，把补丁换成 `cache-breakpoint.patch`，`pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-cache-breakpoint.tgz`。
+
+核对：SDK 构建与类型检查（`tsconfig.typecheck.json`）通过，类型错误清零。新增 `test/prompt-cache-breakpoint.test.ts` 6 项通过（一次性会话无系统段时 best-effort/required 挂在用户消息上、off 不带字段、有系统段只挂系统段、带附件落在正文块、多轮只挂最后一条用户消息）；原 `prompt-cache-prefix` 5 项通过。SDK 全量 3315 项：3291 通过、20 跳过、4 失败——其中 3 个是下面记录的共享推理线既有失败；`agent-context.live` 的「磁盘上有，但默认集合里看不见」在与 GoalBoard 全量构建并跑时超时，单独重跑 5/5 通过。
+
+## 上一依赖：main 与 Coding 线合成
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-coding-inference.tgz`（2026-09-26，main 与 Coding 分支 `codex/molis-work-goal-continue` 合并时合成）。它同时包含两条累计补丁线：Coding 线的 [parent-reads.patch](parent-reads.patch)（子任务、角色工具、父任务只读子目录、大文件读、同状态回报等，见下「Coding 线」）与共享推理线的 [bounded-inference.patch](bounded-inference.patch)（有界文字、OpenAI/Gemini 图片、原生 TypeSafe、每次网络 dispatch 前的 Host 权限复核，见下「共享推理线」）。两条线都相对同一基线，回环修复两边都带着。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。

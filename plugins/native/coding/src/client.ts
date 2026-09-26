@@ -1405,9 +1405,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const next=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/continuation');
       if(current!==id)return;
       // A plan round continues on its own graph; everything else starts a fresh round with the Host's facts.
+      // The rest of a plan runs the way the person picks now: steps left after subtasks (such as running the tests) may
+      // need execution rather than another round of parallel writers.
+      const chosen=q('[data-coding-intent]').value,intent=next.continue_step_board_of&&['execute','parallel'].includes(chosen)?chosen:next.intent;
       // A parallel round goes on with the directories it was given; the saved split is what those subtasks used.
-      const selection=currentSelection(id);if(next.intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
-      await startRound(id,next.task,next.intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{});
+      const selection=currentSelection(id);if(intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
+      await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{});
       status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
       pinned=true;await refreshState();await readCurrent();
     } catch(error) {if(current===id)status(error.message,true);}

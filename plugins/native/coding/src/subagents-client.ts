@@ -32,6 +32,11 @@ export const CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
           }catch(error){if(current()===id)status(error.message,true);}finally{pending.delete(child.subagent_id);key='';}
         };
         if(child.state==='running')row.append(button('停止此子任务',()=>act('stop'),pending.has(child.subagent_id)));
+        // Ended badly but wrote files in its own directory: the work may be whole or partial, so it is shown, never assumed.
+        if(['failed','cancelled'].includes(child.state)&&child.integration_available&&(child.activity||[]).some(item=>['edit','write'].includes(item.name)&&item.state==='completed')){
+          row.append(el('p','这个子任务没有正常结束，但在自己的目录里改过文件；改动可能不完整，看过差异再决定是否整合。'));
+          row.append(button('查看改动并决定是否整合',()=>ports.openIntegration(id,group.run_id,child),pending.has(child.subagent_id)));
+        }
         if(child.state==='completed'){
           if(child.integration_available)row.append(button('查看成果并整合',()=>ports.openIntegration(id,group.run_id,child),pending.has(child.subagent_id)));
           const label=el('label'),input=el('textarea');label.className='mw-field';label.append(el('span','结果评价或返工原因'));input.className='mw-input';input.rows=2;input.maxLength=4000;input.dataset.feedback=child.subagent_id;

@@ -49,7 +49,7 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(child.error){let error=node.querySelector('.coding-child-error');if(!error){error=el('p','coding-child-error');node.querySelector('.coding-child-foot').before(error);}
       const explained=timeline.explainFailure?.(child.error);error.replaceChildren();
       if(explained){error.append(el('strong','',explained.title),document.createTextNode('：'+explained.hint),el('span','coding-child-error-code',child.error));}else error.textContent=child.error;}
-    const foot=node.querySelector('.coding-child-foot'),key=JSON.stringify([child.state,verdict,child.integration_available]);
+    const foot=node.querySelector('.coding-child-foot'),key=JSON.stringify([child.state,verdict,child.integration_available,edited.length>0]);
     if(foot.dataset.key!==key){
       foot.dataset.key=key;foot.replaceChildren();
       if(child.state==='running'){const stop=el('button','mw-btn mw-btn--ghost','停止这个子任务');stop.type='button';stop.addEventListener('click',async()=>{stop.disabled=true;const id=current();
@@ -58,6 +58,8 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(child.state==='completed'){const judge=el('button','mw-btn mw-btn--ghost',child.integration_available?'评价并整合成果':'评价结论');judge.type='button';judge.addEventListener('click',()=>openInPanel(child.subagent_id));foot.append(judge);}
       // A failed or stopped child is sent again by the parent, never re-run behind its back: a live parent is asked through the
       // supplemental channel; an ended one gets the request in the composer, sent only when the person chooses.
+      // A child that ended badly may still have written real work in its own directory; the person looks before deciding.
+      if(['failed','cancelled'].includes(child.state)&&child.integration_available&&edited.length){const look=el('button','mw-btn mw-btn--ghost','查看改动并决定是否整合');look.type='button';look.addEventListener('click',()=>openInPanel(child.subagent_id));foot.append(look);}
       if(['failed','cancelled'].includes(child.state)){const retry=el('button','mw-btn mw-btn--ghost','重试这个子任务');retry.type='button';retry.addEventListener('click',async()=>{
         // A dispatch key already used names the same dispatch and returns the stopped result instead of running again.
         const ask='请重新派出子任务「'+(child.role_name||child.role_id)+'」，沿用原分工，并用一个没用过的 idempotencyKey（原来的标识会被当成同一次派出，直接返回已停止的结果，不会重跑）'+(child.error?'；上次没有完成的原因：'+child.error:'')+'。原分工：\\n'+(child.task||'');

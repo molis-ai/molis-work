@@ -259,7 +259,9 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const run = await prologue.read(ref);
     if (!["completed", "failed", "cancelled", "stopped"].includes(run.phase) || run.frozen.role_id !== "writers" || session.latest_run && !["completed", "failed", "cancelled", "stopped"].includes(session.latest_run.phase)) throw new Error("父任务仍在执行或需核对，暂不能整合");
     const children = await prologue.subagents.list(ref), child = children.find(c => c.subagent_id === source.subagent_id);
-    if (!child || child.state !== "completed" || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
+    // Any ended child may be brought back: one that ran out of turns after writing and testing its files still did the
+    // work. What lands is exactly what the person reviews file by file, re-checked at approval; unknown outcomes still block.
+    if (!child || !["completed", "failed", "cancelled"].includes(child.state) || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
     const granted = options.workspacesFor ? await options.workspacesFor(project.project_id)
       : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === run.frozen.directory.canonical_path);

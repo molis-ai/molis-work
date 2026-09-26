@@ -86,7 +86,6 @@ export {
   FILES_PROJECT_PLUGIN_ID,
   FILES_SELECTION_OUTPUT_PORT,
   FILES_WORKSPACE_INPUT_PORT,
-  FILES_WORKSPACE_SOURCE,
   filesManifest,
 } from "./manifest.js";
 export {

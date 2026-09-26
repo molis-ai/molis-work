@@ -142,8 +142,3 @@ export const filesManifest: PluginManifest = {
   },
 };
 
-/** @deprecated Historical binding only. Read projectSettingsCapabilities.browsingWorkspace. */
-export const FILES_WORKSPACE_SOURCE = {
-  source_plugin_id: "io.molis.work.workspace",
-  source_port: "workspace",
-} as const;

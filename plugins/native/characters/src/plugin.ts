@@ -6,7 +6,8 @@ import { charactersUiContribution } from "./ui.js";
 import type { CharactersImportPorts } from "./imports.js";
 import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindOwnerPluginAction, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { charactersActions } from "./actions.js";
 
 export interface CharactersPluginPorts {
   imports?: CharactersImportPorts;
@@ -36,15 +37,6 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
       return request.body as Record<string, unknown>;
     };
-    const route = (route_id: string, action: (request: PluginRouteRequest) => unknown): PluginRouteBinding => ({ route_id, async handle(request) {
-      if (request.actor_id !== ports.actorId) return { status: 403, body: { error: "不能操作其他人的角色" } };
-      try { return { status: 200, body: await action(request) }; }
-      catch (error) {
-        const code = (error as { code?: string }).code;
-        return { status: code === "character.conflict" ? 409 : code === "character.not_found" ? 404 : 400,
-          body: { error: error instanceof Error ? error.message : "角色操作失败", ...(code ? { code } : {}) } };
-      }
-    } });
     const imports = () => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
     const actionCatalog = async () => {
       const api = context.services?.capabilities;
@@ -62,52 +54,35 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         if (!view.availability.available) throw new Error(view.availability.reason);
       }
     };
-    const publication = (request: PluginRouteRequest, requireActive = true) => {
-      const input = body(request), ref = input.reference as ArtifactReference | undefined;
+    const publication = (input: Record<string, unknown>, requireActive = true) => {
+      const ref = input.reference as ArtifactReference | undefined;
       const record = publications().find(item => item.artifact_id === ref?.artifact_id && item.version === ref.version);
       if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw new Error("请选择当前项目已发布的角色版本");
       const content = parseCharacterContent(record.payload), draft = ports.drafts.get(content.character_id);
       if (requireActive && (!draft || draft.state !== "active")) throw new Error("该角色已停用或删除");
       return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
     };
-    return { kind: "app", views: [charactersUiContribution], routes: [
-      route("characters.actions", async () => ({ actions: await actionCatalog() })),
-      route("characters.discover", request => ({ candidates: imports().discover(body(request)).map(candidate => ({ ...candidate, snapshot: characterSnapshotPreview(candidate.snapshot) })) })),
-      route("characters.import-file", request => { const input = body(request); return imports().previewFile(input.candidate_id as string, input); }),
-      route("characters.draft-file", request => characterFilePreview(ports.drafts.get(request.params.id ?? "")?.import_snapshot, body(request))),
-      route("characters.publication-file", request => characterFilePreview(publication(request, false).content.import_snapshot, body(request))),
-      route("characters.import", request => {
-        const input = body(request);
-        const result = imports().import(input.candidate_id as string, input.selection as Parameters<CharactersImportPorts["import"]>[1], input.existing as Parameters<CharactersImportPorts["import"]>[2]);
-        return { ...result, draft: characterBrowserPreview(result.draft) };
+    const a = charactersActions;
+    const handlers = [
+      bindOwnerPluginAction(context, a.list, () => ({ drafts: ports.drafts.list().map(characterBrowserPreview),
+        publications: publications().map(record => ({ ...record, payload: characterBrowserPreview(parseCharacterContent(record.payload)) })) })),
+      bindOwnerPluginAction(context, a.actions, async () => ({ actions: [...await actionCatalog()] })),
+      bindOwnerPluginAction(context, a.create, () => ({ draft: ports.drafts.create() })),
+      bindOwnerPluginAction(context, a.update, input => ({ draft: characterBrowserPreview(ports.drafts.update(input.id, input.expected_revision, {
+        title: input.title as string, instructions: input.instructions as string, host_tools: input.host_tools as string[] | null,
+        ...(input.action_tools === undefined ? {} : { action_tools: input.action_tools as import("@molis-ai/molis-work-contracts/modules/characters").CharacterDraftPatch["action_tools"] }),
+      })) })),
+      bindOwnerPluginAction(context, a.state, async (input, beforeWrite) => {
+        if (input.state === "active") await validateActions(ports.drafts.get(input.id)?.action_tools);
+        await beforeWrite();
+        return { draft: characterBrowserPreview(ports.drafts.setState(input.id, input.expected_revision, input.state)) };
       }),
-      route("characters.execution", request => imports().execution(publication(request).content)),
-      route("characters.launch", request => { const selected = publication(request); return imports().launch(selected.content, selected.reference, body(request) as unknown as Parameters<CharactersImportPorts["launch"]>[2]); }),
-      route("characters.runs", request => {
-        if (!ports.drafts.get(request.params.id ?? "")) throw new Error("角色不存在");
-        return imports().runs(request.params.id ?? "").then(runs => ({ runs }));
-      }),
-      route("characters.list", () => ({ drafts: ports.drafts.list().map(characterBrowserPreview), publications: publications().map(record => ({ ...record, payload: characterBrowserPreview(parseCharacterContent(record.payload)) })) })),
-      route("characters.create", () => ({ draft: ports.drafts.create() })),
-      route("characters.update", request => {
-        const input = body(request);
-        return { draft: characterBrowserPreview(ports.drafts.update(request.params.id ?? "", input.expected_revision as number, {
-          title: input.title as string, instructions: input.instructions as string, host_tools: input.host_tools as string[] | null,
-          ...(input.action_tools === undefined ? {} : { action_tools: input.action_tools as import("@molis-ai/molis-work-contracts/modules/characters").CharacterDraftPatch["action_tools"] }),
-        })) };
-      }),
-      route("characters.state", async request => {
-        const input = body(request);
-        if (input.state === "active") await validateActions(ports.drafts.get(request.params.id ?? "")?.action_tools);
-        return { draft: characterBrowserPreview(ports.drafts.setState(request.params.id ?? "", input.expected_revision as number,
-          input.state as "active" | "disabled" | "tombstoned")) };
-      }),
-      route("characters.publish", async request => {
-        const input = body(request);
-        const draft = ports.drafts.get(request.params.id ?? "");
+      bindOwnerPluginAction(context, a.publish, async (input, beforeWrite) => {
+        const draft = ports.drafts.get(input.id);
         if (!draft || draft.revision !== input.expected_revision) throw Object.assign(new Error("草稿已变化，请重新读取后发布"), { code: "character.conflict" });
         await validateActions(draft.action_tools);
-        const result = ports.publish(request.params.id ?? "", input.expected_revision as number, content => {
+        await beforeWrite();
+        const result = ports.publish(input.id, input.expected_revision, content => {
           const artifact_id = `character:${boardId}:${content.character_id}`;
           const existing = publications().filter(record => record.artifact_id === artifact_id).sort((a, b) => b.version - a.version);
           const same = existing.find(record => record.lifecycle_state === "active" && record.availability === "available"
@@ -123,6 +98,54 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         });
         return { reference: { artifact_id: result.artifact.artifact_id, version: result.artifact.version }, publication: { ...result.artifact, payload: characterBrowserPreview(parseCharacterContent(result.artifact.payload)) }, replayed: result.replayed };
       }),
+      bindOwnerPluginAction(context, a.runs, input => {
+        if (!ports.drafts.get(input.id)) throw new Error("角色不存在");
+        return imports().runs(input.id).then(runs => ({ runs }));
+      }),
+      bindOwnerPluginAction(context, a.discover, input => ({ candidates: imports().discover(input).map(candidate => ({ ...candidate, snapshot: characterSnapshotPreview(candidate.snapshot) })) })),
+      bindOwnerPluginAction(context, a.importFile, input => imports().previewFile(input.candidate_id as string, input)),
+      bindOwnerPluginAction(context, a.import, input => {
+        const result = imports().import(input.candidate_id as string, input.selection as Parameters<CharactersImportPorts["import"]>[1], input.existing as Parameters<CharactersImportPorts["import"]>[2]);
+        return { ...result, draft: characterBrowserPreview(result.draft) };
+      }),
+      bindOwnerPluginAction(context, a.draftFile, input => characterFilePreview(ports.drafts.get(String(input.id))?.import_snapshot, input)),
+      bindOwnerPluginAction(context, a.publicationFile, input => characterFilePreview(publication(input, false).content.import_snapshot, input)),
+      bindOwnerPluginAction(context, a.execution, input => imports().execution(publication(input).content)),
+      bindOwnerPluginAction(context, a.launch, input => { const selected = publication(input); return imports().launch(selected.content, selected.reference, input as unknown as Parameters<CharactersImportPorts["launch"]>[2]); }),
+    ];
+    // The old paths translate parameters and keep their status codes; execution is the registered owner-bound action.
+    const route = <I, O>(route_id: string, definition: ActionDefinition<I, O>, input: (request: PluginRouteRequest) => I): PluginRouteBinding => ({ route_id, async handle(request) {
+      if (request.actor_id !== ports.actorId) return { status: 403, body: { error: "不能操作其他人的角色" } };
+      try {
+        if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
+        return { status: 200, body: await context.services.actions.invoke(definition, input(request)) };
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        const status = code === "character.conflict" ? 409 : code === "character.not_found" || code === "actions.missing" ? 404
+          : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : 400;
+        return { status, body: { error: error instanceof Error ? error.message : "角色操作失败", ...(code ? { code } : {}) } };
+      }
+    } });
+    const id = (request: PluginRouteRequest) => request.params.id ?? "";
+    return { kind: "app", views: [charactersUiContribution], actions: handlers, routes: [
+      route("characters.actions", a.actions, () => ({})),
+      route("characters.discover", a.discover, request => body(request)),
+      route("characters.import-file", a.importFile, request => body(request)),
+      route("characters.draft-file", a.draftFile, request => ({ ...body(request), id: id(request) })),
+      route("characters.publication-file", a.publicationFile, request => body(request)),
+      route("characters.import", a.import, request => body(request)),
+      route("characters.execution", a.execution, request => ({ reference: body(request).reference as ArtifactReference })),
+      route("characters.launch", a.launch, request => body(request)),
+      route("characters.runs", a.runs, request => ({ id: id(request) })),
+      route("characters.list", a.list, () => ({})),
+      route("characters.create", a.create, () => ({})),
+      route("characters.update", a.update, request => {
+        const input = body(request);
+        return { id: id(request), expected_revision: input.expected_revision as number, title: input.title as string, instructions: input.instructions as string,
+          host_tools: input.host_tools as string[] | null, ...(input.action_tools === undefined ? {} : { action_tools: input.action_tools as unknown[] | null }) };
+      }),
+      route("characters.state", a.state, request => { const input = body(request); return { id: id(request), expected_revision: input.expected_revision as number, state: input.state as "active" }; }),
+      route("characters.publish", a.publish, request => ({ id: id(request), expected_revision: body(request).expected_revision as number })),
     ] };
   } };
 }

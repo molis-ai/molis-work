@@ -1529,3 +1529,9 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 资源读取同样进入目录：上次列出时提供资源的连接登记一项「读取 MCP 资源」（`mcp.connector.<连接>.resources.read`，按协议本身是读取，登记为 query），设置页「读取 MCP 资源」薄转发到它。
 - 验证：`tests/connector-mcp.test.ts` 新增用例（真实 MCP 服务：列出前目录无条目、列出后出现且只列不调用、经目录调用到达服务一次、调用记录、无权限不到达服务、重启带回同一版本、断开后不可用并拒绝调用），该文件 10 项与连接器相关 32 项通过。浏览器实操（1280）：服务连接 → Figma → 官方 MCP（本机 3845 端口的测试服务）→ 连接并发现工具 → 「调用 MCP 工具」save_note，服务实际收到笔记；调用记录出现「save_note · Figma · 你 · mcp.connector.…@1」；能力库显示可使用；项目流程的可选步骤出现 Figma · save_note（字段 note）；断开后能力库显示「连接「Figma」已断开，请在服务连接中重新授权」。
 - 读写区分：官方客户端返回的工具带 `readOnlyHint` 等提示，但方案规定提示不是授权来源，这里与 Coding 外部 MCP 一致，全部按外部写入处理。Coding 外部 MCP 所用 Prologue SDK 的工具快照（`McpToolSpec`）只有名称、描述、形状指纹与输入形状，没有这些提示，读写区分须待 SDK 提供。
+
+## 全量非浏览器回归（2026-09-27 第三次）
+
+- 服务连接远程 MCP、流程动作筛选、Shelf 字段标题、Goals 快照合同修复之后：本分支 2629 项中 2564 通过、62 失败。与 main 基线对比，61 项在 main 上同样失败，main 上另有 15 项在本分支通过。
+- 唯一仅本分支失败的是 `secret-store-keychain-retry` 的「Keychain 超时」用例：它调用真实 macOS 钥匙串并有 6 秒超时，本分支未改动 `packages/storage` 与该用例；单独重跑时停在钥匙串访问、约一小时无输出后终止，未能得到对照结果，按环境相关处理，不宣称已排除。
+- Goals 快照合同：`goalInput.decomposition_review` 改为可为 null（合同类型本就是 `GoalDecompositionReview | null`），修复快照输出校验拒收真实合同修订、导致首页与设置页打不开的问题；新增用例修复前失败。该问题在 main 上同样存在，主检出尚未修改。

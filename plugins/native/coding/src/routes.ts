@@ -388,6 +388,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
       // A round that waited for other work takes over the item it waited as.
       ...(typeof body.queued_work_id === "string" ? { queued_work_id: body.queued_work_id } : {}),
+      // Listed in the project's work by the name the person sees (a new session is named from its first task).
+      session_title: !record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title,
   ...(mode === "digest" ? { history: "digest" as const } : {}),
   budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
   model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
@@ -493,7 +495,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     const sessions = execution.sessions.list(boardId);
     return { directory, text, overlaps: found.overlaps.map(overlap => {
       const other = sessions.find(entry => entry.runtime_session_id === overlap.work.session_id);
-      return { work_id: overlap.work.work_id, state: overlap.work.state, title: overlap.work.title, task: overlap.work.task, paths: overlap.paths,
+      return { work_id: overlap.work.work_id, state: overlap.work.state, title: other?.title ?? overlap.work.title, task: overlap.work.task, paths: overlap.paths,
         session_id: other?.session_id ?? null, ...(overlap.work.run_id ? { run_id: overlap.work.run_id } : {}), runtime_session_id: overlap.work.session_id };
     }) };
   };
@@ -1233,7 +1235,9 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
             : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
           if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
           const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
-          const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id }]);
+          const title = record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title;
+          if (title !== record.title) execution.sessions.rename(boardId, record.session_id, title, new Date().toISOString());
+          const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           const { wait_for: _dropped, ...rest } = body;
           saveQueued(record.session_id, { work_id: item.work_id, after: { work_id: target.work_id, session_id: target.runtime_session_id, ...(target.run_id ? { run_id: target.run_id } : {}), title: target.title },
             body: rest, actor_id: request.actor_id, at: new Date().toISOString() });

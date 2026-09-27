@@ -143,6 +143,8 @@ export interface PrologueStartInput {
   history?: "digest";
   /** The project work item this round waited as; it takes that item over. */
   queued_work_id?: string;
+  /** The session's name as the person sees it. */
+  session_title?: string;
 }
 
 /** Host observation times only; the SDK ledger owns content and execution state. */
@@ -553,6 +555,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       mode,
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
       ...(request.queued_work_id ? { queued_work_id: request.queued_work_id } : {}),
+      ...(request.session_title ? { session_title: request.session_title.slice(0, 120) } : {}),
     });
 
     const ref: AgentRunRef = {

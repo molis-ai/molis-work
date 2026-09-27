@@ -1439,7 +1439,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const head=document.createElement('h2');head.textContent='另一个会话正在改同样的文件';
     const list=document.createElement('ul');
     for(const overlap of overlaps){const item=document.createElement('li');const name=document.createElement('strong');name.textContent='「'+overlap.title+'」';
-      item.append(name,document.createTextNode((overlap.state==='running'?'正在进行':'在等待开始')+'：'+(overlap.task||'').split('\n')[0].slice(0,80)+'。重叠：'+overlap.paths.join('、')));list.append(item);}
+      item.append(name,document.createTextNode((overlap.state==='running'?'正在进行':'在等待开始')+'：'+(overlap.task||'').split('\\n')[0].slice(0,80)+'。重叠：'+overlap.paths.join('、')));list.append(item);}
     const hint=document.createElement('p');hint.textContent='两个会话同时改同一个文件，后写的一方可能覆盖前一方的修改。';
     const actions=document.createElement('div');actions.className='coding-overlap-actions';
     const choose=(value)=>{dialog.close();dialog.remove();resolve(value);};

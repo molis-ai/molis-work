@@ -224,7 +224,7 @@ export interface AgentProjectWorkCapability {
   /** `probe`: a round about to start (its directory and task or plan text); overlaps are found against it. */
   read(project: string, probe?: { session_id?: string; directory: string; text: string }): Promise<{ items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>;
   /** Hold a round until another piece of work finishes; the person decided. */
-  queue(project: string, input: { session: AgentSessionRef; directory: string; task: string; after: string }, actorId: string): Promise<AgentProjectWork>;
+  queue(project: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }, actorId: string): Promise<AgentProjectWork>;
   /** Give up a waiting item; `note` says why. */
   release(project: string, workId: string, actorId: string, note: string): Promise<void>;
 }
@@ -396,6 +396,8 @@ interface AgentStartRequestFields {
   continue_step_board_of?: string;
   /** The project work item this round waited as (see queueProjectRound); the round takes it over when it starts. */
   queued_work_id?: string;
+  /** The session's name as the person sees it, for the project's list of work under way. */
+  session_title?: string;
   /**
    * How earlier rounds of the session reach this one. Absent or `session` carries every earlier round verbatim, tool
    * output included. `digest` starts without that raw history: the task itself carries the caller's digest of earlier
@@ -1053,7 +1055,7 @@ export const agentHostCapabilities = {
   /** Hold a round until another piece of work in the project finishes. */
   queueProjectRound: {
     capability_id: "agent.project-work.queue.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string }], AgentProjectWork>,
+  } as HostCapabilityDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }], AgentProjectWork>,
   /** Give up a waiting round's item. */
   releaseProjectRound: {
     capability_id: "agent.project-work.release.v1", version: 1, operation: "command",

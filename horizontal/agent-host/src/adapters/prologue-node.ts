@@ -602,7 +602,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       async queue(project, input, actorId) {
         const index = await readIndex(input.session.session_id);
         if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
-        return projectWork.queue(project, { session: index.ref, title: index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
+        return projectWork.queue(project, { session: index.ref, title: input.title?.slice(0, 120) ?? index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
     },
@@ -971,7 +971,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       // A main round is work under way in its project until it ends; a subtask's work is its parent's.
       if (!none && input.root_path && !index.parent_run) {
         try {
-          const workId = await projectWork.begin(project, { session: session.ref, run_id: started.run.ref.id, title: index.title, task: input.task,
+          const workId = await projectWork.begin(project, { session: session.ref, run_id: started.run.ref.id, title: input.session_title ?? index.title, task: input.task,
             directory: input.root_path, paths: scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
           runWork.set(started.run.ref.id, { project, id: workId, session: session.ref, directory: input.root_path });
         } catch { /* not listed as project work; the round itself is unaffected */ }

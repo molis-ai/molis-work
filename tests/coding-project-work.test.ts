@@ -41,9 +41,10 @@ test("sessions in one project see each other's work: overlaps before a round sta
     const host = new AgentHost({ reviews: queue }); host.register(adapter);
     const owner = { board_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
     const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] };
-    const sessionA = await adapter.createSession({ ...owner, directory, title: "改标签格式" });
+    const sessionA = await adapter.createSession({ ...owner, directory, title: "新编码会话" });
     const sessionB = await adapter.createSession({ ...owner, directory, title: "标签加前缀" });
-    const a = await host.start("prologue", { ...owner, session: sessionA, directory, role_id: "reader", task: "A_TASK 看看 src/label.ts 该怎么改格式" } as never, authority);
+    // A was created under a placeholder name; the person sees it by the name given with its round.
+    const a = await host.start("prologue", { ...owner, session: sessionA, directory, role_id: "reader", task: "A_TASK 看看 src/label.ts 该怎么改格式", session_title: "改标签格式" } as never, authority);
     const work = adapter.projectWork!;
     for (const deadline = Date.now() + 10_000; !(await work.read("b")).items.some(item => item.state === "running");) {
       if (Date.now() > deadline) throw new Error("A never listed " + JSON.stringify((await work.read("b")).items)); await new Promise(resolve => setTimeout(resolve, 20));

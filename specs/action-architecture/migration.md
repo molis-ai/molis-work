@@ -1509,8 +1509,9 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 内置 Agent 只看到「对外接入」授予「内置 Agent（Prologue）」的能力，以及默认开放的无额外权限查询；Character 只能在此范围内进一步缩小。这是设计，不是遗漏。
 - 实操（1280，预览 Home）：新建角色，取消「沿用任务选择的能力」，目录只有 7 项默认查询 → 在「对外接入」给内置 Agent 授权「Feed · 可交接内容」→ 回到角色刷新，出现该项 → 勾选并保存草稿（修订 2）→ 能力库该能力「已用在哪」列出：角色「新角色」、内置 Agent 授权，以及 4 个工作流程第 1 站（含新建的「消息收进 Shelf」）→ 撤销授权后重开角色，引用保留并显示「原能力、版本或授权不可用；引用保留，可明确移除」，没有被静默删除。
 
-## 同一进程内第二个 Host 不再因推理归属启动失败（2026-09-27）
+## 一个 Home 在一个进程内只有一个 Runtime 归属：测试夹具对齐（2026-09-27）
 
-- 带 Home 的 Host 构造时会启动系统 Agent 服务，并把该 Home 的推理与构建服务登记到进程内注册表；同一进程内第二个 Host（如网页服务与 MCP 服务并排启动、测试中的授权辅助 Host）原本直接抛出「这个 Home 已有运行中的推理服务」而无法构造。现在沿用已有归属：引用仍解析到第一个 Host，第二个 Host 保留自己的动作目录。构建服务的重复登记也改用同一错误码识别。生产中独立进程启动的 stdio MCP 服务不受此影响。
-- 结果：`plugin-outbound-mcp` 20 项全部通过（此前 Form/PPT 工具在新连接中出现、MCP 连接恢复会话、方法关闭同步等 4 项失败，main 上同样失败），正式 Goals MCP 别名授权、mcp server、工作区自动连接等用例随之通过。受影响的 88 个文件从 11 项失败降为 4 项，余下为设置导航、左栏展开、行状态样式与终端客户端的界面断言，main 上同样失败。
-- `project-settings-deletion` 夹具的 Host 原先不带 Home（生产中网页服务的 Host 总带 Home），Inbox 个人服务缺失导致 500；已对齐。该用例现在止于设置导航链接的界面断言，属界面改版范围。
+- 带 Home 的 Host 会启动系统 Agent 服务并登记该 Home 的推理归属；同一进程内再建第二个同 Home 的 Host 会抛出 `inference.home_in_use`。这是有意的约束（`tests/images-actions.test.ts` 明确断言「一个 Home 不能悄悄获得第二个 Runtime 归属」）。生产中网页服务与各 MCP 客户端是独立进程，不受影响。
+- 曾尝试让第二个 Host 沿用已有归属，全量对比发现它破坏上述约束（第二个 Host 仍会在同一存储上组装自己的 Agent 服务），已撤回。
+- 改为修正在一个进程里模拟多个进程的旧夹具（均在 main 上失败）：重启类用例先关闭前一个服务再开下一个（`plugin-outbound-mcp` 4 项、`mcp`、`jelly-actions`）；经常驻服务通道转发的 MCP 服务在同进程内共用常驻 Host（`goals-mcp-aliases`、`action-gateway`，调用仍走网关 URL）；`project-settings-deletion` 的 Host 与生产一致地带上 Home。
+- 仍失败且保留：`alchemist-host-lifecycle` 的「多个 Host 并存」用例（其场景在同一进程内已不可能；改用不同路径模拟另一进程后任务协调超时，未强行改动）；`project-settings-deletion` 止于设置导航链接的界面断言；`images-actions` 的凭据引用用例。三者在 main 上同样失败。

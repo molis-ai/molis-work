@@ -371,6 +371,8 @@ test("turning a method off updates existing and new MCP connections and refuses 
   assert.equal(staleCall.result.isError, true);
   assert.match(staleCall.result.content[0]?.text ?? "", /"code":"mcp\.tool_disabled"/);
 
+  // Each MCP client is its own process in production; one Home has one Runtime owner per process, so the earlier server closes first.
+  await open.close();
   const closed = new MolisWorkServer("runtime", null, host);
   t.after(() => closed.close());
   const after = await listToolNames(closed);
@@ -677,6 +679,8 @@ test("enabled Form tools appear on a new bound connection and stay hidden while 
 
   const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Form MCP", actor_id: "user" }));
   const connection = { databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id, webBaseUrl: runtimeHost.webBaseUrl };
+  // Each MCP client is its own process in production; one Home has one Runtime owner per process, so the earlier server closes first.
+  await unbound.close();
   await grantNativeTools(home, connection, formManifest, ["list", "create"]);
   const bound = new MolisWorkServer("runtime", connection, runtimeHost);
   t.after(() => bound.close());
@@ -723,6 +727,8 @@ test("enabled PPT tools appear on a new bound connection and stay hidden while u
 
   const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "PPT MCP", actor_id: "user" }));
   const connection = { databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id, webBaseUrl: runtimeHost.webBaseUrl };
+  // Each MCP client is its own process in production; one Home has one Runtime owner per process, so the earlier server closes first.
+  await unbound.close();
   await grantNativeTools(home, connection, pptManifest, ["list", "create"]);
   const bound = new MolisWorkServer("runtime", connection, runtimeHost);
   t.after(() => bound.close());
@@ -785,7 +791,10 @@ test("a new MCP connection restores a bound session before freezing project-scop
   const createdPayload = JSON.parse(created.result.content[0]?.text ?? "{}") as { status: string };
   assert.equal(createdPayload.status, "bound", created.result.content[0]?.text);
 
-  await grantNativeTools(home, first.runtimeConnection!, formManifest, ["list"]);
+  // Each MCP client is its own process in production; one Home has one Runtime owner per process, so the earlier server closes first.
+  const firstConnection = first.runtimeConnection!;
+  await first.close();
+  await grantNativeTools(home, firstConnection, formManifest, ["list"]);
   const second = new MolisWorkServer("runtime", null, runtimeHost);
   t.after(() => second.close());
   const secondNames = await listToolNames(second);

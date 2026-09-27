@@ -20,7 +20,7 @@ export async function resolvePrologueInference(homeDirectory = resolveMolisWorkH
 const builderBindings = new Map<string, AgentHostComposition["createBuilderAgent"]>();
 export function bindPrologueBuilder(home: string, create: AgentHostComposition["createBuilderAgent"]): () => void {
   const key = path.resolve(home);
-  if (builderBindings.has(key) && builderBindings.get(key) !== create) throw new PrologueInferenceError("inference.home_in_use", "这个 Home 已有构建服务");
+  if (builderBindings.has(key) && builderBindings.get(key) !== create) throw new Error("这个 Home 已有构建服务");
   builderBindings.set(key, create);
   return () => { if (builderBindings.get(key) === create) builderBindings.delete(key); };
 }

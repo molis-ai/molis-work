@@ -28,7 +28,8 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined, { actions: { registry: localHost.actionRegistry(project), project_id: projectId } });
   const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
-  t.after(() => runtime.stop(install.install_id));
+  // Stopped once in the middle of the test to withdraw the provider; the store is closed by then.
+  let stopped = false; t.after(() => stopped ? undefined : runtime.stop(install.install_id));
   const ref = { capability_id: read.capability_id, version: 2, provider_id: install.install_id };
   const caller = { actor_id: "agent:prologue", project_id: projectId, audience: "agent" as const, permissions: [] };
   for (const view of (await localHost.inspectActions(caller, project)).filter(row => [read.capability_id, write.capability_id].includes(row.capability_id))) {
@@ -68,8 +69,10 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   const saved = await evaluate<any>(`fetch(${JSON.stringify(sessionPath)}).then(response=>response.json())`);
   assert.deepEqual(saved.action_tools, [ref]); assert.equal(saved.draft, "保留这段任务草稿");
   // Coding's rail button opens its session list; the session is opened from there, as a person does after a reload.
-  await runtime.stop(install.install_id); await b.reloadPage(); await open("coding");
-  await waitFor(`document.querySelector('[data-coding-session="${codingId}"]') !== null`); await click(`[data-coding-session="${codingId}"]`);
+  await runtime.stop(install.install_id); stopped = true; await b.reloadPage(); await open("coding");
+  // The list is drawn from the page first and redrawn once the state is read: click the row after it settles.
+  const row = `document.querySelector('[data-coding-session="${codingId}"]') !== null`;
+  await waitFor(row); await new Promise(resolve => setTimeout(resolve, 1000)); await waitFor(row); await click(`[data-coding-session="${codingId}"]`);
   await waitFor("document.querySelector('[data-coding-task]').value === '保留这段任务草稿'");
   await click('[data-coding-attach-toggle]'); await click('[data-coding-actions-open]'); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('原能力、版本或授权不可用')");
   assert.equal(await evaluate("document.querySelector('[data-coding-actions-list] input:checked') !== null"), true);
@@ -77,6 +80,8 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   await capture("coding-missing-narrow"); assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await click('[data-coding-actions-save]'); await waitFor("!document.querySelector('[data-coding-actions-dialog]').open");
   assert.deepEqual((await evaluate<any>(`fetch(${JSON.stringify(sessionPath)}).then(response=>response.json())`)).action_tools, [ref]);
+  // At phone width the rail folds away; the rest of the check is on the desktop layout again.
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await open("characters");
   await click(`[data-character-id="${draft.character_id}"]`);
   await waitFor("!document.querySelector('[data-character-workspace]').hidden");

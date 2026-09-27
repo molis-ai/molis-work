@@ -2,8 +2,21 @@ import { PrivateWorkContextError as MolisWorkSessionError } from "@molis-ai/moli
 import type { WorkSessionHttpContext } from "./types.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workActions } from "../actions.js";
+import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
 
-/** Workspace membership stays with Projects; Work owns the confirmed Session launch and recovery UI flow. */
+const actions = (context: WorkSessionHttpContext) => {
+  if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
+  return context.actions;
+};
+/** The same answers the page had before: unknown folder 404, a change that had to roll back or needs recovery 503. */
+function respondMembershipError(context: WorkSessionHttpContext, error: unknown): void {
+  const code = error instanceof ActionError ? error.code : "";
+  context.respond(code === "projects.workspace_not_found" ? 404
+    : error instanceof MolisWorkSessionError || code.startsWith("workspace.") || code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
+  { error: error instanceof Error ? error.message : String(error) });
+}
+
+/** Folder membership is a project setting kept by the Home catalog and changed through its actions; Work owns the page flow and the confirmed launch. */
 export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Promise<boolean> {
   const options = context.projectOptions;
   if (context.method === "POST" && context.pathname === "/api/workspaces/pick") {
@@ -40,8 +53,7 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       return true;
     }
     try {
-      const workspace = await context.workspace.add(workspacePath, options.project.project_id);
-      context.respond(201, { workspace });
+      context.respond(201, await actions(context).invoke(projectWorkspaceActions.add, { workspace_path: workspacePath }));
     } catch (error) {
       context.respond(400, { error: error instanceof Error ? error.message : String(error) });
     }
@@ -60,20 +72,10 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       context.respond(400, { error: "请输入新的绝对路径并确认修复" });
       return true;
     }
-    const current = await context.workspace.read(workspaceId);
-    if (!current) {
-      context.respond(404, { error: "找不到当前 Project 的这条工作目录" });
-      return true;
-    }
     try {
-      const normalized = context.workspace.normalize(nextPath);
-      if (!normalized) throw new Error("新的工作目录必须是绝对路径");
-      const result = await context.workspace.repair(current, normalized.canonical_path, options.project.project_id);
-      context.respond(200, result);
+      context.respond(200, await actions(context).invoke(projectWorkspaceActions.repair, { workspace_id: workspaceId, workspace_path: nextPath }));
     } catch (error) {
-      context.respond(error instanceof MolisWorkSessionError || context.workspace.isActionError(error) ? 503 : 400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      respondMembershipError(context, error);
     }
     return true;
   }
@@ -89,18 +91,10 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       context.respond(400, { error: "请确认解除当前 Project 的工作目录关系" });
       return true;
     }
-    const current = await context.workspace.read(workspaceId);
-    if (!current) {
-      context.respond(404, { error: "找不到当前 Project 的这条工作目录" });
-      return true;
-    }
     try {
-      const result = await context.workspace.unlink(current, options.project.project_id);
-      context.respond(200, result);
+      context.respond(200, await actions(context).invoke(projectWorkspaceActions.unlink, { workspace_id: workspaceId }));
     } catch (error) {
-      context.respond(error instanceof MolisWorkSessionError || context.workspace.isActionError(error) ? 503 : 400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      respondMembershipError(context, error);
     }
     return true;
   }

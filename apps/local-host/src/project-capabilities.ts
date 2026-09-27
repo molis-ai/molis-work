@@ -98,6 +98,12 @@ export function registerProjectCapabilities(
     host.register(projectSettingsCapabilities.browsingWorkspace, async (runtime) => {
       return new ProjectBrowsingSettings(runtime.store.db).read(runtime.board_id, await list(runtime));
     });
+    host.register(projectSettingsCapabilities.selectBrowsingWorkspace, async (runtime, [workspaceId], invocation) => {
+      const workspaces = await list(runtime);
+      if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw new ActionError("projects.workspace_unavailable", "请选择当前项目已关联且可用的工作目录");
+      await invocation.beforeEffect?.();
+      return new ProjectBrowsingSettings(runtime.store.db).select(runtime.board_id, workspaceId, workspaces);
+    });
   }
   if (workspaceFor !== undefined) {
     // Scoped to the runtime's own project: the Capability takes no project id,

@@ -25,7 +25,8 @@ import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-linggu
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import { EXTERNAL_MCP_PERMISSION } from "./external-mcp-actions.js";
 import { handleFunctionsHttp } from "./functions-http.js";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -161,7 +162,9 @@ export async function handleMolisWorkWebRequest(
           try {
             if (request.method === "POST") {
               const body = await readBody(request);
-              settings.select(options.boardId, body.workspace_id, workspaces);
+              // The choice is the same registered project setting every caller uses; this route only adapts the form.
+              if (typeof body.workspace_id !== "string" || !body.workspace_id) throw new Error("请选择当前项目已关联且可用的工作目录");
+              await bindLocalWebActions(localHost, hostReference, ["projects:settings"]).invoke(projectSettingsCapabilities.selectBrowsingWorkspace as unknown as ActionDefinition<[string], unknown>, [body.workspace_id]);
             }
             sendJson(response, 200, { workspaces, selected: settings.read(options.boardId, workspaces)?.workspace_id ?? null });
           } catch (error) { sendJson(response, 403, { error: error instanceof Error ? error.message : String(error) }); }
@@ -266,8 +269,8 @@ export async function handleMolisWorkWebRequest(
         }
         if (await handleSessions(request, response, url, serverOptions.homeDirectory, options, sessionResources, readWebView,
           bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", actor_kind: "user",
-            // Goal read lets a session association check the Goal through its owner.
-            project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read"] })))) return;
+            // Goal read lets a session association check the Goal through its owner; project settings cover the folder membership this page manages.
+            project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read", "projects:settings"] })))) return;
         if (await goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions)) return;
         if (await planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient()))) return;
         if (request.method === "GET" && url.pathname === "/health") {

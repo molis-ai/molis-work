@@ -1,6 +1,5 @@
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ProjectWorkspaceDirectoryRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { SessionContentService } from "../content.js";
 import type { SessionDirectoryService } from "../directory.js";
 import type { SessionHandoffService } from "../handoff.js";
@@ -24,10 +23,6 @@ export interface WorkSessionHttpContext {
   projectOptions: { project: ProjectOperationsProject | null; projects: readonly ProjectOperationsProject[] };
   hasCurrentGoal(goalId: string): boolean | Promise<boolean>;
   workspace: {
-    add(path: string, projectId: string): Promise<ProjectWorkspaceDirectoryRecord>;
-    repair(current: ProjectWorkspaceRecord, path: string, projectId: string): Promise<{ workspace: ProjectWorkspaceDirectoryRecord; updated_session_count: number }>;
-    unlink(current: ProjectWorkspaceRecord, projectId: string): Promise<{ changed: boolean; updated_session_count: number }>;
-    isActionError(error: unknown): boolean;
     read(workspaceId: string): Promise<ProjectWorkspaceRecord | null>;
     normalize(path: string): { workspace_id: string; canonical_path: string } | null | undefined;
     exists(path: string): boolean;

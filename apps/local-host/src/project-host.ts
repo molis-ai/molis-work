@@ -3,6 +3,7 @@ import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { homeActionProvider, createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { SessionRuntimeService } from "./session-runtime-resources.js";
 import { workActionProvider } from "./work-actions.js";
+import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
 import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
@@ -109,6 +110,7 @@ export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private personalPlanning?: PersonalPlanningActions;
   private personalPlanningHome?: string;
+  private catalogRunner?: LocalWebCatalogRunner;
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly images?: ImagesHostService;
   private readonly alchemist?: AlchemistHostService;
@@ -174,6 +176,8 @@ export class MolisWorkLocalHost {
             const registry = this.host.actionRegistry(reference);
             registry.registerProvider(goalsActionProvider(runtime, personalMethods));
             registry.registerProvider(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
+            registry.registerProvider(projectWorkspaceActionProvider(reference.project_id, this.sessions,
+              () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
             registry.registerProvider(artifactActionProvider(runtime, options));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) registry.registerProvider(provider);
             if (options.homeDirectory) registry.registerProvider(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
@@ -243,6 +247,7 @@ export class MolisWorkLocalHost {
     this.personalPlanningHome = canonicalHome;
     this.personalPlanning ??= new PersonalPlanningActions(canonicalHome, this.host.actionRegistry(), () => readPersonalPlanningMethodPacks(canonicalHome));
     this.personalPlanning.configure(withCatalog);
+    this.catalogRunner = withCatalog;
   }
 
   /** A transport borrows this service; only the Host owns its lifetime. */

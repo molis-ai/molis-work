@@ -1,7 +1,7 @@
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleWorkSessionHttp, MolisWorkWorkspaceActionError, repairProjectWorkspace, unlinkProjectWorkspace, type ProjectWorkspaceRecord } from "@molis-ai/molis-work-plugin-work";
+import { handleWorkSessionHttp, type ProjectWorkspaceRecord } from "@molis-ai/molis-work-plugin-work";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import { normalizeRuntimeWorkContext } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -40,23 +40,6 @@ export function createLocalWorkSessionHttp(withMolisWorkProjectCatalog: LocalWeb
       projectOptions: options,
       hasCurrentGoal: async (goalId) => (await readWebView()).goals.some((item) => item.goal.goal_id === goalId),
       workspace: {
-        add: (canonicalPath, projectId) => withMolisWorkProjectCatalog(
-          { homeDirectory: homeDirectory },
-          (catalog) => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true }),
-        ),
-        repair: async (current, canonicalPath, projectId) => {
-          const registry = (await sessionResources).registry;
-          const result = await withMolisWorkProjectCatalog({ homeDirectory: homeDirectory },
-            (catalog) => repairProjectWorkspace({ catalog, registry, current, canonicalPath, projectId, actorId: "web-user" }));
-          return { workspace: result.workspace, updated_session_count: result.sessions.length };
-        },
-        unlink: async (current, projectId) => {
-          const registry = (await sessionResources).registry;
-          const result = await withMolisWorkProjectCatalog({ homeDirectory: homeDirectory },
-            (catalog) => unlinkProjectWorkspace({ catalog, registry, current, projectId, actorId: "web-user" }));
-          return { changed: result.changed, updated_session_count: result.sessions.length };
-        },
-        isActionError: (error) => error instanceof MolisWorkWorkspaceActionError,
         read: readProjectWorkspaceRecord,
         normalize: (workspacePath) => normalizeRuntimeWorkContext({
           runtime_id: "molis-work-web",

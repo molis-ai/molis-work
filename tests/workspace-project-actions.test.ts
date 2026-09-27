@@ -19,6 +19,8 @@ test("project workspace actions require confirmation, repair matching Sessions, 
   await mkdir(repairedPath, { recursive: true });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "工作目录动作", actor_id: "user" });
+  // The workspace rows are shown by the Sessions view; the folder actions themselves do not depend on it.
+  if (!catalog.listProjectPlugins(project.project_id).includes("sessions")) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "user" });
   catalog.close();
 
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
@@ -133,3 +135,41 @@ test("project workspace actions require confirmation, repair matching Sessions, 
   }
 });
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+
+test("folder membership and the browsing choice are project settings: they work without the Sessions plugin and refuse folders of other projects", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-workspace-settings-"));
+  const home = path.join(directory, ".molis-work");
+  const folder = path.join(directory, "repository");
+  await mkdir(folder, { recursive: true });
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "没有会话插件", actor_id: "user" });
+  if (catalog.listProjectPlugins(project.project_id).includes("sessions")) catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "user" });
+  catalog.close();
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
+    const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
+    let key = 0;
+    const call = (pathname: string, method: string, body?: Record<string, unknown>) => fetch(`${origin}${prefix}${pathname}`, {
+      method, headers: { origin, "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": `settings-${key++}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
+
+    const added = await call("/api/workspaces", "POST", { workspace_path: folder, user_confirmed: true });
+    assert.equal(added.status, 201, await added.clone().text());
+    const { workspace } = await added.json() as { workspace: { workspace_id: string } };
+
+    const refused = await call("/api/project-settings/workspaces", "POST", { workspace_id: "workspace-of-another-project" });
+    assert.equal(refused.status, 403);
+    const chosen = await call("/api/project-settings/workspaces", "POST", { workspace_id: workspace.workspace_id });
+    assert.equal(chosen.status, 200, await chosen.clone().text());
+    assert.equal((await chosen.json() as { selected: string | null }).selected, workspace.workspace_id);
+    assert.equal((await (await call("/api/project-settings/workspaces", "GET")).json() as { selected: string | null }).selected, workspace.workspace_id);
+    const unknown = await call("/api/workspaces/workspace-unknown/unlink", "POST", { user_confirmed: true });
+    assert.equal(unknown.status, 404);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});

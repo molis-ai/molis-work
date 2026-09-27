@@ -80,6 +80,7 @@ const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label
   "stopped": { icon: "blocked", tone: "idle", label: "你停下的" },
   "cancelled": { icon: "x", tone: "idle", label: "已取消" },
   "reconcile-required": { icon: "circle-alert", tone: "attention", label: "需要你核对结果" },
+  "queued": { icon: "clock", tone: "attention", label: "挂起等待" },
   "done": { icon: "check", tone: "done", label: "本轮结束" },
 };
 
@@ -146,7 +147,9 @@ function renderEmpty(_p: CodingUiPrimitives): string {
 export function renderCodingWorkbench(model: CodingUiModel): string {
   const { primitives: p } = model;
   // Relative global URL survives the host's project-local link prefixing.
-  const settingsHref = "../".repeat(model.route_prefix.split("/").filter(Boolean).length) + "settings/coding-settings?project=" + encodeURIComponent(model.route_prefix.split("/").filter(Boolean).at(-1) ?? "");
+  const up = "../".repeat(model.route_prefix.split("/").filter(Boolean).length), project = encodeURIComponent(model.route_prefix.split("/").filter(Boolean).at(-1) ?? "");
+  const settingsHref = up + "settings/coding-settings?project=" + project;
+  const accessHref = up + "capabilities/access?client=agent%3Aprologue&project=" + project;
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell mw-layout-primitives" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
@@ -195,7 +198,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
     <dialog class="mw-dialog mw-dialog--form" data-coding-actions-dialog aria-label="选择动作能力"><form class="mw-form mw-dialog__shell" data-coding-actions-form>
       <header class="mw-form__header"><h2>下一轮使用的能力</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-actions-close":""}})}</header>
       <section class="mw-form__body"><p>从当前授权目录选择；Character 可以进一步限制范围。查询用于读取，判断和操作需要选择执行方式，调用时仍会检查权限。</p>
-      <p><a href="/capabilities/access?client=agent%3Aprologue">管理内置 Agent 授权</a></p><div data-coding-actions-list></div><p role="alert" data-coding-actions-error></p></section>
+      <p><a href="${p.escape(accessHref)}">管理内置 Agent 授权</a></p><div data-coding-actions-list></div><p role="alert" data-coding-actions-error></p></section>
       <footer class="mw-form__footer">${renderButton({label:"保存能力选择",type:"submit",attrs:{"data-coding-actions-save":""}})}</footer>
     </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-mcp-dialog aria-label="选择 MCP 工具与资料"><form class="mw-form mw-dialog__shell" data-coding-mcp-form>
@@ -256,7 +259,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <div class="coding-dialogue mw-frame" data-slot="frame" data-coding-dialogue>
         <header class="coding-dialogue-head mw-frame__header" data-coding-dialogue-head>
           <div class="coding-identity"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-directory-back" type="button" data-coding-directory-back aria-label="返回会话列表" title="会话列表">${p.icon("chevron-left")}</button><div class="coding-identity-copy mw-frame__heading"><h2 data-coding-title>选择或新建编码会话</h2><p class="coding-workspace-chip" data-coding-workspace-label>${renderWorkspaceLine(model.workspace_path, p)}</p></div></div>
-          <div class="coding-head-actions"><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button></div>
+          <div class="coding-head-actions"><span class="coding-phase" data-coding-phase hidden></span><button class="mw-btn mw-btn--ghost coding-priority-toggle" type="button" data-coding-priority aria-pressed="false" title="标成优先：和它范围重叠的会话会收到「请让出」的通知，不会被自动暂停" hidden>标为优先</button><button class="mw-btn mw-btn--ghost coding-results-toggle" type="button" data-coding-results-open aria-label="结果与审查">${p.icon("panel")}<span data-coding-results-label>结果与审查</span></button></div>
         </header>
         <section class="coding-delegation-banner" data-coding-delegation-banner aria-label="来自其他会话的委派" hidden></section>
         <template data-coding-welcome-template><div class="coding-welcome" data-coding-welcome><p class="coding-welcome-kicker">${p.icon("folder")}<span data-coding-welcome-workspace>${p.escape(model.workspace_path ? model.workspace_path.split("/").filter(Boolean).at(-1) ?? model.workspace_path : "当前工作区")}</span></p><h2>这次想完成什么？</h2><p>描述目标即可，我会先读代码再动手；每一处写入和命令都会先经你审查。</p><div class="coding-starters">${[
@@ -278,6 +281,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         </section>
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>回到最新</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
+        <div class="coding-queued" data-coding-queued role="status" hidden></div>
         <form class="coding-composer mw-frame__footer" data-coding-composer>
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
           ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
@@ -312,6 +316,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         ${model.companion_result ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
         <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="协作与相关会话" hidden></section>
+        <section class="coding-result coding-background" data-coding-background aria-label="后台命令" hidden></section>
         <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
         <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
           <h3>核对中断结果</h3>

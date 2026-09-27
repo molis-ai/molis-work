@@ -1,6 +1,40 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-ledger-status.tgz`（2026-09-27）。保留下面缓存修复及全部既有能力，补齐安全 HTTP 错误状态（400–599 整数）的 Session 账本保存与恢复；旧账本没有 status 仍可读，原始响应和任意错误附加属性不进入账本。工具超时默认值归 Runtime 配置，ToolCatalog 复用同一值，移除 runtime ↔ tool 双向依赖；默认 60 秒、App 上限覆盖和工具自身 deadline 均保持。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-claims.tgz`（2026-09-26 起，协同第一期"认领与任务图摘要"；2026-09-27 并入 Prologue 线的增量后，是 main 唯一的一条 SDK 补丁线）。在 coding-inference 合成包之上：
+
+- 任务图负责人可以是角色、会话（包括子任务的会话）或人；只有负责人能报告，报告记下是哪个会话、哪个人。
+- 新增 `handOver`：把没结束的一步从一个负责人交给另一个，状态与进展不动，留下交接记录；由人交接时记下是谁。
+- 宿主替人记录决定时用 `override` 并写明人，模型的任务图工具不能这样做。
+- `dispatch-subagent` 新增 `claims`：派出前整体核对，子任务开跑前接过这几步，结束时没做完的交回父会话；子任务总能看到读图和回报两个工具（`grantedTools`，不超过父任务本身的工具）。
+- 读图时负责人写成 `you (this session)`、`subagent <引用>`、`the session that dispatched you`。
+- 任务图事件带上图的编号（`board`）。
+- 常开的任务图（`standing: { keepFinished }`，协同第二期）：不因节点都结束而终止，可以空着开，只留最近加入的若干个已结束节点（还有人在等的不丢）；用作每个项目一张的"进行中的工作"。
+- 会话之间的信持久化（协同第三期）：信封记下 `inReplyTo`（答复哪一封，必须存在）、`awaitReply`（发信方在等答复）和 `sentAtMs`；投递箱可以存、重启后读回（`store`/`hydrate`/`flush`），可订阅（`subscribe`），可按收发方列出（`list`）。`session-send` 工具新增 `inReplyTo` 和 `wait`；`wait` 时回执提示模型说清在等什么并结束这一轮。
+- 后台命令与挂起唤醒（第四期）：
+  - `runtime.background`：后台命令属于会话（`background.outliveRun` 打开时，这一轮结束后继续跑；每个会话同时最多 `maxPerSession` 个），落盘；重启后原先在跑的记为 `interrupted`；Runtime 关闭时停掉还在跑的并记为被打断。后台命令和普通命令一样经审查，审查载荷标明 `background`、`outlivesRun`。
+  - `runtime.waits`：会话挂起，等一条后台命令结束或输出指定字样、等一封信被答复或了结、等任务图上一个节点结束；落盘，重启后补上挂起期间已满足的；触发后由 App 接着开下一轮（`resume`），或取消。
+  - 新系统工具 `await-commands`：一轮之内阻塞等（不调模型），或 `park: true` 挂起；子任务只能阻塞等，可以等父会话的后台命令。`session-send` 带 `wait` 时挂起在那封信上。命令结束时在下一次工具结果后提醒一次。
+- 其余协同场景（第五期）：挂起会成环时拒绝（`WAIT_CYCLE`，沿"等信→等收信的会话、等节点→等它的负责会话"查）；`session-send` 的 `handoff` 可带 `board`/`steps` 把本会话名下未完成的步骤交出去（任务图 `handOver`，留交接记录）；`recipients` 一次给多个会话发通知；任务图新增只读查询 `assignedTo(session)`；工具执行器知道自己的会话（`session`）。
+- 给人看的信（第五期，委派迁到信封）：`EnvelopeInput` 新增 `attachments`（App 自己的引用，比如固定成果的版本，最多 30 个）、`audience: "people"`（给两边的人处理，不交给模型，不占会话的扇出上限，正文上限另设 `maxPeopleBodyChars`、默认 20000，允许人自己写的路径，密钥仍拒绝）、`by`（替谁发）；每封信带 `history`（每一步的事件、之后的状态、时间、谁、为什么、附带的引用；最多 100 条），送达、接受/拒绝、完成、取消都可带上这些（`EnvelopeDetail`）；新增 `record` 在不改状态的前提下记一步（比如"开始执行"），结束之后记的标为 `late`、什么也不改。
+- 第五期实测后的两处修正：`session-send` 交接只有交出计划里的步骤时才带 `board`/`steps`，传错时说明怎么改、什么也不发；`ask-user` 的选项写成 `{ label, … }` 时取 label。
+- 并入 Prologue 线的增量（合并会话给出的 prologue-line-delta.patch）：没有系统段时把缓存断点挂到最后一条用户消息；事件账保存 400–599 的 HTTP status；工具超时默认值归 Runtime 配置，去掉 runtime↔tool 双向依赖。
+- 这一轮新增可选项 `context.continueWhenCompactionFails`（默认关，Molis 打开，用户拍板"放得下就继续"）：提前整理失败时，窗口还放得下就用原上下文接着跑，再攒一个 `compactAboveTokens` 后再整理；放不下仍然失败。子任务沿用父任务的设置。
+- Node 宿主新选项 `retryUnansweredModelCalls`（默认关）：模型调用在对方还没有任何回应时连接就断了（重置、关闭、连接超时、网络不可达），标为可重试，按 Runtime 的重试策略再发（最多 3 次、退避）；仍记为已派出，用量照记。没有这类原因的错误、证书错误、回应已经开始后的中断都不重发。失败信息里带上原因码，比如 `fetch failed (UND_ERR_SOCKET)`。
+
+- 源仓库：https://github.com/molis-ai/prologue
+- 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
+- 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
+- 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`0a616614ae5882d20016c4ac07de30f149e0d78e05ff459e29689c0b5eefb43c`
+
+重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
+
+核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过（仍有上一包就有的 `test/host-agnostic-adapters.test.ts` 类型错误）；安装后的 dist 与源码构建逐文件一致。SDK 全量结果见 Coding spec 第 0 节"协同第一期"。未发布 npm，未替换正式安装版。
+
+## 上一依赖（Prologue 线，已并入上面的 claims）：账本 HTTP 状态
+
+该依赖为 `prologue-sdk-0.0.0-rc.1-ledger-status.tgz`（2026-09-27）。保留下面缓存修复及全部既有能力，补齐安全 HTTP 错误状态（400–599 整数）的 Session 账本保存与恢复；旧账本没有 status 仍可读，原始响应和任意错误附加属性不进入账本。工具超时默认值归 Runtime 配置，ToolCatalog 复用同一值，移除 runtime ↔ tool 双向依赖；默认 60 秒、App 上限覆盖和工具自身 deadline 均保持。
 
 - 本地源码：`/Users/yijunwang/code/prologue-molis-integrated`，基线 `a7e785b8c76149961d25b2f918aeec55554d8420`。
 - 累计源码补丁：[ledger-status.patch](ledger-status.patch)。已在干净基线检查正向应用，并在当前源码检查反向应用；包含本次回归测试及历史扩展。
@@ -25,7 +59,7 @@
 
 核对：SDK 构建与类型检查（`tsconfig.typecheck.json`）通过，类型错误清零。新增 `test/prompt-cache-breakpoint.test.ts` 6 项通过（一次性会话无系统段时 best-effort/required 挂在用户消息上、off 不带字段、有系统段只挂系统段、带附件落在正文块、多轮只挂最后一条用户消息）；原 `prompt-cache-prefix` 5 项通过。SDK 全量 3315 项：3291 通过、20 跳过、4 失败——其中 3 个是下面记录的共享推理线既有失败；`agent-context.live` 的「磁盘上有，但默认集合里看不见」在与 GoalBoard 全量构建并跑时超时，单独重跑 5/5 通过。
 
-## 上一依赖：main 与 Coding 线合成
+## 上一依赖：coding-inference 合成包
 
 该历史依赖为 `prologue-sdk-0.0.0-rc.1-coding-inference.tgz`（2026-09-26，main 与 Coding 分支 `codex/molis-work-goal-continue` 合并时合成）。它同时包含两条累计补丁线：Coding 线的 [parent-reads.patch](parent-reads.patch)（子任务、角色工具、父任务只读子目录、大文件读、同状态回报等，见下「Coding 线」）与共享推理线的 [bounded-inference.patch](bounded-inference.patch)（有界文字、OpenAI/Gemini 图片、原生 TypeSafe、每次网络 dispatch 前的 Host 权限复核，见下「共享推理线」）。两条线都相对同一基线，回环修复两边都带着。
 

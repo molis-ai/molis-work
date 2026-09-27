@@ -142,7 +142,7 @@ test("a later round continues the same unfinished graph, keeping a person's chan
     assert.equal(done.step_board!.board_id, stopped.step_board!.board_id);
     assert.deepEqual(done.step_board!.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "succeeded"], ["step-2", "succeeded"]]);
     assert.equal(done.step_board!.terminal, true);
-    await assert.rejects(adapter.amendStepBoard!(first.ref, { kind: "skip", node: "step-2", reason: "x" }, done.step_board!.version), /新的一轮/, "an earlier round's graph stays the record it was");
+    await assert.rejects(adapter.amendStepBoard!(first.ref, { kind: "skip", node: "step-2", reason: "x" }, done.step_board!.version), /新的计划轮/, "an earlier round's graph stays the record it was");
     await assert.rejects(host.start("prologue", request({ continue_step_board_of: second.ref.run_id }), authority), /已经结束/, "a finished graph is not reopened");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

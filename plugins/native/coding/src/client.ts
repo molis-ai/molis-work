@@ -75,7 +75,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let runtimeSessionId = null;
-  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '';
+  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '', draftOwner = '';
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportOutput=null, artifactRows=[], artifactTicket=0;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
@@ -135,9 +135,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     amend:async(runId,version,amendment,live=true)=>{
       const id=current;
       try{const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
-        if(!live)status('已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
+        if(!live)status(result.board?.terminal?'已记在任务图上。计划的每一步都已结束。':'已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
         else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);}
       catch(error){status(error.message,true);}
+      // The board's copy of rounds outside the loaded window is kept by round count; a change to the graph renews it.
+      boardAll.key='';
       if(id===current)await readCurrent();
     },
     navigate:async(id,target)=>{
@@ -265,7 +267,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
-  const flushDraft = () => { clearTimeout(draftTimer); return current ? saveDraft(current,input.value) : Promise.resolve(); };
+  // Only a box that holds this session's draft is saved: while a session is still loading, the box holds nothing of it.
+  const flushDraft = () => { clearTimeout(draftTimer); return current && draftOwner === current ? saveDraft(current,input.value) : Promise.resolve(); };
   const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
   const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
     returnToTask:returnFromChange,onRunOpen:()=>{changeItem='';reportItem='';renderArtifacts();},
@@ -367,7 +370,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     for(const [id,row] of directoryRows) if(!visibleIds.has(id)) {row.remove();directoryRows.delete(id);}
     list.querySelector('.mw-empty')?.remove();
     if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);list.append(empty); return; }
-    const labels = { idle:'尚未执行', running:'执行中', paused:'已暂停', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', done:'本轮结束' };
+    const labels = { idle:'尚未执行', running:'执行中', paused:'已暂停', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', queued:'挂起等待', done:'本轮结束' };
     for (const session of visible) {
       let row=directoryRows.get(session.session_id);
       if(!row) {
@@ -389,7 +392,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         time.textContent=Number.isNaN(at.getTime()) ? session.updated_at.slice(5,10) : at.toDateString()===now.toDateString() ? pad(at.getHours())+':'+pad(at.getMinutes()) : pad(at.getMonth()+1)+'-'+pad(at.getDate());
         time.dateTime=session.updated_at;time.title=Number.isNaN(at.getTime()) ? session.updated_at : at.toLocaleString('zh-CN');
       }
-      const label=session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state;if(mark.textContent!==label) mark.textContent=label;
+      // Who is on the open plan steps, after the state: what waits on the person first.
+      const holders=session.steps?[session.steps.mine?'你负责 '+session.steps.mine+' 步':'',session.steps.subtasks?session.steps.subtasks+' 步在子任务手上':'',session.steps.unowned?'没人认领 '+session.steps.unowned+' 步':''].filter(Boolean).join(' · '):'';
+      // Two sessions under way on the same Goal may be doing the same thing twice.
+      const busyStates=['running','paused','waiting-answer','waiting-approval','queued'],twin=session.goal_id&&busyStates.includes(session.state)?visible.find(other=>other!==session&&other.goal_id===session.goal_id&&busyStates.includes(other.state)):null;
+      const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
       mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
@@ -842,7 +849,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const planEntry=planEntries.find(entry=>entry.run_id===run.ref.run_id),boardId=planEntry?.board?.board_id;
       const laterOnSameGraph=boardId && all.slice(all.indexOf(run)+1).some(later=>planEntries.find(entry=>entry.run_id===later.ref.run_id)?.board?.board_id===boardId);
       if(laterOnSameGraph)block.querySelector(':scope > .coding-plan-progress')?.remove();
-      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase),run===all.at(-1));
+      // The latest plan round keeps its graph open to change when only ended conversation rounds came after it.
+      const graphLatest=Boolean(planEntry?.board) && all.slice(all.indexOf(run)+1).every(later=>terminal(later.phase) && !planEntries.some(entry=>entry.run_id===later.ref.run_id));
+      const planCard=laterOnSameGraph?null:planProgress.render(run,planEntry,run===all.at(-1) && !terminal(run.phase),run===all.at(-1) || graphLatest);
       if(planCard){const at=ordered.findIndex(node=>node.dataset?.kind==='user');ordered.splice(at+1,0,planCard);}
       // Children appear right after the step that sent them.
       const children=subagentCards.render(run,subagentGroups.find(group=>group.run_id===run.ref.run_id));
@@ -864,7 +873,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(!inline){inline=document.createElement('div');inline.className='coding-inline-review';inline.dataset.codingInlineReview='';}
         const footer=block.querySelector(':scope > .coding-run-footer');if(inline.nextElementSibling!==footer || inline.parentElement!==block)block.insertBefore(inline,footer);void Promise.resolve(host.showReviews?.(inline,[run.ref],runtimeSessionId)).then(()=>offerApproval(inline));
       } else inline?.remove();
-      timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy));
+      timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy),run!==all.at(-1) && graphLatest && !recovery && !checkpointBusy);
     }
     renderCommands(all);
     // One row per finished round: its changes and its report, newest first.
@@ -1000,6 +1009,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       page.runs.forEach(run=>olderViews.set(run.ref.run_id,run));olderPlanEntries.push(...(page.taskboard_plans || []));olderSubagents.push(...(page.subagents || []));
       allRuns=allRuns.map(run=>run.light && olderViews.get(run.ref.run_id) || run);
       planEntries=[...olderPlanEntries,...planEntries.filter(entry=>!olderPlanEntries.includes(entry))];subagentGroups=[...olderSubagents,...subagentGroups.filter(group=>!olderSubagents.includes(group))];
+      // The results panel lists every loaded round's subtasks, so an earlier round's "评价并整合成果" finds its row.
+      subagents.update(id,subagentGroups);
       // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; the round being read stays put.
       const pending=page.runs.map(run=>olderViews.get(run.ref.run_id)).reverse();
       while(pending.length){
@@ -1064,11 +1075,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
-      if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
+      // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
+      if(fresh) { input.value=localDraft(id) || data.draft || ''; rememberDraft(id,input.value); draftOwner=id; q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
       runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
+      renderQueued(id,data.session.queued);
+      renderPriority(id,data.session.priority===true);
       plans.update(id,data.plan ?? null,allRuns);
-      subagents.update(id,data.subagents ?? []);
+      subagents.update(id,subagentGroups);
       boardUpdate(id,data);
       stepReports.sync(id);
       if(checkpointBusy){statusKey='checkpoint';status('回退操作尚未结束，请查看右侧审查或核对结果。');}
@@ -1094,7 +1108,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
-    resetWindow();cooperationUi.reset();current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    resetWindow();cooperationUi.reset();current=id; draftOwner=''; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;
@@ -1380,7 +1394,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   directory.querySelector('[data-coding-artifact-search]').addEventListener('input',renderArtifacts);
   // The same commands in the composer's slash menu, the palette and the shortcuts; each says when it is not available.
-  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',done:'本轮结束'};
+  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'挂起等待',done:'本轮结束'};
   const codingCommands=()=>{
     const intents=[...q('[data-coding-intent]').options].map(option=>({slash:option.value,label:'方式：'+option.textContent.replace(/（.*）/,''),hint:'下一轮用这个方式',keywords:['方式','intent'],enabled:!option.disabled && Boolean(current),
       run:()=>{const select=q('[data-coding-intent]');select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));status('下一轮方式：'+option.textContent+'。');input.focus();}}));
@@ -1409,6 +1423,46 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   input.addEventListener('input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
   input.addEventListener('keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   // One way to start a round, shared by the composer and by continuing from a breakpoint.
+  /** A round waiting for another session: what it waits for, and starting it now or giving the wait up. */
+  let queuedKey='';
+  /** Marked the priority: others whose work overlaps it are asked to make way; nothing is paused. */
+  const renderPriority=(id,on)=>{
+    const button=q('[data-coding-priority]');if(!button)return;button.hidden=!id;button.dataset.session=id||'';
+    button.setAttribute('aria-pressed',String(on));button.textContent=on?'优先中 · 取消':'标为优先';
+  };
+  q('[data-coding-priority]')?.addEventListener('click',async event=>{
+    const button=event.currentTarget,id=button.dataset.session;if(!id)return;const on=button.getAttribute('aria-pressed')!=='true';button.disabled=true;
+    try{const result=await api('/sessions/'+encodeURIComponent(id)+'/priority','POST',{on});renderPriority(id,result.priority);
+      status(!on?'已取消优先。':result.notified.length?'已标为优先，并通知「'+result.notified.join('」「')+'」让出 '+result.paths.join('、')+'；不会自动暂停它们。':'已标为优先。现在没有和它范围重叠、还在进行的会话，没有通知谁。');await refreshState();}
+    catch(error){status(error.message,true);}finally{button.disabled=false;}
+  });
+  const renderQueued=(id,queued)=>{
+    const box=q('[data-coding-queued]'),next=JSON.stringify([id,queued]);if(next===queuedKey)return;queuedKey=next;
+    box.hidden=!queued;box.replaceChildren();if(!queued)return;
+    const text=document.createElement('p');text.textContent=queued.note||(queued.waiting_for==='reply'?'这个会话挂起在等'+queued.after_title+'；答复到了（或对方那一轮结束）会自动继续。'
+      :queued.waiting_for==='command'?'这个会话挂起在等'+queued.after_title+'；命令在后台继续运行，有结果后会自动继续。':'下一轮在等'+queued.after_title+'结束，结束后自动开始。');
+    const act=(label,action,primary)=>{const b=document.createElement('button');b.type='button';b.className='mw-btn'+(primary?' mw-btn--primary':' mw-btn--ghost');b.textContent=label;
+      b.addEventListener('click',async()=>{b.disabled=true;try{await api('/sessions/'+encodeURIComponent(id)+'/queued','POST',{action});status(action==='start'?'已开始这一轮；新的写入和命令仍需你审查。':queued.waiting_for==='reply'?'已不再等答复，请求已撤回。':queued.waiting_for==='command'?'已不再等待；后台命令还在运行，可以在「后台命令」里停掉。':'已取消等待，这一轮没有开始。');queuedKey='';await refreshState();await readCurrent();}
+        catch(error){status(error.message,true);}finally{b.disabled=false;}});return b;};
+    const actions=document.createElement('div');actions.className='coding-queued-actions';actions.append(act('取消等待','cancel'),act('现在开始','start',true));
+    box.append(text,actions);
+  };
+  /** Other work under way names the same files: wait for it, go ahead side by side, or not send. */
+  const askOverlap = (overlaps) => new Promise(resolve => {
+    const dialog=document.createElement('dialog');dialog.className='mw-dialog coding-overlap';dialog.setAttribute('aria-label','和其他会话的范围重叠');
+    const box=document.createElement('div');box.className='mw-dialog__shell coding-overlap-body';
+    const head=document.createElement('h2');head.textContent='另一个会话正在改同样的文件';
+    const list=document.createElement('ul');
+    for(const overlap of overlaps){const item=document.createElement('li');const name=document.createElement('strong');name.textContent='「'+overlap.title+'」';
+      item.append(name,document.createTextNode((overlap.state==='running'?'正在进行':'在等待开始')+'：'+(overlap.task||'').split('\\n')[0].slice(0,80)+'。重叠：'+overlap.paths.join('、')));list.append(item);}
+    const hint=document.createElement('p');hint.textContent='两个会话同时改同一个文件，后写的一方可能覆盖前一方的修改。';
+    const actions=document.createElement('div');actions.className='coding-overlap-actions';
+    const choose=(value)=>{dialog.close();dialog.remove();resolve(value);};
+    const button=(label,value,primary)=>{const b=document.createElement('button');b.type='button';b.className='mw-btn'+(primary?' mw-btn--primary':'');b.textContent=label;b.dataset.codingOverlap=value;b.addEventListener('click',()=>choose(value));actions.append(b);};
+    button('不发送','cancel');button('照常同时进行','parallel');button('等「'+overlaps[0].title.slice(0,20)+'」完成后自动开始','wait',true);
+    dialog.addEventListener('cancel',event=>{event.preventDefault();choose('cancel');});
+    box.append(head,list,hint,actions);dialog.append(box);root.append(dialog);dialog.showModal();
+  });
   const startRound = async (id,task,intent,modelValue,selection,extra={}) => {
     const [provider_id,model_id]=JSON.parse(modelValue);
     // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
@@ -1465,7 +1519,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(activeRun && !terminal(activeRun.phase)) {
         await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:activeRun.ref.run_id,text:task});
         status('补充要求已交给执行引擎，等待后续处理。');
-      } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
+      } else {
+        // Another session already working on the same files in this directory: the person decides who goes first.
+        const {overlaps}=await api('/sessions/'+encodeURIComponent(id)+'/scope-check','POST',{task,workspace_id});
+        const choice=overlaps.length?await askOverlap(overlaps):'parallel';
+        if(choice==='cancel'){status('没有发送；可以修改任务后再发。');return;}
+        if(choice==='wait'){
+          await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments},{wait_for:overlaps[0].work_id});
+          status('这一轮会在「'+overlaps[0].title+'」那一轮结束后自动开始。');
+        } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
+      }
       if(current===id && input.value===task) input.value='';
       if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();
     } catch(error) { status(error.message,true); }

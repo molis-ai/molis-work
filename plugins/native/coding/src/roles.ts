@@ -41,7 +41,8 @@ export const codingAgentManifest: AgentManifest = {
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [
     { role_id: "coding-reader", version: 4, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "list", "search"] },
     // The independent reviewer may run checks such as tests in the main workspace; each command is a Host review and it has no file-writing tool.
-    { role_id: "coding-reviewer", version: 3, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command"] },
+    // It may read and wait on a background command its parent started (a long test run, say), without asking again and again.
+    { role_id: "coding-reviewer", version: 4, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command", "command-output", "await-commands"] },
     { role_id: "coding-builder", version: 5, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
@@ -73,42 +74,44 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: 10,
+      version: 12,
       name: "协作",
       // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-coordinator"],
-      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "dispatch-subagent", "await-subagents", "steer-subagent"],
+      // session-send: it may ask another session of the project, or answer one, without a review each time (the person's decision).
+      // Background commands: started and stopped under review like any command; reading and waiting on them are reads.
+      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "session-send"],
     },
     {
       role_id: CODING_WRITERS_ROLE,
-      version: 11,
+      version: 12,
       name: "并行写入",
       // Parallel writers work in their own worktrees; the parent itself only
       // reads and reports; integration is a separate reviewed Host operation.
       execution: "read-only",
       subagent_workspaces: "required",
       prompts: ["coding-base", "coding-writers"],
-      host_tools: ["context-remaining", "ask-user", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report"],
+      host_tools: ["context-remaining", "ask-user", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_BUILDER_ROLE,
-      version: 11,
+      version: 13,
       name: "构建者",
       // Edits and runs commands. Needs a Runtime that supports both under Host
       // approval, so it stays unavailable until one does.
       execution: "workspace-write",
-      prompts: ["coding-base", "coding-builder"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "board-read", "board-report"],
+      prompts: ["coding-base", "coding-builder", "coding-background"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_WRITER_ROLE,
-      version: 9,
+      version: 10,
       name: "改写者",
       // File-only work does not request command permission.
       execution: "text-edit",
       prompts: ["coding-base", "coding-writer"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "session-send"],
     },
   ],
   prompts: [
@@ -119,9 +122,10 @@ export const codingAgentManifest: AgentManifest = {
     { prompt_id: "coding-base", version: 9, layer: "base" },
     { prompt_id: "coding-reader", version: 4 },
     { prompt_id: "coding-writer", version: 3 },
-    { prompt_id: "coding-reviewer", version: 3 },
+    { prompt_id: "coding-reviewer", version: 4 },
     { prompt_id: "coding-builder", version: 5 },
-    { prompt_id: "coding-coordinator", version: 4 },
+    { prompt_id: "coding-background", version: 1 },
+    { prompt_id: "coding-coordinator", version: 5 },
     { prompt_id: "coding-writers", version: 5 },
   ],
 };
@@ -187,11 +191,12 @@ export const codingPrompts: readonly AgentPromptText[] = [
   },
   {
     prompt_id: "coding-reviewer",
-    version: 3,
+    version: 4,
     body: [
       "这一轮你在评审，不在修。指出问题、给出依据，不要顺手改掉。",
       "说清每条意见针对哪个文件哪一段，以及不改会怎样。",
       "开放了运行命令时，可以运行测试、类型检查这类检查命令来核实，每条都要用户审查；看文件和目录用 read、list、search，不要用 cat、ls、sed、grep 这类命令，也不运行会改文件或影响外部的命令；按实际退出码和输出报告。",
+      "父任务在后台跑的命令（给了你句柄时），用 await-commands 等它结束，等待期间不调模型；结束后再用 command-output 看输出。不要反复读输出查进度。",
     ].join("\n"),
   },
   {
@@ -206,8 +211,14 @@ export const codingPrompts: readonly AgentPromptText[] = [
     ].join("\n"),
   },
   {
-    prompt_id: "coding-coordinator", version: 4,
-    body: "你协调有明确边界的只读子任务。先根据实际任务决定可独立核对的部分，不强拆简单任务。通过 dispatch-subagent 选择宿主提供的精确子角色、显式工具和独立幂等键，指令包含任务、相关文件、必要上下文、完成条件和遇到缺失信息返回阻塞。可后台分派后用 await-subagents 收取结果；超时不是失败。不要给子任务设置 maxTurns，宿主默认给每个子任务 20 轮。用 steer-subagent 对仍运行的原任务补充要求；已结束任务需要返工时派新任务，保留旧结果。父任务负责独立核对关键结论、指出分歧和未知，不把子任务自述当事实或用户验收。父与子都不修改文件；需要修改时交代依据，由用户另开执行轮次。需要运行测试或检查时，派独立评审子任务并在 tools 里给 read、list、search、run-command，由它运行，每条命令都要用户审查；父任务自己不运行命令。",
+    // Only for a role that holds the background command tools; the builder prompt is shared with a child that does not.
+    prompt_id: "coding-background",
+    version: 1,
+    body: "耗时长的命令（完整测试、构建、起服务）用 start-command 放到后台，同样要用户批准；要结果时用 await-commands 等它，等待期间不调模型。预计很快的就地等；可能很久、手头又没别的事时用 park: true 挂起并结束这一轮，命令结束后会带着结果自动接着做。不要反复调用 command-output 查进度。不再需要的后台命令用 command-stop 停掉。",
+  },
+  {
+    prompt_id: "coding-coordinator", version: 5,
+    body: "你协调有明确边界的只读子任务。先根据实际任务决定可独立核对的部分，不强拆简单任务。通过 dispatch-subagent 选择宿主提供的精确子角色、显式工具和独立幂等键，指令包含任务、相关文件、必要上下文、完成条件和遇到缺失信息返回阻塞。可后台分派后用 await-subagents 收取结果；超时不是失败。不要给子任务设置 maxTurns，宿主默认给每个子任务 20 轮。用 steer-subagent 对仍运行的原任务补充要求；已结束任务需要返工时派新任务，保留旧结果。父任务负责独立核对关键结论、指出分歧和未知，不把子任务自述当事实或用户验收。父与子都不修改文件；需要修改时交代依据，由用户另开执行轮次。需要运行测试或检查时，派独立评审子任务，tools 按宿主给出的该角色完整清单传入（read、list、search、run-command、command-output、await-commands），由它运行，每条命令都要用户审查。耗时长的检查（完整测试、构建）也可以由你用 start-command 放到后台跑（同样经用户审查），再派独立评审子任务等它结束后核对，指令里写明后台命令的句柄；你自己要等时也用 await-commands，等待期间不调模型，不要反复读输出。",
   },
   {
     prompt_id: "coding-writers",

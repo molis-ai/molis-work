@@ -10,7 +10,7 @@ import { codingManifest } from "./manifest.js";
 import { codingMethods } from "./methods.js";
 import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiContribution } from "./ui.js";
-import { codingSurface, type CodingExecutionPorts } from "./routes.js";
+import { codingSurface, stopCodingRoutes, type CodingExecutionPorts } from "./routes.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -93,6 +93,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       };
     },
     async stop(context: PluginStartContext): Promise<void> {
+      stopCodingRoutes(context);
       await ports.onStop?.(context);
     },
     async health(context: PluginStartContext): Promise<{ ok: boolean; message: string }> {

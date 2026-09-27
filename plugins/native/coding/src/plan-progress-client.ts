@@ -17,7 +17,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     try{
       const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
       // A round that has ended hears of the change when the plan continues; only a live round is told right away.
-      if(card.dataset.live!=='true')status('已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
+      if(card.dataset.live!=='true')status(result?.board?.terminal?'已记在任务图上。计划的每一步都已结束。':'已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
       else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);
       delete card.dataset.editing;
     }catch(error){status(error.message,true);}
@@ -63,12 +63,16 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===board.version?verdict.status:null;
       const state=el('span','coding-board-state coding-plan-state');state.dataset.tone=decided==='accepted'?'accepted':decided==='needs-work'?'attention':skipped(node)?'quiet':TONE[node.state]||'idle';
       state.innerHTML=node.state==='running'&&!decided?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(decided==='accepted'?'check':decided==='needs-work'?'circle-alert':skipped(node)?'minus':MARK[node.state]||'circle');
-      state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':LABEL[node.state]||node.state));if(decided)state.dataset.verdict=decided;
+      const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state);
+      state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':yours?(node.state==='succeeded'?'你标记完成':'你标记失败'):LABEL[node.state]||node.state));if(decided)state.dataset.verdict=decided;
       const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settledNode(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));
       const chip=el('span','coding-board-deps '+(!deps.length?'is-empty':stuck.length?'is-blocked':waiting.length?'is-waiting':'is-ready'));
       if(deps.length){chip.textContent=deps.length+' 个前置'+(stuck.length?' · '+stuck.length+' 个阻塞':waiting.length?' · '+waiting.length+' 个未完成':' · 已就绪');chip.title=deps.map(dep=>stepOf(entry.plan,dep).title).join('\\n');}
-      const meta=el('span','coding-board-meta'),time=el('time','coding-board-time'+(node.reports.length?'':' is-empty'),node.reports.length?clock(node.reports.at(-1).at_ms):''),avatar=el('span','coding-board-avatar',Array.from(who)[0]);
-      avatar.style.setProperty('--board-avatar-hue',String(hueValue));avatar.title='执行：'+who;meta.append(time,avatar);
+      // Who holds the step on the graph: this session (its executor), a subtask, you, or no one.
+      const holder=node.owner,name=!holder||holder.kind==='session'?who:holder.kind==='person'?'你':holder.label;
+      const meta=el('span','coding-board-meta'),time=el('time','coding-board-time'+(node.reports.length?'':' is-empty'),node.reports.length?clock(node.reports.at(-1).at_ms):''),avatar=el('span','coding-board-avatar'+(holder?.kind==='none'?' is-unknown':''),holder?.kind==='none'?'':Array.from(name)[0]);
+      if(holder?.kind==='none')avatar.innerHTML=svg('user');else{let h=0;for(const char of name)h=(h*31+char.codePointAt(0))%360;avatar.style.setProperty('--board-avatar-hue',String(holder&&holder.kind!=='session'?h:hueValue));}
+      avatar.title='负责：'+(holder?(holder.kind==='session'?'本会话 · '+who:holder.kind==='person'?'你':holder.label):who);avatar.setAttribute('aria-label',avatar.title);meta.append(time,avatar);
       line.append(lead,state,chip,meta);row.append(line);
       if(editable){
         const tools=el('span','coding-board-tools coding-plan-tools'),tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+step.title);button.innerHTML=svg(icon);button.addEventListener('click',action);tools.append(button);};
@@ -78,6 +82,13 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         if(node.state==='blocked')tool('给出决定','edit',()=>form(card,row,[['note','你的决定，例如：用方案 B，接受行号变化',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'unblock',node:node.id,note}),'继续'));
         if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过','minus',()=>form(card,row,[['reason','跳过原因',300]],([reason])=>amend(card,run.ref.run_id,board.version,{kind:'skip',node:node.id,reason}),'跳过'));
         if(!['cancelled'].includes(node.state))tool('在后面插入一步','plus',()=>form(card,row,[['title','新步骤要做什么',120],['acceptance','完成条件',300]],([title,acceptance])=>amend(card,run.ref.run_id,board.version,{kind:'insert',after:node.id,title,acceptance}),'插入'));
+        const open=!['succeeded','failed','cancelled'].includes(node.state),kind=node.owner?.kind;
+        if(open&&kind!=='person')tool('由我处理','user',()=>void amend(card,run.ref.run_id,board.version,{kind:'assign',node:node.id,to:'me'}));
+        if(open&&kind&&kind!=='session')tool(kind==='none'?'交给本会话':'交回本会话','undo',()=>void amend(card,run.ref.run_id,board.version,{kind:'assign',node:node.id,to:'session'}));
+        if(open&&kind==='person'&&node.state!=='not-started'){
+          tool('标记完成','check',()=>form(card,row,[['note','做了什么、怎么核对的',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'resolve',node:node.id,state:'succeeded',note}),'完成'));
+          tool('标记失败','x',()=>form(card,row,[['note','失败原因',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'resolve',node:node.id,state:'failed',note}),'标记失败'));
+        }
         line.append(tools);
       }
       list.append(row);

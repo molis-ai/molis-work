@@ -81,7 +81,10 @@ const recordKey = (id: string) => `delegation:${id}`;
 const indexKey = (sessionId: string) => `delegations:${sessionId}`;
 const incomingKey = (sessionId: string) => `delegation-in:${sessionId}`;
 
-/** Durable delegations in the plugin's own storage. Every change is an atomic replacement of the exact prior record. */
+/**
+ * Delegations as they were kept before they went by letter (the SDK's envelopes for people): the routes only read
+ * these now, and show them read-only. Every change is an atomic replacement of the exact prior record.
+ */
 export class CodingCooperationStore {
   constructor(private readonly storage: PluginPrivateStorage) {}
 

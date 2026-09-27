@@ -55,6 +55,11 @@ export function createCodingTimeline() {
     "steer-subagent": { verb: "补充子任务要求", icon: "workflow", noun: "次", unit: "" },
     "board-read": { verb: "查看任务图", icon: "list", noun: "", unit: "" },
     "board-report": { verb: "回报步骤", icon: "list", noun: "步骤", unit: "次" },
+    "start-command": { verb: "后台运行", icon: "terminal", noun: "命令", unit: "条" },
+    "command-output": { verb: "查看后台输出", icon: "terminal", noun: "次", unit: "" },
+    "command-stop": { verb: "停止后台命令", icon: "terminal", noun: "条", unit: "" },
+    "await-commands": { verb: "等待后台命令", icon: "clock", noun: "", unit: "" },
+    "session-send": { verb: "给其他会话发信", icon: "share", noun: "封", unit: "" },
     "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
     "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
   };
@@ -83,7 +88,7 @@ export function createCodingTimeline() {
     return false;
   };
   /** Only side effects go through review; a read started alongside one is merely held until the round resumes. */
-  const APPROVABLE = new Set(["edit", "write", "run-command", "dispatch-subagent", "steer-subagent"]);
+  const APPROVABLE = new Set(["edit", "write", "run-command", "start-command", "command-stop", "dispatch-subagent", "steer-subagent"]);
   const outcome = (item: TimelineActivity, ended: boolean, waiting = false, items?: TimelineActivity[]) => {
     const code = exitCode(item);
     if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }
@@ -204,7 +209,8 @@ export function createCodingTimeline() {
     "awaiting-input": "等你回答上面的问题", "awaiting-review": "等你决定上面这一步",
   };
   /** The live line at the bottom of an active round, or the closing card of a finished one. */
-  const renderFooter = (block: Element, run: TimelineRun, index: number, latest = false) => {
+  /** `planOpen`: an earlier round whose unfinished graph is still the session's latest plan; only "继续计划" is offered. */
+  const renderFooter = (block: Element, run: TimelineRun, index: number, latest = false, planOpen = false) => {
     let footer = block.querySelector(":scope > .coding-run-footer") as Element | null;
     if (!footer) { footer = document.createElement("div"); footer.className = "coding-run-footer"; }
     // Re-inserting a node restarts its entrance animation, so it only moves when something follows it.
@@ -256,7 +262,7 @@ export function createCodingTimeline() {
       ? explained ? `<p class="coding-run-reason"><strong>${escape(explained.title)}</strong>：${escape(explained.hint)}<br><small>${escape(stated)}</small></p>` : `<p class="coding-run-reason">${escape(stated)}</p>`
       : "";
     // Only the newest unfinished round can be picked up again; an interrupted one is checked first.
-    const resume = !latest ? "" : run.phase === "reconcile-required"
+    const resume = !latest ? (planOpen && left ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}继续计划</button>` : "") : run.phase === "reconcile-required"
       ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-recover-continue="${escape(run.ref.run_id)}">${svg("play")}核对并继续</button>`
       : ["failed", "stopped", "cancelled"].includes(run.phase) || left
         ? `<button class="mw-btn mw-btn--primary" type="button" data-coding-continue="${escape(run.ref.run_id)}">${svg("play")}${left ? "继续计划" : "从断点继续"}</button>`

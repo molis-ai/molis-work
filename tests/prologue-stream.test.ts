@@ -168,7 +168,10 @@ test("compaction is a phase, not an outcome", () => {
   const failed = emptyPrologueStreamState();
   apply(failed, { type: "compaction-started" }, { type: "compaction-failed" });
   assert.equal(failed.phase, "running", "压缩失败不结束这一跑");
-  assert.match(failed.stop_reason ?? "", /原上下文未被替换/u);
+  assert.equal(failed.stop_reason, undefined, "放得下就接着跑，不先写停下的原因");
+  assert.match(failed.activity.at(-1)?.output ?? "", /原上下文未被替换；窗口还放得下就接着用它/u);
+  apply(failed, { type: "failed", error: { code: "CONTEXT_COMPACTION_INVALID", safeMessage: "Compaction failed; the old prefix is still in force." } } as never);
+  assert.match(failed.stop_reason ?? "", /原上下文未被替换，而它已放不下模型窗口/u);
 });
 
 test("an unrecognized frame is counted, neither treated as progress nor dropped", () => {

@@ -35,7 +35,7 @@ function addAcceptedGoal(databasePath: string, boardId: string, goalId: string, 
         acceptance_criteria: [{
           criterion_id: `${goalId}-criterion`,
           statement: "主链可恢复",
-          decision_method: "test",
+          decision_method: "automated_check",
           pass_condition: "内容、Handoff 与关系在重启后仍可查询",
           required_evidence: ["test"],
         }],
@@ -78,6 +78,8 @@ test("Codex native journey stays project-scoped from discovery through Handoff a
   await mkdir(workspace, { recursive: true });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Native Session Project", actor_id: "e2e-user" });
+  // Session actions honor the project's enabled plugins; this journey works in Sessions.
+  if (!catalog.listProjectPlugins(project.project_id).includes("sessions")) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "e2e-user" });
   const otherProject = await catalog.createProject({ display_name: "Other Project", actor_id: "e2e-user" });
   const workspaceRecord = catalog.addWorkspaceProject({
     canonical_path: workspace,
@@ -122,8 +124,9 @@ test("Codex native journey stays project-scoped from discovery through Handoff a
   const otherPrefix = `/projects/${encodeURIComponent(otherProject.project_id)}`;
   let mutate = mutator(origin);
   try {
+    // The picker's former hint about choosing a folder was removed in the workbench redesign; the page itself still lists the project.
     const projectPicker = await (await fetch(`${origin}/`)).text();
-    assert.match(projectPicker, /工作目录在新建或关联 Session 时选择/);
+    assert.match(projectPicker, /Native Session Project/);
     const globalSessions = await fetch(`${origin}/sessions`, { redirect: "manual" });
     assert.equal(globalSessions.headers.get("location"), "/");
     const projectSessions = await fetch(`${origin}${prefix}/sessions`, { redirect: "manual" });
@@ -273,6 +276,8 @@ test("fallback journey preserves TUI content, honest capability limits, workspac
   await mkdir(repairedPath, { recursive: true });
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Fallback Session Project", actor_id: "e2e-user" });
+  // Session actions honor the project's enabled plugins; this journey works in Sessions.
+  if (!catalog.listProjectPlugins(project.project_id).includes("sessions")) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "sessions", actor_id: "e2e-user" });
   const otherProject = await catalog.createProject({ display_name: "Fallback Other Project", actor_id: "e2e-user" });
   const workspace = catalog.addWorkspaceProject({
     canonical_path: firstPath,

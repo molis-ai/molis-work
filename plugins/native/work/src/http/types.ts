@@ -4,7 +4,6 @@ import type { ProjectWorkspaceDirectoryRecord } from "@molis-ai/molis-work-contr
 import type { SessionContentService } from "../content.js";
 import type { SessionDirectoryService } from "../directory.js";
 import type { SessionHandoffService } from "../handoff.js";
-import type { SessionHandoffGoalContext } from "../types.js";
 import type { ProjectOperationsProject, ProjectWorkspaceRecord } from "../ui/types.js";
 
 export interface WorkSessionHttpResources {
@@ -24,7 +23,6 @@ export interface WorkSessionHttpContext {
   resourcesPromise: Promise<WorkSessionHttpResources>;
   projectOptions: { project: ProjectOperationsProject | null; projects: readonly ProjectOperationsProject[] };
   hasCurrentGoal(goalId: string): boolean | Promise<boolean>;
-  readGoalContract(goalId: string): SessionHandoffGoalContext | Promise<SessionHandoffGoalContext>;
   workspace: {
     add(path: string, projectId: string): Promise<ProjectWorkspaceDirectoryRecord>;
     repair(current: ProjectWorkspaceRecord, path: string, projectId: string): Promise<{ workspace: ProjectWorkspaceDirectoryRecord; updated_session_count: number }>;

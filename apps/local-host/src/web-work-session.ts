@@ -1,7 +1,7 @@
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleWorkSessionHttp, MolisWorkWorkspaceActionError, repairProjectWorkspace, unlinkProjectWorkspace, type ProjectWorkspaceRecord, type WorkSessionHttpContext } from "@molis-ai/molis-work-plugin-work";
+import { handleWorkSessionHttp, MolisWorkWorkspaceActionError, repairProjectWorkspace, unlinkProjectWorkspace, type ProjectWorkspaceRecord } from "@molis-ai/molis-work-plugin-work";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import { normalizeRuntimeWorkContext } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
@@ -14,7 +14,7 @@ export function createLocalWorkSessionHttp(withMolisWorkProjectCatalog: LocalWeb
     request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined,
     options: { boardId: string; project: WebProjectNavigation | null; projects: WebProjectNavigation[] },
     sessionResources: Promise<SessionRuntimeResources>, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>,
-    readGoalContract: WorkSessionHttpContext["readGoalContract"], actions: BoundActionClient,
+    actions: BoundActionClient,
   ): Promise<boolean> {
     const readProjectWorkspaceRecord = async (workspaceId: string): Promise<ProjectWorkspaceRecord | null> => {
       if (!options.project) return null;
@@ -39,7 +39,6 @@ export function createLocalWorkSessionHttp(withMolisWorkProjectCatalog: LocalWeb
       resourcesPromise: sessionResources,
       projectOptions: options,
       hasCurrentGoal: async (goalId) => (await readWebView()).goals.some((item) => item.goal.goal_id === goalId),
-      readGoalContract: (goalId) => readGoalContract(goalId),
       workspace: {
         add: (canonicalPath, projectId) => withMolisWorkProjectCatalog(
           { homeDirectory: homeDirectory },

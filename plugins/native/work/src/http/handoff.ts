@@ -1,9 +1,10 @@
 import type { WorkSessionHttpContext } from "./types.js";
 import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import { publicSessionRecord, publicSessionHandoff } from "./public-records.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workActions } from "../actions.js";
 
 export async function handleSessionHandoffHttp(context: WorkSessionHttpContext): Promise<boolean> {
-  const { method, pathname, readBody, respond, resourcesPromise, projectOptions, readGoalContract } = context;
+  const { method, pathname, readBody, respond, resourcesPromise, projectOptions } = context;
   const projectSessionHandoffPrepareMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/handoffs$/);
   if (method === "POST" && projectSessionHandoffPrepareMatch) {
     try {
@@ -24,33 +25,13 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         respond( 400, { error: "请选择目标 Runtime" });
         return true;
       }
-      const contract = await readGoalContract(source.current_goal_id);
-      const result = await resources.handoff.prepare({
-        source_session_id: source.session_id,
-        project_id: projectOptions.project!.project_id,
-        project_name: projectOptions.project!.display_name,
-        target_runtime_id: targetRuntimeId,
-        target_workspace_id: typeof body.target_workspace_id === "string" ? body.target_workspace_id : null,
-        target_workspace_path: typeof body.target_workspace_path === "string"
-          ? body.target_workspace_path.trim() || null
-          : source.workspace_path,
-        actor_id: "web-user",
-        goal_contract: contract,
-      });
-      respond( 201, {
-        handoff: publicSessionHandoff(result.handoff, true),
-        reused: result.reused,
-        source: publicSessionRecord(source),
-        goal: {
-          goal_id: contract.goal.goal_id,
-          title: contract.goal.title,
-          outcome: contract.goal.outcome,
-          work_state: contract.event_facts?.work_status
-            ?? (contract.goal.trashed_at ? "trashed" : contract.goal.archived_at ? "archived" : "open"),
-        },
-      });
+      // The registered action reads the Goal through its owner and prepares the package.
+      respond(201, await requireActions(context).invoke(workActions.handoffPrepare, { session_id: source.session_id, target_runtime_id: targetRuntimeId,
+        ...(typeof body.target_workspace_id === "string" ? { target_workspace_id: body.target_workspace_id } : {}),
+        ...(typeof body.target_workspace_path === "string" ? { target_workspace_path: body.target_workspace_path.trim() || null } : {}),
+        project_name: projectOptions.project!.display_name }));
     } catch (error) {
-      respond( error instanceof MolisWorkSessionError ? 400 : 503, {
+      respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -82,22 +63,9 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
     if (method === "PATCH" && !sessionHandoffMutationMatch[2]) {
       try {
         const body = await readBody();
-        const handoff = resources.handoff.update({
-          package_id: current.package_id,
-          target_runtime_id: typeof body.target_runtime_id === "string" ? body.target_runtime_id : "",
-          ...(typeof body.target_workspace_id === "string"
-            ? { target_workspace_id: body.target_workspace_id }
-            : {}),
-          target_workspace_path: typeof body.target_workspace_path === "string"
-            ? body.target_workspace_path.trim() || null
-            : null,
-          content: typeof body.content === "string" ? body.content : "",
-          actor_id: "web-user",
-          user_confirmed: false,
-        });
-        respond( 200, { handoff: publicSessionHandoff(handoff, true) });
+        respond(200, await requireActions(context).invoke(workActions.handoffUpdate, target(current.package_id, body)));
       } catch (error) {
-        respond( error instanceof MolisWorkSessionError ? 400 : 503, {
+        respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -106,29 +74,12 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
     if (method === "POST" && sessionHandoffMutationMatch[2] === "send") {
       try {
         const body = await readBody();
-        const result = await resources.handoff.send({
-          package_id: current.package_id,
-          target_runtime_id: typeof body.target_runtime_id === "string" ? body.target_runtime_id : "",
-          ...(typeof body.target_workspace_id === "string"
-            ? { target_workspace_id: body.target_workspace_id }
-            : {}),
-          target_workspace_path: typeof body.target_workspace_path === "string"
-            ? body.target_workspace_path.trim() || null
-            : null,
-          content: typeof body.content === "string" ? body.content : "",
-          actor_id: "web-user",
-          user_confirmed: body.user_confirmed === true,
-        });
+        if (body.user_confirmed !== true) { respond(400, { error: "请确认后再发送交接包" }); return true; }
+        const result = await requireActions(context).invoke(workActions.handoffSend, target(current.package_id, body)) as { handoff: { state: string; error_message?: string | null } };
         const status = result.handoff.state === "sent" ? 201 : 502;
-        respond( status, {
-          handoff: publicSessionHandoff(result.handoff, true),
-          destination_session: result.destination_session
-            ? publicSessionRecord(result.destination_session)
-            : null,
-          ...(status === 502 ? { error: result.handoff.error_message } : {}),
-        });
+        respond(status, { ...result, ...(status === 502 ? { error: result.handoff.error_message } : {}) });
       } catch (error) {
-        respond( error instanceof MolisWorkSessionError ? 400 : 503, {
+        respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -136,10 +87,9 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
     }
     if (method === "POST" && sessionHandoffMutationMatch[2] === "cancel") {
       try {
-        const handoff = resources.handoff.cancel(current.package_id);
-        respond( 200, { handoff: publicSessionHandoff(handoff, false) });
+        respond(200, await requireActions(context).invoke(workActions.handoffCancel, { package_id: current.package_id }));
       } catch (error) {
-        respond( error instanceof MolisWorkSessionError ? 400 : 503, {
+        respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -150,4 +100,15 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
   }
 
   return false;
+}
+
+const target = (packageId: string, body: Record<string, unknown>) => ({ package_id: packageId,
+  target_runtime_id: typeof body.target_runtime_id === "string" ? body.target_runtime_id : "",
+  ...(typeof body.target_workspace_id === "string" ? { target_workspace_id: body.target_workspace_id } : {}),
+  target_workspace_path: typeof body.target_workspace_path === "string" ? body.target_workspace_path.trim() || null : null,
+  content: typeof body.content === "string" ? body.content : "" });
+
+function requireActions(context: WorkSessionHttpContext) {
+  if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
+  return context.actions;
 }

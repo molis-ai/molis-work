@@ -265,34 +265,7 @@ export async function handleMolisWorkWebRequest(
           return;
         }
         if (await handleSessions(request, response, url, serverOptions.homeDirectory, options, sessionResources, readWebView,
-          async (goalId) => {
-            const [history, currentState] = await Promise.all([goalActions.invoke(goalsActions.contract, { goal_id: goalId }),
-              goalActions.invoke(goalsActions.state, { goal_id: goalId })]);
-            const event_work = currentState.owner !== null;
-            const state = event_work ? currentState : null;
-            return {
-              board: history.board,
-              goal: history.goal,
-              runs: history.runs,
-              evidence: history.evidence,
-              risks: history.risks,
-              event_work,
-              event_facts: state
-                ? {
-                    work_status: state.work_status,
-                    outcome: state.agreement.outcome,
-                    next_step: state.progress_summary?.next_step ?? null,
-                    pending_decisions: state.pending_decisions.map((item) => item.question),
-                    current_decisions: state.current_decisions.map((item) => item.conclusion),
-                    gaps: state.gaps.map((item) => item.statement),
-                    requirements: state.requirements.map((item) => item.statement),
-                    stale_summary: state.progress_summary?.stale === true,
-                    resume_required: state.work_status === "completed" || state.work_status === "cancelled",
-                    closure_reason: state.closure?.reason ?? null,
-                  }
-                : null,
-            };
-          }, bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", actor_kind: "user",
+          bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: "web-user", actor_kind: "user",
             // Goal read lets a session association check the Goal through its owner.
             project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read"] })))) return;
         if (await goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions)) return;

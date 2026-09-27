@@ -452,8 +452,8 @@ export class AgentHost implements AgentHostApi {
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
       throw new AgentHostError("agent.role_execution_exceeded", "当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
     }
-    // A round without a plan of its own has no graph to report on — unless steps were handed to its session.
-    if (!request.execution_plan && !(request.session && await adapter.holdsSteps?.(request.session).catch(() => false))) hostTools = hostTools.filter(tool => !STEP_TOOLS.includes(tool));
+    // A round without a plan of its own keeps the board tools its role grants: it reads the project's board, and reads and
+    // reports on steps handed to its session, even ones handed while it runs. The Host's board hook allows nothing else.
 
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.

@@ -1051,8 +1051,6 @@ export interface AgentRuntimeAdapter {
   readonly messages?: AgentSessionMessagesCapability;
   /** Sessions parked until something happens, when this Runtime keeps them. */
   readonly waits?: AgentWaitsCapability;
-  /** Whether a session holds unfinished plan steps another session handed to it (it then keeps the step tools). */
-  holdsSteps?(session: AgentSessionRef): Promise<boolean>;
   /** Background commands of the project's sessions. */
   readonly background?: AgentBackgroundCapability;
   start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;

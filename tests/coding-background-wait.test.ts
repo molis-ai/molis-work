@@ -28,7 +28,7 @@ test("a round leaves a long command running in the background and parks on it: n
   const handleIn = (messages: string) => messages.match(/started (\S+) in the background/)?.[1] ?? "";
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = bodyOf(init), messages = JSON.stringify(body.messages);
-    const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(PARK|QUICK|BLOCK|LIVE|CUT)_TASK/)?.[1]).find(Boolean);
+    const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(PARK|QUICK|BLOCK|LIVE|CUT|LEAVE|STOP)_TASK/)?.[1]).find(Boolean);
     if (!who) return response("其他。");
     const turns = (seen[who] ??= []); turns.push(messages);
     const turn = turns.length;
@@ -50,6 +50,9 @@ test("a round leaves a long command running in the background and parks on it: n
         : n === 2 ? response("", { name: "await-commands", input: { handles: [handleIn(messages)], park: true, reason: "等 live" } })
         : n === 3 ? (await holdLive, response("先说一句。"))
         : response("收到结果，接着做。"),
+      // One round leaves a long command running; a later round of the same session stops it.
+      LEAVE: n => n === 1 ? response("", { name: "start-command", input: { executable: "sh", argv: ["-c", "sleep 30"] } }) : response("留着它跑。"),
+      STOP: n => n === 1 ? response("", { name: "command-stop", input: { handle: handleIn(messages) } }) : response("停掉了。"),
       // A command that would run for long; the service restarts under it.
       CUT: n => n === 1 ? response("", { name: "start-command", input: { executable: "sh", argv: ["-c", "sleep 30"] } })
         : n === 2 ? response("", { name: "await-commands", input: { handles: [handleIn(messages)], park: true, reason: "等长任务" } })
@@ -115,6 +118,15 @@ test("a round leaves a long command running in the background and parks on it: n
     assert.match(seen.LIVE![3]!, /live-done/);
     assert.deepEqual((await adapter.waits!.read("b", live.session.session_id)).map(wait => [wait.state, wait.note]), [["resumed", "告诉了当时正在进行的一轮"]]);
     assert.equal((await adapter.waits!.awaitFired("b", 0)).length, 0);
+    // A later round stops what an earlier one left running: the card names the command, and it stops.
+    const left = await run("留着跑", "LEAVE_TASK 起一条长命令");
+    const stopping = await host.start("prologue", { ...owner, session: left.session, directory, role_id: "builder", task: "STOP_TASK 停掉上一轮留下的命令", session_title: "留着跑" } as never, authority);
+    for (const deadline = Date.now() + 30_000; !["completed", "failed", "cancelled"].includes((await adapter.read(stopping.ref)).phase);) {
+      await approve(); if (Date.now() > deadline) throw new Error("the stopping round timed out"); await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    const card = reviews.find(document => document.tool === "command-stop");
+    assert.deepEqual([card?.kind, card?.summary, card?.fields[0]], ["tool-operation", "停止一条后台命令", { label: "命令", value: "sh -c sleep 30" }]);
+    assert.equal((await adapter.background!.read("b", left.session.session_id))[0]!.state, "stopped");
     // A restart cuts the long command off; the session waiting on it learns it was cut off.
     const cut = await run("长任务", "CUT_TASK 跑很久");
     assert.equal((await adapter.background!.read("b", cut.session.session_id))[0]!.state, "running");
@@ -124,7 +136,7 @@ test("a round leaves a long command running in the background and parks on it: n
     const afterRestart = await adapter.waits!.awaitFired("b", 5_000);
     assert.deepEqual(afterRestart.map(wait => [wait.reason, wait.fired?.outcome]), [["等长任务", "interrupted"]]);
     // Every command and wait of the project is kept, and still known after the restart.
-    assert.deepEqual((await adapter.background!.read("b")).map(task => task.state).sort(), ["interrupted", "succeeded", "succeeded", "succeeded", "succeeded"]);
+    assert.deepEqual((await adapter.background!.read("b")).map(task => task.state).sort(), ["interrupted", "stopped", "succeeded", "succeeded", "succeeded", "succeeded"]);
     assert.equal((await adapter.background!.read("another")).length, 0);
   } finally { releaseLive(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

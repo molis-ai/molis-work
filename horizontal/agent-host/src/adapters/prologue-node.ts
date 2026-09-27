@@ -271,6 +271,17 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
             fields: [...readable, { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
         }
+        // Stopping a background command has no review resource of its own: the card names the command it stops.
+        if (subject.what === "tool" && subject.name === "command-stop") {
+          if (typeof subject.input !== "string") throw new Error("停止命令的参数不可读，不能批准");
+          const args = JSON.parse(subject.input);
+          const handle = args && typeof args === "object" && typeof args.handle === "string" ? args.handle : "";
+          const task = handle ? runtime.background.get(handle) : undefined;
+          reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+          return { kind: "tool-operation", tool: subject.name, summary: task ? "停止一条后台命令" : "停止一条命令",
+            fields: [{ label: "命令", value: task?.summary ?? handle }, ...(task ? [{ label: "现在", value: task.state === "running" ? "还在运行" : task.state }] : []),
+              { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
+        }
         if (subject.what === "tool" && subject.name.startsWith("molis-action-")) {
           if (typeof subject.input !== "string") throw new Error("Action arguments are unavailable");
           const index = await readIndex(pending.origin!.session!);
@@ -675,10 +686,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       } },
     waits: waitsPort.waits,
     background: waitsPort.background,
-    holdsSteps: async sessionId => {
-      const index = await readIndex(sessionId).catch(() => undefined);
-      return Boolean(index && handedSteps(index.ref).length);
-    },
     projectWork: {
       read: (project, probe) => projectWork.read(project, probe && { ...(probe.session_id ? { session_id: probe.session_id } : {}), directory: probe.directory, paths: workPaths(probe.text) }),
       async queue(project, input, actorId) {

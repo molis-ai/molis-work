@@ -30,13 +30,14 @@ const material = { material_id: "plan", source_artifact_id: plan.source.artifact
 test("sessions hand work over, tell everyone whose work overlaps, and are stopped from waiting on each other in a circle", { timeout: 90_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-collab-handoff-")); await mkdir(join(root, "src"));
   await writeFile(join(root, "src/a.ts"), "export const a = 1;\n"); await writeFile(join(root, "src/b.ts"), "export const b = 1;\n");
-  const ids: Record<string, string> = {}, seen: Record<string, string[]> = {};
+  const ids: Record<string, string> = {}, seen: Record<string, string[]> = {}, toolsOf: Record<string, string[]> = {};
   let board = "", releaseHolders!: () => void; const holders = new Promise<void>(resolve => { releaseHolders = resolve; });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = bodyOf(init), messages = JSON.stringify(body.messages), system = JSON.stringify(body.system);
     const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(A|B|C|D|E|F|G|H|I)_TASK/)?.[1]).find(Boolean);
     if (!who) return response("其他。");
     const turns = (seen[who] ??= []); turns.push(messages); const turn = turns.length;
+    toolsOf[who] ??= (body.tools ?? []).map((tool: { name: string }) => tool.name);
     if (who === "A") {
       // A works a two-step plan and hands the second step, which is B's area, to B.
       if (turn === 1) { board = system.match(/本轮确认计划的任务图：(\S+?)。/)![1]!; return response("", { name: "board-read", input: { board } }); }
@@ -132,6 +133,8 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     assert.match(makeWay!.body, /请让出这些文件/);
     releaseHolders();
     for (const round of held) await ended(round.ref);
+    // A round without a plan keeps the board tools: steps handed to it while it runs can still be reported on.
+    assert.ok(["board-read", "board-report"].every(tool => toolsOf.F!.includes(tool)), "F has no plan and holds no steps, and still has the board tools");
     // A circle: G waits on H; H asking G and waiting would never end — it is sent, but H is not parked.
     const g = await run("G", { task: "G_TASK 问 H" }), h = await run("H", { task: "H_TASK 问 G" });
     await ended((await g.start()).ref);

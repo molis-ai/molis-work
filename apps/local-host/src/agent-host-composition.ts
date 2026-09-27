@@ -1,5 +1,5 @@
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
-import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
 import {
@@ -65,6 +65,8 @@ export interface AgentHostComposition {
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
   readonly ready: Promise<void>;
+  /** Brings back a project's external MCP entries after a restart; called before the project's directory is read. */
+  restoreExternalMcp(reference: LocalHostProjectReference): Promise<void>;
   /** Unregisters the Capabilities this composition added. */
   dispose(): Promise<void>;
 }
@@ -119,7 +121,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
           const [runtimeId, pluginId] = input as [string, string];
           try {
             const { library, owner } = agentHost.mcpLibrary(runtimeId, await startAuthority(project, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, invocation.plugin));
-            await externalMcp.sync(project, pluginId, library, owner);
+            await externalMcp.sync(project, pluginId, runtimeId, library, owner);
           } catch { /* The configuration change itself succeeded; the directory catches up on the next list. */ }
         }
         return result;
@@ -318,7 +320,9 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     async evaluateTypeSafe(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.evaluateTypeSafe(input); },
   };
   const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
-  return { agentHost, inference, createBuilderAgent, get ready() { return initialize(); }, dispose() {
+  const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
+    : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
+  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, get ready() { return initialize(); }, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();

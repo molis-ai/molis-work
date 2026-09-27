@@ -22,13 +22,14 @@ test("a connected external MCP tool is one directory action: local user, workflo
   if (!catalog.listProjectPlugins(project.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "web-user" });
   catalog.close();
   await writeFile(join(home, "server.mjs"), MCP_FIXTURE);
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.external-mcp-test", appVersion: "1.0.0" }, reviewQueue: new AgentReviewQueue(),
+  const openAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.external-mcp-test", appVersion: "1.0.0" }, reviewQueue: new AgentReviewQueue(),
     storageRoot: join(home, "runtime"), modelConfiguration: async () => null, resolveCredential: () => null });
+  let adapter = await openAdapter();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
-  const directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
+  let directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
   const owner = { board_id: project.board_id, plugin_id: "io.molis.work.coding" };
-  const library = adapter.mcpLibrary!;
+  let library = adapter.mcpLibrary!;
   const runtime = await host.withProject(reference, project => project) as MolisWorkProjectRuntime;
   const user: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, EXTERNAL_MCP_PERMISSION] };
   const client = host.actionClient(reference);
@@ -37,7 +38,7 @@ test("a connected external MCP tool is one directory action: local user, workflo
     const saved = await library.save(owner, { expected_version: 0, label: "笔记服务", transport: "stdio", enabled: true, timeout_ms: 5000,
       directory: { canonical_path: home, realpath_verified: true }, executable: process.execPath, argv: ["server.mjs"] });
     await library.control(owner, saved.id, "connect");
-    await directory.sync(runtime, owner.plugin_id, library, owner);
+    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
 
     // The tool is discovered in the same directory, grouped under its server, with the shape the server declared.
     const view = (await client.discover(user)).find(row => row.capability_id.startsWith("mcp.external.") && row.action.title === "record_review_note")!;
@@ -79,18 +80,41 @@ test("a connected external MCP tool is one directory action: local user, workflo
     // Disconnecting keeps the entry and says why; nothing is sent. Reconnecting with the same shape keeps the same version.
     await library.control(owner, saved.id, "disconnect");
     // The product re-syncs after every connection change; the configured server's tool stays, unavailable.
-    await directory.sync(runtime, owner.plugin_id, library, owner);
+    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
     const offline = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
     assert.equal(offline.availability.available, false);
     assert.match(offline.availability.available ? "" : offline.availability.reason, /已断开/);
     await assert.rejects(client.invoke(user, ref, { note: "断开后" }), { code: "actions.connection_unavailable" });
     await library.control(owner, saved.id, "connect");
-    await directory.sync(runtime, owner.plugin_id, library, owner);
+    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
     assert.ok((await client.discover(user)).some(row => row.capability_id === ref.capability_id && row.version === ref.version && row.availability.available));
     assert.equal((await notes()).length, 3);
+
+    // After a restart the saved server's tool is back in the directory before anyone opens the MCP settings:
+    // unavailable with the reason, the same reference, and no process started on its own.
+    directory.close();
+    await adapter.close?.();
+    adapter = await openAdapter(); library = adapter.mcpLibrary!;
+    directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
+    assert.ok(!(await client.discover(user)).some(row => row.capability_id === ref.capability_id), "nothing is registered by itself");
+    await directory.restore(reference, async () => library);
+    const restored = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
+    assert.ok(restored, "the saved server's tool is back after the restart");
+    assert.equal(restored.provider.title, "笔记服务");
+    assert.equal(restored.availability.available, false);
+    await assert.rejects(client.invoke(user, ref, { note: "重启后未连接" }), { code: "actions.connection_unavailable" });
+    await library.control(owner, saved.id, "connect");
+    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    assert.deepEqual(await client.invoke(user, ref, { note: "重启后" }), { text: "Saved one note: 重启后", truncated: false });
+    assert.equal((await notes()).length, 4);
     // Removing the configuration removes its entries.
     await library.control(owner, saved.id, "remove");
-    await directory.sync(runtime, owner.plugin_id, library, owner);
+    await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
+    assert.ok(!(await client.discover(user)).some(row => row.capability_id === ref.capability_id));
+    // A removed server is not brought back by the next restart either.
+    directory.close();
+    directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
+    await directory.restore(reference, async () => library);
     assert.ok(!(await client.discover(user)).some(row => row.capability_id === ref.capability_id));
   } finally {
     directory.close();

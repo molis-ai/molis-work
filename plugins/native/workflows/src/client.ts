@@ -77,7 +77,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   });
 
   const state = {
-    workflows: [], stations: [], ai: false, loaded: false, judgments: null, actionSteps: null, stepDraft: null, stepIndex: null, workflow: null, instances: [], instance: null, step: 0,
+    workflows: [], stations: [], ai: false, loaded: false, judgments: null, actionSteps: null, stepDraft: null, stepQuery: '', stepIndex: null, workflow: null, instances: [], instance: null, step: 0,
     saving: 0, handoff: null, busy: null, openLink: null, openGap: null, returnTo: null,
   };
   const stationInfo = (plugin) => plugin === 'action' ? { plugin, label: '动作', icon: 'zap', supported: true }
@@ -570,12 +570,18 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     // A saved step whose action went away stays visible as what it was, so nothing silently changes.
     if (draft.ref && state.actionSteps && !stepChoice(draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || '', fields: [], available: false, reason: '已不可用' });
     const choice = rows.find(row => refKey(row.ref) === refKey(draft.ref));
-    const groups = [...new Set(rows.map(row => row.group))];
+    // Many plugins offer steps: a search narrows the list by name, plugin or description; the current choice always stays.
+    const query = (state.stepQuery || '').trim().toLowerCase();
+    const visible = query ? rows.filter(row => row === choice || [row.title, row.group, row.description || ''].join(' ').toLowerCase().includes(query)) : rows;
+    const groups = [...new Set(visible.map(row => row.group))];
+    const search = rows.length > 12 ? '<label class="mw-field"><span class="mw-field__label">' + tx('找动作') + '</span><input class="mw-input" type="search" data-wf-step-search value="'
+      + esc(state.stepQuery || '') + '" placeholder="' + esc(L('按名称、插件或用途筛选')) + '" aria-label="' + esc(L('按名称、插件或用途筛选')) + '"></label>' : '';
     const picker = !state.actionSteps ? '<div class="wf-judgment" aria-busy="true"><span class="mw-skeleton" style="width:70%"></span><span class="mw-skeleton wf-skeleton-small"></span></div>'
-      : rows.length ? '<label class="mw-field"><span class="mw-field__label">' + tx('执行哪个动作') + '</span><select class="mw-select" data-wf-step-action>'
+      : rows.length ? search + (visible.length ? '<label class="mw-field"><span class="mw-field__label">' + tx('执行哪个动作') + (query ? '<small>' + esc(L('{count} 项匹配', { count: String(visible.length) })) + '</small>' : '') + '</span><select class="mw-select" data-wf-step-action>'
         + (draft.ref ? '' : '<option value="" selected disabled>' + tx('选一个动作') + '</option>')
-        + groups.map(group => '<optgroup label="' + esc(group) + '">' + rows.filter(row => row.group === group).map(row => '<option value="' + esc(refKey(row.ref)) + '"' + (row === choice ? ' selected' : '') + '>'
+        + groups.map(group => '<optgroup label="' + esc(group) + '">' + visible.filter(row => row.group === group).map(row => '<option value="' + esc(refKey(row.ref)) + '"' + (row === choice ? ' selected' : '') + '>'
           + esc(row.title + (row.available ? '' : ' · ' + L(row.reason || '不可用'))) + '</option>').join('') + '</optgroup>').join('') + '</select></label>'
+        : '<p class="wf-hint" role="status">' + tx('没有匹配的动作，换个词试试') + '</p>')
         + (choice?.description ? '<p class="wf-hint">' + esc(choice.description) + '</p>' : '')
       : '<p class="wf-hint">' + tx('现在没有可以放进流程的动作。插件声明了接受流程调用的动作后，会自动出现在这里。') + '</p>';
     const problem = state.actionSteps ? stepProblem(draft, choice) : '';
@@ -593,6 +599,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const station = index === null ? null : state.workflow.stations[index];
     state.stepIndex = index;
     state.stepDraft = station?.action ? JSON.parse(JSON.stringify(station.action)) : { ref: null, title: '', group: '', mapping: {} };
+    state.stepQuery = '';
     state.openLink = null; state.openGap = null;
     pop.dataset.mode = 'step'; delete pop.dataset.link;
     renderStepEditor();
@@ -1154,6 +1161,15 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   pop.addEventListener('input', (event) => {
     if (pop.dataset.mode === 'step') {
+      const search = event.target.closest('input[data-wf-step-search]');
+      if (search) {
+        state.stepQuery = search.value;
+        const caret = search.selectionStart;
+        renderStepEditor();
+        const again = pop.querySelector('[data-wf-step-search]');
+        if (again) { again.focus({ preventScroll: true }); again.setSelectionRange(caret, caret); }
+        return;
+      }
       const value = event.target.closest('input[data-wf-map-value]');
       if (value) { updateMapValue(value); refreshStepReadiness(); }
       return;

@@ -10,7 +10,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
   const menu = document.createElement("div");
   menu.className = "background-tasks-menu mw-menu"; menu.setAttribute("popover", "auto"); menu.setAttribute("aria-label", L("后台任务"));
   document.body.append(menu);
-  const LABEL = { running: L("进行中"), paused: L("已暂停"), "waiting-answer": L("等你回答"), "waiting-approval": L("等你审查"), "reconcile-required": L("需要核对") };
+  const LABEL = { running: L("进行中"), paused: L("已暂停"), "waiting-answer": L("等你回答"), "waiting-approval": L("等你审查"), "reconcile-required": L("需要核对"), queued: L("等其他会话") };
   let tasks = [], key = "", reading = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
   const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };

@@ -106,6 +106,13 @@ export const CODING_STYLES = `
 .coding-board-avatar.is-person { box-shadow:inset 0 0 0 1px var(--ink); }
 .coding-board-meta[data-owner=none] .coding-board-agent { color:var(--amber); }
 .coding-board-meta[data-owner=person] .coding-board-agent { color:var(--ink); }
+.coding-queued { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 8px; padding:8px 12px; border-radius:var(--radius-item, 8px); background:color-mix(in srgb, var(--amber) 12%, var(--paper)); }
+.coding-queued p { margin:0; font-size:13px; color:var(--ink); }
+.coding-queued-actions, .coding-overlap-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.coding-overlap-body { display:grid; gap:12px; max-width:32rem; padding:20px; }
+.coding-overlap-body h2 { margin:0; font-size:15px; }
+.coding-overlap-body ul { margin:0; padding-left:18px; display:grid; gap:6px; font-size:13px; }
+.coding-overlap-body p { margin:0; font-size:12px; color:var(--muted); }
 .coding-board-check { display:inline-flex; align-items:center; gap:4px; flex:none; font-size:12px; color:var(--muted); white-space:nowrap; }
 .coding-board-tools { position:absolute; right:8px; top:2px; display:none; gap:2px; padding:0 2px; border-radius:6px; background:var(--paper); box-shadow:0 1px 3px color-mix(in srgb, var(--shadow-color, #000) 16%, transparent); }
 .coding-board-tools .mw-btn { width:24px; height:24px; min-height:24px; padding:0; }

@@ -80,6 +80,7 @@ const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label
   "stopped": { icon: "blocked", tone: "idle", label: "你停下的" },
   "cancelled": { icon: "x", tone: "idle", label: "已取消" },
   "reconcile-required": { icon: "circle-alert", tone: "attention", label: "需要你核对结果" },
+  "queued": { icon: "clock", tone: "attention", label: "等其他会话" },
   "done": { icon: "check", tone: "done", label: "本轮结束" },
 };
 
@@ -278,6 +279,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         </section>
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>回到最新</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
+        <div class="coding-queued" data-coding-queued role="status" hidden></div>
         <form class="coding-composer mw-frame__footer" data-coding-composer>
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
           ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}

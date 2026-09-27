@@ -3518,7 +3518,7 @@ index 350c0b40..6ce212ab 100644
  
  /** 受信 App 回收来源用的那一份：展示 id 加真实根引用。 */
 diff --git a/packages/sdk/src/orchestration/core/taskboard.ts b/packages/sdk/src/orchestration/core/taskboard.ts
-index b4d79a1e..1d946610 100644
+index b4d79a1e..6947eb22 100644
 --- a/packages/sdk/src/orchestration/core/taskboard.ts
 +++ b/packages/sdk/src/orchestration/core/taskboard.ts
 @@ -24,6 +24,41 @@ export type NodeState =
@@ -3572,7 +3572,20 @@ index b4d79a1e..1d946610 100644
  }
  
  export interface BoardProposal {
-@@ -62,6 +97,12 @@ export interface BoardProposal {
+@@ -51,6 +86,12 @@ export interface BoardProposal {
+    * App 自己调的时候手上就有引用，用不着这一栏。
+    */
+   readonly idempotencyKey?: string;
++  /**
++   * A board that stays open: it does not end when its nodes do, may start empty, and keeps only the `keepFinished`
++   * finished nodes added most recently (plus any an unfinished node still waits on). For a long-lived shared board,
++   * such as a project's list of work under way.
++   */
++  readonly standing?: { readonly keepFinished: number };
+ }
+ 
+ /**
+@@ -62,6 +103,12 @@ export interface BoardProposal {
  export interface NodeReport {
    /** 谁报的。**没绑档案就是没有人**，不编一个。 */
    readonly by: ExactRef<"character"> | undefined;
@@ -3585,7 +3598,7 @@ index b4d79a1e..1d946610 100644
    /** 一句有界的说明。**正文不进图**，大正文走资源引用。 */
    readonly note: string;
    readonly atMs: number;
-@@ -75,7 +116,7 @@ export interface TaskNode {
+@@ -75,7 +122,7 @@ export interface TaskNode {
    readonly onFailure: FailurePolicy;
    readonly state: NodeState;
    /** 这活归谁。**没定就是 `undefined`**，那时谁都报得了。 */
@@ -3594,7 +3607,16 @@ index b4d79a1e..1d946610 100644
    /** 报上来的那几条，早的在前。条数满了丢最早的。 */
    readonly reports: readonly NodeReport[];
  }
-@@ -199,7 +240,26 @@ export interface TaskBoardStore {
+@@ -145,6 +192,8 @@ export interface StoredBoard {
+    * 干活变，而要比的是当初提的那一份。
+    */
+   readonly intake?: { readonly key: string; readonly fingerprint: string };
++  /** Set for a standing board; see `BoardProposal.standing`. */
++  readonly standing?: { readonly keepFinished: number };
+ }
+ 
+ export interface TaskBoardStore {
+@@ -199,7 +248,26 @@ export interface TaskBoardStore {
      readonly ref: ExactRef<"task-board">;
      readonly expectedVersion: number;
      readonly nodeId: string;
@@ -3622,7 +3644,7 @@ index b4d79a1e..1d946610 100644
    }): Promise<TaskBoard>;
    /**
     * 在一个节点上报一条进展，可以顺带把状态改掉。
-@@ -216,6 +276,15 @@ export interface TaskBoardStore {
+@@ -216,6 +284,15 @@ export interface TaskBoardStore {
      readonly nodeId: string;
      /** 谁报的。**没绑档案就是 `undefined`**，那时报不了别人名下的活。 */
      readonly by: ExactRef<"character"> | undefined;
@@ -3638,7 +3660,7 @@ index b4d79a1e..1d946610 100644
      readonly note: string;
      readonly atMs: number;
      /** 顺带改状态。不给就只留一条进展。 */
-@@ -247,12 +316,15 @@ export interface TaskBoardStore {
+@@ -247,12 +324,15 @@ export interface TaskBoardStore {
    subscribe(listener: (event: BoardEvent) => void): () => void;
  }
  
@@ -3656,7 +3678,64 @@ index b4d79a1e..1d946610 100644
    /** 有人报了一条。**不带那句说明**——事件里只有身份和状态。 */
    | { readonly type: "node-reported"; readonly nodeId: string }
    | { readonly type: "board-cancelled" };
-@@ -354,7 +426,8 @@ export function createTaskBoardStore(
+@@ -267,6 +347,7 @@ interface Held {
+   order: string[];
+   /** 吸入时那个键与提案指纹。**没给键就是没有**，那时它不参与去重。 */
+   readonly intake: { readonly key: string; readonly fingerprint: string } | undefined;
++  readonly standing?: { readonly keepFinished: number };
+ }
+ 
+ /** 允许的状态转换。**终态不可改写。** */
+@@ -316,7 +397,29 @@ export function createTaskBoardStore(
+    */
+   const ROW_VERSION = 1;
+ 
++  /**
++   * A standing board forgets its oldest finished nodes past its limit, never one an unfinished node still waits on;
++   * finished nodes that pointed at a forgotten one no longer do. Runs before every write, so what is kept is saved.
++   */
++  const prune = (held: Held): void => {
++    if (held.standing === undefined) return;
++    const nodes = held.order.map((id) => held.nodes.get(id) as TaskNode);
++    const waitedOn = new Set(nodes.filter((node) => !isTerminal(node.state)).flatMap((node) => node.dependsOn));
++    const finished = nodes.filter((node) => isTerminal(node.state) && !waitedOn.has(node.id));
++    const drop = new Set(finished.slice(0, Math.max(0, finished.length - held.standing.keepFinished)).map((node) => node.id));
++    if (drop.size < 1) return;
++    held.order = held.order.filter((id) => !drop.has(id));
++    for (const id of drop) held.nodes.delete(id);
++    for (const id of held.order) {
++      const node = held.nodes.get(id) as TaskNode;
++      if (node.dependsOn.some((dep) => drop.has(dep))) {
++        held.nodes.set(id, { ...node, dependsOn: node.dependsOn.filter((dep) => !drop.has(dep)) });
++      }
++    }
++  };
++
+   const save = async (held: Held): Promise<void> => {
++    prune(held);
+     if (store === undefined) {
+       return;
+     }
+@@ -330,6 +433,7 @@ export function createTaskBoardStore(
+         version: held.version,
+         nodes: held.order.map((id) => held.nodes.get(id) as TaskNode),
+         ...(held.intake === undefined ? {} : { intake: held.intake }),
++        ...(held.standing === undefined ? {} : { standing: held.standing }),
+       },
+     });
+   };
+@@ -340,8 +444,8 @@ export function createTaskBoardStore(
+       ref: held.ref,
+       version: held.version,
+       nodes,
+-      // 整张图到终态 = 每个节点都到终态。
+-      terminal: nodes.every((node) => isTerminal(node.state)),
++      // 整张图到终态 = 每个节点都到终态。A standing board stays open.
++      terminal: held.standing === undefined && nodes.every((node) => isTerminal(node.state)),
+     };
+   };
+ 
+@@ -354,7 +458,8 @@ export function createTaskBoardStore(
    };
  
    const listeners = new Set<(event: BoardEvent) => void>();
@@ -3666,7 +3745,36 @@ index b4d79a1e..1d946610 100644
      for (const listener of listeners) {
        try {
          listener(event);
-@@ -740,7 +813,7 @@ export function createTaskBoardStore(
+@@ -525,6 +630,7 @@ export function createTaskBoardStore(
+           nodes,
+           order: row.value.nodes.map((node) => node.id),
+           intake: row.value.intake,
++          ...(row.value.standing === undefined ? {} : { standing: row.value.standing }),
+         });
+         if (row.value.intake !== undefined) {
+           admitted.set(row.value.intake.key, row.value.id);
+@@ -558,7 +664,11 @@ export function createTaskBoardStore(
+       }
+ 
+       // 一、体积。**超预算整张拒绝。**
+-      if (proposal.nodes.length < 1) {
++      if (proposal.standing !== undefined && (!Number.isSafeInteger(proposal.standing.keepFinished) ||
++          proposal.standing.keepFinished < 0 || proposal.standing.keepFinished >= limits.maxNodes)) {
++        throw createPrologueError("TASKBOARD_PROPOSAL_INVALID", `A standing board keeps 0 to ${String(limits.maxNodes - 1)} finished nodes.`);
++      }
++      if (proposal.nodes.length < 1 && proposal.standing === undefined) {
+         throw createPrologueError("TASKBOARD_PROPOSAL_INVALID", "A task board needs at least one node.");
+       }
+       if (proposal.nodes.length > limits.maxNodes) {
+@@ -652,6 +762,7 @@ export function createTaskBoardStore(
+           proposal.idempotencyKey === undefined
+             ? undefined
+             : { key: proposal.idempotencyKey, fingerprint },
++        ...(proposal.standing === undefined ? {} : { standing: { keepFinished: proposal.standing.keepFinished } }),
+       };
+       for (const node of proposal.nodes) {
+         held.nodes.set(node.id, {
+@@ -740,7 +851,7 @@ export function createTaskBoardStore(
        normalize(held);
        held.version += 1;
        await save(held);
@@ -3675,7 +3783,7 @@ index b4d79a1e..1d946610 100644
        return view(held);
      },
  
-@@ -795,7 +868,7 @@ export function createTaskBoardStore(
+@@ -795,7 +906,7 @@ export function createTaskBoardStore(
        normalize(held);
        held.version += 1;
        await save(held);
@@ -3684,7 +3792,7 @@ index b4d79a1e..1d946610 100644
        return view(held);
      },
  
-@@ -820,7 +893,36 @@ export function createTaskBoardStore(
+@@ -820,7 +931,36 @@ export function createTaskBoardStore(
        held.nodes.set(nodeId, { ...node, assignee });
        held.version += 1;
        await save(held);
@@ -3722,7 +3830,7 @@ index b4d79a1e..1d946610 100644
        return view(held);
      },
  
-@@ -844,10 +946,13 @@ export function createTaskBoardStore(
+@@ -844,10 +984,13 @@ export function createTaskBoardStore(
         * 没绑档案的那一跑（`by` 是 `undefined`）报不了任何写着名字的
         * 节点：那时根本没有「我是谁」可比，而这一栏正是「这活归谁」。
         */
@@ -3738,7 +3846,7 @@ index b4d79a1e..1d946610 100644
          );
        }
        if (input.note.length < 1) {
-@@ -861,7 +966,8 @@ export function createTaskBoardStore(
+@@ -861,7 +1004,8 @@ export function createTaskBoardStore(
              "shorten it, or put the long form behind a resource reference.",
          );
        }
@@ -3748,7 +3856,7 @@ index b4d79a1e..1d946610 100644
        // 满了丢最早的那条。**不是拒绝**——正在干活的那个不该因为
        // 「说过太多次」就再也报不上来。
        const kept = [...node.reports, report].slice(-limits.maxReportsPerNode);
-@@ -874,15 +980,18 @@ export function createTaskBoardStore(
+@@ -874,15 +1018,18 @@ export function createTaskBoardStore(
         * ready 直接报成功」会被拒绝，却已经把那句说明留在了图上——版本
         * 没加、盘上没有，只有这个进程里多了一条谁也解释不了的进展。
         */
@@ -3772,7 +3880,7 @@ index b4d79a1e..1d946610 100644
        }
        return view(held);
      },
-@@ -904,7 +1013,7 @@ export function createTaskBoardStore(
+@@ -904,7 +1051,7 @@ export function createTaskBoardStore(
        }
        held.version += 1;
        await save(held);
@@ -3781,7 +3889,7 @@ index b4d79a1e..1d946610 100644
        return view(held);
      },
  
-@@ -958,7 +1067,7 @@ export function createTaskBoardStore(
+@@ -958,7 +1105,7 @@ export function createTaskBoardStore(
        held.version += 1;
        // **落下去再返回**：写不下去是稳定错误，不是「改成功了但没存」。
        await save(held);
@@ -4482,10 +4590,10 @@ index 00000000..69d5d723
 +});
 diff --git a/packages/sdk/test/board-claims.test.ts b/packages/sdk/test/board-claims.test.ts
 new file mode 100644
-index 00000000..31e75198
+index 00000000..a04ea2c1
 --- /dev/null
 +++ b/packages/sdk/test/board-claims.test.ts
-@@ -0,0 +1,187 @@
+@@ -0,0 +1,235 @@
 +import { describe, expect, it } from "vitest";
 +import { createRuntime, type ModelEvent } from "../src/index.js";
 +import { createTaskBoardStore, reportsFor } from "../src/orchestration/core/index.js";
@@ -4671,6 +4779,54 @@ index 00000000..31e75198
 +    } finally {
 +      await runtime.shutdown();
 +    }
++  });
++});
++
++describe("常开的任务图（standing）", () => {
++  it("可以空着开、同一个键回同一张、从不因节点都结束而终止，只留最近几个已结束的，被等着的不丢，重启后照旧", async () => {
++    const rows = new Map<string, unknown>();
++    const disk = {
++      put: async (row: { id: string; value: unknown }) => { rows.set(row.id, row.value); },
++      list: async () => [...rows.values()].map((value) => ({ value })),
++    } as never;
++    let n = 0;
++    const boards = createTaskBoardStore(() => `p${String(++n)}`, disk);
++    const board = await boards.admit({ nodes: [], idempotencyKey: "project:1", standing: { keepFinished: 2 } });
++    expect(board.nodes).toEqual([]);
++    expect(board.terminal).toBe(false);
++    expect((await boards.admit({ nodes: [], idempotencyKey: "project:1", standing: { keepFinished: 2 } })).ref.id).toBe(board.ref.id);
++    await expect(boards.admit({ nodes: [], standing: { keepFinished: 9999 } })).rejects.toThrow(/keeps 0 to/);
++    await expect(boards.admit({ nodes: [] })).rejects.toThrow(/at least one node/);
++
++    const add = async (id: string, dependsOn: string[] = []) => {
++      const at = boards.get(board.ref);
++      await boards.addNode({ ref: board.ref, expectedVersion: at.version, node: { id, title: id, dependsOn, onFailure: "block-for-human" } });
++    };
++    const finish = async (id: string) => {
++      for (const to of ["running", "succeeded"] as const) {
++        await boards.transition({ ref: board.ref, expectedVersion: boards.get(board.ref).version, nodeId: id, to });
++      }
++    };
++    await add("a"); await finish("a");
++    // "b" is finished but "w" waits on it, so it stays however many finish after it.
++    await add("b"); await add("w", ["b"]); await finish("b");
++    expect(boards.get(board.ref).terminal).toBe(false);
++    for (const id of ["c", "d", "e"]) { await add(id); await finish(id); }
++    const kept = boards.get(board.ref);
++    expect(kept.nodes.map((node) => [node.id, node.state])).toEqual([["b", "succeeded"], ["w", "ready"], ["d", "succeeded"], ["e", "succeeded"]]);
++    expect(kept.terminal).toBe(false);
++
++    // After a restart the board is still standing and still found by its key.
++    const again = createTaskBoardStore(() => `q${String(++n)}`, disk);
++    await again.hydrate();
++    const reopened = await again.admit({ nodes: [], idempotencyKey: "project:1", standing: { keepFinished: 2 } });
++    expect(reopened.ref.id).toBe(board.ref.id);
++    await again.transition({ ref: board.ref, expectedVersion: reopened.version, nodeId: "w", to: "running" });
++    await again.transition({ ref: board.ref, expectedVersion: again.get(board.ref).version, nodeId: "w", to: "succeeded" });
++    const after = again.get(board.ref);
++    // Nothing waits on "b" any more, so only the two finished nodes added last remain; the board is still open.
++    expect(after.nodes.map((node) => node.id)).toEqual(["d", "e"]);
++    expect(after.terminal).toBe(false);
 +  });
 +});
 diff --git a/packages/sdk/test/bounded-inference.live.test.ts b/packages/sdk/test/bounded-inference.live.test.ts

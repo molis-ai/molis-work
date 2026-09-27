@@ -27,7 +27,9 @@ export const codingExecutionRules: readonly PolicyRule[] = [
  * person's changes (told through their own note) are not repeated.
  */
 export function createPrologueTaskBoards(runtime: Runtime, original: (run: AgentRunRef) => Promise<PrologueStepBinding | undefined>,
-  steer?: (run: AgentRunRef, text: string) => Promise<boolean>) {
+  steer?: (run: AgentRunRef, text: string) => Promise<boolean>,
+  /** The project's work graph a session may read (never report on): what other sessions are doing. */
+  projectBoard?: (session: string) => Promise<string | undefined>) {
   const hook = "molis-confirmed-plan-scope";
   /** The round a call works for: the run's own, or for a subtask the round that dispatched it. */
   const roundOf = async (at: AgentRunRef): Promise<PrologueStepBinding | undefined> => {
@@ -50,6 +52,10 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     }
     if (!context.toolName?.startsWith("board-")) return { kind: "allow" };
     const denied = { kind: "deny" as const, why: "只能读取或回报本轮确认计划，不能访问其他任务图或改写计划" };
+    if (context.toolName === "board-read" && projectBoard && context.origin?.session) {
+      const shared = await projectBoard(context.origin.session).catch(() => undefined);
+      if (shared && (context.input as { board?: unknown } | undefined)?.board === shared) return { kind: "allow" };
+    }
     if (!["board-read", "board-report"].includes(context.toolName) || !context.origin?.session || !context.origin.run) return denied;
     const attempt = await roundOf({ session_id: context.origin.session, run_id: context.origin.run });
     const args = context.input as { board?: unknown; node?: unknown } | undefined;

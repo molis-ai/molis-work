@@ -240,6 +240,27 @@ export function registerAgentHostCapabilities<Context>(
       await context.invocation.beforeEffect();
       await port.cancel(run, childId, caller?.actor_id ?? actorId);
     }),
+    // The project's work under way: every session's rounds in this project, never another project's.
+    register(agentHostCapabilities.readProjectWork, async (context, [runtimeId, probe]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.projectWork) return { items: [], overlaps: [] };
+      return adapter.projectWork.read(ports.boardId(context), probe);
+    }),
+    register(agentHostCapabilities.queueProjectRound, async (context, [runtimeId, input]) => {
+      const view = await readScopedSession(context, input.session);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.projectWork) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能安排等待");
+      await context.invocation.beforeEffect();
+      return adapter.projectWork.queue(ports.boardId(context), input, pluginFor(context)?.actor_id ?? view.owner.actor_id ?? "user");
+    }),
+    register(agentHostCapabilities.releaseProjectRound, async (context, [runtimeId, workId, note]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.projectWork) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能安排等待");
+      await context.invocation.beforeEffect();
+      await adapter.projectWork.release(ports.boardId(context), workId, caller?.actor_id ?? "user", note);
+    }),
     register(agentHostCapabilities.amendStepBoard, async (context, [session, run, amendment, expectedVersion]) => {
       const view = await requireRun(context, session, run);
       const adapter = ports.agentHost(context).adapter(session.runtime_id);

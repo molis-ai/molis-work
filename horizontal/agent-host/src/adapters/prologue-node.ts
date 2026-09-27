@@ -30,6 +30,7 @@ import { createPrologueGitReviews, type PrologueGitReviewPort } from "./prologue
 import { createPrologueCompactor } from "./prologue-compaction.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskboard.js";
+import { createProjectWork, projectWorkDigest, workPaths } from "./prologue-project-work.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -303,8 +304,18 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         if (review.kind !== "workspace-patch" || review.version !== 1 || typeof review.path !== "string"
           || typeof review.baseExists !== "boolean" || typeof review.baseText !== "string" || typeof review.nextText !== "string") throw new Error("这类操作的完整审查尚未接通，不能批准");
         reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+        // A file this round writes joins its work's scope; other work under way that covers it is named on the card.
+        const work = pending.origin?.run ? runWork.get(pending.origin.run) : undefined;
+        let concurrent: string[] = [];
+        if (work) {
+          void projectWork.touch(work.project, work.id, review.path).catch(() => undefined);
+          try {
+            const seen = await projectWork.read(work.project, { session_id: work.session.id, directory: work.directory, paths: [review.path] });
+            concurrent = seen.overlaps.map(overlap => `会话「${overlap.work.title.slice(0, 40)}」（${overlap.work.state === "running" ? "进行中" : "等待开始"}）`);
+          } catch { /* the card still shows the change itself */ }
+        }
         return { kind: "text-edit", ...(childDirectory ? { workspace_path: childDirectory } : {}), target_path: review.path, exists: review.baseExists,
-          before_text: review.baseExists ? review.baseText : null, after_text: review.nextText };
+          before_text: review.baseExists ? review.baseText : null, after_text: review.nextText, ...(concurrent.length ? { concurrent } : {}) };
       },
   };
   const approvals = options.reviewQueue && new PrologueApprovalBridge({
@@ -439,6 +450,27 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     try { await next; }
     finally { if (indexUpdates.get(id) === next) indexUpdates.delete(id); }
   };
+  // The project's work under way, on one standing SDK graph per project; what each item covers is kept beside it.
+  const workKind = `molis-project-work-${createHash("sha256").update(options.app.appId).digest("hex").slice(0, 24)}`;
+  const workVersions = new Map<string, number>();
+  const projectWork = createProjectWork(runtime, {
+    async load(project) {
+      const record = await host.storage.get({ kind: workKind, id: project });
+      if (!record || record.tombstoned) return {};
+      workVersions.set(project, record.version);
+      const bytes = await host.storage.readSecure({ kind: workKind, id: project });
+      try { return JSON.parse(new TextDecoder().decode(bytes)); } finally { bytes.fill(0); }
+    },
+    async save(project, scopes) {
+      const bytes = new TextEncoder().encode(JSON.stringify(scopes));
+      try {
+        const record = await host.storage.commit({ kind: workKind, id: project, expectedVersion: workVersions.get(project) ?? 0, metadata: { schema: 1 }, secureBody: bytes });
+        workVersions.set(project, record.version);
+      } finally { bytes.fill(0); }
+    },
+  }, runId => runWork.has(runId));
+  /** Main rounds registered as project work: which item, in which project and directory. */
+  const runWork = new Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>();
   const stepBoards = createPrologueTaskBoards(runtime, async run => {
     const index = await readIndex(run.session_id), attempt = index?.attempts.find(attempt => attempt.run_id === run.run_id);
     return attempt && { ...attempt, session: index!.ref };
@@ -448,6 +480,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     if (!active?.live()) return false;
     await active.steer(text);
     return true;
+  }, async sessionId => {
+    const index = await readIndex(sessionId);
+    return index ? projectWork.boardId(index.owner.board_id) : undefined;
   });
   const rememberReview = async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
     const request = options.reviewQueue!.get(receipt.review_id);
@@ -562,6 +597,15 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
     amendStepBoard: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor),
+    projectWork: {
+      read: (project, probe) => projectWork.read(project, probe && { ...(probe.session_id ? { session_id: probe.session_id } : {}), directory: probe.directory, paths: workPaths(probe.text) }),
+      async queue(project, input, actorId) {
+        const index = await readIndex(input.session.session_id);
+        if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
+        return projectWork.queue(project, { session: index.ref, title: index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
+      },
+      release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
+    },
     recovery: {
       inspect: session => inspectRecovery(session.session_id),
       close: async (session, runId, expectedVersion) => {
@@ -752,6 +796,16 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const digest = plan && stepBoard ? stepBoards.digest(stepBoard, plan, session.ref.id)
         : earlier ? stepBoards.standing(earlier.step_board!, earlier.frozen.execution_plan!, session.ref.id) : "";
       if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
+      // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
+      const project = index.owner.board_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
+      const scopePaths = none ? [] : workPaths(workText);
+      if (!none && input.root_path && !index.parent_run) {
+        try {
+          const seen = await projectWork.read(project, { session_id: session.ref.id, directory: input.root_path, paths: scopePaths });
+          const note = projectWorkDigest(await projectWork.boardId(project), seen.items, session.ref.id, seen.overlaps);
+          if (note) textResources.push({ ref: await stageTextResource(runtime, note, "coding-project-work"), as: "original" });
+        } catch { /* the project's list is a courtesy to the round; a failed read leaves it out rather than stopping the round */ }
+      }
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
         ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
       if (!none) {
@@ -914,6 +968,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       activeRuns.set(started.run.ref.id, { live: () => started.run.state === "running" && stopping === undefined,
         steer: text => started.control.steer({ text }) });
       if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);
+      // A main round is work under way in its project until it ends; a subtask's work is its parent's.
+      if (!none && input.root_path && !index.parent_run) {
+        try {
+          const workId = await projectWork.begin(project, { session: session.ref, run_id: started.run.ref.id, title: index.title, task: input.task,
+            directory: input.root_path, paths: scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
+          runWork.set(started.run.ref.id, { project, id: workId, session: session.ref, directory: input.root_path });
+        } catch { /* not listed as project work; the round itself is unaffected */ }
+      }
       const control = started.control;
       return {
         run: {
@@ -923,6 +985,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
               if (["completed", "failed", "cancelled"].includes(event.type)) {
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
                 if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);
+                const work = runWork.get(started.run.ref.id);
+                if (work) { runWork.delete(started.run.ref.id); void projectWork.end(work.project, work.id, event.type === "cancelled" ? "stopped" : event.type).catch(() => undefined); }
               }
               if (event.type === "command-receipt") {
                 const events = commandEvents.get(started.run.ref.id) ?? [];

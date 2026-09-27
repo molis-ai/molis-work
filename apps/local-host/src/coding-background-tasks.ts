@@ -3,7 +3,7 @@ import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 
 /** Coding session states that mean a round is under way or waiting on the person. */
-const ACTIVE_STATES = ["running", "paused", "waiting-answer", "waiting-approval", "reconcile-required"] as const;
+const ACTIVE_STATES = ["running", "paused", "waiting-answer", "waiting-approval", "reconcile-required", "queued"] as const;
 
 export interface CodingBackgroundTask {
   project_id: string;
@@ -51,7 +51,8 @@ export function codingBackgroundTasks(projects: readonly WebProjectNavigation[],
         if (!active && !steps?.mine) continue;
         tasks.push({ project_id: project.project_id, project_name: project.display_name, session_id: row.session_id,
           title: row.title, state: row.state, updated_at: row.updated_at, ...(steps ? { steps } : {}),
-          before_restart: active && row.state !== "reconcile-required" && row.updated_at < startedAt });
+          // A queued round has not started, so a restart did not cut it off.
+          before_restart: active && !["reconcile-required", "queued"].includes(row.state) && row.updated_at < startedAt });
       }
     } catch {
       // No Coding table yet, or a store this service cannot read: nothing is listed for that project.

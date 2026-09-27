@@ -10,7 +10,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const button=(label,variant,handler)=>{const node=el('button','mw-btn'+(variant?' mw-btn--'+variant:''),label);node.type='button';node.addEventListener('click',handler);return node;};
   const time=(value)=>value?new Date(value).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
   const EVENT={submitted:'已提交',delivered:'已送达对方会话',accepted:'对方已接受',started:'对方开始执行','delivery-sent':'对方交付了成果','delivery-accepted':'已收下交付','delivery-rejected':'没有收下交付',completed:'已完成',rejected:'对方拒绝',cancelled:'已取消',failed:'失败'};
-  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',done:'本轮结束'};
+  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'等其他会话',done:'本轮结束'};
   const TONE={received:'attention',delivered:'attention',accepted:'progress',committing:'progress',completed:'done',rejected:'blocked',cancelled:'idle',failed:'blocked'};
   let owner='',data=null,readAt=0,reading=false,drafts=new Map(),drawnKey='';
   const act=async(path,body,done)=>{try{await api('/sessions/'+encodeURIComponent(current())+'/delegations'+path,'POST',body);if(done)status(done);await refresh(true);}catch(error){status(error.message,true);await refresh(true);}};

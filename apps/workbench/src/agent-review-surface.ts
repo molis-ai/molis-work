@@ -64,6 +64,7 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-fields dd { white-space:pre-wrap; max-height:220px; overflow:auto; }
 .agent-review-target { color:var(--ink); }
 .agent-review-meta { color:var(--muted); margin:4px 0 0; }
+.agent-review-concurrent { margin:6px 0 0; padding:6px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--amber) 14%, transparent); }
 .agent-review-warning { margin:6px 0 0; padding:6px 10px; border-radius:6px; color:var(--text); background:color-mix(in srgb,var(--amber,#b7791f) 14%,transparent); font-size:13px; }
 .agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
 .agent-review-prompt { color:var(--muted); user-select:none; }
@@ -282,6 +283,7 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
         <p class="agent-review-file"><span class="agent-review-target">${p.escape(document.target_path)}</span>${document.exists ? "" : `<span class="agent-review-tag">${p.escape("新建文件")}</span>`}<span class="agent-review-count" data-added>+${diff.added}</span><span class="agent-review-count" data-removed>−${diff.removed}</span></p>
         ${document.workspace_path ? `<p class="agent-review-meta">${p.escape(document.workspace_path)}</p>` : ""}
+        ${document.concurrent?.length ? `<p class="agent-review-concurrent" role="note">${p.escape("另一个会话也在改这个文件：" + document.concurrent.join("、") + "。批准前先确认不会互相覆盖。")}</p>` : ""}
         ${diff.html}
         <details class="agent-review-before" data-review-detail="before"><summary>${p.escape("修改前的完整内容")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
         <details class="agent-review-after-full" data-review-detail="after"><summary>${p.escape("修改后的完整内容")}</summary><pre class="agent-review-after">${p.escape(document.after_text)}</pre></details>

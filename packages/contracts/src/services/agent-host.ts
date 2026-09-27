@@ -193,6 +193,42 @@ export interface AgentExecutionPlan {
 }
 
 /** Original SDK facts. A reported success is never a user acceptance. */
+/**
+ * One piece of work in a project: a round under way or ended, or a round waiting for another to finish. Items live on
+ * the project's SDK task graph; `paths` is what the work named or wrote, used to find overlaps.
+ */
+export interface AgentProjectWork {
+  work_id: string;
+  /** The runtime session doing it. */
+  session_id: string;
+  run_id?: string;
+  /** The session's title. */
+  title: string;
+  /** The round's task, bounded. */
+  task: string;
+  state: "waiting" | "running" | "done" | "failed" | "stopped";
+  directory: string;
+  paths: string[];
+  /** Work items this one waits for. */
+  waits_for?: string[];
+  updated_at_ms: number;
+}
+
+/** Other work under way in the same directory whose files overlap a scope. */
+export interface AgentProjectWorkOverlap {
+  work: AgentProjectWork;
+  paths: string[];
+}
+
+export interface AgentProjectWorkCapability {
+  /** `probe`: a round about to start (its directory and task or plan text); overlaps are found against it. */
+  read(project: string, probe?: { session_id?: string; directory: string; text: string }): Promise<{ items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>;
+  /** Hold a round until another piece of work finishes; the person decided. */
+  queue(project: string, input: { session: AgentSessionRef; directory: string; task: string; after: string }, actorId: string): Promise<AgentProjectWork>;
+  /** Give up a waiting item; `note` says why. */
+  release(project: string, workId: string, actorId: string, note: string): Promise<void>;
+}
+
 /** Who holds a step: only its holder reports on it. */
 export interface AgentStepOwner {
   kind: "session" | "subtask" | "person" | "none" | "other";
@@ -358,6 +394,8 @@ interface AgentStartRequestFields {
    * one that round was frozen with; a person's inserted and skipped steps carry over because the graph does.
    */
   continue_step_board_of?: string;
+  /** The project work item this round waited as (see queueProjectRound); the round takes it over when it starts. */
+  queued_work_id?: string;
   /**
    * How earlier rounds of the session reach this one. Absent or `session` carries every earlier round verbatim, tool
    * output included. `digest` starts without that raw history: the task itself carries the caller's digest of earlier
@@ -579,6 +617,8 @@ export interface AgentTextReviewDocument {
   exists: boolean;
   before_text: string | null;
   after_text: string;
+  /** Other sessions whose work under way in the same directory covers this file, as the proposal was made. */
+  concurrent?: string[];
 }
 
 export interface AgentCommandReviewDocument {
@@ -872,6 +912,8 @@ export interface AgentRuntimeAdapter {
   readSession(session: AgentSessionRef): Promise<AgentSessionView>;
   /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
+  /** The project's work under way, when this Runtime keeps it. */
+  readonly projectWork?: AgentProjectWorkCapability;
   start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
   read(run: AgentRunRef): Promise<AgentRunView>;
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
@@ -1004,6 +1046,18 @@ export const agentHostCapabilities = {
     version: 1,
     operation: "query",
   } as HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | { session_id: string; error: string }>>,
+  /** The project's work under way; with a probe, what overlaps a round about to start. */
+  readProjectWork: {
+    capability_id: "agent.project-work.read.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, probe?: { session_id?: string; directory: string; text: string }], { items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>,
+  /** Hold a round until another piece of work in the project finishes. */
+  queueProjectRound: {
+    capability_id: "agent.project-work.queue.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, input: { session: AgentSessionRef; directory: string; task: string; after: string }], AgentProjectWork>,
+  /** Give up a waiting round's item. */
+  releaseProjectRound: {
+    capability_id: "agent.project-work.release.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, workId: string, note: string], void>,
   listSkills: {
     capability_id: "agent.skills.list.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[runtimeId: string, pluginId: string], AgentSkillCatalogEntry[]>,

@@ -141,6 +141,8 @@ export interface PrologueStartInput {
   mode: "plan" | "build";
   /** `digest`: the task carries earlier rounds; do not replay the session's verbatim history. */
   history?: "digest";
+  /** The project work item this round waited as; it takes that item over. */
+  queued_work_id?: string;
 }
 
 /** Host observation times only; the SDK ledger owns content and execution state. */
@@ -159,6 +161,7 @@ export interface PrologueRuntimePort {
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
   amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string): Promise<NonNullable<AgentRunView["step_board"]>>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
+  projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
@@ -261,6 +264,7 @@ interface RunRecord {
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
+  readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -279,6 +283,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
+    if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.subagents) this.subagents = {
       ...(options.runtime.subagents.workspaces ? { workspaces: true as const } : {}),
       list: async run => { await this.read(run); return options.runtime.subagents!.list(run); },
@@ -547,6 +552,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(role.actions ? { actions: role.actions } : {}),
       mode,
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
+      ...(request.queued_work_id ? { queued_work_id: request.queued_work_id } : {}),
     });
 
     const ref: AgentRunRef = {

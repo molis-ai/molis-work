@@ -1541,7 +1541,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz':
-    resolution: {integrity: sha512-U6EEKDIU8z2OInAPKdBxNPe/ugwvSYfTWJ5TxJdxyCqr2hs1exLlwP54S55itiIPFuTk1WcqKnKBn0k7IfJEsA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz}
+    resolution: {integrity: sha512-JebwAz0Bv08lnJVj1JWnP/tppD9ju5ptXS1JVRUzz/mHgapUCTCNHf09jK8MKgXZFBEdv0yu0E3QuyjiC0Rgpg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':

@@ -8,13 +8,14 @@
 - `dispatch-subagent` 新增 `claims`：派出前整体核对，子任务开跑前接过这几步，结束时没做完的交回父会话；子任务总能看到读图和回报两个工具（`grantedTools`，不超过父任务本身的工具）。
 - 读图时负责人写成 `you (this session)`、`subagent <引用>`、`the session that dispatched you`。
 - 任务图事件带上图的编号（`board`）。
+- 常开的任务图（`standing: { keepFinished }`，协同第二期）：不因节点都结束而终止，可以空着开，只留最近加入的若干个已结束节点（还有人在等的不丢）；用作每个项目一张的"进行中的工作"。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
 - 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
 - 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`
-- SHA-256：`782fa5859481cb04423add795f4594e962bc09591f8c6fe901613e26fa03ad9e`
+- SHA-256：`72828d05d09ed0037de0b76108ad6dcb87e0b21e5c4c34792fac0682365cd3c7`
 
 重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
 

@@ -254,6 +254,14 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }
     const sessions = records.map(record => {
       let checkpointBusy = false, steps = execution.sessions.stepsOf(boardId, record.session_id);
+      // A queued round stays queued whatever the last round did; its watcher is (re)started here, after a restart too.
+      const queued = queuedOf(record.session_id);
+      if (queued) {
+        if (record.state !== "queued") record = execution.sessions.setState(boardId, record.session_id, "queued", record.updated_at);
+        if (!queued.note) watchQueued(api, execution, record.session_id);
+        return { ...record, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: { after_title: queued.after.title, ...(queued.note ? { note: queued.note } : {}) },
+          goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+      }
       if (record.runtime_session_id) {
         const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
         if (status && !("error" in status)) {
@@ -281,6 +289,213 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         roles: await api.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
       }))),
     };
+  };
+  /**
+   * Start a round in a session: from the person's send, or later from a queued round when the work it waited for is
+   * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
+   */
+  const startRound = async (record: ReturnType<typeof selected>, body: Record<string, unknown>, actorId: string,
+    api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts) => {
+        // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
+    const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
+    if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
+    const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(boardId, record.session_id);
+    if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
+    const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
+    let task = plan && continueOf === undefined ? plan.source.task : text(body.task, "任务", 100_000);
+    // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
+    if (plan && record.runtime_session_id && continueOf === undefined) {
+  const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+  const snapshot = await api!.invoke(agent.readSession, [session]);
+  for (const ref of snapshot.runs) {
+    const existing = await api!.invoke(agent.readRun, [session, ref]);
+    if (existing.frozen.text_materials.some(item => item.source_artifact_id === plan.confirmed!.artifact_id && item.source_version === plan.confirmed!.version)) return { run: { ref: existing.ref, frozen: existing.frozen }, existing: true };
+  }
+  if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
+    }
+    const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
+    if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
+    const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+    const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
+    if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
+    const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
+    if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
+    // Files named with @ travel with the task, as they read at this moment.
+    task = (await attachMentions(query => api!.invoke(readWorkspaceFileCapability, query), workspace.workspace_id, task)).task;
+    const subagent_workspaces: AgentSubagentWorkspace[] = [];
+    if (role === "writers") {
+  const assignments = codingWriterAssignments(body.writer_assignments, true);
+  // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned.
+  const owned = (await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id })).filter(child => !child.problem);
+  const tasks = assignments.map(assignment => {
+    const child = owned.find(child => child.workspace_id === assignment.workspace_id);
+    const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
+    if (!child || !grant) throw new Error("分工目录不属于当前主仓库，或已取消授权；请重新选择独立工作树");
+    subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
+    return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
+  });
+  task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
+  if (task.length > 100_000) throw new Error("总任务与分工合计超过 100000 字符，请缩短后发送");
+    } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw new Error("独立写入分工只用于并行写入方式");
+    const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
+    const models = await execution.models();
+    const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
+    if (!model) throw new Error("所选模型不可用，请在全局模型设置中检查配置");
+    const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
+    const availability = roles.find((entry) => entry.role_id === role);
+    if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
+    const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
+    const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
+    if (character) {
+  if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
+  if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
+  execution.characters.resolve(character);
+    }
+    const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
+    const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(execution));
+    if (goal) text_materials.unshift(goal.material);
+    if (plan) text_materials.unshift(planMaterial(plan));
+    if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+    const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
+  : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
+    if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
+    // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
+    // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
+    let earlier: AgentRunView[] | undefined;
+    const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
+    let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
+    // The digest is written by the round's own model from the rounds' records, building on the one the latest digest
+    // round carried; the call runs beside the project's other operations. If it cannot be written, the Host's own
+    // record-based digest carries the round and the page says why. Either way it is written once per round.
+    let digest: { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string } | undefined;
+    const digestFor = async () => digest ??= await (async () => {
+  const runs = await earlierRuns();
+  try {
+    const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", instructions: HISTORY_SUMMARY_INSTRUCTIONS,
+      material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
+    if (draft.usage) {
+      const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
+      context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
+        tokens: { input: spent.tokens.input + draft.usage.input, output: spent.tokens.output + draft.usage.output } }));
+    }
+    return { text: summaryDigest(runs, draft.text, task), source: "model" as const, ...(draft.usage ? { usage: draft.usage } : {}) };
+  } catch (error) {
+    return { text: codingHistoryDigest(runs, task), source: "records" as const, problem: error instanceof Error ? error.message : "模型没有写出摘要" };
+  }
+    })();
+    const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+  ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
+  ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
+      // A round that waited for other work takes over the item it waited as.
+      ...(typeof body.queued_work_id === "string" ? { queued_work_id: body.queued_work_id } : {}),
+  ...(mode === "digest" ? { history: "digest" as const } : {}),
+  budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
+  model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    let run;
+    try { run = await start(history); }
+    catch (error) {
+  if (history !== "session" || !record.runtime_session_id || (error as { code?: string }).code !== "CONTEXT_BUDGET_EXCEEDED") throw error;
+  history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
+  run = await start("digest");
+    }
+    if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
+    // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
+    const incoming = cooperation().forSession(record.session_id).incoming;
+    if (incoming && ["delivered", "accepted"].includes(incoming.state)) {
+  const at = new Date().toISOString();
+  try {
+    if (incoming.state === "delivered") cooperation().apply(incoming.delegation_id, undefined, "accepted", "accepted", actorId, at, () => {}, "发送第一轮即视为接受");
+    cooperation().apply(incoming.delegation_id, undefined, "started", "committing", actorId, at);
+  } catch { /* the round has started; the delegation shows its own last recorded state */ }
+    }
+    if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
+    // A session named by default takes its name from the first task, the way a person would label it.
+    if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
+    execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
+    follow(api!, execution, record.session_id, session, run.ref);
+    return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
+  ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+  };
+  /*
+   * A round held back until another session's work in the project finishes. The wait itself is an item on the
+   * project's SDK graph; what this plugin keeps is only how to start the round (the person's send, as it was) and a
+   * note for the person when the other work did not finish.
+   */
+  interface QueuedRound {
+    work_id: string;
+    after: { work_id: string; session_id: string; run_id?: string; title: string };
+    body: Record<string, unknown>;
+    actor_id: string;
+    at: string;
+    note?: string;
+  }
+  const queuedKey = (sessionId: string) => `queued-round:${sessionId}`;
+  const queuedOf = (sessionId: string): QueuedRound | undefined => {
+    const saved = context.services?.storage?.get(queuedKey(sessionId));
+    try { return saved ? JSON.parse(saved) as QueuedRound : undefined; } catch { return undefined; }
+  };
+  const saveQueued = (sessionId: string, queued: QueuedRound | undefined) => {
+    if (queued) context.services!.storage!.set(queuedKey(sessionId), JSON.stringify(queued));
+    else context.services!.storage!.delete(queuedKey(sessionId));
+  };
+  const watching = new Set<string>();
+  /** Start a queued round once the work it waits for is done; say so, and keep waiting for the person, if it failed. */
+  const watchQueued = (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, sessionId: string) => {
+    if (watching.has(sessionId)) return;
+    watching.add(sessionId);
+    void (async () => {
+      let since: string | null = null;
+      for (;;) {
+        const queued = queuedOf(sessionId), record = execution.sessions.get(boardId, sessionId);
+        if (!queued || queued.note) return;
+        const items = (await api.invoke(agent.readProjectWork, [record.runtime_id])).items;
+        const mine = items.find(item => item.work_id === queued.work_id), target = items.find(item => item.work_id === queued.after.work_id);
+        // Given up elsewhere: nothing is waiting any more.
+        if (!mine || mine.state !== "waiting") { saveQueued(sessionId, undefined); if (record.state === "queued") execution.sessions.setState(boardId, sessionId, "idle", record.updated_at); return; }
+        if (!target || target.state === "done") {
+          if (busy.has(sessionId)) { await new Promise(resolve => setTimeout(resolve, 1000)); continue; }
+          busy.add(sessionId);
+          try {
+            await startRound(record, { ...queued.body, queued_work_id: queued.work_id }, queued.actor_id, api, execution);
+            saveQueued(sessionId, undefined);
+          } catch (error) {
+            saveQueued(sessionId, { ...queued, note: `自动开始没有成功：${error instanceof Error ? error.message : String(error)}` });
+          } finally { busy.delete(sessionId); }
+          return;
+        }
+        if (target.state === "failed" || target.state === "stopped") {
+          saveQueued(sessionId, { ...queued, note: `「${queued.after.title}」没有完成（${target.state === "failed" ? "失败" : "停止"}），这一轮还在等你决定：现在开始，或取消等待。` });
+          return;
+        }
+        // Wait on the other round itself when it is running; a waiting item is looked at again shortly.
+        if (target.run_id && target.state === "running") {
+          try {
+            const waited: { version: string } = await api.invoke(agent.waitRun, [{ runtime_id: record.runtime_id, session_id: target.session_id }, { session_id: target.session_id, run_id: target.run_id }, since, 25_000]);
+            since = waited.version;
+          } catch { await new Promise(resolve => setTimeout(resolve, 5_000)); }
+        } else await new Promise(resolve => setTimeout(resolve, 5_000));
+      }
+    })().catch(() => undefined).finally(() => watching.delete(sessionId));
+  };
+  /** The workspace a send names, as the directory it will run in. */
+  const directoryOf = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, workspaceId: unknown) => {
+    const workspace = (await api.invoke(projectSettingsCapabilities.workspaces, [])).find(entry => entry.workspace_id === workspaceId);
+    if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
+    return workspace.canonical_path;
+  };
+  /** Other sessions' work that overlaps what a send names: its text, and its plan's steps when it runs one. */
+  const overlapsFor = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, record: CodingSessionRecord, body: Record<string, unknown>) => {
+    const directory = await directoryOf(api, body.workspace_id);
+    const draft = body.plan_revision !== undefined ? execution.sessions.plan(boardId, record.session_id) : null;
+    const plan = draft?.confirmed ? confirmedPlan(context, record.session_id, draft.revision) : null;
+    const text = [typeof body.task === "string" ? body.task : "", plan ? plan.source.task : "", ...(plan?.content.steps ?? []).map(step => `${step.title}\n${step.acceptance}`)].join("\n");
+    const found = await api.invoke(agent.readProjectWork, [record.runtime_id, { ...(record.runtime_session_id ? { session_id: record.runtime_session_id } : {}), directory, text }]);
+    const sessions = execution.sessions.list(boardId);
+    return { directory, text, overlaps: found.overlaps.map(overlap => {
+      const other = sessions.find(entry => entry.runtime_session_id === overlap.work.session_id);
+      return { work_id: overlap.work.work_id, state: overlap.work.state, title: overlap.work.title, task: overlap.work.task, paths: overlap.paths,
+        session_id: other?.session_id ?? null, ...(overlap.work.run_id ? { run_id: overlap.work.run_id } : {}), runtime_session_id: overlap.work.session_id };
+    }) };
   };
   const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => ({
     route_id,
@@ -665,7 +880,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
+      const queued = queuedOf(record.session_id), queuedView = queued ? { after_title: queued.after.title, at: queued.at, ...(queued.note ? { note: queued.note } : {}) } : null;
+      if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -684,7 +900,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, queued: queuedView, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(record.session_id)),
@@ -1005,123 +1221,53 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       busy.add(record.session_id);
       try {
         const body = bodyOf(request);
-        // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
-        const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
-        if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
-        const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(boardId, record.session_id);
-        if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
-        const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
-        let task = plan && continueOf === undefined ? plan.source.task : text(body.task, "任务", 100_000);
-        // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
-        if (plan && record.runtime_session_id && continueOf === undefined) {
-          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-          const snapshot = await api!.invoke(agent.readSession, [session]);
-          for (const ref of snapshot.runs) {
-            const existing = await api!.invoke(agent.readRun, [session, ref]);
-            if (existing.frozen.text_materials.some(item => item.source_artifact_id === plan.confirmed!.artifact_id && item.source_version === plan.confirmed!.version)) return { run: { ref: existing.ref, frozen: existing.frozen }, existing: true };
-          }
-          if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
+        if (queuedOf(record.session_id)) throw new Error("这个会话有一轮正在等其他会话；先取消等待，或选择现在开始");
+        // "等它完成后再开始": the round is held as an item waiting on the other work, and starts on its own when it is done.
+        if (typeof body.wait_for === "string") {
+          if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw new Error("这个会话还有一轮没结束，结束后再安排等待");
+          const { directory, overlaps } = await overlapsFor(api!, execution, record, body);
+          const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
+          if (!target) throw new Error("要等待的那项工作已经结束或不再重叠，可以直接开始");
+          const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
+          const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
+            : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
+          if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
+          const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
+          const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id }]);
+          const { wait_for: _dropped, ...rest } = body;
+          saveQueued(record.session_id, { work_id: item.work_id, after: { work_id: target.work_id, session_id: target.runtime_session_id, ...(target.run_id ? { run_id: target.run_id } : {}), title: target.title },
+            body: rest, actor_id: request.actor_id, at: new Date().toISOString() });
+          execution.sessions.setState(boardId, record.session_id, "queued", new Date().toISOString());
+          watchQueued(api!, execution, record.session_id);
+          return { queued: { work_id: item.work_id, after: target } };
         }
-        const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
-        if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
-        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
-        const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
-        if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
-        const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
-        if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
-        // Files named with @ travel with the task, as they read at this moment.
-        task = (await attachMentions(query => api!.invoke(readWorkspaceFileCapability, query), workspace.workspace_id, task)).task;
-        const subagent_workspaces: AgentSubagentWorkspace[] = [];
-        if (role === "writers") {
-          const assignments = codingWriterAssignments(body.writer_assignments, true);
-          // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned.
-          const owned = (await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id })).filter(child => !child.problem);
-          const tasks = assignments.map(assignment => {
-            const child = owned.find(child => child.workspace_id === assignment.workspace_id);
-            const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
-            if (!child || !grant) throw new Error("分工目录不属于当前主仓库，或已取消授权；请重新选择独立工作树");
-            subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
-            return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
-          });
-          task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
-          if (task.length > 100_000) throw new Error("总任务与分工合计超过 100000 字符，请缩短后发送");
-        } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw new Error("独立写入分工只用于并行写入方式");
-        const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
-        const models = await execution.models();
-        const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
-        if (!model) throw new Error("所选模型不可用，请在全局模型设置中检查配置");
-        const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
-        const availability = roles.find((entry) => entry.role_id === role);
-        if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
-        const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
-        const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
-        if (character) {
-          if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
-          if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
-          execution.characters.resolve(character);
-        }
-        const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
-        const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(execution));
-        if (goal) text_materials.unshift(goal.material);
-        if (plan) text_materials.unshift(planMaterial(plan));
-        if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
-        const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
-          : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
-        if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
-        // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
-        // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
-        let earlier: AgentRunView[] | undefined;
-        const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
-        let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
-        // The digest is written by the round's own model from the rounds' records, building on the one the latest digest
-        // round carried; the call runs beside the project's other operations. If it cannot be written, the Host's own
-        // record-based digest carries the round and the page says why. Either way it is written once per round.
-        let digest: { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string } | undefined;
-        const digestFor = async () => digest ??= await (async () => {
-          const runs = await earlierRuns();
-          try {
-            const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", instructions: HISTORY_SUMMARY_INSTRUCTIONS,
-              material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
-            if (draft.usage) {
-              const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
-              context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
-                tokens: { input: spent.tokens.input + draft.usage.input, output: spent.tokens.output + draft.usage.output } }));
-            }
-            return { text: summaryDigest(runs, draft.text, task), source: "model" as const, ...(draft.usage ? { usage: draft.usage } : {}) };
-          } catch (error) {
-            return { text: codingHistoryDigest(runs, task), source: "records" as const, problem: error instanceof Error ? error.message : "模型没有写出摘要" };
-          }
-        })();
-        const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
-          ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
-          ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
-          ...(mode === "digest" ? { history: "digest" as const } : {}),
-          budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-          model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
-        let run;
-        try { run = await start(history); }
-        catch (error) {
-          if (history !== "session" || !record.runtime_session_id || (error as { code?: string }).code !== "CONTEXT_BUDGET_EXCEEDED") throw error;
-          history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
-          run = await start("digest");
-        }
-        if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
-        // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
-        const incoming = cooperation().forSession(record.session_id).incoming;
-        if (incoming && ["delivered", "accepted"].includes(incoming.state)) {
-          const at = new Date().toISOString();
-          try {
-            if (incoming.state === "delivered") cooperation().apply(incoming.delegation_id, undefined, "accepted", "accepted", request.actor_id, at, () => {}, "发送第一轮即视为接受");
-            cooperation().apply(incoming.delegation_id, undefined, "started", "committing", request.actor_id, at);
-          } catch { /* the round has started; the delegation shows its own last recorded state */ }
-        }
-        if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
-        // A session named by default takes its name from the first task, the way a person would label it.
-        if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
-        execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
-        follow(api!, execution, record.session_id, session, run.ref);
-        return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
-          ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+        return await startRound(record, body, request.actor_id, api!, execution);
+      }
+      finally { busy.delete(record.session_id); }
+    }),
+    // Before a send: other sessions' work under way in the same directory that names the same files.
+    route("coding.scope-check", async (request, api, execution) => {
+      const record = selected(request, execution);
+      const { overlaps } = await overlapsFor(api!, execution, record, bodyOf(request));
+      return { overlaps };
+    }),
+    // A queued round: start it now (the wait is dropped), or give it up.
+    route("coding.queued-round", async (request, api, execution) => {
+      const record = selected(request, execution), queued = queuedOf(record.session_id), action = bodyOf(request).action;
+      if (!queued) throw new Error("这个会话没有在等待的一轮");
+      if (action === "cancel") {
+        await api!.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]);
+        saveQueued(record.session_id, undefined);
+        execution.sessions.setState(boardId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
+        return { cancelled: true };
+      }
+      if (action !== "start") throw new Error("请选择现在开始或取消等待");
+      if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
+      busy.add(record.session_id);
+      try {
+        const started = await startRound(record, { ...queued.body, queued_work_id: queued.work_id }, request.actor_id, api!, execution);
+        saveQueued(record.session_id, undefined);
+        return started;
       } finally { busy.delete(record.session_id); }
     }),
     // The model drafts a commit message from the rounds that changed files; the person edits it and commits under review.

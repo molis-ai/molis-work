@@ -12,6 +12,12 @@ import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actio
 
 /** Calling a tool of an external MCP server; granted like any other action. */
 export const EXTERNAL_MCP_PERMISSION = "mcp:external";
+/** Tools a project's Coding configuration connected, and tools of connections in 服务连接. */
+export const EXTERNAL_MCP_CAPABILITY_PREFIX = "mcp.external.";
+export const CONNECTOR_MCP_CAPABILITY_PREFIX = "mcp.connector.";
+/** Whether an action is a tool of an external MCP server, whichever way it was connected. */
+export const isMcpToolCapability = (capabilityId: string) =>
+  capabilityId.startsWith(EXTERNAL_MCP_CAPABILITY_PREFIX) || capabilityId.startsWith(CONNECTOR_MCP_CAPABILITY_PREFIX);
 
 /** A readable id segment; anything the id alphabet cannot hold gets a short hash so different names never collide. */
 export function mcpIdPart(value: string): string {

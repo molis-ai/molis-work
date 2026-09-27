@@ -16,6 +16,7 @@ import { withConnectorConnections } from "../apps/local-host/src/connector-conne
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/src/connector-protocol-store.ts";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/src/connector-mcp-actions.ts";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.ts";
+import { isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.ts";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 async function body(request: IncomingMessage): Promise<string> {
@@ -291,6 +292,7 @@ test("tools of a connection in 服务连接 are Home actions: listed once, then 
   try {
     const started = await client.startMcpConnection(temp, { serviceId: "figma", displayName: "Desktop Figma", origin: callbackOrigin });
     const id = connectorMcpCapabilityId(started.connectionId, "echo");
+    assert.ok(isMcpToolCapability(id) && isMcpToolCapability(connectorMcpResourceCapabilityId(started.connectionId)) && !isMcpToolCapability("feed.sources.register"));
     assert.ok(!(await actions.discover(user)).some(view => view.capability_id === id), "nothing is registered before the tools are listed");
     directory.remember(started.connectionId, started.tools as ConnectorMcpTool[], started.resources);
     const view = (await actions.discover(user)).find(row => row.capability_id === id)!;

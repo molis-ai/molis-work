@@ -3,7 +3,7 @@ import path from "node:path";
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { callMcpConnectionTool, McpConnectionError, readMcpConnectionResource } from "./connector-mcp.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { createMcpVersionBook, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputSchema, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
+import { CONNECTOR_MCP_CAPABILITY_PREFIX, createMcpVersionBook, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputSchema, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 /** A tool as the server listed it the last time the person looked; no credentials. */
@@ -14,9 +14,9 @@ const SEEN_PATH = "config/connector-mcp-tools.json";
 const VERSIONS_PATH = "config/connector-mcp-actions.json";
 const PROVIDER = "system.connectors#mcp:";
 
-export const connectorMcpCapabilityId = (connectionId: string, tool: string) => `mcp.connector.${mcpIdPart(connectionId)}.${mcpIdPart(tool)}`;
+export const connectorMcpCapabilityId = (connectionId: string, tool: string) => `${CONNECTOR_MCP_CAPABILITY_PREFIX}${mcpIdPart(connectionId)}.${mcpIdPart(tool)}`;
 /** Reading a resource is a read by the protocol itself (resources/read), not by a server's hint. */
-export const connectorMcpResourceCapabilityId = (connectionId: string) => `mcp.connector.${mcpIdPart(connectionId)}.resources.read`;
+export const connectorMcpResourceCapabilityId = (connectionId: string) => `${CONNECTOR_MCP_CAPABILITY_PREFIX}${mcpIdPart(connectionId)}.resources.read`;
 
 /**
  * Tools of the remote MCP servers connected in 服务连接 join the Home directory like every other action, so the

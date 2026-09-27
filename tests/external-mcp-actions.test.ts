@@ -10,7 +10,7 @@ import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/m
 import { MolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
 import { createExternalMcpDirectory } from "../apps/local-host/src/external-mcp-actions.js";
-import { EXTERNAL_MCP_PERMISSION } from "../apps/local-host/src/mcp-tool-actions.js";
+import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.js";
 import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
@@ -42,7 +42,7 @@ test("a connected external MCP tool is one directory action: local user, workflo
     await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
 
     // The tool is discovered in the same directory, grouped under its server, with the shape the server declared.
-    const view = (await client.discover(user)).find(row => row.capability_id.startsWith("mcp.external.") && row.action.title === "record_review_note")!;
+    const view = (await client.discover(user)).find(row => isMcpToolCapability(row.capability_id) && row.action.title === "record_review_note")!;
     assert.ok(view, "the external tool is in the project directory");
     assert.equal(view.provider.title, "笔记服务");
     assert.equal(view.availability.available, true);

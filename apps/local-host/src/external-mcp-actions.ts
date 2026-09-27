@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { ActionDefinition, ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpLibrary, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { createMcpVersionBook, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputSchema, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
+import { createMcpVersionBook, EXTERNAL_MCP_CAPABILITY_PREFIX, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputSchema, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 
 const OUTPUT: ActionSchema = { type: "object", properties: { text: { type: "string" }, truncated: { type: "boolean" } }, required: ["text", "truncated"], additionalProperties: false };
@@ -48,7 +48,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     const next: Array<{ server: string; label: string; entries: Array<{ definition: ActionDefinition; tool: AgentMcpToolDescriptor }> }> = [];
     for (const [server, list] of byServer) {
       const entries = list.map(tool => ({ tool, definition: {
-        capability_id: `mcp.external.${mcpIdPart(server)}.${mcpIdPart(tool.tool)}`,
+        capability_id: `${EXTERNAL_MCP_CAPABILITY_PREFIX}${mcpIdPart(server)}.${mcpIdPart(tool.tool)}`,
         version: versions.versionOf(JSON.stringify([pluginId, server, tool.tool]), `${tool.configuration_version}:${tool.version}`), operation: "command" as const,
         action: { title: tool.tool, description: mcpToolDescription(tool.server_label, tool.description),
           // Not offered to agents: the built-in Agent reaches these servers through its own MCP connection.

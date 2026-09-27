@@ -185,17 +185,15 @@ function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionState {
 const activations = new Map<string, AbortController>();
 const activationKey = (context: PluginStartContext) => `${context.install_id}:${context.board_id ?? ""}`;
 /** The plugin stops: its background loops end. */
-export function stopCodingRoutes(context: PluginStartContext): void {
+export function stopCodingSurface(context: PluginStartContext): void {
   activations.get(activationKey(context))?.abort();
   activations.delete(activationKey(context));
 }
 
-/** Coding owns intent and organization; execution is always obtained through Host capabilities. */
-export function codingRoutes(context: PluginStartContext, ports?: CodingExecutionPorts): PluginRouteBinding[] {
-  return codingSurface(context, ports).routes;
-}
-
-/** Routes for the workbench, and the owner-bound actions the Runtime instance redeems for Coding's business surface. */
+/**
+ * Routes for the workbench, and the owner-bound actions the Runtime instance redeems for Coding's business surface.
+ * Coding owns intent and organization; execution is always obtained through Host capabilities.
+ */
 export function codingSurface(context: PluginStartContext, ports?: CodingExecutionPorts): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
   const actions: ActionHandlerBinding[] = [];
   const routes = codingRouteBindings(context, ports, actions);

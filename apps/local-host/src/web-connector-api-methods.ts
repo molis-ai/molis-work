@@ -10,7 +10,7 @@ import type { ConnectorMcpTool } from "./connector-mcp-actions.js";
 const ROOT = "/api/settings/connectors/methods";
 const ITEM = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/(verify|preview)$/u;
 export async function handleConnectorApiMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home?: string,
-  mcpTools?: (connectionId: string, tools: readonly ConnectorMcpTool[]) => void): Promise<boolean> {
+  mcpTools?: (connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) => void): Promise<boolean> {
   const item = ITEM.exec(url.pathname);
   if (!home || (!item && !url.pathname.startsWith(`${ROOT}/oauth/`) && !url.pathname.startsWith(`${ROOT}/cli/`))) return false;
   try {
@@ -35,7 +35,7 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     else if (url.pathname === `${ROOT}/cli/connect`) json(response, 200, await connectCli(home, { serviceId: str("service_id"), displayName: str("display_name") }));
     else if (item) {
       const row = withConnectorConnections(home, store => store.require(item[1]!));
-      json(response, 200, row.auth_method === "mcp" ? await inspectMcpConnection(home, row.connection_id).then(result => { mcpTools?.(row.connection_id, result.tools as ConnectorMcpTool[]); return result; })
+      json(response, 200, row.auth_method === "mcp" ? await inspectMcpConnection(home, row.connection_id).then(result => { mcpTools?.(row.connection_id, result.tools as ConnectorMcpTool[], result.resources); return result; })
         : row.auth_method === "cli" ? await inspectCliConnection(home, row.connection_id, item[2] === "preview")
           : await inspectApiConnection(home, row.connection_id, item[2] === "preview"));
     } else json(response, 404, { error: "连接操作不存在" });

@@ -3509,7 +3509,7 @@ index 3db3108f..7a671e72 100644
      }
      const buf = Buffer.alloc(stat.size);
 diff --git a/packages/sdk/src/host/plugin/node.ts b/packages/sdk/src/host/plugin/node.ts
-index 6c344644..cc94d175 100644
+index 6c344644..56d7d09a 100644
 --- a/packages/sdk/src/host/plugin/node.ts
 +++ b/packages/sdk/src/host/plugin/node.ts
 @@ -35,6 +35,7 @@ import {
@@ -3537,7 +3537,33 @@ index 6c344644..cc94d175 100644
    if (value === undefined || value === "POST") {
      return "POST";
    }
-@@ -180,6 +184,8 @@ function parseRetryAfter(header: string | null, nowMs: number): number | undefin
+@@ -160,6 +164,25 @@ const NEVER_LEFT: ReadonlySet<string> = new Set([
+ /** 对方明说可以再来一次的状态码。**不猜幂等**，只认这几个。 */
+ const PROVIDER_SAYS_RETRY: ReadonlySet<number> = new Set([408, 429, 502, 503, 504]);
+ 
++/**
++ * The connection itself failed — reset, closed, or never finished connecting — with nothing back from the provider.
++ * Only these count as "unanswered": an error without such a cause (or a certificate failure, or a response that
++ * started) is not a dropped connection, and is never sent again for it. A provider slow to answer (headers timeout)
++ * is not here either: it has the request and is working on it.
++ */
++const DROPPED_CONNECTION: ReadonlySet<string> = new Set([
++  "ECONNRESET",
++  "ECONNABORTED",
++  "EPIPE",
++  "ETIMEDOUT",
++  "EHOSTUNREACH",
++  "ENETUNREACH",
++  "ENETDOWN",
++  "UND_ERR_SOCKET",
++  "UND_ERR_CLOSED",
++  "UND_ERR_CONNECT_TIMEOUT",
++]);
++
+ /**
+  * `Retry-After` 可以是秒数，也可以是 HTTP 日期。两种都读，读不动就
+  * 当没给——**读错一个数比没有更糟**，会让引擎等一个凭空来的时长。
+@@ -180,6 +203,8 @@ function parseRetryAfter(header: string | null, nowMs: number): number | undefin
  }
  
  export interface NodeHostOptions {
@@ -3546,7 +3572,23 @@ index 6c344644..cc94d175 100644
    /**
     * 落盘根目录。不给就用本机默认位置。**这是 Host 的内部事实**，
     * 只在这里出现一次，不会顺着回执流到 App。
-@@ -490,21 +496,29 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -194,6 +219,15 @@ export interface NodeHostOptions {
+    * 语义一个字不改（AGENTS.md §3.5.3：两者可替换接线，不可替换语义）。
+    */
+   readonly resolveHost?: (hostname: string) => Promise<readonly string[]>;
++  /**
++   * A model call that failed before any response came back — the connection was reset, closed or timed out — may be
++   * sent again, under the Runtime's retry policy.
++   *
++   * **Off by default.** The provider may have received the request before the connection died, so a second send can
++   * be billed twice. An App whose person prefers the round to go on over a manual "continue" turns this on; a call
++   * that failed after its response started never is (its answer would be spliced from two).
++   */
++  readonly retryUnansweredModelCalls?: boolean;
+ }
+ 
+ /**
+@@ -490,21 +524,29 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
            "That HTTP method is not allowed on this network channel.",
          );
        }
@@ -3579,7 +3621,7 @@ index 6c344644..cc94d175 100644
        /*
         * **有几条通道必须带钥匙**，名单在 `CHANNELS_NEEDING_CREDENTIAL`。
         *
-@@ -513,7 +527,7 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -513,7 +555,7 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
         * 的事，不该由一个否定式替它决定。
         */
        if (input.credentialRef === undefined) {
@@ -3588,7 +3630,7 @@ index 6c344644..cc94d175 100644
            throw createPrologueError(
              "MODEL_NETWORK_FAILED",
              `Egress on the "${input.channel}" channel needs a credential.`,
-@@ -550,6 +564,8 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -550,6 +592,8 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
          authScheme: input.authScheme,
          extraHeaders: { ...(input.extraHeaders ?? {}) },
          method,
@@ -3597,7 +3639,7 @@ index 6c344644..cc94d175 100644
          channel: input.channel,
          status: "prepared",
          abort: new AbortController(),
-@@ -650,6 +666,8 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -650,6 +694,8 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
        }
        if (record.authScheme === "x-api-key") {
          headers.set("x-api-key", secret);
@@ -3606,7 +3648,7 @@ index 6c344644..cc94d175 100644
        } else if (record.authScheme === "bearer") {
          headers.set("authorization", `Bearer ${secret}`);
        }
-@@ -688,11 +706,14 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -688,11 +734,14 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
           * 之后任何一种挂法——连接被拒、读到一半断线、进程被杀——都不该
           * 让引擎以为它没出去过。下面的 `catch` 只在能确定没上线时翻回来。
           */
@@ -3622,7 +3664,24 @@ index 6c344644..cc94d175 100644
            redirect: "manual",
            signal,
          }).catch((error: unknown) => {
-@@ -715,6 +736,10 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -701,10 +750,16 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+           }
+           const cause = (error as { cause?: { code?: unknown } }).cause;
+           const code = typeof cause?.code === "string" ? cause.code : "";
++          // Say which way it failed: "fetch failed" alone does not tell a refused connection from a dropped one.
++          if (code && error instanceof Error && !error.message.includes(code)) error.message = `${error.message} (${code})`;
+           if (NEVER_LEFT.has(code)) {
+             // 名字没解出来、连接被拒——重发是安全的。
+             record.dispatched = false;
+             record.retryable = true;
++          } else if (options.retryUnansweredModelCalls === true && record.channel === "model" && DROPPED_CONNECTION.has(code)) {
++            // No response came back at all: sent again if the App chose so. It may have reached the provider, so it
++            // stays "dispatched" (its usage is recorded as unknown), and only the retry policy bounds how often.
++            record.retryable = true;
+           }
+           setStatus("failed");
+           throw errorFromUnknown(error);
+@@ -715,6 +770,10 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
          if (response.status < 300 || response.status >= 400) {
            break;
          }
@@ -3633,7 +3692,7 @@ index 6c344644..cc94d175 100644
          if (hop >= MAX_REDIRECTS) {
            setStatus("failed");
            throw createPrologueError(
-@@ -735,6 +760,12 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -735,6 +794,12 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
          // 每一跳都重新解析并逐个核——否则第一跳干净、第二跳指进内网。
          await assertTargetResolves(target.url, allowance, resolveHost);
        }
@@ -3646,7 +3705,7 @@ index 6c344644..cc94d175 100644
        if (!response.ok) {
          // 只认对方自己说的。400 这类是请求本身不对，重发一百次也一样。
          record.retryable = PROVIDER_SAYS_RETRY.has(response.status);
-@@ -747,7 +778,7 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -747,7 +812,7 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
            setStatus("failed");
            throw createPrologueError(
              "MODEL_HTTP_ERROR",
@@ -3655,7 +3714,7 @@ index 6c344644..cc94d175 100644
            );
          }
        } else if (input.onResponse !== undefined) {
-@@ -782,7 +813,10 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -782,7 +847,10 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
        };
        try {
          armIdle();
@@ -3666,7 +3725,7 @@ index 6c344644..cc94d175 100644
            if (isCancelled()) {
              return "cancelled";
            }
-@@ -954,7 +988,7 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -954,7 +1022,7 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
        return workspace.search(input.rootRef, input.query, input.path);
      },
      async readFile(input) {
@@ -3675,7 +3734,7 @@ index 6c344644..cc94d175 100644
      },
      async readBytes(input) {
        return workspace.readBytes(input.rootRef, input.path, input.offset, input.length);
-@@ -1045,3 +1079,11 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+@@ -1045,3 +1113,11 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
      intake,
    };
  }
@@ -7032,6 +7091,59 @@ index 00000000..055af10a
 +await mutator.startBackground(plan, await runtime.readClock(), { outlive: true });
 +for (let i = 0; i < 200 && !existsSync(join(project, "pid")); i++) await new Promise((resolve) => setTimeout(resolve, 20));
 +process.exit(0);
+diff --git a/packages/sdk/test/host-unanswered-retry.live.test.ts b/packages/sdk/test/host-unanswered-retry.live.test.ts
+new file mode 100644
+index 00000000..e1c61b62
+--- /dev/null
++++ b/packages/sdk/test/host-unanswered-retry.live.test.ts
+@@ -0,0 +1,47 @@
++import { createServer } from "node:net";
++import { describe, expect, it } from "vitest";
++import { createNodeHost } from "../src/node.js";
++
++const APP = { appId: "prologue.harness", appVersion: "0.1.0" };
++
++/** A server that takes the connection and drops it before answering: the request got nowhere visible. */
++async function dropper() {
++  const server = createServer((socket) => { socket.once("data", () => socket.destroy()); });
++  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
++  const address = server.address();
++  const port = typeof address === "object" && address !== null ? address.port : 0;
++  return { origin: `http://127.0.0.1:${String(port)}`, close: () => new Promise<void>((resolve) => { server.close(() => resolve()); }) };
++}
++
++async function callOnce(origin: string, retryUnansweredModelCalls?: boolean) {
++  const host = createNodeHost(retryUnansweredModelCalls === undefined ? {} : { retryUnansweredModelCalls });
++  await host.handshake({ app: APP });
++  await host.allowNetwork({ model: true, web: false, mcp: false, loopback: true } as never);
++  const cred = await host.writeCredential({ label: "k", secret: { plaintext: new TextEncoder().encode("sk-x") } });
++  const handle = await host.prepareModelNetwork({
++    channel: "model", endpoint: `${origin}/v1/messages`, credentialRef: cred.ref,
++    body: new TextEncoder().encode("{}"), timeoutMs: 10_000, authScheme: "bearer",
++  });
++  const error = await host.executeModelNetwork({ handle, onFrame: () => undefined }).then(() => undefined, (failed: unknown) => failed as Error);
++  return { error, inspected: await host.inspectModelNetwork(handle) };
++}
++
++describe("模型调用在没有任何回应前就断了", () => {
++  it("默认不重发：可能已经到了对方那里，重发可能被收两次钱", async () => {
++    const server = await dropper();
++    try {
++      const { error, inspected } = await callOnce(server.origin);
++      expect(error?.message).toMatch(/fetch failed \(\w+\)/);
++      expect([inspected.dispatched, inspected.retryable]).toEqual([true, false]);
++    } finally { await server.close(); }
++  });
++
++  it("App 选择了重发：标为可以再发一次，仍记作已派出（用量照记）", async () => {
++    const server = await dropper();
++    try {
++      const { error, inspected } = await callOnce(server.origin, true);
++      expect(error?.message).toMatch(/fetch failed \(\w+\)/);
++      expect([inspected.dispatched, inspected.retryable]).toEqual([true, true]);
++    } finally { await server.close(); }
++  });
++});
 diff --git a/packages/sdk/test/model-loopback.live.test.ts b/packages/sdk/test/model-loopback.live.test.ts
 new file mode 100644
 index 00000000..605655f2

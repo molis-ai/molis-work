@@ -140,6 +140,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
     resolveHost: resolveModelHostname,
     beforeModelDispatch: async () => { await dispatchGuards.getStore()?.(); },
+    // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
+    // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
+    retryUnansweredModelCalls: true,
   });
   const runtime = await createRuntime({
     app: options.app,

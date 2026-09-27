@@ -8,8 +8,9 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime, MemoryPluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers } from "../packages/plugin-sdk/src/index.js";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createWorkflowContentPorts, createWorkflowsRouteHandlers, WorkflowsPluginRouteTable, openWorkflowsStore, manualLink,
-  type Workflow, type WorkflowInstance, type WorkflowsRoutePorts } from "@molis-ai/molis-work-plugin-workflows";
+import { createWorkflowContentPorts, createWorkflowsRouteHandlers, WorkflowsPluginRouteTable, openWorkflowsStore, manualLink, WORKFLOWS_ACTION_PERMISSIONS,
+  type Workflow, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { workflowsActionProvider } from "../apps/local-host/src/workflows-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "project-a", audience: "workflow", permissions: ["drafts:read", "drafts:write"] };
@@ -18,7 +19,7 @@ const declarations = defineWorkflowContentActions({ id: "unknown-drafts", title:
 
 async function fixture(run: (f: {
   home: string; db: DatabaseSync; service: ActionService; runtime: PluginRuntime; install: string;
-  ports: WorkflowsRoutePorts; table: WorkflowsPluginRouteTable; store: ReturnType<typeof openWorkflowsStore>;
+  ports: ReturnType<typeof createWorkflowContentPorts>; table: WorkflowsPluginRouteTable; store: ReturnType<typeof openWorkflowsStore>;
   register(version: number): Promise<string>;
 }) => Promise<void>) {
   const home = mkdtempSync(join(tmpdir(), "workflow-action-contract-"));
@@ -59,9 +60,11 @@ async function fixture(run: (f: {
   const store = openWorkflowsStore(home);
   try {
     const install = await register(1);
-    const ports: WorkflowsRoutePorts = { projectId: caller.project_id!, aiAvailable: () => false,
-      ...createWorkflowContentPorts(bindActionClient(service, () => caller)) };
-    const table = new WorkflowsPluginRouteTable(createWorkflowsRouteHandlers(store, ports));
+    const ports = createWorkflowContentPorts(bindActionClient(service, () => caller));
+    // The routes only forward to the Workflows actions, registered the way the Host registers them for a project.
+    service.registerProvider(workflowsActionProvider(home, caller.project_id!, service, null));
+    const table = new WorkflowsPluginRouteTable(createWorkflowsRouteHandlers(bindActionClient(service,
+      () => ({ ...caller, audience: "user", permissions: [...caller.permissions, ...WORKFLOWS_ACTION_PERMISSIONS] }))));
     await run({ home, db, service, runtime, install, ports, table, store, register });
   } finally {
     for (const installed of runtime.list()) await runtime.stop(installed.install_id);

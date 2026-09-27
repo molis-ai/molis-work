@@ -362,6 +362,8 @@ describe("mcp server", () => {
       });
       assert.equal(defaultBound.result.isError, false, defaultBound.result.content[0]?.text);
 
+      // A restart ends the previous process first: one Home has one Runtime owner per process.
+      await runtime.close();
       const restarted = new MolisWorkServer("runtime", null, host);
       const historyCandidate = await call(restarted, "molis_work_v1_context_resolve", {});
       const candidatePayload = JSON.parse(historyCandidate.result.content[0]?.text ?? "{}") as {
@@ -381,6 +383,7 @@ describe("mcp server", () => {
       });
       assert.equal(explicitDefault.result.isError, true);
       assert.match(explicitDefault.result.content[0]?.text ?? "", /不再保存默认项目/);
+      await restarted.close();
       const afterDefaultRestart = new MolisWorkServer("runtime", null, host);
       const restored = await call(afterDefaultRestart, "molis_work_v1_context_resolve", {});
       const restoredPayload = JSON.parse(restored.result.content[0]?.text ?? "{}") as {
@@ -412,6 +415,7 @@ describe("mcp server", () => {
       assert.deepEqual(otherPayload.suggested_projects.map((project) => project.project_id), [second.project_id, first.project_id]);
       const restoredOverride = await call(afterDefaultRestart, "molis_work_v1_context_resolve", {}, sessionA);
       assert.match(restoredOverride.result.content[0]?.text ?? "", new RegExp(second.project_id));
+      await afterDefaultRestart.close();
     } finally {
       catalog.close();
       fs.rmSync(directory, { recursive: true, force: true });

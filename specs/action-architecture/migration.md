@@ -50,55 +50,55 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 
 | 插件 | 原入口 | 目标位置 | 消费方 | 状态 |
 | --- | --- | --- | --- | --- |
-| plugins/native/alchemist | Studio 41 个业务 HTTP/SSE/导出入口、3 项旧演示只读入口 | 44 项插件自有合同 → 生产 Host，复用原 Studio services/repositories/jobs | HTTP 经 Host Kernel；标准 MCP 读取真实持久授权 | 44 项业务、Host/actor、原数据和桌面/窄屏通过；浏览器授权后标准 MCP 真实写入及撤销已验证；全平台生命周期仍待完成 |
-| plugins/native/artifacts | 版本目录/读取/导出、文件/外部导入、来源状态、Goal 引用、项目文件、Runtime SDK 读写 | [src/actions.ts](../../plugins/native/artifacts/src/actions.ts)、[src/plugin-client.ts](../../plugins/native/artifacts/src/plugin-client.ts) → 原 Artifact/Context Ledger/Evidence owner | HTTP、Goal 阅读、项目引用、正式 MCP 的 8 项与 Runtime 同步 SDK 均共用 Kernel；Inputs/Outputs、Characters、Shelf、Coding 保留同步合同 | 公共及受限 SDK 接线已验证；显式来源账号选择和系统整体治理继续 |
-| plugins/native/characters | [src/manifest.ts](../../plugins/native/characters/src/manifest.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/native/coding | [src/manifest.ts](../../plugins/native/coding/src/manifest.ts), [src/routes.ts](../../plugins/native/coding/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/native/cognia | 原知识库 HTTP、两个只读 MCP、首次使用材料导入 | [src/actions.ts](../../plugins/native/cognia/src/actions.ts) → Home 注册；原 Store 与 Prologue owner | HTTP/页面、旧 MCP、标准 MCP、上下文来源扫描及导入/读取共用动作 | 22 项业务接线与 SDK 本机 HTTP 已验证；通用工作流/用途配置、生产 MCP 授权与生命周期仍待完成 |
-| plugins/native/dataset | 原 HTTP、12 个旧 MCP、工作台编辑/CSV/版本/发布 | [src/actions.ts](../../plugins/native/dataset/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、编辑器、旧名与标准 MCP 共用动作；独立 AI 入口 | 13 项业务与桌面/窄屏实操通过；通用工作流/用途、生产授权及生命周期仍随整体推进 |
-| plugins/native/diff | [src/actions.ts](../../plugins/native/diff/src/actions.ts) | 固定差异读取、纯文本比较 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；嵌入可用性由父插件声明 | 业务查询已迁移并验证；通用配置消费待系统收尾 |
-| plugins/native/experiments | [src/manifest.ts](../../plugins/native/experiments/src/manifest.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/native/feed | [src/manifest.ts](../../plugins/native/feed/src/manifest.ts), [src/routes.ts](../../plugins/native/feed/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | Inbox 创建事件转统一场景；内容列表/读取/接收和工作流消费已接通；其他 API 及 feed.capture 待迁移 | 部分完成 |
-| plugins/native/files | [src/actions.ts](../../plugins/native/files/src/actions.ts) | 四项浏览/读取/快照操作 → Runtime 自动注册 | HTTP 薄转发与 Host 动作共用；保留原个人 owner | 部分：现有路径已迁移；跨主体 SDK、对外读写仍待完成 |
-| plugins/native/form | 原 HTTP、10 个旧 MCP、工作台编辑/填写/结果/发布 | [src/actions.ts](../../plugins/native/form/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、工作台、旧名与标准 MCP 共用动作；独立 AI 入口 | 11 项业务与桌面/窄屏实操通过；通用工作流/用途、生产授权及生命周期仍随整体推进 |
-| 原 plugins/native/functions（已移除） | 原 Manifest、Workbench contribution、HTTP/MCP 导出 | [系统动作](../../modules/functions/src/actions.ts)、[管理动作](../../modules/functions/src/authoring-actions.ts)、[编辑器](../../apps/workbench/src/functions/README.md) | 编辑器、HTTP、内部客户端、旧 MCP 薄转发、动态版本动作 | 编辑/试跑/发布及包移除完成；通用用途编辑、Feed/Home 消费迁移未完成 |
-| plugins/native/git | [src/action-definitions.ts](../../plugins/native/git/src/action-definitions.ts), [src/actions.ts](../../plugins/native/git/src/actions.ts) | 五项查询/选择/审阅/归档 → Runtime 自动注册 | HTTP 薄转发与 Host 动作共用；执行保留 Review 审批 | 部分：现有路径、无页面 Host 审阅与宿主依赖检查已接通；跨主体、跨进程执行方及完整参数/连接可用性仍待完成 |
-| plugins/native/goals | 原 typed/CLI、HTTP、普通及管理 MCP | 插件动作与原领域 owner，完整定义/历史/集合/管理共用 | Web/CLI/typed、Coding 上下文、Work/Agent 说明、Session 交接和 30 个普通 MCP 薄别名；管理初始化/导入及审批维持受保护入口 | 52 项（50 project/2 Home）已接线；全量跨插件消费与生命周期继续审计 |
-| plugins/native/images | Home 服务配置、项目生成/历史/取消/删除/图片下载 HTTP | [src/actions.ts](../../plugins/native/images/src/actions.ts) → Home 注册、项目调用；原 Service/Store | 工作台/HTTP、内部客户端、标准 MCP 共用九项动作 | 九项业务、Web/MCP 并用、取消/崩溃恢复、桌面/窄屏通过；通用工作流、生产授权及全平台生命周期仍待完成 |
-| plugins/native/inbox | [src/manifest.ts](../../plugins/native/inbox/src/manifest.ts), [src/routes.ts](../../plugins/native/inbox/src/routes.ts) | [src/actions.ts](../../plugins/native/inbox/src/actions.ts) → 项目 Runtime 注册 | 原 HTTP 七项业务 API、内容交接、工作区 fragment、授权动作/MCP 客户端；文稿读写转调 Pages | 部分完成；显式及 Feed 自动判断、文稿失败恢复和编辑已接通，其他消费方及真实模型待完成 |
-| plugins/native/jelly | 原 HTTP、40 类命令、13 个 MCP 工具、材料读取/模型设置 | [src/actions.ts](../../plugins/native/jelly/src/actions.ts)、command-actions.ts、service-actions.ts → Home 级注册 | 原页面/HTTP、旧 MCP 别名、内部客户端和授权标准 MCP 共用动作 | 59 项能力及真实业务路径已验证；通用工作流绑定、生产 MCP 授权与完整生命周期仍随系统治理推进 |
-| plugins/native/lingguang | [src/routes.ts](../../plugins/native/lingguang/src/routes.ts) 的全部 8 条 HTTP 路由、工作台、工作流内容交接 | [src/actions.ts](../../plugins/native/lingguang/src/actions.ts) + 内容协议适配 → 项目 Runtime | 项目 HTTP、旧全局 URL、工作台与工作流共用动作；官方 MCP stdio 以 fixture 授权验证业务读写/对话/重启 | 业务迁移已验证；生产 MCP 授权、模型连接统一和完整生命周期仍随系统治理推进 |
-| plugins/native/pages | [src/manifest.ts](../../plugins/native/pages/src/manifest.ts), [src/mcp.ts](../../plugins/native/pages/src/mcp.ts), [src/routes.ts](../../plugins/native/pages/src/routes.ts) | [src/actions.ts](../../plugins/native/pages/src/actions.ts)、[src/content-actions.ts](../../plugins/native/pages/src/content-actions.ts) → 项目 Runtime | HTTP、内容工作流、旧 MCP、Inbox 生成/历史及上下文采纳共用动作 | 18 项业务、4 项内容适配及跨库发布恢复已验证；生产 MCP 授权和完整生命周期随系统治理继续推进 |
-| plugins/native/plugin-builder | [src/manifest.ts](../../plugins/native/plugin-builder/src/manifest.ts), [src/routes.ts](../../plugins/native/plugin-builder/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/native/ppt | 原六项 HTTP/旧 MCP、编辑器与 JSON 下载 | [src/actions.ts](../../plugins/native/ppt/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、编辑器、JSON 导出、旧名与标准 MCP 共用动作 | 7 项业务与桌面/窄屏实操通过；通用工作流/用途、生产授权及生命周期仍随整体推进 |
-| plugins/native/schedule | [src/manifest.ts](../../plugins/native/schedule/src/manifest.ts), [src/routes.ts](../../plugins/native/schedule/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/native/shelf | [src/manifest.ts](../../plugins/native/shelf/src/manifest.ts), [src/routes.ts](../../plugins/native/shelf/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/native/text-stats | [src/actions.ts](../../plugins/native/text-stats/src/actions.ts) | 固定快照统计、纯文本统计 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；真实 Files 快照接线 | 业务查询已迁移并验证；通用配置消费待系统收尾 |
-| plugins/native/work | [src/actions.ts](../../plugins/native/work/src/actions.ts)、原 Session owner | 目录、列表、内容、恢复及普通消息共用动作；Host 统一持有 Registry/Runtime | 网页目录、工作区会话摘要、原内容/恢复 HTTP、正式 MCP | 7 项接通；普通消息后端与 MCP/HTTP 已验证，首页消费及创建/关联/交接/终端待迁移 |
-| plugins/native/workflows | [src/manifest.ts](../../plugins/native/workflows/src/manifest.ts), [src/routes.ts](../../plugins/native/workflows/src/routes.ts) | 内容消费者已使用共同目录和动作客户端 | 内容站接线完成；通用字段映射及自身管理 API 待迁移 | 部分完成 |
-| plugins/native/workspace | [src/manifest.ts](../../plugins/native/workspace/src/manifest.ts), [src/routes.ts](../../plugins/native/workspace/src/routes.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/catalog | [src/index.ts](../../plugins/official-integrations/catalog/src/index.ts), [src/provider.ts](../../plugins/official-integrations/catalog/src/provider.ts), [src/catalog.ts](../../plugins/official-integrations/catalog/src/catalog.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/github | [src/index.ts](../../plugins/official-integrations/github/src/index.ts), [src/provider.ts](../../plugins/official-integrations/github/src/provider.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/gmail | [src/index.ts](../../plugins/official-integrations/gmail/src/index.ts), [src/provider.ts](../../plugins/official-integrations/gmail/src/provider.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/rss | [src/index.ts](../../plugins/official-integrations/rss/src/index.ts), [src/catalog.ts](../../plugins/official-integrations/rss/src/catalog.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/web-query | [src/index.ts](../../plugins/official-integrations/web-query/src/index.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
-| plugins/official-integrations/youtube | [src/index.ts](../../plugins/official-integrations/youtube/src/index.ts) | 插件自有能力定义 → 共同注册/调用 | 待按实际 API 核对消费方 | 未迁移 |
+| plugins/native/alchemist | Studio 41 个业务 HTTP/SSE/导出入口、3 项旧演示只读入口 | 44 项插件自有合同 → 生产 Host，复用原 Studio services/repositories/jobs | HTTP 经 Host Kernel；标准 MCP 读取真实持久授权 | 44 项业务、Host/actor、原数据和桌面/窄屏通过；浏览器授权后标准 MCP 真实写入及撤销已验证；生命周期、流程步骤与对外授权由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/artifacts | 版本目录/读取/导出、文件/外部导入、来源状态、Goal 引用、项目文件、Runtime SDK 读写 | [src/actions.ts](../../plugins/native/artifacts/src/actions.ts)、[src/plugin-client.ts](../../plugins/native/artifacts/src/plugin-client.ts) → 原 Artifact/Context Ledger/Evidence owner | HTTP、Goal 阅读、项目引用、正式 MCP 的 8 项与 Runtime 同步 SDK 均共用 Kernel；Inputs/Outputs、Characters、Shelf、Coding 保留同步合同 | 公共及受限 SDK 接线已验证。外部导入的显式账号选择已完成：导入页按服务列出连接（只有一个时自动选中），多账号未选时拒绝，只用所选账号读取并在版本元数据记下连接，读取期间断开不写入（`tests/connector-document-import.test.ts`）；Artifacts 节「显式 connection_id 未完成」已过时。流程步骤、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/characters | 原 14 项 Runtime 路由（草稿列表/新建/修改/启停/发布、能力目录、本机 Agent 导入/预览、运行准备/启动/记录） | [src/actions.ts](../../plugins/native/characters/src/actions.ts) 15 项 `characters.*` 由项目 Runtime 实例兑现（1.3.0，兼容 1.0.0–1.2.0），全部与草稿所有者绑定 | 管理界面 Runtime 路由薄转发（保留 403/404/409）；Agent/Character 仍经已发布固定版本消费 | 已迁移并验证（`tests/characters-actions.test.ts`、characters 系列与基线一致）。本机导入、文件预览、启动与运行记录仅限本机界面；旧 1.0.0 安装现可兼容打开（修复原失败的升级 e2e） |
+| plugins/native/coding | 58 条 Runtime 路由中的业务面：概况、会话新建/读取/修改、轮次开始/控制/列表、报告与变更读取/保存/目录、计划读取/保存/确认 | [src/route-actions.ts](../../plugins/native/coding/src/route-actions.ts) 16 项 `coding.*` 由项目 Runtime 实例兑现（1.48.0，兼容 1.30–1.47），与会话所有者绑定；原处理代码不变，路由只转发 | 工作台路由、Host 无页面调用（Host 自带 Agent 执行端口）；开始/控制轮次、改会话与计划仅本机界面 | 业务面已迁移并验证（`tests/coding-actions.test.ts`、51 个 coding 测试与基线一致）。实时流、文件树、符号、任务板、委派、分工目录、检查点、MCP/方法设置等是页面内部路由，按方案「插件内部私有辅助无需机械注册」不注册为动作；其中 MCP 服务配置出的外部工具已进入目录（见「外部 MCP 工具进入同一目录」） |
+| plugins/native/cognia | 原知识库 HTTP、两个只读 MCP、首次使用材料导入 | [src/actions.ts](../../plugins/native/cognia/src/actions.ts) → Home 注册；原 Store 与 Prologue owner | HTTP/页面、旧 MCP、标准 MCP、上下文来源扫描及导入/读取共用动作 | 22 项业务接线与 SDK 本机 HTTP 已验证；流程步骤、使用位置、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/dataset | 原 HTTP、12 个旧 MCP、工作台编辑/CSV/版本/发布 | [src/actions.ts](../../plugins/native/dataset/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、编辑器、旧名与标准 MCP 共用动作；独立 AI 入口 | 13 项业务与桌面/窄屏实操通过；流程步骤、使用位置、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/diff | [src/actions.ts](../../plugins/native/diff/src/actions.ts) | 固定差异读取、纯文本比较 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；嵌入可用性由父插件声明 | 业务查询已迁移并验证；流程步骤、使用位置与对外授权由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/experiments | 原 13 项实验 HTTP（列表、读取/导出、新建、删除、运行、取消、复核、参试配置、连接选择、可对比函数） | [src/actions.ts](../../plugins/native/experiments/src/actions.ts) `experiments.*` → Host 在 Home 注册；判断函数经系统 `functions.authoring.list` 以调用者自身授权读取，不再直开 Functions 库 | 工作台 HTTP 薄转发（含 201/202 与导出下载）；Agent/工作流/MCP 只见 list/results | 已迁移并验证（`tests/experiments-actions.test.ts`、`experiments-http`）。参试配置含本机程序与权重路径，配置/运行/读取全文仅限本机界面 |
+| plugins/native/feed | [src/manifest.ts](../../plugins/native/feed/src/manifest.ts), [src/routes.ts](../../plugins/native/feed/src/routes.ts) | 插件自有能力定义 → 共同注册/调用；消息去向 [src/item-actions.ts](../../plugins/native/feed/src/item-actions.ts) `feed.items.*` | Inbox 创建事件转统一场景；内容列表/读取/接收、工作流消费、捕捉场景已接通；消息已读/加入 Inbox/保存/忽略/恢复/升格为 Goal 改为动作，原 `/api/feed/items/:id/:action` 薄转发，首页经 `feed.items.offers` 推荐与执行（`tests/feed-item-actions.test.ts`、home-offers e2e、浏览器实操） | 业务面已迁移：来源管理 `feed.sources.*`（添加/修改/删除/计划/暂停恢复/断开/立即拉取）同样改为动作，旧路由薄转发（`tests/feed-source-actions.test.ts`、浏览器实操）。仍为本机设置流程：连接器令牌、OAuth/设备码授权（携带密钥，只在服务连接设置页使用） |
+| plugins/native/files | [src/actions.ts](../../plugins/native/files/src/actions.ts) | 四项浏览/读取/快照操作 → Runtime 自动注册 | HTTP 薄转发与 Host 动作共用；保留原个人 owner | 现有路径已迁移。插件自身的浏览动作仍绑定本机用户的个人浏览状态，其他主体调用显示 `actions.owner_mismatch` 及原因。跨主体读取改由 Host 提供：`projects.workspace.files.read`、`projects.workspace.git.inspect` 两项目录动作与插件使用的宿主能力共用同一处理器，要求 `workspace:read`，受众含本机用户、内置 Agent、工作流与对外 MCP；对外客户端须精确授权，文件读取的授权不打开 Git；路径越出工作目录、其他项目的目录均被拒绝。插件原宿主能力不变，现有安装无需新授予（`tests/workspace-read-actions.test.ts`；Files/Git/Coding 相关 16 项通过）|
+| plugins/native/form | 原 HTTP、10 个旧 MCP、工作台编辑/填写/结果/发布 | [src/actions.ts](../../plugins/native/form/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、工作台、旧名与标准 MCP 共用动作；独立 AI 入口 | 11 项业务与桌面/窄屏实操通过；流程步骤、使用位置、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| 原 plugins/native/functions（已移除） | 原 Manifest、Workbench contribution、HTTP/MCP 导出 | [系统动作](../../modules/functions/src/actions.ts)、[管理动作](../../modules/functions/src/authoring-actions.ts)、[编辑器](../../apps/workbench/src/functions/README.md) | 编辑器、HTTP、内部客户端、旧 MCP 薄转发、动态版本动作 | 编辑/试跑/发布及包移除完成；用途按场景合同派生并可编辑、Feed 捕捉与首页判断的真实消费已迁移（见「共同场景作者目录、真实用途与发布校验」「Feed 捕捉场景与真实消费完成迁移」「首页判断场景、实时建议与存量旁路清理」） |
+| plugins/native/git | [src/action-definitions.ts](../../plugins/native/git/src/action-definitions.ts), [src/actions.ts](../../plugins/native/git/src/actions.ts) | 五项查询/选择/审阅/归档 → Runtime 自动注册 | HTTP 薄转发与 Host 动作共用；执行保留 Review 审批 | 现有路径、无页面 Host 审阅与宿主依赖检查已接通（`tests/files-git-actions.test.ts` 通过：夹具原先带 Home，而带 Home 的 Host 总会启动提供审阅后端的系统 Agent 服务，前提不再成立，已改为不带 Home）。与 Files 相同：插件动作按本机用户归属；其他主体的只读查询经 `projects.workspace.git.inspect`（见 Files 行）。暂存、提交、推送等写操作仍只经 Host 审阅由本人执行，不向其他主体开放 |
+| plugins/native/goals | 原 typed/CLI、HTTP、普通及管理 MCP | 插件动作与原领域 owner，完整定义/历史/集合/管理共用 | Web/CLI/typed、Coding 上下文、Work/Agent 说明、Session 交接和 30 个普通 MCP 薄别名；管理初始化/导入及审批维持受保护入口 | 52 项（50 project/2 Home）已接线。消费方审计（2026-09-27）：网页读取/规划/面板、MCP 别名与事件工具、Sessions 的 Goal 合同、Casebook 观察、工作流步骤（16 项命令可选）、Feed 升级为 Goal、首页事项均经 `goalsActions` 调用；直接写 Goal 存储的只剩 Goals 提供方本身、演示数据种子和受信的 V3 导入（仅本机管理入口）。生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/images | Home 服务配置、项目生成/历史/取消/删除/图片下载 HTTP | [src/actions.ts](../../plugins/native/images/src/actions.ts) → Home 注册、项目调用；原 Service/Store | 工作台/HTTP、内部客户端、标准 MCP 共用九项动作 | 九项业务、Web/MCP 并用、取消/崩溃恢复、桌面/窄屏通过；流程步骤、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/inbox | [src/manifest.ts](../../plugins/native/inbox/src/manifest.ts), [src/routes.ts](../../plugins/native/inbox/src/routes.ts) | [src/actions.ts](../../plugins/native/inbox/src/actions.ts) → 项目 Runtime 注册 | 原 HTTP 七项业务 API、内容交接、工作区 fragment、授权动作/MCP 客户端；文稿读写转调 Pages | 显式及 Feed 自动判断（动态场景，见「共同场景作者目录」「Feed 捕捉场景」两节）、首页事项与动作（offers）、文稿生成经 `pages.generate`、失败恢复和编辑均已接通；第 138 行所记「判断场景仍在旧 Functions 场景体系」已被后续场景迁移取代。真实模型：同一文稿动作与 TypeSafe 判断已在 prologue 收敛线用 MiniMax / 真实 TypeSafe 实测通过（~/code/goalboard-prologue `work-items/prologue-convergence/spec.md`，2026-09-26）；本分支以注入模型的测试覆盖同一动作路径，未在本分支重跑真实模型 |
+| plugins/native/jelly | 原 HTTP、40 类命令、13 个 MCP 工具、材料读取/模型设置 | [src/actions.ts](../../plugins/native/jelly/src/actions.ts)、command-actions.ts、service-actions.ts → Home 级注册 | 原页面/HTTP、旧 MCP 别名、内部客户端和授权标准 MCP 共用动作 | 59 项能力及真实业务路径已验证；流程步骤、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/lingguang | [src/routes.ts](../../plugins/native/lingguang/src/routes.ts) 的全部 8 条 HTTP 路由、工作台、工作流内容交接 | [src/actions.ts](../../plugins/native/lingguang/src/actions.ts) + 内容协议适配 → 项目 Runtime | 项目 HTTP、旧全局 URL、工作台与工作流共用动作；官方 MCP stdio 以 fixture 授权验证业务读写/对话/重启 | 业务迁移已验证；对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」）；文字模型已经共用的 `hostCompleteText`（全局模型目录与服务连接凭据，经 Prologue 发出），无单独的模型连接 |
+| plugins/native/pages | [src/manifest.ts](../../plugins/native/pages/src/manifest.ts), [src/mcp.ts](../../plugins/native/pages/src/mcp.ts), [src/routes.ts](../../plugins/native/pages/src/routes.ts) | [src/actions.ts](../../plugins/native/pages/src/actions.ts)、[src/content-actions.ts](../../plugins/native/pages/src/content-actions.ts) → 项目 Runtime | HTTP、内容工作流、旧 MCP、Inbox 生成/历史及上下文采纳共用动作 | 18 项业务、4 项内容适配及跨库发布恢复已验证；对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/plugin-builder | [src/manifest.ts](../../plugins/native/plugin-builder/src/manifest.ts), [src/routes.ts](../../plugins/native/plugin-builder/src/routes.ts) | [src/actions.ts](../../plugins/native/plugin-builder/src/actions.ts) `builder.builds.*` → 项目 Runtime 实例兑现（Manifest 1.3.0，兼容 1.0.0–1.2.0），按本人归属 | 原 `/state`、`/builds`、`/builds/:id`、`/builds/:id/action` 只转发到动作并保留状态码；草稿列表/读取/新建可授权给 Agent/MCP，构建、修改、发布、升级、删除仅本机用户 | 已迁移（plugin-builder 单元与浏览器用例 41 项通过）。试用数据 `/records` 与示例图片仍是页面内部路由；创作台 Agent 表面（/api/plugin-builder/studio/*）由 Plugin Builder 线另行维护 |
+| plugins/native/ppt | 原六项 HTTP/旧 MCP、编辑器与 JSON 下载 | [src/actions.ts](../../plugins/native/ppt/src/actions.ts) → 项目注册，原 Store/Artifact owner | HTTP、编辑器、JSON 导出、旧名与标准 MCP 共用动作 | 7 项业务与桌面/窄屏实操通过；流程步骤、使用位置、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/schedule | 原 7 项任务/闹钟 HTTP（列表、新建、修改、归档、启停、已读、闹钟启停） | [src/actions.ts](../../plugins/native/schedule/src/actions.ts) `schedule.tasks.*`/`schedule.jobs.enabled` → 项目 Runtime 注册，原项目库与调度服务 | 工作台 HTTP 薄转发、Host 调用、生产 MCP 逐客户端授权 | 7 项接通；HTTP/授权/项目隔离/停用/重启/生产 MCP 与浏览器提交恢复已验证（`tests/schedule-actions.test.ts`、cross-plugin e2e Schedule 用例）。平台 `schedule.register/list` 唤醒能力仍是插件间 typed 服务 |
+| plugins/native/shelf | 原 18 项置物架 HTTP（面板、放入、文件夹、处理任务、剪贴板、设置、项目材料）与 5 项 Runtime 路由（接收 Coding 成果、材料输出） | [src/actions.ts](../../plugins/native/shelf/src/actions.ts) 18 项 Home 动作 + 2 项项目材料动作由 Host 注册；[src/runtime-actions.ts](../../plugins/native/shelf/src/runtime-actions.ts) 5 项由项目 Runtime 实例兑现（1.5.0，兼容 1.4.0） | 面板 HTTP 与 Runtime 路由薄转发；Agent/工作流/MCP 只见材料列表、正文与放入/处理/编辑类动作 | 已迁移并验证（`tests/shelf-actions.test.ts`、shelf 系列回归与基线一致）。剪贴板、设备设置、整面板快照、原件路径与示例仅限本机界面；Runtime 动作与个人 Shelf 绑定同一用户 |
+| plugins/native/text-stats | [src/actions.ts](../../plugins/native/text-stats/src/actions.ts) | 固定快照统计、纯文本统计 → Runtime 自动注册 | 原 HTTP 薄转发、独立标准 MCP；真实 Files 快照接线 | 业务查询已迁移并验证；流程步骤、使用位置与对外授权由共同机制承担（见「存量插件的共同收尾」） |
+| plugins/native/work | [src/actions.ts](../../plugins/native/work/src/actions.ts)、原 Session owner | 目录、列表、内容、恢复及普通消息共用动作；Host 统一持有 Registry/Runtime | 网页目录、工作区会话摘要、原内容/恢复 HTTP、正式 MCP | 普通消息、目录/内容/恢复、首页事项与「说一句」已接通；会话归档与项目/Goal 关联改为 `sessions.archive`、`sessions.associations.update`（带本人确认，只对本机用户开放；Goal 经其提供方核对），原路由薄转发（session-directory 真实路由用例、work-session-mcp 确认 MCP 不可见）。同步原生会话目录、新建/关联会话、Handoff 准备/修改/发送/取消也改为本机用户动作（`sessions.discover/create`、`sessions.handoffs.*`；Goal 契约经 Goals 动作以调用者身份读取），原路由保留页面侧的工作目录校验后转发；session-workspace 两条完整旅程（Codex 原生与降级）通过，main 上原本失败于过时夹具。「在工作目录中启动会话」也改为调用同一 `sessions.create`，不再直接写目录服务。目录加入/修复/解除与浏览目录选择改为项目设置动作（`projects.workspaces.add/repair/unlink`、`projects.settings.browsing-workspace.select.v1`，只对本机用户开放，不依赖是否启用 Sessions 插件），原路由薄转发。仍为本机界面：原生文件夹选择窗口、终端面板 |
+| plugins/native/workflows | 原 11 项流程/运行 HTTP | [src/actions.ts](../../plugins/native/workflows/src/actions.ts) `workflows.*` → 项目注册；站点经调用者自身授权的内容动作读写 | 工作台 HTTP 薄转发；Agent/MCP 按精确授权使用 | 管理与运行动作已迁移；F4 交接固定身份并先落盘再交付，同步竞争只交付一次、中断重试复用原结果且不重复调模型，Pages/灵光接收按交付键幂等（`tests/workflows-handoff-idempotency.test.ts`）。新增「判断规则」交接：用调用者可运行的已发布 Choice 规则把关，勾选结果才原样交出，否则停下并记录判断（`tests/workflows-judgment-link.test.ts`，编辑器已在浏览器实操）。新增「动作步骤」：目录里接受 workflow 调用、输入为平铺字段的命令即可作为一站（按提供方分组，宿主无名单），每个字段从交过来的标题/正文/来源/链接/日期取值或填固定值，保存与每次运行都按当前合同校验；动作不能做第一站；调用前落盘尝试标记，目录在进入提供方前拒绝的调用不留痕迹，提供方报错或中断则停在「结果未确认」，需人核对后明确重新执行（`tests/workflows-action-steps.test.ts`，含宿主不认识的工单插件；浏览器 1280/390 实操：Feed →模板转换→ 灵光「记下灵光」真实写入并显示结果） |
+| 原 plugins/native/workspace（已移除） | 退役的浏览目录选择（state/select 两条 Runtime 路由），生产已不安装 | 由 Host 项目设置 `projects.settings.browsing-workspace.read.v1` 等工作区动作取代 | 无生产消费方；旧选择由 `ProjectBrowsingSettings` 一次性从原私有存储迁入 | 包、依赖声明、锁文件条目、Files/Git 废弃的来源常量与专属测试已删除；旧选择迁移路径保留 |
+| plugins/official-integrations/catalog | Feed 连接器驱动；设置页账号检查（旧 `whoami` 行为） | 账号检查改为连接器系统动作 `connectors.account.read`（[connector-account-actions.ts](../../apps/local-host/src/connector-account-actions.ts)）；清单删除旧 behaviors 声明 | 设置页账号检查路由薄转发；Agent/MCP 按精确授权 | 账号检查已迁移并验证（`tests/connector-account-actions.test.ts`、connectors 设置 HTTP）；取数仍是 Feed 来源驱动，不是对外动作 |
+| plugins/official-integrations/github | Feed 连接器驱动；设置页账号检查（旧 `whoami` 行为） | 账号检查改为连接器系统动作 `connectors.account.read`（[connector-account-actions.ts](../../apps/local-host/src/connector-account-actions.ts)）；清单删除旧 behaviors 声明 | 设置页账号检查路由薄转发；Agent/MCP 按精确授权 | 账号检查已迁移并验证（`tests/connector-account-actions.test.ts`、connectors 设置 HTTP）；取数仍是 Feed 来源驱动，不是对外动作 |
+| plugins/official-integrations/gmail | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
+| plugins/official-integrations/rss | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
+| plugins/official-integrations/web-query | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
+| plugins/official-integrations/youtube | Feed 连接器驱动（取数、健康检查），无对外调用入口 | 仍由 Feed 来源服务驱动；取到的内容经 Feed 动作读取 | Feed 同步 | 无需注册：不对外提供可调用能力，内容经 Feed 已迁移的动作使用 |
 
 ## 平台与消费方
 
 | 范围 | 原入口 | 目标 | 状态 |
 | --- | --- | --- | --- |
 | Kernel/Host | packages/kernel/src/index.ts, apps/local-host/src/local-host.ts | 共用注册、schema、上下文与调用合同 | 已共享注册与队列；项目作用域/关闭/重新激活验证通过 |
-| Runtime/SDK | packages/plugin-runtime, packages/plugin-sdk | 自动注册、兑现、停用撤销、场景发现 | 定义与生命周期接线通过；生产 Coding/Builder 注入完成；七个项目 Runtime 插件可由动作入口启动并供 UI 复用，其他组合与全量生命周期仍待迁移 |
-| 平台 MCP | apps/mcp/src/tool-catalog.ts, apps/local-host/src/mcp-server.ts | 统一目录及执行适配 | 新动作已接入持久、逐客户端/范围的生产授权及本机管理 API；授权界面、旧工具权限/目录与适配表仍待收敛 |
+| Runtime/SDK | packages/plugin-runtime, packages/plugin-sdk | 自动注册、兑现、停用撤销、场景发现 | 定义与生命周期接线通过；生产 Coding/Builder 注入完成；七个项目 Runtime 插件可由动作入口启动并供 UI 复用。宿主事先不知道 ID 的插件经正式 PluginRuntime 安装启动后：目录发现与流程步骤执行、未授权 MCP 客户端被拒而精确授权后以客户端身份调用并记入调用记录（`tests/workflows-action-steps.test.ts`）、场景绑定与判断消费（`tests/function-scene-authoring.e2e.test.ts`）、能力库展示（`tests/capabilities-page.test.ts`）、停用后引用保留并说明原因，均无需修改宿主代码 |
+| 平台 MCP | apps/mcp/src/tool-catalog.ts, apps/local-host/src/mcp-server.ts | 统一目录及执行适配 | 新动作已接入持久、逐客户端/范围的生产授权、本机管理 API 与「对外接入」授权界面；旧名称（六组原生插件、Goals、判断函数、连接摘要）均按精确客户端授权转发到同一动作（见对应各节）。仅 initialize/import_v3/goal_tree_decide/event_decide 四个受信管理工具仍直接调用 Host 能力，只在本机管理连接出现，对外客户端看不到 |
 | 项目工作区 | packages/contracts/src/modules/projects.ts, apps/local-host/src/project-capabilities.ts | 原消费者及 MCP 使用同一查询能力 | 四项查询已迁移并验证 |
-| 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts | 连接与能力接入共用 | 未迁移 |
-| 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景、使用关系待迁移 |
-| 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 部分完成：系统判断场景、真实事件、初始页/刷新建议及 MCP 已接通；动态动作执行和“说一句”待迁移 |
-| 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；通用步骤映射、恢复待完成 |
-| Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 未迁移 |
-| 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；编辑器、全量授权/历史待完成 |
-| 生成与开发 | plugins/native/plugin-builder, packages/plugin-sdk, tooling/plugin-cli, skills/molis-plugin-dev | 默认注册能力和消费场景 | 未迁移 |
+| 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts、apps/local-host/src/external-mcp-actions.ts | 连接与能力接入共用 | 已接入：已连接服务的工具作为项目动作进入同一目录（每个服务一个提供方，版本随配置与工具形状），经 Prologue 调用器与系统执行器执行；本机用户、工作流动作步骤、获授权的对外 MCP 客户端与插件共用；断开后保留条目并说明原因，移除配置后撤回。重启后连接需重新建立（SDK 连接不持久），期间目录不含该服务 |
+| 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景与使用关系已由场景合同与各 owner 上报提供（同上三节） |
+| 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 事项按合同类型动态发现；动作按 offers 合同由各插件准备、首页复核后执行（Feed 消息、Inbox 事项、未知插件）；“说一句”按对象上下文选择会话并真实发送（见下文专节）。本地网页调用者的原生权限改由原生清单派生，不再手写 |
+| 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身动作与 F4 幂等交接/中断恢复已完成；判断规则交接与通用字段映射动作步骤已完成 |
+| Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 大部分完成：Agent/Character 精确能力选择经 AgentHost、Prologue 正式工具扩展与原审查队列执行（见“Agent 实际工具执行与 F1–F3 审查修复”）；角色管理本身已是 `characters.*` 动作。浏览器复跑已完成（见「Character 能力范围的浏览器复跑」） |
+| 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 完成（本分支范围）：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL（/settings/mcp、/settings/connectors、/settings/functions）转发；固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；能力库对每项能力显示「可用在哪」（调用方、首页事项、判断场景）与「已用在哪」（场景绑定 + 各使用方上报）；调用记录显示最近执行的操作（元数据，不含输入/结果）与判断记录；四个分区桌面/窄屏已实操；能力库与工作流程、首页的本机权限从原生清单派生，不再漏插件；服务连接中的远程 MCP 工具与资源、Coding 配置的外部 MCP 工具均进入同一目录与调用记录。用户本人验收未进行 |
+| 生成与开发 | plugins/native/plugin-builder, packages/plugin-sdk, tooling/plugin-cli, skills/molis-plugin-dev | 默认注册能力和消费场景 | 生成模板默认注册系统动作（见“生成插件模板默认注册系统动作”）；Plugin Builder 自身业务面已注册为动作；生成插件调用外部 MCP 工具由 Plugin Builder 线在合并后接入 |
 
 ## 验证
 
@@ -1427,3 +1427,185 @@ Prologue v1 精确源码/消费者补丁与 bounded-inference SDK 已合入主�
 Inbox 原 provider 增加“整理成文稿”声明与完整 prepared offer，固定原 request_id 派生身份和材料版本/内容依据，采集时刻不改变参数。旧手动请求哈希保持；嵌套 Pages 保留原 invocation 授权与生命周期，异步材料检查完成后再次复核。Pages 将 guard 传入 Host completeText 最终派发入口。9 项生产 ActionService+Pages SQLite 用例通过（`/tmp/inbox-prepared-pages-final.log`），覆盖自动目录、输入变化、模型准备及材料检查期间撤权、成功后当前编辑稿恢复。模型为显式测试端口，不等于正式 Home→助理→SDK→Pages 浏览器闭环。
 
 Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist 原 Runtime/Artifact/Ledger 接线、Connector MCP provider、F4、其他全量迁移与系统岛最终实操继续。当前 Form390 在完整 Host 重验，IM 在完成新的表现层验收，未以阶段工程通过宣称“内部完整”。
+
+## Feed 消息去向进入统一动作，首页可推荐与执行（2026-09-26）
+
+- Feed 新增 `feed.items.read/inbox/disposition/restore/promote` 五项命令和 `feed.items.offers` 事项动作查询，全部由 Feed 自己声明并由 Host 在项目目录注册；原 `/api/feed/items/:id/(read|inbox|save|archive|restore|promote|start)` 只把 URL 翻译为这些动作，响应形状（含 `goal_path`）与状态码不变。Feed 存储拒绝（版本冲突、不存在、非法转换）以原错误码作为 ActionError 返回，路由映射回原 404/409。
+- 首页对 Feed 消息显示「加入 Inbox / 保存为资料 / 升格为 Goal / 忽略」，已忽略的显示「恢复到 Feed」；按钮名称来自插件声明，输入带读取时的版本，执行前首页重新准备并核对，过期的选项被拒绝而不是覆盖。升格为 Goal 记录实际调用者，不再固定为本地网页用户。
+- 首页与 Feed 网页调用者的原生权限由原生清单派生（`NATIVE_CONTENT_PERMISSIONS`），不再在 Host 手写权限名单；因此 Inbox 自己的「整理成文稿」在首页出现，并如实显示「请先配置文字模型」这类不可用原因。
+- 验证：`tests/feed-item-actions.test.ts`（真实 Host：首页准备/执行、旧选项拒绝、直接调用版本冲突、加入 Inbox、升格 Goal、缺写权限不可执行、旧路由转发与 404/409）；Feed/Home/Inbox/能力相关 39 个文件 179 项中 177 项通过，失败 2 项在 main 上同样失败或已随本次修正（`functions-system-capability` 断言改为检查真实动作声明）；home-offers e2e 按新增的 Feed 选项更新后通过（main 上原本失败）；`project-home-start`、`workbench-pane-feed` 各 1 项在 main 上同样失败。浏览器实操（1280）：首页执行「保存为资料」→ Feed 详情显示「已保存为资料」→ 在 Feed 点「忽略」经转发路由 200 并从列表移除。
+- 后续同日：Feed 来源管理也改为动作（见下节）。连接器授权流程与 Feed 快照/工作台渲染仍是本机设置与读取页面。用户本人验收未进行。
+
+## 能力的「可用在哪 / 已用在哪」来自同一目录与各使用方（2026-09-26）
+
+- Contracts/SDK 新增使用位置合同 `molis.action-usages.*`：保存了能力引用的一方用 `defineActionUsagesAction` 声明只读查询，返回自己的使用位置（标题、方式、是否启用、可选链接）。Host 的 `actions.usages.read` 在 Home 注册一次，按调用者项目或 Home 目录按合同类型发现这些查询并汇总，不维护使用方名单；目录里可见但拒绝该调用者的一方写入 `issues`，不会当成「没有使用」。Agent、MCP 与能力库共用这个查询。
+- 已上报的使用方：工作流程（动作步骤及字段映射、判断交接及放行结果、已固定的内容站）、Characters（本人草稿与最新发布版本的动作范围，Runtime 实例兑现，Manifest 1.4.0 兼容 1.0.0–1.3.0）、对外 MCP 授权（逐客户端/项目，仅本人可读，链接到对外接入页）。
+- 能力库对所有能力显示「可用在哪」：按声明的调用方（界面与首页、内置 Agent 与角色、工作流程、对外 MCP、其他插件）、声明了该能力的首页事项动作、以及判断能力的兼容场景；「已用在哪」合并场景绑定与上报结果。
+- 验证：`tests/action-usages.test.ts`（真实 Host：工作流动作步骤、角色范围与 MCP 授权三方上报，版本/能力不同不混淆，无读取权限时不出现，另一身份被角色拒绝时列入 issues，删除流程后该位置消失）；能力页、Characters（42 项）、工作流、MCP/Agent 相关 101 项中 100 项通过，唯一失败 `agent-action-tools-prologue` 在 main 上同样失败；Characters 升级 e2e 通过。浏览器：1280 下「记下灵光」显示两条流程步骤及字段映射；390 下「加入 Inbox」显示首页事项来源，无横向溢出。
+
+## Feed 来源管理进入统一动作（2026-09-26）
+
+- 新增 `feed.sources.register/update/delete/schedule/enabled/disconnect/sync`；Feed 页面原 `/api/feed/sources…` 路由只挑出已知字段并转发，状态码与响应不变（添加返回 201/200，删除必须选择保留或删除本地历史）。`disconnect` 会移除账号凭据，只对本机用户开放；其他来源管理可按精确授权给 Agent/MCP。
+- 来源服务按每次调用构建，拉取带来的新消息所触发的捕捉、首页和 Inbox 判断使用该调用者的身份与权限（固定到发起它的 Feed 动作），与网页路径对本地用户的做法一致，不再借用固定身份。
+- 仍在设置页、不作为动作：连接器令牌、GitHub 设备码、Gmail OAuth 回调——这些流程携带密钥，属于「服务连接」本机设置。
+- 验证：`tests/feed-source-actions.test.ts`（添加/重复添加/缺字段、改名、计划与非法计划、暂停、公开来源拒绝断开、MCP 看不到断开、旧路由 201/200/400/404 与删除必须选择历史处理）；Feed/来源/连接器/首页相关 212 项中 206 项通过，6 项失败中 5 项在 main 上同样失败，1 项为本分支早先移除 behaviors 后遗留的过时断言，已改为检查清单不再声明 behaviors。浏览器实操（1280）：Feed「添加来源」→ POST 201；改名保存 → PATCH 200；暂停 → 200，界面显示已暂停。
+
+## 调用记录覆盖所有操作（2026-09-26）
+
+- Kernel 的执行包装在处理器结束后报告「哪个能力、谁调用、成功或失败」，从不携带输入与结果；报告失败不影响调用本身。Local Host 通过 `actionSettled` 转交给 Home 的 `logs/action-calls.jsonl`，只记录 `operation: command`（查询被页面持续轮询、且不改变任何东西），最多保留约 1000–2000 条并原子重写。
+- 「调用记录」页按项目/全局显示最近操作（能力名称、提供方、调用方：你/内置 Agent/工作流程/MCP 客户端/插件、能力身份、时间、成功或失败及错误说明），与原判断记录并列；页面文案说明不保存输入与返回内容、失败时保留错误说明。嵌套调用各自记录（例如首页执行事项动作与其实际执行的 Feed 动作）。
+- 验证：`tests/action-call-log.test.ts`（成功/失败命令都记录，查询不记录，其他范围看不到，输入文本不会写入文件）；核心动作/Host/Runtime/MCP 相关 47 项通过。浏览器：首页执行「恢复到 Feed」后，调用记录显示「执行事项动作」与「恢复到 Feed」两条成功记录；服务重启后仍在；1280 与 390 下四个分区（能力库、服务连接、对外接入、调用记录）均实操，无横向溢出。
+
+## 全量非浏览器回归与 main 对比（2026-09-26）
+
+- 484 个非浏览器测试文件在本分支与 main（e065b000，同一批文件中 main 已有的部分）各跑一遍：本分支 2625 项中 2545 通过、77 失败；main 2612 项中 2533 通过、76 失败。两边共同失败 74 项（环境与既有问题，如 connectors 设置、Goals 输出合同 enum、Shelf/Coding 若干 e2e 型用例）。
+- 仅本分支失败的 3 项已查明并修正：两项 desktop-tui 用例从未启用 Feed 的新项目直接调用 Feed 路由——Feed 动作现在遵守项目启用插件的策略（旧路由绕过了它），夹具改为为该项目启用 Feed；一项 Coding 运行时恢复用例在没有动作登记服务的 Runtime 中启动已声明动作的 Coding，改为每个进程提供动作登记。修正后两个文件 42 项全部通过。
+- 仅 main 失败的 2 项（Host 不再直接引入 openFunctionsStore、工作区表单不再要求手填路径）在本分支通过。
+- 浏览器 e2e 未做全量对比；本分支改动涉及的 e2e（home-offers、home-events、home-talk、inbox-current、inbox-pages-actions、feed-capture、characters 升级、cross-plugin）已单独运行，失败项均在 main 上同样失败。
+
+## 外部 MCP 工具进入同一目录（2026-09-27）
+
+- MCP 库（`AgentMcpLibrary`）新增 `tools/live/call`：`call` 走 Prologue 公开的 `createToolInvoker()` 与 `createSystemToolRunner()`，保留 SDK 对名称、版本、形状的核对与副作用链；SDK 把所有外部 MCP 工具标为 mutate-external、无幂等保证，这里由 Host 在动作目录已按调用者授权（本机用户、工作流、精确授权的 MCP 客户端或插件）后放行该笔待批。Agent 运行内的 MCP 调用仍走原审查队列。
+- `external-mcp-actions.ts` 在列表、保存、连接、断开之后同步项目目录：每个已连接服务作为一个提供方（标题为服务名，插件身份为拥有该配置的插件），能力 `mcp.external.<服务>.<工具>`，权限 `mcp:external`；版本记录在 Home `config/external-mcp-actions.json`，配置版本或工具形状变化即升版本，旧引用不会静默指向新工具。断开后条目保留为不可用并说明原因；移除配置后撤回。
+- 验证：`tests/external-mcp-actions.test.ts`（真实 stdio MCP 服务：本机用户直接调用、输入不合规被拒、工作流动作步骤映射标题执行、对外 MCP 客户端未授权被拒/精确授权后成功，三次调用各到达服务一次；断开后不可用并拒绝调用，重连同形状版本不变，移除后撤回）。浏览器实操（1280）：Coding 设置添加本机 HTTP MCP「外部笔记」→ 连接 → 能力库出现 save_note（外部笔记 · 操作 · v1 · 可使用）→ 新建流程 Feed →手动→ save_note（note ← 标题）→ 运行，外部服务实际收到「客户投诉：导出失败」，运行页显示返回结果 → 能力库「已用在哪」显示该流程第 2 步及字段映射 → 调用记录出现调用方为工作流程的 save_note → 断开后能力库显示不可用及原因。
+- 同时发现并修正：Files 页面每约 5 秒重试的 `files.state` 在没有工作目录时反复失败，会刷满调用记录；调用记录现把相邻的相同结果合并为一条并计数（10 分钟内）。该页面的重试行为本身未改。
+- 未做：工具只读/破坏性标注不在 SDK 快照中，全部按外部写入处理；插件可调用（audiences 含 plugin）但仍需安装时授予 `mcp:external`。
+
+## 收尾全量回归（2026-09-27）
+
+- 外部 MCP、Plugin Builder、Work 会话动作合入后，485 个非浏览器测试文件在本分支重跑：2626 项中 2550 通过、73 失败。与 main（e065b000）同批基线逐项对比，没有仅本分支失败的用例；73 项均在 main 上同样失败；main 上另有 3 项在本分支已通过。
+- 浏览器用例未做全量对比；本轮涉及的 session-workspace 两条旅程、Plugin Builder 浏览器用例、home-offers 等已单独运行通过。
+
+## 项目工作目录与浏览目录进入统一动作；外部 MCP 条目跨重启（2026-09-27）
+
+- 工作目录的加入、修复、解除是项目设置，不属于某个插件：新增 Host 提供方「项目工作目录」（`system.project-workspaces`）的 `projects.workspaces.add/repair/unlink`，权限 `projects:settings`，只对本机用户开放。修复与解除沿用原 `repairProjectWorkspace/unlinkProjectWorkspace`，连同使用该目录的会话一起迁移，中途失败回滚（错误码 `workspace.*` 映射为原来的 503）；只由会话使用、尚无目录登记的文件夹，按页面同一规则（`sessionWorkspaceId`）识别。Work 的 `/api/workspaces…` 路由只校验确认并转发，状态码不变；最初放在 Work 插件里时，未启用 Sessions 的项目会被「此项目未启用该插件」拒绝，已改到 Host。
+- 浏览目录选择新增 `projects.settings.browsing-workspace.select.v1`（本机用户、`projects:settings`），项目设置与 Coding 的 `/api/project-settings/workspaces` POST 转发到它；只接受当前项目已关联且可用的目录。
+- 外部 MCP：保存过的服务上次提供的工具（名称、形状、描述，不含凭据）记在 Home `config/external-mcp-tools.json`；项目目录第一次被读取时带回，重连前显示不可用及原因，不会自行启动进程或发起连接；已移除的服务不会带回。
+- 验证：`tests/workspace-project-actions.test.ts`（原完整旅程：加入、冲突、修复迁移 2 条会话、启动、解除 3 条会话；新增：未启用 Sessions 的项目仍可加入目录与选择浏览目录，拒绝其他项目的目录，未知目录 404）。该文件在 main 上原本因夹具未启用 Sessions、首页不显示工作目录行而失败，夹具已补启用。`tests/external-mcp-actions.test.ts` 新增重启情形。Files/Git/Coding 工作区相关 HTTP 用例通过。浏览器实操（1280）：项目设置「工作目录」加入两个文件夹 → 选择第二个用于浏览，调用记录显示「关联工作目录 · 项目工作目录 · 你」与「选择浏览工作区」成功；外部笔记连接后重启服务，直接打开能力库即见 save_note「不可用」及重连说明。
+- 仍为本机界面、不作为动作：原生文件夹选择窗口、终端面板、连接器令牌/设备码/OAuth（携带密钥）。
+
+## 本机用户的权限来自原生清单，能力库与工作流程不再漏掉插件（2026-09-27）
+
+- 问题：能力库与工作流程页的本机调用者各自手写权限名单。能力库漏掉 Alchemist、Artifacts、Dataset、Forms、图片、PPT 和项目设置动作（目录 377 项）；工作流程只带自身、四个内容站、判断规则与外部 MCP 的权限，声明了 `workflow` 的其余插件动作一个都选不到（39 个步骤、7 组）。
+- 改为 `local-owner-permissions.ts`：原生插件（Manifest `kind: native`）声明的全部动作权限加 Host 自有服务的权限；Runtime 插件仍按安装授予逐次加入（`localWebActionContext`）。工作流程页改用 `bindLocalWebActions`，执行时按同一授权核对。原生插件新增动作无需改动 Host。
+- 结果：预览 Home 的能力库 489 项（新增上述 7 个提供方）；流程可选步骤 166 个、23 组，读取约 97ms。
+- 验证：`tests/workflows-step-directory.test.ts`（真实服务：Dataset/Forms/PPT/Shelf 等动作出现在流程步骤中，来自 10 个以上提供方）；`workspace-project-actions` 断言能力库列出工作目录动作；工作流程、能力页、使用位置、外部 MCP 相关 36 项通过。浏览器实操（1280）：新建「消息收进 Shelf」：Feed →手动→「放进 Shelf」（text ← 正文，title ← 标题）→ 用「例行通知：周报已生成」跑一次，Shelf 返回新条目，Shelf 页「材料」中出现「例行通知：周报已生成.md」。
+- 首页调用者同样改用这份派生权限：以后任何原生插件按合同提供首页事项或事项动作，首页即可发现与执行，无需修改首页名单。首页相关 26 项中 25 项通过，唯一失败「七天日期条」在 main 上同样失败。
+- 观察：Shelf「放进 Shelf」的输入字段没有标题，流程里显示为 text、bytes_base64、origin_realpath 等原名；后两项只对本机拖入文件有意义。
+
+## 存量插件的共同收尾（2026-09-27）
+
+清单中多行把「通用工作流/用途、生产授权、生命周期」列为待办。这几项不在各插件内分别实现，而由共同机制承担；以下为逐项证据，适用于所有经动作服务注册的插件（原生与 Runtime）：
+
+- 流程步骤：流程编辑器从调用者可见的目录按合同派生可选动作（`operation: command`、受众含 `workflow`、输入为可映射字段），本机用户权限来自原生清单与 Runtime 安装授予。`tests/workflows-step-directory.test.ts`（Dataset/Forms/PPT/Shelf 等出现在步骤中）、`tests/workflows-action-steps.test.ts`（宿主不认识 ID 的插件动作映射执行与失败分类）；浏览器实操：外部 MCP save_note 与 Shelf「放进 Shelf」各跑通一次并在原插件看到结果。
+- 使用位置：流程、Characters 与对外授权按 `molis.action-usages.*` 上报任意能力的引用；`tests/action-usages.test.ts`。
+- 对外授权：MCP 客户端按客户端、项目/Home、提供方、版本与权限精确授权，撤权对排队调用生效；`tests/mcp-action-grants.test.ts`、`tests/home-mcp-actions.test.ts`、`tests/external-mcp-actions.test.ts`。
+- 生命周期：项目停用插件后目录显示「此项目未启用该插件」、执行被拒，重新启用即恢复；`tests/action-directory-installation.test.ts`。插件升级与兼容声明：`tests/plugin-upgrades.test.ts`。外部 MCP 断开、移除与重启：`tests/external-mcp-actions.test.ts`。
+- 上述 5 个文件 11 项通过；同批运行的 `uninstall.test.ts` 4 项失败，为整机卸载用例，main 上同样失败，与插件生命周期无关。
+- 原列为各插件自身待办的 Files/Git 跨主体读取、Artifacts 来源账号选择、灵光模型连接统一，均已完成或经核对已完成（见各行）。
+
+## Character 能力范围的浏览器复跑（2026-09-27）
+
+- 内置 Agent 只看到「对外接入」授予「内置 Agent（Prologue）」的能力，以及默认开放的无额外权限查询；Character 只能在此范围内进一步缩小。这是设计，不是遗漏。
+- 实操（1280，预览 Home）：新建角色，取消「沿用任务选择的能力」，目录只有 7 项默认查询 → 在「对外接入」给内置 Agent 授权「Feed · 可交接内容」→ 回到角色刷新，出现该项 → 勾选并保存草稿（修订 2）→ 能力库该能力「已用在哪」列出：角色「新角色」、内置 Agent 授权，以及 4 个工作流程第 1 站（含新建的「消息收进 Shelf」）→ 撤销授权后重开角色，引用保留并显示「原能力、版本或授权不可用；引用保留，可明确移除」，没有被静默删除。
+
+## 一个 Home 在一个进程内只有一个 Runtime 归属：测试夹具对齐（2026-09-27）
+
+- 带 Home 的 Host 会启动系统 Agent 服务并登记该 Home 的推理归属；同一进程内再建第二个同 Home 的 Host 会抛出 `inference.home_in_use`。这是有意的约束（`tests/images-actions.test.ts` 明确断言「一个 Home 不能悄悄获得第二个 Runtime 归属」）。生产中网页服务与各 MCP 客户端是独立进程，不受影响。
+- 曾尝试让第二个 Host 沿用已有归属，全量对比发现它破坏上述约束（第二个 Host 仍会在同一存储上组装自己的 Agent 服务），已撤回。
+- 改为修正在一个进程里模拟多个进程的旧夹具（均在 main 上失败）：重启类用例先关闭前一个服务再开下一个（`plugin-outbound-mcp` 4 项、`mcp`、`jelly-actions`）；经常驻服务通道转发的 MCP 服务在同进程内共用常驻 Host（`goals-mcp-aliases`、`action-gateway`，调用仍走网关 URL）；`project-settings-deletion` 的 Host 与生产一致地带上 Home。
+- 仍失败且保留：`alchemist-host-lifecycle` 的「多个 Host 并存」用例（其场景在同一进程内已不可能；改用不同路径模拟另一进程后任务协调超时，未强行改动）；`project-settings-deletion` 止于设置导航链接的界面断言；`images-actions` 的凭据引用用例。三者在 main 上同样失败。
+
+## 全量非浏览器回归（2026-09-27 第二次）
+
+- 486 个非浏览器测试文件：本分支 2628 项中 2564 通过、61 失败；与 main（e065b000）同批基线逐项对比，没有仅本分支失败的用例，61 项均在 main 上同样失败；main 上另有 15 项在本分支通过（Files/Git 路由与动作、工作目录、MCP 连接与 Goals 别名、Jelly、网关等）。
+- 浏览器用例未做全量对比。
+
+## 服务连接中的远程 MCP 工具进入同一目录（2026-09-27）
+
+- 问题：服务连接里以 MCP 方式接入的账号（Atlassian、Notion、Figma、Linear 等）由 `connector-mcp.ts` 自带的 MCP 客户端直接调用，设置页「调用 MCP 工具」绕过动作目录、授权与调用记录，工作流、Agent 与对外客户端也用不到这些工具。这是 MCP Client 侧的第二条执行路径。
+- 改为 `connector-mcp-actions.ts`：每条 MCP 账号连接是 Home 目录里的一个提供方（`system.connectors#mcp:<连接>`），能力 `mcp.connector.<连接>.<工具>`，权限 `mcp:external`，受众含本机用户、工作流、内置 Agent、对外 MCP 与插件；版本随输入形状变化，记在 Home `config/connector-mcp-actions.json`。连接成功、「查看工具」或检查连接时记下服务当前提供的工具（`config/connector-mcp-tools.json`，不含凭据），Host 启动时带回；已删除的连接不再登记。可用性跟随连接：已删除或已断开时显示原因；授权失效在调用时返回 `actions.reauthorize`。执行仍由原连接客户端先核对服务当前的工具列表再调用。
+- 设置页「调用 MCP 工具」改为薄转发到同一动作（首次使用会先列一次工具）；无 Host 时保留原直接调用（复查后已去掉，见「按调用链的代码复查」）。
+- 资源读取同样进入目录：上次列出时提供资源的连接登记一项「读取 MCP 资源」（`mcp.connector.<连接>.resources.read`，按协议本身是读取，登记为 query），设置页「读取 MCP 资源」薄转发到它。
+- 验证：`tests/connector-mcp.test.ts` 新增用例（真实 MCP 服务：列出前目录无条目、列出后出现且只列不调用、经目录调用到达服务一次、调用记录、无权限不到达服务、重启带回同一版本、断开后不可用并拒绝调用），该文件 10 项与连接器相关 32 项通过。浏览器实操（1280）：服务连接 → Figma → 官方 MCP（本机 3845 端口的测试服务）→ 连接并发现工具 → 「调用 MCP 工具」save_note，服务实际收到笔记；调用记录出现「save_note · Figma · 你 · mcp.connector.…@1」；能力库显示可使用；项目流程的可选步骤出现 Figma · save_note（字段 note）；断开后能力库显示「连接「Figma」已断开，请在服务连接中重新授权」。
+- 读写区分：官方客户端返回的工具带 `readOnlyHint` 等提示，但方案规定提示不是授权来源，这里与 Coding 外部 MCP 一致，全部按外部写入处理。Coding 外部 MCP 所用 Prologue SDK 的工具快照（`McpToolSpec`）只有名称、描述、形状指纹与输入形状，没有这些提示，读写区分须待 SDK 提供。
+
+## 全量非浏览器回归（2026-09-27 第三次）
+
+- 服务连接远程 MCP、流程动作筛选、Shelf 字段标题、Goals 快照合同修复之后：本分支 2629 项中 2564 通过、62 失败。与 main 基线对比，61 项在 main 上同样失败，main 上另有 15 项在本分支通过。
+- 唯一仅本分支失败的是 `secret-store-keychain-retry` 的「Keychain 超时」用例。它用假 `security` 程序（受限 PATH，不触及真实钥匙串）故意 `sleep 10`，再在子进程中以 10 秒上限验证恢复；全量运行负载下子进程超时。之后带看门狗单独重跑，本分支与 main 均 8 项全部通过，确认为负载时序，不是本分支引入（第一次单独重跑的挂起来自外层 shell 管道，已终止）。
+- Goals 快照合同：`goalInput.decomposition_review` 改为可为 null（合同类型本就是 `GoalDecompositionReview | null`），修复快照输出校验拒收真实合同修订、导致首页与设置页打不开的问题；新增用例修复前失败。该问题在 main 上同样存在，主检出尚未修改。
+
+## Images 旧连接凭据用例与外部 MCP 读写的决定（2026-09-27）
+
+- `images-actions` 的「沿用旧凭据引用」用例在 main 上失败：图片请求经运行时自身的网络路径，先用 DNS-over-HTTPS 校验主机，用例的 fetch 桩接住了 DNS 查询并让任务失败。产品行为正常；用例改用本机 HTTP 服务后 4 项全部通过，并核对旧凭据只到达服务一次且原密封条目不变。
+- 外部 MCP 工具一律按外部写入（`operation: command`）登记，这是决定而不是遗漏：服务连接中的远程 MCP 由官方客户端列出，带 `readOnlyHint` 等提示，但方案规定提示不是授权来源；若据此改为查询，服务若声明不实，调用就不再进入调用记录、也不再经过写入前复查。Coding 外部 MCP 所用 Prologue SDK 的工具快照不含这些提示。MCP 资源读取按协议本身是读取，登记为查询。
+
+## 真实外部 MCP 客户端、首页停用插件提示与第四次全量回归（2026-09-27）
+
+- 真实外部客户端：官方 MCP SDK 客户端经 stdio 启动生产 launcher（`apps/desktop/launchers/mcp/server.ts`，`MOLIS_WORK_HOME` 指向预览 Home，动作经常驻网页服务转发），以 Codex 身份绑定项目。在「对外接入」给 Codex 授权「记下灵光」与「灵光列表」后：客户端看到 19 个工具（含这两项与默认查询，无未授权写入）；写入一条灵光并列回；灵光页面出现同一条；调用记录显示「记下灵光 · MCP 客户端 · runtime:codex」。另以 Claude Code 身份绑定同一项目，看到 16 个工具、没有灵光两项，客户端之间不串用。判断规则在预览 Home 中都显示「请先连接判断服务」（TypeSafe 未连接），对外客户端调用判断需同一服务；该链路已在 prologue 收敛线用真实 TypeSafe 实测（见 Inbox 行）。
+- 首页：插件在本项目停用时，其首页事项来源不再显示为问题（原先显示「会话首页事项：此项目未启用该插件 · 重新读取」）；其他原因（服务未启动等）仍照常提示。「读取期间提供方失效」只针对开始时可读的来源。`tests/home-event-actions.test.ts` 新增用例，首页相关 9 项（含 home-events、home-offers 浏览器用例）通过；预览首页实操不再出现该提示。
+- 第四次全量（Files/Git 读取动作、Images 用例修复之后）：2630 项中 2566 通过、61 失败；main 上另有 16 项在本分支通过。唯一仅本分支失败的是 Keychain 用例的另一种情形（「拒绝」），同一文件单独重跑 8 项全部通过，与前次相同属负载时序。
+
+## 旧实现清理审计（2026-09-27）
+
+已清理（详见各节）：Functions 独立插件与包依赖、原 workspace 插件；Host 的工作流内容站白名单与插件分支、首页动作 ID 回退分支、判断场景固定枚举与编辑器固定按钮、Host 静态 Feed 候选、JudgmentPort 旧执行分支与 FeedApplication.evaluateInboxEntries、五个插件的 LegacyMcpPermissions 与三份 MCP 包装文件、旧 legacy-usages 注册；能力库/工作流程/首页的手写本机权限名单（改由原生清单派生）；工作区、Session、Feed 来源、Plugin Builder、项目工作目录、浏览目录等旧路由的业务逻辑（只剩薄转发）；服务连接 MCP 与 Coding 外部 MCP 的直接调用（改经目录）。
+
+仍直接使用插件存储的 Host 代码，按性质分类（2026-09-27 全量检索 `createLocalFeedApplication(`、`open*Store(`）：
+- 插件自身实现：Feed 的应用、来源、连接器、同步、升级为 Goal、原生路由由 Host 组装（Feed 的实现就在 Host 包里），Alchemist/Functions 提供方打开自己的存储；这是提供方使用自己的数据。
+- 只读页面投影：工作台视图的 Feed 目录计数（`web-view.ts`）、终端面板读取 Goal 关联的 Feed 条目（`web-panel.ts`）、能力页的判断记录（`web-capabilities.ts`）、Shelf 设置页（`web-catalog.ts`）。不执行、不写入。
+- 信息助手（`assistant-http.ts`）：只读取 Feed/Inbox 快照生成方案，确认后的动作经已迁移的插件路由执行；读取仍直连 Feed 存储，未改为动作（现有 Feed 动作不提供来源与 Inbox 状态的组合读取，另写专用查询收益低）。
+- 种子数据（`demo-plugin-seed.ts`）。
+- 本机设置流程：连接器令牌、OAuth/设备码、原生文件夹选择、终端面板（携带密钥或本机界面）。
+检索未发现 Host 绕过动作写入插件业务数据的路径；写入均经提供方动作或其自身实现。
+
+## 内置 Agent 使用授权能力的真实路径；判断场景复验；第五次全量（2026-09-27）
+
+- 内置 Agent（预览应用实操）：本机启动一个 Anthropic 兼容的替身模型服务（127.0.0.1:4311，自建测试密钥，不涉及真实账号）；在「服务连接 → 模型 API」添加连接、在「模型设置」添加自定义供应商并「测试这个模型」得到「模型已实际响应」（经 Prologue）；在「对外接入」给内置 Agent 授权「记下灵光」；Coding 新会话选择「执行」方式与该能力（能力对话框说明「讨论」方式只允许查询）后下达任务。运行中出现审查卡：Capability lingguang.create · v1 · io.molis.work.lingguang 及参数，点「批准这一次」后本轮完成；灵光存储出现「Agent 按授权记下：导出失败先查权限」，调用记录显示「记下灵光 · 内置 Agent」。只有模型回复来自替身，其余（模型设置、Prologue 运行、审查队列、动作授权与写入）都是产品真实路径。真实模型（MiniMax）需用户自己在模型设置中配置。
+- 判断场景：判断服务地址固定为 TypeSafe 官方服务，运行中的应用无法改指本机替身。复验以浏览器端到端代替：`tests/function-scene-authoring.e2e.test.ts`（真实 Chrome 编辑器中为宿主未知的场景选择用途、对象与映射、保存、试跑、发布，停用保留引用，使用位置来自插件）与 `tests/feed-capture-scenes.test.ts`（Feed 捕捉场景由真实来源事件触发判断并消费结果，拒绝过期规则/条目/提供方/授权）3 项通过。真实 TypeSafe 实测见 Inbox 行引用的 prologue 收敛线记录。
+- 第五次全量（首页停用插件修复之后）：2631 项中 2568 通过、60 失败；与 main 基线逐项对比，没有仅本分支失败的用例，60 项均在 main 上同样失败；main 上另有 16 项在本分支通过。
+
+## 判断场景在真实 Home 上的产品实操（2026-09-27，用户授权使用真实 Home）
+
+- 环境：用户选择直接使用真实 Home 的 4207（主检出 main 代码，真实 TypeSafe 连接）。为不触碰已有项目，新建项目「动作服务验收·判断」（引导页「空白开始」在 main 上提交空名称失败，见下；改由正式 MCP 客户端调用 `molis_work_v1_context_create_and_bind` 创建），在插件市场为其添加 Feed 与 Inbox。
+- 实操：能力库中判断规则均为「可使用」（TypeSafe 已连接）→ Feed 添加「共享研究库」来源（手动拉取）→ 捕捉规则选「复用规则」，判断能力下拉只可选兼容的「是否进 Inbox」（其余两项标明「判断能力未覆盖此场景的所有对象类型」「函数结果不能满足场景合同」并置灰），处理方式「筛选后自动入 Inbox」，保存后显示「已绑定判断能力 · 已启用」→「立即拉取」：同步完成新增 64 条 → 64 次真实 TypeSafe 判断（判断记录 `system_admit_inbox · v1 · ok · feed.capture`），结论均为 `feed.open`；结果被实际采用：消息标记「仅 Feed」，Inbox 待处理 0。
+- 这验证的是 main 上的同一判断路径（本分支未改动判断执行、场景与 Feed 捕捉代码）。64 次判断使用了用户的 TypeSafe 账号。测试项目与其 64 条消息留在真实 Home，删除由用户决定。
+- 同时在 main 上看到的两个问题：① 引导页「空白开始」提交后名称被清空、报「请输入 1–120 字的项目名称」（`context-onboarding.ts` 的 `adopt()` 读取名称的时机或 `accepted?.title ?? …` 对空标题不回退），不属动作服务范围，未修改；② 新项目首页显示「Feed/Inbox/会话首页事项：此项目未启用该插件」——即本分支 3a7c7178 已修复的问题。
+
+## 首页发现与执行动作的复跑（2026-09-27，预览应用，本分支代码）
+
+- 首页日期条选 9 月 26 日，列出两条 Feed 消息；打开「客户投诉：导出失败」，首页从 Feed 的 offers 合同得到「加入 Inbox / 保存为资料 / 升格为 Goal / 忽略」及「打开事项」「说一句」。点「加入 Inbox」后该条离开当天 Feed 列表（「这一天有 1 件事」）；调用记录显示「执行事项动作 · 首页 · 你 · home.actions.execute@1」与「加入 Inbox · Feed · 你」；Inbox 显示「待处理 1 · 客户投诉：导出失败 · 你手工加入」。
+- 观察：同一页面中此前已加载过的 Inbox 视图在首页执行后未即时刷新，重新载入后正确。
+
+## 第六节真实用户路径逐项对照（2026-09-27）
+
+| 路径 | 在应用中的实操 | 位置 |
+| --- | --- | --- |
+| 插件注册后能力自动出现在配置场景 | 外部笔记/Figma 的 MCP 工具、Files/Git 读取、项目工作目录动作在能力库、流程步骤、对外接入、角色能力范围中自动出现；原生插件动作从清单派生后流程步骤由 39 增至 166 | 预览应用 |
+| 配置工作流、字段映射并真实执行 | 「消息收进 Shelf」：Feed →手动→放进 Shelf（text←正文，title←标题），Shelf 出现新材料 | 预览应用 |
+| 选择判断函数、绑定场景、真实事件触发、结果被采用 | 真实 Home：复用「是否进 Inbox」绑定 Feed 捕捉并自动入箱，拉取 64 条触发 64 次真实 TypeSafe 判断，结论被采用（仅 Feed，Inbox 0） | 4207（main） |
+| 首页发现、推荐并执行动作 | 本节上文 | 预览应用 |
+| Character 与内置 Agent 使用授权能力 | 角色能力范围授权/撤权与「已用在哪」；Coding 会话中内置 Agent 经审查卡调用「记下灵光」并写入（模型回复来自本机替身） | 预览应用 |
+| 外部标准 MCP 客户端查询与写入 | 官方 SDK 客户端经 stdio 生产 launcher，Codex 身份按精确授权写入并列出灵光，页面与调用记录一致；Claude Code 身份看不到 | 预览应用 |
+
+## 按调用链的代码复查（2026-09-27）
+
+逐条从入口（页面/HTTP/MCP/Agent）经动作客户端、内核到提供方与业务实现复读本分支改动，修正如下（提交 74a409bd 起）：
+
+- 服务连接的 MCP 工具：设置页调用/读取只经目录一条路，按目录记下的准确引用执行，并以固定的本机用户上下文调用（与连接器账号动作同一做法）；去掉没有 Host 时直连服务器的旁路、每次整目录扫描和双重类型断言。
+- 两类 MCP 工具（服务连接、Coding 外部 MCP）共用 `apps/local-host/src/mcp-tool-actions.ts`：权限、id 前缀与 `isMcpToolCapability`、输入 schema 检查（改用内核 `compileActionSchema`）、随形状变化的版本簿、说明文案、JSON 落盘。外部工具处理器去掉与 `beforeEffect` 重复的在线检查。
+- Coding 外部 MCP 的目录同步改由 Agent Host 类型化的 `mcpChanged` 端口通知（列表/保存/连接变化之后），组合层不再按参数形状嗅探，也不再二次解析授权。
+- 工作流程：「交给下一站」拆为准备交接与执行动作步骤两个函数；站点、判断规则、动作步骤共用一次调用内的一次目录读取；删除与结束运行写入前也走 `beforeEffect`。
+- 调用记录：重复调用只改写最后一行，不再每条命令读写整份文件；共用 Home 的两个进程互不覆盖（新增用例）。
+- 类型：处理器直接用 `ActionExecutionContext.beforeEffect`；项目设置能力按 `ActionDefinition` 声明；角色 launch、Feed 立即拉取有了确切类型；分支新增代码不再有 `as unknown as`。
+- 命名：Host 的连接器账号提供方改为 `system.connectors`，与其他 Host 系统提供方一致。
+
+复查后保留的结构性折中（单一路径、无旁路，但实现形态可再收拾）：
+- Coding 的 15 个动作由适配器把输入还原成路由请求，复用原路由形态的业务函数；后续可把这些函数改为类型化输入。
+- Feed「立即拉取」的网络读取与写入在 Feed 服务内部完成，处理器无法在写入前插入 `beforeEffect`；拉取途中停用插件时，本次已开始的拉取仍会写完。
+
+复查后全量非浏览器回归：2632 项中 2568 通过、61 失败；与复查前本分支的全量逐项对比，唯一新增的是 `secret-store-keychain-retry` 的一项。该文件单独重跑时，三个不同用例轮流失败（都卡在子进程访问 macOS 钥匙串），复查没有改动存储与钥匙串代码，属已知的钥匙串时序不稳定。typecheck、boundary:check、build 均通过。
+
+复查后的浏览器验证：
+- 相关 e2e 14 个文件 29 项，6 项失败；把失败的 5 个文件分别在复查前（188d1c0d）和 main（e065b000）上重跑，这 6 项同样失败（main 在这些文件里失败 7 项），没有复查引入或仅本分支的失败。
+- 预览应用（本分支新代码，本机测试 MCP 服务 3845）：服务连接 → Figma：已断开的连接「调用 MCP 工具」返回目录给出的原因（已断开，请重新授权），服务端未收到；重新连接后调用 save_note，页面显示服务返回，服务端只收到一次，调用记录新增「save_note · Figma · 你 · mcp.connector.<连接>.save_note@1」。

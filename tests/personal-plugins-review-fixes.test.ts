@@ -77,7 +77,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 async function listenDispatcher(
   home: string,
-  ports: Parameters<typeof handlePersonalNativePluginHttp>[4] & Parameters<typeof pagesTestPorts>[2] & { publishArtifact?: PagesPublishArtifactPort } = {},
+  ports: Parameters<typeof handlePersonalNativePluginHttp>[3] & Parameters<typeof pagesTestPorts>[2] & { publishArtifact?: PagesPublishArtifactPort } = {},
 ): Promise<{ origin: string; close(): Promise<void> }> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions: { env: {} } });
   const actions = bindActionClient(host.homeActionClient(), () => ({ actor_id: "test", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] }));
@@ -85,7 +85,7 @@ async function listenDispatcher(
   const pagesPorts = pagesTestPorts(pagesStore, "project-alpha", ports);
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    void handleFunctionsHttp(request, response, url, home, { actions }).then(handled => handled || handlePagesNativePluginHttp(request, response, url, pagesPorts)).then(handled => handled || handlePersonalNativePluginHttp(request, response, url, home, ports)).then((handled) => {
+    void handleFunctionsHttp(request, response, url, home, { actions }).then(handled => handled || handlePagesNativePluginHttp(request, response, url, pagesPorts)).then(handled => handled || handlePersonalNativePluginHttp(request, response, url, ports)).then((handled) => {
       if (!handled && !response.headersSent) {
         response.writeHead(404);
         response.end();
@@ -443,7 +443,8 @@ test("Host 不再从插件包进口 openFunctionsStore；错误类型来自 cont
     }
     assert.doesNotMatch(source, /MolisWorkV1Error[\s\S]{0,80}plugin-goals/);
   }
-  assert.match(await readFile(join(ROOT, "..", "apps/local-host/src/web-view.ts"), "utf8"), /functionsViewFingerprint/);
+  // Current judgments come from the authorized Inbox/Feed actions; the web view no longer snapshots the Functions store.
+  assert.doesNotMatch(await readFile(join(ROOT, "..", "apps/local-host/src/web-view.ts"), "utf8"), /openFunctionsStore|functionsViewFingerprint/);
 });
 
 test("Native MCP 表与 catalog 的 mcp_exports 同源", () => {

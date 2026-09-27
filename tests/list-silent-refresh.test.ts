@@ -19,6 +19,7 @@ import {
   SCHEDULE_NATIVE_PLUGIN_ROUTES,
   SchedulePluginRouteTable,
   createScheduleRouteHandlers,
+  scheduleActions,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { CLIENT_EVENTS_PRIMARY_SCRIPT } from "../apps/workbench/src/scripts/client/events-primary.ts";
 import { CLIENT_EVENTS_SECONDARY_SCRIPT } from "../apps/workbench/src/scripts/client/events-secondary.ts";
@@ -114,20 +115,11 @@ test("Inbox / Schedule 工作区 fragment 走 HTML 路由", async () => {
   assert.match(String(inboxPage?.html), /data-inbox-list/);
 
   const schedule = new SchedulePluginRouteTable(createScheduleRouteHandlers({
-    listJobs: () => [],
-    setEnabled: () => {
-      throw new Error("unused");
-    },
-    listTasks: () => [],
-    createTask: () => {
-      throw new Error("unused");
-    },
-    setTaskEnabled: () => {
-      throw new Error("unused");
-    },
-    openTask: () => {
-      throw new Error("unused");
-    },
+    actions: { discover: async () => [], invoke: async <Input, Output>(definition: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
+      assert.equal(definition, scheduleActions.list);
+      assert.deepEqual(input, {});
+      return { jobs: [], tasks: [] } as Output;
+    } },
     changed() {},
     renderWorkbench: () => '<section data-schedule-workbench><div data-schedule-list></div><div data-schedule-stage-workspace></div></section>',
   }));

@@ -40,7 +40,8 @@
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "characters.ui-contribution.v1",
-      "characters.http-routes.v1"
+      "characters.http-routes.v1",
+      "characters.actions.v1"
     ]
   }
 }

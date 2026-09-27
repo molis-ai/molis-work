@@ -1,5 +1,5 @@
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentSessionRef, type AgentRunRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { AgentHostError, type AgentHost, type AgentStartAuthority } from "./index.js";
 
@@ -36,6 +36,11 @@ export interface AgentCapabilityPorts<Context> {
   boardId(context: Context): string;
   /** Explicit historical owner, never inferred from a request. */
   legacyActorId?(context: Context): string | undefined;
+  /**
+   * After an owner's MCP servers were listed, saved or connected/disconnected: what they offer now may be republished
+   * (the Host's action directory follows it). A failure here never undoes the change itself.
+   */
+  mcpChanged?(context: Context, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner): void | Promise<void>;
 }
 
 /** A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage. */
@@ -64,6 +69,10 @@ export function registerAgentHostCapabilities<Context>(
   const ports = {
     agentHost: (call: Call) => owners.agentHost(call.source),
     boardId: (call: Call) => owners.boardId(call.source),
+    mcpChanged: async (call: Call, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) => {
+      try { await owners.mcpChanged?.(call.source, runtimeId, pluginId, library, owner); }
+      catch { /* The change itself succeeded; whoever follows it catches up on the next list. */ }
+    },
     authority: async (call: Call, pluginId: string): Promise<AgentStartAuthority> => {
       const caller = pluginFor(call, pluginId);
       const authority = await owners.authority(call.source, caller?.plugin_id ?? pluginId, caller);
@@ -133,13 +142,17 @@ export function registerAgentHostCapabilities<Context>(
 
     register(agentHostCapabilities.listMcp, async (context, [runtimeId, pluginId]) => {
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, await ports.authority(context, pluginId));
-      return library.list(owner);
+      const servers = await library.list(owner);
+      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
+      return servers;
     }),
     register(agentHostCapabilities.saveMcp, async (context, [runtimeId, pluginId, input]) => {
       const authority = await ports.authority(context, pluginId);
       if (input.transport === "stdio" && (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path))) throw new AgentHostError("agent.directory_unauthorized", "MCP 进程目录必须是当前项目的授权工作区");
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, authority);
-      return library.save(owner, input);
+      const saved = await library.save(owner, input);
+      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
+      return saved;
     }),
     register(agentHostCapabilities.controlMcp, async (context, [runtimeId, pluginId, id, action]) => {
       const authority = await ports.authority(context, pluginId);
@@ -149,7 +162,8 @@ export function registerAgentHostCapabilities<Context>(
         if (server?.transport === "stdio" && !authority.authorizedDirectories.includes(server.directory?.canonical_path ?? "")) throw new AgentHostError("agent.directory_unauthorized", "MCP 的原工作区已不可用，请重新配置");
       }
       await context.invocation.beforeEffect();
-      return library.control(owner, id, action);
+      await library.control(owner, id, action);
+      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
     }),
 
     register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) => {

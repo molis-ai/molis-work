@@ -7,14 +7,12 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID,
   githubIntegrationManifest,
   githubWhoami,
 } from "@molis-ai/molis-work-integration-github";
 import {
   catalogConnectorIds,
   catalogIntegrationManifest,
-  catalogPublicBehaviorId,
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
@@ -30,6 +28,7 @@ import {
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { connectorAccountActions } from "../apps/local-host/src/connector-account-actions.js";
 import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/src/connector-directory.ts";
 import { GITHUB_AUTH_REF } from "../apps/local-host/src/connector-credentials.ts";
 import { CONNECTOR_MARKS } from "../apps/workbench/src/connector-marks.ts";
@@ -101,12 +100,12 @@ function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCa
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
-test("GitHub Integration Manifest is schema 2 and names whoami", () => {
+test("GitHub Integration Manifest is schema 2; its account check is the connector action, not a legacy behavior", () => {
   const parsed = parsePluginManifest(githubIntegrationManifest);
   assert.equal(parsed.schema_version, 2);
   assert.equal(parsed.host_api_version, 2);
-  assert.ok(parsed.behaviors?.some((row) => row.behavior_id === "whoami"));
-  assert.equal(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID, "github.whoami");
+  assert.equal(parsed.behaviors, undefined);
+  assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
 });
 
 test("connector directory covers common Codex/Claude/Grok accounts without empty packages", () => {
@@ -398,7 +397,7 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       };
       assert.equal(
         emptyCatalog.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
+          ?.behavior_ids.includes("github.whoami"),
         false,
       );
       const bound = await fetch(`${origin}/api/settings/connectors/github/token`, {
@@ -418,7 +417,7 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       const liveCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
         catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
       };
-      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false,
+      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
         "the legacy connector settings API is not a registered Agent action");
       const whoami = await fetch(`${origin}/api/settings/connectors/github/whoami`, {
         method: "POST",
@@ -437,7 +436,7 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       };
       assert.equal(
         after.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
+          ?.behavior_ids.includes("github.whoami"),
         false,
       );
     } finally {
@@ -468,7 +467,6 @@ test("deleting a Feed GitHub source keeps the machine credential", async () => {
 test("catalog Slack whoami hits auth.test and appears in Functions only while bound", async () => {
   const parsed = parsePluginManifest(catalogIntegrationManifest("slack"));
   assert.equal(parsed.plugin_id, "io.molis.work.integration.slack");
-  assert.equal(catalogPublicBehaviorId("slack"), "slack.whoami");
   const urls: string[] = [];
   const result = await catalogWhoami({
     connectorId: "slack",

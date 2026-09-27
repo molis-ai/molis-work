@@ -24,7 +24,14 @@ export interface WorkflowItemRef { readonly plugin: string; readonly item_id: st
 export interface WorkflowStartItem { readonly item_id: string; readonly title: string; readonly caption: string; readonly at: string | null }
 export interface WorkflowReceiveInput {
   readonly payload: WorkflowPayload;
+  /** `instance_id` + `step` is one delivery. A receiver returns the same item when it is delivered again (a retry after a crash
+   * or a lost race), and never creates a second one. The workflow fixes the payload of a delivery before sending it. */
   readonly context: { readonly instance_id: string; readonly step: number; readonly title?: string };
+}
+
+/** Stable request identity a receiver may pass to its own idempotent write. */
+export function workflowDeliveryKey(context: WorkflowReceiveInput["context"]): string {
+  return `workflow:${context.instance_id}:${context.step}`;
 }
 
 const text = { type: "string" };

@@ -1,9 +1,10 @@
 import type { WorkSessionHttpContext } from "./types.js";
 import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import { publicSessionRecord } from "./public-records.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workActions } from "../actions.js";
 
 export async function handleSessionCreateHttp(context: WorkSessionHttpContext): Promise<boolean> {
-  const { method, pathname, readBody, respond, resourcesPromise, projectOptions, hasCurrentGoal, workspace } = context;
+  const { method, pathname, readBody, respond, hasCurrentGoal, workspace } = context;
   if (method === "POST" && pathname === "/api/sessions/discover") {
     const body = await readBody();
     const runtimeId = typeof body.runtime_id === "string" ? body.runtime_id.trim() : "";
@@ -11,15 +12,13 @@ export async function handleSessionCreateHttp(context: WorkSessionHttpContext): 
       respond( 400, { error: "请选择要同步的 Runtime" });
       return true;
     }
-    const resources = await resourcesPromise;
-    const result = await resources.directory.discover(runtimeId);
-    respond(
-      result.status === "ok" ? 200 : result.status === "unsupported" ? 409 : 503,
-      {
-        ...result,
-        records: result.records.map(publicSessionRecord),
-      },
-    );
+    // Forwarded to the registered action; the status still follows the runtime's own answer.
+    try {
+      const result = await requireActions(context).invoke(workActions.discover, { runtime_id: runtimeId });
+      respond(result.status === "ok" ? 200 : result.status === "unsupported" ? 409 : 503, result);
+    } catch (error) {
+      respond(error instanceof ActionError ? 400 : 503, { error: error instanceof Error ? error.message : String(error) });
+    }
     return true;
   }
   if (method === "POST" && pathname === "/api/sessions") {
@@ -43,7 +42,6 @@ export async function handleSessionCreateHttp(context: WorkSessionHttpContext): 
         respond( 400, { error: "请选择 Runtime 和添加方式" });
         return true;
       }
-      const resources = await resourcesPromise;
       let workspaceId = typeof body.workspace_id === "string" && body.workspace_id.trim()
         ? body.workspace_id.trim()
         : null;
@@ -86,33 +84,13 @@ export async function handleSessionCreateHttp(context: WorkSessionHttpContext): 
         }
       }
       const title = typeof body.title === "string" && body.title.trim() ? body.title.trim() : null;
-      const session = action === "create"
-        ? await resources.directory.create({
-            runtime_id: runtimeId,
-            actor_id: "web-user",
-            user_confirmed: true,
-            project_id: projectOptions.project!.project_id,
-            current_goal_id: currentGoalId,
-            workspace_id: workspaceId,
-            workspace_path: workspacePath,
-            title,
-          })
-        : resources.registry.explicitlyLinkSession({
-            runtime_id: runtimeId,
-            native_runtime_session_id: typeof body.native_runtime_session_id === "string"
-              ? body.native_runtime_session_id
-              : "",
-            actor_id: "web-user",
-            user_confirmed: true,
-            project_id: projectOptions.project!.project_id,
-            current_goal_id: currentGoalId,
-            workspace_id: workspaceId,
-            workspace_path: workspacePath,
-            title,
-          });
-      respond( 201, { session: publicSessionRecord(session) });
+      // The page resolved and checked the working folder it shows; the registered action performs the change.
+      const created = await requireActions(context).invoke(workActions.create, { runtime_id: runtimeId, action,
+        ...(action === "link" ? { native_runtime_session_id: typeof body.native_runtime_session_id === "string" ? body.native_runtime_session_id : "" } : {}),
+        current_goal_id: currentGoalId, workspace_id: workspaceId, workspace_path: workspacePath, title });
+      respond(201, created);
     } catch (error) {
-      respond( error instanceof MolisWorkSessionError ? 400 : 503, {
+      respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -120,4 +98,9 @@ export async function handleSessionCreateHttp(context: WorkSessionHttpContext): 
   }
 
   return false;
+}
+
+function requireActions(context: WorkSessionHttpContext) {
+  if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
+  return context.actions;
 }

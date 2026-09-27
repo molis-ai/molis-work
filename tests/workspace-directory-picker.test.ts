@@ -5,10 +5,8 @@ import path from "node:path";
 import test from "node:test";
 
 import { createDirectoryPicker, type DirectoryPickerCommandResult } from "../apps/local-host/src/directory-picker.ts";
-import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/coding-companions.ts";
 import { handleWorkspaceHttp } from "../plugins/native/work/src/http/workspaces.ts";
 import type { WorkSessionHttpContext } from "../plugins/native/work/src/http/types.ts";
-import { renderWorkspaceWorkbench } from "../plugins/native/workspace/src/ui.ts";
 
 function commandResult(overrides: Partial<DirectoryPickerCommandResult> = {}): DirectoryPickerCommandResult {
   return { stdout: "", stderr: "", code: 0, ...overrides };
@@ -121,17 +119,4 @@ test("pick route reports the window result and does not open one without a proje
     { error: "这台电脑打不开目录选择窗口" },
   ]);
   assert.deepEqual(calls.slice(1).map((call) => call.status), [200, 200, 409, 503]);
-});
-
-test("workspace form asks for a folder window instead of a typed absolute path", () => {
-  const html = renderWorkspaceWorkbench();
-  assert.match(html, /data-workspace-pick/);
-  assert.match(html, /选择目录/);
-  assert.match(html, /name="confirmed"/);
-  assert.doesNotMatch(html, /name="confirmed" required/);
-  assert.match(CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT, /请确认将此目录关联到当前项目/);
-  assert.doesNotMatch(html, /这台电脑上的绝对路径/);
-  assert.equal(html.includes('placeholder='), false);
-  assert.match(CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT, /\/api\/workspaces\/pick/);
-  assert.match(CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT, /请先选择目录/);
 });

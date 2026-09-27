@@ -62,7 +62,9 @@ test("formal MCP and Web share Session directory/content/resume and borrowed Hos
     await sdk.connect(transport).catch(error => { throw new Error(String(error) + stderr); });
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === hostActionToolName(workActions.directory)), false);
     const directory = await host.inspectActions({ actor_id: clientId, project_id: project.project_id, audience: "mcp", permissions: [] }, reference);
-    for (const action of Object.values(workActions)) {
+    // Archiving and re-associating carry the person's confirmation and stay with the local user.
+    for (const local of [workActions.archive, workActions.associations]) assert.ok(!directory.some(view => view.capability_id === local.capability_id));
+    for (const action of Object.values(workActions).filter(action => action.action.audiences.includes("mcp"))) {
       const view = directory.find(view => view.capability_id === action.capability_id)!; assert.ok(view);
       await writeMcpActionGrant(home, createMcpActionGrant(clientId, project.project_id, view, true));
     }

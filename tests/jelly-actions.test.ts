@@ -130,7 +130,7 @@ test("inspiration commands preserve evidence and note references through convers
 });
 
 test("manual plans need no model; stale plans and altered imports cannot write and confirmed imports survive restart", async t => {
-  const { bound, command, home, caller, read } = fixture(t);
+  const { bound, command, home, caller, read, host } = fixture(t);
   const result = await bound.invoke(actions.manualPlan, { source_type: "text", text: "核对来源\n保存结果" });
   assert.ok("plan" in result); assert.equal(result.method, "manual"); assert.equal((await read()).revision, 0);
   let state = await command("plan.apply", { plan: result.plan }); assert.equal(state.notes[0]!.blocks.filter(b => b.kind === "task").length, 2);
@@ -146,6 +146,8 @@ test("manual plans need no model; stale plans and altered imports cannot write a
   await assert.rejects(command("workspace.import", { source: changed, confirmation_token: preview.confirmation_token }), { code: "jelly.stale_preview" });
   // The failed transaction must retain the original preview token.
   state = await command("workspace.import", { source: workspace, confirmation_token: preview.confirmation_token }); assert.equal(state.notes.length, 2);
+  // A restart: the first Host ends before the next one owns this Home.
+  await host.close();
   const reopened = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try { const data = await reopened.homeActionClient().invoke(caller, actions.export, {}); assert.match(JSON.stringify(data), /导入的原文/); }
   finally { await reopened.close(); }

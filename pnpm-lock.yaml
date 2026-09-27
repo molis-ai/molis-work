@@ -185,9 +185,6 @@ importers:
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:plugins/native/workflows
-      '@molis-ai/molis-work-plugin-workspace':
-        specifier: workspace:*
-        version: link:plugins/native/workspace
       '@molis-ai/molis-work-service-agent-host':
         specifier: workspace:*
         version: link:horizontal/agent-host
@@ -459,9 +456,6 @@ importers:
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
-      '@molis-ai/molis-work-plugin-workspace':
-        specifier: workspace:*
-        version: link:../../plugins/native/workspace
       '@molis-ai/molis-work-server':
         specifier: workspace:*
         version: link:../../server
@@ -631,9 +625,6 @@ importers:
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
-      '@molis-ai/molis-work-plugin-workspace':
-        specifier: workspace:*
-        version: link:../../plugins/native/workspace
       '@molis-ai/molis-work-ui-host':
         specifier: workspace:*
         version: link:../../packages/ui-host
@@ -1191,12 +1182,6 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
-
-  plugins/native/workspace:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../../packages/contracts
 
   plugins/official-integrations/catalog:
     dependencies:

@@ -1,6 +1,3 @@
-import { createAgentConnectorPorts } from "../apps/local-host/src/agent-connector-ports.ts";
-import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { connectorAuthorizationStatus } from "../apps/local-host/src/connector-authorization-status.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
@@ -14,9 +11,16 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/src/connector-mcp.ts";
+import { createAgentConnectorPorts } from "../apps/local-host/src/agent-connector-ports.ts";
+import { connectorAuthorizationStatus } from "../apps/local-host/src/connector-authorization-status.ts";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/src/connector-protocol-store.ts";
+import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/src/connector-mcp-actions.ts";
+import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.ts";
+import { isMcpToolCapability } from "../apps/local-host/src/mcp-tool-actions.ts";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 async function body(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -296,7 +300,6 @@ test("official Lark MCP stdio transport discovers and calls tools with environme
   } finally { process.env.PATH = priorPath; rmSync(temp, { recursive: true, force: true }); }
 });
 
-
 test("official MCP OAuth flows through Host into Agent selections, refreshes, and revokes active access", async () => {
   const temp = home(); const remote = await fixture({ oauth: true });
   let clock = Date.now();
@@ -329,4 +332,54 @@ test("official MCP OAuth flows through Host into Agent selections, refreshes, an
     await assert.rejects(library.validate(owner, tools), /已改变|断开|不可用/);
     assert.notEqual((await library.list(owner))[0]!.health, "connected");
   } finally { await adapter?.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("tools of a connection in 服务连接 are Home actions: listed once, then run through the shared service, logged and following the connection", { timeout: 60_000 }, async () => {
+  const temp = home(); const remote = await fixture();
+  const client = createConnectorMcpHost({ testServers: { figma: { endpoint: remote.endpoint, auth: "none" } } });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
+  const directory = createConnectorMcpDirectory({ localHost, homeDirectory: temp, call: client.callMcpConnectionTool, read: client.readMcpConnectionResource });
+  const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["mcp:external"] };
+  const actions = localHost.homeActionClient();
+  try {
+    const started = await client.startMcpConnection(temp, { serviceId: "figma", displayName: "Desktop Figma", origin: callbackOrigin });
+    const id = connectorMcpCapabilityId(started.connectionId, "echo");
+    assert.ok(isMcpToolCapability(id) && isMcpToolCapability(connectorMcpResourceCapabilityId(started.connectionId)) && !isMcpToolCapability("feed.sources.register"));
+    assert.ok(!(await actions.discover(user)).some(view => view.capability_id === id), "nothing is registered before the tools are listed");
+    directory.remember(started.connectionId, started.tools as ConnectorMcpTool[], started.resources);
+    const view = (await actions.discover(user)).find(row => row.capability_id === id)!;
+    assert.ok(view, "the listed tool is in the Home directory");
+    assert.equal(view.provider.title, "Desktop Figma");
+    assert.ok(view.action.audiences.includes("workflow") && view.action.audiences.includes("mcp"));
+    assert.equal(view.availability.available, true);
+    assert.equal(remote.stats().callCount, 0, "listing never calls a tool");
+    const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    const result = await actions.invoke(user, ref, { message: "经由目录" }) as { content: unknown[] };
+    assert.deepEqual(result.content, [{ type: "text", text: "经由目录" }]);
+    assert.equal(remote.stats().callCount, 1);
+    // Resources are read through the same directory, as a query (nothing is written, so the call log skips it).
+    const readRef = (await actions.discover(user)).find(row => row.capability_id === connectorMcpResourceCapabilityId(started.connectionId))!;
+    assert.equal(readRef.operation, "query");
+    const resource = await actions.invoke(user, { capability_id: readRef.capability_id, version: readRef.version, provider_id: readRef.provider.provider_id }, { uri: "fixture://readme" }) as { contents: Array<{ text?: string }> };
+    assert.equal(resource.contents[0]?.text, "Actual MCP resource");
+    const logged = localHost.callLog!.list(null).find(row => row.capability_id === id)!;
+    assert.equal(logged.ok, true); assert.equal(logged.provider_title, "Desktop Figma");
+    await assert.rejects(actions.invoke({ ...user, permissions: [] }, ref, { message: "无权限" }));
+    assert.equal(remote.stats().callCount, 1, "a caller without the permission never reaches the server");
+    // A restart brings the entry back from what was listed; nothing is called.
+    const again = createConnectorMcpDirectory({ localHost, homeDirectory: temp, call: client.callMcpConnectionTool, read: client.readMcpConnectionResource });
+    directory.close(); again.sync();
+    assert.ok((await actions.discover(user)).some(row => row.capability_id === id && row.version === view.version));
+    withConnectorConnections(temp, store => store.disconnect(started.connectionId));
+    const offline = (await actions.discover(user)).find(row => row.capability_id === id)!;
+    assert.equal(offline.availability.available, false);
+    assert.match(offline.availability.available ? "" : offline.availability.reason, /已断开/);
+    await assert.rejects(actions.invoke(user, ref, { message: "断开后" }), { code: "actions.connection_unavailable" });
+    assert.equal(remote.stats().callCount, 1);
+    again.close();
+  } finally {
+    directory.close();
+    await localHost.close();
+    await remote.close(); rmSync(temp, { recursive: true, force: true });
+  }
 });

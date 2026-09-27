@@ -1,4 +1,5 @@
-import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction, parseExactActionReferences, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
@@ -161,6 +162,17 @@ function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionState {
 
 /** Coding owns intent and organization; execution is always obtained through Host capabilities. */
 export function codingRoutes(context: PluginStartContext, ports?: CodingExecutionPorts): PluginRouteBinding[] {
+  return codingSurface(context, ports).routes;
+}
+
+/** Routes for the workbench, and the owner-bound actions the Runtime instance redeems for Coding's business surface. */
+export function codingSurface(context: PluginStartContext, ports?: CodingExecutionPorts): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
+  const actions: ActionHandlerBinding[] = [];
+  const routes = codingRouteBindings(context, ports, actions);
+  return { routes, actions };
+}
+
+function codingRouteBindings(context: PluginStartContext, ports: CodingExecutionPorts | undefined, actions: ActionHandlerBinding[]): PluginRouteBinding[] {
   const boardId = context.board_id ?? "";
   const busy = new Set<string>();
   const summaries = summaryCache();
@@ -264,21 +276,35 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       }))),
     };
   };
-  const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => ({
-    route_id,
-    async handle(request) {
+  const failure = (error: unknown) => {
+    const code = (error as { code?: string }).code;
+    return { status: code === "coding.session_unknown" || code === "actions.missing" ? 404 : code === "agent.session_busy" ? 409
+      : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : code === "actions.unredeemed" ? 503 : 400,
+      body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}) } };
+  };
+  const unassembled = () => Object.assign(new Error("Coding 执行入口尚未装配"), { code: "actions.unredeemed" });
+  const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => {
+    const execute = async (request: PluginRouteRequest) => {
       const api = context.services?.capabilities;
-      if (!ports || !api || !boardId) return { status: 503, body: { error: "Coding 执行入口尚未装配" } };
+      if (!ports || !api || !boardId) throw unassembled();
+      await ports.ready();
+      return handle(request, api, ports);
+    };
+    const action = codingRouteActions[route_id];
+    if (!action) return { route_id, async handle(request) {
+      try { return { status: 200, body: await execute(request) }; }
+      catch (error) { return (error as { code?: string }).code === "actions.unredeemed" ? { status: 503, body: { error: "Coding 执行入口尚未装配" } } : failure(error); }
+    } };
+    // The business surface is one owner-bound action; the route only translates its old parameters and status codes.
+    actions.push(bindOwnerPluginAction(context, action.definition, input => execute({ ...action.toRequest(input), pathname: "", actor_id: context.actor_id! })));
+    return { route_id, async handle(request) {
+      if (!context.actor_id || request.actor_id !== context.actor_id) return { status: 403, body: { error: "调用者与当前插件入口不一致", code: "actions.forbidden" } };
       try {
-        await ports.ready();
-        return { status: 200, body: await handle(request, api, ports) };
-      } catch (error) {
-        const code = (error as { code?: string }).code;
-        return { status: code === "coding.session_unknown" ? 404 : code === "agent.session_busy" ? 409 : 400,
-          body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}) } };
-      }
-    },
-  });
+        if (!context.services?.actions) throw Object.assign(new Error("宿主未提供系统动作调用入口"), { code: "actions.unredeemed" });
+        return { status: 200, body: await context.services.actions.invoke(action.definition, action.toInput(request)) };
+      } catch (error) { return failure(error); }
+    } };
+  };
   const selected = (request: PluginRouteRequest, execution: CodingExecutionPorts) =>
     execution.sessions.get(boardId, request.params.sessionId ?? "");
   const reportRoute = (save: boolean) => route(save ? "coding.save-report" : "coding.read-report", async (request, api, execution) =>

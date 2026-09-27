@@ -93,7 +93,13 @@ test('Images adopts existing credential references without decrypting or copying
   const f = await fixture(t);
   const secrets = runWithMolisWorkHome(f.home, () => createFileSecretStore());
   const legacy = new ImagesService({ homeDirectory: f.home, secrets });
-  const connection = legacy.saveConnection({ name: '旧版服务', api_format: 'openai-images', base_url: 'https://images.example/v1', model: 'existing-model', api_key: 'existing-fixture-image-key' });
+  // The provider is a real local server: image requests go through the runtime's own network path (including its DNS checks), not a fetch stub.
+  const authorizations: string[] = [];
+  const server = createServer(async (req, res) => { for await (const _ of req) { /* drain */ } authorizations.push(String(req.headers.authorization ?? ''));
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ data: [{ b64_json: PNG }] })); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
+  const address = server.address(); assert.ok(address && typeof address === 'object');
+  const connection = legacy.saveConnection({ name: '旧版服务', api_format: 'openai-images', base_url: `http://127.0.0.1:${address.port}/v1`, model: 'existing-model', api_key: 'existing-fixture-image-key' });
   await legacy.close();
   const sealed = () => runWithMolisWorkHome(f.home, () => peekSealedEntry(`images:${connection.id}`));
   const original = sealed(); assert.ok(original);
@@ -106,14 +112,11 @@ test('Images adopts existing credential references without decrypting or copying
   assert.equal(sealed(), original);
   assert.doesNotMatch(JSON.stringify(list), /existing-fixture-image-key|credential_ref|api_key/);
   get.mock.restore();
-  const provider = t.mock.method(globalThis, 'fetch', async (_url, init) => {
-    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer existing-fixture-image-key');
-    return new Response(JSON.stringify({ data: [{ b64_json: PNG }] }));
-  });
   const { job } = await f.client.invoke(actions.start, { connection_id: connection.id, request_id: 'legacy-key', prompt: 'legacy image' });
-  assert.equal((await terminal(f.client, job.id)).status, 'succeeded'); assert.equal(provider.mock.callCount(), 1);
+  const ended = await terminal(f.client, job.id);
+  assert.equal(ended.status, 'succeeded', ended.error);
+  assert.deepEqual(authorizations, ['Bearer existing-fixture-image-key'], 'the adopted credential reaches the provider once, unchanged');
   assert.equal(sealed(), original);
-  provider.mock.restore();
   withConnectorConnections(f.home, store => store.disconnect(list.auth_connections[0]!.connection_id));
   const revoked = await f.global.invoke(actions.connections, {});
   assert.equal(revoked.connections[0]!.available, false);

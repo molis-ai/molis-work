@@ -143,8 +143,3 @@ export const gitManifest: PluginManifest = {
   },
 };
 
-/** @deprecated Historical binding only. Read projectSettingsCapabilities.browsingWorkspace. */
-export const GIT_WORKSPACE_SOURCE = {
-  source_plugin_id: "io.molis.work.workspace",
-  source_port: "workspace",
-} as const;

@@ -4,7 +4,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+// Host and Coding surface come from the same modules, so one project platform serves both.
+import { seedDemoBoard, DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -33,7 +35,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ board_id: "other", title: "Other", actor_id: "web-user", idempotency_key: "other" }));
   await createGoal("foreign", "other");
   const server = createServer((request, response) => { void host.withProject(ref, async ({ store, coordinator }) => handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
-    actions: { registry: host.actionRegistry(ref), client: host.syncActionClient(ref), project_id: ref.project_id },
+    actions: { registry: host.actionRegistry(ref), client: { ...host.actionClient(ref), ...host.syncActionClient(ref) }, project_id: ref.project_id },
     store, boardId: DEMO_BOARD_ID, actorId: "web-user", goalTitle: id => coordinator.goalQueries.getGoal(DEMO_BOARD_ID, id)?.title,
     capabilities: host.client(ref), execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     escapeHtml: value => String(value), translate: value => value,
@@ -48,7 +50,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   const note = (goal_id: string, idempotency_key: string) => host.withProject(ref, ({ coordinator }) => coordinator.goalEvents.recordNote({ board_id: DEMO_BOARD_ID, goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key, body: "目标进展已更新" }));
   try {
     new Function(`return (${CODING_CLIENT_FACTORY_SCRIPT})`);
-    const created = await request("/sessions", "POST", { title: "目标关联" }); assert.equal(created.status, 200);
+    const created = await request("/sessions", "POST", { title: "目标关联" }); assert.equal(created.status, 200, JSON.stringify(created.body));
     const id = created.body.session.session_id, sessionPath = `/sessions/${id}`;
     const start = () => request(`${sessionPath}/runs`, "POST", { task: "只读已关联目标", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", goal_id: "foreign", text_materials: [{ text: "伪造目标与已验收" }] });
     const pick = (value: any) => request(`${sessionPath}/goal`, "PUT", { goal_id: value.snapshot.goal.goal_id, expected_artifact_id: value.reference.artifact_id, text: "伪造正文" });

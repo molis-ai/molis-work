@@ -11,7 +11,7 @@ export interface ProjectWorkspaceActionRecord {
   projectLinked?: boolean;
 }
 
-type WorkspaceActionCatalog = Pick<
+export type WorkspaceActionCatalog = Pick<
   ProjectsQueryApi & ProjectsCommandApi,
   "addWorkspaceProject" | "listWorkspaceDirectory" | "removeWorkspaceMembership" | "repairWorkspaceProject"
 >;

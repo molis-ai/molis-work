@@ -160,4 +160,4 @@ export class CapabilityRegistry<Context> {
 }
 
 export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
-export { assertActionInput } from "./action-schema.js";
+export { assertActionInput, compileActionSchema } from "./action-schema.js";

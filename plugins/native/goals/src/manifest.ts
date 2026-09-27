@@ -1,3 +1,4 @@
+import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
@@ -24,7 +25,7 @@ export const goalsManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: actionPermissionDeclarations([...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS], "按调用者授权读取、推进和决定项目目标"),
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
   artifacts: { produces: [], consumes: [] },

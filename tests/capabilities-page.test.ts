@@ -58,7 +58,7 @@ test("system capability pages derive unknown capabilities, bindings, lifecycle a
     const global = await read(selected);
     assert.match(global, /自定义判断 &lt;script&gt;untrusted\(\)&lt;\/script&gt;/);
     assert.doesNotMatch(global, /<script>untrusted\(\)<\/script>/);
-    assert.match(global, /当前范围没有使用绑定/);
+    assert.match(global, /当前范围还没有保存的使用位置/);
     assert.doesNotMatch(global, /交互预览/);
     const scoped = await read(`${selected}&project=${project.project_id}&desktop=1`);
     assert.match(scoped, /合同兼容/);

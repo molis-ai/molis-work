@@ -14,6 +14,7 @@ import {
 import { CODING_FILE_CHANGED_EVENT, CODING_PREFERENCE_EVENT, CODING_WORKSPACE_INVALIDATED_EVENT } from "./events.js";
 import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
+import { CODING_ACTIONS } from "./route-actions.js";
 
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
@@ -37,11 +38,11 @@ export const codingManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: CODING_PLUGIN_ID,
-  version: "1.47.0",
+  version: "1.48.0",
   name: "Coding",
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
-  upgrade_compatibility: { compatible_from_versions: ["1.45.0", "1.44.0", "1.43.0", "1.42.0", "1.41.0", "1.40.0", "1.39.0", "1.38.0", "1.37.0", "1.36.0", "1.35.0", "1.34.0", "1.33.0", "1.32.0", "1.31.0", "1.30.0"] },
+  upgrade_compatibility: { compatible_from_versions: ["1.47.0", "1.46.0", "1.45.0", "1.44.0", "1.43.0", "1.42.0", "1.41.0", "1.40.0", "1.39.0", "1.38.0", "1.37.0", "1.36.0", "1.35.0", "1.34.0", "1.33.0", "1.32.0", "1.31.0", "1.30.0"] },
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -103,6 +104,8 @@ export const codingManifest: PluginManifest = {
     subscribes: [],
   },
   agent: codingAgentManifest,
+  // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
+  actions: CODING_ACTIONS,
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

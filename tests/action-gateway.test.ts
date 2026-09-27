@@ -89,10 +89,11 @@ test("official MCP process uses the shared Host registry and durable writes with
     await cancellationEntered; controller.abort(new Error("cancelled by fixture")); await remoteCancelled; release!();
     await Promise.all([cancelCall, remoteFinished]); barrier = undefined; finished = undefined;
     assert.equal((await rows()).length, 1);
+    // Calls still go through the gateway URL; in one process the server shares the resident Host (one Runtime owner per Home).
     const formal = new LocalMcpServer(withCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, boardId: project.board_id, webBaseUrl: origin }, {
       homeDirectory: home, webBaseUrl: origin, runtimeContext: { runtime_id: "gateway", stable_work_context_id: null, host_declares_stable: false },
-    }, undefined, origin);
+    }, host, origin);
     const scopeEntered = new Promise<void>(resolve => { enter = resolve; });
     const scopeCancelled = new Promise<void>(resolve => { cancelled = resolve; });
     const scopeFinished = new Promise<void>(resolve => { finished = resolve; });

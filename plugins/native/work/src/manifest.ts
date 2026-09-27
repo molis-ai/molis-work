@@ -1,3 +1,4 @@
+import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { WORK_UI_CONTRIBUTION_ID } from "./ui/contribution.js";
 import { workActions } from "./actions.js";
@@ -22,7 +23,7 @@ export const workManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-sessions-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: actionPermissionDeclarations(Object.values(workActions), "按调用者授权读取、恢复和发送会话消息"),
   actions: Object.values(workActions),
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },

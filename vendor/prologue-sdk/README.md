@@ -17,18 +17,17 @@
 - 其余协同场景（第五期）：挂起会成环时拒绝（`WAIT_CYCLE`，沿"等信→等收信的会话、等节点→等它的负责会话"查）；`session-send` 的 `handoff` 可带 `board`/`steps` 把本会话名下未完成的步骤交出去（任务图 `handOver`，留交接记录）；`recipients` 一次给多个会话发通知；任务图新增只读查询 `assignedTo(session)`；工具执行器知道自己的会话（`session`）。
 - 给人看的信（第五期，委派迁到信封）：`EnvelopeInput` 新增 `attachments`（App 自己的引用，比如固定成果的版本，最多 30 个）、`audience: "people"`（给两边的人处理，不交给模型，不占会话的扇出上限，正文上限另设 `maxPeopleBodyChars`、默认 20000，允许人自己写的路径，密钥仍拒绝）、`by`（替谁发）；每封信带 `history`（每一步的事件、之后的状态、时间、谁、为什么、附带的引用；最多 100 条），送达、接受/拒绝、完成、取消都可带上这些（`EnvelopeDetail`）；新增 `record` 在不改状态的前提下记一步（比如"开始执行"），结束之后记的标为 `late`、什么也不改。
 - 第五期实测后的两处修正：`session-send` 交接只有交出计划里的步骤时才带 `board`/`steps`，传错时说明怎么改、什么也不发；`ask-user` 的选项写成 `{ label, … }` 时取 label。
-- 并入 Prologue 线的增量（合并会话给出的 prologue-line-delta.patch）：没有系统段时把缓存断点挂到最后一条用户消息；事件账保存 400–599 的 HTTP status；工具超时默认值归 Runtime 配置，去掉 runtime↔tool 双向依赖。
+- 并入 Prologue 线的增量（见下「Prologue 线」）：没有系统段时把缓存断点挂到最后一条用户消息；事件账保存 400–599 的 HTTP status；工具超时默认值归 Runtime 配置，去掉 runtime↔tool 双向依赖。
 - 这一轮新增可选项 `context.continueWhenCompactionFails`（默认关，Molis 打开，用户拍板"放得下就继续"）：提前整理失败时，窗口还放得下就用原上下文接着跑，再攒一个 `compactAboveTokens` 后再整理；放不下仍然失败。子任务沿用父任务的设置。
 - Node 宿主新选项 `retryUnansweredModelCalls`（默认关）：模型调用在对方还没有任何回应时连接就断了（重置、关闭、连接超时、网络不可达），标为可重试，按 Runtime 的重试策略再发（最多 3 次、退避）；仍记为已派出，用量照记。没有这类原因的错误、证书错误、回应已经开始后的中断都不重发。失败信息里带上原因码，比如 `fetch failed (UND_ERR_SOCKET)`。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
-- 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
-- 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
+- 源码提交：molis-ai/prologue 分支 `codex/molis-coding-collab`，提交 `af7375c7`（基于上述基线）。它相对基线的差异与 [claims.patch](claims.patch) 逐字节相同。
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`
 - SHA-256：`0a616614ae5882d20016c4ac07de30f149e0d78e05ff459e29689c0b5eefb43c`
 
-重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
+重建：检出 `af7375c7`（或在基线上 `git apply claims.patch`），执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
 
 核对：补丁可在源码工作树反向检查通过；SDK 构建、类型检查通过（仍有上一包就有的 `test/host-agnostic-adapters.test.ts` 类型错误）；安装后的 dist 与源码构建逐文件一致。SDK 全量结果见 Coding spec 第 0 节"协同第一期"。未发布 npm，未替换正式安装版。
 

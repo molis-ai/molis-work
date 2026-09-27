@@ -3,6 +3,7 @@ import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { homeActionProvider, createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { SessionRuntimeService } from "./session-runtime-resources.js";
 import { workActionProvider } from "./work-actions.js";
+import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
 import type { RuntimeSessionTransport } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
@@ -110,6 +111,8 @@ export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
   private personalPlanning?: PersonalPlanningActions;
   private personalPlanningHome?: string;
+  /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
+  connectorMcp?: ConnectorMcpDirectory;
   private catalogRunner?: LocalWebCatalogRunner;
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly images?: ImagesHostService;
@@ -227,6 +230,11 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(experimentsActionProvider(options.homeDirectory, this.homeActionClient()));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory));
+    if (options.homeDirectory) {
+      // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
+      this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
+      try { this.connectorMcp.sync(); } catch { /* The connections page lists them again. */ }
+    }
     this.host.actionRegistry().registerProvider(actionUsagesProvider(caller => {
       const project = caller.project_id ? this.host.status().projects.find(row => row.project_id === caller.project_id) : undefined;
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
@@ -378,6 +386,7 @@ export class MolisWorkLocalHost {
   close(): Promise<void> {
     return this.closing ??= (async () => {
       releaseSystemAgentService(this);
+      this.connectorMcp?.close();
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();

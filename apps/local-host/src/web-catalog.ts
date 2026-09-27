@@ -308,7 +308,7 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
-  if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost)) return;
   if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory,
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: CONNECTOR_ACCOUNT_PERMISSIONS })))) return;

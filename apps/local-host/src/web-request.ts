@@ -182,7 +182,14 @@ export async function handleMolisWorkWebRequest(
         // The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends.
         if (await handleAgentStudioHttp(request, response, url, { store, boardId: options.boardId, homeDirectory: serverOptions.homeDirectory,
           routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
-          models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user", actions: codingServices.actions,
+          models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user",
+          actions: { ...codingServices.actions, inspect: caller => localHost.inspectActions(caller, hostReference) },
+          // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
+          ...(options.project ? { enablePlugin: async (pluginId: string) => {
+            const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);
+            if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
+            await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: "web-user" }));
+          } } : {}),
           ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken)) return;
         if (await handleBuilderHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
           routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
@@ -199,7 +206,7 @@ export async function handleMolisWorkWebRequest(
             ? Boolean(options.project)
             : runtimeEntry?.personal || (options.project && (!runtimeEntry || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
                 catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
-          if (!enabled) { sendJson(response, 404, { error: "这个项目未启用该插件" }); return; }
+          if (!enabled) { sendJson(response, 404, { error: "这个项目未启用该插件", code: "plugin_not_enabled" }); return; }
           if (await handleCodingPluginHttp(request, response, url, { ...codingServices, store, boardId: options.boardId,
             routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
             actorId: "web-user", goalTitle: (id) => coordinator.goalQueries.getGoal(options.boardId, id)?.title,

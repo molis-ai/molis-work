@@ -94,13 +94,17 @@ await assert.rejectsCode(() => call(input), 'code'). Every test must assert some
   const operationFiles: Record<string, string> = {}, testFiles: Record<string, string> = {};
   for (const [index, operation] of contract.operations.entries()) {
     const operationPath = join(root, `src/operations/${index}.ts`), testPath = join(root, `tests/operations/${index}.ts`);
-    await writeFile(operationPath, `import type { SandboxJson, SandboxSdk } from '${SDK_MODULE}';\nexport default async function operation(_input: SandboxJson, _sdk: SandboxSdk): Promise<SandboxJson> {\n  throw Object.assign(new Error('Implement ${operation.id}'), { code: 'NOT_IMPLEMENTED' });\n}\n`, { flag: 'wx', mode: 0o600 });
+    await writeFile(operationPath, operationStub(operation.id), { flag: 'wx', mode: 0o600 });
     await writeFile(testPath, `import type { SandboxTest } from '${SDK_MODULE}';\n// Add behavioral tests, including relevant failure/recovery cases.\nexport const tests: SandboxTest[] = [];\n`, { flag: 'wx', mode: 0o600 });
     operationFiles[operation.id] = operationPath; testFiles[operation.id] = testPath;
   }
   return { root, sdkPath: join(root, 'developer/sdk.d.ts'), operationFiles, testFiles };
 }
 
+/** The generated implementation an operation starts from; checks and G4 recognise it by NOT_IMPLEMENTED. */
+export function operationStub(operationId: string): string {
+  return `import type { SandboxJson, SandboxSdk } from '${SDK_MODULE}';\nexport default async function operation(_input: SandboxJson, _sdk: SandboxSdk): Promise<SandboxJson> {\n  throw Object.assign(new Error('Implement ${operationId}'), { code: 'NOT_IMPLEMENTED' });\n}\n`;
+}
 export function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, realpath, readFile, writeFile, rename, readdir } from 'node:fs/promises';
 import { join, relative, isAbsolute } from 'node:path';
-import type { ExactRef, Runtime, ScenarioPack, ToolRunner } from '@prologue/sdk';
+import { fillSkillBody, prepareSkillIntent, type ExactRef, type Runtime, type ScenarioPack, type Skill, type ToolRunner } from '@prologue/sdk';
 import type { PrologueModelConfiguration } from './prologue.js';
 
 import type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
@@ -27,6 +27,7 @@ export interface PluginBuilderRuntimeBindings {
   credentialRefFor(reference: string): Promise<ExactRef<'credential'>>;
   withDispatchGuard<T>(guard: () => void | Promise<void>, work: () => Promise<T>): Promise<T>;
 }
+const registeredSkills = new WeakMap<Runtime, Map<string, Skill>>();
 /** Dedicated Builder sessions on the Home Runtime; no global grants or Coding policy changes. */
 export async function createPluginBuilderAgent(options: PluginBuilderAgentOptions, bindings: PluginBuilderRuntimeBindings) {
   const root = await realpath(options.buildRoot);
@@ -47,10 +48,17 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
   }
   let current: { request: BuilderAgentRequest; abort: AbortController; record: BuilderAgentRecord; sessionId?: string; stop?: () => void } | undefined;
   let closing = false;
-  const sdk = bindings.runtime, hookId = 'builder-frozen-authority-' + randomUUID(), ownedSessions = new Set<string>();
-  sdk.hooks.register({ id: hookId, event: 'tool-before', blocking: true, handler: async context => {
-    if (!context.origin?.session || !ownedSessions.has(context.origin.session)) return { kind: 'later' };
+  const sdk = bindings.runtime;
+  // Builds come and go, the Home Runtime stays: a Skill version is registered once per Runtime and reused by every build.
+  const skills = registeredSkills.get(sdk) ?? new Map<string, Skill>(); registeredSkills.set(sdk, skills);
+  /**
+   * The code role's authority, bound to the one session a run creates. Registered for that session only: a
+   * Runtime-wide hook would be asked about every other session on the Home Runtime (another build, Home chat,
+   * Coding) and could only answer "later", which defers — and so blocks — every tool call they make.
+   */
+  const authority = (sessionId: string) => ({ id: 'builder-frozen-authority-' + sessionId, event: 'tool-before' as const, blocking: true, forSession: sessionId, handler: async (context: Parameters<Parameters<Runtime['hooks']['register']>[0]['handler']>[0]) => {
     const denied = (why: string) => ({ kind: 'deny' as const, why });
+    if (context.origin?.session !== sessionId) return denied('This hook only answers for its own build session');
     if (!current || current.abort.signal.aborted || current.request.role !== 'coder' || context.origin?.session !== current.sessionId)
       return denied('No active code-agent authority for this build');
     if (!TOOLS.includes(context.toolName as typeof TOOLS[number])) return denied('This role only has build-directory text editing and plugin-checks');
@@ -58,9 +66,11 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
       const path = (context.input as { path?: unknown })?.path;
       if (typeof path !== 'string' || path.split('/').some(p => !p || p === '.' || p === '..') || !WRITABLE.test(path))
         return denied('Only src operation modules, tests and package.json are writable; contract, manifest, entrypoint and developer materials are frozen');
+      const own = current.request.writable;
+      if (own && !own.includes(path)) return denied('Other operations are being written at the same time: this run may only write ' + own.join(' and ') + '. Keep shared logic inside your own file.');
       // Native SDK tools also check root realpaths and use no-follow handles, including existing ancestors.
     }
-    return { kind: 'allow' };
+    return { kind: 'allow' as const };
   } });
   let activeDone: Promise<BuilderAgentRecord> | undefined;
   return {
@@ -91,7 +101,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
         const checkLifetime = new AbortController();
         const activeChecks = new Set<Promise<unknown>>();
         let sealed = false;
-        let session: Awaited<ReturnType<Runtime['sessions']['create']>> | undefined;
+        let session: Awaited<ReturnType<Runtime['sessions']['create']>> | undefined, hooked: string | undefined;
         let unsubscribe: (() => void) | undefined;
         let stop: (() => void) | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -127,10 +137,22 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           };
           const pack = checkPack();
           session = await sdk.sessions.create(request.role === 'coder' ? { pack, executors: { 'plugin-checks': checks } } : undefined);
-          current!.sessionId = session.ref.id; record.sessionId = session.ref.id; ownedSessions.add(session.ref.id);
+          current!.sessionId = session.ref.id; record.sessionId = session.ref.id;
+          sdk.hooks.register(authority(session.ref.id)); hooked = session.ref.id;
           const authorized = await sdk.workspace.authorize({ path: root });
           const credentialRef = await bindings.credentialRefFor(model.credential_ref);
-          const bytes = new TextEncoder().encode(request.instruction);
+          // The standard this stage works to: an exact Skill version in Prologue's registry, inlined once, as Home mounts methods.
+          const mounted: string[] = [];
+          for (const definition of request.skills ?? []) {
+            const key = definition.id + '@' + definition.version;
+            let skill = skills.get(key);
+            if (skill && skill.manifest.body !== definition.body) throw new Error('Skill 同版本正文发生变化：' + key);
+            if (!skill) { skill = sdk.skills.register({ id: definition.id, version: definition.version, label: definition.name, shape: 'bounded', tools: [], body: definition.body, humanInvocable: false }); skills.set(key, skill); }
+            const available = request.role === 'coder' ? [...TOOLS] : [];
+            prepareSkillIntent({ registry: sdk.skills, skillRef: skill.ref, parameters: {}, mode: 'inline', parentTools: available, hostTools: available });
+            mounted.push('本阶段遵循的规范：' + definition.name + '（' + key + '）\n' + fillSkillBody({ body: skill.manifest.body!, parameters: {} }));
+          }
+          const bytes = new TextEncoder().encode([request.instruction, ...mounted].join('\n\n'));
           const stage = sdk.resources.stage({ mediaKind: 'text', byteLength: bytes.length, label: request.promptVersion });
           stage.write(bytes); const instructions = await stage.publishDurable();
           const tools = request.role === 'coder' ? [...TOOLS] : [];
@@ -184,7 +206,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           if (timer) clearTimeout(timer);
           unsubscribe?.(); request.signal?.removeEventListener('abort', cancel);
           record.finishedAt = new Date().toISOString();
-          try { await save(record); } finally { try { await session?.archive(); } finally { current = undefined; } }
+          try { await save(record); } finally { try { await session?.archive(); } finally { if (hooked) sdk.hooks.unregister('builder-frozen-authority-' + hooked); current = undefined; } }
         }
       });
       activeDone = execution;
@@ -196,7 +218,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
     async close() {
       closing = true; current?.abort.abort(new Error('Host closing'));
       current?.stop?.();
-      try { await activeDone?.catch(() => undefined); } finally { sdk.hooks.unregister(hookId); ownedSessions.clear(); }
+      await activeDone?.catch(() => undefined);
     },
   };
 }

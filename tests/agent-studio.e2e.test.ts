@@ -47,27 +47,47 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.fill('[data-as-input]', '做一个随手记笔记的插件：写下一句话就能保存，最新的在最上面');
     await page.click('.as-send');
     await page.wait(`document.querySelectorAll('[data-as-candidate]').length===2`);
-    assert.match(await page.evaluate<string>(`document.querySelector('[data-component-id="notes"]').innerText`), /功能待接通/, 'a proposal renders real parts, not wired yet');
+    assert.equal(await page.evaluate(`document.querySelector('[data-component-id="notes"]').dataset.live`), 'false', 'a proposal renders real parts, not wired yet');
+    assert.match(await page.evaluate<string>(`getComputedStyle(document.querySelector('[data-component-id="notes"]'),'::before').content`), /功能待接通/, 'and says so while building');
 
     // Compare, choose, and let the two lines build.
     await page.click('[data-as-candidate="board"]');
     await page.wait(`document.querySelector('[data-as-choose="board"]')`);
+    // Record what the UI Agent shows while it places parts: the spec board item it takes, the spot it frames, the part landing.
+    await page.evaluate(`(()=>{globalThis.__placing=[];const t0=performance.now();setInterval(()=>{const pick=document.querySelector('[data-as-board] [data-picking]')?.dataset.kind,frame=document.querySelector('[data-as-frame]'),landing=document.querySelector('[data-as-landing]')?.dataset.componentId,ui=document.querySelector('[data-as-pointer="ui"]');
+      const code=document.querySelector('[data-as-pointer="code"]'),wiring=document.querySelector('[data-as-board] .as-cap[data-wiring]')?.dataset.cap,ticked=[...document.querySelectorAll('[data-as-board] .as-cap[data-used]')].map(c=>c.dataset.cap).join(',');
+      const state=(pick?'pick:'+pick:'')+(landing?' land:'+landing:'')+(frame.hidden?'':' frame:'+frame.dataset.mode)+(ui.hidden?'':' ui:'+ui.querySelector('em').textContent)+(code.hidden?'':' code:'+code.querySelector('em').textContent)+(wiring?' wiring:'+wiring:'')+(ticked?' ticked:'+ticked:'');const last=__placing.at(-1);if(state&&(!last||last[1]!==state))__placing.push([Math.round(performance.now()-t0),state]);},50);})()`);
     await page.click('[data-as-choose="board"]');
     await page.wait(`document.querySelector('[data-as-phase]').textContent==='构建中'`);
     await page.evaluate(`new Promise((resolve,reject)=>{const until=Date.now()+150000;(function check(){const p=document.querySelector('[data-as-phase]').textContent;if(p==='可以试用')return resolve(true);if(p==='需要处理')return reject(new Error(document.querySelector('.as-error')?.innerText));if(Date.now()>until)return reject(new Error('build timeout: '+p));setTimeout(check,250);})()})`);
+    // The replay follows the real steps and may finish after the build is ready: wait for the capability to be ticked.
+    await page.wait(`__placing.some(([,state])=>/ticked:[^ ]*model\\.generate/.test(state))`);
+    // Each part was taken from the spec board, framed where it goes, then placed — slowly enough to follow.
+    const placing = await page.evaluate<Array<[number, string]>>('__placing');
+    const landed = [...new Set(placing.flatMap(([, state]) => /land:(\S+)/.exec(state)?.[1] ?? []))];
+    assert.ok(landed.length >= 3, 'parts are placed one by one: ' + JSON.stringify(placing.slice(0, 12)));
+    assert.ok(placing.some(([, state]) => /^pick:\w+ .*ui:取出「/.test(state)), 'the UI Agent takes each part from the spec board');
+    assert.ok(placing.some(([, state]) => /frame:landing .*ui:放入「/.test(state)), 'and frames the spot before the part shows');
+    const firstPick = placing.find(([, state]) => state.startsWith('pick:'))![0], lastLanding = placing.filter(([, state]) => state.includes('land:')).at(-1)![0];
+    assert.ok(lastLanding - firstPick >= (landed.length - 1) * 1200, 'about two seconds a part, not all at once: ' + (lastLanding - firstPick) + 'ms for ' + landed.length);
+    // D22: the code agent takes the model capability from the capability board, carries it to the part, then the board ticks it.
+    const take = placing.findIndex(([, state]) => /code:取出能力「/.test(state) && /wiring:model\.generate/.test(state));
+    const carry = placing.findIndex(([, state], index) => index > take && /code:接上「/.test(state));
+    const tick = placing.findIndex(([, state]) => /ticked:[^ ]*model\.generate/.test(state));
+    assert.ok(take >= 0 && carry > take && tick > carry, 'capability wiring is shown in order: ' + JSON.stringify(placing.filter(([, state]) => /code:|wiring|ticked/.test(state)).slice(0, 12)));
     const summary = await page.evaluate<string>(`[...document.querySelectorAll('.as-card')].map(c=>c.innerText).find(t=>t.startsWith('可以试用了'))`);
     assert.match(summary, /4 项功能全部接通 · 门禁 G1–G6 通过 · 界面验收 4\/4 通过/);
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-builds]').selectedOptions[0].textContent`), /可以试用/, 'the build selector follows live updates');
     const record = await page.evaluate<string>(`document.querySelector('[data-as-feed]').textContent` /* includes the folded collaboration record */);
-    assert.match(record, /Jev · 3 选 1/, 'the collection part was chosen by Jev from three legal components');
+    assert.match(record, /Jev · 4 选 1/, 'the collection part was chosen by Jev from the catalog\'s four legal components (directory, card, table, accordion)');
     assert.match(await page.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /还没有笔记/, 'acceptance data is cleared before the person tries it');
 
     // Try it: the form saves through the sandboxed backend and clears; the list shows the record, not JSON.
     await page.click('[data-as-tab="try"]');
-    await page.fill('[data-component-id="editor"] textarea', '间隔复习比集中复习记得更久');
+    await page.fill('[data-component-id="editor"] [data-field]', '间隔复习比集中复习记得更久');
     await page.click('[data-component-id="editor"] [type=submit]');
     await page.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('间隔复习比集中复习记得更久')`);
-    assert.equal(await page.evaluate(`document.querySelector('[data-component-id="editor"] textarea').value`), '');
+    assert.equal(await page.evaluate(`document.querySelector('[data-component-id="editor"] [data-field]').value`), '');
     assert.doesNotMatch(await page.evaluate<string>(`document.querySelector('[data-as-plugin]').innerText`), /\{"id"/);
     // The person's own trial reaches the real model (acceptance above used the catalog stand-in).
     const tried = await page.evaluate<string>(`[...document.querySelectorAll('[data-component-id="notes"] [data-record-id]')].find(r=>r.innerText.includes('间隔复习比集中复习记得更久')).dataset.recordId`);
@@ -94,7 +114,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.command('Page.enable');
     await installedPage.command('Page.navigate', { url: origin + pluginHref });
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
-    await installedPage.fill('[data-component-id="editor"] textarea', '正式使用的第一条');
+    await installedPage.fill('[data-component-id="editor"] [data-field]', '正式使用的第一条');
     await installedPage.click('[data-component-id="editor"] [type=submit]');
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('正式使用的第一条')`);
     assert.doesNotMatch(await installedPage.evaluate<string>(`document.querySelector('[data-component-id="notes"] .pc-output').innerText`), /间隔复习比集中复习/, 'installed data is separate from the preview');
@@ -110,7 +130,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output').innerText.includes('（预览替身模型）正式使用的第一条')`);
     // Deleting is a button on the record itself; the one-page plugin shows no page switcher.
     assert.equal(await installedPage.evaluate(`getComputedStyle(document.querySelector('.pc-tabs')).display`), 'none');
-    await installedPage.fill('[data-component-id="editor"] textarea', '这条马上删掉');
+    await installedPage.fill('[data-component-id="editor"] [data-field]', '这条马上删掉');
     await installedPage.click('[data-component-id="editor"] [type=submit]');
     await installedPage.wait(`[...document.querySelectorAll('[data-record-id]')].some(r=>r.innerText.includes('这条马上删掉'))`);
     const doomed = await installedPage.evaluate<string>(`[...document.querySelectorAll('[data-record-id]')].find(r=>r.innerText.includes('这条马上删掉')).dataset.recordId`);

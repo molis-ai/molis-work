@@ -39,8 +39,13 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
   };
 }
 
+/** The actor the platform's scheduler calls installed plugins as; web requests are always stamped with the person's. */
+export const SCHEDULED_RUN_ACTOR = 'plugin-builder:scheduled-run';
+/** The actor the unified action directory calls installed plugins as, when someone calls one of their functions. */
+export const EXPOSED_ACTION_ACTOR = 'plugin-builder:action';
+const DIRECT_CALLERS = new Set([SCHEDULED_RUN_ACTOR, EXPOSED_ACTION_ACTOR]);
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability'] } = {}): PluginDefinition {
+export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network'] } = {}): PluginDefinition {
   const uiId = release.pluginId + '.ui.v1';
   const manifest: PluginManifest = {
     schema_version: 2, host_api_version: 2, plugin_id: release.pluginId, version: releaseVersion(release.version), name: release.design.title, kind: 'app',
@@ -62,7 +67,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       context.requireGrant('storage:private');
       const storage = context.services?.storage;
       if (!storage) throw new Error('插件存储尚未装配');
-      const services: SandboxServices = { storage: storageTransactions(storage), ...(host.capability ? { capability: host.capability } : {}) };
+      const services: SandboxServices = { storage: storageTransactions(storage), ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}) };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services, limits: capabilityLimits(approved),
@@ -77,10 +82,12 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
         kind: 'app',
         routes: [{ route_id: 'studio.call', async handle(request) {
           try {
-            const body = (request.body ?? {}) as { componentId?: unknown; binding?: unknown; payload?: unknown };
+            const body = (request.body ?? {}) as { componentId?: unknown; binding?: unknown; payload?: unknown; operation?: unknown; input?: unknown };
+            // The platform (its scheduler, or the action directory) runs an operation by id; people reach operations through parts.
+            const scheduled = DIRECT_CALLERS.has(request.actor_id) && typeof body.operation === 'string' && release.design.contract.operations.some(item => item.id === body.operation);
             const node = release.nodes.find(item => item.id === body.componentId);
-            if (!node || (body.binding !== 'read' && body.binding !== 'submit')) throw new Error('未知的组件操作');
-            const call = resolvePluginComponentCall(node, body.binding, body.payload ?? {});
+            if (!scheduled && (!node || (body.binding !== 'read' && body.binding !== 'submit'))) throw new Error('未知的组件操作');
+            const call = scheduled ? { operationId: body.operation as string, input: body.input ?? {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
             const lane: Lane = slow.has(call.operationId) ? 'slow' : 'quick', active = await open(lane);
             try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson) } }; }
             catch (error) {

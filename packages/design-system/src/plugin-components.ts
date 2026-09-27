@@ -1,6 +1,7 @@
 import type { SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
-export type PluginComponentKind = 'heading' | 'text' | 'form' | 'button' | 'list' | 'cards' | 'table' | 'reader' | 'chat' | 'matrix' | 'calendar' | 'notice';
+/** A part's component: a UI catalog id (see PLUGIN_COMPONENTS), or a kind from before parts came from the catalog. */
+export type PluginComponentKind = string;
 export type PluginComponentIntent = 'heading' | 'description' | 'input' | 'action' | 'collection' | 'reading' | 'conversation' | 'evidence' | 'schedule' | 'feedback';
 export type PluginInputValue = { source: 'literal'; value: SandboxJson }
   | { source: 'form'; field: string; prefill?: { componentId: string; field: string } }
@@ -31,27 +32,94 @@ export interface PluginComponentPlan {
   submit?: PluginOperationBinding;
 }
 export interface PluginComponentNode extends PluginComponentPlan { kind: PluginComponentKind }
+/** The UI catalog's groups, as the spec board shows them. */
+export type PluginCatalogGroup = '版面' | '展示' | '录入' | '操作' | '浮层' | '反馈';
+/**
+ * One component of the UI catalog (`/__ui/catalog`, the product's own `mw-*` primitives). The spec board offers exactly
+ * these. `use` says how a generated plugin uses it: chosen for a part (by Jev, a rule or the person), used by the renderer
+ * inside parts (a field's control, a filter, a status tag), or in the catalog but not yet used by generated plugins.
+ */
 export interface PluginComponentMetadata {
-  kind: PluginComponentKind;
-  intent: PluginComponentIntent;
+  kind: string;
+  catalog: string;
   name: string;
+  group: PluginCatalogGroup;
   description: string;
+  use: 'part' | 'inside' | 'catalog';
+  /** For parts: the intents it can express, and whether it needs a list to show. */
+  intents: PluginComponentIntent[];
   data: 'none' | 'value' | 'array';
+  icon: string;
 }
+const c = (kind: string, catalog: string, name: string, group: PluginCatalogGroup, icon: string, use: PluginComponentMetadata['use'], description: string, intents: PluginComponentIntent[] = [], data: PluginComponentMetadata['data'] = 'none'): PluginComponentMetadata =>
+  ({ kind, catalog, name, group, description, use, intents, data, icon });
 export const PLUGIN_COMPONENTS: readonly PluginComponentMetadata[] = [
-  { kind: 'heading', intent: 'heading', name: '标题', description: '页面标题与简短说明', data: 'none' },
-  { kind: 'text', intent: 'description', name: '正文', description: '阅读一段正文或操作结果', data: 'value' },
-  { kind: 'form', intent: 'input', name: '表单', description: '按合同字段录入与修改，失败保留输入', data: 'none' },
-  { kind: 'button', intent: 'action', name: '操作按钮', description: '执行当前选择对应的单项操作', data: 'none' },
-  { kind: 'list', intent: 'collection', name: '列表', description: '逐条阅读并选择记录', data: 'array' },
-  { kind: 'cards', intent: 'collection', name: '卡片', description: '并排浏览和比较记录', data: 'array' },
-  { kind: 'table', intent: 'collection', name: '表格', description: '密集比较多个字段', data: 'array' },
-  { kind: 'reader', intent: 'reading', name: '原文阅读', description: '按稳定小节锚点阅读、选择原文引用', data: 'array' },
-  { kind: 'chat', intent: 'conversation', name: '对话', description: '显示有出处的多轮对话，与输入区分别更新', data: 'array' },
-  { kind: 'matrix', intent: 'evidence', name: '证据矩阵', description: '展示后端返回的证据层次，逐行查看', data: 'array' },
-  { kind: 'calendar', intent: 'schedule', name: '日期清单', description: '按日期显示到期事项与选择入口', data: 'array' },
-  { kind: 'notice', intent: 'feedback', name: '状态提示', description: '显示操作结果或可恢复的问题', data: 'value' },
+  c('frame', 'Frame', '页框', '版面', 'frame', 'part', '插件页面的标题区：名称、一句说明，新建入口放在右侧', ['heading']),
+  c('card', 'Card', '卡片', '版面', 'grid', 'part', '一张或一组卡片：数字卡片、卡片网格、一段结果', ['description', 'collection', 'reading', 'conversation'], 'value'),
+  c('tabs', 'Tabs', '标签页', '版面', 'columns', 'inside', '多个页面之间切换'),
+  c('accordion', 'Accordion', '折叠列表', '版面', 'rows', 'part', '一条一行，点开看详情；适合较长的内容', ['collection', 'reading', 'evidence'], 'array'),
+  c('collapsible', 'Collapsible', '折叠段', '版面', 'chevron-down', 'catalog', '收起一段次要内容'),
+  c('group', 'Group', '按钮组', '版面', 'grip', 'catalog', '成组的图标按钮'),
+  c('scroll-area', 'Scroll Area', '滚动区', '版面', 'panel', 'catalog', '固定高度内滚动'),
+  c('separator', 'Separator', '分隔线', '版面', 'minus', 'catalog', '分开两段内容'),
+  c('sidebar', 'Sidebar', '侧栏', '版面', 'sidebar', 'catalog', '侧边导航栏'),
+  c('directory', 'Directory', '条目列表', '展示', 'list', 'part', '一行一条记录：标题、说明、状态，操作在行尾', ['collection', 'schedule', 'conversation'], 'array'),
+  c('table', 'Table', '表格', '展示', 'columns', 'part', '多个字段并排比较', ['collection', 'evidence', 'schedule'], 'array'),
+  c('calendar', 'Calendar', '日历', '展示', 'calendar', 'part', '按日期排开带日期的记录', ['schedule', 'collection'], 'array'),
+  c('badge', 'Badge', '徽标', '展示', 'tag', 'part', '状态标签；也可单独显示一个短值', ['description'], 'value'),
+  c('meter', 'Meter', '量表', '展示', 'activity', 'catalog', '带上限的数值'),
+  c('progress', 'Progress', '进度条', '展示', 'activity', 'inside', '分类合计等占比的条形'),
+  c('avatar', 'Avatar', '头像', '展示', 'user', 'catalog', '人的首字头像'),
+  c('kbd', 'Kbd', '按键', '展示', 'key', 'catalog', '快捷键提示'),
+  c('form', 'Form', '表单', '录入', 'edit', 'part', '在页面上直接填写并提交；一个短字段时是一行快速添加', ['input']),
+  c('field', 'Field', '字段', '录入', 'input', 'inside', '一个带名称和提示的填写项'),
+  c('input', 'Input', '输入框', '录入', 'input', 'inside', '一行文字、链接'),
+  c('input-group', 'Input Group', '带图标的输入', '录入', 'search', 'inside', '搜索框'),
+  c('textarea', 'Textarea', '多行输入', '录入', 'text', 'inside', '一段较长的文字'),
+  c('number-field', 'Number Field', '数字输入', '录入', 'hash', 'catalog', '金额、数量'),
+  c('select', 'Select', '下拉选择', '录入', 'chevron-down', 'inside', '取值较多时选一个'),
+  c('toggle-group', 'Toggle Group', '选项组', '录入', 'tune', 'inside', '少量取值时并排选一个；筛选栏'),
+  c('checkbox', 'Checkbox', '复选框', '录入', 'check', 'inside', '是或否'),
+  c('date-picker', 'Date Picker', '日期选择', '录入', 'calendar', 'catalog', '日期、月份、时间'),
+  c('checkbox-group', 'Checkbox Group', '多选组', '录入', 'list-ordered', 'catalog', '从几项里选多个'),
+  c('radio-group', 'Radio Group', '单选组', '录入', 'circle', 'catalog', '从几项里选一个（竖排）'),
+  c('switch', 'Switch', '开关', '录入', 'switch', 'catalog', '打开或关闭一项设置'),
+  c('slider', 'Slider', '滑块', '录入', 'tune', 'catalog', '在范围内拖动取值'),
+  c('combobox', 'Combobox', '组合框', '录入', 'search', 'catalog', '可输入可选择'),
+  c('autocomplete', 'Autocomplete', '自动补全', '录入', 'sparkles', 'catalog', '输入时给出建议'),
+  c('otp-field', 'OTP Field', '验证码', '录入', 'lock', 'catalog', '逐位输入的验证码'),
+  c('fieldset', 'Fieldset', '字段组', '录入', 'frame', 'catalog', '把几个字段归成一组'),
+  c('label', 'Label', '标签文字', '录入', 'text', 'catalog', '字段名称'),
+  c('toggle', 'Toggle', '切换按钮', '录入', 'switch', 'catalog', '按下与弹起两态'),
+  c('button', 'Button', '按钮', '操作', 'zap', 'part', '执行一项操作；针对记录的操作放在每条记录上', ['action']),
+  c('toolbar', 'Toolbar', '工具栏', '操作', 'tune', 'inside', '列表上方的筛选、条数与导出'),
+  c('menu', 'Menu', '菜单', '操作', 'more', 'catalog', '下拉选择展开的选项'),
+  c('context-menu', 'Context Menu', '右键菜单', '操作', 'more', 'catalog', '右键出现的操作'),
+  c('command', 'Command', '命令面板', '操作', 'terminal', 'catalog', '搜索并执行命令'),
+  c('pagination', 'Pagination', '分页', '操作', 'chevron-right', 'catalog', '长列表分页'),
+  c('breadcrumb', 'Breadcrumb', '路径', '操作', 'chevron-right', 'catalog', '层级返回路径'),
+  c('sheet', 'Sheet', '侧边面板', '浮层', 'panel', 'part', '点新建按钮，在右侧面板里填写；字段较多时用', ['input']),
+  c('dialog', 'Dialog', '对话框', '浮层', 'maximize', 'part', '点按钮，在居中对话框里填写', ['input']),
+  c('alert-dialog', 'Alert Dialog', '确认对话框', '浮层', 'circle-alert', 'part', '删除等不可撤销的操作，先确认再执行', ['action']),
+  c('drawer', 'Drawer', '抽屉', '浮层', 'panel', 'catalog', '从边缘滑出的面板'),
+  c('popover', 'Popover', '弹出层', '浮层', 'message', 'catalog', '贴着按钮的小浮层'),
+  c('tooltip', 'Tooltip', '提示气泡', '浮层', 'info', 'catalog', '悬停出现的说明'),
+  c('preview-card', 'Preview Card', '预览卡', '浮层', 'eye', 'catalog', '悬停预览'),
+  c('alert', 'Alert', '提示条', '反馈', 'alert', 'part', '一段结果或需要注意的状态', ['feedback', 'description'], 'value'),
+  c('toast', 'Toast', '轻提示', '反馈', 'bell', 'catalog', '操作完成后的短提示'),
+  c('empty', 'Empty', '空状态', '反馈', 'inbox', 'inside', '还没有记录时的说明'),
+  c('skeleton', 'Skeleton', '骨架', '反馈', 'rows', 'inside', '内容加载前的占位'),
+  c('spinner', 'Spinner', '加载中', '反馈', 'refresh', 'inside', '按钮在等待结果'),
 ];
+/** Part kinds of builds made before parts came from the UI catalog, and the catalog component each now is. */
+export const LEGACY_COMPONENT_KINDS: Readonly<Record<string, string>> = { heading: 'frame', text: 'card', list: 'directory', cards: 'card', reader: 'accordion', chat: 'card', matrix: 'table', notice: 'alert' };
+export const catalogKind = (kind: string): string => LEGACY_COMPONENT_KINDS[kind] ?? kind;
+/** For each intent, the catalog components that can express it, most usual first (the rule's choice when Jev is absent). */
+const PREFERENCE: Record<PluginComponentIntent, string[]> = {
+  heading: ['frame'], description: ['card', 'alert', 'badge'], input: ['form', 'sheet', 'dialog'], action: ['button', 'alert-dialog'],
+  collection: ['directory', 'card', 'table', 'accordion', 'calendar'], reading: ['accordion', 'card'], conversation: ['directory', 'card'],
+  evidence: ['table', 'accordion'], schedule: ['calendar', 'table', 'directory'], feedback: ['alert'],
+};
 const IDENTIFIER = /^[a-z][a-z0-9_.-]{0,99}$/;
 const FIELD = /^[a-zA-Z_][a-zA-Z0-9_.-]{0,99}$/;
 const forbidden = new Set(['__proto__', 'prototype', 'constructor']);
@@ -110,7 +178,7 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     const part = raw as unknown as PluginComponentPlan;
     if (!IDENTIFIER.test(part.id) || seen.has(part.id)) fail('零件标识重复或不合法'); seen.add(part.id);
     if (!contract.pages.some(page => page.id === part.pageId && page.regions.some(region => region.id === part.regionId))) fail('零件引用了不存在的页面或区域');
-    if (!PLUGIN_COMPONENTS.some(item => item.intent === part.intent) || typeof part.purpose !== 'string' || !part.purpose.trim() || part.purpose.length > 600) fail('用途无效');
+    if (!PREFERENCE[part.intent as PluginComponentIntent] || typeof part.purpose !== 'string' || !part.purpose.trim() || part.purpose.length > 600) fail('用途无效');
     if (!plain(part.props) || Object.keys(part.props).some(key => !['title', 'description', 'submitLabel', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'].includes(key))) fail('未知零件配置');
     for (const [key, val] of Object.entries(part.props)) if (key !== 'columns' && (typeof val !== 'string' || val.length > 2000)) fail('零件文本配置无效');
     if (part.props.columns !== undefined && (!Array.isArray(part.props.columns) || part.props.columns.length > 24 || part.props.columns.some(column => !plain(column) || Object.keys(column).some(key => !['field', 'label', 'values'].includes(key)) || !FIELD.test(column.field) || typeof column.label !== 'string' || column.label.length > 120
@@ -137,14 +205,25 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
 }
 export function pluginComponentChoices(part: PluginComponentPlan, contract: SandboxPluginContract): PluginComponentMetadata[] {
   const output = part.read ? pluginSchemaAt(contract.operations.find(item => item.id === part.read!.operationId)?.output ?? { type: 'null' }, part.read.outputPath) : undefined;
-  return PLUGIN_COMPONENTS.filter(item => item.intent === part.intent && (item.data !== 'array' || output?.type === 'array'));
+  const items = output?.type === 'array' ? output.items : undefined;
+  // A calendar needs records that carry a date; a confirmation fits an action that cannot be undone.
+  const dated = items?.type === 'object' && Object.entries(items.properties ?? {}).some(([name, spec]) => spec.type === 'string' && (spec.format === 'date' || spec.format === 'date-time' || /date|day|日期/i.test(name)));
+  const destructive = /删除|移除|清空|撤销|丢弃/u.test((part.props.submitLabel ?? '') + (part.props.title ?? '') + part.purpose);
+  return PREFERENCE[part.intent].map(kind => PLUGIN_COMPONENTS.find(item => item.kind === kind)!).filter(item => {
+    if (item.data === 'array' && output?.type !== 'array') return false;
+    if (item.kind === 'calendar' && !dated) return false;
+    if (item.kind === 'alert-dialog' && !destructive) return false;
+    if (item.kind === 'alert' && part.intent === 'description' && output?.type !== 'string') return false;
+    if (item.kind === 'badge' && !['string', 'number', 'integer', 'boolean'].includes(output?.type ?? '')) return false;
+    return true;
+  });
 }
 export function validatePluginComponentNodes(nodes: PluginComponentNode[], plans: PluginComponentPlan[], contract: SandboxPluginContract) {
   const ids = new Set<string>();
   for (const node of nodes) {
     if (ids.has(node.id)) fail('已装配零件重复'); ids.add(node.id);
     const plan = plans.find(part => part.id === node.id);
-    if (!plan || !pluginComponentChoices(plan, contract).some(choice => choice.kind === node.kind)) fail('装配了候选之外的组件');
+    if (!plan || !pluginComponentChoices(plan, contract).some(choice => choice.kind === catalogKind(node.kind))) fail('装配了候选之外的组件');
     const { kind: _kind, ...attributes } = node;
     if (JSON.stringify(attributes) !== JSON.stringify(plan)) fail('装配不能改写主线配置');
   }
@@ -163,7 +242,76 @@ export function resolvePluginComponentCall(node: PluginComponentNode, bindingId:
   return { operationId: binding!.operationId, input };
 }
 
+/**
+ * Layout glue for generated plugins. The components themselves are the UI catalog's (`mw-*`, from the product
+ * stylesheet the plugin page loads), so a plugin looks and themes like the rest of Molis Work; this only places them.
+ */
 export const PLUGIN_COMPONENT_STYLES = `
-.pc-fields{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;margin:4px 0 0;font-size:13px}.pc-fields dt{color:#737985}.pc-fields dd{margin:0;overflow-wrap:anywhere}
-.pc-view{color:var(--pb-ink,#232831);font:14px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;min-width:0;container-type:inline-size}.pc-tabs{display:flex;gap:8px;border-bottom:1px solid #e9e9ed;padding-bottom:12px;margin-bottom:28px;overflow-x:auto}.pc-tabs button{white-space:nowrap;background:transparent;border:0;border-radius:6px;padding:8px 14px;color:inherit;cursor:pointer}.pc-tabs [aria-selected=true]{background:#272c32;color:white}.pc-page{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:32px}.pc-region{min-width:0}.pc-node{margin:0 0 26px;scroll-margin-top:24px}.pc-node>header{display:flex;gap:10px;justify-content:space-between;align-items:start}.pc-node h2{font-size:20px;font-weight:600;line-height:1.4;margin:0 0 12px;letter-spacing:-.02em}.pc-node h1{font-size:29px;font-weight:600;line-height:1.4;margin:0 0 12px;letter-spacing:-.025em}.pc-node h1,.pc-node h2{min-width:0;overflow-wrap:anywhere}.pc-node p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 14px;max-width:72ch}.pc-status{font-size:11px;color:#596476;white-space:nowrap}.pc-status[data-connected=true]{color:#237457}.pc-field{display:grid;gap:6px;margin-bottom:15px;min-width:0}.pc-field>span{font-size:13px;color:#4b535e}.pc-field input,.pc-field textarea,.pc-field select{font:inherit;color:inherit;padding:10px 12px;border:1px solid #dedfe3;background:var(--pb-canvas,#fff);border-radius:6px;box-sizing:border-box;width:100%;min-height:42px;caret-color:#397bfa}.pc-field textarea{resize:vertical;min-height:110px}.pc-field input[type=checkbox]{width:20px;min-height:20px}.pc-submit,.pc-row-action{font:inherit;cursor:pointer;padding:9px 14px;background:#272c32;color:#fff;border:0;border-radius:7px;min-height:40px}.pc-row-action{background:#f3f3f4;color:#232831}.pc-view button:disabled{opacity:.5;cursor:default}.pc-view :focus-visible{outline:2px solid #397bfa;outline-offset:3px}.pc-view ::selection{background:#dbe8ff}.pc-output{min-width:0}.pc-empty{padding:18px 0;color:#626a76}.pc-error{color:#a34632;white-space:pre-wrap;margin:10px 0}.pc-success{color:#237457;margin:10px 0}.pc-record{padding:16px 0;border-bottom:1px solid #e9e9ed}.pc-record h3{font-size:16px;font-weight:550;margin:0 0 8px}.pc-record[aria-current=true]{background:#edf3ff}.pc-row-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.pc-figures{font-size:14px;gap:6px 14px}.pc-figures-wide{grid-column:1/-1}.pc-figures>dd{font-variant-numeric:tabular-nums}.pc-figures .pc-table{font-size:13px}.pc-filter{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:0 0 14px}.pc-filter .pc-field{margin:0;flex:1 1 160px;max-width:280px}.pc-table td .pc-row-action+.pc-row-action{margin-left:8px}.pc-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:16px}.pc-cards .pc-record{border:1px solid #e9e9ed;border-radius:7px;padding:16px}.pc-table-wrap{overflow:auto}.pc-table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}.pc-table th,.pc-table td{border-bottom:1px solid #e9e9ed;text-align:left;vertical-align:top;padding:12px 10px;max-width:360px;overflow-wrap:anywhere}.pc-table th{font-weight:600;color:#56606d}.pc-reader .pc-record{padding:20px 0}.pc-reader .pc-record p{font-family:"Songti SC","Noto Serif CJK SC",serif;font-size:18px;line-height:2;max-width:48ch}.pc-reference{font:12px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;color:#596476}.pc-chat .pc-record{border:0;margin-bottom:14px;padding:12px 0}.pc-chat .pc-record[data-role=user]{padding-left:18px}.pc-chat .pc-record h3{font-size:12px;color:#626a76}.pc-node[data-inspected=true]{outline:1px solid #397bfa;outline-offset:7px}.pc-inspect{color:#397bfa;background:transparent;border:0;font:12px/1.4 inherit;cursor:pointer;padding:3px}.pc-view [hidden]{display:none!important}@container(max-width:640px){.pc-page{grid-template-columns:1fr;gap:18px}.pc-node h1{font-size:25px}.pc-reader .pc-record p{font-size:17px}}@media(prefers-reduced-motion:reduce){.pc-view *{scroll-behavior:auto!important}}
+.pc-view{color:var(--ink,#1f2328);min-width:0;container-type:inline-size;font:13.5px/1.6 var(--font,-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif);-webkit-font-smoothing:antialiased}
+.pc-view *{box-sizing:border-box}.pc-view [hidden]{display:none!important}.pc-view :is(h1,h2,h3,p,dl,dd){margin:0}
+.pc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.pc-icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.pc-tabs{margin:0 0 22px}
+.pc-page{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:28px;align-items:start}.pc-region{min-width:0;display:flex;flex-direction:column;gap:20px}
+.pc-node{position:relative;min-width:0;scroll-margin-top:24px}
+.pc-part-head{margin-bottom:8px}.pc-part-title{font-size:14px;font-weight:600;color:var(--ink)}.pc-part-description{color:var(--muted);margin:-2px 0 10px!important;max-width:72ch;white-space:pre-wrap}
+.pc-app-head{display:flex;align-items:center;gap:14px;padding:0!important;border:0!important;background:none!important}.pc-app-head .mw-frame__heading{flex:1;min-width:0}
+.pc-app-head h1{font-size:24px;font-weight:650;letter-spacing:-.025em;line-height:1.3;overflow-wrap:anywhere}.pc-app-description{color:var(--muted);margin-top:2px!important;font-size:13.5px}
+.pc-app-actions{display:flex;gap:8px;flex:none}
+.pc-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:var(--r-row,8px);flex:none;background:var(--control-fill,#f1f2f4);color:var(--ink-soft,var(--ink))}.pc-mark .pc-icon{width:20px;height:20px;stroke-width:1.7}
+/* Inside the workbench the tab chip already names the plugin: the stage keeps its one-line purpose and its new buttons. */
+[data-framed] .pc-app-head .pc-mark,[data-framed] .pc-app-head h1{display:none}[data-framed] .pc-app-description{margin:0!important}
+.pc-figures{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px}
+.pc-stat{min-width:0;padding:14px 16px;animation:pc-rise var(--dur-arrive,.32s) var(--ease-out,ease-out) both}.pc-stat>dt{font-size:12px;color:var(--muted);margin-bottom:4px}
+.pc-stat>dd{font-size:24px;font-weight:650;letter-spacing:-.02em;line-height:1.25;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.pc-stat[data-words]>dd{font-size:14px;font-weight:500;line-height:1.55;letter-spacing:0}
+.pc-figures-wide{grid-column:1/-1}.pc-figures-wide>dd{font-size:13.5px;font-weight:400;letter-spacing:0}.pc-figures-nested{margin-top:6px}
+.pc-bars{display:grid;gap:9px;margin-top:6px}.pc-bar{display:grid;grid-template-columns:minmax(56px,max-content) minmax(40px,1fr) auto;gap:12px;align-items:center;font-size:13px}.pc-bar>span{color:var(--ink-soft,var(--ink))}.pc-bar>strong{font-weight:600;font-variant-numeric:tabular-nums}
+.pc-answer{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.75;max-width:72ch}.pc-answer-card .mw-card__panel{padding-top:0}
+.pc-form-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,180px),1fr));grid-auto-flow:row dense;gap:12px 14px}.pc-form-fields:empty{display:none}
+.pc-field-wide{grid-column:1/-1}.pc-field-choice .mw-toggle-group{flex-wrap:wrap}.pc-field-check{align-self:end;min-height:32px}
+.pc-form-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px}
+.pc-form-panel{padding:14px 16px!important}
+.pc-compact .pc-form-panel{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px 14px}.pc-compact .pc-form-fields{flex:1 1 360px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 14px}.pc-compact .pc-form-fields>*{flex:1 1 170px}.pc-compact .pc-field-choice{flex:0 1 auto}.pc-compact .pc-form-actions{margin:0}
+.pc-inline .pc-form-panel{padding:6px!important}.pc-inline-group{display:flex;align-items:center;gap:8px}.pc-inline-group>.mw-field{flex:1;min-width:0}.pc-inline-group .mw-input{border-color:transparent;box-shadow:none;background:transparent}
+.pc-bare .pc-form-panel{padding:0!important}.pc-bare .pc-form-actions{justify-content:flex-start;margin:0}
+.pc-toolbar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin:0 0 12px;padding:0;border:0;background:none}
+.pc-filter{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;flex:1 1 auto;min-width:0}.pc-filter-item{display:flex;align-items:center;gap:8px;min-width:0}.pc-filter-label{font-size:12px;color:var(--muted);white-space:nowrap}
+.pc-search{flex:1 1 220px;max-width:340px}.pc-search .pc-icon{color:var(--faint);margin-left:8px}.pc-filter-item:has(.pc-search){flex:1 1 220px;max-width:340px}.pc-filter-item .pc-search{width:100%}
+.pc-tools{display:flex;align-items:center;gap:4px;margin-left:auto}.pc-count{font-size:12px;color:var(--faint);margin-right:2px}.pc-count[data-count]:not([data-count=""])::before{content:"共 " attr(data-count) " 条"}
+.pc-output{min-width:0}
+.pc-directory{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-card,12px);background:var(--paper);overflow:hidden}
+.pc-directory>.pc-record,.pc-agenda-items>.pc-record{display:flex;align-items:center;gap:8px;padding:2px 10px 2px 2px;border-top:1px solid var(--line)}.pc-directory>.pc-record:first-child,.pc-agenda-items>.pc-record:first-child{border-top:0}
+.pc-row{display:flex!important;align-items:center;gap:12px;flex:1;min-width:0;height:auto!important;min-height:52px;padding:10px 12px!important;cursor:default;white-space:normal!important;background:none!important}
+.pc-row .mw-dir-row__copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.pc-row .mw-dir-row__headline strong{font-size:14px;font-weight:550;white-space:normal;overflow-wrap:anywhere}
+.pc-record[data-selectable]{cursor:pointer}.pc-record[aria-current=true]{background:var(--blue-soft,#eef3ff)!important;box-shadow:inset 3px 0 0 var(--blue,#3b6ff5)}
+.pc-record-text{color:var(--ink-soft,var(--ink));white-space:pre-wrap;overflow-wrap:anywhere}.pc-record-note{display:block;font-size:13px;color:var(--ink-soft,var(--ink));white-space:pre-wrap;overflow-wrap:anywhere}
+.pc-record-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12px;color:var(--muted)}.pc-meta-label{color:var(--faint);margin-right:2px}.pc-meta-number{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}.pc-view time{white-space:nowrap}
+.pc-record-figure{flex:none;font-size:16px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc-row-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:none}.pc-row-action[data-danger]:hover:not(:disabled){color:var(--red,#c2413b)}
+.pc-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));gap:14px}
+.pc-card-grid>.pc-record{display:flex;flex-direction:column;min-width:0;transition:box-shadow var(--dur-move,.22s),transform var(--dur-move,.22s)}.pc-card-grid>.pc-record:hover{box-shadow:var(--lift-2,0 8px 24px rgba(0,0,0,.08));transform:translateY(-2px)}
+.pc-card-grid .mw-card__description{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}.pc-card-grid .mw-card__panel{display:grid;gap:8px;flex:1}
+.pc-add-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:128px;border:1.5px dashed var(--line-strong,var(--line));border-radius:var(--r-card,12px);background:none;color:var(--muted);font:inherit;cursor:pointer;transition:border-color .15s,color .15s}.pc-add-tile:hover{border-color:var(--blue);color:var(--blue)}.pc-add-tile .pc-icon{width:20px;height:20px}
+.pc-table td[data-number]{text-align:right}.pc-table td:last-child .pc-row-actions{justify-content:flex-end}.pc-table tbody tr:first-child td:first-child{font-weight:550}
+.pc-accordion>.pc-record>summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.pc-fold-title{font-weight:550}.pc-accordion .mw-collapsible__body{display:grid;gap:8px}
+.pc-reading .pc-record-text{font-family:"Songti SC","Noto Serif CJK SC",serif;font-size:17px;line-height:2;max-width:46ch;color:var(--ink)}
+.pc-conversation .pc-record[data-role=user]{margin-left:auto;max-width:86%}
+.pc-agenda{display:grid;gap:14px}.pc-agenda-day{display:grid;grid-template-columns:64px minmax(0,1fr);gap:12px;align-items:start}
+.pc-agenda-date{display:flex;flex-direction:column;align-items:center;padding-top:8px}.pc-agenda-date strong{font-size:22px;font-weight:650;line-height:1.1}.pc-agenda-date span{font-size:11.5px;color:var(--muted)}
+.pc-agenda-items{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r-card,12px);background:var(--paper);overflow:hidden}
+.pc-fields{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:13px}.pc-fields dt{color:var(--muted)}.pc-fields dd{overflow-wrap:anywhere}
+.pc-empty{min-height:0;padding:30px 16px}
+.pc-skeleton{display:grid;gap:10px}.pc-skeleton .mw-skeleton{display:block;height:44px;border-radius:10px}.pc-skeleton[data-idle] .mw-skeleton{animation:none;opacity:.6}
+.pc-working{margin-top:10px;font-size:12.5px;color:var(--muted)}
+.pc-success{margin-top:10px;animation:pc-toast 3.4s ease forwards}.pc-success::before{content:"✓ "}
+.pc-error{margin-top:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pc-dialog-error{flex:1 1 100%;margin:0}
+.pc-kind-form>.pc-output:not(:empty),.pc-kind-button>.pc-output:not(:empty){margin-top:12px;animation:pc-rise var(--dur-arrive,.32s) ease-out}
+.pc-new{animation:pc-new var(--dur-moment,.64s) var(--ease-out,ease-out)}
+.pc-inspect{color:var(--blue);background:transparent;border:0;font:12px/1.4 inherit;cursor:pointer;padding:3px}.pc-node[data-inspected=true]{outline:1px solid var(--blue);outline-offset:7px}
+@keyframes pc-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes pc-new{0%{opacity:0;transform:translateY(-6px)}40%{opacity:1;transform:none;background:var(--blue-soft,#eef3ff)}100%{background:transparent}}
+@keyframes pc-toast{0%{opacity:0;transform:translateY(4px)}8%{opacity:1;transform:none}82%{opacity:1}100%{opacity:0}}
+@container (max-width:560px){.pc-app-head h1{font-size:21px}.pc-mark{width:40px;height:40px}.pc-stat>dd{font-size:20px}.pc-page{gap:18px}.pc-directory>.pc-record{flex-wrap:wrap}.pc-directory>.pc-record>.pc-row-actions{padding:0 12px 10px}.pc-search,.pc-filter-item:has(.pc-search){max-width:none}.pc-card-grid{grid-template-columns:1fr}.pc-agenda-day{grid-template-columns:48px minmax(0,1fr)}}
+@media (prefers-reduced-motion:reduce){.pc-view *{animation:none!important;transition:none!important}}
 `;

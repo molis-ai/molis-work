@@ -1100,14 +1100,20 @@ export interface BuilderAgentActivity {
   detail: string;
   path?: string;
 }
+/** A Skill a builder run mounts through Prologue: an exact version, inlined once for the run. */
+export interface BuilderSkill { id: string; version: number; name: string; body: string }
 export interface BuilderAgentRequest {
   /** `model` is a generated plugin's own model call: one turn, no tools, the plugin's instructions. */
   role: 'designer' | 'coder' | 'model';
   instruction: string;
   promptVersion: string;
+  /** The standard this stage works to (the plugin development Skill), mounted through Prologue's Skill registry. */
+  skills?: readonly BuilderSkill[];
   task: string;
   contractRevision: string;
   operationIds?: readonly string[];
+  /** When set, the only files (relative to the build directory) this code run may write: its own operation's, while others are written alongside it. */
+  writable?: readonly string[];
   signal?: AbortSignal;
   checks?(operationIds: readonly string[], signal: AbortSignal): Promise<unknown>;
   onActivity?(activity: BuilderAgentActivity): void;

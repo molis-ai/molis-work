@@ -72,7 +72,7 @@ test('real browser puts an action on each record it acts on, follows the view or
     assert.equal(await page.evaluate(`document.querySelector('[data-pc-select]')`), null, 'nothing else consumes the selection, so there is no separate "choose"');
     await page.click('[data-record-id="b"] [data-pc-action=remove]');
     await page.wait(`document.querySelectorAll('[data-record-id]').length===1`);
-    assert.equal(await page.evaluate(`document.querySelector('[data-component-id=notes] [data-pc-feedback=remove]').className`), 'pc-success', 'the result shows under the collection');
+    assert.equal(await page.evaluate(`document.querySelector('[data-component-id=notes] [data-pc-feedback=remove]').classList.contains('pc-success')`), true, 'the result shows under the collection');
     await page.evaluate(`(async()=>{view.nodes=[view.nodes[1],view.nodes[0],view.nodes[2]];await app.update(view);\n})()`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-region > [data-component-id]')].map(e=>e.dataset.componentId)`), ['notes', 'title', 'remove'], 'parts follow the view order');
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
@@ -147,9 +147,10 @@ test('real browser shows a total and its breakdown as labelled figures, named fr
     const page = await browser.page();
     await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>({total:86.5,byCategory:[{category:'餐饮',amount:56.5},{category:'交通',amount:30}]})}); await app.update(${JSON.stringify({ contract, nodes, connected: ['summary.read'] })});\n})()`);
     await page.wait(`document.querySelector('.pc-figures')`);
-    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-figures > dt')].map(e=>e.textContent)`), ['本月总支出', '各分类合计']);
-    assert.equal(await page.evaluate(`document.querySelector('.pc-figures > dd').textContent`), '86.5');
-    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-figures th')].map(e=>e.textContent)`), ['分类', '合计']);
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-figures dt')].map(e=>e.textContent)`), ['本月总支出', '各分类合计']);
+    assert.equal(await page.evaluate(`document.querySelector('.pc-stat > dd').textContent`), '86.5', 'a figure is a tile with its label');
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-bar')].map(e=>e.querySelector('span').textContent+' '+e.querySelector('strong').textContent)`), ['餐饮 56.5', '交通 30'], 'a label and an amount per row read as bars');
+    assert.equal(await page.evaluate(`document.querySelector('.pc-bars').getAttribute('aria-label')`), '分类 / 合计');
     assert.doesNotMatch(await page.evaluate<string>(`document.querySelector('[data-component-id=summary]').innerText`), /\{"/, 'never raw JSON');
     await page.evaluate(`(async()=>{const v=${JSON.stringify({ contract, nodes, connected: ['summary.read'] })};v.contract.revision='two';delete v.contract.operations[0].output.properties.byCategory.description;await app.update(v);\n})()`);
     await page.wait(`document.querySelector('.pc-figures-wide')`);
@@ -171,9 +172,10 @@ test('real browser filters a collection by its read\'s own fields: 全部 first,
     const page = await browser.page();
     await page.evaluate(`(async()=>{document.body.innerHTML='<style>'+${JSON.stringify(PLUGIN_COMPONENT_STYLES)}+'</style><div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.asked=[]; const all=[{id:'a',title:'代码大全',status:'想读'},{id:'b',title:'人月神话',status:'在读'}]; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async(id,binding,payload)=>{asked.push(payload.form);return all.filter(b=>(!payload.form.status||b.status===payload.form.status)&&(!payload.form.keyword||b.title.includes(payload.form.keyword)))}}); await app.update(${JSON.stringify({ contract: books, nodes, connected: ['books.list'] })});\n})()`);
     await page.wait(`document.querySelectorAll('[data-record-id]').length===2`);
-    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-filter select option')].map(o=>o.textContent)`), ['全部', '想读', '在读', '读完']);
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('.pc-filter [data-pc-value]')].map(o=>o.textContent)`), ['全部', '想读', '在读', '读完'], 'a short set of choices shows as chips');
+    assert.equal(await page.evaluate(`document.querySelector('.pc-filter [aria-checked=true]').textContent`), '全部');
     assert.deepEqual(await page.evaluate(`asked[0]`), {}, 'an optional filter left at 全部 is not sent');
-    await page.evaluate(`(()=>{const s=document.querySelector('.pc-filter select');s.value='在读';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+    await page.click('.pc-filter [data-pc-value="在读"]');
     await page.wait(`document.querySelectorAll('[data-record-id]').length===1&&document.querySelector('[data-record-id="b"]')`);
     await page.fill('.pc-filter input[name=keyword]', '代码');
     assert.equal(await page.evaluate(`document.querySelector('[data-component-id=books]').hasAttribute('data-pc-pending')`), true, 'typing says it is about to re-read');
@@ -198,7 +200,74 @@ test('real browser shows a field in the column\'s own words, and a plain boolean
     await page.wait(`document.querySelector('[data-record-id="a"]')`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id="a"] td')].slice(0,3).map(td=>td.textContent)`), ['早起', '未打卡', '否']);
     await page.evaluate(`(async()=>{await app.update(${JSON.stringify({ contract: { ...habits, revision: 'two' }, nodes: [node('list')], connected: ['habits.list'] })});\n})()`);
-    await page.wait(`document.querySelector('[data-record-id="a"] dl')`);
-    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id="a"] dd')].map(dd=>dd.textContent)`), ['未打卡', '否'], 'a false value is still shown, not dropped as empty');
+    await page.wait(`document.querySelector('[data-record-id="a"] .pc-record-meta')`);
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id="a"] .pc-tag')].map(tag=>tag.textContent)`), ['今日 未打卡', '归档 否'], 'a false value is still shown, not dropped as empty, and keeps its name for assistive technology');
+    assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('[data-record-id="a"] .pc-tag')].map(tag=>tag.dataset.tone)`), ['gray', 'gray']);
+  } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('the acceptance driver works through catalog overlays: a sheet form, choice chips, an accordion and a confirmed delete', { timeout: 120_000 }, async t => {
+  const { existsSync } = await import('node:fs');
+  if (!['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].some(path => existsSync(path)) && !process.env.MOLIS_WORK_BUILDER_BROWSER) { t.skip('Chrome is required'); return; }
+  const { createServer } = await import('node:http');
+  const { runBuilderBrowserAcceptance } = await import('../apps/local-host/src/plugin-builder/browser.js');
+  const tag = { type: 'string' as const, enum: ['设计', '阅读', '产品'], description: '标签' };
+  const contract: SandboxPluginContract = { version: 1, pluginId: 'test.catalog', revision: 'one', entities: [], acceptance: [],
+    operations: [
+      { id: 'ideas.list', kind: 'query', input: { type: 'object', properties: { tag }, additionalProperties: false }, output: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, title: { type: 'string' }, description: { type: 'string' }, tag } } }, errors: [], effects: {}, examples: [] },
+      { id: 'ideas.add', kind: 'command', input: { type: 'object', properties: { title: { type: 'string', maxLength: 60, description: '标题' }, description: { type: 'string', maxLength: 500, description: '描述' }, tag }, required: ['title', 'tag'], additionalProperties: false }, output: { type: 'object' }, errors: [], effects: {}, examples: [] },
+      { id: 'ideas.remove', kind: 'command', input: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false }, output: { type: 'boolean' }, errors: [], effects: {}, examples: [] }],
+    pages: [{ id: 'home', title: '灵感', regions: [{ id: 'main', title: '灵感', operationIds: ['ideas.list', 'ideas.add', 'ideas.remove'] }] }] };
+  const nodes = [
+    { id: 'title', pageId: 'home', regionId: 'main', intent: 'heading', purpose: '标题', props: { title: '灵感收集板' }, kind: 'frame' },
+    { id: 'editor', pageId: 'home', regionId: 'main', intent: 'input', purpose: '记一条', props: { title: '记一条灵感', submitLabel: '保存' }, kind: 'sheet',
+      submit: { operationId: 'ideas.add', input: { title: { source: 'form', field: 'title' }, description: { source: 'form', field: 'description' }, tag: { source: 'form', field: 'tag' } } } },
+    { id: 'ideas', pageId: 'home', regionId: 'main', intent: 'collection', purpose: '浏览', kind: 'accordion', props: { idField: 'id', titleField: 'title', textField: 'description', columns: [{ field: 'tag', label: '标签' }] },
+      read: { operationId: 'ideas.list', input: { tag: { source: 'form', field: 'tag' } } } },
+    { id: 'remove', pageId: 'home', regionId: 'main', intent: 'action', purpose: '删除选中的灵感', props: { submitLabel: '删除' }, kind: 'alert-dialog', submit: { operationId: 'ideas.remove', input: { id: { source: 'selection', componentId: 'ideas', field: 'id' } } } },
+  ];
+  const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
+  const html = `<!doctype html><meta charset="utf-8"><style>${PLUGIN_COMPONENT_STYLES}</style><div id="root"></div><script>${compiled.outputFiles[0]!.text}
+    let ideas=[],next=0;globalThis.__molisPluginPending=0;
+    const call=async(id,binding,payload)=>{if(binding==='read')return ideas.filter(i=>!payload.form.tag||i.tag===payload.form.tag);
+      if(id==='editor'){const idea={id:'i'+(++next),...payload.form};ideas=[idea,...ideas];return idea}
+      if(id==='remove'){ideas=ideas.filter(i=>i.id!==payload.selection.ideas.id);return true}};
+    PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call}).update(${JSON.stringify({ contract, nodes, connected: ['ideas.list', 'ideas.add', 'ideas.remove'] })}).then(()=>{globalThis.__molisPluginReady=true});</script>`;
+  const server = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); response.end(html); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + (server.address() as { port: number }).port + '/';
+  const acceptance = [
+    { id: 'add', description: '在侧边面板里记一条，折叠列表里能读到', steps: [
+      { action: 'fill', componentId: 'editor', field: 'title', value: '暗黑模式' }, { action: 'fill', componentId: 'editor', field: 'description', value: '所有插件跟随产品主题' },
+      { action: 'fill', componentId: 'editor', field: 'tag', value: '阅读' }, { action: 'submit', componentId: 'editor' },
+      { action: 'expect', componentId: 'ideas', text: '暗黑模式' }, { action: 'expect', componentId: 'ideas', text: '跟随产品主题' }] },
+    { id: 'remove', description: '删除要先确认', steps: [
+      { action: 'fill', componentId: 'editor', field: 'title', value: '临时' }, { action: 'fill', componentId: 'editor', field: 'tag', value: '产品' }, { action: 'submit', componentId: 'editor' },
+      { action: 'select', componentId: 'ideas', text: '临时' }, { action: 'submit', componentId: 'remove' }, { action: 'expectAbsent', componentId: 'ideas', text: '临时' }] },
+    { id: 'filter', description: '按标签筛选（选项可以写显示用词）', steps: [
+      { action: 'fill', componentId: 'editor', field: 'title', value: '留白' }, { action: 'fill', componentId: 'editor', field: 'tag', value: '设计' }, { action: 'submit', componentId: 'editor' },
+      { action: 'fill', componentId: 'editor', field: 'title', value: '慢读' }, { action: 'fill', componentId: 'editor', field: 'tag', value: '阅读' }, { action: 'submit', componentId: 'editor' },
+      { action: 'fill', componentId: 'ideas', field: 'tag', value: '阅读' }, { action: 'expect', componentId: 'ideas', text: '慢读' }, { action: 'expectAbsent', componentId: 'ideas', text: '留白' }] },
+  ];
+  try {
+    const result = await runBuilderBrowserAcceptance({ design: { acceptance }, nodes } as unknown as Parameters<typeof runBuilderBrowserAcceptance>[0], { url, signal: new AbortController().signal, reset: async () => {} });
+    assert.deepEqual(result.cases.map(item => [item.id, item.passed, item.passed ? '' : item.detail]), [['add', true, ''], ['remove', true, ''], ['filter', true, '']]);
+  } finally { server.close(); }
+});
+
+test('real browser fills a sentence the design wrote around a result, and never shows the raw template', { timeout: 90_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));
+  const browser = await ChromeHarness.start(directory);
+  if (!browser) { await rm(directory, { recursive: true, force: true }); t.skip('Chrome is required'); return; }
+  const contract: SandboxPluginContract = { version: 1, pluginId: 'test.water', revision: 'one', entities: [], acceptance: [],
+    operations: [{ id: 'water.today', kind: 'query', input: { type: 'object', properties: {}, additionalProperties: false }, output: { type: 'object', properties: { count: { type: 'integer' } } }, errors: [], effects: {}, examples: [] }],
+    pages: [{ id: 'home', title: '喝水', regions: [{ id: 'main', title: '喝水', operationIds: ['water.today'] }] }] };
+  const nodes = [{ id: 'count', pageId: 'home', regionId: 'main', intent: 'description', purpose: '杯数', kind: 'card', props: { description: '今天已经喝了 {{count}} 杯' }, read: { operationId: 'water.today', input: {} } }];
+  try {
+    const compiled = await build({ entryPoints: ['packages/design-system/src/plugin-component-client.ts'], bundle: true, write: false, format: 'iife', globalName: 'PluginUi', platform: 'browser', target: 'es2022' });
+    const page = await browser.page();
+    await page.evaluate(`(async()=>{document.body.innerHTML='<div id="root"></div>'; ${compiled.outputFiles[0]!.text}; globalThis.app=PluginUi.createPluginComponentClient({root:document.querySelector('#root'),call:async()=>({count:3})}); await app.update(${JSON.stringify({ contract, nodes, connected: ['water.today'] })});\n})()`);
+    await page.wait(`document.querySelector('.pc-filled')`);
+    assert.equal(await page.evaluate(`document.querySelector('[data-component-id=count]').innerText.replace(/\\s+/g,' ').trim()`), '今天已经喝了 3 杯');
   } finally { await browser.close(); await rm(directory, { recursive: true, force: true }); }
 });

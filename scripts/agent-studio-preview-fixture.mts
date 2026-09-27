@@ -181,7 +181,7 @@ export function agentStudioFixture(pace = 1) {
     choice: { selectionAvailable: () => true, async choose(question: { candidates: readonly { key: string }[] }) {
       await pause(700);
       const keys = question.candidates.map(item => item.key);
-      return { choice: keys.includes('cards') ? 'cards' : keys[0]!, model: 'fixture-jev（预览替身）', elapsedMs: 700, confidence: 0.8 };
+      return { choice: keys.includes('card') ? 'card' : keys[0]!, model: 'fixture-jev（预览替身）', elapsedMs: 700, confidence: 0.8 };
     } },
   };
 }

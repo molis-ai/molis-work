@@ -21,3 +21,4 @@ export * from './agent-workflow.js';
 export * from './agent-studio.js';
 export * from './agent-authoring.js';
 export * from './agent-capabilities.js';
+export * from './agent-catalog.js';

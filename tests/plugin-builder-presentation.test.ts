@@ -6,7 +6,7 @@ import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
 import type {PluginCapabilityClient,PluginRouteBinding,PluginStartContext} from '@molis-ai/molis-work-contracts/platform/plugin';
 import type {BuildDocument,Design,RecordRow,Release} from '../plugins/native/plugin-builder/src/model.js';
 import {builderManifest} from '../plugins/native/plugin-builder/src/manifest.js';
-import {builderRoutes} from '../plugins/native/plugin-builder/src/routes.js';
+import {builderRoutesWithActions as builderRoutes} from './fixtures/builder-routes.js';
 import {BuilderWorkflow} from '../plugins/native/plugin-builder/src/workflow.js';
 import {createGeneratedPlugin} from '../plugins/native/plugin-builder/src/generated.js';
 import {parseCandidates,parseDesign} from '../plugins/native/plugin-builder/src/validation.js';

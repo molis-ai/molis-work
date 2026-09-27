@@ -1,6 +1,11 @@
 /** A view of the common Agent catalog; selected references remain in the original Character draft. */
 export const CHARACTER_ACTION_CLIENT = `(host) => {
   const {q,request,changed}=host;
+  // Markup from an older Characters release has no action fields: the rest of the page keeps working, and a
+  // draft saved from it keeps the action choice it already had rather than clearing it.
+  if(!q('actions-inherit')||!q('actions-list')){let kept=null;
+    return {controls(){},async refresh(){},value:()=>structuredClone(kept),render:value=>{kept=value==null?null:structuredClone(value);},
+      describe:value=>value==null?'沿用任务选择':value.length?value.map(ref=>ref.capability_id+' · v'+ref.version).join('、'):'不使用动作能力'};}
   let rows=[],refs=[],busy=false,reading=false;
   const key=ref=>JSON.stringify([ref.capability_id,ref.version,ref.provider_id]);
   const exact=view=>({capability_id:view.capability_id,version:view.version,provider_id:view.provider.provider_id});

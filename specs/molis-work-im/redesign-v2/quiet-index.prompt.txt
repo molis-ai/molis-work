@@ -1,0 +1,71 @@
+Use case: ui-mockup.
+Generate a NEW art-directed, high-fidelity product UI for Molis Work. The user has rejected busy three-column chat designs. They want artistic information composition that is SIMPLE, CLEAR, composed and useful. The artistry is in precise whitespace, alignment, typographic rhythm, and restraint. Not decoration, not illustrations, not retro typography. No existing image reference: create a genuinely different composition.
+
+A single exceptionally sharp desktop application screenshot, 1600×1000 landscape, perfectly readable simplified Chinese, straight-on, no device frame, no collage, no external annotations. All content is illustrative design material. Make it feel like a beautifully designed contemporary studio's working environment: quiet, confident and human.
+
+CORE STRUCTURE:
+There are EXACTLY TWO major surfaces: ongoing WORK on the LEFT about65%, and PROJECT MAIN GROUP DISCUSSION on the RIGHT about35%. True split screen: work has resized to make space, not covered by a floating panel. Preserve one top tab strip and one bottom dock across the whole app. Right-bottom dock entry opens discussion. No full-screen chat. No third vertical directory column.
+One project main group with public Threads for all project members. ALL SIX THREADS form an ALWAYS VISIBLE, beautifully composed COMPACT TEXT INDEX at the TOP of the right pane, ABOVE the main group conversation. Do not hide the index in a dropdown, chips carousel, accordion or source message. Thread titles are real navigation, arranged as an elegant TWO-COLUMN TYPOGRAPHIC INDEX (3 rows per column), NOT six boxes/cards. No inline expanded Thread in this image. Current conversation is the main group. Selecting a Thread would change the conversation content BELOW the fixed index, keeping the index visible.
+
+VISUAL ART DIRECTION:
+Nearly achromatic. White #ffffff and extremely light neutral gray #f6f6f5, deep ink #252628, quiet #747578 secondary text, very thin #e8e8e6 lines used only between meaningful sections. No colored navigation backgrounds. One tiny muted ink-blue dot for attention at most. NO GREEN, NO gradients, NO blue haze, NO rainbow avatars, NO big badges, NO decorative artwork, NO serif display title, NO giant all-caps labels, no glass, no heavy shadow. System-quality precise modern Chinese sans, refined proportional Latin letters. Text 14–16px equivalent, metadata12px. Main document title28px, chat title20px. Deliberate asymmetrical spacing and impeccable left edges. Less permanent chrome, fewer repeated explanations. Softly rounded outer working surfaces only; internal rows are not cards.
+
+APP CHROME:
+Understated top44px tab strip. Small dark 'Molis Work' wordmark, active '首页方案', inactive '目标', tiny plus. Hairline and light neutral material.
+Main area from y56 to936: left work sheet x12–1020, right discussion sheet x1032–1588, quiet12px gutter. Both opaque white, no cast shadow, very subtle12px corner shaping. True adjacent panes, not overlay.
+Bottom52px dock: minimal gray home and work icons left; center compact field '问 Assistant，或搜索' with ⌘K; right understated shelf, lightbulb, conversation icons then small dark outlined project monogram M. The discussion icon active through a fine underline or neutral tone. Avoid long dock labels and blue filled pills.
+
+LEFT WORK SURFACE:
+This is a real document editor with beautifully arranged CONTENT, not a dashboard and not a page showing a screenshot of another page. NO nested app preview, NO miniature website, NO grayscale wireframe.
+Top compact breadcrumb 'Molis 产品团队 / 设计', tiny edit and more icons.
+Use a centered reading column about720px wide with thoughtful margins, a small upper label '设计提案 · V2', title '首页方案', restrained metadata '周然 · 今天 09:42'. Large but purposeful whitespace around the title, no huge slogan.
+The document is carefully composed like a serious product design memo:
+Opening subheading '先让人知道，项目正在发生什么。' about20px semibold.
+Short paragraph '首页围绕当前目标展开。讨论与产出紧随其后，让新成员不用来回切换，也能理解工作的进展。'
+After32px, small section label '信息顺序', one quiet long hairline.
+Three beautifully aligned editorial rows, each with a narrow ordinal column and a text column:
+01   当前目标
+     团队此刻正在推进什么，下一步需要谁参与。
+02   进行中的讨论
+     把尚未确认的问题放在显眼的位置，已形成的结论留在原话题。
+03   最近产出
+     方案、文档与决定都有清楚的来处，可以随时回看。
+No borders around individual rows, no boxed numbers, no colored cards.
+After28px, one understated pull-quote with slim gray vertical marker, normal-body text '减少来回找上下文的时间，把注意力留给工作。'
+At lower left a compact related-discussion line '关联讨论  首页信息架构 ↗' with small '已有结论' in gray. Bottom of page quiet '最近编辑 10:07' if necessary. This left pane should feel spacious but written and purposeful, not empty filler.
+
+RIGHT DISCUSSION SURFACE:
+Comfortable horizontal padding28px, precise baseline alignment. One elegant title row '项目主群'20px, tiny quiet trailing '12 位成员', collapse-to-right outline icon. Below small label 'Molis 产品团队'. DO NOT stack another project discussion banner and another repeated group header.
+
+Then the ALWAYS VISIBLE THREAD INDEX, height about180px:
+Small quiet section heading '公开话题' with tiny6, plus at far right. Below a TWO-COLUMN grid of TEXT ONLY, no outlines/backgrounds or tile containers. Three rows in each column, compact36px vertical rhythm:
+Left column: '首页信息架构' trailing tiny '12'; '搜索结果排序' trailing '8'; '通知与提醒' trailing '5'.
+Right column: '周五发布范围' tiny attention dot and '3'; '新成员引导' trailing '2'; '文件共享规则' trailing '4'.
+Thread titles14px medium weight. Reply counts tiny gray aligned at the trailing edge. Only '周五发布范围' gets one small subtle attention dot; every row does NOT get an icon, status pill, author preview, timestamp or multiple badges. At bottom of index tiny plain note '所有话题对项目成员可见'. The index reads like a considered table of contents, not admin navigation. A single hairline separates it from the conversation.
+
+Below: current conversation title row '主群' selected with short dark underline, aligned right small '今天' and quiet search icon. No big AI summary banner; instead a low-emphasis action '快速了解' at the section's trailing edge.
+
+MAIN GROUP FEED:
+Three or four readable messages, no colorful avatar circles, no bubble/card wrappers. Identity through consistent authored headers, enough separation, a small neutral avatar only if essential.
+林悦   09:42
+'首页第二版放好了。先看信息层级，再看细节。'
+A small paperclip plus text attachment '首页方案 v2.fig' and tiny '2.4 MB', as a single understated line, no big thumbnail card. Tiny inline reaction '👍 4' in gray without pill chrome.
+
+周然   09:46
+'先露出正在推进的目标，再放最近讨论。'
+A subtle branching text link '首页信息架构 · 12 条回复 ↗'. This is only a link, no expanded Thread. The corresponding title is already visible in the index above.
+
+A very quiet thin unread break '2 条新消息', no saturated horizontal blue lines.
+许诺   10:12
+'@一骏 周五先开放给项目成员，今天确认一下范围？'
+Mention is ink-blue text only, no tinted tag. Below a simple link '周五发布范围 ↗'.
+
+Optional final short message only if space fits comfortably:
+一骏   10:15
+'收到，我去话题里确认。'
+
+COMPOSER at bottom of right sheet, about95px:
+A single quiet top boundary, placeholder '在主群里说点什么…', no big bordered empty box. Below minimalist '+' and '@' and one document-reference icon on left, small near-black square-rounded send arrow on right. Tiny destination label '发到主群' only if needed. No row of five always-visible tool glyphs and no giant button.
+All right-pane content must fit without shrinking text below legibility. If needed shorten message count, never hide the Thread index. Natural generous spacing with clear hierarchy, not a wall of metadata.
+
+The final image must look dramatically calmer and more intentional than an ordinary Slack-style screen: two readable surfaces, elegant document composition left, a compact public Thread table of contents and a calm main group conversation right. Communicate seriousness and artistic judgment through information placement, not through aesthetic clutter.

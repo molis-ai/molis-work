@@ -13,7 +13,7 @@ export function createImSchema(db: ImDatabase): void {
     );
     CREATE TABLE IF NOT EXISTS im_threads (
       id TEXT PRIMARY KEY, room_id TEXT NOT NULL REFERENCES im_rooms(id), title TEXT NOT NULL,
-      source_message_id TEXT NOT NULL REFERENCES im_messages(id),
+      source_message_id TEXT REFERENCES im_messages(id),
       created_by TEXT NOT NULL REFERENCES mw_members(id), created_at TEXT NOT NULL, updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS im_messages (
@@ -33,4 +33,24 @@ export function createImSchema(db: ImDatabase): void {
       PRIMARY KEY(session_id, client_id)
     );
   `);
+  const columns = (table: string) => db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; notnull: number }[];
+  if (!columns('im_rooms').some(c => c.name === 'project_id')) db.exec('ALTER TABLE im_rooms ADD COLUMN project_id TEXT REFERENCES mw_projects(id)');
+  if (!columns('im_messages').some(c => c.name === 'quote_id')) db.exec('ALTER TABLE im_messages ADD COLUMN quote_id TEXT REFERENCES im_messages(id)');
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS im_project_room ON im_rooms(project_id) WHERE project_id IS NOT NULL;
+    CREATE TABLE IF NOT EXISTS im_read_positions (
+      member_id TEXT NOT NULL REFERENCES mw_members(id), room_id TEXT NOT NULL REFERENCES im_rooms(id),
+      target TEXT NOT NULL, sequence INTEGER NOT NULL, PRIMARY KEY(member_id,room_id,target)
+    );`);
+  // Preserve identifiers and dependent foreign keys while making the source optional.
+  if (columns('im_threads').find(c => c.name === 'source_message_id')?.notnull) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      db.transaction(() => db.exec(`CREATE TABLE im_threads_next (
+        id TEXT PRIMARY KEY, room_id TEXT NOT NULL REFERENCES im_rooms(id), title TEXT NOT NULL,
+        source_message_id TEXT REFERENCES im_messages(id), created_by TEXT NOT NULL REFERENCES mw_members(id),
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+        INSERT INTO im_threads_next SELECT * FROM im_threads;
+        DROP TABLE im_threads; ALTER TABLE im_threads_next RENAME TO im_threads;`)).immediate();
+    } finally { db.exec('PRAGMA foreign_keys = ON'); }
+  }
 }

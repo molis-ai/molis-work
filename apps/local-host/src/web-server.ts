@@ -87,7 +87,13 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const pty = { host: null as MolisWorkPtyHost | null };
-    const im = createLocalImServer(storageHome);
+    const im = createLocalImServer(storageHome, async id => {
+      if (fixture && id === fixture.boardId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
+      return platform.withCatalog({homeDirectory:storageHome}, catalog => {
+        try { const project=catalog.getProject(id); return {id:project.project_id,title:project.display_name}; }
+        catch { return null; }
+      });
+    });
     const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {

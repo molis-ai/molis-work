@@ -4,6 +4,7 @@ import { readImBody, imFailure, imJson } from "./http.js";
 import { ImReads } from "./reads.js";
 import { createImSchema } from "./schema.js";
 import { ImWrites } from "./writes.js";
+import { ensureProjectRoom } from './project.js';
 
 export type { ImDomainOptions, ImSession, ImIdentity, ImEvents, ImRequest, ImDatabase } from "./types.js";
 export { ImError } from "./errors.js";
@@ -42,7 +43,9 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
         });
       } else {
         const member = identity.requireMember(current);
-        if (parts.length === 1 && parts[0] === "rooms") {
+        if (parts.length === 3 && parts[0] === 'projects' && parts[2] === 'room' && !get) {
+          result = ensureProjectRoom(db, reads, parts[1]!, member.id);
+        } else if (parts.length === 1 && parts[0] === "rooms") {
           result = get ? { rooms: reads.rooms(member.id) } : mutation(() => writes.createRoom(member.id, body.title));
         } else if (parts.length === 1 && parts[0] === "join" && !get) {
           result = mutation(() => writes.join(member.id, body.token));
@@ -51,6 +54,9 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
           reads.assertMember(roomId, member.id);
           const threadId = parts[2] === "threads" && parts[3] ? parts[3] : null;
           if (parts.length === 2 && get) result = reads.state(roomId);
+          else if (parts.length === 3 && parts[2] === 'search' && get) result = reads.searchMessages(roomId,url.searchParams.get('q') ?? '');
+          else if (parts.length === 3 && parts[2] === 'read') result = get ? reads.readPositions(roomId,member.id)
+            : mutation(() => writes.markRead(roomId,member.id,textInput(body.message_id,'消息',100)));
           else if (parts.length === 3 && parts[2] === "invite" && get) result = writes.invite(roomId, member.id, url.origin);
           else if (parts.length === 4 && parts[2] === "invite" && parts[3] === "rotate" && !get) {
             result = mutation(() => writes.invite(roomId, member.id, url.origin, true));
@@ -59,7 +65,7 @@ export function createImDomain({ db, identity, events }: ImDomainOptions) {
           } else if (parts.length === 4 && threadId && get) result = reads.threadState(roomId, threadId);
           else if ((parts.length === 3 && parts[2] === "messages") || (parts.length === 5 && threadId && parts[4] === "messages")) {
             result = get ? reads.messages(roomId, threadId, integerQuery(url.searchParams, "before", null), integerQuery(url.searchParams, "limit", 50, 100)!)
-              : mutation(() => writes.send(roomId, threadId, member.id, body.body));
+              : mutation(() => writes.send(roomId, threadId, member.id, body.body, body.quote_id));
           } else if (parts.length === 5 && threadId && parts[4] === "share" && !get) {
             result = mutation(() => writes.share(roomId, threadId, member.id, body));
           } else throw new ImError("im.route_not_found", "找不到这个群聊操作", 404);

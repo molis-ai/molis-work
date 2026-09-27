@@ -1,0 +1,33 @@
+Use case: ui-mockup. Create one exceptionally polished, production-realistic desktop UI design for Molis Work's project communication WORKSTATION. This is a new design proposal, a crisp flat application screenshot, 16:10 landscape, 1600 x 1000 composition, no laptop/device frame, no poster, no explanatory annotations outside the interface. Chinese UI with perfectly legible simplified Chinese, use restrained Inter/PingFang-style sans, message text equivalent to 15px at 1600 width. Precision, expert information density, beautifully composed functional software, much richer than a basic chat prototype.
+
+Product truth: human collaboration WITHIN ONE PROJECT, project groups and public Threads, NO direct messages, NO private chats, NO contact directory, NO decorative stats. Group and selected Thread must be visible simultaneously, shared context visibly linked. Existing app has a BOTTOM dock and a bottom-right project/menu entry; absolutely no global left icon rail. Group data is illustrative design content.
+
+Visual system: neutral white main canvas, very pale cool gray (#f5f6f8) directory, almost-white right pane, graphite #222326 text, quiet thin #e5e7eb dividers. Near-black primary send buttons. Tiny muted indigo accents for unread and mentions only. NO GREEN backgrounds anywhere, no green tint, no gradients, no glow, no broad blue fills, no oversized headings, no stacked dashboard cards. Flat continuous workspace, subtle micro-radii for controls and embedded file previews, classic outline icon family. Balanced dense content, clear reading hierarchy, subtle colored initial avatars.
+
+Exact spatial composition:
+Top 42px native app strip, unobtrusive back arrow, active tab titled '项目群聊', small other tab '首页方案' and controls.
+Bottom 52px shared Molis Work dock visible across full width. Left small Home and chosen plugin icons. Center a modest pill-shaped input '问 Assistant，或搜索' with keyboard shortcut. Bottom right subtle Shelf and lightbulb icons, communication icon with tiny unread dot, round project monogram 'M'. This preserves the project workstation shell.
+Between those bars, exactly three contiguous columns: left directory 232px, group conversation 748px, Thread 620px, separated by hairlines. No fourth side panel.
+
+LEFT: small Molis Work wordmark, selected project 'Molis 产品团队' with chevron and tiny subtitle '项目通信'. Compact scope search '搜索项目讨论'. Attention rows with outline icons: '未读' with small 8 badge, '@ 提及我的' with 2 badge, '我关注的'. Then '项目群聊' heading and plus control. Selected row '# 项目主群' neutral gray selection with unread count 4; other rows '# 产品与设计' 3, '# 研发协作' 1, '# 发布同步'. Then a quiet '我关注的话题' area with three compact rows: '首页信息架构' blue unread dot; '周五发布检查' small amber waiting dot; '搜索结果排序'. Bottom identity row avatar '骏', '一骏' and small muted settings icon. No people/contact list.
+
+CENTER group panel:
+Compact 64px header '# 项目主群', subtitle '12 位项目成员 · 团队的日常讨论', right three overlapping avatar initials, search icon and more menu. Under it slim tabs '消息' selected, '话题' small 6, '文件', '置顶'. A very thin pinned line with pin icon and '本周：完成首页改版与小范围发布' and trailing chevron.
+Conversation comfortably dense, from 09:42 to 10:08, 5 to 6 authored messages on white background with consistent 32px avatars and headers. No chat bubble backgrounds for normal messages.
+1 林悦 09:42: '首页第二版放好了，先看信息层级，再看细节。' Below, a tasteful compact horizontal attachment preview with actual tiny wireframe thumbnail, '首页方案 v2.fig' and 'Figma · 2.4 MB'. Small reaction pills '👍 4' and '👀 2'.
+2 周然 09:46: '我建议先露出正在推进的目标，再放最近讨论。' This is the selected source message with a hairline indigo relation marker and very pale NEUTRAL GRAY fill, not a large card. Below an explicit thread link with branching icon '首页信息架构', 3 tiny participant avatars, '12 条回复', and '正在右侧讨论'.
+A fine divider '以下是 4 条新消息' with tiny indigo text.
+3 许诺 10:02: '@一骏 发布前的检查项放这里了，今天确认一下。' The mention is a small pale lavender inline tag. Under it an inline project-reference row with goal icon '周五发布检查' and small 'Goal · 待确认'.
+4 陈默 10:06: '搜索排序的细节我另开了话题，不打断这里。' Below thread link '搜索结果排序 · 5 条回复'.
+5 一骏 10:08: '收到，先把首页结构定下来，结论留在原话题里。'
+No fake presence/typing indicators, and no extra unrelated widgets.
+Composer anchored to bottom, 100px high, very light border, clear compact destination label '发到 # 项目主群'; placeholder '发送消息，@ 提及项目成员…'. Lower toolbar icons for add attachment, Aa, emoji, @, project reference; right dark rounded send button with arrow and '发送'. Tiny keyboard hint, no giant empty whitespace.
+
+RIGHT Thread pane:
+Header '首页信息架构' 18px semibold, small 'Thread · 项目主群 · 所有成员可见'. Top right follow/star control with '已关注', ellipsis, close.
+Under it 30px compact controls: status text '讨论中', small participant avatars, '12 条回复'.
+Source context in a restrained inset neutral gray quote area, linked header '来自群聊 · 周然 09:46' with '定位原消息' trailing. Text '我建议先露出正在推进的目标，再放最近讨论。' and small '查看相关上文'.
+Three thoughtful actual replies: 林悦 09:51 '可以。新成员第一眼要知道项目在做什么。'; 一骏 09:54 '目标和讨论放在同一层，别让新人再去找上下文。'; 陈默 10:00 '按这个顺序实现：当前目标 → 进行中的讨论 → 最近产出。'
+Below a compact editorial decision block, NOT a colorful card: pin/check icon, label '当前结论', text '首页优先展示当前目标与活跃讨论。', small metadata '一骏整理 · 10:07', inline links '相关目标：首页改版' and quiet action '分享到群聊'. No false AI-generated statement.
+Right composer bottom aligns with group composer. Label '回复 首页信息架构', placeholder '继续讨论…', minimal formatting/@/attachment controls, dark send. Above it a quiet secondary action '记录结论'.
+Make the final result refined, calm, warm through typography and spacing but strictly neutral in surfaces. The unique visual mechanism is a continuous project workspace where source conversation and active public Thread remain readable together. All content must fit and remain legible with good density, no giant blank areas, no big cards, no page-level marketing heading.

@@ -7,7 +7,7 @@ import type { CharactersImportPorts } from "./imports.js";
 import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, bindOwnerPluginAction, referencesAction, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { charactersActions } from "./actions.js";
+import { charactersActions, type CharacterLaunchInput } from "./actions.js";
 
 export interface CharactersPluginPorts {
   imports?: CharactersImportPorts;
@@ -128,7 +128,10 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         }
         return { usages };
       }),
-      bindOwnerPluginAction(context, a.launch, input => { const selected = publication(input); return imports().launch(selected.content, selected.reference, input as unknown as Parameters<CharactersImportPorts["launch"]>[2]); }),
+      bindOwnerPluginAction(context, a.launch, input => {
+        const selected = publication(input);
+        return imports().launch(selected.content, selected.reference, { workspace_id: input.workspace_id, task: input.task, request_id: input.request_id });
+      }),
     ];
     // The old paths translate parameters and keep their status codes; execution is the registered owner-bound action.
     const route = <I, O>(route_id: string, definition: ActionDefinition<I, O>, input: (request: PluginRouteRequest) => I): PluginRouteBinding => ({ route_id, async handle(request) {
@@ -152,7 +155,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       route("characters.publication-file", a.publicationFile, request => body(request)),
       route("characters.import", a.import, request => body(request)),
       route("characters.execution", a.execution, request => ({ reference: body(request).reference as ArtifactReference })),
-      route("characters.launch", a.launch, request => body(request)),
+      route("characters.launch", a.launch, request => body(request) as CharacterLaunchInput),
       route("characters.runs", a.runs, request => ({ id: id(request) })),
       route("characters.list", a.list, () => ({})),
       route("characters.create", a.create, () => ({})),

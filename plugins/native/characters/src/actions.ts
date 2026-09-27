@@ -20,6 +20,9 @@ function define<I, O>(name: string, title: string, description: string, operatio
 
 export interface CharacterUpdateInput { id: string; expected_revision: number; title?: string; instructions?: string; host_tools?: string[] | null; action_tools?: unknown[] | null }
 /** Owner-bound: drafts and publications belong to the person who wrote them; the Runtime instance redeems each action. */
+/** A published Character run by a native Agent in one of the project's folders; the request id keeps a retried launch single. */
+export type CharacterLaunchInput = { reference: ArtifactReference; workspace_id: string; task: string; request_id: string };
+
 export const charactersActions = {
   list: define<Record<string, never>, { drafts: unknown[]; publications: unknown[] }>("list", "角色列表", "读取本人的角色草稿和本项目已发布的固定版本",
     "query", object({}), object({ drafts: { type: "array" }, publications: { type: "array" } }), ["artifact:read"]),
@@ -48,7 +51,8 @@ export const charactersActions = {
     "query", object({ reference }), { type: "object" }, ["artifact:read"], LOCAL),
   /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
   usages: defineActionUsagesAction("characters.usages", "角色里的使用位置", []),
-  launch: define<Record<string, unknown>, unknown>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
-    { type: "object", required: ["reference", "workspace_id", "task", "request_id"] }, { type: "object" }, ["artifact:read"], LOCAL),
+  launch: define<CharacterLaunchInput, unknown>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
+    { type: "object", properties: { reference, workspace_id: { type: "string" }, task: { type: "string" }, request_id: { type: "string" } },
+      required: ["reference", "workspace_id", "task", "request_id"] }, { type: "object" }, ["artifact:read"], LOCAL),
 };
 export const CHARACTERS_ACTIONS: readonly ActionDefinition[] = Object.values(charactersActions);

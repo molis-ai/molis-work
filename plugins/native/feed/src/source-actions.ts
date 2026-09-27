@@ -7,7 +7,7 @@ import { FeedStoreError } from "./application-errors.js";
 import type { FeedConnectorService } from "./connector-service.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { sourceRegistrationInput } from "./route-input.js";
-import type { ConfigureFeedSourceScheduleInput, UpdateFeedSourceInput } from "./source-ports.js";
+import type { ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, UpdateFeedSourceInput } from "./source-ports.js";
 import type { FeedSourceService } from "./source-service.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -45,7 +45,7 @@ export const feedSourceActions = {
     closed({ source_id: id, enabled: { type: "boolean" } }, ["source_id", "enabled"]), sourceResult),
   disconnect: define<{ source_id: string }, { source: FeedSourceRecord }>("disconnect", "断开来源账号", "断开账号型来源所用的账号；公开来源请暂停或删除",
     closed({ source_id: id }, ["source_id"]), sourceResult, LOCAL),
-  sync: define<{ source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, Record<string, unknown>>("sync", "立即拉取", "立即从来源拉取新消息，并按当前捕捉规则处理；同一幂等键重试不会重复拉取",
+  sync: define<{ source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, FeedSourceSyncResult>("sync", "立即拉取", "立即从来源拉取新消息，并按当前捕捉规则处理；同一幂等键重试不会重复拉取",
     closed({ source_id: id, idempotency_key: { type: "string", maxLength: 200 }, mode: { enum: ["normal", "rebuild_cursor"] } }, ["source_id"]), { type: "object" }),
 } as const;
 export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(feedSourceActions);
@@ -94,10 +94,10 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       const current = ports.feed().getSource(board, input.source_id);
       const idempotencyKey = input.idempotency_key ?? "";
       if (current.sync_kind === "public_source") {
-        return await ports.sources(caller).sync(input.source_id, { idempotencyKey, signal: AbortSignal.any([AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000), ...(caller.signal ? [caller.signal] : [])]) }) as unknown as Record<string, unknown>;
+        return await ports.sources(caller).sync(input.source_id, { idempotencyKey, signal: AbortSignal.any([AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000), ...(caller.signal ? [caller.signal] : [])]) });
       }
       if (isAccountConnectorSyncKind(current.sync_kind)) {
-        return await ports.connectors(caller).sync(input.source_id, { idempotencyKey, mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" }) as unknown as Record<string, unknown>;
+        return await ports.connectors(caller).sync(input.source_id, { idempotencyKey, mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" });
       }
       throw new FeedDomainError("这个来源没有同步能力", "feed_source_not_syncable");
     }),

@@ -14,7 +14,7 @@ test("a connected account is read through one registered connector action; conne
   const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: CONNECTOR_ACCOUNT_PERMISSIONS };
   try {
     const client = host.homeActionClient();
-    const rows = (await client.discover(user)).filter(row => row.provider.provider_id === "io.molis.work.connectors");
+    const rows = (await client.discover(user)).filter(row => row.provider.provider_id === "system.connectors");
     assert.deepEqual(rows.map(row => row.capability_id), ["connectors.account.read"]);
     await runWithMolisWorkHome(home, async () => {
       await assert.rejects(client.invoke(user, connectorAccountActions.read, { connector_id: "github" }), { code: "connectors.disconnected" });

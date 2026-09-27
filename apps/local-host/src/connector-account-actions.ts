@@ -46,7 +46,7 @@ export async function readConnectorAccount(connectorId: string): Promise<Connect
 /** The connector owner registers account identity as a system action; connecting an account grants no other capability. */
 export function connectorAccountActionProvider(home: string): ActionProviderRegistration {
   return {
-    provider: { provider_id: "io.molis.work.connectors", title: "服务连接", kind: "system" },
+    provider: { provider_id: "system.connectors", title: "服务连接", kind: "system" },
     definitions: Object.values(connectorAccountActions),
     handlers: [{ capability_id: connectorAccountActions.read.capability_id, version: 1,
       handle: (_caller, input) => runWithMolisWorkHome(home, () => readConnectorAccount((input as { connector_id: string }).connector_id)) }],

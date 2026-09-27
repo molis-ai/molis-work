@@ -1,5 +1,4 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ActionDefinition, ActionMetadata } from "../platform/actions.js";
 
 export const modulesProjectsContract = {
@@ -207,13 +206,13 @@ export const projectsCapabilities = {
     version: 1,
     operation: "query",
     action: workspaceQuery("项目工作区", "列出当前项目已授权的工作区目录", false),
-  } as HostCapabilityDefinition<[], readonly ProjectWorkspaceRef[]>,
+  } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
   readWorkspace: {
     capability_id: "projects.workspace.read.v1",
     version: 1,
     operation: "query",
     action: workspaceQuery("首选工作区", "读取当前项目的首选工作区；没有绑定时返回空值", true),
-  } as HostCapabilityDefinition<[], ProjectWorkspaceRef | null>,
+  } as ActionDefinition<[], ProjectWorkspaceRef | null>,
 } as const;
 
 /** Current-project settings: each item is independently declared in Manifest consumes.
@@ -225,13 +224,13 @@ export const projectSettingsCapabilities = {
     version: 1,
     operation: "query",
     action: workspaceQuery("工作区设置", "读取当前项目可供插件选择的工作区", false),
-  } as HostCapabilityDefinition<[], readonly ProjectWorkspaceRef[]>,
+  } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
   browsingWorkspace: {
     capability_id: "projects.settings.browsing-workspace.read.v1",
     version: 1,
     operation: "query",
     action: workspaceQuery("浏览工作区", "读取当前项目选中的浏览工作区；选择已失效时返回空值", true),
-  } as HostCapabilityDefinition<[], ProjectWorkspaceRef | null>,
+  } as ActionDefinition<[], ProjectWorkspaceRef | null>,
   /** Choosing which folder Files and Git browse is the person's own setting: the local user only. */
   selectBrowsingWorkspace: {
     capability_id: "projects.settings.browsing-workspace.select.v1",
@@ -241,7 +240,7 @@ export const projectSettingsCapabilities = {
       audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: { type: "string", minLength: 1, maxLength: 200 } },
       output_schema: WORKSPACE_SCHEMA, output_type: "project.workspace" },
-  } as HostCapabilityDefinition<[workspaceId: string], ProjectWorkspaceRef>,
+  } as ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>,
 } as const;
 
 /** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog; repair and unlink also move the sessions that used the folder. */

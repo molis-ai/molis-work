@@ -23,7 +23,7 @@ import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.
 import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import { handleFunctionsHttp } from "./functions-http.js";
-import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
@@ -162,7 +162,7 @@ export async function handleMolisWorkWebRequest(
               const body = await readBody(request);
               // The choice is the same registered project setting every caller uses; this route only adapts the form.
               if (typeof body.workspace_id !== "string" || !body.workspace_id) throw new Error("请选择当前项目已关联且可用的工作目录");
-              await bindLocalWebActions(localHost, hostReference, ["projects:settings"]).invoke(projectSettingsCapabilities.selectBrowsingWorkspace as unknown as ActionDefinition<[string], unknown>, [body.workspace_id]);
+              await bindLocalWebActions(localHost, hostReference, ["projects:settings"]).invoke(projectSettingsCapabilities.selectBrowsingWorkspace, [body.workspace_id]);
             }
             sendJson(response, 200, { workspaces, selected: settings.read(options.boardId, workspaces)?.workspace_id ?? null });
           } catch (error) { sendJson(response, 403, { error: error instanceof Error ? error.message : String(error) }); }

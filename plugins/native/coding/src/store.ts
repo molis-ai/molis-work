@@ -170,6 +170,14 @@ export class CodingSessionStore {
     return mapSession(row);
   }
 
+  /** The session behind a runtime session, archived or not. */
+  byRuntimeSession(boardId: string, runtimeSessionId: string): CodingSessionRecord | null {
+    const row = this.db.prepare(
+      "SELECT * FROM coding_sessions WHERE board_id = ? AND runtime_session_id = ?",
+    ).get(boardId, runtimeSessionId) as Row | undefined;
+    return row ? mapSession(row) : null;
+  }
+
   /** Newest first, which is the order the directory shows. */
   list(boardId: string): CodingSessionRecord[] {
     return (this.db.prepare(

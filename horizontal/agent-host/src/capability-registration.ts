@@ -260,6 +260,20 @@ export function registerAgentHostCapabilities<Context>(
       await context.invocation.beforeEffect();
       return adapter.messages.prioritize(ports.boardId(context), sessionId, caller?.actor_id ?? "user");
     }),
+    register(agentHostCapabilities.sendPeopleMessage, async (context, [runtimeId, input]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages?.sendForPeople) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能发会话间的信");
+      await context.invocation.beforeEffect();
+      return adapter.messages.sendForPeople(ports.boardId(context), input, caller?.actor_id ?? "user");
+    }),
+    register(agentHostCapabilities.actOnPeopleMessage, async (context, [runtimeId, messageId, action, detail]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages?.act) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能处理会话间的信");
+      await context.invocation.beforeEffect();
+      return adapter.messages.act(ports.boardId(context), messageId, action, detail ?? {}, caller?.actor_id ?? "user");
+    }),
     register(agentHostCapabilities.cancelMessage, async (context, [runtimeId, messageId]) => {
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);

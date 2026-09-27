@@ -248,7 +248,32 @@ export interface AgentSessionMessage {
   in_reply_to?: string;
   /** The sender waits for the answer before going on. */
   await_reply?: true;
+  /** For the people working the sessions (a delegation), never handed to a model. */
+  audience?: "people";
+  /** The App's own references it carries (fixed outputs, materials). */
+  attachments?: AgentMessageAttachment[];
+  /** Every step it went through, oldest first. */
+  history?: Array<{ event: string; state: AgentSessionMessage["state"]; at_ms: number; by?: string; note?: string; attachments?: AgentMessageAttachment[]; late?: true }>;
+  /** How many times the work has been passed on. */
+  hops?: number;
 }
+
+export interface AgentMessageAttachment { kind: string; id: string; version?: number; title?: string }
+
+/** A message the App sends for a person, to the people working another session. */
+export interface AgentPeopleMessageInput {
+  from_session: string;
+  to_session: string;
+  kind: "request" | "reply";
+  body: string;
+  in_reply_to?: string;
+  attachments?: AgentMessageAttachment[];
+  ttl_ms?: number;
+  hops?: number;
+}
+
+/** What a person does with a message for people; `event` names it in the App's words, `note` says why. */
+export type AgentPeopleMessageAction = "deliver" | "accept" | "reject" | "complete" | "cancel" | "record";
 
 export interface AgentSessionMessagesCapability {
   read(project: string, sessionId?: string): Promise<AgentSessionMessage[]>;
@@ -258,6 +283,10 @@ export interface AgentSessionMessagesCapability {
    * told, on its behalf, to make way for those files. Nothing is paused; who stops is still the person's call.
    */
   prioritize?(project: string, sessionId: string, actorId: string): Promise<{ notified: string[]; paths: string[] }>;
+  /** Send a message for people (a delegation, a delivery) on a person's behalf. */
+  sendForPeople?(project: string, input: AgentPeopleMessageInput, actorId: string): Promise<AgentSessionMessage>;
+  /** Move a message for people on: delivered, accepted or rejected (with why), completed, cancelled, or a note. */
+  act?(project: string, messageId: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }, actorId: string): Promise<AgentSessionMessage>;
 }
 
 /**
@@ -1170,6 +1199,14 @@ export const agentHostCapabilities = {
   prioritizeSession: {
     capability_id: "agent.messages.prioritize.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[runtimeId: string, sessionId: string], { notified: string[]; paths: string[] }>,
+  /** Send a message for people (a delegation, a delivery), on the person's behalf. */
+  sendPeopleMessage: {
+    capability_id: "agent.messages.send.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, input: AgentPeopleMessageInput], AgentSessionMessage>,
+  /** Move a message for people on, recording who and why. */
+  actOnPeopleMessage: {
+    capability_id: "agent.messages.act.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, messageId: string, action: AgentPeopleMessageAction, detail?: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }], AgentSessionMessage>,
   /** The person withdraws an open message. */
   cancelMessage: {
     capability_id: "agent.messages.cancel.v1", version: 1, operation: "command",

@@ -132,6 +132,17 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     await ended((await h.start()).ref);
     assert.match(seen.H![1]!, /it was sent, but you cannot wait for its answer: .*would wait in a circle/);
     assert.deepEqual(await adapter.waits!.read("b", h.session.session_id), []);
+    // A delegation between the people of two sessions goes by the same letters, for people: each step on its history
+    // with who and why; a path in the person's own task is theirs to write; a session of another project is out of reach.
+    const asked = await adapter.messages!.sendForPeople!("b", { from_session: g.session.session_id, to_session: h.session.session_id, kind: "request",
+      body: JSON.stringify({ title: "补测试", task: `给 ${root}/src/a.ts 补测试` }), attachments: [{ kind: "artifact", id: "coding-report:g:r1", version: 1 }], hops: 0 }, "user");
+    assert.deepEqual([asked.audience, asked.state, asked.hops, asked.attachments], ["people", "queued", 1, [{ kind: "artifact", id: "coding-report:g:r1", version: 1 }]]);
+    await adapter.messages!.act!("b", asked.message_id, "deliver", {}, "user");
+    await adapter.messages!.act!("b", asked.message_id, "accept", { note: "发送第一轮即视为接受" }, "user");
+    const taken = await adapter.messages!.act!("b", asked.message_id, "record", { event: "started" }, "user");
+    assert.deepEqual(taken.history!.map(entry => [entry.event, entry.state, entry.by, entry.note ?? null]),
+      [["sent", "queued", "user", null], ["delivered", "delivered", "user", null], ["accepted", "accepted", "user", "发送第一轮即视为接受"], ["started", "accepted", "user", null]]);
+    await assert.rejects(adapter.messages!.sendForPeople!("another", { from_session: g.session.session_id, to_session: h.session.session_id, kind: "request", body: "x" }, "user"), /只能在这个项目的两个会话之间发信/);
     // A claim left quiet: A's round is over and step-1 has not moved for three hours — it reads as expired, nothing is
     // taken back.
     const realNow = Date.now(), later = realNow + 3 * 60 * 60 * 1000;

@@ -1,5 +1,5 @@
 import type { Envelope, ExactRef, Runtime } from "@prologue/sdk";
-import type { AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMessageAttachment, AgentPeopleMessageAction, AgentPeopleMessageInput, AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** What the messages need to know about a session: its project, whether it is a subtask, how it is named. */
 export interface MessageSessions {
@@ -40,7 +40,7 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
   const unanswered = (sessionId: string) => {
     const to = runtime.delivery.list({ to: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> });
     const answered = new Set(runtime.delivery.list({ from: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> }).flatMap(envelope => envelope.inReplyTo ? [envelope.inReplyTo.id] : []));
-    return to.filter(envelope => ["request", "handoff"].includes(envelope.kind) && ["delivered", "accepted"].includes(envelope.state) && !answered.has(envelope.ref.id));
+    return to.filter(envelope => envelope.audience !== "people" && ["request", "handoff"].includes(envelope.kind) && ["delivered", "accepted"].includes(envelope.state) && !answered.has(envelope.ref.id));
   };
   runtime.hooks.register({ id: hook, event: "tool-before", blocking: true, handler: async context => {
     if (context.toolName !== "session-send") return { kind: "allow" };
@@ -78,6 +78,8 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
   const unsubscribe = runtime.delivery.subscribe(event => {
     if (event.type !== "sent") return;
     const envelope = event.envelope;
+    // A message for people is theirs to take up: no round hears it, and an answer to it settles nothing on its own.
+    if (envelope.audience === "people") return;
     void (async () => {
       const recipient = await sessions.owner(envelope.to.id);
       if (!recipient) return;
@@ -99,13 +101,18 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
     from_title: await sessions.title(project, envelope.from.id), to_title: await sessions.title(project, envelope.to.id),
     kind: envelope.kind as AgentSessionMessage["kind"], body: envelope.body, state: envelope.state, sent_at_ms: envelope.sentAtMs,
     ...(envelope.inReplyTo ? { in_reply_to: envelope.inReplyTo.id } : {}), ...(envelope.awaitReply ? { await_reply: true } : {}),
+    ...(envelope.audience === "people" ? { audience: "people" as const } : {}),
+    ...(envelope.attachments.length ? { attachments: envelope.attachments.map(one => ({ ...one })) } : {}),
+    history: envelope.history.map(one => ({ event: one.event, state: one.state, at_ms: one.atMs, ...(one.by ? { by: one.by } : {}), ...(one.note ? { note: one.note } : {}),
+      ...(one.attachments?.length ? { attachments: one.attachments.map(item => ({ ...item })) } : {}), ...(one.late ? { late: true as const } : {}) })),
+    hops: envelope.hops,
   });
   return {
     /** Messages kept for a session's next round: given with its task, and marked delivered. */
     async inbox(sessionId: string, project: string): Promise<string> {
       // A request given to a round that was cut off (a restart, a failure) is still open: the sender may be waiting on it.
       const open = unanswered(sessionId).filter(envelope => envelope.awaitReply);
-      const waiting = runtime.delivery.list({ to: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> }).filter(envelope => envelope.state === "queued");
+      const waiting = runtime.delivery.list({ to: { kind: "session", id: sessionId, revision: 1 } as ExactRef<"session"> }).filter(envelope => envelope.state === "queued" && envelope.audience !== "people");
       if (!waiting.length && !open.length) return "";
       const at = await now(), parts: string[] = [];
       for (const envelope of waiting) { parts.push(await words(envelope, project)); runtime.delivery.markDelivered(envelope.ref, at); }
@@ -133,6 +140,36 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       const mine: Envelope[] = [];
       for (const envelope of all) if ((await sessions.owner(envelope.from.id))?.project === project) mine.push(envelope);
       return Promise.all(mine.sort((a, b) => a.sentAtMs - b.sentAtMs).map(envelope => view(envelope, project)));
+    },
+    /** A message for people, sent on a person's behalf between two sessions of the project. */
+    async sendForPeople(project: string, request: AgentPeopleMessageInput, actorId: string): Promise<AgentSessionMessage> {
+      const from = await sessions.owner(request.from_session), to = await sessions.owner(request.to_session);
+      if (!from || !to || from.project !== project || to.project !== project || from.subtask || to.subtask) throw new Error("只能在这个项目的两个会话之间发信");
+      if (request.from_session === request.to_session) throw new Error("不能发给自己");
+      await runtime.sessions.open(from.ref); await runtime.sessions.open(to.ref);
+      const attachments: AgentMessageAttachment[] = request.attachments ?? [];
+      const sent = runtime.delivery.send({ from: from.ref, to: to.ref, kind: request.kind, body: request.body, audience: "people", by: actorId,
+        idempotencyKey: `people.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 10)}`, attachments,
+        ...(request.in_reply_to ? { inReplyTo: { kind: "envelope", id: request.in_reply_to, revision: 1 } as ExactRef<"envelope"> } : {}),
+        ...(request.ttl_ms ? { ttlMs: request.ttl_ms } : {}), ...(request.hops !== undefined ? { hops: request.hops } : {}) }, await now());
+      await runtime.delivery.flush();
+      return view(sent, project);
+    },
+    /** A person moves a message for people on; who and why go on its history. */
+    async act(project: string, id: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }, actorId: string): Promise<AgentSessionMessage> {
+      const ref = { kind: "envelope", id, revision: 1 } as ExactRef<"envelope">;
+      const envelope = runtime.delivery.get(ref);
+      if (envelope.audience !== "people") throw new Error("这不是给人处理的信");
+      if ((await sessions.owner(envelope.from.id))?.project !== project) throw new Error("这封信不属于这个项目");
+      const at = await now(), how = { by: actorId, ...(detail.event ? { event: detail.event } : {}), ...(detail.note ? { note: detail.note } : {}), ...(detail.attachments ? { attachments: detail.attachments } : {}) };
+      const moved = action === "deliver" ? runtime.delivery.markDelivered(ref, at, how)
+        : action === "accept" ? runtime.delivery.respond(ref, true, at, how)
+        : action === "reject" ? runtime.delivery.respond(ref, false, at, how)
+        : action === "complete" ? runtime.delivery.complete(ref, at, how)
+        : action === "cancel" ? runtime.delivery.cancel(ref, how, at)
+        : runtime.delivery.record(ref, { ...how, event: detail.event ?? "note" }, at);
+      await runtime.delivery.flush();
+      return view(moved, project);
     },
     /** The person withdraws an open message. */
     async cancel(project: string, messageId: string) {

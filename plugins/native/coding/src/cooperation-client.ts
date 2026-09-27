@@ -1,6 +1,7 @@
 /**
- * Sessions working together, as people see it. A session created for a delegation shows where it came from and
- * what is asked of it, and hands its finished round back; the session that asked follows each delegation's receipts
+ * Sessions working together, as people see it. A delegation goes by letter between the two sessions (the SDK's
+ * envelope for people); records from before that are shown read-only. A session created for a delegation shows where
+ * it came from and what is asked of it, and hands its finished round back; the session that asked follows each delegation's receipts
  * and decides whether to take what comes back. Related sessions are listed read-only, and so are the messages the
  * sessions' models sent each other, which the person can withdraw while open. The session's background commands are
  * listed too, with a way to stop one still running. None of it reaches the model.
@@ -50,8 +51,8 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const head=el('div','coding-coop-head');head.append(el('strong','','来自其他会话的委派'),stateChip(incoming));
     const from=el('p','coding-coop-line');from.append(document.createTextNode('发起：'),sessionLink(incoming.from),document.createTextNode(' · '+incoming.title));
     // An ended delegation stays as one line with its receipts; it no longer asks anything of this session.
-    const ended=['completed','rejected','cancelled','failed'].includes(incoming.state);banner.classList.toggle('is-ended',ended);
-    if(ended){head.append(from);banner.append(head,receipts(incoming));return;}
+    const ended=['completed','rejected','cancelled','failed'].includes(incoming.state)||incoming.legacy;banner.classList.toggle('is-ended',ended);
+    if(ended){head.append(from);banner.append(head);if(incoming.legacy)banner.append(el('p','coding-coop-note','迁移前的委派记录，只读。'));banner.append(receipts(incoming));return;}
     const task=el('details','coding-coop-task');task.append(el('summary','','委派内容'),el('p','',incoming.task));
     banner.append(head,from,task);
     const row=el('div','coding-coop-actions'),path='/'+encodeURIComponent(incoming.delegation_id);
@@ -101,6 +102,8 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     for(const delegation of value.outgoing){
       const card=el('article','coding-coop-card'),head=el('div','coding-coop-head'),path='/'+encodeURIComponent(delegation.delegation_id);
       head.append(el('strong','',delegation.title),stateChip(delegation));
+      // Settled or from before delegations went by letter: nothing more to decide on it.
+      const open=!delegation.legacy&&!['completed','rejected','cancelled','failed'].includes(delegation.state);
       const to=el('p','coding-coop-line');to.append(document.createTextNode('委派给'),sessionLink(delegation.to));if(delegation.to?.state)to.append(el('span','coding-coop-note','那边：'+(SESSION_STATE[delegation.to.state]||delegation.to.state)));card.append(head,to);
       for(const delivery of delegation.deliveries){
         const row=el('div','coding-coop-delivery');row.dataset.state=delivery.state;
@@ -108,14 +111,15 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         // What came back can be read before it is taken: the fixed version opens in its own tab, read-only, and this
         // session stays where it is.
         if(delivery.artifact&&openArtifact)row.append(button(delivery.kind==='report'?'查看交付的报告':'查看交付的变更','ghost',()=>openArtifact(delivery.artifact,delivery.title)));
-        if(delivery.state==='sent'){const actions=el('div','coding-coop-actions');
+        if(delivery.state==='sent'&&open){const actions=el('div','coding-coop-actions');
           actions.append(button('收下并作为下一轮材料','secondary',()=>void act(path+'/deliveries/'+encodeURIComponent(delivery.delivery_id),{decision:'accept',expected_revision:delegation.revision},'已收下，交付的成果已加入下一轮材料。').then(()=>materialsChanged())),
             button('不收下…','ghost',()=>{actions.replaceChildren(reasonForm('不收下的原因（对方会看到）','确认',reason=>act(path+'/deliveries/'+encodeURIComponent(delivery.delivery_id),{decision:'reject',reason,expected_revision:delegation.revision},'已退回，对方可以修改后再交付。')));}));
           row.append(actions);}
-        else row.append(el('p','coding-coop-note',delivery.state==='accepted'?'已收下 · '+time(delivery.decided_at):'没有收下：'+delivery.reason));
+        else if(delivery.state!=='sent')row.append(el('p','coding-coop-note',delivery.state==='accepted'?'已收下 · '+time(delivery.decided_at):'没有收下：'+delivery.reason));
         card.append(row);
       }
-      if(!['completed','rejected','cancelled','failed'].includes(delegation.state))card.append(button('取消委派','ghost',()=>void act(path,{action:'cancel',expected_revision:delegation.revision},'已取消这个委派。')));
+      if(open)card.append(button('取消委派','ghost',()=>void act(path,{action:'cancel',expected_revision:delegation.revision},'已取消这个委派。')));
+      if(delegation.legacy)card.append(el('p','coding-coop-note','迁移前的委派记录，只读。'));
       card.append(receipts(delegation));section.append(card);
     }
     if(value.incoming){const line=el('p','coding-coop-line');line.append(document.createTextNode('这个会话来自'),sessionLink(value.incoming.from),document.createTextNode('的委派 · '+value.incoming.state_label));section.append(line);}

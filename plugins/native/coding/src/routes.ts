@@ -6,7 +6,7 @@ import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentWait, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentMessageAttachment, type AgentPeopleMessageAction, type AgentSessionMessage, type AgentWait, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
@@ -18,7 +18,7 @@ import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalConte
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
 import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
-import { CodingCooperationStore, DELEGATION_STATE_LABEL, type CodingDelegation } from "./cooperation.js";
+import { CodingCooperationStore, DELEGATION_ENDED, DELEGATION_STATE_LABEL, MAX_DELEGATION_HOPS, type CodingDelegation, type DelegationState } from "./cooperation.js";
 import { attachMentions, readWorkspaceFileCapability, symbolsIn, workspaceFileIndex } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
@@ -93,6 +93,8 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
   if(new Set(refs.map(ref=>ref.server)).size!==refs.length) throw new Error("MCP 资料来源重复");
   return refs;
 }
+/** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
+const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 function nextConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
   const config = value as Record<string, unknown>;
@@ -206,14 +208,94 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   /** Every fixed output of this project's Coding sessions, with the session it came from. */
   const sessionOutputs = (execution: CodingExecutionPorts) => [...execution.reportReferences?.() ?? [], ...execution.changeSetReferences?.() ?? [], ...execution.planReferences?.() ?? []]
     .flatMap(reference => { const [, encoded] = reference.artifact_id.split(":"); return encoded ? [{ reference, session_id: decodeURIComponent(encoded) }] : []; });
-  /** A delegation as either side sees it: the other session named, and its end noticed when that session is gone. */
-  const delegationView = (execution: CodingExecutionPorts, delegation: CodingDelegation, actor: string) => {
-    const title = sessionTitle(execution);
-    if (delegation.to_session && !title(delegation.to_session) && !["completed", "rejected", "cancelled", "failed"].includes(delegation.state)) {
-      try { delegation = cooperation().apply(delegation.delegation_id, undefined, "failed", "failed", actor, new Date().toISOString(), () => {}, "接收委派的会话已不存在"); } catch { /* a concurrent change wins; shown as read */ }
-    }
-    const other = (id: string | null) => { if (!id) return null; try { const record = execution.sessions.get(boardId, id); return { session_id: id, title: record.title, state: record.state, updated_at: record.updated_at }; } catch { return { session_id: id, title: null, state: null, updated_at: null }; } };
-    return { ...delegation, state_label: DELEGATION_STATE_LABEL[delegation.state], from: other(delegation.from_session), to: other(delegation.to_session) };
+  const sideOf = (execution: CodingExecutionPorts, id: string | null) => {
+    if (!id) return null;
+    try { const record = execution.sessions.get(boardId, id); return { session_id: id, title: record.title, state: record.state, updated_at: record.updated_at }; }
+    catch { return { session_id: id, title: null, state: null, updated_at: null }; }
+  };
+  /** A delegation from before delegations went by letter: shown as it was, changed no more. */
+  const legacyView = (execution: CodingExecutionPorts, delegation: CodingDelegation) =>
+    ({ ...delegation, legacy: true as const, state_label: DELEGATION_STATE_LABEL[delegation.state], from: sideOf(execution, delegation.from_session), to: sideOf(execution, delegation.to_session) });
+  /**
+   * A delegation is a letter for people between two sessions (the SDK's envelope, never handed to a model): the
+   * request carries the task and the fixed outputs handed over, each delivery is a reply carrying the fixed output
+   * handed back, and every step — sent, delivered, accepted, started, delivered back, taken or returned with why — is
+   * on the request's history.
+   */
+  const isDelegation = (letter: AgentSessionMessage) => letter.audience === "people" && letter.kind === "request";
+  const letterBody = (letter: AgentSessionMessage): Record<string, unknown> => {
+    try { const value = JSON.parse(letter.body) as unknown; return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; } catch { return {}; }
+  };
+  const artifactOf = (attachment: AgentMessageAttachment | undefined) => attachment?.kind === "artifact" && attachment.version !== undefined ? { artifact_id: attachment.id, version: attachment.version } : undefined;
+  const asAttachment = (reference: { artifact_id: string; version: number }): AgentMessageAttachment => ({ kind: "artifact", id: reference.artifact_id, version: reference.version });
+  const iso = (ms: number) => new Date(ms).toISOString();
+  type LetterHistory = NonNullable<AgentSessionMessage["history"]>;
+  /** The delegation's state from its letter's: accepted and started is under way; how it was cancelled says why. */
+  const delegationStateOf = (state: AgentSessionMessage["state"], history: LetterHistory): DelegationState => {
+    if (state === "queued") return "received";
+    if (state === "accepted") return history.some(entry => entry.event === "started") ? "committing" : "accepted";
+    if (state === "cancelled") { const how = history.find(entry => entry.state === "cancelled")?.event; return how === "failed" ? "failed" : how === "rejected" ? "rejected" : "cancelled"; }
+    if (state === "expired") return "failed";
+    return state;
+  };
+  const RECEIPT_EVENT: Record<string, string> = { sent: "submitted" };
+  const delegationView = (execution: CodingExecutionPorts, letter: AgentSessionMessage, letters: AgentSessionMessage[]) => {
+    const said = letterBody(letter), history = letter.history ?? [];
+    const codingOf = (runtime: string) => execution.sessions.byRuntimeSession(boardId, runtime)?.session_id ?? null;
+    const replies = letters.filter(one => one.audience === "people" && one.kind === "reply" && one.in_reply_to === letter.message_id);
+    const deliveries = replies.map(reply => {
+      const about = letterBody(reply), decided = (reply.history ?? []).find(entry => entry.state === "accepted" || entry.state === "rejected");
+      return { delivery_id: reply.message_id, kind: about.kind === "changeset" ? "changeset" as const : "report" as const, artifact: artifactOf(reply.attachments?.[0]) ?? null,
+        run_id: String(about.run_id ?? ""), title: String(about.title ?? ""), note: String(about.note ?? ""),
+        state: decided?.state === "rejected" ? "rejected" as const : decided ? "accepted" as const : "sent" as const,
+        ...(decided?.state === "rejected" && decided.note ? { reason: decided.note } : {}), sent_at: iso(reply.sent_at_ms),
+        ...(decided ? { decided_at: iso(decided.at_ms), decided_by: decided.by ?? "" } : {}) };
+    });
+    const receipts = history.map((entry, index) => ({ event: RECEIPT_EVENT[entry.event] ?? entry.event, state: delegationStateOf(entry.state, history.slice(0, index + 1)),
+      at: iso(entry.at_ms), actor: entry.by ?? "", ...(entry.note ? { note: entry.note } : {}), ...(artifactOf(entry.attachments?.[0]) ? { artifact: artifactOf(entry.attachments?.[0]) } : {}),
+      ...(entry.late ? { recorded_only: true as const } : {}) }));
+    const state = delegationStateOf(letter.state, history), from = codingOf(letter.from_session), to = codingOf(letter.to_session);
+    return { delegation_id: letter.message_id, from_session: from, to_session: to, title: String(said.title ?? ""), task: String(said.task ?? ""),
+      materials: (letter.attachments ?? []).flatMap(one => artifactOf(one) ?? []), hops: letter.hops ?? 1, state, state_label: DELEGATION_STATE_LABEL[state],
+      // Every step either letter took: an action named against an older count is refused as a change under it.
+      revision: history.length + replies.reduce((sum, reply) => sum + (reply.history?.length ?? 0), 0), deliveries, receipts,
+      created_at: iso(letter.sent_at_ms), from: sideOf(execution, from), to: sideOf(execution, to) };
+  };
+  /** Letters for a delegation go between runtime sessions: a session that has not run yet gets its own now. */
+  const runtimeSessionOf = async (record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, actorId: string) => {
+    if (record.runtime_session_id) return record.runtime_session_id;
+    const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
+    const chosen = typeof saved === "string" ? (JSON.parse(saved) as { workspace_id?: string }).workspace_id : undefined;
+    const workspaces = await api.invoke(projectSettingsCapabilities.workspaces, []);
+    const workspace = workspaces.find(entry => entry.workspace_id === chosen && entry.realpath_verified) ?? workspaces.find(entry => entry.realpath_verified);
+    if (!workspace) throw new Error("请先为这个项目选择已授权的工作区目录");
+    const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
+    const session = await api.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: workspace.canonical_path, realpath_verified: true }, title: record.title }]);
+    execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
+    return session.session_id;
+  };
+  /** The delegation named, as this session sees it; an action against an older revision is refused. */
+  const delegationOf = async (record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, id: string, expected: unknown) => {
+    if (cooperation().get(id)) throw new Error("这是迁移前的委派记录，只读，不能再操作");
+    const letters = record.runtime_session_id ? await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id]) : [];
+    const letter = letters.find(one => one.message_id === id && isDelegation(one));
+    if (!letter) throw new Error("找不到这个委派");
+    const view = delegationView(execution, letter, letters);
+    if (typeof expected === "number" && expected !== view.revision) throw new Error("协作状态刚刚变化，请刷新后再操作");
+    return { letter, letters, view, mine: record.runtime_session_id! };
+  };
+  /** After the delegation ended, an action is kept on its history as late, and changes nothing. */
+  const lateOnly = async (api: Capabilities, runtimeId: string, letter: AgentSessionMessage, label: string, event: string, note?: string): Promise<never> => {
+    await api.invoke(agent.actOnPeopleMessage, [runtimeId, letter.message_id, "record", { event, ...(note ? { note } : {}) }]);
+    throw Object.assign(new Error(`这个委派已经${label}；这次操作只记录，不改变结果`), { code: "coding.cooperation_ended" });
+  };
+  /** A session made for a delegation starts on it with its first round: that is its acceptance. */
+  const startDelegation = async (record: CodingSessionRecord, api: Capabilities, runtimeSession: string) => {
+    const letters = await api.invoke(agent.readMessages, [record.runtime_id, runtimeSession]);
+    const incoming = letters.filter(letter => isDelegation(letter) && letter.to_session === runtimeSession).at(-1);
+    if (!incoming || !["delivered", "accepted"].includes(incoming.state) || (incoming.history ?? []).some(entry => entry.event === "started")) return;
+    if (incoming.state === "delivered") await api.invoke(agent.actOnPeopleMessage, [record.runtime_id, incoming.message_id, "accept", { note: "发送第一轮即视为接受" }]);
+    await api.invoke(agent.actOnPeopleMessage, [record.runtime_id, incoming.message_id, "record", { event: "started" }]);
   };
   const savedBudget = (sessionId: string): { tokens: number } | null => {
     const saved = context.services?.storage?.get(`budget:${sessionId}`);
@@ -409,6 +491,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     let earlier: AgentRunView[] | undefined;
     const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
     let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
+    // A session given its runtime session before it ran (a delegation's letters need one) still starts with its first round.
+    const firstRound = !record.runtime_session_id || !(await earlierRuns()).length;
     // The digest is written by the round's own model from the rounds' records, building on the one the latest digest
     // round carried; the call runs beside the project's other operations. If it cannot be written, the Host's own
     // record-based digest carries the round and the page says why. Either way it is written once per round.
@@ -434,7 +518,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       // A round that waited for other work takes over the item it waited as.
       ...(typeof body.queued_work_id === "string" ? { queued_work_id: body.queued_work_id } : {}),
       // Listed in the project's work by the name the person sees (a new session is named from its first task).
-      session_title: !record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title,
+      session_title: firstRound && record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title,
   ...(mode === "digest" ? { history: "digest" as const } : {}),
   budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
   model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
@@ -447,17 +531,11 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     }
     if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
     // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
-    const incoming = cooperation().forSession(record.session_id).incoming;
-    if (incoming && ["delivered", "accepted"].includes(incoming.state)) {
-  const at = new Date().toISOString();
-  try {
-    if (incoming.state === "delivered") cooperation().apply(incoming.delegation_id, undefined, "accepted", "accepted", actorId, at, () => {}, "发送第一轮即视为接受");
-    cooperation().apply(incoming.delegation_id, undefined, "started", "committing", actorId, at);
-  } catch { /* the round has started; the delegation shows its own last recorded state */ }
-    }
+    // The round has started either way; the delegation shows its own last recorded state.
+    if (session.runtime_id === "prologue") await startDelegation(record, api!, session.session_id).catch(() => undefined);
     if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
     // A session named by default takes its name from the first task, the way a person would label it.
-    if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
+    if (firstRound && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
     execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
     // How this round was started, so a round woken later (an answer arrived) starts the same way.
     // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
@@ -1071,9 +1149,20 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       return { runs: light, subagents: await subagentGroups(api!, record.session_id, session, full), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };
     }),
     // Sessions working together: what this session delegated, what it was created for, and the sessions they touch.
-    route("coding.delegations", async (request, _api, execution) => {
+    route("coding.delegations", async (request, api, execution) => {
       const record = selected(request, execution);
-      const { outgoing, incoming } = cooperation().forSession(record.session_id);
+      const legacy = cooperation().forSession(record.session_id);
+      const mine = record.runtime_session_id;
+      let letters = mine ? await api!.invoke(agent.readMessages, [record.runtime_id, mine]) : [];
+      // A delegation whose receiving session is gone has failed; recorded once, then shown as such.
+      const gone = letters.filter(letter => isDelegation(letter) && letter.from_session === mine && ["queued", "delivered", "accepted"].includes(letter.state)
+        && !execution.sessions.byRuntimeSession(boardId, letter.to_session));
+      for (const letter of gone) await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, "cancel", { event: "failed", note: "接收委派的会话已不存在" }]).catch(() => undefined);
+      if (gone.length) letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine!]);
+      const outgoing = [...letters.filter(letter => isDelegation(letter) && letter.from_session === mine).reverse().map(letter => delegationView(execution, letter, letters)),
+        ...legacy.outgoing.map(item => legacyView(execution, item))];
+      const received = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1);
+      const incoming = received ? delegationView(execution, received, letters) : legacy.incoming ? legacyView(execution, legacy.incoming) : null;
       const referenced = [...new Set(savedMaterials(context, record.session_id).flatMap(ref => /^coding-(report|changeset|plan):/.test(ref.artifact_id) ? [decodeURIComponent(ref.artifact_id.split(":")[1]!)] : []))]
         .filter(id => id !== record.session_id);
       const outputsBySession = new Map<string, Array<{ reference: { artifact_id: string; version: number }; kind: string }>>();
@@ -1084,85 +1173,119 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const relation = [outgoing.some(item => item.to_session === id) ? "你委派给它" : "", incoming?.from_session === id ? "它委派给你" : "", referenced.includes(id) ? "你引用了它的成果" : ""].filter(Boolean);
         return { session_id: id, title: session?.title ?? null, state: session?.state ?? null, updated_at: session?.updated_at ?? null, relation, outputs: (outputsBySession.get(id) ?? []).slice(-3).reverse() };
       });
-      return { outgoing: outgoing.map(item => delegationView(execution, item, request.actor_id)), incoming: incoming ? delegationView(execution, incoming, request.actor_id) : null, related };
+      return { outgoing, incoming, related };
     }),
-    // Delegating creates a session with the task as its draft; nothing runs until that session's person sends it.
-    route("coding.delegate", async (request, _api, execution) => {
+    // Delegating creates a session with the task as its draft and sends it the letter; nothing runs until that
+    // session's person sends it.
+    route("coding.delegate", async (request, api, execution) => {
       const record = selected(request, execution), body = bodyOf(request);
+      if (record.runtime_id !== "prologue") throw new Error("委派经 Prologue 的会话间通信送达，这个会话用的是别的运行时");
       const task = text(body.task, "委派的任务", 20_000), title = text(body.title ?? codingSessionTitleFrom(task), "委派标题", 80);
       const materials = materialSelection(body.materials ?? []);
       resolveMaterials(context, materials, sessionTitle(execution));
-      const at = new Date().toISOString(), store = cooperation();
-      const delegation = store.create({ from_session: record.session_id, title, task, materials, actor: request.actor_id, at });
+      const mine = await runtimeSessionOf(record, api!, execution, request.actor_id);
+      // How far the work has been passed on: one more than the delegation this session was created for.
+      const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
+      const hops = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1)?.hops ?? cooperation().forSession(record.session_id).incoming?.hops ?? 0;
+      if (hops + 1 > MAX_DELEGATION_HOPS) throw new Error(`委派最多转交 ${MAX_DELEGATION_HOPS} 层；这个会话本身已是第 ${hops} 层委派`);
+      const at = new Date().toISOString();
       const target = execution.sessions.create({ board_id: boardId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: "prologue", at });
-      context.services!.storage!.set(`draft:${target.session_id}`, task);
-      if (materials.length) context.services!.storage!.set(`materials:${target.session_id}`, JSON.stringify(materials));
-      // The work happens where the asking session works, with its model, unless the receiving person changes them.
-      const configuration = context.services!.storage!.get(`configuration:${record.session_id}`);
-      if (typeof configuration === "string") context.services!.storage!.set(`configuration:${target.session_id}`, configuration);
-      store.bindTarget(delegation.delegation_id, target.session_id);
-      const delivered = store.apply(delegation.delegation_id, delegation.revision, "delivered", "delivered", request.actor_id, at, item => { item.to_session = target.session_id; });
-      return { delegation: delegationView(execution, delivered, request.actor_id), session: target };
+      try {
+        context.services!.storage!.set(`draft:${target.session_id}`, task);
+        if (materials.length) context.services!.storage!.set(`materials:${target.session_id}`, JSON.stringify(materials));
+        // The work happens where the asking session works, with its model, unless the receiving person changes them.
+        const configuration = context.services!.storage!.get(`configuration:${record.session_id}`);
+        if (typeof configuration === "string") context.services!.storage!.set(`configuration:${target.session_id}`, configuration);
+        const theirs = await runtimeSessionOf(target, api!, execution, request.actor_id);
+        const sent = await api!.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: theirs, kind: "request", body: JSON.stringify({ title, task }),
+          attachments: materials.map(asAttachment), ttl_ms: DELEGATION_TTL_MS, hops }]);
+        // The session made for it holds it as its draft: it has arrived.
+        const delivered = await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, sent.message_id, "deliver", {}]);
+        return { delegation: delegationView(execution, delivered, []), session: execution.sessions.get(boardId, target.session_id) };
+      } catch (error) {
+        // Nothing was sent: the session made for it is put away rather than left waiting on a letter that never came.
+        execution.sessions.archive(boardId, target.session_id, new Date().toISOString());
+        throw error;
+      }
     }),
-    route("coding.delegation-action", async (request, _api, execution) => {
-      const record = selected(request, execution), body = bodyOf(request), store = cooperation();
-      const delegation = store.get(text(request.params.delegationId, "委派")), at = new Date().toISOString();
-      if (!delegation) throw new Error("找不到这个委派");
-      const revision = typeof body.expected_revision === "number" ? body.expected_revision : undefined;
+    route("coding.delegation-action", async (request, api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      const { letter, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
       const reason = typeof body.reason === "string" ? body.reason.trim() : "";
       if (reason.length > 2000) throw new Error("说明最多 2000 字");
-      let next: CodingDelegation;
+      const act = (action: AgentPeopleMessageAction, detail: { event?: string; note?: string } = {}) => api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, action, detail]);
+      const ended = DELEGATION_ENDED.includes(view.state);
+      let next: AgentSessionMessage;
       if (body.action === "accept" || body.action === "reject") {
-        if (delegation.to_session !== record.session_id) throw new Error("只有接收委派的会话可以接受或拒绝");
+        if (letter.to_session !== mine) throw new Error("只有接收委派的会话可以接受或拒绝");
         if (body.action === "reject" && !reason) throw new Error("拒绝委派时请写明原因");
-        next = body.action === "accept" ? store.apply(delegation.delegation_id, revision, "accepted", "accepted", request.actor_id, at)
-          : store.apply(delegation.delegation_id, revision, "rejected", "rejected", request.actor_id, at, () => {}, reason);
+        if (ended) return lateOnly(api!, record.runtime_id, letter, view.state_label, body.action === "accept" ? "accepted" : "rejected", reason);
+        if (body.action === "accept") {
+          if (view.state !== "delivered") throw new Error(`这个委派${view.state_label}，不需要再接受`);
+          next = await act("accept");
+        } else if (view.state === "delivered") next = await act("reject", { note: reason });
+        // Accepted, not started yet: turning it down after all ends it the same way.
+        else if (view.state === "accepted") next = await act("cancel", { event: "rejected", note: reason });
+        else throw new Error("已经开始执行的委派不能再拒绝；可以交付成果，或请发起的会话取消");
       } else if (body.action === "cancel") {
-        if (delegation.from_session !== record.session_id) throw new Error("只有发起委派的会话可以取消");
-        next = store.apply(delegation.delegation_id, revision, "cancelled", "cancelled", request.actor_id, at, () => {}, reason || undefined);
+        if (letter.from_session !== mine) throw new Error("只有发起委派的会话可以取消");
+        if (ended) return lateOnly(api!, record.runtime_id, letter, view.state_label, "cancelled", reason);
+        next = await act("cancel", reason ? { note: reason } : {});
       } else throw new Error("不支持的协作操作");
-      return { delegation: delegationView(execution, next, request.actor_id) };
+      return { delegation: delegationView(execution, next, await api!.invoke(agent.readMessages, [record.runtime_id, mine])) };
     }),
     // Handing a finished round back: its report is fixed now if it was not yet; a fixed change must already be saved.
+    // The delivery is a reply to the delegation's letter.
     route("coding.delegation-deliver", async (request, api, execution) => {
-      const record = selected(request, execution), body = bodyOf(request), store = cooperation();
-      const delegation = store.get(text(request.params.delegationId, "委派"));
-      if (!delegation || delegation.to_session !== record.session_id) throw new Error("只有接收委派的会话可以交付成果");
+      const record = selected(request, execution), body = bodyOf(request);
+      const { letter, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
+      if (letter.to_session !== mine) throw new Error("只有接收委派的会话可以交付成果");
       const runId = text(body.run_id, "交付的轮次", 200), note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
       const kind: "report" | "changeset" = body.kind === "changeset" ? "changeset" : body.kind === "report" ? "report" : (() => { throw new Error("请选择交付报告或固定变更"); })();
+      if (["received", "delivered", "accepted"].includes(view.state)) throw new Error("请先在这个会话里执行一轮，再交付成果");
+      if (DELEGATION_ENDED.includes(view.state)) return lateOnly(api!, record.runtime_id, letter, view.state_label, "delivery-sent", note);
+      if (view.deliveries.some(delivery => delivery.state === "sent")) throw new Error("上一次交付还在等发起的会话决定");
       let artifact, title;
       if (kind === "report") { const saved = await roundReport(record, runId, api!, true); if (!saved.reference) throw new Error("这一轮的报告没有固定下来"); artifact = saved.reference; title = saved.report.title; }
       else { const saved = readCodingChangeSet(context.services!.artifacts, record.session_id, runId); if (!saved) throw new Error("请先固定这一轮的变更，再交付"); artifact = saved.reference; title = "固定变更"; }
-      const at = new Date().toISOString(), delivery = { delivery_id: crypto.randomUUID(), kind, artifact, run_id: runId, title, note, state: "sent" as const, sent_at: at };
-      if (["received", "delivered", "accepted"].includes(delegation.state)) throw new Error("请先在这个会话里执行一轮，再交付成果");
-      const next = store.apply(delegation.delegation_id, typeof body.expected_revision === "number" ? body.expected_revision : undefined, "delivery-sent", null, request.actor_id, at,
-        item => { item.deliveries.push(delivery); }, note || undefined, artifact);
-      return { delegation: delegationView(execution, next, request.actor_id) };
+      const reply = await api!.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: letter.from_session, kind: "reply", in_reply_to: letter.message_id,
+        body: JSON.stringify({ kind, run_id: runId, title, note }), attachments: [asAttachment(artifact)], ttl_ms: DELEGATION_TTL_MS }]);
+      await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, reply.message_id, "deliver", {}]);
+      await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, "record", { event: "delivery-sent", ...(note ? { note } : {}), attachments: [asAttachment(artifact)] }]);
+      const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
+      return { delegation: delegationView(execution, letters.find(one => one.message_id === letter.message_id)!, letters) };
     }),
-    // The asking session decides: taking a delivery completes the delegation and attaches it to the next round.
-    route("coding.delegation-decide", async (request, _api, execution) => {
-      const record = selected(request, execution), body = bodyOf(request), store = cooperation();
-      const delegation = store.get(text(request.params.delegationId, "委派"));
-      if (!delegation || delegation.from_session !== record.session_id) throw new Error("只有发起委派的会话可以决定是否收下交付");
-      const delivery = delegation.deliveries.find(item => item.delivery_id === request.params.deliveryId);
-      if (!delivery) throw new Error("找不到这次交付");
+    // The asking session decides: taking a delivery completes the delegation and attaches it to the next round;
+    // returning it says why, and the work stays with the other session.
+    route("coding.delegation-decide", async (request, api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      const { letter, letters, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
+      if (letter.from_session !== mine) throw new Error("只有发起委派的会话可以决定是否收下交付");
+      const delivery = view.deliveries.find(item => item.delivery_id === request.params.deliveryId);
+      const reply = letters.find(one => one.message_id === request.params.deliveryId);
+      if (!delivery || !reply) throw new Error("找不到这次交付");
       if (delivery.state !== "sent") throw new Error("这次交付已经处理过");
-      const reason = typeof body.reason === "string" ? body.reason.trim() : "", at = new Date().toISOString();
-      const revision = typeof body.expected_revision === "number" ? body.expected_revision : undefined;
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+      if (body.decision !== "accept" && body.decision !== "reject") throw new Error("请选择收下或不收下");
+      if (body.decision === "reject" && !reason) throw new Error("不收下交付时请写明原因，对方会看到");
+      if (DELEGATION_ENDED.includes(view.state)) return lateOnly(api!, record.runtime_id, letter, view.state_label, body.decision === "accept" ? "delivery-accepted" : "delivery-rejected", reason);
+      const on = (id: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] } = {}) =>
+        api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, id, action, detail]);
+      const handed = delivery.artifact ? [asAttachment(delivery.artifact)] : [];
       if (body.decision === "reject") {
-        if (!reason) throw new Error("不收下交付时请写明原因，对方会看到");
-        const next = store.apply(delegation.delegation_id, revision, "delivery-rejected", null, request.actor_id, at, item => {
-          Object.assign(item.deliveries.find(entry => entry.delivery_id === delivery.delivery_id)!, { state: "rejected", reason, decided_at: at, decided_by: request.actor_id }); }, reason, delivery.artifact);
-        return { delegation: delegationView(execution, next, request.actor_id) };
+        await on(reply.message_id, "reject", { note: reason });
+        await on(letter.message_id, "record", { event: "delivery-rejected", note: reason, attachments: handed });
+      } else {
+        if (!delivery.artifact) throw new Error("这次交付没有带上固定成果");
+        resolveMaterials(context, [delivery.artifact], sessionTitle(execution));
+        await on(reply.message_id, "accept"); await on(reply.message_id, "complete");
+        await on(letter.message_id, "complete", { event: "delivery-accepted", attachments: handed });
+        const saved = savedMaterials(context, record.session_id);
+        if (!saved.some(ref => ref.artifact_id === delivery.artifact!.artifact_id && ref.version === delivery.artifact!.version) && saved.length < 30)
+          context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify([...saved, delivery.artifact]));
       }
-      if (body.decision !== "accept") throw new Error("请选择收下或不收下");
-      resolveMaterials(context, [delivery.artifact], sessionTitle(execution));
-      const next = store.apply(delegation.delegation_id, revision, "delivery-accepted", "completed", request.actor_id, at, item => {
-        Object.assign(item.deliveries.find(entry => entry.delivery_id === delivery.delivery_id)!, { state: "accepted", decided_at: at, decided_by: request.actor_id }); }, undefined, delivery.artifact);
-      const saved = savedMaterials(context, record.session_id);
-      if (!saved.some(ref => ref.artifact_id === delivery.artifact.artifact_id && ref.version === delivery.artifact.version) && saved.length < 30)
-        context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify([...saved, delivery.artifact]));
-      return { delegation: delegationView(execution, next, request.actor_id), attached: true };
+      const now = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
+      return { delegation: delegationView(execution, now.find(one => one.message_id === letter.message_id)!, now), ...(body.decision === "accept" ? { attached: true } : {}) };
     }),
     // Like /compact: the next round starts from the digest of earlier rounds instead of replaying them verbatim.
     route("coding.compact-next", async (request, _api, execution) => {
@@ -1347,7 +1470,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const record = selected(request, execution);
       if (!record.runtime_session_id) return { messages: [] };
       const sessions = execution.sessions.list(boardId), coding = (runtime: string) => sessions.find(entry => entry.runtime_session_id === runtime);
-      return { messages: (await api!.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id])).map(message => {
+      // Letters for people (delegations and their deliveries) are shown with the delegation, not here.
+      return { messages: (await api!.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id])).filter(message => message.audience !== "people").map(message => {
         const outgoing = message.from_session === record.runtime_session_id, other = coding(outgoing ? message.to_session : message.from_session);
         return { ...message, from_title: coding(message.from_session)?.title ?? message.from_title, to_title: coding(message.to_session)?.title ?? message.to_title,
           outgoing, peer: other ? { session_id: other.session_id, title: other.title } : null };

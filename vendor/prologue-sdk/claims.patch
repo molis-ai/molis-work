@@ -2860,22 +2860,25 @@ index 00000000..5d2b4237
 +  }); } };
 +}
 diff --git a/packages/sdk/src/delivery/api/index.ts b/packages/sdk/src/delivery/api/index.ts
-index 2160ff3f..4f8fa89b 100644
+index 2160ff3f..a90eb4b9 100644
 --- a/packages/sdk/src/delivery/api/index.ts
 +++ b/packages/sdk/src/delivery/api/index.ts
-@@ -7,6 +7,7 @@ export {
+@@ -7,6 +7,10 @@ export {
    type EnvelopeInput,
    type EnvelopeKind,
    type EnvelopeState,
 +  type EnvelopeEvent,
++  type EnvelopeAttachment,
++  type EnvelopeDetail,
++  type EnvelopeReceipt,
  } from "../core/index.js";
  export {
    assertSinkTyped,
 diff --git a/packages/sdk/src/delivery/core/envelope.ts b/packages/sdk/src/delivery/core/envelope.ts
-index 9ae09376..2c4206c7 100644
+index 9ae09376..f12c090e 100644
 --- a/packages/sdk/src/delivery/core/envelope.ts
 +++ b/packages/sdk/src/delivery/core/envelope.ts
-@@ -40,6 +40,10 @@ export interface EnvelopeInput {
+@@ -40,6 +40,48 @@ export interface EnvelopeInput {
    readonly ttlMs?: number;
    /** 已经转过几手。**防止一封信在两个 Session 之间来回弹。** */
    readonly hops?: number;
@@ -2883,13 +2886,55 @@ index 9ae09376..2c4206c7 100644
 +  readonly inReplyTo?: ExactRef<"envelope">;
 +  /** The sender will wait for an answer before going on with what depends on it. */
 +  readonly awaitReply?: boolean;
++  /** The App's own references it carries (a fixed report, a change set): opaque here, kept and given back as they are. */
++  readonly attachments?: readonly EnvelopeAttachment[];
++  /**
++   * Who it is for. `agents` (the default): the recipient's model hears it. `people`: the App shows it to the people
++   * working the sessions and never hands it to a model — an exchange they run themselves, such as a delegation.
++   */
++  readonly audience?: "agents" | "people";
++  /** Who sent it, for its history (a person, when the App sends for one). */
++  readonly by?: string;
++}
++
++/** An App's own reference, carried by an envelope as it is. */
++export interface EnvelopeAttachment {
++  readonly kind: string;
++  readonly id: string;
++  readonly version?: number;
++  readonly title?: string;
++}
++
++/** One entry of an envelope's history: what happened, who did it, and why. */
++export interface EnvelopeReceipt {
++  readonly event: string;
++  /** The envelope's state after it. */
++  readonly state: EnvelopeState;
++  readonly atMs: number;
++  readonly by?: string;
++  readonly note?: string;
++  readonly attachments?: readonly EnvelopeAttachment[];
++  /** Came after the envelope ended: kept as a fact, changing nothing. */
++  readonly late?: true;
++}
++
++/** Who moved an envelope, and why; `event` names it when the App's word for it is not the state's. */
++export interface EnvelopeDetail {
++  readonly by?: string;
++  readonly note?: string;
++  readonly event?: string;
++  readonly attachments?: readonly EnvelopeAttachment[];
  }
  
  export interface Envelope {
-@@ -54,6 +58,37 @@ export interface Envelope {
+@@ -54,6 +96,42 @@ export interface Envelope {
    readonly expiresAtMs: number;
    /** 终态之后来的答复只记在这里，**不再改业务对象**。 */
    readonly lateReplies: readonly string[];
++  readonly attachments: readonly EnvelopeAttachment[];
++  readonly audience: "agents" | "people";
++  /** Every step it went through, oldest first (bounded). */
++  readonly history: readonly EnvelopeReceipt[];
 +  readonly inReplyTo?: ExactRef<"envelope">;
 +  readonly awaitReply?: boolean;
 +  readonly sentAtMs: number;
@@ -2921,10 +2966,42 @@ index 9ae09376..2c4206c7 100644
 +  readonly sentAtMs: number;
 +  readonly state: EnvelopeState;
 +  readonly lateReplies: readonly string[];
++  readonly history?: readonly EnvelopeReceipt[];
  }
  
  export interface DeliveryLimits {
-@@ -100,6 +135,14 @@ export interface DeliveryBox {
+@@ -68,6 +146,8 @@ export interface DeliveryLimits {
+    * 放在这一族里是因为它归投递那一册；语义和上界都在 `notify`。
+    */
+   readonly notify: "off" | "failures" | "always";
++  /** A body for people (a delegated task) may be longer than one between agents. */
++  readonly maxPeopleBodyChars?: number;
+ }
+ 
+ export const DEFAULT_DELIVERY_LIMITS: DeliveryLimits = {
+@@ -86,12 +166,17 @@ const ABSOLUTE_PATH = /(?:\/(?:Users|home|var|tmp|etc|opt|private)\/[^\s"']*|[A-
+ export interface DeliveryBox {
+   send(input: EnvelopeInput, nowMs: number): Envelope;
+   /** 标记送到。**送达不是接受。** */
+-  markDelivered(ref: ExactRef<"envelope">, nowMs: number): Envelope;
++  markDelivered(ref: ExactRef<"envelope">, nowMs: number, detail?: EnvelopeDetail): Envelope;
+   /** 对方接受或拒绝。**接受不是完成。** */
+-  respond(ref: ExactRef<"envelope">, accepted: boolean, nowMs: number): Envelope;
++  respond(ref: ExactRef<"envelope">, accepted: boolean, nowMs: number, detail?: EnvelopeDetail): Envelope;
+   /** 事情真的做完了。 */
+-  complete(ref: ExactRef<"envelope">, nowMs: number): Envelope;
+-  cancel(ref: ExactRef<"envelope">): Envelope;
++  complete(ref: ExactRef<"envelope">, nowMs: number, detail?: EnvelopeDetail): Envelope;
++  cancel(ref: ExactRef<"envelope">, detail?: EnvelopeDetail, nowMs?: number): Envelope;
++  /**
++   * Note something on an envelope's history without moving it (work started on it, say). After it ended, the entry is
++   * kept as late and changes nothing.
++   */
++  record(ref: ExactRef<"envelope">, detail: EnvelopeDetail & { readonly event: string }, nowMs: number): Envelope;
+   /**
+    * 终态之后来的答复。
+    *
+@@ -100,6 +185,14 @@ export interface DeliveryBox {
    recordLate(ref: ExactRef<"envelope">, note: string): Envelope;
    inboxOf(session: ExactRef<"session">): readonly Envelope[];
    get(ref: ExactRef<"envelope">): Envelope;
@@ -2939,15 +3016,38 @@ index 9ae09376..2c4206c7 100644
  }
  
  interface Held {
-@@ -108,6 +151,7 @@ interface Held {
+@@ -108,31 +201,87 @@ interface Held {
    readonly body: string;
    readonly hops: number;
    readonly expiresAtMs: number;
 +  readonly sentAtMs: number;
    state: EnvelopeState;
    lateReplies: string[];
++  history: EnvelopeReceipt[];
  }
-@@ -119,11 +163,38 @@ export function createDeliveryBox(input: {
+ 
++const MAX_ATTACHMENTS = 30;
++const MAX_HISTORY = 100;
++const MAX_NOTE_CHARS = 2000;
++
+ const TERMINAL: readonly EnvelopeState[] = ["rejected", "completed", "expired", "cancelled"];
+ 
++/** Attachments are the App's own references: bounded in number and size, and nothing more is read into them. */
++function checkAttachments(attachments: readonly EnvelopeAttachment[]): readonly EnvelopeAttachment[] {
++  if (!Array.isArray(attachments) || attachments.length > MAX_ATTACHMENTS) {
++    throw createPrologueError("DELIVERY_LIMIT_EXCEEDED", `An envelope carries at most ${String(MAX_ATTACHMENTS)} attachments.`);
++  }
++  return attachments.map((one) => {
++    if (typeof one?.kind !== "string" || typeof one.id !== "string" || one.kind.length < 1 || one.kind.length > 64 || one.id.length < 1 || one.id.length > 512
++      || (one.version !== undefined && !Number.isSafeInteger(one.version)) || (one.title !== undefined && (typeof one.title !== "string" || one.title.length > 200))) {
++      throw createPrologueError("DELIVERY_LIMIT_EXCEEDED", "An attachment is a kind, an id, and optionally a version and a short title.");
++    }
++    return Object.freeze({ kind: one.kind, id: one.id, ...(one.version === undefined ? {} : { version: one.version }), ...(one.title === undefined ? {} : { title: one.title }) });
++  });
++}
++
+ export function createDeliveryBox(input: {
+   readonly newId: () => string;
    /** 收件人存在且有权。**不存在、已关、越权，发出前拒绝。** */
    readonly canReceive: (session: ExactRef<"session">) => boolean;
    readonly limits?: DeliveryLimits;
@@ -2967,7 +3067,7 @@ index 9ae09376..2c4206c7 100644
 +    const store = input.store;
 +    if (store === undefined) return;
 +    const value: StoredEnvelope = { id: entry.ref.id, input: entry.input, body: entry.body, hops: entry.hops,
-+      expiresAtMs: entry.expiresAtMs, sentAtMs: entry.sentAtMs, state: entry.state, lateReplies: [...entry.lateReplies] };
++      expiresAtMs: entry.expiresAtMs, sentAtMs: entry.sentAtMs, state: entry.state, lateReplies: [...entry.lateReplies], history: [...entry.history] };
 +    writes = writes.then(() => store.put({ scope, id: entry.ref.id, version: 1, shape: 1, value })).then(
 +      () => undefined,
 +      (error: unknown) => { failed ??= error; },
@@ -2985,26 +3085,67 @@ index 9ae09376..2c4206c7 100644
 +    return envelope;
 +  };
  
++  /** One more entry on an envelope's history; the oldest go when it is full. */
++  const note = (entry: Held, event: string, atMs: number, detail?: EnvelopeDetail, late?: true): void => {
++    const attachments = detail?.attachments === undefined ? undefined : checkAttachments(detail.attachments);
++    entry.history.push({ event, state: entry.state, atMs, ...(detail?.by === undefined ? {} : { by: detail.by.slice(0, 200) }),
++      ...(detail?.note === undefined || detail.note === "" ? {} : { note: detail.note.slice(0, MAX_NOTE_CHARS) }),
++      ...(attachments === undefined ? {} : { attachments }), ...(late ? { late } : {}) });
++    if (entry.history.length > MAX_HISTORY) entry.history.splice(0, entry.history.length - MAX_HISTORY);
++  };
    const view = (entry: Held, nowMs?: number): Envelope => {
      // 到点就是过期。**用传进来的时刻判**——领域不直取系统钟。
-@@ -145,6 +216,9 @@ export function createDeliveryBox(input: {
+     const state =
+       nowMs !== undefined && !TERMINAL.includes(entry.state) && nowMs >= entry.expiresAtMs
+         ? "expired"
+         : entry.state;
+-    if (state === "expired") {
++    if (state === "expired" && entry.state !== "expired") {
+       entry.state = "expired";
++      note(entry, "expired", nowMs ?? entry.expiresAtMs);
+     }
+     return {
+       ref: entry.ref,
+@@ -145,6 +294,12 @@ export function createDeliveryBox(input: {
        hops: entry.hops,
        expiresAtMs: entry.expiresAtMs,
        lateReplies: [...entry.lateReplies],
++      attachments: [...(entry.input.attachments ?? [])],
++      audience: entry.input.audience ?? "agents",
++      history: [...entry.history],
 +      ...(entry.input.inReplyTo === undefined ? {} : { inReplyTo: entry.input.inReplyTo }),
 +      ...(entry.input.awaitReply === true ? { awaitReply: true } : {}),
 +      sentAtMs: entry.sentAtMs,
      };
    };
  
-@@ -192,14 +266,18 @@ export function createDeliveryBox(input: {
+@@ -178,12 +333,15 @@ export function createDeliveryBox(input: {
+         return view(previous, nowMs);
+       }
+       // 三、体积与跳数。
+-      if (request.body.length > limits.maxBodyChars) {
++      const forPeople = request.audience === "people";
++      const maxBody = forPeople ? Math.max(limits.maxBodyChars, limits.maxPeopleBodyChars ?? 20_000) : limits.maxBodyChars;
++      if (request.body.length > maxBody) {
+         throw createPrologueError(
+           "DELIVERY_LIMIT_EXCEEDED",
+-          `An envelope body may not exceed ${limits.maxBodyChars} characters; put it in a resource instead.`,
++          `An envelope body may not exceed ${maxBody} characters; put it in a resource instead.`,
+         );
+       }
++      if (request.attachments !== undefined) checkAttachments(request.attachments);
+       const hops = request.hops ?? 0;
+       if (hops >= limits.maxHops) {
+         // 一封信在两个 Session 之间来回弹，是很容易发生的事。
+@@ -192,16 +350,22 @@ export function createDeliveryBox(input: {
            `That envelope already made ${hops} hops, at the limit of ${limits.maxHops}.`,
          );
        }
 -      // 四、扇出。
 -      const already = sentBy.get(request.from.id) ?? 0;
 +      // 四、扇出：一个 Session 同时还开着的信。
-+      const already = [...held.values()].filter((entry) => entry.input.from.id === request.from.id &&
++      // An exchange between people (a delegation) is theirs to pace: it does not use up a session's agent fan-out.
++      const already = forPeople ? 0 : [...held.values()].filter((entry) => entry.input.from.id === request.from.id && entry.input.audience !== "people" &&
 +        !TERMINAL.includes(view(entry, nowMs).state)).length;
        if (already >= limits.maxFanOut) {
          throw createPrologueError(
@@ -3017,16 +3158,22 @@ index 9ae09376..2c4206c7 100644
 +        throw createPrologueError("DELIVERY_NOT_FOUND", "The envelope this answers does not exist.");
 +      }
        // 五、不许携带密钥和裸路径。**信是要被别人读的。**
-       if (SECRET_SHAPED.test(request.body) || ABSOLUTE_PATH.test(request.body)) {
+-      if (SECRET_SHAPED.test(request.body) || ABSOLUTE_PATH.test(request.body)) {
++      // A path in a person's own task is theirs to write; a secret never goes, whoever the reader.
++      if (SECRET_SHAPED.test(request.body) || (!forPeople && ABSOLUTE_PATH.test(request.body))) {
          SECRET_SHAPED.lastIndex = 0;
-@@ -218,13 +296,16 @@ export function createDeliveryBox(input: {
+         ABSOLUTE_PATH.lastIndex = 0;
+         throw createPrologueError(
+@@ -218,16 +382,21 @@ export function createDeliveryBox(input: {
          body: request.body,
          hops: hops + 1,
          expiresAtMs: nowMs + (request.ttlMs ?? limits.defaultTtlMs),
 +        sentAtMs: nowMs,
          state: "queued",
          lateReplies: [],
++        history: [],
        };
++      note(entry, "sent", nowMs, { ...(request.by === undefined ? {} : { by: request.by }) });
        held.set(entry.ref.id, entry);
        byKey.set(request.idempotencyKey, entry.ref.id);
 -      sentBy.set(request.from.id, already + 1);
@@ -3037,44 +3184,70 @@ index 9ae09376..2c4206c7 100644
 +      return sent;
      },
  
-     markDelivered(ref, nowMs): Envelope {
-@@ -237,7 +318,7 @@ export function createDeliveryBox(input: {
+-    markDelivered(ref, nowMs): Envelope {
++    markDelivered(ref, nowMs, detail): Envelope {
+       const entry = entryOf(ref);
+       const current = view(entry, nowMs);
+       if (current.state !== "queued") {
+@@ -237,10 +406,11 @@ export function createDeliveryBox(input: {
          );
        }
        entry.state = "delivered";
 -      return view(entry, nowMs);
++      note(entry, detail?.event ?? "delivered", nowMs, detail);
 +      return moved(entry, view(entry, nowMs));
      },
  
-     respond(ref, accepted, nowMs): Envelope {
-@@ -251,7 +332,7 @@ export function createDeliveryBox(input: {
+-    respond(ref, accepted, nowMs): Envelope {
++    respond(ref, accepted, nowMs, detail): Envelope {
+       const entry = entryOf(ref);
+       const current = view(entry, nowMs);
+       if (current.state !== "delivered") {
+@@ -251,10 +421,11 @@ export function createDeliveryBox(input: {
        }
        // **接受不是完成。** 接受之后事情才开始做。
        entry.state = accepted ? "accepted" : "rejected";
 -      return view(entry, nowMs);
++      note(entry, detail?.event ?? entry.state, nowMs, detail);
 +      return moved(entry, view(entry, nowMs));
      },
  
-     complete(ref, nowMs): Envelope {
-@@ -264,7 +345,7 @@ export function createDeliveryBox(input: {
+-    complete(ref, nowMs): Envelope {
++    complete(ref, nowMs, detail): Envelope {
+       const entry = entryOf(ref);
+       const current = view(entry, nowMs);
+       if (current.state !== "accepted") {
+@@ -264,10 +435,11 @@ export function createDeliveryBox(input: {
          );
        }
        entry.state = "completed";
 -      return view(entry, nowMs);
++      note(entry, detail?.event ?? "completed", nowMs, detail);
 +      return moved(entry, view(entry, nowMs));
      },
  
-     cancel(ref): Envelope {
-@@ -276,7 +357,7 @@ export function createDeliveryBox(input: {
+-    cancel(ref): Envelope {
++    cancel(ref, detail, nowMs): Envelope {
+       const entry = entryOf(ref);
+       if (TERMINAL.includes(entry.state)) {
+         throw createPrologueError(
+@@ -276,7 +448,14 @@ export function createDeliveryBox(input: {
          );
        }
        entry.state = "cancelled";
 -      return view(entry);
++      note(entry, detail?.event ?? "cancelled", nowMs ?? entry.history.at(-1)?.atMs ?? entry.sentAtMs, detail);
 +      return moved(entry, view(entry));
++    },
++
++    record(ref, detail, nowMs): Envelope {
++      const entry = entryOf(ref);
++      note(entry, detail.event, nowMs, detail, TERMINAL.includes(view(entry, nowMs).state) ? true : undefined);
++      return moved(entry, view(entry, nowMs));
      },
  
      recordLate(ref, note): Envelope {
-@@ -289,7 +370,7 @@ export function createDeliveryBox(input: {
+@@ -289,7 +468,7 @@ export function createDeliveryBox(input: {
        }
        // **只记录。** 状态一个字都不动——取消之后来的答复不能写错原来的任务。
        entry.lateReplies.push(note.slice(0, 500));
@@ -3083,7 +3256,7 @@ index 9ae09376..2c4206c7 100644
      },
  
      inboxOf(session): readonly Envelope[] {
-@@ -301,5 +382,37 @@ export function createDeliveryBox(input: {
+@@ -301,5 +480,37 @@ export function createDeliveryBox(input: {
      get(ref): Envelope {
        return view(entryOf(ref));
      },
@@ -3106,7 +3279,7 @@ index 9ae09376..2c4206c7 100644
 +      for (const row of await input.store.list(scope)) {
 +        const value = row.value;
 +        held.set(value.id, { ref: mintRef("envelope", value.id), input: value.input, body: value.body, hops: value.hops,
-+          expiresAtMs: value.expiresAtMs, sentAtMs: value.sentAtMs ?? 0, state: value.state, lateReplies: [...value.lateReplies] });
++          expiresAtMs: value.expiresAtMs, sentAtMs: value.sentAtMs ?? 0, state: value.state, lateReplies: [...value.lateReplies], history: [...(value.history ?? [])] });
 +        byKey.set(value.input.idempotencyKey, value.id);
 +      }
 +    },
@@ -3122,14 +3295,17 @@ index 9ae09376..2c4206c7 100644
    };
  }
 diff --git a/packages/sdk/src/delivery/core/index.ts b/packages/sdk/src/delivery/core/index.ts
-index 562745a8..12983975 100644
+index 562745a8..99c3d4f7 100644
 --- a/packages/sdk/src/delivery/core/index.ts
 +++ b/packages/sdk/src/delivery/core/index.ts
-@@ -7,6 +7,9 @@ export {
+@@ -7,6 +7,12 @@ export {
    type EnvelopeInput,
    type EnvelopeKind,
    type EnvelopeState,
 +  type EnvelopeEvent,
++  type EnvelopeAttachment,
++  type EnvelopeDetail,
++  type EnvelopeReceipt,
 +  type EnvelopeRowStore,
 +  type StoredEnvelope,
  } from "./envelope.js";
@@ -3853,7 +4029,7 @@ index c6c2dc00..99dbc3c5 100644
      },
      async readBytes(input) {
 diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
-index 3d395680..69f73d98 100644
+index 3d395680..bec555df 100644
 --- a/packages/sdk/src/index.ts
 +++ b/packages/sdk/src/index.ts
 @@ -661,6 +661,27 @@ export type {
@@ -3912,15 +4088,18 @@ index 3d395680..69f73d98 100644
  } from "./orchestration/api/index.js";
  export { createDeliveryBox, DEFAULT_DELIVERY_LIMITS } from "./delivery/api/index.js";
  export type {
-@@ -719,6 +744,7 @@ export type {
+@@ -719,6 +744,10 @@ export type {
    EnvelopeInput,
    EnvelopeKind,
    EnvelopeState,
 +  EnvelopeEvent,
++  EnvelopeAttachment,
++  EnvelopeDetail,
++  EnvelopeReceipt,
  } from "./delivery/api/index.js";
  export {
    BUILT_IN_CHARACTERS,
-@@ -1205,3 +1231,7 @@ export {
+@@ -1205,3 +1234,7 @@ export {
  } from "./data-source/api/index.js";
  
  export type { InterruptedRun, RunRecoveryOperation, RunRecoveryView, SessionRecoveryReport } from "./session/api/index.js";
@@ -7208,10 +7387,10 @@ index 00000000..1e3f46e2
 +});
 diff --git a/packages/sdk/test/delivery-durable.test.ts b/packages/sdk/test/delivery-durable.test.ts
 new file mode 100644
-index 00000000..f94d9a12
+index 00000000..757cea82
 --- /dev/null
 +++ b/packages/sdk/test/delivery-durable.test.ts
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,96 @@
 +import { describe, expect, it } from "vitest";
 +import { createDeliveryBox } from "../src/delivery/core/index.js";
 +import { mintRef } from "../src/kernel/core/index.js";
@@ -7258,6 +7437,46 @@ index 00000000..f94d9a12
 +    expect(again.list().map((one) => one.body)).toEqual(["请先把接口改好", "改好了", "一", "二"]);
 +    // The same key after a restart is still the same envelope.
 +    expect(again.send({ from: b, to: a, kind: "notice", body: "一", idempotencyKey: "n1" }, 2000).ref.id).toBe("e3");
++  });
++
++  it("给人看的信：带 App 的引用、每一步有记录和理由、不占代理的扇出、落盘后照样读得回", async () => {
++    const rows = new Map<string, unknown>();
++    const store = { put: async (row: { id: string; value: unknown }) => { rows.set(row.id, row.value); }, list: async () => [...rows.values()].map((value) => ({ value })) } as never;
++    const a = mintRef("session", "a"), b = mintRef("session", "b");
++    let n = 0;
++    const box = createDeliveryBox({ newId: () => `d${String(++n)}`, canReceive: () => true, store, limits: {
++      maxBodyChars: 50, maxHops: 4, maxFanOut: 1, defaultTtlMs: 60_000, notify: "off" } });
++    // A delegated task: longer than an agent message may be, with a path the person wrote, and the materials it hands over.
++    const task = "把 /Users/me/project/src/a.ts 里的函数拆开，" + "细节".repeat(40);
++    const asked = box.send({ from: a, to: b, kind: "request", body: task, idempotencyKey: "deleg-1", audience: "people", by: "user-1", ttlMs: 10 ** 9,
++      attachments: [{ kind: "artifact", id: "coding-report:s1:r1", version: 2, title: "上一轮报告" }] }, 1000);
++    expect([asked.audience, asked.attachments[0]?.id, asked.history.map((one) => [one.event, one.state, one.by])]).toEqual(["people", "coding-report:s1:r1", [["sent", "queued", "user-1"]]]);
++    // It does not use up a's fan-out for agent messages.
++    box.send({ from: a, to: b, kind: "notice", body: "代理之间的一条", idempotencyKey: "agent-1" }, 1001);
++    expect(() => box.send({ from: a, to: b, kind: "notice", body: "第二条", idempotencyKey: "agent-2" }, 1002)).toThrow(/fan-out/);
++    // Each step is on its history, with who and why; a note that changes nothing is kept too.
++    box.markDelivered(asked.ref, 1003, { event: "delivered", by: "user-1" });
++    box.respond(asked.ref, true, 1004, { by: "user-2", note: "接了" });
++    box.record(asked.ref, { event: "started", by: "user-2" }, 1005);
++    const delivery = box.send({ from: b, to: a, kind: "reply", body: "拆好了", idempotencyKey: "delivery-1", inReplyTo: asked.ref, audience: "people", by: "user-2",
++      attachments: [{ kind: "artifact", id: "coding-changeset:s2:r1", version: 1 }] }, 1006);
++    box.markDelivered(delivery.ref, 1007);
++    box.respond(delivery.ref, false, 1008, { by: "user-1", note: "测试没过，退回", event: "delivery-rejected" });
++    box.complete(asked.ref, 1009, { by: "user-1", event: "delivery-accepted", attachments: [{ kind: "artifact", id: "coding-changeset:s2:r2", version: 1 }] });
++    box.record(asked.ref, { event: "delivery-sent", by: "user-2", note: "又交了一次" }, 1010);
++    const history = box.get(asked.ref).history;
++    expect(history.map((one) => [one.event, one.state, one.by ?? "", one.note ?? "", one.late ?? false])).toEqual([
++      ["sent", "queued", "user-1", "", false], ["delivered", "delivered", "user-1", "", false], ["accepted", "accepted", "user-2", "接了", false],
++      ["started", "accepted", "user-2", "", false], ["delivery-accepted", "completed", "user-1", "", false], ["delivery-sent", "completed", "user-2", "又交了一次", true]]);
++    expect(box.get(delivery.ref).history.at(-1)).toMatchObject({ event: "delivery-rejected", state: "rejected", note: "测试没过，退回" });
++    // An agent message still may not carry a path, and too long a body for agents is refused.
++    expect(() => box.send({ from: b, to: a, kind: "notice", body: "看 /Users/me/x", idempotencyKey: "agent-3" }, 1011)).toThrow(/absolute paths/);
++    expect(() => box.send({ from: b, to: a, kind: "request", body: "长".repeat(60), idempotencyKey: "deleg-2", attachments: new Array(31).fill({ kind: "artifact", id: "x" }), audience: "people" }, 1012)).toThrow(/at most 30 attachments/);
++    await box.flush();
++    const again = createDeliveryBox({ newId: () => `e${String(++n)}`, canReceive: () => true, store });
++    await again.hydrate();
++    expect(again.get(asked.ref).history).toEqual(history);
++    expect(again.get(asked.ref).attachments).toEqual([{ kind: "artifact", id: "coding-report:s1:r1", version: 2, title: "上一轮报告" }]);
 +  });
 +
 +  it("写盘失败在 flush 时说出来", async () => {

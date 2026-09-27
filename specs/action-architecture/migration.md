@@ -1533,5 +1533,10 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 ## 全量非浏览器回归（2026-09-27 第三次）
 
 - 服务连接远程 MCP、流程动作筛选、Shelf 字段标题、Goals 快照合同修复之后：本分支 2629 项中 2564 通过、62 失败。与 main 基线对比，61 项在 main 上同样失败，main 上另有 15 项在本分支通过。
-- 唯一仅本分支失败的是 `secret-store-keychain-retry` 的「Keychain 超时」用例：它调用真实 macOS 钥匙串并有 6 秒超时，本分支未改动 `packages/storage` 与该用例；单独重跑时停在钥匙串访问、约一小时无输出后终止，未能得到对照结果，按环境相关处理，不宣称已排除。
+- 唯一仅本分支失败的是 `secret-store-keychain-retry` 的「Keychain 超时」用例。它用假 `security` 程序（受限 PATH，不触及真实钥匙串）故意 `sleep 10`，再在子进程中以 10 秒上限验证恢复；全量运行负载下子进程超时。之后带看门狗单独重跑，本分支与 main 均 8 项全部通过，确认为负载时序，不是本分支引入（第一次单独重跑的挂起来自外层 shell 管道，已终止）。
 - Goals 快照合同：`goalInput.decomposition_review` 改为可为 null（合同类型本就是 `GoalDecompositionReview | null`），修复快照输出校验拒收真实合同修订、导致首页与设置页打不开的问题；新增用例修复前失败。该问题在 main 上同样存在，主检出尚未修改。
+
+## Images 旧连接凭据用例与外部 MCP 读写的决定（2026-09-27）
+
+- `images-actions` 的「沿用旧凭据引用」用例在 main 上失败：图片请求经运行时自身的网络路径，先用 DNS-over-HTTPS 校验主机，用例的 fetch 桩接住了 DNS 查询并让任务失败。产品行为正常；用例改用本机 HTTP 服务后 4 项全部通过，并核对旧凭据只到达服务一次且原密封条目不变。
+- 外部 MCP 工具一律按外部写入（`operation: command`）登记，这是决定而不是遗漏：服务连接中的远程 MCP 由官方客户端列出，带 `readOnlyHint` 等提示，但方案规定提示不是授权来源；若据此改为查询，服务若声明不实，调用就不再进入调用记录、也不再经过写入前复查。Coding 外部 MCP 所用 Prologue SDK 的工具快照不含这些提示。MCP 资源读取按协议本身是读取，登记为查询。

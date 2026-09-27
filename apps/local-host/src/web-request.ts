@@ -1,5 +1,4 @@
 import { feedRuleActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
-import { HOME_TALK_PERMISSIONS } from "./home-talk-actions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
@@ -150,8 +149,8 @@ export async function handleMolisWorkWebRequest(
             context: () => ({ actor_id: "web-user", project_id: hostReference.project_id, audience: "user",
               permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
         };
-        // Home runs the offers of native stores the local owner already holds; their permissions come from those manifests, not a list kept here.
-        const homeActions = bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS]);
+        // Home shows and runs what any plugin offers the person here: native plugins by their manifests, Runtime plugins by their installed grants.
+        const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
         const goalActions = observedWebGoalsActions(runtime, hostReference,
           bindGoalsWebActions(localHost.actionClient(hostReference), hostReference));
         if (url.pathname === "/api/project-settings/workspaces" && options.project && ["GET", "POST"].includes(request.method ?? "")) {

@@ -1490,4 +1490,5 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 改为 `local-owner-permissions.ts`：原生插件（Manifest `kind: native`）声明的全部动作权限加 Host 自有服务的权限；Runtime 插件仍按安装授予逐次加入（`localWebActionContext`）。工作流程页改用 `bindLocalWebActions`，执行时按同一授权核对。原生插件新增动作无需改动 Host。
 - 结果：预览 Home 的能力库 489 项（新增上述 7 个提供方）；流程可选步骤 166 个、23 组，读取约 97ms。
 - 验证：`tests/workflows-step-directory.test.ts`（真实服务：Dataset/Forms/PPT/Shelf 等动作出现在流程步骤中，来自 10 个以上提供方）；`workspace-project-actions` 断言能力库列出工作目录动作；工作流程、能力页、使用位置、外部 MCP 相关 36 项通过。浏览器实操（1280）：新建「消息收进 Shelf」：Feed →手动→「放进 Shelf」（text ← 正文，title ← 标题）→ 用「例行通知：周报已生成」跑一次，Shelf 返回新条目，Shelf 页「材料」中出现「例行通知：周报已生成.md」。
+- 首页调用者同样改用这份派生权限：以后任何原生插件按合同提供首页事项或事项动作，首页即可发现与执行，无需修改首页名单。首页相关 26 项中 25 项通过，唯一失败「七天日期条」在 main 上同样失败。
 - 观察：Shelf「放进 Shelf」的输入字段没有标题，流程里显示为 text、bytes_base64、origin_realpath 等原名；后两项只对本机拖入文件有意义。

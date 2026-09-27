@@ -24,7 +24,7 @@ import {
 } from "./prologue.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import { createPrologueSubagents, verifySubagentStart, exactCharacterKey, type PrologueSubagentRoot } from "./prologue-subagents.js";
-import { createPrologueMcpLibrary, mcpConnectionId } from "./prologue-mcp.js";
+import { createPrologueMcpLibrary, mcpConnectionId, type HostMcpConnection } from "./prologue-mcp.js";
 import { createPrologueCheckpoints, type PrologueRewindIntent } from "./prologue-checkpoints.js";
 import { createPrologueGitReviews, type PrologueGitReviewPort } from "./prologue-git.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
@@ -93,7 +93,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    * reference that resolves to nothing.
    */
   resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
-  resolveMcpConnection?: (connectionId: string, endpoint: string) => string | null | Promise<string | null>;
+  resolveMcpConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
+  subscribeMcpConnections?: (listener: (connectionId: string) => void) => () => void;
 }
 
 // This resource combines base/role/Character/project instructions, selected
@@ -154,6 +155,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
 
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     resolveConnection: options.resolveMcpConnection,
+    subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
   const registeredMethods = new Map<string, Skill>();
@@ -788,7 +790,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         });
         throw error;
       }
-      const started = await dispatchGuards.run(input.beforeDispatch ?? (() => {}), () => runtime.startAgentRun({
+      const dispatchGuard = async () => {
+        await input.beforeDispatch?.();
+        if (!none) {
+          await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
+          await mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
+        }
+      };
+      const started = await dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun({
         session,
         ...(root ? { rootRef: root.ref } : { workspace: "none" as const }),
         // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
@@ -936,7 +945,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         },
       };
     },
-    shutdown: async () => { closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
+    shutdown: async () => { mcpLibrary.dispose(); closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
   };
 
   return Object.assign(new PrologueAgentAdapter({

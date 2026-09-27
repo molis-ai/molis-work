@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
+import { connectorMethodsFor } from "../apps/local-host/src/host-connector-methods.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { createServer } from "node:http";
 import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext } from "../apps/local-host/src/connector-api-oauth.ts";
 import { inspectApiConnection } from "../apps/local-host/src/connector-access.ts";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/src/connector-protocol-store.ts";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.ts";
 import { createCatalogProvider, catalogWhoami } from "../plugins/official-integrations/catalog/src/provider.ts";
+import { handleConnectorApiMethodsHttp } from "../apps/local-host/src/web-connector-api-methods.ts";
+import { handleConnectorConnectionsHttp } from "../apps/local-host/src/web-connector-connections.ts";
 
 const origin = "http://localhost:19358";
 const home = () => mkdtempSync(join(tmpdir(), "molis-api-oauth-"));
@@ -23,6 +27,34 @@ function transport(account: string, name = "Alex", calls: URLSearchParams[] = []
     return json({ data: { gid: account, name, email: `${account}@example.test` } });
   }) as typeof fetch;
 }
+test("product OAuth starts without browser credentials and never mixes a custom client with product secrets", async () => {
+  const directory = home();
+  const idKey = "MOLIS_WORK_CONNECTOR_ASANA_OAUTH_CLIENT_ID";
+  const secretKey = "MOLIS_WORK_CONNECTOR_ASANA_OAUTH_CLIENT_SECRET";
+  const previous = [process.env[idKey], process.env[secretKey]];
+  process.env[idKey] = "molis-product-app"; process.env[secretKey] = "product-secret";
+  try {
+    const methods = connectorMethodsFor("asana");
+    assert.equal(methods.find(m => m.kind === "oauth")?.login_ready, true);
+    assert.doesNotMatch(JSON.stringify(methods), /molis-product-app|product-secret/);
+    const first = await startApiOAuth(directory, { serviceId: "asana", displayName: "Work", clientId: "", origin });
+    assert.equal(new URL(first.authorization_url).searchParams.get("client_id"), "molis-product-app");
+    assert.doesNotMatch(JSON.stringify(first), /product-secret/);
+    const calls: URLSearchParams[] = [];
+    await completeApiOAuth(directory, callback(first.authorization_url), transport("work", "Work", calls));
+    assert.equal(calls[0]!.get("client_secret"), "product-secret");
+    process.env[idKey] = "changed-product-app"; process.env[secretKey] = "changed-secret";
+    const resumed = await startApiOAuth(directory, { serviceId: "asana", displayName: "Work", clientId: "", connectionId: first.connection_id, origin });
+    assert.equal(new URL(resumed.authorization_url).searchParams.get("client_id"), "molis-product-app");
+    await assert.rejects(startApiOAuth(directory, { serviceId: "asana", displayName: "Custom", clientId: "custom-app", origin }), /Client Secret/);
+    assert.equal(connectorMethodsFor("slack").find(m => m.kind === "oauth")?.login_ready, false);
+    assert.equal(connectorMethodsFor("asana").find(m => m.kind === "mcp")?.login_ready, false);
+  } finally {
+    for (const [i, key] of [idKey, secretKey].entries()) { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; }
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("API OAuth connects, survives host reload, refreshes with its own app and refuses callback replay", async () => {
   const directory = home();
   try {
@@ -56,6 +88,63 @@ test("reauthorization rejects same display name from another account and allows 
     await completeApiOAuth(directory, callback(rename.authorization_url), transport("user-one", "New name"));
     assert.equal(withConnectorConnections(directory, store => store.require(first.connection_id)).account_label, "New name");
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+test("reauthorization reuses only the selected account's saved app without exposing or re-entering its secret", async () => {
+  const directory = home();
+  try {
+    const first = await startApiOAuth(directory, { serviceId: "asana", displayName: "Work", clientId: "work-app", clientSecret: "work-secret", origin });
+    await completeApiOAuth(directory, callback(first.authorization_url), transport("work-account"));
+    const other = await startApiOAuth(directory, { serviceId: "asana", displayName: "Personal", clientId: "personal-app", clientSecret: "personal-secret", origin });
+    await completeApiOAuth(directory, callback(other.authorization_url), transport("personal-account"));
+    const revision = withConnectorConnections(directory, store => store.require(first.connection_id)).updated_at;
+    const resumed = await startApiOAuth(directory, { serviceId: "asana", displayName: "Work", clientId: "", connectionId: first.connection_id, origin });
+    assert.equal(resumed.connection_id, first.connection_id);
+    assert.equal(new URL(resumed.authorization_url).searchParams.get("client_id"), "work-app");
+    assert.equal(JSON.stringify(resumed).includes("work-secret"), false);
+    const exchanges: URLSearchParams[] = [];
+    await completeApiOAuth(directory, callback(resumed.authorization_url), transport("work-account", "Work", exchanges));
+    assert.equal(exchanges[0]!.get("client_secret"), "work-secret");
+    assert.notEqual(withConnectorConnections(directory, store => store.require(first.connection_id)).updated_at, revision);
+    assert.equal(withConnectorConnections(directory, store => store.list()).length, 2);
+    assert.equal(connectorProtocolSecrets(directory, other.connection_id).get("access"), "access-personal-account");
+    await assert.rejects(startApiOAuth(directory, { serviceId: "clickup", displayName: "Wrong service", clientId: "", connectionId: first.connection_id, origin }), /不属于/u);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+test("connection polling reports the exact account revision and OAuth cancellation returns to the service page", async () => {
+  const directory = home();
+  const server = createServer(async (req, res) => {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    if (await handleConnectorApiMethodsHttp(req, res, url, directory)) return;
+    if (await handleConnectorConnectionsHttp(req, res, url, directory)) return;
+    res.writeHead(404); res.end();
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const local = `http://127.0.0.1:${address.port}`;
+  try {
+    const input = { serviceId: "asana", displayName: "Work", clientId: "app", clientSecret: "private-app-secret", origin: local };
+    const cancelled = await startApiOAuth(directory, input);
+    const state = new URL(cancelled.authorization_url).searchParams.get("state");
+    const response = await fetch(`${local}/api/settings/connectors/methods/oauth/callback?state=${state}&error=access_denied`, { redirect: "manual" });
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get("location"), "/settings/connectors?connection_error=cancelled&connector=asana");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(withConnectorConnections(directory, s => s.list()).length, 0);
+    const missing = await fetch(`${local}/api/settings/connectors/connections/${cancelled.connection_id}`);
+    assert.equal(missing.status, 404);
+    const success = await startApiOAuth(directory, input);
+    await completeApiOAuth(directory, { ...callback(success.authorization_url), origin: local }, transport("work-account"));
+    const result = await (await fetch(`${local}/api/settings/connectors/connections/${success.connection_id}`)).json();
+    assert.equal(result.connection.connection_id, success.connection_id);
+    assert.equal(result.connection.state, "connected");
+    assert.equal(result.authorization_flow, "oauth");
+    assert.equal(result.revision, withConnectorConnections(directory, s => s.require(success.connection_id)).updated_at);
+    assert.equal(JSON.stringify(result).includes("private-app-secret"), false);
+    assert.equal(JSON.stringify(result).includes("access-work-account"), false);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 test("OAuth without refresh token is usable, and disconnect during refresh never restores a secret", async () => {
   const directory = home();

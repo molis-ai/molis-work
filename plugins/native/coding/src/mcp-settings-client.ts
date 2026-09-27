@@ -5,7 +5,7 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
     const q=selector=>root.querySelector(selector),form=q('[data-mcp-config]'),field=name=>form.elements.namedItem(name);
     const prefix=root.dataset.prefix+'api/plugins/io.molis.work.coding';let servers=[],workspaces=[],authConnections=[],editing=null;
     const pending=new Map(),status=text=>{q('[data-mcp-status]').textContent=text;};
-    const api=async(path,body)=>{const response=await fetch(prefix+path,{method:body?'POST':'GET',cache:'no-store',...(body?{headers:molisWorkControlHeaders(),body:JSON.stringify(body)}:{})});const result=await response.json();if(!response.ok)throw new Error(result.error || 'MCP 操作失败');return result;};
+    const api=async(path,body)=>{const response=await fetch(prefix+path,{method:body?'POST':'GET',cache:'no-store',...(body?{headers:molisWorkControlHeaders(),body:JSON.stringify(body)}:{})});const result=await response.json();if(!response.ok){const error=new Error(result.error || 'MCP 操作失败');error.code=result.code;throw error;}return result;};
     const transport=()=>{q('[data-mcp-stdio]').hidden=field('transport').value!=='stdio';q('[data-mcp-http]').hidden=field('transport').value!=='http';};
     const reset=()=>{editing=null;form.reset();q('[data-mcp-form-title]').textContent='添加 MCP 服务';transport();};
     const edit=server=>{
@@ -41,8 +41,8 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
     };
     const refresh=async()=>{
       const result=await api('/state');servers=result.mcp || [];workspaces=result.workspaces;
-      const authResponse=await fetch('/api/settings/connectors/connections?service_id=mcp-bearer',{cache:'no-store'});
-      if(authResponse.ok){const data=await authResponse.json();authConnections=data.connections||[];const auth=field('auth_connection_id'),current=auth.value;auth.innerHTML='<option value="">选择连接</option>'+authConnections.filter(item=>item.state==='connected').map(item=>'<option value="'+item.connection_id+'">'+item.display_name.replaceAll('&','&amp;').replaceAll('<','&lt;')+'</option>').join('');auth.value=current;}
+      const authResponse=await fetch('/api/settings/connectors/connections',{cache:'no-store'});
+      if(authResponse.ok){const data=await authResponse.json();authConnections=(data.connections||[]).filter(item=>item.service_id==='mcp-bearer'||(item.auth_method==='mcp'&&item.agent_available!==false));const auth=field('auth_connection_id'),current=auth.value;auth.innerHTML='<option value="">选择连接</option>'+authConnections.filter(item=>item.state==='connected').map(item=>'<option value="'+item.connection_id+'">'+item.display_name.replaceAll('&','&amp;').replaceAll('<','&lt;')+'</option>').join('');auth.value=current;}
       const select=field('workspace'),key=JSON.stringify(workspaces),previous=select.value;
       if(select.dataset.options!==key){select.replaceChildren(...workspaces.map(item=>{const option=document.createElement('option');option.value=item.workspace_id;option.textContent=item.canonical_path;return option;}));select.dataset.options=key;if(workspaces.some(item=>item.workspace_id===previous))select.value=previous;}
       render();
@@ -62,13 +62,35 @@ export const CODING_MCP_SETTINGS_CLIENT_SCRIPT = `(() => {
         await api('/mcp',body);reset();await refresh();status('MCP 配置已保存，尚未连接；展开服务可连接。');
       }catch(error){status(error.message);}finally{submit.disabled=false;}
     });
+    field('auth_connection_id').addEventListener('change',()=>{
+      const selected=authConnections.find(item=>item.connection_id===field('auth_connection_id').value);
+      if(selected?.mcp_endpoint){field('endpoint').value=selected.mcp_endpoint;field('auth').value='connection';if(!field('label').value.trim())field('label').value=selected.display_name;}
+    });
     field('transport').addEventListener('change',transport);q('[data-mcp-reset]').addEventListener('click',reset);
     let poll=null;
-    const resume=()=>{
-      void refresh().then(()=>status('MCP 配置已读取。')).catch(error=>status('MCP 状态暂不可读：'+error.message));
-      if(poll!==null)return;poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);poll=null;return;}void refresh().catch(error=>status('MCP 状态暂不可读：'+error.message));},3000);
+    const unavailable=error=>{
+      status('MCP 状态暂不可读：'+error.message);
+      if(error.code!=='plugin_not_enabled')return;
+      if(poll!==null){clearInterval(poll);poll=null;}
+      status('当前项目尚未启用 Coding。启用后即可选择已授权工具，不会自动执行工具。');
+      const enable=document.createElement('button');enable.type='button';enable.className='mw-btn mw-btn--secondary';enable.textContent='为当前项目启用 Coding';
+      enable.addEventListener('click',async()=>{
+        enable.disabled=true;
+        try{
+          const project=new URL(root.dataset.prefix,location.origin).pathname.split('/').filter(Boolean)[1];
+          if(!project)throw new Error('请先选择项目');
+          const response=await fetch('/api/settings/projects/'+encodeURIComponent(project)+'/plugins',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({plugin_id:'coding'})});
+          if(!response.ok)throw new Error((await response.json()).error || '启用失败，请重试');
+          location.reload();
+        }catch(error){unavailable(Object.assign(error,{code:'plugin_not_enabled'}));}
+      });
+      q('[data-mcp-status]').append(' ',enable);
     };
-    bindings.set(root,resume);resume();
+    const resume=()=>{
+      void refresh().then(()=>status('MCP 配置已读取。')).catch(unavailable);
+      if(poll!==null)return;poll=setInterval(()=>{if(!root.isConnected){clearInterval(poll);poll=null;return;}void refresh().catch(unavailable);},3000);
+    };
+    transport();bindings.set(root,resume);resume();
   };
   bind(document);document.addEventListener('molis-work:settings-embed',event=>bind(event.detail.root));
 })();`;

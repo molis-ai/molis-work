@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 import { callMcpConnectionTool, completeMcpAuthorization, inspectMcpConnection, readMcpConnectionResource, McpConnectionError, startMcpConnection } from "./connector-mcp.js";
 import { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
+import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 
 const PREFIX = "/api/settings/connectors/methods/mcp";
 const CONNECTION = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/mcp$/u;
@@ -17,7 +18,7 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
     const origin = `http://${host}`;
     if (url.pathname === `${PREFIX}/callback` && request.method === "GET") {
       const result = await completeMcpAuthorization(home, { state: url.searchParams.get("state") ?? "", code: url.searchParams.get("code") ?? "", error: url.searchParams.get("error") ?? undefined, origin });
-      response.writeHead(302, { location: `/settings/connectors?connector=${encodeURIComponent(result.serviceId)}`, "cache-control": "no-store" });
+      response.writeHead(302, { location: `/settings/connectors?connected=${encodeURIComponent(result.serviceId)}&connection=${encodeURIComponent(result.connectionId)}`, "cache-control": "no-store" });
       response.end();
       return true;
     }
@@ -39,7 +40,7 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
         redirectUri: typeof body.redirect_uri === "string" ? body.redirect_uri : undefined,
         origin,
       });
-      sendLocalWebJson(response, 200, { connection_id: result.connectionId, authorization_url: result.authorizationUrl,
+      sendLocalWebJson(response, 200, { connection_id: result.connectionId, authorization_id: result.authorizationId, authorization_url: result.authorizationUrl,
         ...("tools" in result ? { tools: result.tools, resources: result.resources } : {}) });
       return true;
     }
@@ -58,6 +59,10 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
     }
     throw new McpConnectionError("configuration", "请选择检查连接，或填写要调用的 MCP 工具和参数");
   } catch (error) {
+    if (request.method === "GET" && url.pathname === `${PREFIX}/callback`) {
+      connectorAuthorizationFailed(response, undefined, url.searchParams.get("error") === "access_denied");
+      return true;
+    }
     const known = error instanceof McpConnectionError;
     sendLocalWebJson(response, known && error.code === "authorization" ? 401 : 400, {
       error: known ? error.message : "MCP 操作失败，请检查连接配置后重试", code: known ? error.code : "provider",

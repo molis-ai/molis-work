@@ -1,4 +1,6 @@
+import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import { randomUUID } from "node:crypto";
+import { connectorProductAuth } from "./connector-product-auth.js";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { withConnectorRequest } from "./connector-lifecycle.js";
@@ -34,8 +36,9 @@ export const MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
   lark: { endpoint: "https://open.larksuite.com/", stdio: true },
   notion: { endpoint: "https://mcp.notion.com/mcp", auth: "oauth" },
   github: { endpoint: "https://api.githubcopilot.com/mcp/", auth: "either", registration: "manual" },
-  dropbox: { endpoint: "https://mcp.dropbox.com/mcp", auth: "oauth" },
-  box: { endpoint: "https://mcp.box.com", auth: "oauth" },
+  // Registration endpoint exists, but rejects non-partner clients (403).
+  dropbox: { endpoint: "https://mcp.dropbox.com/mcp", auth: "oauth", registration: "manual" },
+  box: { endpoint: "https://mcp.box.com", auth: "oauth", registration: "manual" },
   slack: { endpoint: "https://mcp.slack.com/mcp", auth: "oauth", registration: "manual" },
   gitlab: { endpoint: "https://gitlab.com/api/v4/mcp", auth: "oauth" },
   vercel: { endpoint: "https://mcp.vercel.com", auth: "oauth" },
@@ -56,8 +59,8 @@ export const MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
   stripe: { endpoint: "https://mcp.stripe.com", auth: "either" },
   intercom: { endpoint: "https://mcp.intercom.com/mcp", auth: "either" },
   hubspot: { endpoint: "https://mcp.hubspot.com", auth: "oauth", registration: "manual" },
-  zoom: { endpoint: "https://zoom.us/mcp/meeting/streamable", auth: "oauth" },
-  x: { endpoint: "https://api.x.com/mcp", auth: "either" },
+  zoom: { endpoint: "https://zoom.us/mcp/meeting/streamable", auth: "oauth", registration: "manual" },
+  x: { endpoint: "https://api.x.com/mcp", auth: "either", registration: "manual" },
 };
 
 const CALLBACK = "/api/settings/connectors/methods/mcp/callback";
@@ -154,7 +157,7 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
       redirectUrl: config.redirectUri,
       get clientMetadata() {
         const client = oauth.clientInformation() as OAuthClientInformationMixed | undefined;
-        return { client_name: "Molis Work", redirect_uris: [config.redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: client?.client_secret ? "client_secret_post" : "none" };
+        return { client_name: "Molis", client_uri: "https://molis.ai", redirect_uris: [config.redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: client?.client_secret ? "client_secret_post" : "none" };
       },
       state: () => { if (!state) throw new McpConnectionError("authorization", "MCP 授权已失效，请重新连接"); return state; },
       clientInformation: () => { const raw = secrets.get("client"); return raw ? JSON.parse(raw) as OAuthClientInformationMixed : undefined; },
@@ -205,7 +208,9 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
       finally { signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); }
     }
     const expires = Number(session.secrets.get("expires"));
-    if (config.mode === "oauth" && expires > 0 && expires <= now() + 30_000) {
+    // Some official servers also expose anonymous tools. A user asking to link
+    // an account must still authorize, even if initialize would succeed publicly.
+    if (config.mode === "oauth" && ((state && !session.secrets.get("access")) || (expires > 0 && expires <= now() + 30_000))) {
       await auth(session.oauth, { serverUrl: config.endpoint, fetchFn: session.fetch });
       if (session.authorizationUrl()) return { authorizationUrl: session.authorizationUrl() };
     }
@@ -272,6 +277,12 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
     staged.clear();
   }
   const startMcpConnection = async (home: string, input: StartMcpConnectionInput) => serialized(home, input.connectionId ?? "new", async () => {
+    // Deployment credentials are bound to the default official resource only.
+    if (!input.clientId?.trim() && !input.clientSecret?.trim() && !input.token?.trim() &&
+      (!input.endpoint || input.endpoint === servers[input.serviceId]?.endpoint)) {
+      const product = connectorProductAuth(input.serviceId, "mcp");
+      if (product) input = { ...input, clientId: product.clientId, clientSecret: product.clientSecret };
+    }
     const endpoint = endpointFor(input.serviceId, input.endpoint);
     const base = servers[input.serviceId]!;
     const server = input.serviceId === "figma" && endpoint.startsWith("https:") ? { ...base, auth: "oauth" as const, registration: "manual" as const } : base;
@@ -296,15 +307,17 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
     if (token) secrets.put("access", token);
     if (input.clientId?.trim()) secrets.put("client", JSON.stringify({ client_id: input.clientId.trim(), ...(input.clientSecret?.trim() ? { client_secret: input.clientSecret.trim() } : {}) }));
     const state = withConnectorProtocols(home, store => store.begin(origin, config, now()));
+    const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId, now());
     try {
       const connected = await useClient(home, config, inspect, state);
-      if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); return { connectionId, authorizationUrl: connected.authorizationUrl }; }
+      if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); return { connectionId, authorizationId, authorizationUrl: connected.authorizationUrl }; }
       if (!connected.result) throw new McpConnectionError("provider", "MCP 未完成初始化");
       if (config.mode === "oauth" && !secrets.get("access")) throw new McpConnectionError("authorization", "MCP 未取得访问令牌，请检查 OAuth 应用配置");
       commit(home, config);
       withConnectorProtocols(home, store => store.discard(state));
-      return { connectionId, ...connected.result };
-    } catch (error) { withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); throw error; }
+      finishConnectorAuthorization(home, state, "connected");
+      return { connectionId, authorizationId, ...connected.result };
+    } catch (error) { finishConnectorAuthorization(home, state, "failed"); withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); throw error; }
   });
   const completeMcpAuthorization = async (home: string, input: { state?: string; code?: string; origin: string; returnedUrl?: string; error?: string }) => {
     const returned = input.returnedUrl ? new URL(input.returnedUrl) : null;
@@ -326,7 +339,11 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
         const connected = await useClient(home, config, inspect);
         if (!connected.result) throw new McpConnectionError("authorization", "MCP 授权未完成，请重新连接");
         commit(home, config);
+        finishConnectorAuthorization(home, state, "connected");
         return { connectionId: config.connectionId, serviceId: config.serviceId, ...connected.result };
+      } catch (error) {
+        finishConnectorAuthorization(home, state, (input.error || returned?.searchParams.get("error")) === "access_denied" ? "cancelled" : "failed");
+        throw error;
       } finally { session.secrets.clear(); }
     });
   };

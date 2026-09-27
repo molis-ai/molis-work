@@ -55,7 +55,7 @@ const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
     token_label: "Bearer Token", capabilities: capabilities("MCP 工具与资源", "Coding Agent", { inbound: true, outbound: true }),
   },
   {
-    connector_id: "github",
+    connector_id: "github", feed_available: true,
     title: "GitHub",
     availability: "live",
     auth_kind: "github",
@@ -70,7 +70,7 @@ const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
     setup_links: setupLinksFor("github"),
   },
   {
-    connector_id: "gmail",
+    connector_id: "gmail", feed_available: true,
     title: "Gmail",
     availability: "live",
     auth_kind: "gmail",
@@ -82,7 +82,7 @@ const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
   },
   ...CATALOG_CONNECTORS.map((spec) => ({
     connector_id: spec.id,
-    title: spec.title,
+    title: spec.id === "wechat" ? "企业微信" : spec.title,
     availability: "live" as const,
     auth_kind: (spec.id === "loom" ? "none" : spec.id === "notion" ? "notion" : spec.id === "feishu" ? "feishu" : "token") as "none" | "notion" | "feishu" | "token",
     group_id: spec.group_id,
@@ -91,6 +91,7 @@ const CONNECTOR_DIRECTORY_BASE: readonly ConnectorDirectoryEntry[] = [
     token_placeholder: spec.token_placeholder,
     auth_help: spec.auth_help,
     setup_links: spec.setup_links,
+    feed_available: spec.feed_available !== false,
     capabilities: capabilities(spec.inbound, "在连接设置中检查当前账号", { inbound: spec.feed_available !== false, outbound: true }),
     outbound_note: "连接设置可检查当前账号。Agent 可用能力以能力库为准。",
   })),
@@ -134,6 +135,7 @@ export function listConnectorSettingsCards() {
     const credential = connectorCredentialStatus(entry.connector_id);
     return {
       ...entry,
+      method_options: connectorMethodsFor(entry.connector_id),
       account_state: connectorAccountStateFromCredential(credential.bound, credential.problem),
       hint: credential.hint,
       github_client_id_configured: entry.auth_kind === "github" ? githubClientIdConfigured() : false,

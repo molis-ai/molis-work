@@ -1,3 +1,6 @@
+import { createAgentConnectorPorts } from "../apps/local-host/src/agent-connector-ports.ts";
+import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
+import { connectorAuthorizationStatus } from "../apps/local-host/src/connector-authorization-status.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
@@ -153,6 +156,21 @@ test("MCP Bearer credentials are independent, remain private, and cannot move en
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("linking an account authorizes even when the MCP server also accepts anonymous initialization", async () => {
+  const temp = home(); const remote = await fixture();
+  const host = createConnectorMcpHost({ testServers: { huggingface: { endpoint: remote.endpoint, auth: "either" } } });
+  try {
+    const started = await host.startMcpConnection(temp, { serviceId: "huggingface", displayName: "Account", origin: callbackOrigin });
+    assert.ok(started.authorizationUrl);
+    assert.equal(remote.stats().initializationCount, 0);
+    assert.equal(withConnectorConnections(temp, store => store.list()).length, 0);
+    const state = remote.authorize(started.authorizationUrl);
+    const result = await host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+    assert.equal(result.tools[0]?.name, "echo");
+    assert.equal(connectorProtocolSecrets(temp, result.connectionId).get("access"), "oauth-access-initial");
+  } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("MCP OAuth DCR and PKCE survive a new host instance; refresh and 401 recovery use scoped credentials", async () => {
   const temp = home(); const remote = await fixture({ oauth: true });
   let clock = Date.now();
@@ -276,4 +294,39 @@ test("official Lark MCP stdio transport discovers and calls tools with environme
     withConnectorConnections(temp, store => store.disconnect(connected.connectionId));
     await assert.rejects(host.inspectMcpConnection(temp, connected.connectionId), /断开/u);
   } finally { process.env.PATH = priorPath; rmSync(temp, { recursive: true, force: true }); }
+});
+
+
+test("official MCP OAuth flows through Host into Agent selections, refreshes, and revokes active access", async () => {
+  const temp = home(); const remote = await fixture({ oauth: true });
+  let clock = Date.now();
+  const host = createConnectorMcpHost({ testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" } }, now: () => clock });
+  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  try {
+    const started = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "Official workspace", origin: callbackOrigin });
+    const state = remote.authorize(started.authorizationUrl!);
+    await host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+    assert.equal(connectorAuthorizationStatus(temp, started.authorizationId)?.status, "connected");
+    const ports = createAgentConnectorPorts(temp, host.resolveMcpConnectionToken);
+    await assert.rejects(ports.resolveMcpConnection(started.connectionId, remote.endpoint + "?other=1"), /完整服务地址/);
+    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.connector-agent-review", appVersion: "1.0.0" },
+      reviewQueue: new AgentReviewQueue(), storageRoot: join(temp, "runtime"), modelConfiguration: async () => null,
+      resolveMcpConnection: ports.resolveMcpConnection, resolveCredential: ports.resolveMcpCredential, subscribeMcpConnections: ports.subscribeMcpConnections });
+    const owner = { board_id: "review", plugin_id: "io.molis.work.coding" };
+    const library = adapter.mcpLibrary!;
+    const saved = await library.save(owner, { expected_version: 0, label: "Notion tools", transport: "http", enabled: true, timeout_ms: 5000,
+      endpoint: remote.endpoint, auth: { kind: "connection", connection_id: started.connectionId } });
+    await library.control(owner, saved.id, "connect");
+    const tools = (await library.list(owner))[0]!.tools;
+    assert.equal(tools[0]?.tool, "echo");
+    assert.equal(remote.stats().callCount, 0, "authorization and discovery do not execute tools");
+    clock += 3_600_000;
+    await library.validate(owner, tools);
+    assert.equal(remote.stats().refreshCount, 1);
+    assert.ok(remote.stats().authorizationHeaders.includes("Bearer oauth-access-1"));
+    assert.doesNotMatch(JSON.stringify(await library.list(owner)), /oauth-access|oauth-refresh/);
+    withConnectorConnections(temp, store => store.disconnect(started.connectionId));
+    await assert.rejects(library.validate(owner, tools), /已改变|断开|不可用/);
+    assert.notEqual((await library.list(owner))[0]!.health, "connected");
+  } finally { await adapter?.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });

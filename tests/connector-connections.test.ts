@@ -10,6 +10,7 @@ import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { ImagesHostService } from "../apps/local-host/src/images-service-host.ts";
 import { refreshFeedConnectionState } from "../apps/local-host/src/web-connector-connections.ts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
+import { bindPrologueInference } from "../apps/local-host/src/prologue-inference-host.ts";
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 
@@ -76,14 +77,20 @@ test("API and MCP credentials pin their first destination origin and reject a di
   } finally { db.close(); }
 });
 
-test("Images uses the chosen Connector credential for each generation and survives another account disconnect", async t => {
+test("Images uses the chosen Connector credential for each generation and survives another account disconnect", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-image-connector-"));
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const imageHost = new ImagesHostService(home);
   const seen: string[] = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, options: RequestInit) => {
-    seen.push(String((options.headers as Record<string, string>).authorization));
-    return new Response(JSON.stringify({ data: [{ b64_json: PIXEL }] }), { status: 200, headers: { "content-type": "application/json" } });
+  const unbind = bindPrologueInference(home, {
+    completeText: async () => { throw new Error("Unexpected text inference"); },
+    completeTextResult: async () => { throw new Error("Unexpected text inference"); },
+    evaluateTypeSafe: async () => { throw new Error("Unexpected TypeSafe inference"); },
+    generateImages: async input => {
+      seen.push(`Bearer ${await input.resolveCredential(input.credential_ref)}`);
+      assert.equal(input.endpoint, "https://images.example/v1/images/generations");
+      return [{ bytes: Buffer.from(PIXEL, "base64"), mime: "image/png" }];
+    },
   });
   try {
     process.env.MOLIS_WORK_SECRET_BACKEND = "file";
@@ -100,7 +107,7 @@ test("Images uses the chosen Connector credential for each generation and surviv
       for (let i = 0; i < 100 && images.getJob("board-one", job.id).status === "running"; i++) {
         await new Promise(resolve => setTimeout(resolve, 10));
       }
-      assert.equal(images.getJob("board-one", job.id).status, "succeeded");
+      assert.equal(images.getJob("board-one", job.id).status, "succeeded", JSON.stringify(images.getJob("board-one", job.id)));
     }
     await generate("account-a");
     assert.equal(withConnectorConnections(home, store => store.targetOrigin(a!.connection_id)), "https://images.example");
@@ -111,6 +118,7 @@ test("Images uses the chosen Connector credential for each generation and surviv
     assert.equal(images.listConnections()[0]?.auth_connection_id, b!.connection_id);
   } finally {
     await imageHost.close();
+    unbind();
     resetSecretStoreCache();
     if (previousBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND;
     else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
@@ -233,7 +241,9 @@ test("managed Gmail OAuth creates a named connection and refuses reauthorizing i
     mailbox = "b@example.com";
     const second = await start(first.connection_id);
     const mismatch = await fetch(`${origin}/api/feed/connectors/gmail/oauth/callback?state=${second.state}&code=second`);
-    assert.equal(mismatch.status, 400);
+    assert.equal(mismatch.status, 200);
+    assert.match(mismatch.url, /connector=gmail/);
+    assert.match(mismatch.url, /connection_error=failed/);
     assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connection_id, "gmail")), "access-token-a");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
@@ -287,7 +297,10 @@ test("managed Notion OAuth keeps workspace identity and the selected connection 
     assert.equal(saved.account_label, "workspace-a");
     workspace = "workspace-b";
     const second = await start(first.connectionId);
-    assert.equal((await callback(second.state)).status, 400);
+    const mismatch = await callback(second.state);
+    assert.equal(mismatch.status, 200);
+    assert.match(mismatch.url, /connector=notion/);
+    assert.match(mismatch.url, /connection_error=failed/);
     assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connectionId, "notion")), "notion-token-workspace-a");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));

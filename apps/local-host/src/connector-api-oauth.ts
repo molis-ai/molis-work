@@ -1,8 +1,11 @@
+import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
+import { refreshFeedConnectionState } from "./connector-source-state.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { apiOAuthProvider, salesforceOrigin } from "./connector-api-oauth-providers.js";
+import { connectorProductAuth, connectorBrokerOrigin } from "./connector-product-auth.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 
 const CALLBACK = "/api/settings/connectors/methods/oauth/callback";
@@ -15,8 +18,12 @@ interface OAuthConfiguration extends ConnectorProtocolConfiguration {
   settings: Record<string, string>;
   context: Record<string, string>;
   previousRevision?: string;
+  brokerOrigin?: string;
+  clientSource?: "product" | "custom";
 }
-export class ApiOAuthError extends Error {}
+export class ApiOAuthError extends Error {
+  constructor(message: string, readonly serviceId?: string) { super(message); }
+}
 type Json = Record<string, unknown>;
 function object(value: unknown): Json { return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {}; }
 function text(value: unknown): string { return typeof value === "string" ? value : ""; }
@@ -56,14 +63,47 @@ export function apiOAuthConnectionId(ref?: string): string | undefined {
 export async function startApiOAuth(home: string, input: {
   serviceId: string; displayName: string; clientId: string; clientSecret?: string; settings?: Record<string, string>;
   origin: string; redirectUri?: string; connectionId?: string;
-}) {
+}, fetchImpl: typeof fetch = fetch) {
   const origin = localOrigin(input.origin);
+  let brokerOrigin: string | undefined;
+  let clientSource: "product" | "custom" = "custom";
+  // Reauthorization keeps this account's app settings on the host. Never send a
+  // saved client secret back to the browser or borrow another account's client.
+  if (input.connectionId && !input.clientId.trim()) {
+    const previous = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!));
+    withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId));
+    if (previous?.protocol === "oauth" && previous.serviceId === input.serviceId) {
+      const secret = object(JSON.parse(connectorProtocolSecrets(home, input.connectionId).get("client") || "{}"));
+      input = { ...input, clientId: previous.clientId, clientSecret: text(secret.clientSecret),
+        settings: previous.settings, redirectUri: input.redirectUri || (previous.redirectUri.startsWith("https:") ? previous.redirectUri : undefined) };
+      brokerOrigin = previous.brokerOrigin;
+      clientSource = previous.clientSource ?? "custom";
+      if (!brokerOrigin && !input.clientSecret && clientSource === "product") {
+        const product = connectorProductAuth(input.serviceId, "oauth");
+        if (!product || product.clientId !== previous.clientId || JSON.stringify(product.settings ?? {}) !== JSON.stringify(previous.settings)) {
+          throw new ApiOAuthError("此账号的产品授权配置已变化，请联系支持或添加新连接", input.serviceId);
+        }
+        input = { ...input, clientSecret: product.clientSecret };
+      }
+      if (!brokerOrigin && !input.clientSecret && !apiOAuthProvider(input.serviceId, previous.settings).optionalSecret) {
+        throw new ApiOAuthError("此自定义应用的密钥已随断开移除，请展开高级设置重新填写原应用凭据", input.serviceId);
+      }
+    }
+  }
+  // A custom client never inherits a product secret. Reauthorization above has
+  // priority, even when deployment configuration changes between sessions.
+  if (!input.connectionId && !input.clientId.trim() && !input.clientSecret?.trim() && !input.redirectUri?.trim()) {
+    brokerOrigin = connectorBrokerOrigin(input.serviceId);
+    if (brokerOrigin) input = { ...input, clientId: "broker", settings: {} };
+    const product = connectorProductAuth(input.serviceId, "oauth");
+    if (!brokerOrigin && product) { input = { ...input, ...product }; clientSource = "product"; }
+  }
   const settings = { ...input.settings };
-  const provider = apiOAuthProvider(input.serviceId, settings);
+  const provider = brokerOrigin ? undefined : apiOAuthProvider(input.serviceId, settings);
   if (!input.clientId.trim() || input.clientId.length > 512 || /[\r\n]/u.test(input.clientId)) throw new ApiOAuthError("请填写有效的 OAuth Client ID");
-  if (!provider.optionalSecret && !input.clientSecret?.trim()) throw new ApiOAuthError("请填写此应用的 Client Secret");
+  if (provider && !provider.optionalSecret && !input.clientSecret?.trim()) throw new ApiOAuthError("请填写此应用的 Client Secret");
   if (!input.displayName.trim() || input.displayName.length > 100) throw new ApiOAuthError("请填写连接名称（最多 100 字）");
-  for (const field of provider.fields ?? []) if (field.required && !settings[field.key]?.trim()) throw new ApiOAuthError(`请填写${field.label}`);
+  for (const field of provider?.fields ?? []) if (field.required && !settings[field.key]?.trim()) throw new ApiOAuthError(`请填写${field.label}`);
   const redirectUri = input.redirectUri?.trim() || `${origin}${CALLBACK}`;
   const redirect = new URL(redirectUri);
   if (redirect.username || redirect.password || redirect.hash || redirect.search || (redirect.protocol !== "https:" && redirectUri !== `${origin}${CALLBACK}`)) throw new ApiOAuthError("回调地址应为当前本机回调，或你在服务商登记的 HTTPS 地址（无查询参数）");
@@ -76,27 +116,47 @@ export async function startApiOAuth(home: string, input: {
   }
   const sessionId = randomUUID();
   const configuration: OAuthConfiguration = { connectionId, serviceId: input.serviceId, protocol: "oauth", sessionId,
-    displayName: input.displayName.trim(), clientId: input.clientId.trim(), redirectUri, settings,
-    context: { auth_method: "oauth", client_id: input.clientId.trim() }, previousRevision };
+    clientSource, displayName: input.displayName.trim(), clientId: input.clientId.trim(), redirectUri, settings,
+    context: { auth_method: "oauth", client_id: input.clientId.trim() }, previousRevision, ...(brokerOrigin ? { brokerOrigin } : {}) };
   const secrets = connectorProtocolSecrets(home, sessionId);
   secrets.put("client", JSON.stringify({ clientSecret: input.clientSecret?.trim() ?? "" }));
   const verifier = randomBytes(32).toString("base64url");
   secrets.put("verifier", verifier);
   const state = withConnectorProtocols(home, store => store.begin(origin, configuration));
-  const url = new URL(provider.authorize);
+  const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId);
+  if (brokerOrigin) {
+    try {
+      const result = await jsonRequest(fetchImpl, `${brokerOrigin}/start`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ service_id: input.serviceId, return_uri: redirectUri, state, code_challenge: createHash("sha256").update(verifier).digest("base64url") }) });
+      const authorize = new URL(text(result.authorization_url));
+      if (authorize.protocol !== "https:" || authorize.username || authorize.password || !text(result.client_id)) throw new ApiOAuthError("产品授权服务返回无效配置");
+      configuration.clientId = text(result.client_id);
+      configuration.context.client_id = configuration.clientId;
+      configuration.settings = Object.fromEntries(Object.entries(object(result.settings)).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+      apiOAuthProvider(input.serviceId, configuration.settings);
+      withConnectorProtocols(home, store => store.update(state, configuration));
+      return { authorization_id: authorizationId, connection_id: connectionId, authorization_url: authorize.href, redirect_uri: redirectUri, manual_callback: false };
+    } catch (error) { finishConnectorAuthorization(home, state, "failed"); withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); throw error; }
+  }
+  const url = new URL(provider!.authorize);
   url.searchParams.set("client_id", configuration.clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
-  if (provider.scope) url.searchParams.set("scope", provider.scope);
-  for (const [key, value] of Object.entries(provider.parameters ?? {})) url.searchParams.set(key, value);
-  if (provider.pkce) {
+  if (provider!.scope) url.searchParams.set("scope", provider!.scope);
+  for (const [key, value] of Object.entries(provider!.parameters ?? {})) url.searchParams.set(key, value);
+  if (provider!.pkce) {
     url.searchParams.set("code_challenge", createHash("sha256").update(verifier).digest("base64url"));
     url.searchParams.set("code_challenge_method", "S256");
   }
-  return { connection_id: connectionId, authorization_url: url.href, redirect_uri: redirectUri, manual_callback: redirectUri !== `${origin}${CALLBACK}` };
+  return { authorization_id: authorizationId, connection_id: connectionId, authorization_url: url.href, redirect_uri: redirectUri, manual_callback: redirectUri !== `${origin}${CALLBACK}` };
 }
 async function exchange(home: string, config: OAuthConfiguration, input: { code?: string; refreshToken?: string }, fetchImpl: typeof fetch): Promise<Json> {
+  if (config.brokerOrigin) {
+    return jsonRequest(fetchImpl, `${config.brokerOrigin}/token`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ service_id: config.serviceId, ...(input.refreshToken ? { grant_type: "refresh_token", refresh_token: input.refreshToken }
+        : { grant_type: "authorization_code", code: input.code, code_verifier: connectorProtocolSecrets(home, config.sessionId).get("verifier") }) }) });
+  }
   const provider = apiOAuthProvider(config.serviceId, config.settings);
   const secrets = connectorProtocolSecrets(home, config.sessionId);
   const clientSecret = text(object(JSON.parse(secrets.get("client") || "{}")).clientSecret);
@@ -104,6 +164,7 @@ async function exchange(home: string, config: OAuthConfiguration, input: { code?
     ? { grant_type: "refresh_token", refresh_token: input.refreshToken }
     : { grant_type: "authorization_code", code: input.code!, redirect_uri: config.redirectUri };
   if (provider.pkce && input.code) body.code_verifier = secrets.get("verifier") || "";
+  if (config.serviceId === "gitlab" && input.refreshToken) body.redirect_uri = config.redirectUri;
   const headers: Record<string, string> = { accept: "application/json" };
   if (provider.auth === "basic" && clientSecret) headers.authorization = `Basic ${Buffer.from(`${config.clientId}:${clientSecret}`).toString("base64")}`;
   else {
@@ -127,6 +188,8 @@ function expiry(json: Json, service: string): number | null {
 async function enrichContext(config: OAuthConfiguration, json: Json, fetchImpl: typeof fetch): Promise<void> {
   const accessToken = text(json.access_token);
   if (text(json.workspace_id)) config.context.workspace_id = text(json.workspace_id);
+  // Sentry returns the authorizing user with the token, not from /api/0/auth/.
+  if (config.serviceId === "sentry" && text(object(json.user).id)) config.context.oauth_user_id = text(object(json.user).id);
   if (config.serviceId === "salesforce") config.context.instance = salesforceOrigin(text(json.instance_url) || config.context.instance || "");
   if (config.serviceId === "vercel" && text(json.team_id)) config.context.team_id = text(json.team_id);
   if (["clickup", "supabase"].includes(config.serviceId) && !config.context.authorized_workspaces) {
@@ -161,10 +224,8 @@ export async function apiOAuthIdentity(service: string, token: string, context: 
     const identity = await catalogWhoami({ connectorId: service, token, authExtras: context, fetchImpl });
     if (!identity.ok) throw new ApiOAuthError(identity.message);
     if (service === "sentry") {
-      const auth = await jsonRequest(fetchImpl, "https://sentry.io/api/0/auth/", { headers: { authorization: `Bearer ${token}`, accept: "application/json" } });
-      const user = auth;
-      if (!user.id || !identity.account_id) throw new ApiOAuthError("Sentry 未返回用户与组织身份，请检查应用权限");
-      context.account_id = `${identity.account_id}:${String(user.id)}`;
+      if (!context.oauth_user_id || !identity.account_id) throw new ApiOAuthError("Sentry 未返回用户与组织身份，请检查应用权限");
+      context.account_id = `${identity.account_id}:${context.oauth_user_id}`;
     } else if (identity.account_id) context.account_id = identity.account_id;
     if (context.authorized_workspaces !== undefined) context.account_id += `:workspaces:${context.authorized_workspaces}`;
     if (!context.account_id) throw new ApiOAuthError("服务未返回稳定账号身份，请检查应用权限后重新授权");
@@ -189,7 +250,7 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
     if (returned && `${returned.origin}${returned.pathname}` !== config.redirectUri) throw new ApiOAuthError("返回地址不匹配本次登记的回调地址");
     if (input.error || returned?.searchParams.get("error")) throw new ApiOAuthError("授权被取消或拒绝，请重新连接");
     const code = returned?.searchParams.get("code") || input.code;
-    if (!code || code.length > 4096) throw new ApiOAuthError("缺少有效的授权码");
+    if (!code || code.length > (config.brokerOrigin ? 16000 : 4096)) throw new ApiOAuthError("缺少有效的授权码");
     return await serialized(home, config.connectionId, async () => {
       const tokens = await exchange(home, config, { code }, fetchImpl);
       const token = text(tokens.access_token);
@@ -214,8 +275,13 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
       const connection = withConnectorConnections(home, store => store.upsertOAuth({ connectionId: config.connectionId, serviceId: config.serviceId,
         displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
         refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true }));
+      refreshFeedConnectionState(home, config.connectionId);
+      finishConnectorAuthorization(home, state, "connected");
       return { service_id: config.serviceId, connection: withConnectorConnections(home, store => store.view(connection)) };
     });
+  } catch (error) {
+    finishConnectorAuthorization(home, state, (input.error || returned?.searchParams.get("error")) === "access_denied" ? "cancelled" : "failed");
+    throw new ApiOAuthError(error instanceof ApiOAuthError ? error.message : "授权未完成，请检查应用配置与权限后重试", config.serviceId);
   } finally { staged.clear(); }
 }
 export async function resolveApiOAuthToken(home: string, id: string, forceRefresh = false, fetchImpl: typeof fetch = fetch): Promise<string> {

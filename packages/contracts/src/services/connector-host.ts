@@ -109,6 +109,8 @@ export type ConnectorMethodSupport = "in_app" | "paste" | "external";
 
 /** A provider-supported route, with an independent statement of current app support. */
 export interface ConnectorMethodOption {
+  /** Host can start this method without asking a user for app credentials. Not proof of provider approval. */
+  readonly login_ready?: boolean;
   readonly kind: ConnectorMethodKind;
   readonly support: ConnectorMethodSupport;
   readonly note: string;
@@ -125,6 +127,7 @@ export interface ConnectorDirectoryEntry {
   readonly auth_kind: ConnectorAuthKind;
   readonly group_id: ConnectorDirectoryGroupId;
   readonly summary: string;
+  readonly feed_available?: boolean;
   readonly capabilities: readonly ConnectorCapability[];
   readonly unavailable_reason?: string;
   readonly outbound_note?: string;
@@ -159,4 +162,6 @@ export type ConnectorConnectionView = Pick<ConnectorConnectionRecord,
   "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source"> & {
     readonly state: ConnectorConnectionState;
     readonly target_origin?: string;
+    readonly mcp_endpoint?: string;
+    readonly agent_available?: boolean;
   };

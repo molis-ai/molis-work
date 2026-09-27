@@ -469,7 +469,7 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
         <h3 data-mcp-form-title>添加 MCP 服务</h3>
         <form data-mcp-config class="mw-form-stack">
           <label class="mw-field">名称<input class="mw-input" name="label" required maxlength="128" aria-label="MCP 名称"></label>
-          <label class="mw-field">连接方式<select class="mw-select" name="transport" aria-label="MCP 连接方式"><option value="stdio">本机进程（stdio）</option><option value="http">HTTP</option></select></label>
+          <label class="mw-field">连接方式<select class="mw-select" name="transport" aria-label="MCP 连接方式"><option value="http">已授权账号 / HTTP</option><option value="stdio">本机进程（stdio）</option></select></label>
           <div data-mcp-stdio class="mw-form-stack">
             <label class="mw-field">授权工作区<select class="mw-select" name="workspace" aria-label="MCP 工作区"></select></label>
             <label class="mw-field">可执行文件<input class="mw-input" name="executable" aria-label="MCP 可执行文件"></label>
@@ -479,7 +479,7 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
           <div data-mcp-http class="mw-form-stack" hidden>
             <label class="mw-field">服务地址<input class="mw-input" name="endpoint" aria-label="MCP 地址" placeholder="https://example.com/mcp"></label>
             <label class="mw-field">认证<select class="mw-select" name="auth" aria-label="MCP 认证"><option value="none">无认证</option><option value="connection">选择 Connector 连接</option><option value="keep-existing">保留原凭据</option></select></label>
-            <label class="mw-field">账号连接<select class="mw-select" name="auth_connection_id" aria-label="MCP 账号连接"><option value="">选择连接</option></select></label><a href="/settings/connectors?connector=mcp-bearer">在 Connectors 管理 Bearer 凭据</a>
+            <label class="mw-field">账号连接<select class="mw-select" name="auth_connection_id" aria-label="MCP 账号连接"><option value="">选择连接</option></select></label><p>选择已授权的官方工具会自动填写服务地址。保存并连接后，在会话中选择本轮允许使用的工具。</p><a href="/capabilities/connections">连接官方工具或管理远程 MCP 密钥</a>
           </div>
           <label class="mw-field">请求超时（毫秒）<input class="mw-input" type="number" name="timeout" value="30000" min="1000" max="600000" aria-label="MCP 超时"></label>
           <label class="mw-check-row"><input class="mw-check" type="checkbox" name="enabled" checked>启用此配置</label>

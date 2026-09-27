@@ -1,9 +1,11 @@
+import { agentMcpEndpoint } from "./agent-connector-ports.js";
+import { connectorAuthorizationStatus } from "./connector-authorization-status.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { existsSync } from "node:fs";
 import { resolve, sep, join } from "node:path";
 import { LocalSqliteStorage, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
-import { inspectAccountSourceCredentials, refreshSourceConnectionState } from "@molis-ai/molis-work-module-sources";
+import { inspectAccountSourceCredentials } from "@molis-ai/molis-work-module-sources";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { authRefFor } from "./connector-credentials.js";
@@ -12,6 +14,9 @@ import { adoptLegacyImageConnections, ConnectorConnectionError, withConnectorCon
 import { FUNCTIONS_CREDENTIAL_REF } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ModelProviderStore } from "./model-provider-store.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
+
+import { refreshFeedConnectionState } from "./connector-source-state.js";
+export { refreshFeedConnectionState } from "./connector-source-state.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
@@ -96,7 +101,8 @@ const SERVICE_ID = /^[a-z][a-z0-9-]*$/u;
 export function listConnectorConnectionViews(homeDirectory: string, serviceId?: string) {
   importLegacyAccounts(homeDirectory);
   return withConnectorConnections(homeDirectory, (store) => store.list(serviceId).map((row) => {
-    const view = store.view(row);
+    const endpoint = row.auth_method === "mcp" ? agentMcpEndpoint(homeDirectory, row.connection_id) : null;
+    const view = { ...store.view(row), ...(row.auth_method === "mcp" ? { agent_available: Boolean(endpoint), ...(endpoint ? { mcp_endpoint: endpoint } : {}) } : {}) };
     if (row.source !== "external" || row.disconnected_at) return view;
     try {
       if (row.auth_method === "cli") {
@@ -109,32 +115,16 @@ export function listConnectorConnectionViews(homeDirectory: string, serviceId?: 
   }));
 }
 
-/** Keep Feed's saved source status in step with the selected Home connection. */
-export function refreshFeedConnectionState(homeDirectory: string, connectionId: string): void {
-  const available = withConnectorConnections(homeDirectory, (store) => {
-    const connection = store.require(connectionId);
-    return store.state(connection) === "connected";
-  });
-  const catalogPath = join(homeDirectory, "projects", "catalog.db");
-  if (!existsSync(catalogPath)) return;
-  const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
-  try {
-    const root = resolve(homeDirectory, "projects") + sep;
-    for (const databasePath of listProjectDatabasePaths(catalog.db)) {
-      const path = resolve(databasePath);
-      if (!path.startsWith(root) || !existsSync(path)) continue;
-      const project = new LocalSqliteStorage(path, { fileMustExist: true });
-      try {
-        refreshSourceConnectionState(project.db, { connection_id: connectionId, available });
-      } finally { project.close(); }
-    }
-  } finally { catalog.close(); }
-}
-
 export async function handleConnectorConnectionsHttp(
   request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory?: string,
 ): Promise<boolean> {
   if (!homeDirectory) return false;
+  const authorization = /^\/api\/settings\/connectors\/authorizations\/([0-9a-f-]{36})$/u.exec(url.pathname);
+  if (authorization && request.method === "GET") {
+    const result = connectorAuthorizationStatus(homeDirectory, authorization[1]!);
+    sendJson(response, result ? 200 : 404, result ?? { error: "授权记录已失效，请重新登录" });
+    return true;
+  }
   const collection = url.pathname === "/api/settings/connectors/connections";
   const item = url.pathname.match(ITEM_PATH);
   if (!collection && !item) return false;
@@ -143,6 +133,16 @@ export async function handleConnectorConnectionsHttp(
       const serviceId = url.searchParams.get("service_id") || undefined;
       const connections = listConnectorConnectionViews(homeDirectory, serviceId);
       sendJson(response, 200, { connections });
+      return true;
+    }
+    if (request.method === "GET" && item) {
+      const result = withConnectorConnections(homeDirectory, store => {
+        const row = store.require(item[1]!);
+        const protocol = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
+        return { connection: store.view(row), revision: row.updated_at,
+          authorization_flow: protocol?.protocol === "oauth" ? "oauth" : "account" };
+      });
+      sendJson(response, 200, result);
       return true;
     }
     if (request.method === "POST" && collection) {

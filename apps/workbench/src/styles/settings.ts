@@ -1,3 +1,4 @@
+import { CONNECTOR_EXPERIENCE_STYLES } from "./settings-connectors.js";
 export const SETTINGS_STYLES = `
   html:has(> body.settings-page), body.settings-page { height: 100dvh; max-height: 100dvh; min-height: 0; overflow: hidden; overscroll-behavior: none; background: var(--page); }
   body.settings-page { display: grid; grid-template-rows: auto minmax(0, 1fr); }
@@ -787,4 +788,5 @@ export const SETTINGS_IA_NAV_STYLES = `
     body.settings-page .settings-navigation--codex .settings-nav-group-label { display: none; }
     body.settings-page .settings-navigation--codex .settings-nav-body > a { min-width: max-content; }
   }
+${CONNECTOR_EXPERIENCE_STYLES}
 `;

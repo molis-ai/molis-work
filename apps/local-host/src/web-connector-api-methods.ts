@@ -5,6 +5,7 @@ import { cliAvailability, cliLoginJob, connectCli, ConnectorCliError, inspectCli
 import { inspectApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { inspectMcpConnection } from "./connector-mcp.js";
+import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 
 const ROOT = "/api/settings/connectors/methods";
 const ITEM = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/(verify|preview)$/u;
@@ -17,7 +18,7 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     const origin = `http://${host}`;
     if (request.method === "GET" && url.pathname === `${ROOT}/oauth/callback`) {
       const result = await completeApiOAuth(home, { origin, state: url.searchParams.get("state") || "", code: url.searchParams.get("code") || "", error: url.searchParams.get("error") || undefined });
-      response.writeHead(302, { location: `/settings/connectors?connected=${encodeURIComponent(result.service_id)}`, "cache-control": "no-store" }); response.end(); return true;
+      response.writeHead(302, { location: `/settings/connectors?connected=${encodeURIComponent(result.service_id)}&connection=${encodeURIComponent(result.connection.connection_id)}`, "cache-control": "no-store" }); response.end(); return true;
     }
     if (request.method !== "POST") { json(response, 405, { error: "请使用应用内连接操作" }); return true; }
     const body = await readLocalWebBody(request);
@@ -38,6 +39,10 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
           : await inspectApiConnection(home, row.connection_id, item[2] === "preview"));
     } else json(response, 404, { error: "连接操作不存在" });
   } catch (error) {
+    if (request.method === "GET" && url.pathname === `${ROOT}/oauth/callback`) {
+      connectorAuthorizationFailed(response, error instanceof ApiOAuthError ? error.serviceId : undefined, url.searchParams.get("error") === "access_denied");
+      return true;
+    }
     json(response, 400, { error: error instanceof ApiOAuthError || error instanceof ConnectorCliError || (item && error instanceof Error) ? error.message : "连接失败，请检查应用配置、回调地址及权限后重试" });
   }
   return true;

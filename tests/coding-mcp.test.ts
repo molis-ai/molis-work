@@ -119,12 +119,15 @@ test("MCP connection selection resolves the current Connector secret again after
   const connectionId = "11111111-1111-4111-8111-111111111111";
   const credentialRef = `connector-connection:${connectionId}:token`;
   let token = "first-mcp-token";
+  let invalidate: ((id: string) => void) | undefined;
+  let revokeWhileResolving = false;
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   try {
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.mcp-connector-test", appVersion: "1.0.0" },
       reviewQueue: new AgentReviewQueue(), storageRoot: join(root, "runtime"), modelConfiguration: async () => null,
       resolveMcpConnection: (id, destination) => id === connectionId && destination === endpoint ? credentialRef : null,
-      resolveCredential: ref => ref === credentialRef ? token : null });
+      subscribeMcpConnections: listener => { invalidate = listener; return () => { invalidate = undefined; }; },
+      resolveCredential: ref => { if (revokeWhileResolving) invalidate?.(connectionId); return ref === credentialRef ? token : null; } });
     const library = adapter.mcpLibrary!;
     const saved = await library.save(owner, { expected_version: 0, label: "选定的 MCP 账号", transport: "http", enabled: true,
       timeout_ms: 1000, endpoint, auth: { kind: "connection", connection_id: connectionId } });
@@ -137,6 +140,16 @@ test("MCP connection selection resolves the current Connector secret again after
     await library.control(owner, saved.id, "connect");
     assert.ok(authSeen.includes("Bearer rotated-mcp-token"));
     assert.equal(JSON.stringify(await library.list(owner)).includes(token), false);
+    await library.control(owner, saved.id, "disconnect");
+    const requestsBefore = authSeen.length;
+    revokeWhileResolving = true;
+    await assert.rejects(library.control(owner, saved.id, "connect"), /账号已改变/);
+    assert.equal(authSeen.length, requestsBefore, "revocation during credential resolution must prevent network connection");
+    // Replacing the account-backed configuration must not inherit its invalidation.
+    await library.save(owner, { id: saved.id, expected_version: 1, label: "公开 MCP", transport: "http", enabled: true,
+      timeout_ms: 1000, endpoint, auth: { kind: "none" } });
+    await library.control(owner, saved.id, "connect");
+    assert.equal((await library.list(owner))[0]?.health, "connected");
   } finally {
     await adapter?.close(); server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve()));

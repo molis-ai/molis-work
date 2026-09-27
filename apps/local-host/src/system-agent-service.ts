@@ -1,7 +1,7 @@
 import path from "node:path";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { createAgentConnectorPorts } from "./agent-connector-ports.js";
 import { openConfiguredModels } from "./configured-models.js";
 import { bindPrologueInference, bindPrologueBuilder } from "./prologue-inference-host.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -24,6 +24,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     try { return await operation(opened?.store); } finally { opened?.storage.close(); }
   };
   return localHost.ensureAgentService(storageHome, () => {
+    const connectors = createAgentConnectorPorts(storageHome);
     const service = composeAgentHost({
       localHost, homeDirectory: storageHome,
       authorizeWriterDirectory: async (projectId, canonicalPath) => {
@@ -38,20 +39,13 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: path.join(storageHome, "agent-runtime"),
-        resolveMcpConnection: (connectionId, endpoint) => withConnectorConnections(storageHome, store => {
-          const connection = store.require(connectionId, "mcp-bearer");
-          if (store.state(connection) !== "connected") return null;
-          store.assertTarget(connectionId, "mcp-bearer", endpoint);
-          return connection.credential_ref;
-        }),
+        resolveMcpConnection: connectors.resolveMcpConnection,
+        subscribeMcpConnections: connectors.subscribeMcpConnections,
         modelConfiguration: selection => models(store => prologueModelConfiguration(store?.resolveConfiguration(selection) ?? null)),
         resolveCredential: ref => models(store => {
           const provider = store?.list().find(entry => entry.credential_ref === ref);
           if (provider) return store!.resolveConfiguration({ provider_id: provider.provider_id })?.api_key ?? null;
-          return withConnectorConnections(storageHome, connections => {
-            const connection = connections.list("mcp-bearer").find(row => row.credential_ref === ref);
-            return connection ? connections.resolveToken(connection.connection_id, "mcp-bearer") : null;
-          });
+          return connectors.resolveMcpCredential(ref);
         }),
       },
     });

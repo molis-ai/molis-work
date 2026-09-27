@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, renameSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -33,6 +33,8 @@ const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.capability_id =
  */
 export class ActionCallLog {
   private readonly file: string;
+  /** The last line as this process wrote it, and where it starts and ends, so a repeat rewrites only that line. */
+  private tail?: { row: ActionCallRecord; offset: number; end: number };
   private lines = -1;
   constructor(homeDirectory: string) { this.file = path.join(homeDirectory, RELATIVE_PATH); }
 
@@ -43,15 +45,30 @@ export class ActionCallLog {
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
       ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: outcome.message }) };
     mkdirSync(path.dirname(this.file), { recursive: true });
-    const all = this.readAll(), last = all.at(-1);
-    if (last && sameCall(last, row) && Date.parse(row.at) - Date.parse(last.last_at ?? last.at) < COALESCE_MS) {
-      all[all.length - 1] = { ...last, count: (last.count ?? 1) + 1, last_at: row.at };
-      this.rewrite(all); return;
+    const size = this.size();
+    // Another process sharing this Home may have written since; then the last line is read again from the file.
+    if (this.tail?.end !== size) this.tail = this.readTail(size);
+    const last = this.tail;
+    if (last && sameCall(last.row, row) && Date.parse(row.at) - Date.parse(last.row.last_at ?? last.row.at) < COALESCE_MS) {
+      truncateSync(this.file, last.offset);
+      this.append({ ...last.row, count: (last.row.count ?? 1) + 1, last_at: row.at }, last.offset);
+      return;
     }
-    appendFileSync(this.file, JSON.stringify(row) + "\n", "utf8");
+    this.append(row, size);
     if (this.lines < 0) this.lines = this.readAll().length; else this.lines++;
     // Keep the file short: once it doubles, rewrite the newest records atomically.
     if (this.lines > KEEP * 2) this.rewrite(this.readAll().slice(-KEEP));
+  }
+
+  /** Newest first, for one project or for Home (null). */
+  list(projectId: string | null, limit = 200): ActionCallRecord[] {
+    return this.readAll().filter(row => row.project_id === projectId).reverse().slice(0, limit);
+  }
+
+  private append(row: ActionCallRecord, offset: number): void {
+    const line = JSON.stringify(row) + "\n";
+    appendFileSync(this.file, line, "utf8");
+    this.tail = { row, offset, end: offset + Buffer.byteLength(line) };
   }
 
   private rewrite(rows: ActionCallRecord[]): void {
@@ -59,11 +76,20 @@ export class ActionCallLog {
     writeFileSync(temporary, rows.map(entry => JSON.stringify(entry)).join("\n") + "\n", "utf8");
     renameSync(temporary, this.file);
     this.lines = rows.length;
+    this.tail = undefined;
   }
 
-  /** Newest first, for one project or for Home (null). */
-  list(projectId: string | null, limit = 200): ActionCallRecord[] {
-    return this.readAll().filter(row => row.project_id === projectId).reverse().slice(0, limit);
+  private size(): number {
+    try { return statSync(this.file).size; } catch { return 0; }
+  }
+
+  private readTail(size: number): ActionCallLog["tail"] {
+    if (!size) return undefined;
+    const text = readFileSync(this.file, "utf8");
+    const body = text.endsWith("\n") ? text.slice(0, -1) : text;
+    const start = body.lastIndexOf("\n") + 1;
+    try { return { row: JSON.parse(body.slice(start)) as ActionCallRecord, offset: Buffer.byteLength(body.slice(0, start)), end: size }; }
+    catch { return undefined; }
   }
 
   private readAll(): ActionCallRecord[] {

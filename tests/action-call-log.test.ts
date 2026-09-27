@@ -8,6 +8,7 @@ import { DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-hos
 import { feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
+import { ActionCallLog } from "../apps/local-host/src/action-call-log.js";
 
 const PROJECT = "project-call-log";
 
@@ -39,6 +40,25 @@ test("commands that ran are recorded with caller and outcome, queries are not, a
     assert.ok(!readFileSync(join(home, "logs/action-calls.jsonl"), "utf8").includes(secret), "the input is never written");
   } finally {
     await host.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("two processes sharing a Home keep each other's records, and a repeat rewrites only the last line", () => {
+  const home = mkdtempSync(join(tmpdir(), "action-call-log-shared-"));
+  const first = new ActionCallLog(home), second = new ActionCallLog(home);
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [] };
+  const action = (capability_id: string, operation = "command") => ({ capability_id, version: 1, provider_id: "system.test", operation, title: capability_id, provider_title: "测试" });
+  try {
+    first.record(caller, action("a.run"), { ok: true });
+    second.record(caller, action("b.run"), { ok: true });
+    first.record(caller, action("b.run"), { ok: true });
+    first.record(caller, action("b.run"), { ok: true });
+    second.record(caller, action("c.run"), { ok: false, message: "拒绝" });
+    first.record(caller, action("q.read", "query"), { ok: true });
+    assert.deepEqual(first.list(null).map(row => [row.capability_id, row.count ?? 1]), [["c.run", 1], ["b.run", 3], ["a.run", 1]]);
+    assert.equal(readFileSync(join(home, "logs/action-calls.jsonl"), "utf8").trim().split("\n").length, 3, "one line per entry, none torn");
+  } finally {
     rmSync(home, { recursive: true, force: true });
   }
 });

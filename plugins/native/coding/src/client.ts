@@ -369,7 +369,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     for(const [id,row] of directoryRows) if(!visibleIds.has(id)) {row.remove();directoryRows.delete(id);}
     list.querySelector('.mw-empty')?.remove();
     if (!visible.length) { const empty=document.createElement('div');empty.className='mw-empty';const label=document.createElement('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);list.append(empty); return; }
-    const labels = { idle:'尚未执行', running:'执行中', paused:'已暂停', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', queued:'等其他会话', done:'本轮结束' };
+    const labels = { idle:'尚未执行', running:'执行中', paused:'已暂停', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', queued:'挂起等待', done:'本轮结束' };
     for (const session of visible) {
       let row=directoryRows.get(session.session_id);
       if(!row) {
@@ -1391,7 +1391,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   directory.querySelector('[data-coding-artifact-search]').addEventListener('input',renderArtifacts);
   // The same commands in the composer's slash menu, the palette and the shortcuts; each says when it is not available.
-  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'等其他会话',done:'本轮结束'};
+  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'挂起等待',done:'本轮结束'};
   const codingCommands=()=>{
     const intents=[...q('[data-coding-intent]').options].map(option=>({slash:option.value,label:'方式：'+option.textContent.replace(/（.*）/,''),hint:'下一轮用这个方式',keywords:['方式','intent'],enabled:!option.disabled && Boolean(current),
       run:()=>{const select=q('[data-coding-intent]');select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));status('下一轮方式：'+option.textContent+'。');input.focus();}}));
@@ -1425,9 +1425,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderQueued=(id,queued)=>{
     const box=q('[data-coding-queued]'),next=JSON.stringify([id,queued]);if(next===queuedKey)return;queuedKey=next;
     box.hidden=!queued;box.replaceChildren();if(!queued)return;
-    const text=document.createElement('p');text.textContent=queued.note||(queued.waiting_for==='reply'?'这个会话给「'+queued.after_title+'」发了请求，停下来在等答复；答复到了（或对方那一轮结束）会自动继续。':'下一轮在等「'+queued.after_title+'」那一轮结束，结束后自动开始。');
+    const text=document.createElement('p');text.textContent=queued.note||(queued.waiting_for==='reply'?'这个会话挂起在等'+queued.after_title+'；答复到了（或对方那一轮结束）会自动继续。'
+      :queued.waiting_for==='command'?'这个会话挂起在等'+queued.after_title+'；命令在后台继续运行，有结果后会自动继续。':'下一轮在等'+queued.after_title+'结束，结束后自动开始。');
     const act=(label,action,primary)=>{const b=document.createElement('button');b.type='button';b.className='mw-btn'+(primary?' mw-btn--primary':' mw-btn--ghost');b.textContent=label;
-      b.addEventListener('click',async()=>{b.disabled=true;try{await api('/sessions/'+encodeURIComponent(id)+'/queued','POST',{action});status(action==='start'?'已开始这一轮；新的写入和命令仍需你审查。':queued.waiting_for==='reply'?'已不再等答复，请求已撤回。':'已取消等待，这一轮没有开始。');queuedKey='';await refreshState();await readCurrent();}
+      b.addEventListener('click',async()=>{b.disabled=true;try{await api('/sessions/'+encodeURIComponent(id)+'/queued','POST',{action});status(action==='start'?'已开始这一轮；新的写入和命令仍需你审查。':queued.waiting_for==='reply'?'已不再等答复，请求已撤回。':queued.waiting_for==='command'?'已不再等待；后台命令还在运行，可以在「后台命令」里停掉。':'已取消等待，这一轮没有开始。');queuedKey='';await refreshState();await readCurrent();}
         catch(error){status(error.message,true);}finally{b.disabled=false;}});return b;};
     const actions=document.createElement('div');actions.className='coding-queued-actions';actions.append(act('取消等待','cancel'),act('现在开始','start',true));
     box.append(text,actions);

@@ -55,6 +55,11 @@ export function createCodingTimeline() {
     "steer-subagent": { verb: "补充子任务要求", icon: "workflow", noun: "次", unit: "" },
     "board-read": { verb: "查看任务图", icon: "list", noun: "", unit: "" },
     "board-report": { verb: "回报步骤", icon: "list", noun: "步骤", unit: "次" },
+    "start-command": { verb: "后台运行", icon: "terminal", noun: "命令", unit: "条" },
+    "command-output": { verb: "查看后台输出", icon: "terminal", noun: "次", unit: "" },
+    "command-stop": { verb: "停止后台命令", icon: "terminal", noun: "条", unit: "" },
+    "await-commands": { verb: "等待后台命令", icon: "clock", noun: "", unit: "" },
+    "session-send": { verb: "给其他会话发信", icon: "share", noun: "封", unit: "" },
     "上下文整理": { verb: "整理上下文", icon: "clock", noun: "", unit: "次" },
     "工具调用纠正": { verb: "纠正工具调用", icon: "circle-alert", noun: "", unit: "次" },
   };
@@ -83,7 +88,7 @@ export function createCodingTimeline() {
     return false;
   };
   /** Only side effects go through review; a read started alongside one is merely held until the round resumes. */
-  const APPROVABLE = new Set(["edit", "write", "run-command", "dispatch-subagent", "steer-subagent"]);
+  const APPROVABLE = new Set(["edit", "write", "run-command", "start-command", "command-stop", "dispatch-subagent", "steer-subagent"]);
   const outcome = (item: TimelineActivity, ended: boolean, waiting = false, items?: TimelineActivity[]) => {
     const code = exitCode(item);
     if (item.state === "started") return ended ? { tone: "unknown", label: "结果未返回" }

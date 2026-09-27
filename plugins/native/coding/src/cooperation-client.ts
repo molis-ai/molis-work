@@ -2,21 +2,39 @@
  * Sessions working together, as people see it. A session created for a delegation shows where it came from and
  * what is asked of it, and hands its finished round back; the session that asked follows each delegation's receipts
  * and decides whether to take what comes back. Related sessions are listed read-only, and so are the messages the
- * sessions' models sent each other, which the person can withdraw while open. None of it reaches the model.
+ * sessions' models sent each other, which the person can withdraw while open. The session's background commands are
+ * listed too, with a way to stop one still running. None of it reaches the model.
  */
 export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const {q,api,current,status,openSession,refreshSessions,rounds,prefill,materialsChanged,openArtifact}=ports;
-  const banner=q('[data-coding-delegation-banner]'),section=q('[data-coding-cooperation]'),dialog=q('[data-coding-delegate-dialog]');
+  const banner=q('[data-coding-delegation-banner]'),section=q('[data-coding-cooperation]'),dialog=q('[data-coding-delegate-dialog]'),backgroundSection=q('[data-coding-background]');
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
   const button=(label,variant,handler)=>{const node=el('button','mw-btn'+(variant?' mw-btn--'+variant:''),label);node.type='button';node.addEventListener('click',handler);return node;};
   const time=(value)=>value?new Date(value).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
   const EVENT={submitted:'已提交',delivered:'已送达对方会话',accepted:'对方已接受',started:'对方开始执行','delivery-sent':'对方交付了成果','delivery-accepted':'已收下交付','delivery-rejected':'没有收下交付',completed:'已完成',rejected:'对方拒绝',cancelled:'已取消',failed:'失败'};
-  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'等其他会话',done:'本轮结束'};
+  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'挂起等待',done:'本轮结束'};
   const TONE={received:'attention',delivered:'attention',accepted:'progress',committing:'progress',completed:'done',rejected:'blocked',cancelled:'idle',failed:'blocked'};
   const MAIL_KIND={request:'请求',reply:'答复',notice:'通知'};
   const MAIL_STATE={queued:'等对方下一轮',delivered:'已交给对方',accepted:'对方已接受',completed:'已结束',rejected:'对方拒绝',cancelled:'已撤回',expired:'已过期'};
   const MAIL_TONE={queued:'attention',delivered:'progress',accepted:'progress',completed:'done',rejected:'blocked',cancelled:'idle',expired:'idle'};
-  let owner='',data=null,mail=[],readAt=0,reading=false,drafts=new Map(),drawnKey='';
+  const TASK_STATE={running:'运行中',succeeded:'已成功结束',failed:'失败',stopped:'已停止',interrupted:'被服务重启打断'};
+  const TASK_TONE={running:'progress',succeeded:'done',failed:'blocked',stopped:'idle',interrupted:'attention'};
+  let owner='',data=null,mail=[],commands=[],readAt=0,reading=false,drafts=new Map(),drawnKey='';
+  // Commands this session left running in the background: what, how it is going, and stopping one.
+  const drawBackground=()=>{
+    backgroundSection.hidden=!commands.length;backgroundSection.replaceChildren();if(!commands.length)return;
+    backgroundSection.append(el('h3','','后台命令'));const list=el('ol','coding-coop-mail coding-background-list');
+    for(const task of commands.slice().reverse()){
+      const item=el('li'),head=el('div','coding-coop-head'),chip=el('span','mw-status mw-status--plain',TASK_STATE[task.state]||task.state);chip.dataset.tone=TASK_TONE[task.state]||'idle';item.dataset.state=task.state;
+      head.append(el('code','coding-background-command',task.summary),chip);
+      const line=el('p','coding-coop-line');line.append(el('span','coding-coop-note',(task.exit_code===undefined?'':'exit '+task.exit_code+' · ')+'开始于 '+time(task.started_at_ms)+(task.ended_at_ms?' · 结束于 '+time(task.ended_at_ms):'')));
+      item.append(head,line);
+      if(task.state==='running')item.append(button('停止','ghost',async()=>{
+        try{await api('/sessions/'+encodeURIComponent(current())+'/background/'+encodeURIComponent(task.task_id)+'/stop','POST',{});status('已停止这条后台命令。');}catch(error){status(error.message,true);}await refresh(true);}));
+      list.append(item);
+    }
+    backgroundSection.append(list);
+  };
   const act=async(path,body,done)=>{try{await api('/sessions/'+encodeURIComponent(current())+'/delegations'+path,'POST',body);if(done)status(done);await refresh(true);}catch(error){status(error.message,true);await refresh(true);}};
   const receipts=(delegation)=>{const details=el('details','coding-coop-receipts'),summary=el('summary','','回执 '+delegation.receipts.length+' 条'),list=el('ol');
     for(const receipt of delegation.receipts){const item=el('li');item.append(el('span','coding-coop-event',EVENT[receipt.event]||receipt.event),el('time','',time(receipt.at)));
@@ -107,10 +125,10 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   };
   const refresh=async(force=false)=>{
     const id=current();if(!id||reading)return;if(!force && owner===id && Date.now()-readAt<3000)return;
-    reading=true;try{const [value,messages]=await Promise.all([api('/sessions/'+encodeURIComponent(id)+'/delegations'),api('/sessions/'+encodeURIComponent(id)+'/messages').catch(()=>({messages:[]}))]);if(id!==current())return;owner=id;readAt=Date.now();data=value;mail=messages.messages;
+    reading=true;try{const [value,messages,background]=await Promise.all([api('/sessions/'+encodeURIComponent(id)+'/delegations'),api('/sessions/'+encodeURIComponent(id)+'/messages').catch(()=>({messages:[]})),api('/sessions/'+encodeURIComponent(id)+'/background').catch(()=>({commands:[]}))]);if(id!==current())return;owner=id;readAt=Date.now();data=value;mail=messages.messages;commands=background.commands;
       // Redrawn only when something changed: a redraw replaces the forms, so a click or a half-written note would be lost.
-      const key=JSON.stringify([id,value,mail,rounds().map(round=>[round.run_id,round.phase,round.number])]);
-      if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);}}
+      const key=JSON.stringify([id,value,mail,commands,rounds().map(round=>[round.run_id,round.phase,round.number])]);
+      if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);drawBackground();}}
     catch(error){if(id===current()){banner.hidden=true;}}finally{reading=false;}
   };
   // Delegating: a new session gets the task as its draft, with fixed outputs handed over at their versions.
@@ -134,5 +152,5 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     catch(error){message.textContent=error.message;}finally{send.disabled=false;}
   });
   dialog.querySelector('[data-coding-delegate-cancel]').addEventListener('click',()=>dialog.close());
-  return {refresh,openDialog,reset(){owner='';data=null;mail=[];banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
+  return {refresh,openDialog,reset(){owner='';data=null;mail=[];commands=[];backgroundSection.hidden=true;backgroundSection.replaceChildren();banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
 }`;

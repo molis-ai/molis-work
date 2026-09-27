@@ -6,7 +6,7 @@ import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentWait, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
@@ -15,7 +15,7 @@ import { CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
-import { codingContinuation } from "./continuation.js";
+import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
 import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
 import { CodingCooperationStore, DELEGATION_STATE_LABEL, type CodingDelegation } from "./cooperation.js";
@@ -175,9 +175,29 @@ function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionState {
   return "running";
 }
 
+/** What each started Coding activation runs in the background (the loop taking up fired waits), to stop with it. */
+const activations = new Map<string, AbortController>();
+const activationKey = (context: PluginStartContext) => `${context.install_id}:${context.board_id ?? ""}`;
+/** The plugin stops: its background loops end. */
+export function stopCodingRoutes(context: PluginStartContext): void {
+  activations.get(activationKey(context))?.abort();
+  activations.delete(activationKey(context));
+}
+
 /** Coding owns intent and organization; execution is always obtained through Host capabilities. */
 export function codingRoutes(context: PluginStartContext, ports?: CodingExecutionPorts): PluginRouteBinding[] {
   const boardId = context.board_id ?? "";
+  activations.get(activationKey(context))?.abort();
+  const stopped = new AbortController();
+  activations.set(activationKey(context), stopped);
+  const pause = (ms: number) => new Promise<void>(resolve => {
+    if (stopped.signal.aborted) { resolve(); return; }
+    const timer = setTimeout(() => { stopped.signal.removeEventListener("abort", done); resolve(); }, ms);
+    // A loop waiting to look again does not keep the process alive on its own.
+    (timer as { unref?: () => void }).unref?.();
+    const done = () => { clearTimeout(timer); resolve(); };
+    stopped.signal.addEventListener("abort", done, { once: true });
+  });
   const busy = new Set<string>();
   const summaries = summaryCache();
   const cooperation = () => new CodingCooperationStore(context.services!.storage!);
@@ -237,8 +257,11 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const record = execution.sessions.get(boardId, sessionId), next = sessionState(view);
         if (next !== record.state) execution.sessions.setState(boardId, sessionId, next, record.updated_at);
         if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) {
-          // A round that ended waiting for another session's answer waits on as a queued round.
-          if (view.phase !== "reconcile-required") await adoptWait(api, execution, sessionId).catch(() => undefined);
+          // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.
+          if (view.phase !== "reconcile-required" && await openWaitOf(api, execution.sessions.get(boardId, sessionId)).catch(() => undefined)) {
+            execution.sessions.setState(boardId, sessionId, "queued", new Date().toISOString());
+            wakeLoop(api, execution, session.runtime_id);
+          }
           break;
         }
       }
@@ -256,14 +279,32 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       try { for (const status of await api.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
       catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : "会话暂不可读" }); }
     }
+    // Parked sessions, from the SDK; the loop that takes fired waits up is (re)started here, after a restart too.
+    const parked = new Map<string, AgentWait>(), running = new Map<string, { task_id: string; summary: string; started_at_ms: number }[]>();
+    for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
+      try { for (const [session, wait] of await openWaits(api, runtimeId)) parked.set(`${runtimeId}:${session}`, wait); } catch { /* shown as not waiting */ }
+      // Background commands still running, kept on each session so the list across projects can show them.
+      try {
+        for (const task of await api.invoke(agent.readBackground, [runtimeId])) if (task.state === "running") {
+          const key = `${runtimeId}:${task.session_id}`;
+          running.set(key, [...running.get(key) ?? [], { task_id: task.task_id, summary: task.summary, started_at_ms: task.started_at_ms }]);
+        }
+      } catch { /* left as last read */ }
+      wakeLoop(api, execution, runtimeId);
+    }
+    for (const record of records) if (record.runtime_session_id) {
+      const now = running.get(`${record.runtime_id}:${record.runtime_session_id}`) ?? null;
+      if (JSON.stringify(now) !== JSON.stringify(execution.sessions.backgroundOf(boardId, record.session_id))) execution.sessions.setBackground(boardId, record.session_id, now);
+    }
     const sessions = records.map(record => {
       let checkpointBusy = false, steps = execution.sessions.stepsOf(boardId, record.session_id);
-      // A queued round stays queued whatever the last round did; its watcher is (re)started here, after a restart too.
-      const queued = queuedOf(record.session_id);
-      if (queued) {
+      // A parked session waits whatever its last round did — unless a round is under way right now.
+      const wait = record.runtime_session_id ? parked.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
+      const status = record.runtime_session_id ? statuses.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
+      const active = status && !("error" in status) && status.latest_phase && !isTerminalAgentPhase(status.latest_phase);
+      if (wait && !active) {
         if (record.state !== "queued") record = execution.sessions.setState(boardId, record.session_id, "queued", record.updated_at);
-        if (!queued.note) watchQueued(api, execution, record.session_id);
-        return { ...record, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: { after_title: queued.after.title, waiting_for: queued.message ? "reply" : "work", ...(queued.note ? { note: queued.note } : {}) },
+        return { ...record, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: waitView(wait),
           goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
       }
       if (record.runtime_session_id) {
@@ -420,134 +461,115 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
     // How this round was started, so a round woken later (an answer arrived) starts the same way.
     // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
+    // A round continued from a breakpoint goes on with the task it continues, not the continuation's own wording.
+    const lastStart = (() => { try { return JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as { origin_task?: unknown } | null; } catch { return null; } })();
+    const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
-      workspace_id: body.workspace_id, actor_id: actorId, origin_task: typeof body.origin_task === "string" ? body.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
+      workspace_id: body.workspace_id, actor_id: actorId,
+      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
     follow(api!, execution, record.session_id, session, run.ref);
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
   ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   };
   /*
-   * A round held back until another session's work in the project finishes. The wait itself is an item on the
-   * project's SDK graph; what this plugin keeps is only how to start the round (the person's send, as it was) and a
-   * note for the person when the other work did not finish.
+   * A session parked until something happens: the model waits for an answer or a background command, or the person
+   * chose to wait for another session's work. The wait is kept by the SDK (it outlives a restart and fires on the
+   * event); this plugin only takes fired waits up — starting the next round with what happened — and keeps a note
+   * for the person when one should not start on its own.
    */
-  interface QueuedRound {
-    work_id: string;
-    after: { work_id: string; session_id: string; run_id?: string; title: string };
-    /** Waiting for the answer to a request this session sent (the model asked to wait), rather than for work. */
-    message?: { id: string; to_session: string; to_title: string; body: string };
-    body: Record<string, unknown>;
-    actor_id: string;
-    at: string;
-    note?: string;
-  }
-  const queuedKey = (sessionId: string) => `queued-round:${sessionId}`;
-  const queuedOf = (sessionId: string): QueuedRound | undefined => {
-    const saved = context.services?.storage?.get(queuedKey(sessionId));
-    try { return saved ? JSON.parse(saved) as QueuedRound : undefined; } catch { return undefined; }
+  type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
+  const OPEN_WAIT = ["waiting", "fired"];
+  const noteKey = (waitId: string) => `wake-note:${waitId}`;
+  const noteOf = (waitId: string) => context.services?.storage?.get(noteKey(waitId)) ?? undefined;
+  const hold = (waitId: string, note: string) => context.services!.storage!.set(noteKey(waitId), note);
+  /** The project's open waits, by runtime session. */
+  const openWaits = async (api: Capabilities, runtimeId: string) => {
+    const byRuntime = new Map<string, AgentWait>();
+    for (const wait of await api.invoke(agent.readWaits, [runtimeId])) if (OPEN_WAIT.includes(wait.state)) byRuntime.set(wait.session_id, wait);
+    return byRuntime;
   };
-  const saveQueued = (sessionId: string, queued: QueuedRound | undefined) => {
-    if (queued) context.services!.storage!.set(queuedKey(sessionId), JSON.stringify(queued));
-    else context.services!.storage!.delete(queuedKey(sessionId));
+  /** The session's open wait; none when the Host keeps no waits (an older runtime). */
+  const openWaitOf = async (api: Capabilities, record: CodingSessionRecord) => record.runtime_session_id
+    ? (await api.invoke(agent.readWaits, [record.runtime_id, record.runtime_session_id]).catch(() => [] as AgentWait[])).find(wait => OPEN_WAIT.includes(wait.state)) : undefined;
+  /** An "app" wait carries the round the person sent and the project work item it waits as. */
+  const appData = (wait: AgentWait) => {
+    const data = (wait.data ?? {}) as { app?: { body?: Record<string, unknown>; actor_id?: string } | null; work_id?: string };
+    return { body: data.app?.body ?? {}, actor: data.app?.actor_id ?? "web-user", work_id: data.work_id };
   };
-  /**
-   * What a round waiting on a request should wake to: the answer, or the request settled without one (a round of the
-   * other session saw it and finished); "cancelled" when it was withdrawn, refused or ran out; nothing while it is open.
-   */
-  const answerFor = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, record: CodingSessionRecord, queued: QueuedRound) => {
-    const all = await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id!]);
-    const request = all.find(message => message.message_id === queued.message!.id), reply = all.find(message => message.in_reply_to === queued.message!.id);
-    if (reply) return { reply: reply.body };
-    if (!request || ["cancelled", "expired", "rejected"].includes(request.state)) return "cancelled" as const;
-    return request.state === "completed" ? { ended: true as const } : undefined;
+  const waitingFor = (wait: AgentWait) => wait.by === "app" ? "work" : wait.on.some(one => one.kind === "envelope") ? "reply" : "command";
+  /** What the page shows about a parked session. */
+  const waitView = (wait: AgentWait) => ({ wait_id: wait.wait_id, after_title: wait.waiting_on, waiting_for: waitingFor(wait), reason: wait.reason, at: new Date(wait.created_at_ms).toISOString(),
+    ...(noteOf(wait.wait_id) ? { note: noteOf(wait.wait_id) } : {}) });
+  /** Whether a fired wait starts the next round on its own, or waits for the person (and why). */
+  const holdReason = (wait: AgentWait): string | undefined => {
+    const fired = wait.fired;
+    if (!fired) return undefined;
+    if (wait.by === "app" && fired.outcome === "not-done") return `${wait.waiting_on}没有完成，这一轮还在等你决定：现在开始，或取消等待。`;
+    if (fired.kind === "envelope" && fired.outcome === "withdrawn") return `${wait.waiting_on}：请求已撤回或过期，这一轮还在等你决定：现在开始，或取消等待。`;
+    return undefined;
   };
-  /** The round a wait wakes to: what was asked, what came back, and the task it had been doing. */
-  const wakeBody = (queued: QueuedRound, decided: { reply?: string; ended?: true; person?: true }) => {
-    const origin = typeof queued.body.origin_task === "string" ? queued.body.origin_task : "";
-    const what = decided.person ? `你决定不再等「${queued.message!.to_title}」的答复。`
-      : decided.ended ? `会话「${queued.message!.to_title}」那一轮已经结束，没有专门答复；它可能已经做了你请求的事，先读一下相关文件确认。`
-      : `它的答复：${decided.reply}`;
-    return { ...queued.body, task: [`（接着之前的任务）你给会话「${queued.message!.to_title}」发过请求（信 ${queued.message!.id}）：「${queued.message!.body.slice(0, 300)}」，并停下来等答复。`,
-      what, `请接着完成原来的任务：${origin}`].join("\n") };
+  /** The round a wait wakes to: what it waited for, what happened, and the task it had been doing. */
+  const wakeBody = (record: CodingSessionRecord, wait: AgentWait, person = false) => {
+    if (wait.by === "app") { const { body, work_id } = appData(wait); return { ...body, ...(work_id ? { queued_work_id: work_id } : {}) }; }
+    const saved = context.services?.storage?.get(`last-start:${record.session_id}`);
+    const last = saved ? JSON.parse(saved) as Record<string, unknown> : {};
+    const { actor_id: _actor, origin_task, ...how } = last;
+    const fired = wait.fired;
+    const what = person ? `你决定不再等${wait.waiting_on}，直接接着做。`
+      : !fired ? ""
+      : fired.outcome === "answered" ? `它的答复：${fired.text}`
+      : fired.outcome === "settled" ? `${wait.waiting_on.replace(/的答复$/, "")}那一轮已经结束，没有专门答复；它可能已经做了你请求的事，先读一下相关文件确认。`
+      : fired.outcome === "interrupted" ? `你等的${fired.kind === "command" ? "后台命令" : "那件事"}被服务重启打断了，结果未知，不要当成成功；需要的话重新运行。\n${fired.text}`
+      : fired.outcome === "output" ? `你等的后台命令输出了你在等的内容（命令还在运行）。\n${fired.text}`
+      : `${fired.kind === "command" ? "后台命令" : ""}结束了（${({ succeeded: "成功", failed: "失败", stopped: "被停止" } as Record<string, string>)[fired.outcome] ?? fired.outcome}），结束于 ${new Date(fired.at_ms).toISOString()}（宿主记录的时间）。\n${fired.text}`;
+    // The original task travels on, so a round woken again still knows what it was for.
+    return { ...how, ...(typeof origin_task === "string" ? { origin_task } : {}), task: [`（接着之前的任务）你之前挂起等待：${wait.reason.slice(0, 400)}`, what,
+      `请接着完成原来的任务：${typeof origin_task === "string" ? origin_task : ""}`].filter(Boolean).join("\n") };
   };
-  /** A session whose round ended waiting on a request it sent becomes a queued round, woken by the answer. */
-  const adoptWait = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, sessionId: string) => {
-    const record = execution.sessions.get(boardId, sessionId);
-    if (!record.runtime_session_id || queuedOf(sessionId) || busy.has(sessionId)) return;
-    const saved = context.services?.storage?.get(`last-start:${sessionId}`);
-    if (!saved) return;
-    const last = JSON.parse(saved) as Record<string, unknown>;
-    const open = (await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id]))
-      .filter(message => message.from_session === record.runtime_session_id && message.await_reply && ["queued", "delivered", "accepted"].includes(message.state));
-    const waiting = open.at(-1);
-    if (!waiting) return;
-    const { actor_id, ...body } = last;
-    // The other session as the person knows it: its Coding title.
-    const title = execution.sessions.list(boardId).find(entry => entry.runtime_session_id === waiting.to_session)?.title ?? waiting.to_title;
-    saveQueued(sessionId, { work_id: "", after: { work_id: "", session_id: waiting.to_session, title },
-      message: { id: waiting.message_id, to_session: waiting.to_session, to_title: title, body: waiting.body },
-      body, actor_id: typeof actor_id === "string" ? actor_id : "web-user", at: new Date().toISOString() });
-    execution.sessions.setState(boardId, sessionId, "queued", new Date().toISOString());
-    watchQueued(api, execution, sessionId);
+  /** Take a fired wait up: start the next round with it, or leave it for the person with a note. */
+  const takeUp = async (api: Capabilities, execution: CodingExecutionPorts, runtimeId: string, wait: AgentWait): Promise<"started" | "held" | "later" | "not-ours"> => {
+    const record = execution.sessions.list(boardId).find(entry => entry.runtime_id === runtimeId && entry.runtime_session_id === wait.session_id);
+    if (!record) return "not-ours";
+    const reason = holdReason(wait);
+    if (reason) { hold(wait.wait_id, reason); return "held"; }
+    if (busy.has(record.session_id)) return "later";
+    busy.add(record.session_id);
+    try {
+      const actor = wait.by === "app" ? appData(wait).actor : (() => { try { return String(JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "{}").actor_id ?? "web-user"); } catch { return "web-user"; } })();
+      await startRound(execution.sessions.get(boardId, record.session_id), wakeBody(record, wait), actor, api, execution);
+      // Taken up here, unless starting the round already took it up.
+      await api.invoke(agent.resumeWait, [runtimeId, wait.wait_id, "唤醒后自动开始下一轮"]).catch(() => undefined);
+      return "started";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // The round it waited in may still be closing: try again shortly rather than give up.
+      if (/正在|进行中|still running|session_busy/.test(message)) return "later";
+      hold(wait.wait_id, `自动开始没有成功：${message}`);
+      return "held";
+    } finally { busy.delete(record.session_id); }
   };
-  const watching = new Set<string>();
-  /** Start a queued round once the work it waits for is done; say so, and keep waiting for the person, if it failed. */
-  const watchQueued = (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, sessionId: string) => {
-    if (watching.has(sessionId)) return;
-    watching.add(sessionId);
+  const waking = new Set<string>();
+  /** One loop per runtime: it waits for waits to fire (no polling of the things they wait on) and takes them up. */
+  const wakeLoop = (api: Capabilities, execution: CodingExecutionPorts, runtimeId: string) => {
+    if (waking.has(runtimeId) || stopped.signal.aborted) return;
+    waking.add(runtimeId);
     void (async () => {
-      let since: string | null = null, sinceRun: string | undefined;
-      for (;;) {
-        const queued = queuedOf(sessionId), record = execution.sessions.get(boardId, sessionId);
-        if (!queued || queued.note) return;
-        if (queued.message) {
-          const decided = await answerFor(api, record, queued);
-          if (decided === "cancelled") { saveQueued(sessionId, { ...queued, note: `发给「${queued.message.to_title}」的请求已撤回或过期，这一轮还在等你决定：现在开始，或取消等待。` }); return; }
-          if (decided) {
-            if (busy.has(sessionId)) { await new Promise(resolve => setTimeout(resolve, 1000)); continue; }
-            busy.add(sessionId);
-            try { await startRound(record, wakeBody(queued, decided), queued.actor_id, api, execution); saveQueued(sessionId, undefined); }
-            catch (error) { saveQueued(sessionId, { ...queued, note: `自动开始没有成功：${error instanceof Error ? error.message : String(error)}` }); }
-            finally { busy.delete(sessionId); }
-            return;
-          }
-          // Look again when the other session's round changes, or shortly while it has none.
-          const theirs = (await api.invoke(agent.readProjectWork, [record.runtime_id])).items.find(item => item.session_id === queued.message!.to_session && item.state === "running" && item.run_id);
-          if (theirs) {
-            if (theirs.run_id !== sinceRun) { sinceRun = theirs.run_id; since = null; }
-            try { since = (await api.invoke(agent.waitRun, [{ runtime_id: record.runtime_id, session_id: theirs.session_id }, { session_id: theirs.session_id, run_id: theirs.run_id! }, since, 10_000]) as { version: string }).version; }
-            catch { await new Promise(resolve => setTimeout(resolve, 5_000)); }
-          } else await new Promise(resolve => setTimeout(resolve, 3_000));
-          continue;
+      const held = new Set<string>();
+      // A Host that keeps no waits, or has gone, answers with errors: after a few the loop stops (a later read restarts it).
+      for (let failures = 0; failures < 3 && !stopped.signal.aborted;) {
+        let fired: AgentWait[];
+        try { fired = await api.invoke(agent.awaitFiredWaits, [runtimeId, 25_000, [...held]]); failures = 0; }
+        catch { failures += 1; await pause(5_000); continue; }
+        if (stopped.signal.aborted) break;
+        let later = false;
+        for (const wait of fired) {
+          const outcome = await takeUp(api, execution, runtimeId, wait).catch(() => "later" as const);
+          if (outcome === "held" || outcome === "not-ours") held.add(wait.wait_id);
+          if (outcome === "later") later = true;
         }
-        const items = (await api.invoke(agent.readProjectWork, [record.runtime_id])).items;
-        const mine = items.find(item => item.work_id === queued.work_id), target = items.find(item => item.work_id === queued.after.work_id);
-        // Given up elsewhere: nothing is waiting any more.
-        if (!mine || mine.state !== "waiting") { saveQueued(sessionId, undefined); if (record.state === "queued") execution.sessions.setState(boardId, sessionId, "idle", record.updated_at); return; }
-        if (!target || target.state === "done") {
-          if (busy.has(sessionId)) { await new Promise(resolve => setTimeout(resolve, 1000)); continue; }
-          busy.add(sessionId);
-          try {
-            await startRound(record, { ...queued.body, queued_work_id: queued.work_id }, queued.actor_id, api, execution);
-            saveQueued(sessionId, undefined);
-          } catch (error) {
-            saveQueued(sessionId, { ...queued, note: `自动开始没有成功：${error instanceof Error ? error.message : String(error)}` });
-          } finally { busy.delete(sessionId); }
-          return;
-        }
-        if (target.state === "failed" || target.state === "stopped") {
-          saveQueued(sessionId, { ...queued, note: `「${queued.after.title}」没有完成（${target.state === "failed" ? "失败" : "停止"}），这一轮还在等你决定：现在开始，或取消等待。` });
-          return;
-        }
-        // Wait on the other round itself when it is running; a waiting item is looked at again shortly.
-        if (target.run_id && target.state === "running") {
-          try {
-            const waited: { version: string } = await api.invoke(agent.waitRun, [{ runtime_id: record.runtime_id, session_id: target.session_id }, { session_id: target.session_id, run_id: target.run_id }, since, 25_000]);
-            since = waited.version;
-          } catch { await new Promise(resolve => setTimeout(resolve, 5_000)); }
-        } else await new Promise(resolve => setTimeout(resolve, 5_000));
+        if (later) await pause(2_000);
       }
-    })().catch(() => undefined).finally(() => watching.delete(sessionId));
+    })().catch(() => undefined).finally(() => waking.delete(runtimeId));
   };
   /** The workspace a send names, as the directory it will run in. */
   const directoryOf = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, workspaceId: unknown) => {
@@ -952,7 +974,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      const queued = queuedOf(record.session_id), queuedView = queued ? { after_title: queued.after.title, at: queued.at, waiting_for: queued.message ? "reply" : "work", ...(queued.note ? { note: queued.note } : {}) } : null;
+      const wait = await openWaitOf(api!, record).catch(() => undefined), queuedView = wait ? waitView(wait) : null;
       if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
@@ -1293,7 +1315,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       busy.add(record.session_id);
       try {
         const body = bodyOf(request);
-        if (queuedOf(record.session_id)) throw new Error("这个会话有一轮正在等其他会话；先取消等待，或选择现在开始");
+        if (await openWaitOf(api!, record)) throw new Error("这个会话挂起在等待中；先取消等待，或选择现在开始");
         // "等它完成后再开始": the round is held as an item waiting on the other work, and starts on its own when it is done.
         if (typeof body.wait_for === "string") {
           if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw new Error("这个会话还有一轮没结束，结束后再安排等待");
@@ -1307,13 +1329,12 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
           const title = record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title;
           if (title !== record.title) execution.sessions.rename(boardId, record.session_id, title, new Date().toISOString());
-          const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           const { wait_for: _dropped, ...rest } = body;
-          saveQueued(record.session_id, { work_id: item.work_id, after: { work_id: target.work_id, session_id: target.runtime_session_id, ...(target.run_id ? { run_id: target.run_id } : {}), title: target.title },
-            body: rest, actor_id: request.actor_id, at: new Date().toISOString() });
+          // The session is parked on that work by the SDK, with the send as it was, to start when the work is done.
+          const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title, data: { body: rest, actor_id: request.actor_id } }]);
           execution.sessions.setState(boardId, record.session_id, "queued", new Date().toISOString());
-          watchQueued(api!, execution, record.session_id);
-          return { queued: { work_id: item.work_id, after: target } };
+          wakeLoop(api!, execution, record.runtime_id);
+          return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };
         }
         return await startRound(record, body, request.actor_id, api!, execution);
       }
@@ -1341,19 +1362,16 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const { overlaps } = await overlapsFor(api!, execution, record, bodyOf(request));
       return { overlaps };
     }),
-    // A queued round: start it now (the wait is dropped), or give it up.
+    // A parked session: start it now (the wait is taken up by the person), or give the wait up.
     route("coding.queued-round", async (request, api, execution) => {
-      const record = selected(request, execution), queued = queuedOf(record.session_id), action = bodyOf(request).action;
-      if (!queued) throw new Error("这个会话没有在等待的一轮");
-      if (action === "cancel" && queued.message) {
-        await api!.invoke(agent.cancelMessage, [record.runtime_id, queued.message.id]).catch(() => undefined);
-        saveQueued(record.session_id, undefined);
-        execution.sessions.setState(boardId, record.session_id, "done", new Date().toISOString());
-        return { cancelled: true };
-      }
+      const record = selected(request, execution), wait = await openWaitOf(api!, record), action = bodyOf(request).action;
+      if (!wait) throw new Error("这个会话没有在等待");
       if (action === "cancel") {
-        await api!.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]);
-        saveQueued(record.session_id, undefined);
+        // Giving up a wait for an answer withdraws the request; for the person's own wait, its project work item goes.
+        for (const one of wait.on) if (one.kind === "envelope") await api!.invoke(agent.cancelMessage, [record.runtime_id, one.envelope]).catch(() => undefined);
+        const { work_id } = appData(wait);
+        if (wait.by === "app" && work_id) await api!.invoke(agent.releaseProjectRound, [record.runtime_id, work_id, "用户取消了等待"]).catch(() => undefined);
+        await api!.invoke(agent.cancelWait, [record.runtime_id, wait.wait_id, "用户取消了等待"]);
         execution.sessions.setState(boardId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
         return { cancelled: true };
       }
@@ -1361,10 +1379,20 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
       busy.add(record.session_id);
       try {
-        const started = await startRound(record, queued.message ? wakeBody(queued, { person: true }) : { ...queued.body, queued_work_id: queued.work_id }, request.actor_id, api!, execution);
-        saveQueued(record.session_id, undefined);
+        const started = await startRound(record, wakeBody(record, wait, true), request.actor_id, api!, execution);
+        await api!.invoke(agent.resumeWait, [record.runtime_id, wait.wait_id, "用户选择现在开始"]).catch(() => undefined);
         return started;
       } finally { busy.delete(record.session_id); }
+    }),
+    // The session's background commands, and stopping one.
+    route("coding.background", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) return { commands: [] };
+      return { commands: await api!.invoke(agent.readBackground, [record.runtime_id, record.runtime_session_id]) };
+    }),
+    route("coding.background-stop", async (request, api, execution) => {
+      const record = selected(request, execution);
+      return { stopped: await api!.invoke(agent.stopBackground, [record.runtime_id, text(request.params.taskId, "后台命令")]) };
     }),
     // The model drafts a commit message from the rounds that changed files; the person edits it and commits under review.
     route("coding.commit-draft", async (request, api, execution) => {

@@ -10,13 +10,17 @@
 - 任务图事件带上图的编号（`board`）。
 - 常开的任务图（`standing: { keepFinished }`，协同第二期）：不因节点都结束而终止，可以空着开，只留最近加入的若干个已结束节点（还有人在等的不丢）；用作每个项目一张的"进行中的工作"。
 - 会话之间的信持久化（协同第三期）：信封记下 `inReplyTo`（答复哪一封，必须存在）、`awaitReply`（发信方在等答复）和 `sentAtMs`；投递箱可以存、重启后读回（`store`/`hydrate`/`flush`），可订阅（`subscribe`），可按收发方列出（`list`）。`session-send` 工具新增 `inReplyTo` 和 `wait`；`wait` 时回执提示模型说清在等什么并结束这一轮。
+- 后台命令与挂起唤醒（第四期）：
+  - `runtime.background`：后台命令属于会话（`background.outliveRun` 打开时，这一轮结束后继续跑；每个会话同时最多 `maxPerSession` 个），落盘；重启后原先在跑的记为 `interrupted`；Runtime 关闭时停掉还在跑的并记为被打断。后台命令和普通命令一样经审查，审查载荷标明 `background`、`outlivesRun`。
+  - `runtime.waits`：会话挂起，等一条后台命令结束或输出指定字样、等一封信被答复或了结、等任务图上一个节点结束；落盘，重启后补上挂起期间已满足的；触发后由 App 接着开下一轮（`resume`），或取消。
+  - 新系统工具 `await-commands`：一轮之内阻塞等（不调模型），或 `park: true` 挂起；子任务只能阻塞等，可以等父会话的后台命令。`session-send` 带 `wait` 时挂起在那封信上。命令结束时在下一次工具结果后提醒一次。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
 - 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
 - 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`
-- SHA-256：`905e3d048f5ef7a57c3d00c56bed82944e7a9a9716005df7a397ad7c9ef746fc`
+- SHA-256：`4d31aa6486df66c2a02b2a3a4dc7397cac7f29036527dd9920ce81321984f72b`
 
 重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
 

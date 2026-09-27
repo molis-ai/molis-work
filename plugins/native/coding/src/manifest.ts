@@ -165,6 +165,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.queued-round", method: "POST", path: "/sessions/:sessionId/queued" },
     { route_id: "coding.messages", method: "GET", path: "/sessions/:sessionId/messages" },
     { route_id: "coding.message-cancel", method: "POST", path: "/sessions/:sessionId/messages/:messageId/cancel" },
+    { route_id: "coding.background", method: "GET", path: "/sessions/:sessionId/background" },
+    { route_id: "coding.background-stop", method: "POST", path: "/sessions/:sessionId/background/:taskId/stop" },
     { route_id: "coding.control-run", method: "POST", path: "/sessions/:sessionId/control" },
   ],
   ui: {

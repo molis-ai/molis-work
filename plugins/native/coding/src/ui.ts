@@ -80,7 +80,7 @@ const STATE_MARK: Record<CodingSessionState, { icon: string; tone: string; label
   "stopped": { icon: "blocked", tone: "idle", label: "你停下的" },
   "cancelled": { icon: "x", tone: "idle", label: "已取消" },
   "reconcile-required": { icon: "circle-alert", tone: "attention", label: "需要你核对结果" },
-  "queued": { icon: "clock", tone: "attention", label: "等其他会话" },
+  "queued": { icon: "clock", tone: "attention", label: "挂起等待" },
   "done": { icon: "check", tone: "done", label: "本轮结束" },
 };
 
@@ -314,6 +314,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         ${model.companion_result ?? ""}
         <section class="coding-result" data-coding-subagents aria-label="子任务" hidden></section>
         <section class="coding-result coding-cooperation" data-coding-cooperation aria-label="协作与相关会话" hidden></section>
+        <section class="coding-result coding-background" data-coding-background aria-label="后台命令" hidden></section>
         <section class="coding-result" data-coding-plan aria-label="计划" hidden></section>
         <section class="coding-result" data-coding-recovery hidden aria-label="中断恢复">
           <h3>核对中断结果</h3>

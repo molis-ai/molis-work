@@ -102,6 +102,9 @@ test("sessions of one project write to each other: a request reaches a running r
     mail = await adapter.messages!.read("b");
     assert.deepEqual(mail.map(message => [message.kind, message.state]), [["request", "completed"], ["reply", "queued"]], "the answer ends the request; B has no round to hear it yet");
     assert.equal(mail[1]!.in_reply_to, asked);
+    // Waiting for the answer parked B in the SDK; the answer fired it, for the App to take up.
+    const parked = await adapter.waits!.read("b", sessionB.session_id);
+    assert.deepEqual(parked.map(wait => [wait.by, wait.state, wait.fired?.outcome, wait.fired?.text, wait.waiting_on]), [["agent", "fired", "answered", "formatLabel 已加 options 参数", "会话「改接口」的答复"]]);
     // Only this project's messages are listed; one session's view has what it sent and received.
     assert.equal((await adapter.messages!.read("another")).length, 0);
     assert.equal((await adapter.messages!.read("b", sessionB.session_id)).length, 2);

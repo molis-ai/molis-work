@@ -1,6 +1,7 @@
 /**
- * Title bar list of Coding sessions running or waiting on the person, in this project and every other one.
- * Reads the service's cross-project list; a session here opens in place, one elsewhere opens its project on it.
+ * Title bar list of Coding sessions running or waiting on the person, in this project and every other one, with the
+ * background commands they left running (each can be stopped here). Reads the service's cross-project list; a session
+ * here opens in place, one elsewhere opens its project on it.
  */
 export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
   const { translate: L, projectId, openItem } = host;
@@ -10,7 +11,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
   const menu = document.createElement("div");
   menu.className = "background-tasks-menu mw-menu"; menu.setAttribute("popover", "auto"); menu.setAttribute("aria-label", L("后台任务"));
   document.body.append(menu);
-  const LABEL = { running: L("进行中"), paused: L("已暂停"), "waiting-answer": L("等你回答"), "waiting-approval": L("等你审查"), "reconcile-required": L("需要核对"), queued: L("等其他会话") };
+  const LABEL = { running: L("进行中"), paused: L("已暂停"), "waiting-answer": L("等你回答"), "waiting-approval": L("等你审查"), "reconcile-required": L("需要核对"), queued: L("挂起等待") };
   let tasks = [], key = "", reading = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
   const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
@@ -23,7 +24,8 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
   const render = () => {
     button.hidden = !tasks.length;
     count.textContent = String(tasks.length);
-    const waiting = tasks.filter(task => !task.before_restart && (task.state !== "running" || task.steps?.mine)).length;
+    // A session listed only for the commands it left running does not wait on the person.
+    const waiting = tasks.filter(task => !task.before_restart && (task.state !== "running" && LABEL[task.state] !== undefined || task.steps?.mine)).length;
     button.dataset.backgroundTasksWaiting = waiting ? "true" : "false";
     button.title = tasks.length ? L("后台任务") + " · " + tasks.length + (waiting ? " · " + waiting + " " + L("个等你处理") : "") : L("后台任务");
     button.setAttribute("aria-label", button.title);
@@ -36,7 +38,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
       // The round's standing, then who is on its open plan steps (a step you hold waits on you even after the round ended).
       const holders = task.steps ? [task.steps.mine ? L("你负责") + " " + task.steps.mine + " " + L("步") : "", task.steps.subtasks ? task.steps.subtasks + " " + L("步在子任务手上") : "",
         task.steps.unowned ? L("没人认领") + " " + task.steps.unowned + " " + L("步") : ""].filter(Boolean).join(" · ") : "";
-      const standing = task.before_restart ? L("服务重启前没有结束，打开后核对") : LABEL[task.state] || (holders ? L("本轮已结束") : task.state);
+      const standing = task.before_restart ? L("服务重启前没有结束，打开后核对") : LABEL[task.state] || (holders ? L("本轮已结束") : task.commands?.length ? L("本轮已结束") : task.state);
       detail.append(node("span", holders ? standing + " · " + holders : standing));
       if (task.steps?.mine) row.dataset.state = row.dataset.state === "running" ? "running" : "waiting-answer";
       if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
@@ -46,6 +48,22 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
         event.preventDefault(); menu.hidePopover?.(); openItem("coding", task.session_id, task.title);
       });
       menu.append(row);
+      // Commands it left running: stopping one is the same reviewed stop the session's own panel offers.
+      for (const command of task.commands || []) {
+        const line = node("div", undefined, "background-task-command");
+        const stop = node("button", L("停止"), "mw-btn mw-btn--ghost"); stop.type = "button";
+        stop.addEventListener("click", async () => {
+          stop.disabled = true;
+          try {
+            const url = "/projects/" + encodeURIComponent(task.project_id) + "/api/plugins/io.molis.work.coding/sessions/" + encodeURIComponent(task.session_id) + "/background/" + encodeURIComponent(command.task_id) + "/stop";
+            const headers = typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
+            const response = await fetch(url, { method: "POST", headers, body: "{}" });
+            if (response.ok) { line.remove(); key = ""; void refresh(); } else stop.disabled = false;
+          } catch { stop.disabled = false; }
+        });
+        line.append(node("span", L("后台命令"), "background-task-command-label"), node("code", command.summary), stop);
+        menu.append(line);
+      }
     }
   };
   const refresh = async () => {

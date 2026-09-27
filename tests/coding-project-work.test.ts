@@ -56,6 +56,9 @@ test("sessions in one project see each other's work: overlaps before a round sta
     // B waits for A as a work item; giving it up leaves nothing waiting.
     const waiting = await work.queue("b", { session: sessionB, directory: root, task: "B_TASK 等一等", after: probe.overlaps[0]!.work.work_id }, "user");
     assert.equal(waiting.state, "waiting"); assert.deepEqual(waiting.waits_for, [probe.overlaps[0]!.work.work_id]);
+    // B is parked on A's work in the SDK, carrying what to start with and the item it waits as.
+    const parkedOnWork = (await adapter.waits!.read("b", sessionB.session_id))[0]!;
+    assert.deepEqual([parkedOnWork.by, parkedOnWork.state, parkedOnWork.wait_id, parkedOnWork.waiting_on, (parkedOnWork.data as any).work_id], ["app", "waiting", waiting.wait_id, "「改标签格式」那一轮", waiting.work_id]);
     // The person starts B anyway: it takes over its waiting item and the wait is dropped.
     const b = await host.start("prologue", { ...owner, session: sessionB, directory, role_id: "builder", task: "B_TASK 给 src/label.ts 加前缀", queued_work_id: waiting.work_id } as never, authority);
     let reviewed = false;
@@ -83,6 +86,7 @@ test("sessions in one project see each other's work: overlaps before a round sta
     const listed = (await work.read("b")).items;
     const itemB = listed.find(item => item.work_id === waiting.work_id)!;
     assert.equal(itemB.state, "done"); assert.equal(itemB.waits_for, undefined, "started anyway: the wait was dropped");
+    assert.deepEqual((await adapter.waits!.read("b", sessionB.session_id)).map(wait => [wait.state, wait.note]), [["resumed", "等待中的那一轮已开始"]], "its firing starts nothing more");
     assert.deepEqual(itemB.paths, ["src/label.ts"]);
     releaseA();
     for (const deadline = Date.now() + 10_000; (await work.read("b")).items.some(item => item.state === "running");) {

@@ -32,6 +32,7 @@ import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskboard.js";
 import { createProjectWork, projectWorkDigest, workPaths } from "./prologue-project-work.js";
 import { createSessionMessages } from "./prologue-messages.js";
+import { createPrologueWaits } from "./prologue-waits.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -146,7 +147,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     preset: "local-agent",
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
-    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 20 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
+    // Background commands belong to the session and keep running after its round (the person's decision), at most four
+    // at a time; a parked session waits up to a week, like a request.
+    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 20 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
@@ -301,7 +304,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           && Array.isArray(review.envAllowlist) && review.envAllowlist.every((name: unknown) => typeof name === "string") && typeof review.escalate === "boolean") {
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
           return { kind: "command", ...(childDirectory ? { workspace_path: childDirectory } : {}), command: review.executable, args: review.argv, cwd: review.cwd,
-            timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate };
+            timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate,
+            ...(review.background === true ? { background: true, outlives_run: review.outlivesRun === true } : {}) };
         }
         if (review.kind !== "workspace-patch" || review.version !== 1 || typeof review.path !== "string"
           || typeof review.baseExists !== "boolean" || typeof review.baseText !== "string" || typeof review.nextText !== "string") throw new Error("这类操作的完整审查尚未接通，不能批准");
@@ -473,6 +477,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   }, runId => runWork.has(runId));
   /** Each session's main round running now, for messages that should reach it at once. */
   const liveSessions = new Map<string, string>();
+  /** Tell a session's main round that is running now; false when it has none. */
+  const steerSession = async (sessionId: string, text: string) => {
+    const run = liveSessions.get(sessionId), active = run ? activeRuns.get(run) : undefined;
+    if (!active?.live()) return false;
+    await active.steer(text);
+    return true;
+  };
   const messages = createSessionMessages(runtime, {
     async owner(sessionId) {
       const index = await readIndex(sessionId).catch(() => undefined);
@@ -482,12 +493,17 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const listed = (await projectWork.read(project).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId);
       return listed?.title ?? (await readIndex(sessionId).catch(() => undefined))?.title ?? sessionId;
     },
-    async steer(sessionId, text) {
-      const run = liveSessions.get(sessionId), active = run ? activeRuns.get(run) : undefined;
-      if (!active?.live()) return false;
-      await active.steer(text);
-      return true;
+    steer: (sessionId, text) => steerSession(sessionId, text),
+  });
+  /** Parked sessions and background commands; a wait that fires while its session runs a round is told to that round. */
+  const waitsPort = createPrologueWaits(runtime, {
+    project: async sessionId => (await readIndex(sessionId).catch(() => undefined))?.owner.board_id,
+    title: async sessionId => {
+      const index = await readIndex(sessionId).catch(() => undefined);
+      if (!index) return sessionId;
+      return (await projectWork.read(index.owner.board_id).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId)?.title ?? index.title;
     },
+    steer: (sessionId, text) => steerSession(sessionId, text),
   });
   /** Main rounds registered as project work: which item, in which project and directory. */
   const runWork = new Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>();
@@ -618,12 +634,19 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     readStepBoard: run => stepBoards.read(run),
     amendStepBoard: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor),
     messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id) },
+    waits: waitsPort.waits,
+    background: waitsPort.background,
     projectWork: {
       read: (project, probe) => projectWork.read(project, probe && { ...(probe.session_id ? { session_id: probe.session_id } : {}), directory: probe.directory, paths: workPaths(probe.text) }),
       async queue(project, input, actorId) {
         const index = await readIndex(input.session.session_id);
         if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
-        return projectWork.queue(project, { session: index.ref, title: input.title?.slice(0, 120) ?? index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
+        const item = await projectWork.queue(project, { session: index.ref, title: input.title?.slice(0, 120) ?? index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
+        // The session is parked on the work it waits for: it is started with `data` when that work ends.
+        const target = (await projectWork.read(project)).items.find(work => work.work_id === input.after);
+        const waitId = await waitsPort.parkOnWork(index.ref, await projectWork.boardId(project), input.after, `等「${(target?.title ?? input.after).slice(0, 40)}」那一轮完成后再开始`,
+          { app: input.data ?? null, work_id: item.work_id });
+        return { ...item, wait_id: waitId };
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
     },
@@ -794,7 +817,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       }
       const childRoles = new Map<string, NonNullable<PrologueStartInput["subagents"]>[number]>();
       for (const role of input.subagents ?? []) {
-        const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(role.execution === "workspace-write" ? ["run-command"] : [])];
+        const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(role.execution === "workspace-write" ? ["run-command"] : []),
+          // A child may read and wait on its parent's background commands when the parent waits on them itself.
+          ...(input.character.tools.includes("await-commands") ? ["command-output", "await-commands"] : [])];
         if (!childRoots.length && role.execution === "text-edit" || role.host_tools.some(tool => !allowed.includes(tool) || !childRoots.length && !input.character.tools.includes(tool))) throw new Error("子角色超出本轮允许的工具与目录");
         const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
         const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
@@ -1000,6 +1025,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
             directory: input.root_path, paths: scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
           runWork.set(started.run.ref.id, { project, id: workId, session: session.ref, directory: input.root_path });
           liveSessions.set(session.ref.id, started.run.ref.id);
+          // The round it was parked to start has started: that wait is taken up, so its firing starts nothing more.
+          if (input.queued_work_id) await waitsPort.startedQueued(session.ref.id, input.queued_work_id).catch(() => undefined);
         } catch { /* not listed as project work; the round itself is unaffected */ }
       }
       const control = started.control;
@@ -1046,7 +1073,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         },
       };
     },
-    shutdown: async () => { closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); messages.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
+    shutdown: async () => { closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); messages.close(); waitsPort.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
   };
 
   return Object.assign(new PrologueAgentAdapter({

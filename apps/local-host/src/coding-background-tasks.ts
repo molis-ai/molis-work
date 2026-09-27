@@ -15,6 +15,8 @@ export interface CodingBackgroundTask {
   updated_at: string;
   /** Who holds the open plan steps, as Coding last read them: the person, subtasks, no one. */
   steps?: { mine: number; subtasks: number; unowned: number };
+  /** Background commands the session left running, as Coding last read them. */
+  commands?: Array<{ task_id: string; summary: string; started_at_ms: number }>;
   /**
    * Recorded as under way before this service started. No round survives a restart, so the session is really waiting
    * to be checked; opening it shows what happened.
@@ -40,17 +42,19 @@ export function codingBackgroundTasks(projects: readonly WebProjectNavigation[],
     try {
       store = new LocalSqliteStorage(project.database_path, { readonly: true });
       // Stores from before step holders were recorded have no such column; they list as before.
-      const hasSteps = (store.db.prepare("PRAGMA table_info(coding_sessions)").all() as Array<{ name: string }>).some(column => column.name === "steps_json");
-      const rows = store.db.prepare(`SELECT session_id, title, state, updated_at${hasSteps ? ", steps_json" : ""} FROM coding_sessions
-        WHERE archived = 0 AND (state IN (${ACTIVE_STATES.map(() => "?").join(", ")})${hasSteps ? " OR steps_json IS NOT NULL" : ""}) ORDER BY updated_at DESC`).all(...ACTIVE_STATES) as Array<{
-        session_id: string; title: string; state: string; updated_at: string; steps_json?: string | null }>;
+      const columns = (store.db.prepare("PRAGMA table_info(coding_sessions)").all() as Array<{ name: string }>).map(column => column.name);
+      const hasSteps = columns.includes("steps_json"), hasBackground = columns.includes("background_json");
+      const rows = store.db.prepare(`SELECT session_id, title, state, updated_at${hasSteps ? ", steps_json" : ""}${hasBackground ? ", background_json" : ""} FROM coding_sessions
+        WHERE archived = 0 AND (state IN (${ACTIVE_STATES.map(() => "?").join(", ")})${hasSteps ? " OR steps_json IS NOT NULL" : ""}${hasBackground ? " OR background_json IS NOT NULL" : ""}) ORDER BY updated_at DESC`).all(...ACTIVE_STATES) as Array<{
+        session_id: string; title: string; state: string; updated_at: string; steps_json?: string | null; background_json?: string | null }>;
       for (const row of rows) {
-        let steps: CodingBackgroundTask["steps"];
+        let steps: CodingBackgroundTask["steps"], commands: CodingBackgroundTask["commands"];
         try { steps = row.steps_json ? JSON.parse(row.steps_json) : undefined; } catch { steps = undefined; }
+        try { commands = row.background_json ? JSON.parse(row.background_json) : undefined; } catch { commands = undefined; }
         const active = (ACTIVE_STATES as readonly string[]).includes(row.state);
-        if (!active && !steps?.mine) continue;
+        if (!active && !steps?.mine && !commands?.length) continue;
         tasks.push({ project_id: project.project_id, project_name: project.display_name, session_id: row.session_id,
-          title: row.title, state: row.state, updated_at: row.updated_at, ...(steps ? { steps } : {}),
+          title: row.title, state: row.state, updated_at: row.updated_at, ...(steps ? { steps } : {}), ...(commands?.length ? { commands } : {}),
           // A queued round has not started, so a restart did not cut it off.
           before_restart: active && !["reconcile-required", "queued"].includes(row.state) && row.updated_at < startedAt });
       }

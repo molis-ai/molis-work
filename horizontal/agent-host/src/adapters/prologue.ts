@@ -165,6 +165,8 @@ export interface PrologueRuntimePort {
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
+  waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
@@ -269,6 +271,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
+  readonly waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -289,6 +293,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#runtime = options.runtime;
     if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.messages) this.messages = options.runtime.messages;
+    if (options.runtime.waits) this.waits = options.runtime.waits;
+    if (options.runtime.background) this.background = options.runtime.background;
     if (options.runtime.subagents) this.subagents = {
       ...(options.runtime.subagents.workspaces ? { workspaces: true as const } : {}),
       list: async run => { await this.read(run); return options.runtime.subagents!.list(run); },

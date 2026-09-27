@@ -532,7 +532,9 @@ export class AgentHost implements AgentHostApi {
         const tools = child.host_tools ?? [];
         const childExecution = child.execution ?? "read-only";
         // A child in the main workspace never writes files; it may run commands (each reviewed) only when its parent holds run-command.
-        const allowed = ["read-file", "list", "search", "context-remaining", ...(childWorkspaces && childExecution !== "read-only" ? ["write", "edit-file"] : []), ...(childExecution === "workspace-write" ? ["run-command"] : [])];
+        const allowed = ["read-file", "list", "search", "context-remaining", ...(childWorkspaces && childExecution !== "read-only" ? ["write", "edit-file"] : []), ...(childExecution === "workspace-write" ? ["run-command"] : []),
+          // Reading and waiting on the parent's background commands, when the parent holds that itself.
+          ...(hostTools.includes("await-commands") ? ["command-output", "await-commands"] : [])];
         if (!childWorkspaces && childExecution === "text-edit" || tools.some(tool => !allowed.includes(tool) || !childWorkspaces && !hostTools.includes(tool))) throw new AgentHostError("agent.role_execution_exceeded", "只读子角色请求了当前父任务未开放的工具");
         if (EXECUTION_CAPABILITIES[childExecution].some(capability => adapter.descriptor.capabilities[capability] === "unsupported")) throw new AgentHostError("agent.capability_unavailable", "运行时不能执行声明的子角色操作");
         const prompt = authority.prompts?.find(prompt => prompt.prompt_id === child.role_id && prompt.version === child.version);

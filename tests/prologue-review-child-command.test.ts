@@ -31,8 +31,9 @@ test("packed SDK: the collaborate reviewer runs a reviewed command and cannot wr
     }
     parentCalls++;
     if (parentCalls === 1) {
-      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@3/)?.[0]; assert.ok(character, "the independent reviewer is offered");
-      return response("", { name: "dispatch-subagent", input: { instruction: "CHECK_WITH_COMMAND: run the check and report.", tools: ["read", "list", "search", "run-command", "write"], character, idempotencyKey: "review-child" } });
+      // Picked by name: another child role may share its version.
+      const character = JSON.stringify(body.system).match(/(molis-child-[a-z0-9-]+@\d+): 独立评审/)?.[1]; assert.ok(character, "the independent reviewer is offered");
+      return response("", { name: "dispatch-subagent", input: { instruction: "CHECK_WITH_COMMAND: run the check and report.", tools: ["read", "list", "search", "run-command", "command-output", "await-commands", "write"], character, idempotencyKey: "review-child" } });
     }
     const ref = JSON.stringify(body.messages).match(/sub-[a-z0-9-]+/)?.[0];
     if (parentCalls === 2 && ref) return response("", { name: "await-subagents", input: { refs: [ref], mode: "all", timeoutMs: 0 } });

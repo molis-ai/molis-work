@@ -83,9 +83,14 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
   if (!columns.some(column => column.name === "archived")) db.exec("ALTER TABLE coding_sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))");
   // Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
   if (!columns.some(column => column.name === "steps_json")) db.exec("ALTER TABLE coding_sessions ADD COLUMN steps_json TEXT");
+  // Background commands the session left running, as last read: lets the list across projects show and stop them.
+  if (!columns.some(column => column.name === "background_json")) db.exec("ALTER TABLE coding_sessions ADD COLUMN background_json TEXT");
 }
 
 type Row = Record<string, unknown>;
+
+/** A background command a session left running. */
+export interface CodingRunningCommand { task_id: string; summary: string; started_at_ms: number }
 
 function mapSession(row: Row): CodingSessionRecord {
   return {
@@ -176,6 +181,17 @@ export class CodingSessionStore {
   setSteps(boardId: string, sessionId: string, steps: CodingStepHolders | null): void {
     this.db.prepare("UPDATE coding_sessions SET steps_json = ? WHERE board_id = ? AND session_id = ?")
       .run(steps ? JSON.stringify(steps) : null, boardId, sessionId);
+  }
+
+  /** Record the background commands the session has running; null when none. Not a change to the session. */
+  setBackground(boardId: string, sessionId: string, running: CodingRunningCommand[] | null): void {
+    this.db.prepare("UPDATE coding_sessions SET background_json = ? WHERE board_id = ? AND session_id = ?")
+      .run(running?.length ? JSON.stringify(running) : null, boardId, sessionId);
+  }
+
+  backgroundOf(boardId: string, sessionId: string): CodingRunningCommand[] | null {
+    const row = this.db.prepare("SELECT background_json FROM coding_sessions WHERE board_id = ? AND session_id = ?").get(boardId, sessionId) as Row | undefined;
+    return typeof row?.background_json === "string" ? JSON.parse(row.background_json) as CodingRunningCommand[] : null;
   }
 
   stepsOf(boardId: string, sessionId: string): CodingStepHolders | null {

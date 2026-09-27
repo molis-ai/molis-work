@@ -51,7 +51,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 插件 | 原入口 | 目标位置 | 消费方 | 状态 |
 | --- | --- | --- | --- | --- |
 | plugins/native/alchemist | Studio 41 个业务 HTTP/SSE/导出入口、3 项旧演示只读入口 | 44 项插件自有合同 → 生产 Host，复用原 Studio services/repositories/jobs | HTTP 经 Host Kernel；标准 MCP 读取真实持久授权 | 44 项业务、Host/actor、原数据和桌面/窄屏通过；浏览器授权后标准 MCP 真实写入及撤销已验证；生命周期、流程步骤与对外授权由共同机制承担（见「存量插件的共同收尾」） |
-| plugins/native/artifacts | 版本目录/读取/导出、文件/外部导入、来源状态、Goal 引用、项目文件、Runtime SDK 读写 | [src/actions.ts](../../plugins/native/artifacts/src/actions.ts)、[src/plugin-client.ts](../../plugins/native/artifacts/src/plugin-client.ts) → 原 Artifact/Context Ledger/Evidence owner | HTTP、Goal 阅读、项目引用、正式 MCP 的 8 项与 Runtime 同步 SDK 均共用 Kernel；Inputs/Outputs、Characters、Shelf、Coding 保留同步合同 | 公共及受限 SDK 接线已验证；显式来源账号选择和系统整体治理继续 |
+| plugins/native/artifacts | 版本目录/读取/导出、文件/外部导入、来源状态、Goal 引用、项目文件、Runtime SDK 读写 | [src/actions.ts](../../plugins/native/artifacts/src/actions.ts)、[src/plugin-client.ts](../../plugins/native/artifacts/src/plugin-client.ts) → 原 Artifact/Context Ledger/Evidence owner | HTTP、Goal 阅读、项目引用、正式 MCP 的 8 项与 Runtime 同步 SDK 均共用 Kernel；Inputs/Outputs、Characters、Shelf、Coding 保留同步合同 | 公共及受限 SDK 接线已验证。外部导入的显式账号选择已完成：导入页按服务列出连接（只有一个时自动选中），多账号未选时拒绝，只用所选账号读取并在版本元数据记下连接，读取期间断开不写入（`tests/connector-document-import.test.ts`）；Artifacts 节「显式 connection_id 未完成」已过时。流程步骤、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
 | plugins/native/characters | 原 14 项 Runtime 路由（草稿列表/新建/修改/启停/发布、能力目录、本机 Agent 导入/预览、运行准备/启动/记录） | [src/actions.ts](../../plugins/native/characters/src/actions.ts) 15 项 `characters.*` 由项目 Runtime 实例兑现（1.3.0，兼容 1.0.0–1.2.0），全部与草稿所有者绑定 | 管理界面 Runtime 路由薄转发（保留 403/404/409）；Agent/Character 仍经已发布固定版本消费 | 已迁移并验证（`tests/characters-actions.test.ts`、characters 系列与基线一致）。本机导入、文件预览、启动与运行记录仅限本机界面；旧 1.0.0 安装现可兼容打开（修复原失败的升级 e2e） |
 | plugins/native/coding | 58 条 Runtime 路由中的业务面：概况、会话新建/读取/修改、轮次开始/控制/列表、报告与变更读取/保存/目录、计划读取/保存/确认 | [src/route-actions.ts](../../plugins/native/coding/src/route-actions.ts) 16 项 `coding.*` 由项目 Runtime 实例兑现（1.48.0，兼容 1.30–1.47），与会话所有者绑定；原处理代码不变，路由只转发 | 工作台路由、Host 无页面调用（Host 自带 Agent 执行端口）；开始/控制轮次、改会话与计划仅本机界面 | 业务面已迁移并验证（`tests/coding-actions.test.ts`、51 个 coding 测试与基线一致）。实时流、文件树、符号、任务板、委派、分工目录、检查点、MCP/方法设置等界面内部路由未注册为动作 |
 | plugins/native/cognia | 原知识库 HTTP、两个只读 MCP、首次使用材料导入 | [src/actions.ts](../../plugins/native/cognia/src/actions.ts) → Home 注册；原 Store 与 Prologue owner | HTTP/页面、旧 MCP、标准 MCP、上下文来源扫描及导入/读取共用动作 | 22 项业务接线与 SDK 本机 HTTP 已验证；流程步骤、使用位置、对外授权与生命周期由共同机制承担（见「存量插件的共同收尾」） |
@@ -1502,7 +1502,7 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 对外授权：MCP 客户端按客户端、项目/Home、提供方、版本与权限精确授权，撤权对排队调用生效；`tests/mcp-action-grants.test.ts`、`tests/home-mcp-actions.test.ts`、`tests/external-mcp-actions.test.ts`。
 - 生命周期：项目停用插件后目录显示「此项目未启用该插件」、执行被拒，重新启用即恢复；`tests/action-directory-installation.test.ts`。插件升级与兼容声明：`tests/plugin-upgrades.test.ts`。外部 MCP 断开、移除与重启：`tests/external-mcp-actions.test.ts`。
 - 上述 5 个文件 11 项通过；同批运行的 `uninstall.test.ts` 4 项失败，为整机卸载用例，main 上同样失败，与插件生命周期无关。
-- 仍属各插件自身的待办保留在其行中（如 Artifacts 的来源账号选择、灵光的模型连接统一、Files/Git 的跨主体执行）。
+- 仍属各插件自身的待办保留在其行中（如灵光的模型连接统一、Files/Git 的跨主体执行；Artifacts 的来源账号选择后经核对已完成）。
 
 ## Character 能力范围的浏览器复跑（2026-09-27）
 

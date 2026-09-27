@@ -1546,3 +1546,15 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 真实外部客户端：官方 MCP SDK 客户端经 stdio 启动生产 launcher（`apps/desktop/launchers/mcp/server.ts`，`MOLIS_WORK_HOME` 指向预览 Home，动作经常驻网页服务转发），以 Codex 身份绑定项目。在「对外接入」给 Codex 授权「记下灵光」与「灵光列表」后：客户端看到 19 个工具（含这两项与默认查询，无未授权写入）；写入一条灵光并列回；灵光页面出现同一条；调用记录显示「记下灵光 · MCP 客户端 · runtime:codex」。另以 Claude Code 身份绑定同一项目，看到 16 个工具、没有灵光两项，客户端之间不串用。判断规则在预览 Home 中都显示「请先连接判断服务」（TypeSafe 未连接），对外客户端调用判断需同一服务；该链路已在 prologue 收敛线用真实 TypeSafe 实测（见 Inbox 行）。
 - 首页：插件在本项目停用时，其首页事项来源不再显示为问题（原先显示「会话首页事项：此项目未启用该插件 · 重新读取」）；其他原因（服务未启动等）仍照常提示。「读取期间提供方失效」只针对开始时可读的来源。`tests/home-event-actions.test.ts` 新增用例，首页相关 9 项（含 home-events、home-offers 浏览器用例）通过；预览首页实操不再出现该提示。
 - 第四次全量（Files/Git 读取动作、Images 用例修复之后）：2630 项中 2566 通过、61 失败；main 上另有 16 项在本分支通过。唯一仅本分支失败的是 Keychain 用例的另一种情形（「拒绝」），同一文件单独重跑 8 项全部通过，与前次相同属负载时序。
+
+## 旧实现清理审计（2026-09-27）
+
+已清理（详见各节）：Functions 独立插件与包依赖、原 workspace 插件；Host 的工作流内容站白名单与插件分支、首页动作 ID 回退分支、判断场景固定枚举与编辑器固定按钮、Host 静态 Feed 候选、JudgmentPort 旧执行分支与 FeedApplication.evaluateInboxEntries、五个插件的 LegacyMcpPermissions 与三份 MCP 包装文件、旧 legacy-usages 注册；能力库/工作流程/首页的手写本机权限名单（改由原生清单派生）；工作区、Session、Feed 来源、Plugin Builder、项目工作目录、浏览目录等旧路由的业务逻辑（只剩薄转发）；服务连接 MCP 与 Coding 外部 MCP 的直接调用（改经目录）。
+
+仍直接使用插件存储的 Host 代码，按性质分类（2026-09-27 全量检索 `createLocalFeedApplication(`、`open*Store(`）：
+- 插件自身实现：Feed 的应用、来源、连接器、同步、升级为 Goal、原生路由由 Host 组装（Feed 的实现就在 Host 包里），Alchemist/Functions 提供方打开自己的存储；这是提供方使用自己的数据。
+- 只读页面投影：工作台视图的 Feed 目录计数（`web-view.ts`）、终端面板读取 Goal 关联的 Feed 条目（`web-panel.ts`）、能力页的判断记录（`web-capabilities.ts`）、Shelf 设置页（`web-catalog.ts`）。不执行、不写入。
+- 信息助手（`assistant-http.ts`）：只读取 Feed/Inbox 快照生成方案，确认后的动作经已迁移的插件路由执行；读取仍直连 Feed 存储，未改为动作（现有 Feed 动作不提供来源与 Inbox 状态的组合读取，另写专用查询收益低）。
+- 种子数据（`demo-plugin-seed.ts`）。
+- 本机设置流程：连接器令牌、OAuth/设备码、原生文件夹选择、终端面板（携带密钥或本机界面）。
+检索未发现 Host 绕过动作写入插件业务数据的路径；写入均经提供方动作或其自身实现。

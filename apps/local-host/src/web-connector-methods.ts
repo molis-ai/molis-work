@@ -1,20 +1,23 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
-import { callMcpConnectionTool, completeMcpAuthorization, inspectMcpConnection, readMcpConnectionResource, McpConnectionError, startMcpConnection } from "./connector-mcp.js";
+import { completeMcpAuthorization, inspectMcpConnection, McpConnectionError, startMcpConnection } from "./connector-mcp.js";
 import { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, type ConnectorMcpTool } from "./connector-mcp-actions.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, type ConnectorMcpDirectory, type ConnectorMcpTool } from "./connector-mcp-actions.js";
+import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 const PREFIX = "/api/settings/connectors/methods/mcp";
 const CONNECTION = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/mcp$/u;
 
-export async function handleConnectorMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home?: string, localHost?: MolisWorkLocalHost): Promise<boolean> {
-  if (!home) return false;
+/** The person at this computer, running a tool or reading a resource of their own connection from its settings page. */
+const LOCAL_USER: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [EXTERNAL_MCP_PERMISSION] };
+
+export async function handleConnectorMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string | undefined, localHost: MolisWorkLocalHost): Promise<boolean> {
+  const directory = localHost.connectorMcp;
+  if (!home || !directory) return false;
   // Whenever the person lists a connection's tools, the shared directory follows what the server offers now.
-  const remember = (connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) => localHost?.connectorMcp?.remember(connectionId, tools, resources);
+  const remember = directory.remember;
   if (await handleConnectorApiMethodsHttp(request, response, url, home, remember)) return true;
   const item = CONNECTION.exec(url.pathname);
   if (url.pathname !== `${PREFIX}/start` && url.pathname !== `${PREFIX}/complete` && url.pathname !== `${PREFIX}/callback` && !item) return false;
@@ -57,17 +60,15 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
       sendLocalWebJson(response, 200, inspected);
       return true;
     }
+    // Reading and calling run the same registered actions workflows, Agents and granted MCP clients use; connecting never calls tools.
     if (item && body.action === "read" && typeof body.uri === "string") {
-      sendLocalWebJson(response, 200, localHost?.connectorMcp
-        ? await readThroughDirectory(localHost, home, item[1]!, body.uri, remember)
-        : await readMcpConnectionResource(home, item[1]!, body.uri));
+      sendLocalWebJson(response, 200, await runThroughDirectory(localHost, directory, home, item[1]!, connectorMcpResourceCapabilityId(item[1]!), { uri: body.uri },
+        "此连接没有提供资源，请重新检查连接"));
       return true;
     }
     if (item && body.action === "call" && typeof body.name === "string" && body.arguments && typeof body.arguments === "object" && !Array.isArray(body.arguments)) {
-      // This endpoint runs only an explicit user-requested tool call; connecting never calls tools.
-      // With a Host it is the same registered action workflows, Agents and granted MCP clients use.
-      if (!localHost?.connectorMcp) sendLocalWebJson(response, 200, await callMcpConnectionTool(home, item[1]!, body.name, body.arguments as Record<string, unknown>));
-      else sendLocalWebJson(response, 200, await callThroughDirectory(localHost, home, item[1]!, body.name, body.arguments as Record<string, unknown>, remember));
+      sendLocalWebJson(response, 200, await runThroughDirectory(localHost, directory, home, item[1]!, connectorMcpCapabilityId(item[1]!, body.name), body.arguments as Record<string, unknown>,
+        "此连接没有所选工具，请重新发现工具"));
       return true;
     }
     throw new McpConnectionError("configuration", "请选择检查连接，或填写要调用的 MCP 工具和参数");
@@ -84,23 +85,15 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
   return true;
 }
 
-type Remember = (connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) => void;
-async function throughDirectory(localHost: MolisWorkLocalHost, home: string, connectionId: string, capabilityId: string, input: Record<string, unknown>, remember: Remember, missing: string): Promise<unknown> {
-  const actions = bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS);
-  const providerId = `system.connectors#mcp:${connectionId}`;
-  const find = async () => (await actions.discover()).find(view => view.capability_id === capabilityId && view.provider.provider_id === providerId);
-  let view = await find();
-  if (!view) {
-    // A connection never listed before is listed once, then used through the directory like any other.
+/** A connection never listed before is listed once, then used through the directory like any other. */
+async function runThroughDirectory(localHost: MolisWorkLocalHost, directory: ConnectorMcpDirectory, home: string, connectionId: string, capabilityId: string,
+  input: Record<string, unknown>, missing: string): Promise<unknown> {
+  let reference = directory.reference(connectionId, capabilityId);
+  if (!reference) {
     const inspected = await inspectMcpConnection(home, connectionId);
-    remember(connectionId, inspected.tools as ConnectorMcpTool[], inspected.resources);
-    view = await find();
+    directory.remember(connectionId, inspected.tools as ConnectorMcpTool[], inspected.resources);
+    reference = directory.reference(connectionId, capabilityId);
   }
-  if (!view) throw new McpConnectionError("configuration", missing);
-  const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
-  return actions.invoke(reference as unknown as ActionDefinition<Record<string, unknown>, unknown>, input);
+  if (!reference) throw new McpConnectionError("configuration", missing);
+  return localHost.homeActionClient().invoke(LOCAL_USER, reference, input);
 }
-const callThroughDirectory = (localHost: MolisWorkLocalHost, home: string, connectionId: string, name: string, args: Record<string, unknown>, remember: Remember) =>
-  throughDirectory(localHost, home, connectionId, connectorMcpCapabilityId(connectionId, name), args, remember, "此连接没有所选工具，请重新发现工具");
-const readThroughDirectory = (localHost: MolisWorkLocalHost, home: string, connectionId: string, uri: string, remember: Remember) =>
-  throughDirectory(localHost, home, connectionId, connectorMcpResourceCapabilityId(connectionId), { uri }, remember, "此连接没有提供资源，请重新检查连接");

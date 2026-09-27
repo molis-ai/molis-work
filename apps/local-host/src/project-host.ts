@@ -112,7 +112,7 @@ export class MolisWorkLocalHost {
   private personalPlanning?: PersonalPlanningActions;
   private personalPlanningHome?: string;
   /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
-  connectorMcp?: ConnectorMcpDirectory;
+  readonly connectorMcp?: ConnectorMcpDirectory;
   private catalogRunner?: LocalWebCatalogRunner;
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly images?: ImagesHostService;

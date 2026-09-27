@@ -111,20 +111,11 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   };
   // Connected external MCP tools join the project directory; they follow every list, save and connection change.
   const externalMcp = createExternalMcpDirectory({ localHost: options.localHost, homeDirectory: options.homeDirectory });
-  const mcpChanges = new Set<unknown>([agentHostCapabilities.listMcp, agentHostCapabilities.saveMcp, agentHostCapabilities.controlMcp]);
   const unregister = registerAgentHostCapabilities<MolisWorkProjectRuntime>(
     {
       register: (definition, handler) => options.localHost.registerCapability(definition, async (project, input, invocation) => {
         await initialize();
-        const result = await handler(project, input, invocation);
-        if (mcpChanges.has(definition) && Array.isArray(input) && typeof input[0] === "string" && typeof input[1] === "string") {
-          const [runtimeId, pluginId] = input as [string, string];
-          try {
-            const { library, owner } = agentHost.mcpLibrary(runtimeId, await startAuthority(project, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, invocation.plugin));
-            await externalMcp.sync(project, pluginId, runtimeId, library, owner);
-          } catch { /* The configuration change itself succeeded; the directory catches up on the next list. */ }
-        }
-        return result;
+        return handler(project, input, invocation);
       }),
     },
     {
@@ -132,6 +123,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
       legacyActorId: () => "web-user",
       boardId: (runtime) => runtime.board_id,
+      mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
     },
   );
   const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {

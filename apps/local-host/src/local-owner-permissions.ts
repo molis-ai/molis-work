@@ -6,7 +6,7 @@ import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { HOME_TALK_PERMISSIONS } from "./home-talk-actions.js";
 import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
-import { EXTERNAL_MCP_PERMISSION } from "./external-mcp-actions.js";
+import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 
 /**
  * What the person at this computer holds over the Host's own native plugins, read from the actions those

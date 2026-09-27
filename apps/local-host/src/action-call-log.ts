@@ -16,10 +16,16 @@ export interface ActionCallRecord {
   ok: boolean;
   code?: string;
   message?: string;
+  /** Identical consecutive outcomes (a page polling the same command) are one entry: how many, and the latest time. */
+  count?: number;
+  last_at?: string;
 }
 
 const RELATIVE_PATH = "logs/action-calls.jsonl";
 const KEEP = 1000;
+const COALESCE_MS = 10 * 60_000;
+const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id
+  && a.actor_id === b.actor_id && a.audience === b.audience && a.project_id === b.project_id && a.ok === b.ok && a.code === b.code && a.message === b.message;
 
 /**
  * A short local history of commands (writes), kept in the Home next to other local records.
@@ -37,16 +43,22 @@ export class ActionCallLog {
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
       ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), message: outcome.message }) };
     mkdirSync(path.dirname(this.file), { recursive: true });
+    const all = this.readAll(), last = all.at(-1);
+    if (last && sameCall(last, row) && Date.parse(row.at) - Date.parse(last.last_at ?? last.at) < COALESCE_MS) {
+      all[all.length - 1] = { ...last, count: (last.count ?? 1) + 1, last_at: row.at };
+      this.rewrite(all); return;
+    }
     appendFileSync(this.file, JSON.stringify(row) + "\n", "utf8");
     if (this.lines < 0) this.lines = this.readAll().length; else this.lines++;
     // Keep the file short: once it doubles, rewrite the newest records atomically.
-    if (this.lines > KEEP * 2) {
-      const kept = this.readAll().slice(-KEEP);
-      const temporary = `${this.file}.${process.pid}.tmp`;
-      writeFileSync(temporary, kept.map(entry => JSON.stringify(entry)).join("\n") + "\n", "utf8");
-      renameSync(temporary, this.file);
-      this.lines = kept.length;
-    }
+    if (this.lines > KEEP * 2) this.rewrite(this.readAll().slice(-KEEP));
+  }
+
+  private rewrite(rows: ActionCallRecord[]): void {
+    const temporary = `${this.file}.${process.pid}.tmp`;
+    writeFileSync(temporary, rows.map(entry => JSON.stringify(entry)).join("\n") + "\n", "utf8");
+    renameSync(temporary, this.file);
+    this.lines = rows.length;
   }
 
   /** Newest first, for one project or for Home (null). */

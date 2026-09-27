@@ -19,7 +19,7 @@ export interface CapabilitiesView {
   usage_issues?: readonly string[];
   history?: readonly JudgmentRecord[];
   /** Recent commands in this scope: what ran, for whom, how it ended. No inputs are kept. */
-  calls?: readonly { at: string; capability_id: string; version: number; provider_title: string; title: string; actor_id: string; audience: string; ok: boolean; code?: string; message?: string }[];
+  calls?: readonly { at: string; capability_id: string; version: number; provider_title: string; title: string; actor_id: string; audience: string; ok: boolean; code?: string; message?: string; count?: number; last_at?: string }[];
   query: string;
   kind: string;
   /** Synthetic content is only supplied by the preview fixture. */
@@ -82,7 +82,7 @@ export function createCapabilitiesRenderer(p: SettingsRenderPrimitives, model: C
     const calls = model.calls ?? [];
     const callList = calls.length ? `<div class="capability-history">${calls.map(row => `<article><header><strong>${e(row.title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${L(row.ok ? "成功" : "失败")}</span></header>`
       + `<p>${e(row.provider_title)} · ${L(CALLER[row.audience] ?? row.audience)}${row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : ""} · <code>${e(row.capability_id)}@${row.version}</code></p>`
-      + `<time datetime="${e(row.at)}">${e(row.at)}</time>${row.ok ? "" : `<p>${L("失败原因")}：${e(row.message ?? row.code ?? "")}</p>`}</article>`).join("")}</div>`
+      + `<time datetime="${e(row.last_at ?? row.at)}">${e(row.last_at ?? row.at)}</time>${row.count && row.count > 1 ? `<p>${L("连续 {count} 次相同结果，最早 {at}", { count: row.count, at: row.at })}</p>` : ""}${row.ok ? "" : `<p>${L("失败原因")}：${e(row.message ?? row.code ?? "")}</p>`}</article>`).join("")}</div>`
       : `<div class="settings-empty"><strong>${L("当前范围还没有执行过的操作")}</strong><span>${L("通过界面、首页、工作流程、Agent 或 MCP 执行操作后，会显示在这里。")}</span></div>`;
     const judgments = model.history?.length ? `<div class="capability-history">${model.history.map(row => `<article><header><strong>${e(row.function_key)} · v${row.function_version}</strong><span>${e(row.outcome)}</span></header><p>${e(row.scene_id ?? L("直接调用"))} · ${e(row.subject.id)}</p><time datetime="${e(row.created_at)}">${e(row.created_at)}</time>${row.error_code ? `<p>${L("失败原因")}：${e(row.error_code)}</p>` : ""}${row.suggested_behavior_ids.length ? `<p>${L("建议")}：${e(row.suggested_behavior_ids.join(", "))}</p>` : ""}</article>`).join("")}</div>`
       : `<div class="settings-empty"><strong>${L("当前范围没有判断记录")}</strong><span>${L("规则执行并保存结果后，会显示在这里。")}</span></div>`;

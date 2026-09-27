@@ -78,6 +78,8 @@ test("a connected external MCP tool is one directory action: local user, workflo
 
     // Disconnecting keeps the entry and says why; nothing is sent. Reconnecting with the same shape keeps the same version.
     await library.control(owner, saved.id, "disconnect");
+    // The product re-syncs after every connection change; the configured server's tool stays, unavailable.
+    await directory.sync(runtime, owner.plugin_id, library, owner);
     const offline = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
     assert.equal(offline.availability.available, false);
     assert.match(offline.availability.available ? "" : offline.availability.reason, /已断开/);
@@ -86,6 +88,10 @@ test("a connected external MCP tool is one directory action: local user, workflo
     await directory.sync(runtime, owner.plugin_id, library, owner);
     assert.ok((await client.discover(user)).some(row => row.capability_id === ref.capability_id && row.version === ref.version && row.availability.available));
     assert.equal((await notes()).length, 3);
+    // Removing the configuration removes its entries.
+    await library.control(owner, saved.id, "remove");
+    await directory.sync(runtime, owner.plugin_id, library, owner);
+    assert.ok(!(await client.discover(user)).some(row => row.capability_id === ref.capability_id));
   } finally {
     directory.close();
     await host.close();

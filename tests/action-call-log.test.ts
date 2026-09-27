@@ -24,9 +24,13 @@ test("commands that ran are recorded with caller and outcome, queries are not, a
     const { source } = await actions.invoke(s.register, { kind: "web_query", query: secret, name: "记录测试" });
     await assert.rejects(actions.invoke(s.disconnect, { source_id: source.source_id }), { code: "feed_source_invalid_state" });
     await host.actionClient(reference).discover(caller);
+    // A page retrying the same refused command becomes one entry with a count, not a flood that pushes real entries out.
+    for (let i = 0; i < 3; i++) await assert.rejects(actions.invoke(s.disconnect, { source_id: source.source_id }), { code: "feed_source_invalid_state" });
 
     const calls = host.callLog!.list(PROJECT);
     assert.deepEqual(calls.map(row => [row.capability_id, row.ok]), [[s.disconnect.capability_id, false], [s.register.capability_id, true]], "newest first, commands only");
+    assert.equal(calls[0]!.count, 4);
+    assert.ok(calls[0]!.last_at! >= calls[0]!.at);
     assert.equal(calls[0]!.code, "feed_source_invalid_state");
     assert.equal(calls[1]!.actor_id, "web-user");
     assert.equal(calls[1]!.audience, "user");

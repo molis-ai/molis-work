@@ -92,7 +92,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | Runtime/SDK | packages/plugin-runtime, packages/plugin-sdk | 自动注册、兑现、停用撤销、场景发现 | 定义与生命周期接线通过；生产 Coding/Builder 注入完成；七个项目 Runtime 插件可由动作入口启动并供 UI 复用，其他组合与全量生命周期仍待迁移 |
 | 平台 MCP | apps/mcp/src/tool-catalog.ts, apps/local-host/src/mcp-server.ts | 统一目录及执行适配 | 新动作已接入持久、逐客户端/范围的生产授权及本机管理 API；授权界面、旧工具权限/目录与适配表仍待收敛 |
 | 项目工作区 | packages/contracts/src/modules/projects.ts, apps/local-host/src/project-capabilities.ts | 原消费者及 MCP 使用同一查询能力 | 四项查询已迁移并验证 |
-| 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts | 连接与能力接入共用 | 未迁移 |
+| 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts、apps/local-host/src/external-mcp-actions.ts | 连接与能力接入共用 | 已接入：已连接服务的工具作为项目动作进入同一目录（每个服务一个提供方，版本随配置与工具形状），经 Prologue 调用器与系统执行器执行；本机用户、工作流动作步骤、获授权的对外 MCP 客户端与插件共用；断开后保留条目并说明原因，移除配置后撤回。重启后连接需重新建立（SDK 连接不持久），期间目录不含该服务 |
 | 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景、使用关系待迁移 |
 | 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 事项按合同类型动态发现；动作按 offers 合同由各插件准备、首页复核后执行（Feed 消息、Inbox 事项、未知插件）；“说一句”按对象上下文选择会话并真实发送（见下文专节）。本地网页调用者的原生权限改由原生清单派生，不再手写 |
 | 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身动作与 F4 幂等交接/中断恢复已完成；判断规则交接与通用字段映射动作步骤已完成 |
@@ -1462,3 +1462,11 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 仅本分支失败的 3 项已查明并修正：两项 desktop-tui 用例从未启用 Feed 的新项目直接调用 Feed 路由——Feed 动作现在遵守项目启用插件的策略（旧路由绕过了它），夹具改为为该项目启用 Feed；一项 Coding 运行时恢复用例在没有动作登记服务的 Runtime 中启动已声明动作的 Coding，改为每个进程提供动作登记。修正后两个文件 42 项全部通过。
 - 仅 main 失败的 2 项（Host 不再直接引入 openFunctionsStore、工作区表单不再要求手填路径）在本分支通过。
 - 浏览器 e2e 未做全量对比；本分支改动涉及的 e2e（home-offers、home-events、home-talk、inbox-current、inbox-pages-actions、feed-capture、characters 升级、cross-plugin）已单独运行，失败项均在 main 上同样失败。
+
+## 外部 MCP 工具进入同一目录（2026-09-27）
+
+- MCP 库（`AgentMcpLibrary`）新增 `tools/live/call`：`call` 走 Prologue 公开的 `createToolInvoker()` 与 `createSystemToolRunner()`，保留 SDK 对名称、版本、形状的核对与副作用链；SDK 把所有外部 MCP 工具标为 mutate-external、无幂等保证，这里由 Host 在动作目录已按调用者授权（本机用户、工作流、精确授权的 MCP 客户端或插件）后放行该笔待批。Agent 运行内的 MCP 调用仍走原审查队列。
+- `external-mcp-actions.ts` 在列表、保存、连接、断开之后同步项目目录：每个已连接服务作为一个提供方（标题为服务名，插件身份为拥有该配置的插件），能力 `mcp.external.<服务>.<工具>`，权限 `mcp:external`；版本记录在 Home `config/external-mcp-actions.json`，配置版本或工具形状变化即升版本，旧引用不会静默指向新工具。断开后条目保留为不可用并说明原因；移除配置后撤回。
+- 验证：`tests/external-mcp-actions.test.ts`（真实 stdio MCP 服务：本机用户直接调用、输入不合规被拒、工作流动作步骤映射标题执行、对外 MCP 客户端未授权被拒/精确授权后成功，三次调用各到达服务一次；断开后不可用并拒绝调用，重连同形状版本不变，移除后撤回）。浏览器实操（1280）：Coding 设置添加本机 HTTP MCP「外部笔记」→ 连接 → 能力库出现 save_note（外部笔记 · 操作 · v1 · 可使用）→ 新建流程 Feed →手动→ save_note（note ← 标题）→ 运行，外部服务实际收到「客户投诉：导出失败」，运行页显示返回结果 → 能力库「已用在哪」显示该流程第 2 步及字段映射 → 调用记录出现调用方为工作流程的 save_note → 断开后能力库显示不可用及原因。
+- 同时发现并修正：Files 页面每约 5 秒重试的 `files.state` 在没有工作目录时反复失败，会刷满调用记录；调用记录现把相邻的相同结果合并为一条并计数（10 分钟内）。该页面的重试行为本身未改。
+- 未做：工具只读/破坏性标注不在 SDK 快照中，全部按外部写入处理；插件可调用（audiences 含 plugin）但仍需安装时授予 `mcp:external`。

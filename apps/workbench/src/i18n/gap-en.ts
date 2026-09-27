@@ -98,6 +98,7 @@ export const GAP_EN: Record<string, string> = {
   "通过界面、首页、工作流程、Agent 或 MCP 执行操作后，会显示在这里。": "Operations run from the app, Home, workflows, an Agent or MCP appear here.",
   "最近执行的操作和已保存的判断。只记录谁在何时调用了什么、结果如何；不保存输入与返回内容，失败时保留错误说明。查询类能力不记录。": "Recent operations and saved judgments. Only who called what, when, and how it ended is kept — never inputs or results; failures keep their error message. Queries are not recorded.",
   "判断记录": "Judgments",
+  "连续 {count} 次相同结果，最早 {at}": "Same result {count} times in a row, first at {at}",
   "当前范围没有使用绑定。": "No bindings in this scope.",
   "调用条件": "Call requirements",
   "无额外权限": "No additional permissions",

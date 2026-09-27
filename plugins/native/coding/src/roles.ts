@@ -73,42 +73,43 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: 10,
+      version: 11,
       name: "协作",
       // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-coordinator"],
-      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "dispatch-subagent", "await-subagents", "steer-subagent"],
+      // session-send: it may ask another session of the project, or answer one, without a review each time (the person's decision).
+      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "dispatch-subagent", "await-subagents", "steer-subagent", "session-send"],
     },
     {
       role_id: CODING_WRITERS_ROLE,
-      version: 11,
+      version: 12,
       name: "并行写入",
       // Parallel writers work in their own worktrees; the parent itself only
       // reads and reports; integration is a separate reviewed Host operation.
       execution: "read-only",
       subagent_workspaces: "required",
       prompts: ["coding-base", "coding-writers"],
-      host_tools: ["context-remaining", "ask-user", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report"],
+      host_tools: ["context-remaining", "ask-user", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_BUILDER_ROLE,
-      version: 11,
+      version: 12,
       name: "构建者",
       // Edits and runs commands. Needs a Runtime that supports both under Host
       // approval, so it stays unavailable until one does.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-builder"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "board-read", "board-report"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_WRITER_ROLE,
-      version: 9,
+      version: 10,
       name: "改写者",
       // File-only work does not request command permission.
       execution: "text-edit",
       prompts: ["coding-base", "coding-writer"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "session-send"],
     },
   ],
   prompts: [

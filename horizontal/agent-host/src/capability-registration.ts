@@ -247,6 +247,19 @@ export function registerAgentHostCapabilities<Context>(
       if (!adapter.projectWork) return { items: [], overlaps: [] };
       return adapter.projectWork.read(ports.boardId(context), probe);
     }),
+    register(agentHostCapabilities.readMessages, async (context, [runtimeId, sessionId]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages) return [];
+      return adapter.messages.read(ports.boardId(context), sessionId);
+    }),
+    register(agentHostCapabilities.cancelMessage, async (context, [runtimeId, messageId]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages) throw new AgentHostError("agent.capability_unavailable", "当前运行时没有会话间的信");
+      await context.invocation.beforeEffect();
+      await adapter.messages.cancel(ports.boardId(context), messageId);
+    }),
     register(agentHostCapabilities.queueProjectRound, async (context, [runtimeId, input]) => {
       const view = await readScopedSession(context, input.session);
       const adapter = ports.agentHost(context).adapter(runtimeId);

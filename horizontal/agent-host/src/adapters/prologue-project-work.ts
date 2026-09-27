@@ -191,13 +191,15 @@ export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, liv
 }
 
 /** The other work under way in the project, as a round reads it at its start; nothing when there is none. */
-export function projectWorkDigest(boardId: string, items: readonly AgentProjectWork[], own: string, overlaps: readonly AgentProjectWorkOverlap[]): string {
+export function projectWorkDigest(boardId: string, items: readonly AgentProjectWork[], own: string, overlaps: readonly AgentProjectWorkOverlap[], canSend = false): string {
   const others = items.filter(work => work.session_id !== own && ["running", "waiting"].includes(work.state));
   if (!others.length) return "";
-  const line = (work: AgentProjectWork) => `- 会话「${work.title.slice(0, 40)}」${work.state === "running" ? "进行中" : "等待开始"}：${work.task.split("\n")[0]!.slice(0, 80)}`
+  const line = (work: AgentProjectWork) => `- 会话「${work.title.slice(0, 40)}」（session ${work.session_id}）${work.state === "running" ? "进行中" : "等待开始"}：${work.task.split("\n")[0]!.slice(0, 80)}`
     + `${work.paths.length ? "；范围：" + work.paths.slice(0, 8).join("、") : ""}（目录 ${work.directory}）`;
   return [`项目里其他会话正在做的事（第 ${boardId} 号项目任务图，宿主在这一轮开始时读取；可以用 board-read 读这张图看最新状态，但不能改它）：`,
     ...others.slice(0, 12).map(line),
     ...(overlaps.length ? ["和这一轮登记的范围重叠：", ...overlaps.map(overlap => `- 会话「${overlap.work.title.slice(0, 40)}」也在改 ${overlap.paths.join("、")}`),
-      "改这些文件之前先告诉用户重叠在哪里；不要替用户决定谁先谁后。"] : [])].join("\n");
+      "改这些文件之前先告诉用户重叠在哪里；不要替用户决定谁先谁后。"] : []),
+    // A round that can write to other sessions is told how to wait on one it depends on, rather than guessing its result.
+    ...(canSend ? ["如果这一轮要做的事依赖上面某个会话正在做的改动（比如它在改你要调用的接口），不要猜它改完的样子：用 session-send 给它发 kind 为 request 的信（to 写它的 session id），说清楚你需要什么，并设 wait: true；然后说明你在等什么，结束这一轮，不做依赖它的部分。它答复或那一轮结束后，宿主会带着答复让你接着做。不依赖就照常做。"] : [])].join("\n");
 }

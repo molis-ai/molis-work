@@ -236,7 +236,11 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         since = waited.version;
         const record = execution.sessions.get(boardId, sessionId), next = sessionState(view);
         if (next !== record.state) execution.sessions.setState(boardId, sessionId, next, record.updated_at);
-        if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) break;
+        if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) {
+          // A round that ended waiting for another session's answer waits on as a queued round.
+          if (view.phase !== "reconcile-required") await adoptWait(api, execution, sessionId).catch(() => undefined);
+          break;
+        }
       }
     })().catch(() => undefined).finally(() => { if (current()) following.delete(sessionId); });
   };
@@ -259,7 +263,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (queued) {
         if (record.state !== "queued") record = execution.sessions.setState(boardId, record.session_id, "queued", record.updated_at);
         if (!queued.note) watchQueued(api, execution, record.session_id);
-        return { ...record, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: { after_title: queued.after.title, ...(queued.note ? { note: queued.note } : {}) },
+        return { ...record, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: { after_title: queued.after.title, waiting_for: queued.message ? "reply" : "work", ...(queued.note ? { note: queued.note } : {}) },
           goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
       }
       if (record.runtime_session_id) {
@@ -414,6 +418,10 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     // A session named by default takes its name from the first task, the way a person would label it.
     if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
     execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
+    // How this round was started, so a round woken later (an answer arrived) starts the same way.
+    // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
+    context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
+      workspace_id: body.workspace_id, actor_id: actorId, origin_task: typeof body.origin_task === "string" ? body.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
     follow(api!, execution, record.session_id, session, run.ref);
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
   ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
@@ -426,6 +434,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   interface QueuedRound {
     work_id: string;
     after: { work_id: string; session_id: string; run_id?: string; title: string };
+    /** Waiting for the answer to a request this session sent (the model asked to wait), rather than for work. */
+    message?: { id: string; to_session: string; to_title: string; body: string };
     body: Record<string, unknown>;
     actor_id: string;
     at: string;
@@ -440,16 +450,76 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     if (queued) context.services!.storage!.set(queuedKey(sessionId), JSON.stringify(queued));
     else context.services!.storage!.delete(queuedKey(sessionId));
   };
+  /**
+   * What a round waiting on a request should wake to: the answer, or the request settled without one (a round of the
+   * other session saw it and finished); "cancelled" when it was withdrawn, refused or ran out; nothing while it is open.
+   */
+  const answerFor = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, record: CodingSessionRecord, queued: QueuedRound) => {
+    const all = await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id!]);
+    const request = all.find(message => message.message_id === queued.message!.id), reply = all.find(message => message.in_reply_to === queued.message!.id);
+    if (reply) return { reply: reply.body };
+    if (!request || ["cancelled", "expired", "rejected"].includes(request.state)) return "cancelled" as const;
+    return request.state === "completed" ? { ended: true as const } : undefined;
+  };
+  /** The round a wait wakes to: what was asked, what came back, and the task it had been doing. */
+  const wakeBody = (queued: QueuedRound, decided: { reply?: string; ended?: true; person?: true }) => {
+    const origin = typeof queued.body.origin_task === "string" ? queued.body.origin_task : "";
+    const what = decided.person ? `你决定不再等「${queued.message!.to_title}」的答复。`
+      : decided.ended ? `会话「${queued.message!.to_title}」那一轮已经结束，没有专门答复；它可能已经做了你请求的事，先读一下相关文件确认。`
+      : `它的答复：${decided.reply}`;
+    return { ...queued.body, task: [`（接着之前的任务）你给会话「${queued.message!.to_title}」发过请求（信 ${queued.message!.id}）：「${queued.message!.body.slice(0, 300)}」，并停下来等答复。`,
+      what, `请接着完成原来的任务：${origin}`].join("\n") };
+  };
+  /** A session whose round ended waiting on a request it sent becomes a queued round, woken by the answer. */
+  const adoptWait = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, sessionId: string) => {
+    const record = execution.sessions.get(boardId, sessionId);
+    if (!record.runtime_session_id || queuedOf(sessionId) || busy.has(sessionId)) return;
+    const saved = context.services?.storage?.get(`last-start:${sessionId}`);
+    if (!saved) return;
+    const last = JSON.parse(saved) as Record<string, unknown>;
+    const open = (await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id]))
+      .filter(message => message.from_session === record.runtime_session_id && message.await_reply && ["queued", "delivered", "accepted"].includes(message.state));
+    const waiting = open.at(-1);
+    if (!waiting) return;
+    const { actor_id, ...body } = last;
+    // The other session as the person knows it: its Coding title.
+    const title = execution.sessions.list(boardId).find(entry => entry.runtime_session_id === waiting.to_session)?.title ?? waiting.to_title;
+    saveQueued(sessionId, { work_id: "", after: { work_id: "", session_id: waiting.to_session, title },
+      message: { id: waiting.message_id, to_session: waiting.to_session, to_title: title, body: waiting.body },
+      body, actor_id: typeof actor_id === "string" ? actor_id : "web-user", at: new Date().toISOString() });
+    execution.sessions.setState(boardId, sessionId, "queued", new Date().toISOString());
+    watchQueued(api, execution, sessionId);
+  };
   const watching = new Set<string>();
   /** Start a queued round once the work it waits for is done; say so, and keep waiting for the person, if it failed. */
   const watchQueued = (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, sessionId: string) => {
     if (watching.has(sessionId)) return;
     watching.add(sessionId);
     void (async () => {
-      let since: string | null = null;
+      let since: string | null = null, sinceRun: string | undefined;
       for (;;) {
         const queued = queuedOf(sessionId), record = execution.sessions.get(boardId, sessionId);
         if (!queued || queued.note) return;
+        if (queued.message) {
+          const decided = await answerFor(api, record, queued);
+          if (decided === "cancelled") { saveQueued(sessionId, { ...queued, note: `发给「${queued.message.to_title}」的请求已撤回或过期，这一轮还在等你决定：现在开始，或取消等待。` }); return; }
+          if (decided) {
+            if (busy.has(sessionId)) { await new Promise(resolve => setTimeout(resolve, 1000)); continue; }
+            busy.add(sessionId);
+            try { await startRound(record, wakeBody(queued, decided), queued.actor_id, api, execution); saveQueued(sessionId, undefined); }
+            catch (error) { saveQueued(sessionId, { ...queued, note: `自动开始没有成功：${error instanceof Error ? error.message : String(error)}` }); }
+            finally { busy.delete(sessionId); }
+            return;
+          }
+          // Look again when the other session's round changes, or shortly while it has none.
+          const theirs = (await api.invoke(agent.readProjectWork, [record.runtime_id])).items.find(item => item.session_id === queued.message!.to_session && item.state === "running" && item.run_id);
+          if (theirs) {
+            if (theirs.run_id !== sinceRun) { sinceRun = theirs.run_id; since = null; }
+            try { since = (await api.invoke(agent.waitRun, [{ runtime_id: record.runtime_id, session_id: theirs.session_id }, { session_id: theirs.session_id, run_id: theirs.run_id! }, since, 10_000]) as { version: string }).version; }
+            catch { await new Promise(resolve => setTimeout(resolve, 5_000)); }
+          } else await new Promise(resolve => setTimeout(resolve, 3_000));
+          continue;
+        }
         const items = (await api.invoke(agent.readProjectWork, [record.runtime_id])).items;
         const mine = items.find(item => item.work_id === queued.work_id), target = items.find(item => item.work_id === queued.after.work_id);
         // Given up elsewhere: nothing is waiting any more.
@@ -882,7 +952,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      const queued = queuedOf(record.session_id), queuedView = queued ? { after_title: queued.after.title, at: queued.at, ...(queued.note ? { note: queued.note } : {}) } : null;
+      const queued = queuedOf(record.session_id), queuedView = queued ? { after_title: queued.after.title, at: queued.at, waiting_for: queued.message ? "reply" : "work", ...(queued.note ? { note: queued.note } : {}) } : null;
       if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
@@ -1249,6 +1319,22 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       }
       finally { busy.delete(record.session_id); }
     }),
+    // Messages this session sent and received, and withdrawing an open one.
+    route("coding.messages", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) return { messages: [] };
+      const sessions = execution.sessions.list(boardId), coding = (runtime: string) => sessions.find(entry => entry.runtime_session_id === runtime);
+      return { messages: (await api!.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id])).map(message => {
+        const outgoing = message.from_session === record.runtime_session_id, other = coding(outgoing ? message.to_session : message.from_session);
+        return { ...message, from_title: coding(message.from_session)?.title ?? message.from_title, to_title: coding(message.to_session)?.title ?? message.to_title,
+          outgoing, peer: other ? { session_id: other.session_id, title: other.title } : null };
+      }) };
+    }),
+    route("coding.message-cancel", async (request, api, execution) => {
+      const record = selected(request, execution);
+      await api!.invoke(agent.cancelMessage, [record.runtime_id, text(request.params.messageId, "信")]);
+      return { cancelled: true };
+    }),
     // Before a send: other sessions' work under way in the same directory that names the same files.
     route("coding.scope-check", async (request, api, execution) => {
       const record = selected(request, execution);
@@ -1259,6 +1345,12 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     route("coding.queued-round", async (request, api, execution) => {
       const record = selected(request, execution), queued = queuedOf(record.session_id), action = bodyOf(request).action;
       if (!queued) throw new Error("这个会话没有在等待的一轮");
+      if (action === "cancel" && queued.message) {
+        await api!.invoke(agent.cancelMessage, [record.runtime_id, queued.message.id]).catch(() => undefined);
+        saveQueued(record.session_id, undefined);
+        execution.sessions.setState(boardId, record.session_id, "done", new Date().toISOString());
+        return { cancelled: true };
+      }
       if (action === "cancel") {
         await api!.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]);
         saveQueued(record.session_id, undefined);
@@ -1269,7 +1361,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
       busy.add(record.session_id);
       try {
-        const started = await startRound(record, { ...queued.body, queued_work_id: queued.work_id }, request.actor_id, api!, execution);
+        const started = await startRound(record, queued.message ? wakeBody(queued, { person: true }) : { ...queued.body, queued_work_id: queued.work_id }, request.actor_id, api!, execution);
         saveQueued(record.session_id, undefined);
         return started;
       } finally { busy.delete(record.session_id); }

@@ -1425,9 +1425,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderQueued=(id,queued)=>{
     const box=q('[data-coding-queued]'),next=JSON.stringify([id,queued]);if(next===queuedKey)return;queuedKey=next;
     box.hidden=!queued;box.replaceChildren();if(!queued)return;
-    const text=document.createElement('p');text.textContent=queued.note||('下一轮在等「'+queued.after_title+'」那一轮结束，结束后自动开始。');
+    const text=document.createElement('p');text.textContent=queued.note||(queued.waiting_for==='reply'?'这个会话给「'+queued.after_title+'」发了请求，停下来在等答复；答复到了（或对方那一轮结束）会自动继续。':'下一轮在等「'+queued.after_title+'」那一轮结束，结束后自动开始。');
     const act=(label,action,primary)=>{const b=document.createElement('button');b.type='button';b.className='mw-btn'+(primary?' mw-btn--primary':' mw-btn--ghost');b.textContent=label;
-      b.addEventListener('click',async()=>{b.disabled=true;try{await api('/sessions/'+encodeURIComponent(id)+'/queued','POST',{action});status(action==='start'?'已开始这一轮；新的写入和命令仍需你审查。':'已取消等待，这一轮没有开始。');queuedKey='';await refreshState();await readCurrent();}
+      b.addEventListener('click',async()=>{b.disabled=true;try{await api('/sessions/'+encodeURIComponent(id)+'/queued','POST',{action});status(action==='start'?'已开始这一轮；新的写入和命令仍需你审查。':queued.waiting_for==='reply'?'已不再等答复，请求已撤回。':'已取消等待，这一轮没有开始。');queuedKey='';await refreshState();await readCurrent();}
         catch(error){status(error.message,true);}finally{b.disabled=false;}});return b;};
     const actions=document.createElement('div');actions.className='coding-queued-actions';actions.append(act('取消等待','cancel'),act('现在开始','start',true));
     box.append(text,actions);

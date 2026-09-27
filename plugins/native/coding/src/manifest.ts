@@ -163,6 +163,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.start-run", method: "POST", path: "/sessions/:sessionId/runs" },
     { route_id: "coding.scope-check", method: "POST", path: "/sessions/:sessionId/scope-check" },
     { route_id: "coding.queued-round", method: "POST", path: "/sessions/:sessionId/queued" },
+    { route_id: "coding.messages", method: "GET", path: "/sessions/:sessionId/messages" },
+    { route_id: "coding.message-cancel", method: "POST", path: "/sessions/:sessionId/messages/:messageId/cancel" },
     { route_id: "coding.control-run", method: "POST", path: "/sessions/:sessionId/control" },
   ],
   ui: {

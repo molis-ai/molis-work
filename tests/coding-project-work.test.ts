@@ -76,7 +76,7 @@ test("sessions in one project see each other's work: overlaps before a round sta
     assert.ok(reviewed, "B's write was reviewed");
     // B's round started knowing what A is doing and where they overlap, and could read the project's graph.
     assert.match(bOpening, /项目里其他会话正在做的事/);
-    assert.match(bOpening, /会话「改标签格式」进行中/);
+    assert.match(bOpening, /会话「改标签格式」（session \S+?）进行中/, "named with the id it can be written to by");
     assert.match(bOpening, /会话「改标签格式」也在改 src\/label\.ts/);
     assert.doesNotMatch(bRead, /TOOL_(DENIED|HOOK)|只能读取或回报本轮确认计划/);
     assert.match(bRead, /改标签格式/);

@@ -232,6 +232,13 @@ dialog.coding-palette::backdrop { background:color-mix(in srgb,var(--ink) 18%,tr
 .coding-coop-related { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
 .coding-coop-related li { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; min-width:0; }
 .coding-coop-related .mw-btn { min-height:24px; height:auto; padding:2px 4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.coding-coop-mail { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.coding-coop-mail li { display:grid; gap:4px; min-width:0; padding:8px 0; border-top:1px solid var(--mw-border-subtle, var(--mw-border)); }
+.coding-coop-mail li:first-child { border-top:0; }
+.coding-coop-mail li[data-state="cancelled"], .coding-coop-mail li[data-state="expired"] { opacity:.7; }
+.coding-coop-mail .coding-coop-line { display:flex; flex-wrap:wrap; align-items:center; gap:2px 6px; }
+.coding-coop-mail .coding-coop-line .mw-btn { min-height:24px; height:auto; padding:2px 4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.coding-coop-mail > li > .mw-btn { justify-self:start; }
 .coding-delegate-outputs { display:grid; gap:4px; border:0; padding:0; margin:0; }
 .coding-earlier { display:block; margin:4px auto 20px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
 .coding-earlier:hover:not(:disabled) { color:var(--ink); border-color:color-mix(in srgb,var(--ink) 30%,var(--line)); }

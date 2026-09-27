@@ -1,7 +1,8 @@
 /**
  * Sessions working together, as people see it. A session created for a delegation shows where it came from and
  * what is asked of it, and hands its finished round back; the session that asked follows each delegation's receipts
- * and decides whether to take what comes back. Related sessions are listed read-only. None of it reaches the model.
+ * and decides whether to take what comes back. Related sessions are listed read-only, and so are the messages the
+ * sessions' models sent each other, which the person can withdraw while open. None of it reaches the model.
  */
 export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const {q,api,current,status,openSession,refreshSessions,rounds,prefill,materialsChanged,openArtifact}=ports;
@@ -12,7 +13,10 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const EVENT={submitted:'已提交',delivered:'已送达对方会话',accepted:'对方已接受',started:'对方开始执行','delivery-sent':'对方交付了成果','delivery-accepted':'已收下交付','delivery-rejected':'没有收下交付',completed:'已完成',rejected:'对方拒绝',cancelled:'已取消',failed:'失败'};
   const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'等其他会话',done:'本轮结束'};
   const TONE={received:'attention',delivered:'attention',accepted:'progress',committing:'progress',completed:'done',rejected:'blocked',cancelled:'idle',failed:'blocked'};
-  let owner='',data=null,readAt=0,reading=false,drafts=new Map(),drawnKey='';
+  const MAIL_KIND={request:'请求',reply:'答复',notice:'通知'};
+  const MAIL_STATE={queued:'等对方下一轮',delivered:'已交给对方',accepted:'对方已接受',completed:'已结束',rejected:'对方拒绝',cancelled:'已撤回',expired:'已过期'};
+  const MAIL_TONE={queued:'attention',delivered:'progress',accepted:'progress',completed:'done',rejected:'blocked',cancelled:'idle',expired:'idle'};
+  let owner='',data=null,mail=[],readAt=0,reading=false,drafts=new Map(),drawnKey='';
   const act=async(path,body,done)=>{try{await api('/sessions/'+encodeURIComponent(current())+'/delegations'+path,'POST',body);if(done)status(done);await refresh(true);}catch(error){status(error.message,true);await refresh(true);}};
   const receipts=(delegation)=>{const details=el('details','coding-coop-receipts'),summary=el('summary','','回执 '+delegation.receipts.length+' 条'),list=el('ol');
     for(const receipt of delegation.receipts){const item=el('li');item.append(el('span','coding-coop-event',EVENT[receipt.event]||receipt.event),el('time','',time(receipt.at)));
@@ -57,8 +61,24 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     banner.append(receipts(incoming));
   };
   // The asking side: each delegation's state and receipts, deliveries to take or return, and related sessions.
+  // Messages between the sessions' models: who wrote to whom, whether an answer is awaited, and withdrawing an open one.
+  const drawMail=()=>{
+    if(!mail.length)return;const list=el('ol','coding-coop-mail');
+    for(const message of mail.slice().reverse()){
+      const item=el('li'),head=el('div','coding-coop-head'),line=el('p','coding-coop-line');item.dataset.state=message.state;
+      const chip=el('span','mw-status mw-status--plain',MAIL_STATE[message.state]||message.state);chip.dataset.tone=MAIL_TONE[message.state]||'idle';
+      head.append(el('strong','',(message.outgoing?'发出的':'收到的')+(MAIL_KIND[message.kind]||message.kind)+(message.await_reply?'（在等答复）':'')),chip);
+      line.append(document.createTextNode(message.outgoing?'给':'来自'),message.peer?sessionLink(message.peer):el('span','',message.outgoing?'「'+message.to_title+'」':'「'+message.from_title+'」'),el('time','',time(message.sent_at_ms)));
+      const body=el('details','coding-coop-task');body.append(el('summary','',message.body.split('\\n')[0].slice(0,80)),el('p','',message.body));
+      item.append(head,line,body);
+      if(message.outgoing && ['queued','delivered','accepted'].includes(message.state))item.append(button('撤回','ghost',async()=>{
+        try{await api('/sessions/'+encodeURIComponent(current())+'/messages/'+encodeURIComponent(message.message_id)+'/cancel','POST',{});status('已撤回这封信。');}catch(error){status(error.message,true);}await refresh(true);}));
+      list.append(item);
+    }
+    section.append(el('h4','','会话间的信'),list);
+  };
   const drawSection=(value)=>{
-    const empty=!value.outgoing.length && !value.related.length && !value.incoming;section.hidden=empty;section.replaceChildren();if(empty)return;
+    const empty=!value.outgoing.length && !value.related.length && !value.incoming && !mail.length;section.hidden=empty;section.replaceChildren();if(empty)return;
     section.append(el('h3','','协作与相关会话'));
     for(const delegation of value.outgoing){
       const card=el('article','coding-coop-card'),head=el('div','coding-coop-head'),path='/'+encodeURIComponent(delegation.delegation_id);
@@ -83,12 +103,13 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(value.incoming){const line=el('p','coding-coop-line');line.append(document.createTextNode('这个会话来自'),sessionLink(value.incoming.from),document.createTextNode('的委派 · '+value.incoming.state_label));section.append(line);}
     const others=value.related.filter(item=>!value.outgoing.some(delegation=>delegation.to_session===item.session_id));
     if(others.length){const list=el('ul','coding-coop-related');for(const item of others){const entry=el('li');entry.append(sessionLink(item),el('span','coding-coop-note',item.relation.join('、')+(item.state?' · '+(SESSION_STATE[item.state]||item.state):'')));list.append(entry);}section.append(el('h4','','相关会话'),list);}
+    drawMail();
   };
   const refresh=async(force=false)=>{
     const id=current();if(!id||reading)return;if(!force && owner===id && Date.now()-readAt<3000)return;
-    reading=true;try{const value=await api('/sessions/'+encodeURIComponent(id)+'/delegations');if(id!==current())return;owner=id;readAt=Date.now();data=value;
+    reading=true;try{const [value,messages]=await Promise.all([api('/sessions/'+encodeURIComponent(id)+'/delegations'),api('/sessions/'+encodeURIComponent(id)+'/messages').catch(()=>({messages:[]}))]);if(id!==current())return;owner=id;readAt=Date.now();data=value;mail=messages.messages;
       // Redrawn only when something changed: a redraw replaces the forms, so a click or a half-written note would be lost.
-      const key=JSON.stringify([id,value,rounds().map(round=>[round.run_id,round.phase,round.number])]);
+      const key=JSON.stringify([id,value,mail,rounds().map(round=>[round.run_id,round.phase,round.number])]);
       if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);}}
     catch(error){if(id===current()){banner.hidden=true;}}finally{reading=false;}
   };
@@ -113,5 +134,5 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     catch(error){message.textContent=error.message;}finally{send.disabled=false;}
   });
   dialog.querySelector('[data-coding-delegate-cancel]').addEventListener('click',()=>dialog.close());
-  return {refresh,openDialog,reset(){owner='';data=null;banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
+  return {refresh,openDialog,reset(){owner='';data=null;mail=[];banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
 }`;

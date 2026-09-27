@@ -31,6 +31,7 @@ import { createPrologueCompactor } from "./prologue-compaction.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskboard.js";
 import { createProjectWork, projectWorkDigest, workPaths } from "./prologue-project-work.js";
+import { createSessionMessages } from "./prologue-messages.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -144,12 +145,13 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     host,
     preset: "local-agent",
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
-    config: { agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 20 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
+    // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
+    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 20 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
       : { sandbox: "read-only", approval: "on-request" },
-    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }] }, rules: codingExecutionRules } : {}),
+    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "session-send" }] }, rules: codingExecutionRules } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
@@ -469,6 +471,24 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       } finally { bytes.fill(0); }
     },
   }, runId => runWork.has(runId));
+  /** Each session's main round running now, for messages that should reach it at once. */
+  const liveSessions = new Map<string, string>();
+  const messages = createSessionMessages(runtime, {
+    async owner(sessionId) {
+      const index = await readIndex(sessionId).catch(() => undefined);
+      return index ? { project: index.owner.board_id, ref: index.ref, subtask: Boolean(index.parent_run) } : undefined;
+    },
+    async title(project, sessionId) {
+      const listed = (await projectWork.read(project).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId);
+      return listed?.title ?? (await readIndex(sessionId).catch(() => undefined))?.title ?? sessionId;
+    },
+    async steer(sessionId, text) {
+      const run = liveSessions.get(sessionId), active = run ? activeRuns.get(run) : undefined;
+      if (!active?.live()) return false;
+      await active.steer(text);
+      return true;
+    },
+  });
   /** Main rounds registered as project work: which item, in which project and directory. */
   const runWork = new Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>();
   const stepBoards = createPrologueTaskBoards(runtime, async run => {
@@ -597,6 +617,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
     amendStepBoard: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor),
+    messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id) },
     projectWork: {
       read: (project, probe) => projectWork.read(project, probe && { ...(probe.session_id ? { session_id: probe.session_id } : {}), directory: probe.directory, paths: workPaths(probe.text) }),
       async queue(project, input, actorId) {
@@ -764,7 +785,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         textResources.push({ ref, as: "original" });
       }
       const childRoots: PrologueSubagentRoot[] = [];
-      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
+      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report", "session-send"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
       for (const grant of input.subagent_workspaces ?? []) {
         const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
         if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
@@ -802,9 +823,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       if (!none && input.root_path && !index.parent_run) {
         try {
           const seen = await projectWork.read(project, { session_id: session.ref.id, directory: input.root_path, paths: scopePaths });
-          const note = projectWorkDigest(await projectWork.boardId(project), seen.items, session.ref.id, seen.overlaps);
+          const note = projectWorkDigest(await projectWork.boardId(project), seen.items, session.ref.id, seen.overlaps, input.character.tools.includes("session-send") && !index.parent_run);
           if (note) textResources.push({ ref: await stageTextResource(runtime, note, "coding-project-work"), as: "original" });
         } catch { /* the project's list is a courtesy to the round; a failed read leaves it out rather than stopping the round */ }
+        // Messages other sessions left for this one while it was not running.
+        const inbox = await messages.inbox(session.ref.id, project).catch(() => "");
+        if (inbox) textResources.push({ ref: await stageTextResource(runtime, inbox, "coding-session-inbox"), as: "original" });
       }
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
         ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
@@ -883,7 +907,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                   host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
                   prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
             runRoots.set(childRun.run_id, granted.rootRef);
-            activeRuns.set(childRun.run_id, { live: () => observed.run.state === "running", steer: text => observed.control.steer({ text }) });
+            activeRuns.set(childRun.run_id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: text => observed.control.steer({ text }) });
             const bridgeFailed = async () => {
               const reason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
               const errors = subagentBridgeErrors.get(observed.parentRun.id) ?? {};
@@ -965,7 +989,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       catch (error) { actionController.abort(); started.control.stop("cancelled"); throw error; }
       if (actionTools?.names.length) actionControllers.set(started.run.ref.id, actionController);
       let stopping: Promise<void> | undefined;
-      activeRuns.set(started.run.ref.id, { live: () => started.run.state === "running" && stopping === undefined,
+      // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
+      activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && stopping === undefined,
         steer: text => started.control.steer({ text }) });
       if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);
       // A main round is work under way in its project until it ends; a subtask's work is its parent's.
@@ -974,6 +999,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           const workId = await projectWork.begin(project, { session: session.ref, run_id: started.run.ref.id, title: input.session_title ?? index.title, task: input.task,
             directory: input.root_path, paths: scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
           runWork.set(started.run.ref.id, { project, id: workId, session: session.ref, directory: input.root_path });
+          liveSessions.set(session.ref.id, started.run.ref.id);
         } catch { /* not listed as project work; the round itself is unaffected */ }
       }
       const control = started.control;
@@ -985,8 +1011,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
               if (["completed", "failed", "cancelled"].includes(event.type)) {
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
                 if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);
+                if (liveSessions.get(session.ref.id) === started.run.ref.id) liveSessions.delete(session.ref.id);
                 const work = runWork.get(started.run.ref.id);
                 if (work) { runWork.delete(started.run.ref.id); void projectWork.end(work.project, work.id, event.type === "cancelled" ? "stopped" : event.type).catch(() => undefined); }
+                // A round that finished normally saw every message given to it; unanswered requests are settled.
+                if (work && event.type === "completed") void messages.settle(session.ref.id).catch(() => undefined);
               }
               if (event.type === "command-receipt") {
                 const events = commandEvents.get(started.run.ref.id) ?? [];
@@ -1017,7 +1046,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         },
       };
     },
-    shutdown: async () => { closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
+    shutdown: async () => { closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); messages.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
   };
 
   return Object.assign(new PrologueAgentAdapter({

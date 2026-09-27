@@ -9,13 +9,14 @@
 - 读图时负责人写成 `you (this session)`、`subagent <引用>`、`the session that dispatched you`。
 - 任务图事件带上图的编号（`board`）。
 - 常开的任务图（`standing: { keepFinished }`，协同第二期）：不因节点都结束而终止，可以空着开，只留最近加入的若干个已结束节点（还有人在等的不丢）；用作每个项目一张的"进行中的工作"。
+- 会话之间的信持久化（协同第三期）：信封记下 `inReplyTo`（答复哪一封，必须存在）、`awaitReply`（发信方在等答复）和 `sentAtMs`；投递箱可以存、重启后读回（`store`/`hydrate`/`flush`），可订阅（`subscribe`），可按收发方列出（`list`）。`session-send` 工具新增 `inReplyTo` 和 `wait`；`wait` 时回执提示模型说清在等什么并结束这一轮。
 
 - 源仓库：https://github.com/molis-ai/prologue
 - 基线提交：`a7e785b8c76149961d25b2f918aeec55554d8420`，保留下方全部历史修复。
 - 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
 - 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`
-- SHA-256：`72828d05d09ed0037de0b76108ad6dcb87e0b21e5c4c34792fac0682365cd3c7`
+- SHA-256：`905e3d048f5ef7a57c3d00c56bed82944e7a9a9716005df7a397ad7c9ef746fc`
 
 重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
 

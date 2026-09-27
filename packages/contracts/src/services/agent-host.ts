@@ -229,6 +229,27 @@ export interface AgentProjectWorkCapability {
   release(project: string, workId: string, actorId: string, note: string): Promise<void>;
 }
 
+/** A message one session of a project sent another (the SDK's envelope). Data for its recipient, never an approval. */
+export interface AgentSessionMessage {
+  message_id: string;
+  from_session: string;
+  to_session: string;
+  from_title: string;
+  to_title: string;
+  kind: "request" | "notice" | "reply";
+  body: string;
+  state: "queued" | "delivered" | "accepted" | "rejected" | "completed" | "expired" | "cancelled";
+  sent_at_ms: number;
+  in_reply_to?: string;
+  /** The sender waits for the answer before going on. */
+  await_reply?: true;
+}
+
+export interface AgentSessionMessagesCapability {
+  read(project: string, sessionId?: string): Promise<AgentSessionMessage[]>;
+  cancel(project: string, messageId: string): Promise<void>;
+}
+
 /** Who holds a step: only its holder reports on it. */
 export interface AgentStepOwner {
   kind: "session" | "subtask" | "person" | "none" | "other";
@@ -916,6 +937,8 @@ export interface AgentRuntimeAdapter {
   readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
   /** The project's work under way, when this Runtime keeps it. */
   readonly projectWork?: AgentProjectWorkCapability;
+  /** Messages between the project's sessions, when this Runtime carries them. */
+  readonly messages?: AgentSessionMessagesCapability;
   start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
   read(run: AgentRunRef): Promise<AgentRunView>;
   observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
@@ -1052,6 +1075,14 @@ export const agentHostCapabilities = {
   readProjectWork: {
     capability_id: "agent.project-work.read.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[runtimeId: string, probe?: { session_id?: string; directory: string; text: string }], { items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>,
+  /** Messages between the project's sessions; one session's sent and received when a session is named. */
+  readMessages: {
+    capability_id: "agent.messages.read.v1", version: 1, operation: "query",
+  } as HostCapabilityDefinition<[runtimeId: string, sessionId?: string], AgentSessionMessage[]>,
+  /** The person withdraws an open message. */
+  cancelMessage: {
+    capability_id: "agent.messages.cancel.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, messageId: string], void>,
   /** Hold a round until another piece of work in the project finishes. */
   queueProjectRound: {
     capability_id: "agent.project-work.queue.v1", version: 1, operation: "command",

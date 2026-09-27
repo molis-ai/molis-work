@@ -34,7 +34,7 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
   let board = "", releaseHolders!: () => void; const holders = new Promise<void>(resolve => { releaseHolders = resolve; });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = bodyOf(init), messages = JSON.stringify(body.messages), system = JSON.stringify(body.system);
-    const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(A|B|C|D|E|F|G|H)_TASK/)?.[1]).find(Boolean);
+    const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(A|B|C|D|E|F|G|H|I)_TASK/)?.[1]).find(Boolean);
     if (!who) return response("其他。");
     const turns = (seen[who] ??= []); turns.push(messages); const turn = turns.length;
     if (who === "A") {
@@ -64,6 +64,13 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
       // G waits on H's answer.
       if (turn === 1) return response("", { name: "session-send", input: { to: ids.H, kind: "request", body: "你先告诉我 X", idempotencyKey: "g-ask", wait: true } });
       return response("等 H。");
+    }
+    if (who === "I") {
+      // I has no plan of its own: it first names the project's board and a made-up step, is told how to do it, and
+      // then hands the work over in the body alone.
+      if (turn === 1) return response("", { name: "session-send", input: { to: ids.B, kind: "handoff", body: "把 b.ts 加 pb2 交给你", idempotencyKey: "i-handoff-1", board: "第 1 号项目任务图", steps: ["在 b.ts 加 pb2"] } });
+      if (turn === 2) return response("", { name: "session-send", input: { to: ids.B, kind: "handoff", body: "把 b.ts 加 pb2 交给你；我这边没有动 b.ts。", idempotencyKey: "i-handoff-2" } });
+      return response("交出去了。");
     }
     // H, asked by G, would wait on G's answer in turn: a circle.
     if (turn === 1) return response("", { name: "session-send", input: { to: ids.G, kind: "request", body: "你先告诉我 Y", idempotencyKey: "h-ask", wait: true } });
@@ -143,6 +150,12 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     assert.deepEqual(taken.history!.map(entry => [entry.event, entry.state, entry.by, entry.note ?? null]),
       [["sent", "queued", "user", null], ["delivered", "delivered", "user", null], ["accepted", "accepted", "user", "发送第一轮即视为接受"], ["started", "accepted", "user", null]]);
     await assert.rejects(adapter.messages!.sendForPeople!("another", { from_session: g.session.session_id, to_session: h.session.session_id, kind: "request", body: "x" }, "user"), /只能在这个项目的两个会话之间发信/);
+    // A handover without a plan: naming a board that is not the plan's is refused with how to do it; then it goes.
+    const i = await run("I", { task: "I_TASK 把 b.ts 的一部分交给 B" });
+    await ended((await i.start()).ref);
+    assert.match(seen.I![1]!, /is not a task board of your plan\. To hand work over without plan steps, leave out board and steps/);
+    assert.match(seen.I![2]!, /envelope \S+ is queued/);
+    assert.deepEqual((await adapter.messages!.read("b", i.session.session_id)).map(message => [message.kind, message.to_title]), [["handoff", "B"]]);
     // A claim left quiet: A's round is over and step-1 has not moved for three hours — it reads as expired, nothing is
     // taken back.
     const realNow = Date.now(), later = realNow + 3 * 60 * 60 * 1000;

@@ -2375,7 +2375,7 @@ index 6b13b77a..f79dfd97 100644
  
          if (deps.parentCancelled?.() === true) {
 diff --git a/packages/sdk/src/composition/core/system-tools.ts b/packages/sdk/src/composition/core/system-tools.ts
-index 11201b1e..afcccce8 100644
+index 11201b1e..6e2474b4 100644
 --- a/packages/sdk/src/composition/core/system-tools.ts
 +++ b/packages/sdk/src/composition/core/system-tools.ts
 @@ -7,7 +7,7 @@ import {
@@ -2736,20 +2736,32 @@ index 11201b1e..afcccce8 100644
        case "steer-subagent": {
          if (input.subagents === undefined) {
            throw createPrologueError(
-@@ -1271,14 +1430,66 @@ export function createSystemToolRunner(input: {
+@@ -1271,14 +1430,78 @@ export function createSystemToolRunner(input: {
              return `session ${id}`;
            }
            case "session-send": {
 +            // A handover may name steps of a plan this session holds: they are checked before anything is sent.
 +            const handing = args.kind === "handoff" && Array.isArray(args.steps) ? (args.steps as unknown[]).map(String) : [];
++            const withoutSteps = "To hand work over without plan steps, leave out board and steps and say in the body what the recipient takes over.";
++            if (args.kind === "handoff" && (args.board !== undefined) !== (handing.length > 0)) {
++              throw createPrologueError("TOOL_ARGUMENTS_INVALID", `Plan steps are handed over with both board and steps. ${withoutSteps} Nothing was sent.`);
++            }
 +            const handBoard = handing.length > 0 ? text(args.board, "board") : undefined;
 +            if (handBoard !== undefined) {
-+              if (input.board?.handOver === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "This run has no task board to hand steps from.");
++              const surface = input.board;
++              if (surface?.handOver === undefined) throw createPrologueError("TOOL_UNAVAILABLE", `This run has no task board to hand steps from. ${withoutSteps} Nothing was sent.`);
 +              const me = input.session?.();
 +              for (const step of handing) {
-+                const [node] = (await input.board.read({ board: handBoard, node: step, state: undefined, limit: undefined, cursor: undefined })).nodes;
++                let node: Awaited<ReturnType<typeof surface.read>>["nodes"][number] | undefined;
++                try {
++                  [node] = (await surface.read({ board: handBoard, node: step, state: undefined, limit: undefined, cursor: undefined })).nodes;
++                } catch (error) {
++                  // A board that is not an id, or one this run cannot read, is the model's mistake to correct, told how.
++                  if (!["RUNTIME_OPTIONS_INVALID", "TASKBOARD_NOT_FOUND", "TOOL_DENIED"].includes(String((error as { code?: unknown }).code))) throw error;
++                  throw createPrologueError("TOOL_ARGUMENTS_INVALID", `"${handBoard}" is not a task board of your plan. ${withoutSteps} Nothing was sent.`);
++                }
 +                if (node === undefined || node.assignee?.kind !== "session" || node.assignee.id !== me?.id || ["succeeded", "failed", "cancelled"].includes(node.state)) {
-+                  throw createPrologueError("TOOL_ARGUMENTS_INVALID", `Step "${step}" is not an unfinished step of yours on board ${handBoard}; only those can be handed over. Nothing was sent.`);
++                  throw createPrologueError("TOOL_ARGUMENTS_INVALID", `Step "${step}" is not an unfinished step of yours on board ${handBoard}; only those can be handed over. ${withoutSteps} Nothing was sent.`);
 +                }
 +              }
 +            }
@@ -2805,7 +2817,7 @@ index 11201b1e..afcccce8 100644
            }
            case "session-wait": {
              const held = await orchestration.waitOn(text(args.envelope, "envelope"));
-@@ -1374,7 +1585,9 @@ export function createSystemToolRunner(input: {
+@@ -1374,7 +1597,9 @@ export function createSystemToolRunner(input: {
              if (held.nodes.length < 1) {
                return [head, "(no steps match)"].join("\n");
              }
@@ -2816,7 +2828,7 @@ index 11201b1e..afcccce8 100644
              return [
                head,
                ...lines,
-@@ -1872,12 +2085,13 @@ export function createSystemToolRunner(input: {
+@@ -1872,12 +2097,13 @@ export function createSystemToolRunner(input: {
  function startedKind(
    started: ReadonlyMap<string, "background" | "interactive">,
    handle: string,
@@ -2832,6 +2844,27 @@ index 11201b1e..afcccce8 100644
      );
    }
    return kind;
+@@ -1902,13 +2128,16 @@ function parseAskUserQuestions(raw: unknown): readonly PendingQuestion[] | undef
+       throw createPrologueError("TOOL_ARGUMENTS_INVALID", 'Each question needs "options".');
+     }
+     const options = row.options.map((opt, optIndex) => {
+-      if (typeof opt === "string") {
+-        if (opt.length < 1) {
++      // Models often write a choice as { label, description }: the label is the choice.
++      const named = opt !== null && typeof opt === "object" ? (opt as Record<string, unknown>) : undefined;
++      const label = typeof opt === "string" ? opt : [named?.label, named?.text, named?.value].find((value): value is string => typeof value === "string");
++      if (label !== undefined) {
++        if (label.length < 1) {
+           throw createPrologueError("TOOL_ARGUMENTS_INVALID", "An option label may not be empty.");
+         }
+-        return { index: optIndex, label: opt };
++        return { index: optIndex, label };
+       }
+-      throw createPrologueError("TOOL_ARGUMENTS_INVALID", "Question options must be strings.");
++      throw createPrologueError("TOOL_ARGUMENTS_INVALID", 'Question options are plain labels, like "options": ["Rename now", "Keep the old name"].');
+     });
+     return {
+       index,
 diff --git a/packages/sdk/src/composition/core/typesafe.ts b/packages/sdk/src/composition/core/typesafe.ts
 new file mode 100644
 index 00000000..5d2b4237
@@ -6067,7 +6100,7 @@ index afa0b2b9..2e9a0ea6 100644
        if (input.hooks !== undefined) {
          const origin = input.origin?.();
 diff --git a/packages/sdk/src/tool/core/system.ts b/packages/sdk/src/tool/core/system.ts
-index 8ba1b112..f1c4f317 100644
+index 8ba1b112..1ae47180 100644
 --- a/packages/sdk/src/tool/core/system.ts
 +++ b/packages/sdk/src/tool/core/system.ts
 @@ -112,6 +112,13 @@ export const SYSTEM_TOOL_NAMES = [
@@ -6164,13 +6197,14 @@ index 8ba1b112..f1c4f317 100644
        },
        required: ["instruction", "tools", "idempotencyKey"],
        additionalProperties: false,
-@@ -542,19 +584,36 @@ const BLUEPRINTS: readonly Blueprint[] = [
+@@ -542,19 +584,37 @@ const BLUEPRINTS: readonly Blueprint[] = [
      name: "session-send",
      description:
        "Send one envelope to another session in this app. Delivered is not accepted, and accepted is " +
 -      "not completed.",
-+      "not completed. A handoff gives the recipient part of your work: name the steps of your plan it takes over " +
-+      "with board and steps. A notice can go to several sessions at once with recipients.",
++      "not completed. A handoff gives the recipient part of your work: say in the body what it takes over and how far " +
++      "you got; if your run has a plan with steps assigned to you, also name those steps with board and steps, " +
++      "otherwise leave board and steps out. A notice can go to several sessions at once with recipients.",
      parameters: {
        type: "object",
        properties: {
@@ -6193,11 +6227,11 @@ index 8ba1b112..f1c4f317 100644
 +          type: "boolean",
 +          description: "Optional: you will wait for the answer before doing what depends on it. End your turn after sending; you are resumed when it is answered or the other work is done.",
 +        },
-+        board: { type: "string", description: "With a handoff: the task board the handed-over steps are on." },
++        board: { type: "string", description: "Only with a handoff of plan steps: the id of the task board of your plan that holds them. Leave out when you have no plan." },
 +        steps: {
 +          type: "array",
 +          items: { type: "string" },
-+          description: "With a handoff: steps of yours (unfinished) that the recipient takes over; they change hands when it is sent.",
++          description: "Only with board: node ids of unfinished steps assigned to you that the recipient takes over; they change hands when it is sent.",
 +        },
        },
 -      required: ["to", "kind", "body", "idempotencyKey"],
@@ -6205,7 +6239,7 @@ index 8ba1b112..f1c4f317 100644
        additionalProperties: false,
      },
      effectKind: "mutate-external",
-@@ -595,7 +654,7 @@ const BLUEPRINTS: readonly Blueprint[] = [
+@@ -595,7 +655,7 @@ const BLUEPRINTS: readonly Blueprint[] = [
        properties: {
          session: { type: "string" },
          text: { type: "string" },
@@ -6214,7 +6248,7 @@ index 8ba1b112..f1c4f317 100644
        },
        required: ["session", "text", "idempotencyKey"],
        additionalProperties: false,
-@@ -1162,6 +1221,34 @@ const BLUEPRINTS: readonly Blueprint[] = [
+@@ -1162,6 +1222,34 @@ const BLUEPRINTS: readonly Blueprint[] = [
      effectKind: "mutate-external",
      needs: "workspace",
    },
@@ -6695,6 +6729,37 @@ index 00000000..69d5d723
 +    expect(effects.every(effect => effect.state === "completed")).toBe(true);
 +  } finally { await f.close(); }
 +});
+diff --git a/packages/sdk/test/ask-user-run.test.ts b/packages/sdk/test/ask-user-run.test.ts
+index 897e2589..74d36702 100644
+--- a/packages/sdk/test/ask-user-run.test.ts
++++ b/packages/sdk/test/ask-user-run.test.ts
+@@ -179,6 +179,26 @@ describe("AskUser：同一 Run 真停真续", () => {
+     await runtime.shutdown();
+   });
+ 
++  it("选项写成 { label, description } 时取 label；写不出 label 的才拒，并给出写法", async () => {
++    const { runtime, seen, awaiting } = await boot({
++      turns: [openaiTool("c1", "ask-user", { why: "改名吗？", questions: [{ prompt: "现在改名？", options: [{ label: "现在改", description: "别的会话要跟着改" }, { label: "先不改" }] }] }), openaiSays("ok")],
++    });
++    const event = await awaiting;
++    expect(event.kind).toBe("questionnaire");
++    await runtime.effects.pendings.answer(event.pendingRef, { kind: "questionnaire", answers: [{ question: 0, indexes: [0] }] }, await runtime.readClock());
++    await waitUntil(() => terminalOf(seen) !== undefined);
++    const answered = seen.find((one) => one.type === "tool-result");
++    expect(answered && "text" in answered ? answered.text : "").toContain("现在改");
++    await runtime.shutdown();
++    const refused = await boot({
++      turns: [openaiTool("c1", "ask-user", { why: "?", questions: [{ prompt: "?", options: [{ weight: 1 }] }] }), openaiSays("ok")],
++    });
++    await waitUntil(() => refused.seen.some((one) => one.type === "tool-result"));
++    const result = refused.seen.find((one) => one.type === "tool-result");
++    expect(result && "text" in result ? result.text : "").toContain('like "options": [');
++    await refused.runtime.shutdown();
++  });
++
+   it("事件内立即回答不丢失，普通答案不授权 Effect", async () => {
+     const { runtime, probe, seen, awaiting } = await boot({
+       turns: [openaiTool("c1", "ask-user", { why: "now?" }), openaiSays("ok")],
 diff --git a/packages/sdk/test/background-exit.live.test.ts b/packages/sdk/test/background-exit.live.test.ts
 new file mode 100644
 index 00000000..3a2bd617

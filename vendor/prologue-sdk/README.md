@@ -16,6 +16,7 @@
   - 新系统工具 `await-commands`：一轮之内阻塞等（不调模型），或 `park: true` 挂起；子任务只能阻塞等，可以等父会话的后台命令。`session-send` 带 `wait` 时挂起在那封信上。命令结束时在下一次工具结果后提醒一次。
 - 其余协同场景（第五期）：挂起会成环时拒绝（`WAIT_CYCLE`，沿"等信→等收信的会话、等节点→等它的负责会话"查）；`session-send` 的 `handoff` 可带 `board`/`steps` 把本会话名下未完成的步骤交出去（任务图 `handOver`，留交接记录）；`recipients` 一次给多个会话发通知；任务图新增只读查询 `assignedTo(session)`；工具执行器知道自己的会话（`session`）。
 - 给人看的信（第五期，委派迁到信封）：`EnvelopeInput` 新增 `attachments`（App 自己的引用，比如固定成果的版本，最多 30 个）、`audience: "people"`（给两边的人处理，不交给模型，不占会话的扇出上限，正文上限另设 `maxPeopleBodyChars`、默认 20000，允许人自己写的路径，密钥仍拒绝）、`by`（替谁发）；每封信带 `history`（每一步的事件、之后的状态、时间、谁、为什么、附带的引用；最多 100 条），送达、接受/拒绝、完成、取消都可带上这些（`EnvelopeDetail`）；新增 `record` 在不改状态的前提下记一步（比如"开始执行"），结束之后记的标为 `late`、什么也不改。
+- 第五期实测后的两处修正：`session-send` 交接只有交出计划里的步骤时才带 `board`/`steps`，传错时说明怎么改、什么也不发；`ask-user` 的选项写成 `{ label, … }` 时取 label。
 - Node 宿主新选项 `retryUnansweredModelCalls`（默认关）：模型调用在对方还没有任何回应时连接就断了（重置、关闭、连接超时、网络不可达），标为可重试，按 Runtime 的重试策略再发（最多 3 次、退避）；仍记为已派出，用量照记。没有这类原因的错误、证书错误、回应已经开始后的中断都不重发。失败信息里带上原因码，比如 `fetch failed (UND_ERR_SOCKET)`。
 
 - 源仓库：https://github.com/molis-ai/prologue
@@ -23,7 +24,7 @@
 - 本地源码：`/Users/yijunwang/code/prologue-coding-collab`（detached worktree，先应用 coding-inference.patch，再做本次修改）。
 - 未提交源码修改：[claims.patch](claims.patch)，相对基线的**累计**补丁。没有将本包虚称为已提交或已推送版本。
 - 包名与版本：`@prologue/sdk@0.0.0-rc.1`
-- SHA-256：`47d7f6b9e73f76a045fc7a02749dec692c5a192041843e7ee318685b2b24c1b2`
+- SHA-256：`c1d19ac4ac19bf7e1b374aaaf03db2fc41c4829d33a81eaba081f3c7f82c2cf7`
 
 重建：从上述基线创建干净 checkout，`git apply /absolute/path/to/claims.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-claims.tgz`。
 

@@ -202,5 +202,5 @@ export function projectWorkDigest(boardId: string, items: readonly AgentProjectW
       "改这些文件之前先告诉用户重叠在哪里；不要替用户决定谁先谁后。"] : []),
     // A round that can write to other sessions is told how to wait on one it depends on, rather than guessing its result.
     ...(canSend ? ["如果这一轮要做的事依赖上面某个会话正在做的改动（比如它在改你要调用的接口），不要猜它改完的样子：用 session-send 给它发 kind 为 request 的信（to 写它的 session id），说清楚你需要什么，并设 wait: true；然后说明你在等什么，结束这一轮，不做依赖它的部分。它答复或那一轮结束后，宿主会带着答复让你接着做。不依赖就照常做。",
-      "你改了上面这些会话也在用的接口或文件时，用 session-send 发一条通知：to 写 \"overlapping\"，kind 写 notice，说清改了什么（宿主会发给范围重叠的会话，最多 5 个）。任务里有一部分明显属于上面某个会话的范围时，可以用 kind 为 handoff 的信交给它：写清交出去的是什么、做到了哪里；本轮计划里对应的步骤用 board 和 steps 一并交出。交出去的部分你就不再做。"] : [])].join("\n");
+      "你改了上面这些会话也在用的接口或文件时，用 session-send 发一条通知：to 写 \"overlapping\"，kind 写 notice，说清改了什么（宿主会发给范围重叠的会话，最多 5 个）。任务里有一部分明显属于上面某个会话的范围时，可以用 kind 为 handoff 的信交给它：写清交出去的是什么、做到了哪里；这一轮有确认的计划时，把计划里对应的步骤用 board（计划那张图）和 steps 一并交出，没有计划就不带 board 和 steps（上面的项目任务图不能交出）。交出去的部分你就不再做。"] : [])].join("\n");
 }

@@ -75,7 +75,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let runtimeSessionId = null;
-  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '';
+  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '', draftOwner = '';
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportOutput=null, artifactRows=[], artifactTicket=0;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
@@ -267,7 +267,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
-  const flushDraft = () => { clearTimeout(draftTimer); return current ? saveDraft(current,input.value) : Promise.resolve(); };
+  // Only a box that holds this session's draft is saved: while a session is still loading, the box holds nothing of it.
+  const flushDraft = () => { clearTimeout(draftTimer); return current && draftOwner === current ? saveDraft(current,input.value) : Promise.resolve(); };
   const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
   const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
     returnToTask:returnFromChange,onRunOpen:()=>{changeItem='';reportItem='';renderArtifacts();},
@@ -1074,7 +1075,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
-      if(fresh) { input.value=localDraft(id) ?? data.draft ?? ''; rememberDraft(id,input.value); q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
+      // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
+      if(fresh) { input.value=localDraft(id) || data.draft || ''; rememberDraft(id,input.value); draftOwner=id; q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
       runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       renderQueued(id,data.session.queued);
@@ -1106,7 +1108,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void host.showReviews?.(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
-    resetWindow();cooperationUi.reset();current=id; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    resetWindow();cooperationUi.reset();current=id; draftOwner=''; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;

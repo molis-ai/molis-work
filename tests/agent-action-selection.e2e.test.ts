@@ -56,10 +56,10 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   await evaluate("document.querySelector('[data-character-actions-field]').scrollIntoView({block:'center'})"); await capture("character-desktop");
   await open("coding"); await click('[data-coding-workbench] [data-coding-new]');
   await waitFor("!document.querySelector('[data-coding-task]').disabled"); await fill('[data-coding-task]', "保留这段任务草稿");
-  await click('[data-coding-character-open]'); await waitFor("document.querySelector('[data-coding-character-list]').textContent.includes('仅查询笔记')");
+  await click('[data-coding-attach-toggle]'); await click('[data-coding-character-open]'); await waitFor("document.querySelector('[data-coding-character-list]').textContent.includes('仅查询笔记')");
   await choose('[data-coding-character-list] label', "仅查询笔记"); await click('[data-coding-character-save]');
   await waitFor("!document.querySelector('[data-coding-character-dialog]').open");
-  await click('[data-coding-actions-open]'); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('读取校验笔记')");
+  await click('[data-coding-attach-toggle]'); await click('[data-coding-actions-open]'); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('读取校验笔记')");
   assert.equal(await evaluate("[...document.querySelectorAll('[data-coding-actions-list] label')].find(row=>row.textContent.includes('修改校验笔记')).querySelector('input').disabled"), true);
   await choose('[data-coding-actions-list] label', "读取校验笔记"); await capture("coding-desktop"); await click('[data-coding-actions-save]');
   await waitFor("!document.querySelector('[data-coding-actions-dialog]').open");
@@ -67,9 +67,11 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   const sessionPath = `/projects/${projectId}/api/plugins/io.molis.work.coding/sessions/${codingId}`;
   const saved = await evaluate<any>(`fetch(${JSON.stringify(sessionPath)}).then(response=>response.json())`);
   assert.deepEqual(saved.action_tools, [ref]); assert.equal(saved.draft, "保留这段任务草稿");
+  // Coding's rail button opens its session list; the session is opened from there, as a person does after a reload.
   await runtime.stop(install.install_id); await b.reloadPage(); await open("coding");
+  await waitFor(`document.querySelector('[data-coding-session="${codingId}"]') !== null`); await click(`[data-coding-session="${codingId}"]`);
   await waitFor("document.querySelector('[data-coding-task]').value === '保留这段任务草稿'");
-  await click('[data-coding-actions-open]'); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('原能力、版本或授权不可用')");
+  await click('[data-coding-attach-toggle]'); await click('[data-coding-actions-open]'); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('原能力、版本或授权不可用')");
   assert.equal(await evaluate("document.querySelector('[data-coding-actions-list] input:checked') !== null"), true);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
   await capture("coding-missing-narrow"); assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);

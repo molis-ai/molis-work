@@ -93,6 +93,9 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
   if(new Set(refs.map(ref=>ref.server)).size!==refs.length) throw new Error("MCP 资料来源重复");
   return refs;
 }
+/** A capability this host does not offer reads as nothing chosen; any other failure is still a failure. */
+const unlessMissing = <T>(call: Promise<T>, fallback: T): Promise<T> =>
+  call.catch((error: unknown) => { if ((error as { code?: unknown })?.code === "kernel.capability_missing") return fallback; throw error; });
 /** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
 const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 function nextConfiguration(value: unknown) {
@@ -410,8 +413,9 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
     return { sessions, methods, mcp, models: await execution.models(),
       // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
       // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
-      workspace: await api.invoke(projectSettingsCapabilities.browsingWorkspace, []) ?? await api.invoke(projectsCapabilities.readWorkspace, []),
-      workspaces: await api.invoke(projectSettingsCapabilities.workspaces, []),
+      // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
+      workspace: await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null),
+      workspaces: await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []),
       runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
         roles: await api.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
       }))),

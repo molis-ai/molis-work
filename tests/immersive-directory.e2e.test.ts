@@ -43,48 +43,48 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("Math.round(document.querySelector('.immersive-titlebar').getBoundingClientRect().height)"), 32, "Titlebar is a 32px Linear-height row");
   assert.equal(await evaluate("Math.round(document.querySelector('.plugin-rail-item').getBoundingClientRect().height)"), 32, "Plugin rail icons share a 32px hit target");
   assert.ok(await evaluate(`(()=>{
+    const chrome=document.querySelector('[data-workspace-chrome]');
     const items=document.querySelector('.plugin-rail-items');
-    const island=document.querySelector('.plugin-rail [data-assistant-island]');
     const footer=document.querySelector('.plugin-rail .personal-sidebar-footer');
-    const market=items?.querySelector('[data-plugin-id=market]');
+    const dock=document.querySelector('[data-dock]');
     const characters=items?.querySelector('[data-plugin-id=characters]');
-    if(!items||!island||!footer||!market||!characters) return false;
-    return Boolean(characters.compareDocumentPosition(market) & Node.DOCUMENT_POSITION_FOLLOWING)
-      && items.getBoundingClientRect().bottom<=island.getBoundingClientRect().top+1
-      && island.getBoundingClientRect().bottom<=footer.getBoundingClientRect().top+1
-      && !footer.querySelector('[data-plugin-id=market], [data-plugin-id=characters]');
-  })()`), "Tools, then 拓展 with the market, then personal tools and the account close the rail");
+    if(!chrome||!items||!footer||!dock||!characters) return false;
+    const f=footer.getBoundingClientRect(), d=dock.querySelector('.dock-item').getBoundingClientRect();
+    return chrome.getBoundingClientRect().bottom<=items.getBoundingClientRect().top+1
+      && items.getBoundingClientRect().bottom<=f.top+1
+      && footer.querySelector('[data-global-menu] [data-plugin-id=market]')
+      && !items.querySelector('[data-plugin-id=market]')
+      && Math.abs(f.bottom-d.bottom)<2 && d.left>=f.right-1;
+  })()`), "The rail is the project and its plugins; the account holds the market; the Dock shares the account's line");
   assert.ok(await evaluate(`(()=>{
     const titlebar=document.querySelector('.immersive-titlebar').getBoundingClientRect();
-    const island=document.querySelector('[data-assistant-island]').getBoundingClientRect();
     const chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect();
     const rail=document.querySelector('.plugin-rail').getBoundingClientRect();
     const stage=document.querySelector('.immersive-plugin-stage').getBoundingClientRect();
     return chrome.top>=titlebar.bottom-1
-      && island.top>=rail.top && island.bottom<=rail.bottom+1
+      && chrome.top>=titlebar.bottom-1
       && Math.abs(rail.top-chrome.bottom-8)<3
       && Math.abs(chrome.left-rail.left)<2
       && chrome.width<=rail.width+8
       && Math.abs(stage.left-rail.right)<3
       && Math.abs(stage.top-titlebar.bottom)<2
-      && document.querySelector('[data-assistant-island] [data-plugin-id=lingguang]')
-      && document.querySelector('[data-assistant-toggle]')
+      && document.querySelector('[data-dock] [data-dock-toggle=lingguang]')
+      && document.querySelector('[data-dock] [data-dock-toggle=assistant]')
       && !document.querySelector('.plugin-rail-items [data-plugin-id=lingguang]')
       && document.querySelector('[data-workspace-chrome] [data-global-search-open]')
       && !document.querySelector('.immersive-titlebar [data-global-search-open]')
       && document.querySelector('.immersive-titlebar .workspace-history [data-navigation-labels-toggle]');
-  })()`), "On home, the project opens the rail and personal tools sit above the account; the rail toggle lives in the titlebar");
+  })()`), "On home, the project opens the rail, 灵光 lives in the Dock rather than the rail, and the rail toggle lives in the titlebar");
   const railGaps = await evaluate<{ ok: boolean; dump: string }>(`(()=>{
     const card=document.querySelector('.workspace-chrome .navigator-project-primary');
     const items=document.querySelector('.plugin-rail-items');
-    const island=document.querySelector('.plugin-rail [data-assistant-island]');
     const footer=document.querySelector('.plugin-rail .personal-sidebar-footer');
-    if(!card||!items||!island||!footer) return {ok:false, dump:'missing'};
-    const a=card.getBoundingClientRect(), b=items.getBoundingClientRect(), i=island.getBoundingClientRect(), c=footer.getBoundingClientRect();
-    const upper=b.top-a.bottom, middle=i.top-b.bottom, lower=c.top-i.bottom;
-    return {ok: [upper, middle, lower].every(gap => Math.abs(gap-8)<2), dump: JSON.stringify({upper:Math.round(upper*10)/10, middle:Math.round(middle*10)/10, lower:Math.round(lower*10)/10})};
+    if(!card||!items||!footer) return {ok:false, dump:'missing'};
+    const a=card.getBoundingClientRect(), b=items.getBoundingClientRect(), c=footer.getBoundingClientRect();
+    const upper=b.top-a.bottom, lower=c.top-b.bottom;
+    return {ok: [upper, lower].every(gap => Math.abs(gap-8)<2), dump: JSON.stringify({upper:Math.round(upper*10)/10, lower:Math.round(lower*10)/10})};
   })()`);
-  assert.ok(railGaps.ok, "Plugin rail island gaps match at 8px " + railGaps.dump);
+  assert.ok(railGaps.ok, "Plugin rail zone gaps match at 8px " + railGaps.dump);
   assert.equal(await evaluate("document.querySelector('[data-directory-list-title]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-directory-list-region]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
@@ -108,7 +108,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(goalsChrome.maxWidth, "none");
   assert.ok(Math.abs(goalsChrome.right - goalsChrome.railRight) < 3, "On Goals, the compact island matches the plugin rail " + JSON.stringify(goalsChrome));
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
-  assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.nextElementSibling===toggle && getComputedStyle(toggle).display==='none';})()"), "Desktop hides directory collapse even on plugins without a directory");
+  assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
   assert.equal(create.bg, "rgb(255, 255, 255)", "New Goal uses a white fill");
   assert.equal(create.color, "rgb(34, 35, 38)");
@@ -221,7 +221,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await navigate(() => command("Page.navigate", { url: page }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id="shelf"]');
   await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  assert.ok(await evaluate("(()=>{const chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect(),rail=document.querySelector('.plugin-rail').getBoundingClientRect(),name=document.querySelector('[data-workspace-chrome] .navigator-project-selector strong'),primary=document.querySelector('.navigator-project-primary').getBoundingClientRect();return Math.abs(chrome.right-rail.right)<3 && chrome.width<=rail.width+8 && (name?.getBoundingClientRect().width??0)<=1 && primary.height>80;})()"), "Shelf keeps a vertical rail island; project name stays in the icon");
+  assert.ok(await evaluate("(()=>{const chrome=document.querySelector('[data-workspace-chrome]').getBoundingClientRect(),rail=document.querySelector('.plugin-rail').getBoundingClientRect(),name=document.querySelector('[data-workspace-chrome] .navigator-project-selector strong'),primary=document.querySelector('.navigator-project-primary').getBoundingClientRect();return Math.abs(chrome.right-rail.right)<3 && chrome.width<=rail.width+8 && (name?.getBoundingClientRect().width??0)<=1 && primary.height>primary.width;})()"), "Shelf keeps a vertical rail island; project name stays in the icon");
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=sessions]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-session-stage-chrome] [data-open-session-add]')");
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
@@ -369,23 +369,20 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await waitFor("document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await viewport(700, 800);
   await viewport(390, 844);
-  await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id="shelf"]');
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-shelf-stage-shell]')");
   assert.ok(await evaluate("(()=>{const h=document.querySelector('.navigator-project').getBoundingClientRect().height;return h>=44 && h<=64;})()"), "Mobile project island stays a compact card row");
-  assert.ok(await evaluate("(()=>{const island=document.querySelector('.plugin-rail [data-assistant-island]');return Boolean(island) && island.getClientRects().length===0 && document.querySelector('[data-assistant-toggle]');})()"), "On a phone personal tools wait in the drawer, so the top keeps one row less");
+  assert.ok(await evaluate("(()=>{const dock=document.querySelector('[data-dock]').getBoundingClientRect();return dock.height>0 && dock.width>=300 && dock.bottom<=innerHeight+1 && document.querySelector('[data-dock-toggle=assistant]').getClientRects().length>0;})()"), "On a phone the Dock sits at the foot of the page");
   assert.ok(await evaluate("document.querySelector('.personal-sidebar-footer').getBoundingClientRect().bottom<=innerHeight"));
   assert.equal(await evaluate("document.querySelector('[data-tree-resizer]').getClientRects().length"), 0);
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));
   await capture("directory-mobile");
-  await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-session-stage-list]')");
   await click('[data-operation-select="' + session.session_id + '"]');
   await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded === 'true' && getComputedStyle(document.querySelector('[data-session-stage-list]')).display === 'none'");
   await click("[data-operation-detail]:not([hidden]) [data-session-collapse]");
   await waitFor("document.querySelector('[data-session-stage-shell]')?.dataset.expanded !== 'true'");
-  await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
@@ -397,25 +394,53 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 
-test("个人岛对话浮窗是发送壳", { timeout: 60_000 }, async t => {
+test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从输入框前切换；Shelf 与灵光在右侧；Dock 放不下就收进 +N", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-assistant-toggle]')");
-  await click("[data-assistant-toggle]");
-  await waitFor(`(()=>{const toggle=document.querySelector('[data-assistant-toggle]');const composer=document.querySelector('[data-assistant-composer]');if(!toggle||!composer||!composer.matches(':popover-open'))return false;const t=toggle.getBoundingClientRect(),c=composer.getBoundingClientRect();const mid=(a,b)=>(a.top+a.bottom)/2;return c.height>=140 && c.height<=innerHeight*0.85 && c.left>=0 && c.right<=innerWidth && c.top>=0 && c.bottom<=innerHeight;})()`);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
-  assert.equal(await evaluate("Boolean(document.querySelector('[data-assistant-plan]'))"), true);
+  await waitFor("document.querySelector('[data-dock] [data-assistant-input]') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
+  // The Assistant sits in the middle of the bar; nothing in the bar overlaps anything else.
+  assert.ok(await evaluate(`(()=>{
+    const bar=document.querySelector('[data-dock]').getBoundingClientRect();
+    const composer=document.querySelector('[data-assistant-composer]').getBoundingClientRect();
+    const start=document.querySelector('.bar-start').getBoundingClientRect();
+    const residents=document.querySelector('.bar-residents').getBoundingClientRect();
+    const project=document.querySelector('.bar-end .navigator-project-selector').getBoundingClientRect();
+    return Math.abs((composer.left+composer.right)/2-(bar.left+bar.right)/2)<2
+      && start.right<=composer.left && composer.right<=residents.left && residents.right<=project.left
+      && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
+  })()`), "the bar reads Dock · Assistant · Shelf/灵光 · project, left to right, none covering another");
   await evaluate(`(()=>{const input=document.querySelector('[data-assistant-input]');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await click("[data-assistant-send]");
-  await waitFor("/尚未配置助手模型/.test(document.querySelector('[data-assistant-plan]')?.textContent || '')");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]')?.value"), "hello");
-  await evaluate("document.querySelector('[data-assistant-composer]')?.hidePopover()");
-  await waitFor("document.querySelector('[data-assistant-composer]')?.matches(':popover-open') !== true");
-  await click("[data-assistant-toggle]");
-  await waitFor("document.querySelector('[data-assistant-composer]')?.matches(':popover-open') === true");
-  await click('[data-assistant-island] [data-plugin-id="lingguang"]');
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-assistant-composer]')?.matches(':popover-open') !== true");
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden && /尚未配置助手模型/.test(document.querySelector('[data-assistant-plan]')?.textContent || '')");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-plan] .assistant-ask')?.textContent"), "hello", "the answer is headed by the question");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-input]')?.value"), "hello", "a failed question stays in the input");
+  assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0 && p.height<300;})()`), "a short answer keeps the panel short, above the input");
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home", "asking leaves the work area where it was");
+  // Switching goes through the list in front of the input; the chip follows.
+  await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-plugin-picker-popover]').hidden && /Goals/.test(document.querySelector('[data-plugin-picker-current]').textContent)");
+  assert.equal(await evaluate("document.querySelector('[data-dock-pin=goals]').getAttribute('aria-current')"), "page");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
+  await click("[data-assistant-panel-close]");
+  await waitFor("document.querySelector('[data-assistant-panel]').hidden");
+  await click('[data-bar-resident="lingguang"]');
+  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-bar-resident=lingguang]').getAttribute('aria-current') === 'page'");
+  // Choosing many plugins for the Dock folds what does not fit instead of running under the Assistant.
+  await evaluate("document.querySelector('[data-global-menu]').open = true");
+  for (const id of ["schedule", "workflows", "pages", "form", "dataset", "ppt", "images", "artifacts", "cognia", "coding"]) {
+    await evaluate(`document.querySelector('[data-dock-choice="${id}"]')?.click()`);
+  }
+  assert.equal(await evaluate("document.querySelector('[data-global-menu]').open"), true, "ticking plugins keeps the menu open");
+  await evaluate("document.querySelector('[data-global-menu]').open = false");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await waitFor("!document.querySelector('[data-dock-more]')?.hidden && document.querySelector('[data-dock-more]')?.isConnected");
+  assert.ok(await evaluate(`(()=>{const start=document.querySelector('.bar-start').getBoundingClientRect(),composer=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return start.right<=composer.left;})()`), "the Dock ends before the Assistant starts");
+  await click("[data-dock-more]");
+  await waitFor("!document.querySelector('[data-dock-overflow]').hidden && document.querySelectorAll('[data-dock-overflow] [data-dock-pin]').length > 0");
+  const folded = await evaluate<string>("document.querySelector('[data-dock-overflow] [data-dock-pin]').dataset.dockPin");
+  await click(`[data-dock-overflow] [data-dock-pin="${folded}"]`);
+  await waitFor(`document.querySelector('[data-dock-overflow]').hidden && document.querySelector('[data-plugin-picker-popover] [data-plugin-id="${folded}"]')?.getAttribute('aria-current') === 'page'`);
 });

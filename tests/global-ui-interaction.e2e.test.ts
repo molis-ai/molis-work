@@ -91,8 +91,7 @@ test("narrow settings reveal the chosen page and ignore a slower obsolete sectio
   const { click, evaluate, waitFor, navigate, command, sessionId, projectId, origin } = b;
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click('[data-directory-show]');
-  await click('[data-plugin-strip] [data-directory-open=settings]');
+  await click('[data-personal-menu] [data-directory-open=settings]');
   await click('[data-directory-panel=settings] [data-settings-section=appearance]');
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), false);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=settings]').closest('[inert]') === null"), true);

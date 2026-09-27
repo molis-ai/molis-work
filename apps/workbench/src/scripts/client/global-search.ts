@@ -24,7 +24,7 @@ export function takeSearchHits(
 }
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory } = host;
+  const { translate: L, setDirectory, setWorkSurface, selectGoal, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant } = host;
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -40,7 +40,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   let lastTrigger = null;
   const isOpen = () => dialog.open;
   const isBusy = () => composing || isOpen();
-  const pluginEnabled = (id) => Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id="' + id + '"], [data-assistant-island] [data-plugin-id="' + id + '"]'));
+  const pluginEnabled = (id) => Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id="' + id + '"], [data-assistant-island] [data-plugin-id="' + id + '"], [data-dock] [data-plugin-id="' + id + '"]'));
   const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
   const PLUGIN_TAB_TITLES = ${JSON.stringify(pluginTabTitles())};
   const PERSONAL_SEARCH_ROWS = ${JSON.stringify(pluginSearchRows())};
@@ -50,11 +50,11 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     const limit = q ? 12 : 8;
     const take = (items) => takeSearchHits(items, q, limit);
     const groups = [];
-    const tools = [...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id]')]
+    const tools = [...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id], [data-dock] [data-plugin-id]')]
       .filter((el) => !['home', 'market', 'settings'].includes(el.dataset.pluginId))
-      .map((el) => ({ kind: 'plugin', id: el.dataset.pluginId, title: el.querySelector('span')?.textContent?.trim() || el.title, plugin: L('工具'), search: (el.textContent + ' ' + el.dataset.pluginId).toLowerCase() }))
+      .map((el) => ({ kind: 'plugin', id: el.dataset.pluginId, title: el.querySelector('span')?.textContent?.trim() || el.title, plugin: L('插件'), search: (el.textContent + ' ' + el.dataset.pluginId).toLowerCase() }))
       .filter((item) => !q || item.search.includes(q));
-    if (q && tools.length) groups.push({ label: L('工具'), items: tools });
+    if (q && tools.length) groups.push({ label: L('插件'), items: tools });
     if (pluginEnabled("goals")) {
       const items = take([...document.querySelectorAll("[data-tree-item]")].map((item) => ({
         kind: "goal",
@@ -157,7 +157,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       if (q) groups.push({ label: L("快捷操作"), items: actions });
       else groups.unshift({ label: L("快捷操作"), items: actions });
     }
-    if (!q && tools.length) groups.splice(actions.length ? 1 : 0, 0, { label: L('工具'), items: tools });
+    if (!q && tools.length) groups.splice(actions.length ? 1 : 0, 0, { label: L('插件'), items: tools });
     return groups;
   };
   const paintSelection = () => {
@@ -251,6 +251,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   };
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    // Search and the Assistant are one entry: words that match nothing become a request to the Assistant.
+    const words = input.value.trim();
+    if (!hits.length && words && typeof askAssistant === "function") { close(); askAssistant(words); return; }
     activate(hits[selected]);
   });
   input.addEventListener("input", () => {

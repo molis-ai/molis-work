@@ -102,8 +102,7 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   await reloadPage();
   await waitFor(dom('.tree-node[data-select-goal="CORE"]') + ".getAttribute('aria-pressed') === 'true'");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-  await click("[data-directory-show]");
-  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
+  // A Goal page has no list drawer on a phone; search opens from the bar like everywhere else.
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
   assert.equal(await evaluate("document.activeElement.matches('[data-global-search]')"), true);

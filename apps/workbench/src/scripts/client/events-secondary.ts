@@ -269,6 +269,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         if (directoryOpen.tagName === "A" && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) return;
         event.preventDefault();
         if (directoryOpen.matches("[data-mobile-directory-root]")) setMobileView("tree");
+        // Settings opened from the bar show their sections on a phone, as a plugin with a list does when switched to.
+        if (directoryOpen.closest("[data-dock]") && matchMedia("(max-width: 760px)").matches) setMobileView("tree");
         const nextDirectory = directoryOpen.dataset.directoryOpen || "root";
         setDesktopDirectory(nextDirectory, true, true, directoryOpen);
         if (nextDirectory === "settings" || nextDirectory === "project-settings") tabWorkspace?.setExclusive(nextDirectory);

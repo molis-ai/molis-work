@@ -8,7 +8,7 @@ import { PROJECT_HOME_FACTORY_SCRIPT } from "./project-home.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "./plugin-workbench.js";
 import { CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
-import { NAVIGATION_PRESENTATION_SCRIPT } from "./navigation-presentation.js";
+import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "./global-search.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
@@ -36,12 +36,23 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
     });
     (${NAVIGATION_PRESENTATION_SCRIPT})(L);
+    (${DOCK_SCRIPT})(L, state.project?.project_id, {
+      setExclusive: (surface) => tabWorkspace?.setExclusive(surface),
+      setDirectory: (...args) => setDesktopDirectory(...args),
+    });
     (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L,
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
+      askAssistant: (words) => {
+        const input = document.querySelector("[data-assistant-input]");
+        const composer = document.querySelector("[data-assistant-composer]");
+        if (!input || !composer) return;
+        input.value = words; input.dispatchEvent(new Event("input", { bubbles: true }));
+        composer.requestSubmit();
+      },
       setDirectory: (...args) => setDesktopDirectory(...args),
       setWorkSurface: (...args) => setDesktopWorkSurface(...args),
       selectGoal: (...args) => selectGoal(...args),

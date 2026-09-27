@@ -19,7 +19,7 @@ test('Product journeys: discover tools, create from empty states, save and recov
   };
   const open = async (plugin: string) => {
     // A real click in the scrollable rail, using its actual hit target.
-    await click(`[data-plugin-strip] [data-plugin-id="${plugin}"], [data-assistant-island] [data-plugin-id="${plugin}"]`);
+    await click(`[data-plugin-strip] [data-plugin-id="${plugin}"], [data-global-menu] [data-plugin-id="${plugin}"]`);
     await waitFor(`document.body.dataset.desktopSurface === '${plugin === 'goals' ? 'goal' : plugin}'`, 12_000);
   };
   const input = async (selector: string, value: string) => evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
@@ -29,12 +29,14 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await click('[data-home-day]:last-child');
   await waitFor("document.querySelector('[data-home-start]')", 20_000);
   await shot('home-desktop');
-  await click('[data-navigation-labels-toggle]');
-  assert.equal(await evaluate("document.querySelector('[data-navigation-labels-toggle]').getAttribute('aria-expanded')"), 'true');
-  assert.equal(await evaluate("getComputedStyle(document.body).getPropertyValue('--plugin-rail-width').trim()"), '208px');
+  // Every plugin is one click from the switcher in front of the Assistant; the Dock keeps the chosen ones on screen.
+  await click('[data-plugin-picker-toggle]');
+  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-toggle]').getAttribute('aria-expanded')"), 'true');
+  assert.ok(await evaluate("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=dataset]').getBoundingClientRect().height > 0"));
   await shot('navigation-expanded');
+  await click('[data-plugin-picker-toggle]');
   await reloadPage();
-  await waitFor("document.body.dataset.navigationLabels === 'true'");
+  await waitFor("document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
   await click('[data-global-search-open]');
   await input('[data-global-search]', 'dataset');
   await waitFor("document.querySelector('[data-global-search-id=dataset]')");
@@ -99,14 +101,13 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await waitFor("document.body.dataset.desktopSurface === 'pages'");
   await size(390, 844);
   await shot('pages-mobile');
-  await click('[data-directory-show]');
   await click('[data-global-search-open]');
   await input('[data-global-search]', 'dataset');
   await click('[data-global-search-id=dataset]');
   await waitFor("document.body.dataset.desktopSurface === 'dataset' && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')");
 
   for (const plugin of ['home', 'dataset', 'form', 'ppt', 'lingguang', 'cognia']) {
-    await evaluate(`document.querySelector('[data-plugin-strip] [data-plugin-id="${plugin}"], [data-assistant-island] [data-plugin-id="${plugin}"]').click()`);
+    await evaluate(`document.querySelector('[data-plugin-strip] [data-plugin-id="${plugin}"]').click()`);
     await waitFor(`document.body.dataset.desktopSurface === '${plugin}'`);
     assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), `${plugin} must fit the viewport`);
     await shot(`${plugin}-mobile`);

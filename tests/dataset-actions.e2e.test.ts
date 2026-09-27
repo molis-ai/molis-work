@@ -19,7 +19,6 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   const open = async () => {
     await waitFor("document.querySelector('[data-plugin-id=dataset]')");
     if (await evaluate("document.body.dataset.desktopSurface") !== "dataset") {
-      if (width === 390) await click('.workspace-chrome [data-directory-show]');
       await click('[data-plugin-strip] [data-plugin-id=dataset]');
     }
     await waitFor("document.body.dataset.desktopSurface === 'dataset'");

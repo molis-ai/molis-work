@@ -9,12 +9,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const send = island.querySelector("[data-assistant-send]");
   const plan = island.querySelector("[data-assistant-plan]");
   let busy = false;
-  if (!toggle || !composer || !input || !send) return null;
+  if (!composer || !input || !send) return null;
+  // The composer either floats from a toggle (popover) or sits in the 助手 space of the rail.
+  const floating = composer.hasAttribute("popover");
 
   const syncSend = () => {
     send.disabled = busy || !String(input.value || "").trim();
   };
   const place = () => {
+    if (!floating || !toggle) return;
     const rect = toggle.getBoundingClientRect();
     const width = composer.offsetWidth || 300;
     const height = composer.offsetHeight || 32;
@@ -25,11 +28,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     composer.style.left = Math.max(8, left) + "px";
     composer.style.top = top + "px";
   };
-  const isOpen = () => composer.matches(":popover-open");
+  const isOpen = () => floating ? composer.matches(":popover-open") : !island.hidden;
+  const hide = () => { if (floating && isOpen()) composer.hidePopover(); };
 
-  composer.addEventListener("toggle", (event) => {
+  if (floating) composer.addEventListener("toggle", (event) => {
     const open = event.newState === "open";
-    toggle.setAttribute("aria-expanded", String(open));
+    toggle?.setAttribute("aria-expanded", String(open));
     if (open) {
       place();
       syncSend();
@@ -69,7 +73,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     plan.append(description);
     if (action.kind === "draft_pages") {
       note(L("所选材料") + "：" + action.entry_ids.length);
-      actionButton("检查材料与写作要求", () => { composer.hidePopover(); host.preparePages(action); });
+      actionButton("检查材料与写作要求", () => { hide(); host.preparePages(action); });
       return;
     }
     let record = null;
@@ -94,7 +98,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const preview = record.last_preview;
       note(L("实际试跑结果") + "：" + L(preview?.outcome === "needs_review" ? "需要人工复核" : preview?.choice === "inbox.admit" ? "进入 Inbox" : "留在 Feed") + " · " + (preview?.model || "Jev"));
       button.textContent = L("草稿已创建并试跑");
-      actionButton("检查或修改判断规则", () => { composer.hidePopover(); const next = new URL("/capabilities/rules", location.origin); next.searchParams.set("rule", record.id); const projectId = document.body.dataset.projectId; if (projectId) next.searchParams.set("project", projectId); if (new URL(location.href).searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1"); location.href = next.pathname + next.search; });
+      actionButton("检查或修改判断规则", () => { hide(); const next = new URL("/capabilities/rules", location.origin); next.searchParams.set("rule", record.id); const projectId = document.body.dataset.projectId; if (projectId) next.searchParams.set("project", projectId); if (new URL(location.href).searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1"); location.href = next.pathname + next.search; });
       actionButton("启用规则，处理最近 20 条消息", async enable => {
         if (record.status !== "published") record = (await feedApi("/api/functions/" + encodeURIComponent(record.id) + "/publish", "POST", { updated_at: record.updated_at })).function;
         const existing = (await feedApi("/api/feed/out-rules", "GET")).rules;
@@ -113,18 +117,19 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     event.preventDefault();
     const prompt = String(input.value || "").trim();
     if (!prompt || busy) return;
-    busy = true; syncSend(); plan.replaceChildren();
-    note(L("正在结合当前项目的来源和 Inbox 材料拟定方案…"));
+    // The question heads its answer, so the panel reads as a reply rather than a notice.
+    const ask = document.createElement("p"); ask.className = "assistant-ask"; ask.textContent = prompt;
+    busy = true; syncSend(); plan.replaceChildren(ask);
+    const pending = note(L("正在结合当前项目的来源和 Inbox 材料拟定方案…"));
     try {
       const selected = document.querySelector("[data-feed-item-id].is-selected")?.dataset.feedItemId;
       const result = await feedApi("/api/assistant/plan", "POST", { prompt, selected_item_id: selected });
-      plan.replaceChildren(); presentPlan(result);
-    } catch (error) { plan.replaceChildren(); note(error.message); }
+      pending.remove(); presentPlan(result);
+      if (String(input.value || "").trim() === prompt) input.value = "";
+    } catch (error) { pending.remove(); note(error.message); }
     finally { busy = false; syncSend(); place(); }
   });
-  island.querySelector("[data-plugin-id]")?.addEventListener("click", () => {
-    if (isOpen()) composer.hidePopover();
-  });
+  island.querySelector("[data-plugin-id]")?.addEventListener("click", hide);
   addEventListener("resize", () => { if (isOpen()) place(); });
   syncSend();
   return { isOpen };

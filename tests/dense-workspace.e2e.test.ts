@@ -25,7 +25,8 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
   }
   await waitFor("[...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument?.querySelector('[data-feed-entry-id]'))");
   const frame="document.querySelector('iframe.tab-content-frame')";
-  const wheel=await evaluate<{x:number,y:number}>(`(()=>{const f=${frame},r=f.getBoundingClientRect(),e=f.contentDocument.querySelector('[data-feed-entry-id]').getBoundingClientRect();return {x:r.x+e.x+e.width/2,y:r.y+e.y+e.height/2}})()`);
+  // Wheel over the visible middle of the list: in a short pane its first entry may start below the fold.
+  const wheel=await evaluate<{x:number,y:number}>(`(()=>{const f=${frame},r=f.getBoundingClientRect(),t=f.contentDocument.querySelector('.feed-stage-tree').getBoundingClientRect(),bottom=Math.min(t.bottom,r.height);return {x:r.x+t.x+t.width/2,y:r.y+(t.top+bottom)/2}})()`);
   await command('Input.dispatchMouseEvent',{type:'mouseWheel',...wheel,deltaX:0,deltaY:550},sessionId);
   await waitFor(`${frame}.contentDocument.querySelector('.feed-stage-tree').scrollTop>0`);
   const entry=await evaluate<{x:number,y:number,id:string}>(`(()=>{const f=${frame},r=f.getBoundingClientRect(),tree=f.contentDocument.querySelector('.feed-stage-tree').getBoundingClientRect(),e=[...f.contentDocument.querySelectorAll('[data-feed-entry-id]')].find(e=>{const q=e.getBoundingClientRect();return q.top>=tree.top && q.bottom<=tree.bottom});const q=e.getBoundingClientRect();return {x:r.x+q.x+q.width/2,y:r.y+q.y+q.height/2,id:e.dataset.feedEntryId}})()`);

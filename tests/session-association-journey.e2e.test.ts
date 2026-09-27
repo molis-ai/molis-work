@@ -16,7 +16,7 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
     await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] }, sessionId);
     await navigate(() => command('Page.navigate', { url: prefix + '/' }, sessionId));
-    if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
+    if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)")) await click('[data-directory-show]');
     await click('[data-plugin-id=sessions]');
     await click('[data-work-surface=sessions] [data-open-session-add]');
     await click('[data-session-add-toggle]');

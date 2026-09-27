@@ -120,7 +120,6 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id=schedule]');
   await click('[data-schedule-new]');
   await evaluate(`{ const form = document.querySelector('[data-schedule-create-form]');

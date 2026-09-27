@@ -49,7 +49,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
       const {data}=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);
       await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(data,'base64'));
     };
-    const showDirectory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');};
+    const showDirectory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)"))await click('[data-directory-show]');};
     const openPlugin=async(plugin:string)=>{await showDirectory();await click(`[data-plugin-id="${plugin}"]`);if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');};
     /** Creating or picking an item is a centred modal sized to its content, not an edge sheet. */
     const checkEditor=async(selector:string)=>{

@@ -45,7 +45,6 @@ for (const width of [1440, 390]) {
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
     await waitFor("document.querySelector('[data-assistant-island] [data-plugin-id=lingguang]')");
-    if (width === 390) await click('.workspace-chrome [data-directory-show]');
     await click('[data-assistant-island] [data-plugin-id=lingguang]');
     await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
     await click('[data-lingguang-capture]');
@@ -59,7 +58,6 @@ for (const width of [1440, 390]) {
     assert.deepEqual(received, ["a-model"]);
     saveJellyModelSettings(home, { provider_id: "a", model_id: "a-model" });
     withConnectorConnections(home, store => store.disconnect(firstConnection));
-    if (width === 390) await click('.workspace-chrome [data-directory-show]');
     await click('[data-plugin-strip] [data-plugin-id=jelly]');
     await waitFor("document.body.dataset.desktopSurface === 'jelly'");
     await click('[data-jelly-more]');

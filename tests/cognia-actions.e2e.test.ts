@@ -16,7 +16,6 @@ for (const width of [1440, 390]) test(`Cognia ${width}px: directory preview, imp
   const open = async () => {
     await waitFor("document.querySelector('[data-plugin-id=cognia]')");
     if (await evaluate("document.body.dataset.desktopSurface") !== "cognia") {
-      if (width === 390) await click('.workspace-chrome [data-directory-show]');
       await click('[data-plugin-strip] [data-plugin-id=cognia]');
     }
     await waitFor("document.body.dataset.desktopSurface === 'cognia' && !document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");
@@ -81,7 +80,6 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   const open = async () => {
     await waitFor("document.querySelector('[data-plugin-id=cognia]')");
     if (await evaluate("document.body.dataset.desktopSurface") !== "cognia") {
-      if (width === 390) await click('.workspace-chrome [data-directory-show]');
       await click('[data-plugin-strip] [data-plugin-id=cognia]');
     }
     await waitFor("document.body.dataset.desktopSurface === 'cognia' && !document.querySelector('[data-cognia-rows]').textContent.includes('正在读取')");

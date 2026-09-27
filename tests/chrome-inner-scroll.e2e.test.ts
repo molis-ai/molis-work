@@ -104,7 +104,7 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   await expectContained(".immersive-titlebar", "[data-work-surface=home] .home-tl");
   await expectContained("[data-workspace-chrome]", "[data-work-surface=home] .home-tl");
-  await expectContained(".plugin-rail", "[data-work-surface=home] .home-tl");
+  await expectContained(".workbench-bar", "[data-work-surface=home] .home-tl");
 
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
@@ -120,37 +120,37 @@ test("Window chrome stays put while project index, settings, Feed, Sessions and 
     const islandZ = getComputedStyle(island).zIndex;
     return { onTop, islandZ, inViewport: box.top >= 0 && box.left >= 0 && box.right <= innerWidth && box.bottom <= innerHeight };
   })()`);
-  assert.equal(projectMenuHit.islandZ, "50");
+  // The project menu opens from the bar, which sits above the work; only reachability matters, not a z-index number.
   assert.ok(projectMenuHit.onTop && projectMenuHit.inViewport, 'Open project menu is reachable above the work surface: ' + JSON.stringify(projectMenuHit));
   await click('[data-project-menu] > summary');
   assert.ok(await evaluate(`(() => { const add = document.querySelector('[data-feed-add-toggle]'); const box = add.getBoundingClientRect(); return add.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)); })()`), 'Closing the project menu restores the Feed add-task hit target');
   await expectContained(".immersive-titlebar", ".feed-stage-tree");
   await expectContained("[data-workspace-chrome]", ".feed-stage-tree");
-  await expectContained(".plugin-rail", ".feed-stage-tree");
+  await expectContained(".workbench-bar", ".feed-stage-tree");
 
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.body.dataset.desktopSurface === 'sessions' && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-session-stage-list]");
   await expectContained("[data-workspace-chrome]", "[data-session-stage-list]");
-  await expectContained(".plugin-rail", "[data-session-stage-list]");
+  await expectContained(".workbench-bar", "[data-session-stage-list]");
 
   await click('[data-plugin-strip] [data-plugin-id="artifacts"]');
   await waitFor("document.body.dataset.desktopSurface === 'artifacts' && document.querySelector('[data-artifact-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-artifact-directory]");
   await expectContained("[data-workspace-chrome]", "[data-artifact-directory]");
-  await expectContained(".plugin-rail", "[data-artifact-directory]");
+  await expectContained(".workbench-bar", "[data-artifact-directory]");
 
   await click('[data-plugin-strip] [data-plugin-id="shelf"]');
   await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-shelf=directory] .shelf-side-scroll");
   await expectContained("[data-workspace-chrome]", "[data-shelf=directory] .shelf-side-scroll");
-  await expectContained(".plugin-rail", "[data-shelf=directory] .shelf-side-scroll");
+  await expectContained(".workbench-bar", "[data-shelf=directory] .shelf-side-scroll");
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-goal-stage-list]");
   await expectContained("[data-workspace-chrome]", "[data-goal-stage-list]");
-  await expectContained(".plugin-rail", "[data-goal-stage-list]");
+  await expectContained(".workbench-bar", "[data-goal-stage-list]");
 
   await click('[data-work-surface-open="market"]');
   await waitFor("document.querySelector('[data-work-surface=market]:not([hidden])')");

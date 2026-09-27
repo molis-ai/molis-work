@@ -201,7 +201,7 @@ export const EN: Record<string, string> = {
   "展开标签组": "Expand tab group",
   "收起标签组": "Collapse tab group",
   "关闭分栏": "Close pane",
-  "从左边打开，或把标签拖进来。": "Open from the left, or drag a tab here.",
+  "从下方切换插件，或把标签拖进来。": "Switch plugin below, or drag a tab here.",
   "拆到左侧": "Split left",
   "拆到右侧": "Split right",
   "拆到上方": "Split up",

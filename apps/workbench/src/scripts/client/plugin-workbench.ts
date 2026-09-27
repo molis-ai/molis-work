@@ -13,7 +13,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const projectCheck = market.querySelector("[data-market-project-check]");
   const status = market.querySelector("[data-market-status]");
   const retry = market.querySelector("[data-market-retry]");
-  const marketLink = document.querySelector('[data-plugin-strip] [data-plugin-id="market"]');
+  // The market entry lives in the bar's Dock menu (the rail's only on older shells); its count lights the menu's dot too.
+  const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]');
   const updateCount = marketLink?.querySelector("[data-market-update-count]");
   let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false;
   const paintUpdateCount = () => {

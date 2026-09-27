@@ -16,7 +16,6 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   const open=async()=>{
     await waitFor("document.querySelector('[data-plugin-id=ppt]')");
     if(await evaluate('document.body.dataset.desktopSurface')!=='ppt'){
-      if(width===390)await click('.workspace-chrome [data-directory-show]');
       await click('[data-plugin-strip] [data-plugin-id=ppt]');
     }
     await waitFor("document.body.dataset.desktopSurface === 'ppt'");

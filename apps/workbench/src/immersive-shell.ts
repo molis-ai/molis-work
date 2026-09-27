@@ -1,5 +1,4 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { renderImHostEntry } from "@molis-ai/molis-work-im-ui";
 import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
 
 export interface ImmersiveShellPrimitives {
@@ -57,22 +56,32 @@ function islandPlugins(enabled: readonly string[]) {
 }
 
 /**
- * Host chrome, not a view slot. The rail reads top to bottom as this project's tools, then the
- * ways to extend them, then the person: personal tools, settings and account.
+ * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
+ * the person's own entries (灵光, 对话, 群聊 — reached from anywhere, so they come first),
+ * where the work lives (home and the four backbone plugins), which tools this project uses,
+ * and at the foot the account with the system settings.
  *
- * Tools are grouped by what people do with them. Only the two named groups are listed here; any
- * other Plugin, including one added later, lands in 更多, so adding a Plugin never edits the shell.
+ * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
+ * 全部工具 opens the rest in place, grouped, with the ways to extend them at the end. Everything
+ * keeps its entry; nothing moves when the list opens. Every entry stays a direct child of the
+ * list so the travelling selection chip can reach it.
+ *
+ * Only the backbone and the two named tool groups are listed here; any other Plugin, including
+ * one added later, lands in 更多, so adding a Plugin never edits the shell.
  */
-/** The work group follows the day's flow: what we are doing, what needs you, what came in, where it runs. */
-const RAIL_WORK_ORDER = ["goals", "inbox", "feed", "sessions", "schedule", "workflows"];
-const RAIL_WORK_PLUGIN_IDS = new Set(RAIL_WORK_ORDER);
-const RAIL_CREATE_PLUGIN_IDS = new Set(["pages", "form", "dataset", "ppt", "images", "artifacts"]);
+const RAIL_CORE_ORDER = ["goals", "inbox", "feed", "sessions"];
+const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
+const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
+  ["工作", ["schedule", "workflows"]],
+  ["创作", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
+];
+const RAIL_GROUPED_TOOL_IDS = new Set(RAIL_TOOL_GROUPS.flatMap(([, ids]) => ids));
 const RAIL_EXTEND_PLUGIN_IDS = new Set(["plugin-builder"]);
 
 /** A plugin installed into this project at run time: its stage and the name it was published under. */
 export interface InstalledRailEntry { surface: string; label: string }
 
-/** Project tools grouped by use; extension entries last; the personal island and account close the rail. */
+/** The person's entries, the backbone, this project's tools (recent first, the rest one click away), the account. */
 export function renderPluginRail(
   primitives: ImmersiveShellPrimitives,
   enabled: readonly string[],
@@ -82,47 +91,90 @@ export function renderPluginRail(
 ): string {
   const { L, icon, escapeHtml } = primitives;
   const entries = directoryPlugins(enabled);
-  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, suffix = "") => pluginLink(primitives, plugin, "plugin-rail-item", suffix);
-  const group = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-group">${label}</p>${buttons}` : "";
-  const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home" });
-  const work = entries.filter(plugin => RAIL_WORK_PLUGIN_IDS.has(plugin.id))
-    .sort((a, b) => RAIL_WORK_ORDER.indexOf(a.id) - RAIL_WORK_ORDER.indexOf(b.id)).map(plugin => link(plugin)).join("");
-  const create = entries.filter(plugin => RAIL_CREATE_PLUGIN_IDS.has(plugin.id)).map(plugin => link(plugin)).join("");
+  const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);
+  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, zone: string, suffix = "") =>
+    zoned(pluginLink(primitives, plugin, "plugin-rail-item", suffix), zone);
+  const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
+  const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home" }, "core");
+  const core = entries.filter(plugin => RAIL_CORE_PLUGIN_IDS.has(plugin.id))
+    .sort((a, b) => RAIL_CORE_ORDER.indexOf(a.id) - RAIL_CORE_ORDER.indexOf(b.id)).map(plugin => link(plugin, "core")).join("");
+  // 灵光 is a plugin like any other: it leads the first group, which sits directly under 插件.
+  const personal = islandPlugins(enabled).map(plugin => link(plugin, "tool")).join("");
+  const grouped = RAIL_TOOL_GROUPS.map(([label, ids], index) => {
+    const links = entries.filter(plugin => ids.includes(plugin.id)).map(plugin => link(plugin, "tool")).join("");
+    return index === 0 ? personal + links : subgroup(L(label), links);
+  }).join("");
   // Plugins the project installed at run time (built in the studio) have no directory; their name is their own.
-  const own = installed.map(plugin => `<button class="immersive-plugin-link plugin-rail-item" type="button" data-plugin-id="${escapeHtml(plugin.surface)}" data-work-surface-open="${escapeHtml(plugin.surface)}" aria-label="${L("切换到插件")}：${escapeHtml(plugin.label)}" title="${escapeHtml(plugin.label)}">${icon("package")}<span>${escapeHtml(plugin.label)}</span></button>`);
-  const more = [...entries.filter(plugin => !RAIL_WORK_PLUGIN_IDS.has(plugin.id) && !RAIL_CREATE_PLUGIN_IDS.has(plugin.id) && !RAIL_EXTEND_PLUGIN_IDS.has(plugin.id))
-    .map(plugin => link(plugin)), ...own].join("");
-  const builder = entries.filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => link(plugin)).join("");
-  const market = link({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
-    `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
-  const capabilities = `<a class="immersive-plugin-link plugin-rail-item" href="__SYSTEM_CAPABILITIES__" aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>`;
+  const own = installed.map(plugin => `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="tool" data-plugin-id="${escapeHtml(plugin.surface)}" data-work-surface-open="${escapeHtml(plugin.surface)}" aria-label="${L("切换到插件")}：${escapeHtml(plugin.label)}" title="${escapeHtml(plugin.label)}">${icon("package")}<span>${escapeHtml(plugin.label)}</span></button>`);
+  const other = [...entries.filter(plugin => !RAIL_CORE_PLUGIN_IDS.has(plugin.id) && !RAIL_GROUPED_TOOL_IDS.has(plugin.id) && !RAIL_EXTEND_PLUGIN_IDS.has(plugin.id))
+    .map(plugin => link(plugin, "tool")), ...own].join("");
+  const toggle = `<button class="immersive-plugin-link plugin-rail-item plugin-rail-toggle" type="button" data-rail-tools-toggle aria-expanded="false" aria-label="${L("全部插件")}" title="${L("全部插件")}">${icon("more")}<span data-rail-toggle-label="${L("收起插件")}">${L("全部插件")}</span></button>`;
   return `<nav class="mw-sidebar mw-sidebar--rail plugin-rail immersive-plugin-strip" data-plugin-strip data-plugin-heading aria-label="${L("项目入口")}">
-    <div class="plugin-rail-items">${home}${work}${group(L("创作"), create)}${group(L("更多"), more)}${group(L("拓展"), `${builder}${market}${capabilities}`)}</div>
     ${personalIsland}
-    ${accountFooter}
+    <div class="plugin-rail-items">${home}${core}<p class="plugin-rail-group" data-rail-zone="tools">${L("插件")}</p>${grouped}${subgroup(L("更多"), other)}${toggle}</div>
+    ${accountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabled))}
   </nav>`;
 }
 
-/** Personal capture, Assistant and group chat: the person's own tools, placed by the rail above the account. */
-export function renderAssistantIsland(
+/** The ways to extend the workbench — the market and the plugin studio — offered from the Dock menu. */
+export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
+  const { L } = primitives;
+  const item = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, suffix = "") =>
+    pluginLink(primitives, plugin, "account-global-item", suffix);
+  const builder = directoryPlugins(enabled).filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => item(plugin)).join("");
+  const market = item({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
+    `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
+  return `${market}${builder}`;
+}
+
+/** Shelf and 灵光 are the person's own, so they stay at the right of the bar, beside the project, rather than among the chosen plugins. */
+const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
+
+/**
+ * The bottom bar replaces the rail. Left: the Dock menu (the market, the plugin studio, which plugins stay
+ * in the Dock) and the plugins chosen to stay. Centre: the resident Assistant, with the plugin switcher in
+ * front of it. Right: Shelf and 灵光, the project's discussion (one click opens group and direct chat beside the
+ * work), then the project as a round button whose menu holds the project and the person — switching, settings,
+ * capabilities. The project's navigation lives in the switcher, so every plugin keeps its entry.
+ */
+export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
-  enabled: readonly string[],
+  parts: { rail: string; accountFooter: string; projectChrome: string; enabled: readonly string[] },
 ): string {
   const { L, icon } = primitives;
-  const islandButtons = islandPlugins(enabled)
-    .map(plugin => pluginLink(primitives, plugin, "plugin-rail-item"))
-    .join("");
-  return `<div class="assistant-island" role="group" data-assistant-island aria-label="${L("灵光、对话与群聊")}">
-    <div class="assistant-island-card">
-      ${islandButtons}
-      <button class="immersive-plugin-link plugin-rail-item" type="button" data-assistant-toggle popovertarget="assistant-composer" aria-expanded="false" aria-controls="assistant-composer" aria-haspopup="dialog" aria-label="${L("打开对话")}" title="${L("对话")}">${icon("message")}<span>${L("对话")}</span></button>
-      ${renderImHostEntry(L("群聊"))}
+  const collapse = `<button class="dock-window-action" type="button" data-dock-collapse aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button>`;
+  const known = [...directoryPlugins(parts.enabled), ...islandPlugins(parts.enabled)];
+  const residents = BAR_RESIDENT_IDS.map(id => known.find(plugin => plugin.id === id)).filter(plugin => plugin !== undefined)
+    .map(plugin => `<button class="bar-resident" type="button" data-bar-resident="${plugin.id}" data-craft-tip="${plugin.label}" aria-label="${L("切换到插件")}：${plugin.label}">${icon(plugin.glyph)}</button>`).join("");
+  return `<div class="workbench-bar" data-dock aria-label="${L("底栏")}">
+    <div class="bar-start">
+      ${parts.accountFooter}
+      <div class="dock-pins" data-dock-pins role="toolbar" aria-label="${L("常驻插件")}"></div>
     </div>
-    <form class="assistant-composer" id="assistant-composer" data-assistant-composer popover="auto" aria-label="Molis Work Assistant">
-      <div class="assistant-plan" data-assistant-plan aria-live="polite"><strong>${L("当前项目的信息处理")}</strong><p>${L("可以帮你起草 Feed 筛选规则，或把 Inbox 材料整理到 Pages。")}</p></div>
-      <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("发给 Assistant")}" aria-label="${L("发给 Assistant")}">
-      <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
-    </form>
+    <div class="bar-center" data-assistant-island>
+      <section class="assistant-panel" data-assistant-panel aria-label="${L("助手")}" hidden>
+        <header class="dock-window-head"><strong>${L("助手")}</strong><button class="dock-window-action" type="button" data-assistant-panel-close aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button></header>
+        <div class="assistant-plan" data-assistant-plan aria-live="polite"><strong>${L("当前项目的信息处理")}</strong><p>${L("可以帮你起草 Feed 筛选规则，或把 Inbox 材料整理到 Pages。")}</p></div>
+      </section>
+      <form class="assistant-composer bar-composer" id="assistant-composer" data-assistant-composer aria-label="Molis Work Assistant">
+        <div class="plugin-picker" data-plugin-picker>
+          <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("切换插件")}" title="${L("切换插件")}"><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
+          <div class="plugin-picker-popover" data-plugin-picker-popover hidden>${parts.rail}</div>
+        </div>
+        <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("问 Assistant，或搜索")}" aria-label="${L("发给 Assistant")}">
+        <button class="bar-composer-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<kbd>⌘K</kbd></button>
+        <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
+      </form>
+    </div>
+    <div class="bar-end">
+      ${residents ? `<div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}</div>` : ""}
+      <button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button>
+      <section class="dock-window dock-window--end" id="dock-window-im" role="region" aria-label="${L("群聊")}" data-dock-window="im" hidden>
+        <header class="dock-window-head"><strong>${L("项目讨论")}</strong>${collapse}</header>
+        <div class="dock-window-body"><iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe></div>
+      </section>
+      ${parts.projectChrome}
+    </div>
   </div>`;
 }
 
@@ -148,7 +200,6 @@ export function renderImmersiveHeader(primitives: ImmersiveShellPrimitives, desk
   const { L, icon } = primitives;
   return `<header class="workbench-header immersive-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}>
     <div class="mw-group workspace-history">
-      <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button navigation-labels-toggle" type="button" data-navigation-labels-toggle aria-expanded="false" aria-label="${L("展开工具名称")}" title="${L("展开工具名称")}">${icon("panel")}</button>
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="back" aria-label="${L("上一步")}" title="${L("上一步")}" disabled>${icon("back")}</button>
       <button class="mw-btn mw-btn--ghost mw-btn--icon-only workspace-history-button" type="button" data-workspace-history="forward" aria-label="${L("下一步")}" title="${L("下一步")}" disabled>${icon("arrow")}</button>
     </div>

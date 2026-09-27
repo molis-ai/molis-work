@@ -14,7 +14,6 @@ for (const width of [1440, 390]) {
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
     await waitFor("document.querySelector('[data-plugin-id=pages]')");
-    if (width === 390) await click('.workspace-chrome [data-directory-show]');
     await click('[data-plugin-strip] [data-plugin-id=pages]');
     await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')");
     await click('[data-pages-new]');
@@ -44,7 +43,6 @@ for (const width of [1440, 390]) {
     await reloadPage();
     await waitFor("document.querySelector('[data-plugin-id=pages]')");
     if (await evaluate("document.body.dataset.desktopSurface") !== 'pages') {
-      if (width === 390) await click('.workspace-chrome [data-directory-show]');
       await click('[data-plugin-strip] [data-plugin-id=pages]');
     }
     await waitFor("document.querySelector('button.feed-stage-entry[data-page-id]')");

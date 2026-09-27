@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-design-system";
-import { renderPluginMarket, renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
+import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/src/immersive-shell.ts";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/plugin-workbench.ts";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
@@ -31,8 +31,9 @@ test("plugin market is a catalog directory, not a centered landing form", () => 
   assert.doesNotMatch(html, /plugin-market-controls/);
 });
 
-test("plugin rail reserves a live update-count marker on the market entry", () => {
-  const html = renderPluginRail({ L: value => value, escapeHtml: String, icon }, [], '<footer class="personal-sidebar-footer"></footer>');
+test("the Dock menu reserves a live update-count marker on the market entry", () => {
+  // The market left the rail for the Dock menu at the foot of the window; the marker travels with it.
+  const html = renderAccountGlobalItems({ L: value => value, escapeHtml: String, icon }, []);
   assert.match(html, /data-plugin-id="market"[^>]*aria-label="插件市场"[^>]*>[\s\S]*data-market-update-count hidden/);
 });
 

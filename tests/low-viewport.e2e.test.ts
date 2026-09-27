@@ -12,9 +12,9 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     catalog.close();
     await command("Emulation.setDeviceMetricsOverride", {width,height,deviceScaleFactor:1,mobile:false}, sessionId);
     await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
-    if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
+    if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)")) await click('[data-directory-show]');
     await click('[data-plugin-id="feed"]');
-    if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')")) await click('[data-directory-show]');
+    if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)")) await click('[data-directory-show]');
     await click('[data-feed-add-toggle]');
     await waitFor("document.querySelector('[data-feed-sources-dialog]').open");
     await click('[data-feed-choose-kind="custom_rss"]');
@@ -26,7 +26,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await contained('[data-feed-sources-dialog] footer');
     await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
     await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
-    if (width < 760 && await evaluate("document.querySelector('[data-workspace]').dataset.mobileView!=='tree'")) await click('[data-directory-show]');
+    if (width < 760 && await evaluate("document.querySelector('[data-workspace]').dataset.mobileView!=='tree' && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)")) await click('[data-directory-show]');
     await click('[data-plugin-id="sessions"]');
     await click('[data-work-surface="sessions"] [data-open-session-add]');
     await waitFor("document.querySelector('[data-session-add-dialog]').open");

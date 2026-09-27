@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 
-import type {
-  AddGoalRelationInput,
-  CreateGoalInput,
-  GoalRecord,
-  GoalRelationRecord,
-  GoalsActorWrite,
+import {
+  goalDecisionMethods,
+  goalDecompositionReviewStatuses,
+  type AddGoalRelationInput,
+  type CreateGoalInput,
+  type GoalRecord,
+  type GoalRelationRecord,
+  type GoalsActorWrite,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 
 import { GoalsCommandContext, requestHash } from "./command-support.js";
@@ -239,11 +241,24 @@ export class GoalCommands {
     if (!input.title?.trim()) {
       throw this.context.error("goal.title_required", "Goal 必须有名称");
     }
+    const reviewStatus = input.decomposition_review?.status;
+    if (reviewStatus != null && !(goalDecompositionReviewStatuses as readonly string[]).includes(reviewStatus)) {
+      throw this.context.error(
+        "goal.decomposition_review_invalid",
+        `拆分评审的状态只能是 ${goalDecompositionReviewStatuses.join("、")} 之一，收到「${String(reviewStatus)}」`,
+      );
+    }
     for (const criterion of input.acceptance_criteria) {
       if (!criterion.statement.trim() || !criterion.pass_condition.trim()) {
         throw this.context.error(
           "goal.acceptance_invalid",
           "每条验收条件都要说明检查什么和怎样算通过",
+        );
+      }
+      if (!(goalDecisionMethods as readonly string[]).includes(criterion.decision_method)) {
+        throw this.context.error(
+          "goal.acceptance_invalid",
+          `验收条件的判断方式只能是 ${goalDecisionMethods.join("、")} 之一，收到「${String(criterion.decision_method)}」`,
         );
       }
     }

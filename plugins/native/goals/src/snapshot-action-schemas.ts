@@ -1,5 +1,5 @@
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { text, count, boolean, array, object, nullable, enumeration } from "./event-action-schemas.js";
+import { text, count, boolean, array, object, nullable, enumeration, recordedDecisionMethod } from "./event-action-schemas.js";
 import { goalRecordSchema, goalRiskSchema, goalDecompositionReviewSchema } from "./goal-record-schema.js";
 import { goalPolicySchema, goalRelationSchema } from "./configuration-actions.js";
 import { projectGuidanceEntrySchema } from "./guidance-actions.js";
@@ -41,17 +41,19 @@ const goalInput = object({ goal_id: text, title: text, outcome: text, why: text,
   in_scope: strings, out_of_scope: strings, constraints: strings, required_inputs: strings, promised_outputs: strings,
   leaf_readiness: leafReadiness, decomposition_review: nullable(goalDecompositionReviewSchema), definition_state: enumeration(["draft", "accepted"]),
   decomposition_state: enumeration(["abstract", "frontier_open", "closed_leaf", "closed_compound"]), priority: number,
-  acceptance_criteria: array(object({ criterion_id: text, statement: text, decision_method: enumeration(["automated_check", "measurement", "inspection", "human_decision"]),
+  acceptance_criteria: array(object({ criterion_id: text, statement: text, decision_method: recordedDecisionMethod,
     pass_condition: text, target: nullable(record), required_evidence: strings }, ["statement", "decision_method", "pass_condition"])) },
   ["title", "outcome", "why", "business_logic", "acceptance_criteria"]);
-const candidate = object({ candidate_id: text, board_id: text, submitted_by: text, discovered_in_run_id: maybeText, proposed_goal: goalInput,
+/** A goal as it was submitted in a proposal. Earlier proposal formats carried fields since dropped (source_refs, review_policy); they are read as recorded. */
+const submittedGoal: ActionSchema = { ...goalInput, additionalProperties: true };
+const candidate = object({ candidate_id: text, board_id: text, submitted_by: text, discovered_in_run_id: maybeText, proposed_goal: submittedGoal,
   proposed_relations: array(record), proposed_impacts: array(record), proposed_risks: array(record), blocking_mode: enumeration(["none", "current_run", "dependent_claims"]),
   state: enumeration(["pending", "approved", "rejected", "dismissed", "superseded"]), decision: nullable(record), created_at: text, decided_at: maybeText });
 const proposalRisk = object({ risk_id: text, description: text, probability: text, impact: text, affected_surfaces: strings,
   trigger: text, treatment: enumeration(["accept", "mitigate", "avoid", "defer"]), treatment_plan: text,
   blocking_mode: enumeration(["none", "claim", "completion", "invalidate_on_trigger"]), revisit_condition: text, owner: text },
   ["risk_id", "description", "probability", "impact", "affected_surfaces", "trigger", "treatment", "blocking_mode", "revisit_condition", "owner"]);
-const contractProposal = object({ proposal_id: text, board_id: text, goal_id: text, submitted_by: text, discovered_in_run_id: text, proposed_goal: goalInput,
+const contractProposal = object({ proposal_id: text, board_id: text, goal_id: text, submitted_by: text, discovered_in_run_id: text, proposed_goal: submittedGoal,
   field_sources: array(object({ field: enumeration(["title", "outcome", "why", "business_logic", "in_scope", "out_of_scope", "constraints", "required_inputs", "promised_outputs", "priority", "acceptance_criteria", "review_policy"]),
     source_kind: enumeration(["user_answer", "repository_fact", "document_fact", "runtime_inference"]), source_refs: strings, confidence: number, rationale: text,
     status: { const: "proposed" }, requires_user_confirmation: { const: true } })), review_policy: goalPolicySchema,

@@ -187,6 +187,62 @@ test("query contracts retain migrated completion, human requirements and origina
 });
 
 
+test("records written by earlier versions still read through the action contracts; new criteria must use a known decision method", async () => {
+  const home = await mkdtemp(join(tmpdir(), "goals-legacy-records-"));
+  const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, boardId: project.board_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const actions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "legacy-reader", audience: "user",
+    project_id: project.project_id, permissions: ["goals:read", "goals:write"] }));
+  const goal_id = "LEGACY-GOAL", board_id = project.board_id, at = "2026-09-01T00:00:00.000Z";
+  try {
+    await actions.invoke(goalsActions.create, { goal_id, title: "早期记录", outcome: "仍然能打开", idempotency_key: "create" });
+    // What earlier versions left behind: an agent's own wording for a decision method (in the criterion and in the saved
+    // contract revision) and for a review status, a proposal in an older format, and a project method pack saved before
+    // instructions, event types and default requirements existed.
+    await host.withProject(ref, r => {
+      r.store.db.prepare(`INSERT INTO acceptance_criteria (criterion_id, goal_id, statement, decision_method, pass_condition, target_json, required_evidence_json)
+        VALUES ('legacy-criterion', ?, '试玩一局', 'playtest', '三分钟内能进球', NULL, '[]')`).run(goal_id);
+      r.store.db.prepare(`UPDATE goals SET decomposition_review_json = '{"status":"closed_leaf","method_pack_ids":[],"coverage":[],"open_goal_ids":[],"next_step":""}'
+        WHERE goal_id = ?`).run(goal_id);
+      r.store.db.prepare(`UPDATE goal_contract_revisions SET contract_json = json_set(contract_json, '$.acceptance_criteria',
+        json('[{"statement":"场景跑通","decision_method":"scenario","pass_condition":"无报错"}]')) WHERE goal_id = ?`).run(goal_id);
+      const pack = { method_id: "legacy-pack", name: "早期方法", kind: "custom", summary: "旧版保存的方法", applies_to: [], domain_tags: [], enabled: true,
+        confidence: 0.6, source_refs: [], required_coverage: [{ area: "scope", label: "范围", question: "做什么" }], steps: ["拆分"],
+        dependency_rules: [{ rule_id: "r1", statement: "先定范围", direction_hint: "scope → work" }], evidence_requirements: [], completion_checks: [],
+        failure_modes: [], scope: "project", version: 1, created_at: at, updated_at: at };
+      const submitted = { title: "旧提案", outcome: "o", why: "w", business_logic: "b", acceptance_criteria: [], source_refs: ["doc#1"], review_policy: "human" };
+      r.store.db.prepare(`INSERT INTO candidates (candidate_id, board_id, submitted_by, proposed_goal_json, blocking_mode, state, created_at)
+        VALUES ('legacy-candidate', ?, 'agent', ?, 'none', 'pending', ?)`).run(board_id, JSON.stringify(submitted), at);
+      r.store.db.prepare(`INSERT INTO planning_method_packs (board_id, method_id, version, enabled, pack_json, created_at, updated_at)
+        VALUES (?, 'legacy-pack', 1, 1, ?, ?, ?)`).run(board_id, JSON.stringify(pack), at, at);
+    });
+    const snapshot = await actions.invoke(goalsActions.snapshot, {}) as {
+      goals: Array<{ goal_id: string; acceptance_criteria: Array<{ decision_method: string }>; decomposition_review: { status: string } | null }>;
+      goal_contract_revisions: Array<{ goal_id: string; contract: { acceptance_criteria: Array<{ decision_method: string }> } }>;
+      planning_method_packs: Array<{ method_id: string; instructions: string; event_types: unknown[]; default_requirements: unknown[] }>;
+      candidates: Array<{ candidate_id: string; proposed_goal: Record<string, unknown> }>;
+    };
+    // Read and shown as recorded, not rewritten.
+    const legacy = snapshot.goals.find(row => row.goal_id === goal_id)!;
+    assert.deepEqual(legacy.acceptance_criteria.map(row => row.decision_method), ["playtest"]);
+    assert.equal(legacy.decomposition_review?.status, "closed_leaf");
+    assert.equal(snapshot.goal_contract_revisions.find(row => row.goal_id === goal_id)!.contract.acceptance_criteria[0]!.decision_method, "scenario");
+    assert.deepEqual(snapshot.candidates.find(row => row.candidate_id === "legacy-candidate")!.proposed_goal.source_refs, ["doc#1"]);
+    const pack = snapshot.planning_method_packs.find(row => row.method_id === "legacy-pack")!;
+    assert.ok(pack.instructions.includes("拆分"), "instructions are compiled from the pack's own steps");
+    assert.deepEqual([pack.event_types, pack.default_requirements], [[], []]);
+    assert.equal((await actions.invoke(goalsActions.collection, {})).goals.find(row => row.goal.goal_id === goal_id)!.goal.acceptance_criteria[0]!.decision_method, "playtest");
+    // New criteria are held to the known methods.
+    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(board_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
+      acceptance_criteria: [{ statement: "试玩", decision_method: "playtest" as never, pass_condition: "能进球" }] },
+      { actor_id: "user", idempotency_key: "new-goal" })), { code: "goal.acceptance_invalid", message: /automated_check、measurement、inspection、human_decision/ });
+    await assert.rejects(host.withProject(ref, r => r.coordinator.goals.commands.createGoal(board_id, { title: "新目标", outcome: "o", why: "w", business_logic: "b",
+      acceptance_criteria: [], decomposition_review: { status: "closed_leaf" as never, coverage: [], open_goal_ids: [], next_step: "" } },
+      { actor_id: "user", idempotency_key: "new-review" })), { code: "goal.decomposition_review_invalid", message: /complete、paused/ });
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("Web cache keeps the cursor of its authorized collection when a write lands before composition", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-collection-cache-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Cache", actor_id: "user" }));

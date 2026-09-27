@@ -75,8 +75,13 @@ export type GoalLegacyProductContext = "game" | "app" | "other";
 export const goalRelationTypes = ["part_of", "depends_on", "conflicts_with", "mitigates", "extends", "replaces", "corrects", "invalidates", "migrates_from"] as const;
 export type GoalRelationType = typeof goalRelationTypes[number];
 
+/** Where a decomposition review stands. A new review must use one of these (checked when a Goal is created). */
+export const goalDecompositionReviewStatuses = ["complete", "paused"] as const;
+export type GoalDecompositionReviewStatus = (typeof goalDecompositionReviewStatuses)[number];
+
 export interface GoalDecompositionReview {
-  status: "complete" | "paused";
+  /** One of goalDecompositionReviewStatuses; reviews recorded before writes were checked may carry other wording. */
+  status: GoalDecompositionReviewStatus | (string & {});
   method_pack_ids?: string[];
   task_context?: GoalTaskContext;
   product_context?: GoalLegacyProductContext;
@@ -104,11 +109,19 @@ export interface GoalDecompositionReview {
   };
 }
 
+/** How an acceptance criterion is judged. A new criterion must use one of these (checked when a Goal is created). */
+export const goalDecisionMethods = ["automated_check", "measurement", "inspection", "human_decision"] as const;
+export type GoalDecisionMethod = (typeof goalDecisionMethods)[number];
+
 export interface GoalAcceptanceCriterion {
   criterion_id: string;
   goal_id: string;
   statement: string;
-  decision_method: "automated_check" | "measurement" | "inspection" | "human_decision";
+  /**
+   * One of goalDecisionMethods. Criteria recorded before writes were checked may carry an agent's own wording
+   * ("test", "playtest", ...); they are read and shown as recorded.
+   */
+  decision_method: GoalDecisionMethod | (string & {});
   pass_condition: string;
   target: Record<string, unknown> | null;
   required_evidence: string[];

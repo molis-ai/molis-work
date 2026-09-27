@@ -23,7 +23,6 @@ import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
 import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
-import { EXTERNAL_MCP_PERMISSION } from "./external-mcp-actions.js";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -59,7 +58,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
-import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { handleInformationAssistantHttp } from "./assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
@@ -375,9 +374,8 @@ export async function handleMolisWorkWebRequest(
           projectId: options.boardId, feed: createLocalFeedApplication(store.db),
         })) return;
         if (serverOptions.homeDirectory && await handleWorkflowsNativePluginHttp(request, response, url, {
-          actions: bindActionClient(localHost.actionClient(hostReference), () => ({
-            actor_id: "web-user", project_id: hostReference.project_id, audience: "user", permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, "functions:invoke", EXTERNAL_MCP_PERMISSION],
-          })),
+          // A workflow may use every action the person may run here, and nothing more: native plugins from their manifests, Runtime plugins by their installed grants.
+          actions: bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS),
           invalidateWebView: () => webViewCache.delete(options.databasePath),
         })) return;
         if (await handleInboxNativePluginHttp(request, response, url, {

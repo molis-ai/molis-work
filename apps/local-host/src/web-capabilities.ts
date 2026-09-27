@@ -1,20 +1,6 @@
-import { HOME_TALK_PERMISSIONS } from "./home-talk-actions.js";
 import { localWebActionContext } from "./local-web-actions.js";
-import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
-import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
-import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
-import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
-import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
-import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
-import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
-import { EXTERNAL_MCP_PERMISSION } from "./external-mcp-actions.js";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { CapabilitiesView, CapabilitySection } from "@molis-ai/molis-work-app-workbench";
-import { INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { actionUsageActions, type ActionUsagesResult } from "./action-usage-actions.js";
@@ -36,8 +22,8 @@ export async function capabilitiesView(options: {
   const projectId = url.searchParams.get("project") || null;
   const project = projectId && (section === "library" || section === "history") ? await withCatalog({ homeDirectory }, catalog => catalog.getProject(projectId)) : null;
   const reference = project ? molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id }) : undefined;
-  // Same local-user grants as the existing Inbox/Functions HTTP composition; never from query parameters.
-  const builtinPermissions = [...COGNIA_ACTION_PERMISSIONS, ...JELLY_ACTION_PERMISSIONS, ...CONNECTOR_ACCOUNT_PERMISSIONS, ...SHELF_ACTION_PERMISSIONS, ...EXPERIMENTS_ACTION_PERMISSIONS, ...(reference ? [...WORK_ACTION_PERMISSIONS, ...HOME_ACTION_PERMISSIONS, ...HOME_TALK_PERMISSIONS, ...INBOX_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, ...LINGGUANG_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, ...SCHEDULE_ACTION_PERMISSIONS, ...WORKFLOWS_ACTION_PERMISSIONS, EXTERNAL_MCP_PERMISSION, "functions:manage", "projects:settings"] : ["functions:invoke", "functions:manage"])];
+  // The local owner's permissions come from the native manifests; Runtime plugins add their installed grants. Never from query parameters.
+  const builtinPermissions = LOCAL_OWNER_PERMISSIONS;
   const model: CapabilitiesView = { section, actions: [], query: url.searchParams.get("q") ?? "", kind: url.searchParams.get("kind") ?? "" };
   if (section === "library") {
     const caller = await localWebActionContext(host, reference, builtinPermissions);

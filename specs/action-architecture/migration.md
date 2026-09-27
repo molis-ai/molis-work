@@ -1483,3 +1483,11 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 外部 MCP：保存过的服务上次提供的工具（名称、形状、描述，不含凭据）记在 Home `config/external-mcp-tools.json`；项目目录第一次被读取时带回，重连前显示不可用及原因，不会自行启动进程或发起连接；已移除的服务不会带回。
 - 验证：`tests/workspace-project-actions.test.ts`（原完整旅程：加入、冲突、修复迁移 2 条会话、启动、解除 3 条会话；新增：未启用 Sessions 的项目仍可加入目录与选择浏览目录，拒绝其他项目的目录，未知目录 404）。该文件在 main 上原本因夹具未启用 Sessions、首页不显示工作目录行而失败，夹具已补启用。`tests/external-mcp-actions.test.ts` 新增重启情形。Files/Git/Coding 工作区相关 HTTP 用例通过。浏览器实操（1280）：项目设置「工作目录」加入两个文件夹 → 选择第二个用于浏览，调用记录显示「关联工作目录 · 项目工作目录 · 你」与「选择浏览工作区」成功；外部笔记连接后重启服务，直接打开能力库即见 save_note「不可用」及重连说明。
 - 仍为本机界面、不作为动作：原生文件夹选择窗口、终端面板、连接器令牌/设备码/OAuth（携带密钥）。
+
+## 本机用户的权限来自原生清单，能力库与工作流程不再漏掉插件（2026-09-27）
+
+- 问题：能力库与工作流程页的本机调用者各自手写权限名单。能力库漏掉 Alchemist、Artifacts、Dataset、Forms、图片、PPT 和项目设置动作（目录 377 项）；工作流程只带自身、四个内容站、判断规则与外部 MCP 的权限，声明了 `workflow` 的其余插件动作一个都选不到（39 个步骤、7 组）。
+- 改为 `local-owner-permissions.ts`：原生插件（Manifest `kind: native`）声明的全部动作权限加 Host 自有服务的权限；Runtime 插件仍按安装授予逐次加入（`localWebActionContext`）。工作流程页改用 `bindLocalWebActions`，执行时按同一授权核对。原生插件新增动作无需改动 Host。
+- 结果：预览 Home 的能力库 489 项（新增上述 7 个提供方）；流程可选步骤 166 个、23 组，读取约 97ms。
+- 验证：`tests/workflows-step-directory.test.ts`（真实服务：Dataset/Forms/PPT/Shelf 等动作出现在流程步骤中，来自 10 个以上提供方）；`workspace-project-actions` 断言能力库列出工作目录动作；工作流程、能力页、使用位置、外部 MCP 相关 36 项通过。浏览器实操（1280）：新建「消息收进 Shelf」：Feed →手动→「放进 Shelf」（text ← 正文，title ← 标题）→ 用「例行通知：周报已生成」跑一次，Shelf 返回新条目，Shelf 页「材料」中出现「例行通知：周报已生成.md」。
+- 观察：Shelf「放进 Shelf」的输入字段没有标题，流程里显示为 text、bytes_base64、origin_realpath 等原名；后两项只对本机拖入文件有意义。

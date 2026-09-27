@@ -18,7 +18,7 @@ import { pluginDevelopmentCapability } from "@molis-ai/molis-work-contracts/plat
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { readWorkspaceFileCapability, readWorkspaceGitCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { readWorkspaceFileCapability, readWorkspaceGitCapability, workspaceReadActions, type WorkspaceFileQuery, type WorkspaceGitQuery, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readConflictFile, readGitSummary, readPullRequestSupport } from "./git-operations.js";
 import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
@@ -73,7 +73,7 @@ export function registerProjectCapabilities(
     const { observed_event_cursor: _cursor, ...state } = await goalAction(runtime, goalsActions.state, { goal_id: goal.goal_id }, { actor_id: "local-host" }, invocation);
     return { goal, state };
   });
-  if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceGitCapability, async (runtime, query) => {
+  const readGit = async (runtime: MolisWorkProjectRuntime, query: WorkspaceGitQuery): Promise<WorkspaceGitResult> => {
     const current = async () => ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     // Where committing, branching, pushing or a PR starts from; reads only.
     if (query.kind === "summary" || query.kind === "pr-support" || query.kind === "conflict") {
@@ -86,11 +86,18 @@ export function registerProjectCapabilities(
     const accepted = granted.find(item => item.workspace_id === query.workspace_id);
     if (!(await current()).some(item => item.workspace_id === query.workspace_id && item.realpath_verified && item.canonical_path === accepted?.canonical_path)) return { outcome: "denied", message: "工作区授权已变化，请重新读取" };
     return result;
-  });
-  if (ports.workspacesFor || workspaceFor) host.register(readWorkspaceFileCapability, async (runtime, query) => {
+  };
+  const readFile = async (runtime: MolisWorkProjectRuntime, query: WorkspaceFileQuery) => {
     const selected = ports.workspacesFor ? await ports.workspacesFor(runtime.project_id) : [await workspaceFor!(runtime.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
     return readWorkspaceFile(query, selected);
-  });
+  };
+  if (ports.workspacesFor || workspaceFor) {
+    // Plugins that consume the Host capabilities keep them; everyone else reads through the same handlers as directory actions.
+    host.register(readWorkspaceGitCapability, readGit);
+    host.register(readWorkspaceFileCapability, readFile);
+    host.register(workspaceReadActions.git, readGit);
+    host.register(workspaceReadActions.file, readFile);
+  }
   if (ports.workspacesFor) {
     const list = async (runtime: MolisWorkProjectRuntime) => (await ports.workspacesFor!(runtime.project_id)).map(projectWorkspaceRef);
     host.register(projectsCapabilities.listWorkspaces, list);

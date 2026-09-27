@@ -110,7 +110,7 @@ SDK workspace:none 与 per-run grants 及效果隔离共70项定向通过，最�
 
 ### 审计结果
 
-全仓生产代码（apps/horizontal/modules/plugins/packages，排除测试与 dist）没有绕过 Prologue 的模型调用：唯一的 AI 依赖是 `@prologue/sdk`；所有模型接口字符串、`fetch`/`http(s).request`/undici、`Authorization`/`x-api-key` 构造和模型凭据读取都已核对。文字经 `resolvePrologueInference(home).completeText`，图片经 `generateImages`，TypeSafe 经 `evaluateTypeSafe`，其余是 Prologue Agent run。`modelRequestShape` 的头部构造在生产里只取 `.url`；`scripts/verify-model.mjs` 等开发脚本仍直连，不属于生产。
+已纳入本次范围的生产模型接口调用均经过 Prologue；上述暂缓的本地模型与外部 Agent 运行时仍保持原执行路径，不包含在此结论内。审计覆盖 apps/horizontal/modules/plugins/packages 的生产代码（排除测试与 dist），核对了模型接口字符串、`fetch`/`http(s).request`/undici、`Authorization`/`x-api-key` 构造和模型凭据读取。文字经 `resolvePrologueInference(home).completeText`，图片经 `generateImages`，TypeSafe 经 `evaluateTypeSafe`，其他范围内入口走 Prologue Agent run。`modelRequestShape` 的头部构造在生产里只取 `.url`；`scripts/verify-model.mjs` 等开发脚本仍直连，不属于生产。
 
 审计发现并修复：
 
@@ -149,4 +149,18 @@ SDK workspace:none 与 per-run grants 及效果隔离共70项定向通过，最�
 
 ### 状态
 
-在上述口径下，现有生产 AI 调用已全部经 Prologue，并已用 MiniMax 逐条实测（图片除外，原因见上）。暂缓项另行立项。
+已纳入范围的生产模型接口调用已接入 Prologue；上表记录了文字入口的 MiniMax 实测与 TypeSafe 独立服务实测。图片目前仅有受控服务与 SDK 回环验证，真实图片服务尚未验证。本地 OCR/Whisper、Laya/Grok 及外部 Agent 运行时未迁移，按暂缓约定另行推进；本结论不表示原先所有 AI 执行路径均已迁移，也不表示整个产品已可发布。
+
+## 审查问题修复（2026-09-27）
+
+目标：保留已有缓存修复，补齐安全 HTTP 错误状态的 Session 持久化与重开回放，消除 runtime/tool 双向依赖，并限定收敛结论的适用范围。本次不恢复暂缓的本地模型与外部 CLI 迁移，不改用户模型或凭据配置。
+
+错误账本仅增加 400–599 整数 status 的显式保存与恢复，兼容无 status 的历史记录，不复制任意 Error 附加内容。工具超时默认值归 Runtime 配置，ToolCatalog 复用同一值，保持默认 60 秒、App 上限覆盖与工具自身 deadline。同步 SDK 累计源码补丁、新包、依赖、lock、inventory 与来源说明。
+
+验收：401/429/503 经真实账本重开保持；旧账本兼容且原始响应不落账；结构边界、工具默认与覆盖上限、缓存和恢复测试通过；SDK build/typecheck 与消费端相关回归通过。只读查询图片配置，没有可用服务时仍明确标注真实图片生成未验证。本次修复以功能可用为目标，整体完成范围沿用上述暂缓约定。
+
+结果：上述修复已实现，SDK 定向 100/100 通过（含之前失败的三项），SDK build 与 `tsconfig.typecheck.json` 通过。消费方 Agent Host / Local Host 的 `tsc --noEmit` 通过；Schedule、原生发送权限、凭据桥、恢复、配置文字、图片和 TypeSafe 共 75/75 通过。新包为 `prologue-sdk-0.0.0-rc.1-ledger-status.tgz`；累计补丁在干净基线正向与当前源码反向检查通过，全部 514 个 dist 文件与构建、实际安装一致，冻结安装通过。未跑应用全量测试，未重复调用商业模型。
+
+2026-09-27 只读查询真实 Home 图片库，连接数仍为 0；真实图片服务验证继续未完成，其余本次验收通过。修改限于 `feature/prologue-minimax-verify` 的 GoalBoard worktree 与已有 SDK 工作树；未切换分支、未写 main、未提交或推送。
+
+后续完整 SDK 回归：`vitest run` 共 3321 项，3300 通过、20 跳过、1 失败。唯一失败发生在 `computer-use.live.test.ts` 的 Chrome fixture 加载请求页面阶段，尚未进入该用例的安全行为断言；随后独立复跑此文件 11/11 通过，未放宽任何超时或断言。`node scripts/run-tests.mjs tests/images-mcp.test.ts` 1/1 通过，受控服务真实字节经过标准 MCP 生成、读取、重启后重读，重复请求没有再发生成。再次只读检查，图片连接仍为 0，商业图片服务实测仍待配置。

@@ -1,6 +1,20 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-cache-breakpoint.tgz`（2026-09-26）。在下面的 coding-inference 之上，**没有系统段时把 Anthropic 缓存断点挂到最后一条用户消息的末块上**：宿主文字生成只发一条用户消息，原来缓存档位开着、请求体里却一个 `cache_control` 都没有，`required` 照价收费而调用方以为命中。有系统段时仍只挂系统段；`off` 档一个字段都不加。另修了 `test/host-agnostic-adapters.test.ts` 那处 `ImagePayload` 类型错误。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-ledger-status.tgz`（2026-09-27）。保留下面缓存修复及全部既有能力，补齐安全 HTTP 错误状态（400–599 整数）的 Session 账本保存与恢复；旧账本没有 status 仍可读，原始响应和任意错误附加属性不进入账本。工具超时默认值归 Runtime 配置，ToolCatalog 复用同一值，移除 runtime ↔ tool 双向依赖；默认 60 秒、App 上限覆盖和工具自身 deadline 均保持。
+
+- 本地源码：`/Users/yijunwang/code/prologue-molis-integrated`，基线 `a7e785b8c76149961d25b2f918aeec55554d8420`。
+- 累计源码补丁：[ledger-status.patch](ledger-status.patch)。已在干净基线检查正向应用，并在当前源码检查反向应用；包含本次回归测试及历史扩展。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`；SHA-256：`a50e14cd8bd4afb2fa2f041e639855d21848ee4c9ffbe3c0a010b136e714f2fd`。
+- 重建：基线应用补丁后执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-ledger-status.tgz`。
+- 验证：SDK build、`tsconfig.typecheck.json` 通过；session-error-status、session-long、workstation-wiring、live-tree、module-config、tool、prompt-cache-breakpoint、prompt-cache-prefix 共 100/100 通过。原先三项失败均已通过；未以定向回归替代全量 SDK 验证。
+- 消费方：冻结安装、Agent Host / Local Host 类型检查通过，文字、图片、TypeSafe、Schedule、凭据与恢复共 75/75 通过；包内全部 514 个 dist 文件与 SDK 构建、实际安装逐字节一致。
+- 补充验证：SDK 全量 3321 项，3300 通过、20 跳过、1 项在 Chrome fixture 加载页面阶段失败；随后单独复跑 `computer-use.live.test.ts` 11/11 通过，未修改测试超时或生产行为。图片标准 MCP 端到端 1/1 通过，覆盖真实字节保存、跨进程重开、权限与幂等；这仍是受控图片服务，不代表商业图片服务验证。
+
+未提交或推送 SDK 源码、未发布 npm。旧包保留以便回退。本轮本地/CLI 暂缓范围与真实图片服务未验证项见消费方 [spec](../../specs/bp-delivery-parallel/work-items/prologue-convergence/spec.md)。
+
+## 上一依赖：缓存断点
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-cache-breakpoint.tgz`（2026-09-26）。在下面的 coding-inference 之上，**没有系统段时把 Anthropic 缓存断点挂到最后一条用户消息的末块上**：宿主文字生成只发一条用户消息，原来缓存档位开着、请求体里却一个 `cache_control` 都没有，`required` 照价收费而调用方以为命中。有系统段时仍只挂系统段；`off` 档一个字段都不加。另修了 `test/host-agnostic-adapters.test.ts` 那处 `ImagePayload` 类型错误。
 
 - 源仓库、基线、本地源码同下（`/Users/yijunwang/code/prologue-molis-integrated`，基线 `a7e785b8`）。
 - 未提交源码修改：[cache-breakpoint.patch](cache-breakpoint.patch)，相对基线的**累计**补丁（74 个文件），在干净的基线 checkout 上 `git apply --check` 通过。没有将本包虚称为已提交或已推送版本。

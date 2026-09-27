@@ -11,6 +11,9 @@ import { SCHEDULE_ACTION_PERMISSIONS, scheduleActions } from "@molis-ai/molis-wo
 import { defineAction, definePlugin } from "../packages/plugin-sdk/src/index.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/src/content-action-providers.js";
+import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
+import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
+import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 
 const PROJECT = "project-action-steps";
 
@@ -110,6 +113,19 @@ test("a workflow step runs any registered action — even one the Host never hea
     await assert.rejects(actions.invoke(w.continue, { id: refused.instance_id }), { code: "actions.input_invalid" });
     assert.equal(tickets.length, 3);
 
+    // The same unknown plugin's action for an external MCP client: nothing without an exact grant, then it runs under the client's own identity.
+    const view = (await host.actionClient(reference).discover(caller)).find(row => row.capability_id === "fixture.tickets.create")!;
+    const client = { actor_id: "client-tickets", project_id: PROJECT, audience: "mcp" as const, permissions: [] };
+    const denied = await authorizeMcpActions(host, client, home, reference);
+    await assert.rejects(denied.service.invoke(denied.context, ticketStep.ref, { title: "未授权", priority: "low" }));
+    assert.equal(tickets.length, 3);
+    await writeMcpActionGrant(home, createMcpActionGrant(client.actor_id, PROJECT, view, true));
+    const granted = await authorizeMcpActions(host, client, home, reference);
+    assert.deepEqual(await granted.service.invoke(granted.context, ticketStep.ref, { title: "MCP 建单", priority: "low" }), { ticket_id: 4 });
+    assert.equal(tickets[3]!.title, "MCP 建单");
+    assert.ok(host.callLog!.list(PROJECT).some(row => row.capability_id === "fixture.tickets.create" && row.actor_id === "client-tickets" && row.audience === "mcp" && row.ok),
+      "the call log names the client, not the local user");
+
     // The plugin goes away: the step keeps its reference, says why, and does not run.
     const third = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;
     await runtime.stop(installed.install_id);
@@ -118,7 +134,7 @@ test("a workflow step runs any registered action — even one the Host never hea
     assert.equal(described.stations[1]!.action?.ref.capability_id, "fixture.tickets.create");
     await assert.rejects(actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id }), { code: "workflows.unavailable" });
     await assert.rejects(actions.invoke(w.continue, { id: third.instance_id }), { code: "workflows.unavailable" });
-    assert.equal(tickets.length, 3);
+    assert.equal(tickets.length, 4, "three from workflows, one from the MCP client; nothing after the plugin went away");
   } finally {
     await runtime.stop(installed.install_id).catch(() => undefined);
     await host.close();

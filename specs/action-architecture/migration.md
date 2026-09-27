@@ -89,7 +89,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 范围 | 原入口 | 目标 | 状态 |
 | --- | --- | --- | --- |
 | Kernel/Host | packages/kernel/src/index.ts, apps/local-host/src/local-host.ts | 共用注册、schema、上下文与调用合同 | 已共享注册与队列；项目作用域/关闭/重新激活验证通过 |
-| Runtime/SDK | packages/plugin-runtime, packages/plugin-sdk | 自动注册、兑现、停用撤销、场景发现 | 定义与生命周期接线通过；生产 Coding/Builder 注入完成；七个项目 Runtime 插件可由动作入口启动并供 UI 复用，其他组合与全量生命周期仍待迁移 |
+| Runtime/SDK | packages/plugin-runtime, packages/plugin-sdk | 自动注册、兑现、停用撤销、场景发现 | 定义与生命周期接线通过；生产 Coding/Builder 注入完成；七个项目 Runtime 插件可由动作入口启动并供 UI 复用。宿主事先不知道 ID 的插件经正式 PluginRuntime 安装启动后：目录发现与流程步骤执行、未授权 MCP 客户端被拒而精确授权后以客户端身份调用并记入调用记录（`tests/workflows-action-steps.test.ts`）、场景绑定与判断消费（`tests/function-scene-authoring.e2e.test.ts`）、能力库展示（`tests/capabilities-page.test.ts`）、停用后引用保留并说明原因，均无需修改宿主代码 |
 | 平台 MCP | apps/mcp/src/tool-catalog.ts, apps/local-host/src/mcp-server.ts | 统一目录及执行适配 | 新动作已接入持久、逐客户端/范围的生产授权、本机管理 API 与「对外接入」授权界面；旧名称（六组原生插件、Goals、判断函数、连接摘要）均按精确客户端授权转发到同一动作（见对应各节）。仅 initialize/import_v3/goal_tree_decide/event_decide 四个受信管理工具仍直接调用 Host 能力，只在本机管理连接出现，对外客户端看不到 |
 | 项目工作区 | packages/contracts/src/modules/projects.ts, apps/local-host/src/project-capabilities.ts | 原消费者及 MCP 使用同一查询能力 | 四项查询已迁移并验证 |
 | 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts、apps/local-host/src/external-mcp-actions.ts | 连接与能力接入共用 | 已接入：已连接服务的工具作为项目动作进入同一目录（每个服务一个提供方，版本随配置与工具形状），经 Prologue 调用器与系统执行器执行；本机用户、工作流动作步骤、获授权的对外 MCP 客户端与插件共用；断开后保留条目并说明原因，移除配置后撤回。重启后连接需重新建立（SDK 连接不持久），期间目录不含该服务 |

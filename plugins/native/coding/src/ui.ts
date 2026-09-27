@@ -147,7 +147,9 @@ function renderEmpty(_p: CodingUiPrimitives): string {
 export function renderCodingWorkbench(model: CodingUiModel): string {
   const { primitives: p } = model;
   // Relative global URL survives the host's project-local link prefixing.
-  const settingsHref = "../".repeat(model.route_prefix.split("/").filter(Boolean).length) + "settings/coding-settings?project=" + encodeURIComponent(model.route_prefix.split("/").filter(Boolean).at(-1) ?? "");
+  const up = "../".repeat(model.route_prefix.split("/").filter(Boolean).length), project = encodeURIComponent(model.route_prefix.split("/").filter(Boolean).at(-1) ?? "");
+  const settingsHref = up + "settings/coding-settings?project=" + project;
+  const accessHref = up + "capabilities/access?client=agent%3Aprologue&project=" + project;
   const tools = model.tools.map((tool) => renderToolTab(tool, p)).join("");
   const panels = model.tools.map((tool) => renderToolPanel(tool, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell mw-layout-primitives" data-work-surface="coding" data-work-surface-label="Coding" hidden data-coding-workbench data-coding-prefix="${p.escape(model.route_prefix)}">
@@ -196,7 +198,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
     <dialog class="mw-dialog mw-dialog--form" data-coding-actions-dialog aria-label="选择动作能力"><form class="mw-form mw-dialog__shell" data-coding-actions-form>
       <header class="mw-form__header"><h2>下一轮使用的能力</h2>${renderButton({label:"取消",variant:"ghost",attrs:{"data-coding-actions-close":""}})}</header>
       <section class="mw-form__body"><p>从当前授权目录选择；Character 可以进一步限制范围。查询用于读取，判断和操作需要选择执行方式，调用时仍会检查权限。</p>
-      <p><a href="/capabilities/access?client=agent%3Aprologue">管理内置 Agent 授权</a></p><div data-coding-actions-list></div><p role="alert" data-coding-actions-error></p></section>
+      <p><a href="${p.escape(accessHref)}">管理内置 Agent 授权</a></p><div data-coding-actions-list></div><p role="alert" data-coding-actions-error></p></section>
       <footer class="mw-form__footer">${renderButton({label:"保存能力选择",type:"submit",attrs:{"data-coding-actions-save":""}})}</footer>
     </form></dialog>
     <dialog class="mw-dialog mw-dialog--form" data-coding-mcp-dialog aria-label="选择 MCP 工具与资料"><form class="mw-form mw-dialog__shell" data-coding-mcp-form>

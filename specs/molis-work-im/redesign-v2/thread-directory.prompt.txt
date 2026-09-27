@@ -1,0 +1,51 @@
+Use case: ui-mockup.
+Create a NEW high-fidelity Molis Work desktop screenshot based on the reference's neutral appearance and outer app shell, with ONE CRITICAL STRUCTURAL CORRECTION: a PERSISTENT DIRECTORY of the project main group and ALL PUBLIC THREADS must be visible BESIDE the active group conversation. The previous inline Thread accordion design has been rejected. Do not reproduce it.
+
+A crisp full-bleed 1920x1200 desktop app composition, beautifully typeset simplified Chinese, realistic finished software, no device, no collage, no explanation labels outside the UI. Illustrative content.
+
+Spatial structure, exactly three adjacent regions inside the shell:
+1. LEFT ongoing project work, about60% of total width (1150px).
+2. INSIDE THE RIGHT communication area, a persistent narrow DIRECTORY, about230px.
+3. To the right of that directory, CURRENT CONVERSATION, about540px.
+Regions2+3 together constitute the right40% project discussion pane. Work genuinely resizes to make room; no overlay. No global left navigation rail. No fourth panel. Chat never takes fullscreen. No inline expanded Thread in the group timeline. This screenshot shows PROJECT MAIN GROUP selected and its normal conversation visible, while all Thread titles and latest updates remain visible in the adjacent directory. This persistent list is the MOST IMPORTANT visual feature.
+
+Appearance: premium precise neutral software. White and pale neutral gray, crisp charcoal text, thin neutral gray dividers. Near-black send button. Tiny muted indigo links/unread dot; extremely restrained amber only for waiting-for-confirmation. Absolutely NO GREEN BACKGROUNDS, no gradients, no blue haze, no glow. Small clean outline icons, 6–8px control radii, 14–16px-equivalent message text, 12px metadata. Source and navigation use calm neutral fills. No heavy cards, decorative illustrations, huge headings or dashboard metrics. Details polished to product-design-review quality.
+
+Outer shell: 44px top app tabs '首页方案' selected and '目标'; small Molis Work wordmark left. Bottom54px dock spans the ENTIRE app: Home and work tools left, centered '问 Assistant，或搜索' field, right 资料库, 灵光, selected 项目讨论 and round project monogram M. Match reference shell; don't enlarge dock or create another one.
+
+LEFT WORK, 1150px: retain reference document '首页方案', but naturally reflow it within its available width. Project breadcrumb 'Molis 产品团队 / 设计', tidy edit/comments/more toolbar, compact title28px and metadata '周然 · 今天 09:42 更新'. Editorial text with heading '让新成员一眼读懂项目', sentence '先知道团队正在推进什么，再找到需要参与的讨论。'. Three compact priority rows: '01 当前目标', '02 进行中的讨论', '03 最近产出' with short secondary explanations. Lower half a neat finished neutral document preview '首页布局预览' of a real page with '早上好，一骏', '正在推进', '完成首页改版', '需要确认', '周五发布范围', '最近产出', '首页方案 v2'. Do not use skeleton wireframe placeholders. Bottom of document a quiet backlink '首页信息架构 · 已有结论 · 12 条回复'. Keep normal readable document text, not a screenshot shrunk into a thumbnail.
+
+RIGHT COMMUNICATION region770px, docked not floating:
+One shared header across directory+conversation, height56px: conversation icon '项目讨论', compact 'Molis 产品团队' with chevron; trailing search and collapse-to-right icon. Under it the two internal regions extend to bottom dock.
+
+PERSISTENT DIRECTORY230px: very pale NEUTRAL GRAY canvas and hairline right border. This is navigation within ONE project's main group, NOT multiple channels or contacts.
+At top a selected row '# 项目主群', small 2 unread badge, subtitle '所有项目成员'. Selected row neutral gray with dark text, no saturated block.
+Below quiet label '公开 Thread' with total '6' and plus button.
+Exactly six readable compact Thread rows with title, last-activity snippet, and subtle metadata. Distinct from the main group row, nested only one level:
+- '首页信息架构', small status '已有结论', snippet '陈默：按这个顺序实现', '12 条回复 · 10:07'
+- '周五发布范围', tiny unread dot / amber waiting dot, snippet '许诺：今天确认试用范围', '3 条回复 · 待确认'
+- '搜索结果排序', snippet '林悦：优先展示相关结果', '8 条回复 · 09:58'
+- '新成员引导', snippet '周然：首次进入直接看目标', '2 条回复 · 昨天'
+- '通知与提醒', snippet '一骏：只提醒需要我的内容', '5 条回复 · 昨天'
+- '文件共享规则', snippet '陈默：继承项目访问权限', '4 条回复 · 昨天'
+Use clean list rows separated by space, NOT big cards. Titles should remain readable and hierarchy obvious. Small footer '全体项目成员可见' with a globe icon. NO contacts, no DMs, no additional theme groups, no hidden dropdown-only Thread directory, no horizontal chips.
+All six Thread rows must be visible alongside the open main group conversation.
+
+CURRENT MAIN GROUP conversation540px:
+Compact header '# 项目主群', subtitle '12 位项目成员 · 项目的公共讨论', right member avatars and more menu.
+Slim catch-up summary separated by hairlines: '自上次离开 · 8 条新消息'; '首页结构已有结论，发布范围待确认。'; small 'AI 整理 · 查看来源'.
+Normal readable group messages with30px avatars, authored headers, times, no huge speech bubbles:
+林悦09:42: '首页第二版放好了，先看信息层级，再看细节。'
+Small file row with miniature actual document thumbnail '首页方案 v2.fig', 'Figma · 2.4 MB', subtle menu and one '👍4' reaction.
+周然09:46: '先露出正在推进的目标，再放最近讨论。'
+Below only a COMPACT Thread backlink '首页信息架构 · 12 条回复 ↗', with tiny '已有结论' label. DO NOT show Thread replies or a nested expanded card in this main timeline.
+A thin unread divider '2 条新消息'.
+许诺10:12: '@一骏 周五先开放给项目成员，今天确认一下范围？'
+Below compact link '周五发布范围 · 3 条回复 ↗'.
+一骏10:15: '首页结构的结论已经留在话题里了，发布范围我们去对应 Thread 确认。'
+陈默10:18: '收到，我先按已确认的结构推进。'
+Small hover action toolbar over one message with reaction, reply, open Thread icons to convey craft, not clutter.
+
+Composer fixed to bottom of CURRENT CONVERSATION ONLY, not underneath directory: about100px high, thin border, label '发到 # 项目主群', placeholder '发送消息，或引用左侧工作…'. Minimal attachment/@/reference/Aa tools; near-black '发送' button. Only ONE active composer in this screenshot.
+
+The primary visual message must be unmistakable: ONE PROJECT MAIN GROUP + A PERMANENT PUBLIC THREAD LIST beside its conversation, while the actual work remains visible on the left. Selecting a Thread will show its content in the same current-conversation region without leaving this screen; do not depict this as multiple app pages. Main group stays pinned at top of directory. Refine spacing and all text carefully; preserve information density, light neutral surfaces, and an understated professional feel.

@@ -95,8 +95,6 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   await navigate(() => command("Page.navigate", { url: origin + "/goals/INTERFACES" }, sessionId));
   await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'INTERFACES'");
   const snap = () => evaluate<PaneSnapshot>(SNAPSHOT);
-  const waitDrawer = () => waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && getComputedStyle(document.querySelector(".plugin-rail")).display !== "none"`);
-  const waitClosed = () => waitFor(`!document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 
   let state = await snap();
   assert.equal(state.hasMobileSwitch, false);
@@ -105,8 +103,8 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   assert.ok(await evaluate("document.querySelector('[data-goal-node-workspace]')?.hidden === false || document.querySelector('[data-goal-frame-surface]')?.hidden === false"));
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]')?.dataset.goalView"), "INTERFACES");
 
-  await click("[data-directory-show]");
-  await waitDrawer();
+  // A Goal page has no list of its own to put in a drawer; the switcher in front of the Assistant is the navigation.
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-directory-show]')).display"), "none");
   state = await snap();
   assert.equal(state.directory, "root");
   assert.equal(isHiddenFromUse(state.tree), true);
@@ -119,8 +117,6 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   assert.equal(state.drawer, false);
   assert.equal(isHiddenFromUse(state.tree), true);
   assert.ok(await evaluate("document.querySelector('[data-inbox-stage-shell]')?.getBoundingClientRect().height > 180"));
-  await click('[data-directory-show]');
-  await waitDrawer();
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor(`document.querySelector(".tree-pane").dataset.desktopDirectory === "root" && !document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
 
@@ -154,8 +150,6 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   await waitFor(`Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor || 0) > ${beforeCursor}`);
   assert.match(await evaluate<string>("document.querySelector('[data-goal-event-document]')?.textContent || ''"), /narrow-nav refresh note/);
 
-  await click("[data-directory-show]");
-  await waitDrawer();
   await reloadPage();
   await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE' || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
   state = await snap();
@@ -179,19 +173,18 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   await navigate(() => command("Page.navigate", { url: origin + "/goals/INTERFACES" }, sessionId));
   await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'INTERFACES'");
   const snap = () => evaluate<PaneSnapshot>(SNAPSHOT);
-  const waitDrawer = () => waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && getComputedStyle(document.querySelector(".tree-pane")).display !== "none" && document.querySelector(".tree-pane").getBoundingClientRect().height > 180`);
   const waitGraph = () => waitFor(`document.querySelector("[data-workspace]").dataset.workspaceMode === "graph" && document.querySelector("#goal-momentum-pane") && !document.querySelector("#goal-momentum-pane").hidden && getComputedStyle(document.querySelector("#goal-momentum-pane")).display !== "none" && document.querySelector("#goal-momentum-pane").getBoundingClientRect().height > 180`);
 
-  await click("[data-directory-show]");
-  await waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);
+  await click("[data-plugin-picker-toggle]");
+  await waitFor(`!document.querySelector("[data-plugin-picker-popover]").hidden && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);
   let state = await snap();
   assert.equal(state.width, 390);
   assert.equal(state.overflowX, false);
   assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.hasMobileSwitch, false);
   assert.equal(state.containerTab, "item");
-  await evaluate("document.querySelector('[data-directory-dismiss]')?.click(); true");
-  await waitFor(`!document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
+  await click("[data-plugin-picker-toggle]");
+  await waitFor(`document.querySelector("[data-plugin-picker-popover]").hidden`);
 
   await evaluate(`(() => {
     const collapse = document.querySelector("[data-goal-collapse]");
@@ -208,12 +201,12 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(state.hit, "graph");
   assert.equal(state.containerTab, "canvas");
 
-  await click("[data-directory-show]");
-  await waitFor(`document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open") && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);
+  await click("[data-plugin-picker-toggle]");
+  await waitFor(`!document.querySelector("[data-plugin-picker-popover]").hidden && document.querySelector(".plugin-rail").getBoundingClientRect().width > 40`);
   state = await snap();
   assert.equal(isHiddenFromUse(state.tree), true);
-  await evaluate("document.querySelector('[data-directory-dismiss]')?.click(); true");
-  await waitFor(`!document.querySelector("[data-workspace]").classList.contains("is-directory-drawer-open")`);
+  await click("[data-plugin-picker-toggle]");
+  await waitFor(`document.querySelector("[data-plugin-picker-popover]").hidden`);
   await waitGraph();
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);

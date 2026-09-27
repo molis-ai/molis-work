@@ -1,6 +1,6 @@
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { PROLOGUE_RUNTIME_ID, type AgentHost, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { BUILTIN_PLUGIN_AGENTS } from "@molis-ai/molis-work-app-workbench";
 import {
   SCHEDULE_PLUGIN_ID,
@@ -15,15 +15,19 @@ const POLL_MS = 400;
 
 export function createHostScheduledTaskRunner(options: {
   agentHost: AgentHost;
+  /** Settles once the Home's Prologue adapter is registered; it registers lazily. */
+  ready?: () => Promise<void>;
   boardId: string;
   projectId: string;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }): ScheduledTaskRunner {
   return {
     async run(input) {
-      const descriptors = options.agentHost.descriptors();
-      if (descriptors.length === 0) {
-        throw new Error("还没有可用的 Agent Runtime");
+      await options.ready?.();
+      // Scheduled work runs on Prologue, the Home's model path. An installed CLI Runtime
+      // is never picked just because its id sorts first.
+      if (!options.agentHost.descriptors().some((descriptor) => descriptor.runtime_id === PROLOGUE_RUNTIME_ID)) {
+        throw new Error("还没有可用的 Agent Runtime：到点执行需要 Prologue，请先配置文字模型");
       }
       const workspace = await options.workspaceFor(options.projectId);
       if (workspace === null || !workspace.realpath_verified) {
@@ -36,7 +40,7 @@ export function createHostScheduledTaskRunner(options: {
         authorizedDirectories: [workspace.canonical_path],
         prompts: declared.prompts,
       };
-      const runtimeId = descriptors[0]!.runtime_id;
+      const runtimeId = PROLOGUE_RUNTIME_ID;
       const adapter = options.agentHost.adapter(runtimeId);
       const directory = {
         canonical_path: workspace.canonical_path,

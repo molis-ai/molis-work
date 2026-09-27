@@ -129,14 +129,26 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       (list.length ? '<p class="home-hero__stats"><span>' + L("个人") + ' <b>' + summary.me + '</b></span><span>' + L("组织") + ' <b>' + summary.org + '</b></span></p>' : '');
     if (dayChanged) enter(hero); else hero.classList.add("is-in");
   };
+  let arrivedAs = null, paintedRows = null;
   const renderList = () => {
     const list = listOf();
     const rows = $("[data-home-list]");
     const day = days.find((item) => item.id === dayId);
+    // Rows arrive once per day shown: the first load and a change of day play the cascade. A refresh or a click
+    // leaves identical rows untouched and redraws changed ones quietly.
+    const arrival = dayId + (list.length ? "" : ":empty");
+    const paint = (html) => {
+      if (html !== paintedRows) {
+        rows.toggleAttribute("data-arrive", arrival !== arrivedAs);
+        rows.innerHTML = html;
+        paintedRows = html;
+      }
+      arrivedAs = arrival;
+    };
     $("[data-home-list-count]").textContent = list.length ? String(list.length) : "";
     if (!list.length) {
       if (loadingEvents || eventIssues.length) {
-        rows.innerHTML = '<p class="home-tl__empty" role="status">' + esc(L(loadingEvents ? '正在读取事项…' : '部分事项暂不可读取，请重新读取。')) + '</p>';
+        paint('<p class="home-tl__empty" role="status">' + esc(L(loadingEvents ? '正在读取事项…' : '部分事项暂不可读取，请重新读取。')) + '</p>');
         return;
       }
       const starts = [
@@ -144,9 +156,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         { plugin: 'pages', title: '写一份文档', copy: '把思路写下来，逐步整理成作品。', icon: 'file' },
         { plugin: 'lingguang', title: '记下一点灵感', copy: '还没想清楚，也可以先留下。', icon: 'idea' },
       ].filter(item => document.querySelector('[data-plugin-id="' + item.plugin + '"]'));
-      rows.innerHTML = '<div class="home-start"><h3>' + L('从这里开始') + '</h3><p>' + L('选一件想做的事，或继续已有的工作。') + '</p><div class="home-start-actions">' +
+      paint('<div class="home-start"><h3>' + L('从这里开始') + '</h3><p>' + L('选一件想做的事，或继续已有的工作。') + '</p><div class="home-start-actions">' +
         starts.map(item => '<button type="button" class="home-start-action" data-home-start="' + item.plugin + '">' + ico(item.icon) + '<span><strong>' + L(item.title) + '</strong><small>' + L(item.copy) + '</small></span>' + ico('arrow') + '</button>').join('') +
-        '<button type="button" class="mw-btn mw-btn--ghost home-start-browse" data-home-start="market">' + L('浏览更多工具') + ico('arrow') + '</button></div></div>';
+        '<button type="button" class="mw-btn mw-btn--ghost home-start-browse" data-home-start="market">' + L('浏览更多工具') + ico('arrow') + '</button></div></div>');
       return;
     }
     const nowLabel = homeFlow.clockLabel(new Date());
@@ -169,7 +181,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         '<span class="home-erow__src">' + ico(event.icon) + esc(event.origin.title) + "</span>" +
         "</button>";
     });
-    rows.innerHTML = html;
+    paint(html);
     $$("[data-home-open-event]").forEach((btn) => btn.classList.toggle("is-on", btn.dataset.homeOpenEvent === eventId));
   };
   const renderDetail = () => {

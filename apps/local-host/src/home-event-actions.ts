@@ -26,7 +26,9 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
     for (const source of sources) {
       if (!source.availability.available) {
         if (pinned) throw new ActionError(source.availability.code, source.availability.reason);
-        issues.push(source.action.title + "：" + source.availability.reason); continue;
+        // A plugin the person turned off in this project has nothing to report; anything else that stops a source is shown.
+        if (source.availability.code !== "actions.plugin_disabled") issues.push(source.action.title + "：" + source.availability.reason);
+        continue;
       }
       const reference = { capability_id: source.capability_id, version: source.version, provider_id: source.provider.provider_id };
       try {
@@ -50,7 +52,8 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
       } catch { /* Recommendations are optional; a failed judgment never hides the original event. */ }
     }
     const current = await client.discover(caller);
-    const withdrawn = sources.filter(source => !current.some(view => view.capability_id === source.capability_id && view.version === source.version && view.provider.provider_id === source.provider.provider_id && view.availability.available));
+    // Only sources that were read can have been withdrawn during the read; ones unavailable from the start were handled above.
+    const withdrawn = sources.filter(source => source.availability.available && !current.some(view => view.capability_id === source.capability_id && view.version === source.version && view.provider.provider_id === source.provider.provider_id && view.availability.available));
     if (pinned && withdrawn.length) throw new ActionError("actions.event_source_changed", "事项提供方在读取期间已失效");
     for (const source of withdrawn) if (!issues.some(issue => issue.startsWith(source.action.title + "："))) issues.push(source.action.title + "：提供方已失效");
     return { events: events.filter(event => !withdrawn.some(source => same(event.source, { ...source, provider_id: source.provider.provider_id }))), issues };

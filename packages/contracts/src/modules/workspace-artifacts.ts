@@ -1,5 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { HostCapabilityDefinition } from "../platform/app-host.js";
+import type { ActionMetadata } from "../platform/actions.js";
 
 /** Host reads are always scoped to a currently linked workspace, never an absolute path. */
 export interface WorkspaceFileQuery {
@@ -740,3 +741,25 @@ export function parseCodingChangeSet(value: unknown): CodingChangeSet {
   if (value.coverage !== undefined && value.coverage !== "text-reviews") throw new Error("变更覆盖范围无效");
   return { ...structuredClone(value), files } as unknown as CodingChangeSet;
 }
+
+/**
+ * The same project-folder reads, for callers other than the plugins that already consume the capabilities above:
+ * the person, the built-in Agent, workflows and granted MCP clients. They need `workspace:read`, so an MCP client
+ * gets them only by an exact grant; the plugin-facing capabilities keep their own contract.
+ */
+const workspaceRead = (title: string, description: string, input: Record<string, unknown>, required: readonly string[]): ActionMetadata => ({
+  title, description, kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions: ["workspace:read"], subject_kinds: ["workspace"],
+  input_schema: { type: "object", properties: input, required, additionalProperties: false }, output_schema: { type: "object" },
+});
+export const workspaceReadActions = {
+  file: { capability_id: "projects.workspace.files.read", version: 1, operation: "query",
+    action: workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录",
+      { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, path: { type: "array", items: { type: "string", minLength: 1 }, maxItems: 256, title: "路径" },
+        kind: { enum: ["directory", "text"], title: "读取目录或文本" } }, ["workspace_id", "path", "kind"]),
+  } as HostCapabilityDefinition<WorkspaceFileQuery, WorkspaceFileResult>,
+  git: { capability_id: "projects.workspace.git.inspect", version: 1, operation: "query",
+    action: workspaceRead("读取项目仓库状态", "读取当前项目已关联工作目录的 Git 状态、摘要、差异或冲突文件；只读，不改变仓库",
+      { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, kind: { enum: ["status", "summary", "pr-support", "diff", "conflict"], title: "读取什么" },
+        path: { type: ["array", "string"], title: "路径" }, side: { enum: ["index", "worktree"], title: "差异一侧" } }, ["workspace_id", "kind"]),
+  } as HostCapabilityDefinition<WorkspaceGitQuery, WorkspaceGitResult>,
+} as const;

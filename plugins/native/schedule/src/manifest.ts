@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { scheduleAgentManifest } from "./roles.js";
 import { SCHEDULE_UI_CONTRIBUTION_ID } from "./ui.js";
+import { SCHEDULE_ACTIONS } from "./actions.js";
 
 export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
 /** What the project database stores for this Plugin. */
@@ -19,11 +20,14 @@ export const scheduleManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "storage:private", required: true, reason: "项目里的定时任务" },
+    { permission: "schedule:read", required: true, reason: "读取定时任务与闹钟" },
+    { permission: "schedule:write", required: true, reason: "新建、修改、暂停和归档定时任务" },
   ],
   capabilities: {
     provides: [],
     consumes: Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
   },
+  actions: SCHEDULE_ACTIONS,
   artifacts: { produces: [], consumes: [] },
   agent: scheduleAgentManifest,
   ui: {

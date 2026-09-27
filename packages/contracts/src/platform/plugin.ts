@@ -209,6 +209,7 @@ export interface PluginManifest {
    */
   mcp_exports?: PluginMcpExportDeclaration[];
   /** Local actions the Host may offer on objects; not MCP and not events. */
+  /** @deprecated Callable behavior is declared as `actions` and discovered from the common directory; no built-in plugin declares this. */
   behaviors?: import("./plugin-behaviors.js").PluginBehaviorDeclaration[];
   /** Places where a user can bind a function. Binding values are not in the Manifest. */
   function_scenes?: import("./plugin-behaviors.js").PluginFunctionSceneDeclaration[];

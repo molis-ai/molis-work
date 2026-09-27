@@ -56,7 +56,8 @@ export const goalsActions = {
   list: action<GoalListActionInput, GoalEventDirectoryPage>("goals.list", "目标目录", "读取当前项目未归档和未丢弃的目标；分页游标来自上次列表结果", "query",
     object({ work_status: { enum: [...goalEventWorkStatuses] }, limit: { type: "integer", minimum: 1, maximum: 100 }, after_cursor: text }, []),
     object({ goals: { type: "array", items: goalDirectoryItemSchema },
-      next_cursor: { type: ["string", "null"] }, observed_event_cursor: count })),
+      // Installed plugins may read the directory and leave notes; nothing else in Goals is open to them.
+      next_cursor: { type: ["string", "null"] }, observed_event_cursor: count }), true),
   state: action<GoalReadActionInput, GoalEventStateView>("goals.state.read", "读取目标状态", "读取当前约定、要求、报告摘要、决定及收尾状态；历史正文通过事件读取", "query", goalInput, goalStateSchema),
   directoryItem: action<GoalReadActionInput, GoalEventDirectoryItem | null>("goals.directory.read", "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query", goalInput, nullable(goalDirectoryItemSchema)),
   events: action<GoalReadActionInput & GoalEventListQuery, GoalEventListPage>("goals.events.list", "读取目标事件", "按记录顺序读取事件原文；after_cursor 为上次事件分页游标", "query",
@@ -80,7 +81,7 @@ export const goalsActions = {
       recorded: { const: true }, completion_effect: { const: false } })),
   note: action<GoalNoteActionInput, GoalEventMutationResult>("goals.note", "记录目标便笺", "将正文记到指定目标的历史；便笺不会推进状态或代替用户决定。重试须保留相同 idempotency_key", "command",
     object({ goal_id: identifier, body: identifier, idempotency_key: identifier }),
-    object({ event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } })),
+    object({ event_id: text, observed_event_cursor: count, replayed: boolean, recorded: { const: true } }), true),
 } as const;
 
 export const GOALS_ACTIONS: readonly ActionDefinition[] = Object.values(goalsActions);

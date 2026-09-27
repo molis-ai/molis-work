@@ -1,5 +1,5 @@
 import {
-  ActionError, inspectActionDeclarations, requireSynchronous,
+  ActionError, actionReachesAudience, inspectActionDeclarations, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
@@ -28,7 +28,12 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly checkingDependencies = new Set<string>();
 
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
-    private readonly effects: { beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void> } = {}) {}
+    private readonly effects: {
+      beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
+      /** After a handler ran: which action, for whom, and whether it succeeded. Never the input or result. */
+      settled?(context: ActionCallContext, action: ActionReference & { operation: string; title: string; provider_title: string },
+        outcome: { ok: true } | { ok: false; code?: string; message: string }): void;
+    } = {}) {}
 
   registerProvider(registration: ActionProviderRegistration): () => void {
     const problems = inspectActionDeclarations(registration.definitions, registration.scenes);
@@ -101,13 +106,23 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             if (validateOutput) validateActionValue(validateOutput, value, "output");
             return value;
           };
+          // Only what was called, by whom and how it ended is reported; input and result never leave the call.
+          const settled = (error?: unknown) => {
+            try {
+              this.effects.settled?.(context, { ...reference, operation: definition.operation, title: definition.action.title, provider_title: provider.title },
+                error === undefined ? { ok: true } : { ok: false, code: (error as { code?: unknown })?.code === undefined ? undefined : String((error as { code?: unknown }).code),
+                  message: (error instanceof Error ? error.message : String(error)).slice(0, 200) });
+            } catch { /* A failed record never changes the call. */ }
+          };
           try {
             const result = handler.handle(execution, input);
             if (handler.execution === "sync") {
-              try { return checked(requireSynchronous(result)); } finally { executing = false; }
+              try { const value = checked(requireSynchronous(result)); settled(); return value; }
+              catch (error) { settled(error); throw error; }
+              finally { executing = false; }
             }
-            return Promise.resolve(result).then(checked).finally(() => { executing = false; });
-          } catch (error) { executing = false; throw error; }
+            return Promise.resolve(result).then(checked).then(value => { settled(); return value; }, error => { settled(error); throw error; }).finally(() => { executing = false; });
+          } catch (error) { executing = false; settled(error); throw error; }
         };
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, synchronous: handler.execution === "sync" }));
@@ -169,7 +184,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (definition.operation === "wait") return [];
       if (!definition.action || !provider || !context.actor_id
         || (provider.project_id && provider.project_id !== context.project_id)
-        || !definition.action.audiences.includes(context.audience)) return [];
+        || !actionReachesAudience(definition.action, definition.capability_id, context.audience)) return [];
       if (!inspection && !visible(definition as ActionDefinition, provider, context)) return [];
       return [{ capability_id: definition.capability_id, version: definition.version, operation: definition.operation,
         action: definition.action, provider, availability: this.registry.availability(context, definition) }];
@@ -404,7 +419,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
 
 function visible(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
   return !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
-    && d.action.audiences.includes(c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
+    && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
     && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))
     && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version
       && (!ref.provider_id || ref.provider_id === provider.provider_id)));

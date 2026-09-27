@@ -21,19 +21,38 @@ function explainContract(error: unknown, contract: unknown): string {
     }
   if (missing) for (const operation of operations) if (operation.input?.required?.includes(missing) && operation.examples?.some(example => !object(example.input) || !(missing in example.input)))
     return '操作 ' + operation.id + ' 的示例输入缺少必填字段 ' + missing + '：可以不填的字段写成 "' + missing + '?"（例如筛选条件），否则在示例里给出它';
+  // An exact expected result has to carry every field the output requires.
+  if (missing) for (const operation of operations as Array<{ id?: string; output?: { required?: string[] }; examples?: Array<{ output?: unknown }> }>) {
+    const index = (operation.examples ?? []).findIndex(example => object(example.output) && operation.output?.required?.includes(missing) && !(missing in (example.output as Record<string, unknown>)));
+    if (index >= 0) return '操作 ' + operation.id + ' 第 ' + (index + 1) + ' 个示例的期望结果缺少 ' + missing + '：要么写全输出的必填字段，要么改用 "includes" 只检查其中几个字段';
+  }
   return '功能合同不成立：' + message;
 }
 export function validateAgentDesign(input: unknown, capabilities: readonly string[], resources: readonly string[], validateContract: (contract: unknown) => void): AgentDesign {
   if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance'].includes(key))) throw new Error('方案包含未知属性');
   for (const field of ['id', 'title', 'description', 'rationale']) if (typeof input[field] !== 'string' || !input[field] || (input[field] as string).length > 4000) throw new Error('方案缺少有效的' + field);
   if (!Array.isArray(input.journey) || input.journey.length < 1 || input.journey.length > 20 || input.journey.some(item => typeof item !== 'string' || item.length > 1000)) throw new Error('用户旅程不完整');
+  // A site is named by its exact host; the person approves each one at installation.
+  for (const operation of (input.contract as { operations?: Array<{ id: string; effects?: { networkDomains?: string[] } }> } | undefined)?.operations ?? [])
+    for (const domain of operation.effects?.networkDomains ?? []) if (!/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain) || domain.endsWith('.local') || domain.endsWith('.localhost'))
+      throw new Error('操作 ' + operation.id + ' 的 networkDomains 写成网站的确切域名（例如 api.open-meteo.com），不能是网址、IP、通配符或本机名：' + domain);
   try { validateContract(input.contract); } catch (error) { throw new Error(explainContract(error, input.contract)); }
   const design = input as unknown as AgentDesign;
   for (const operation of design.contract.operations) {
+    // A plugin's own operation named like a platform capability is a mix-up: using a capability is declared, not redefined.
+    if (capabilities.includes(operation.id)) throw new Error('操作 ' + operation.id + ' 和平台能力同名：插件自己的操作用自己的前缀（例如 reports.list），要用这个能力就在调用它的操作的 effects.capabilities 里写 "' + operation.id + '"');
     for (const capability of operation.effects.capabilities ?? []) if (!capabilities.includes(capability)) throw new Error('项目能力目录中没有：' + capability);
     for (const resource of operation.effects.resources ?? []) if (!resources.includes(resource)) throw new Error('没有这个已授权资源：' + resource);
+    // Documents, artifacts and what goes to the Feed or Inbox are other plugins' actions in the catalog, not sandbox effects.
+    if (operation.effects.events?.length || operation.effects.artifacts?.length)
+      throw new Error('操作 ' + operation.id + ' 的 effects 里不要写 events 或 artifacts：写文档用能力清单里的 pages.create / pages.update，存成果用 pages.promote，读成果用 artifacts.read，放进 Feed 用 feed.content.receive，到点提醒用 reminders.add');
   }
   design.parts = validatePluginComponentPlans(design.parts, design.contract);
+  // "今天已经喝了 {{count}} 杯": a sentence filled from the part's own query result, so the field must be in it.
+  for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of (text ?? '').matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {
+    const query = part.read && design.contract.operations.find(item => item.id === part.read!.operationId), shown = query ? pluginSchemaAt(query.output, part.read!.outputPath) : undefined;
+    if (!shown || shown.type !== 'object' || !pluginSchemaAt(shown, field!)) throw new Error('组件 ' + part.id + ' 的文字里用了 {{' + field + '}}，但它没有读取一个返回 ' + field + ' 的查询：给它 "read": 一个 output 含 ' + field + ' 的 query');
+  }
   // A field taken from another part must exist there: in the records a collection lists, or in the result of the
   // command a form ran. Otherwise it stays empty and neither the person nor acceptance can go on.
   for (const part of design.parts) for (const binding of [part.read, part.submit]) for (const [field, source] of Object.entries(binding?.input ?? {})) {
@@ -63,6 +82,20 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
       if (step.action === 'page') { if (!design.contract.pages.some(page => page.id === step.pageId)) throw new Error('验收引用不存在的页面'); continue; }
       const part = design.parts.find(item => item.id === step.componentId); if (!part) throw new Error(where + '没有组件 ' + step.componentId + '（组件有 ' + design.parts.map(item => item.id).join('、') + '）');
       if (step.action === 'submit' && !part.submit) throw new Error(where + '组件 ' + part.id + ' 没有提交操作，不能 submit');
+      // Every case starts from empty data: the records whose order it checks are ones it wrote itself (or the stand-in's "示例").
+      if (step.action === 'expectOrder') {
+        const typed = test.steps.slice(0, position).flatMap(earlier => earlier.action === 'fill' && typeof earlier.value === 'string' ? [earlier.value] : []);
+        const unknown = step.texts.filter(text => text !== '示例' && !typed.some(value => value.includes(text) || text.includes(value)));
+        if (unknown.length) throw new Error(where + '检查先后顺序用的文字要是这条验收前面自己填写过的内容（先 fill 两条不同的记录，再检查它们的先后），「' + unknown.join('」「') + '」不会出现在界面上');
+      }
+      // An action whose whole input is one list's chosen record is a button on that record: a case reaches it by
+      // choosing a record first. "Not found" and similar errors belong to the operation's examples, not the interface.
+      if (step.action === 'submit' && part.submit) {
+        const sources = Object.values(part.submit.input), hosts = new Set(sources.flatMap(source => source.source === 'selection' ? [source.componentId] : []));
+        const [host] = hosts;
+        if (hosts.size === 1 && sources.every(source => source.source !== 'form') && !test.steps.slice(0, position).some(earlier => earlier.action === 'select' && earlier.componentId === host))
+          throw new Error(where + part.id + ' 是 ' + host + ' 每条记录上的按钮，先写 select ' + host + ' 某条记录上的文字再 submit；"找不到记录"这类错误写进操作的示例（error），不要写成界面验收');
+      }
       if (step.action === 'fill' || step.action === 'expectValue') {
         const fields = [part.read, part.submit].flatMap(binding => Object.values(binding?.input ?? {})).flatMap(source => source.source === 'form' ? [source.field] : []);
         if (!fields.includes(step.field)) throw new Error(where + '组件 ' + part.id + ' 没有可填写的字段 ' + step.field + '（' + (fields.length ? '它的字段是 ' + fields.join('、') : '它没有可填写的字段') + '）。按条件筛选列表时，在 collection 的 read 里写 {"op": 查询, "input": {"字段": "form"}}，再 fill 列表组件.字段');

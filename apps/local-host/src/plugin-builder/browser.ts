@@ -55,9 +55,18 @@ const flat = (root: string) => `(((${root})?.innerText??'')+' '+[...(${root})?.q
 /** "编程珠玑 在读" on a list: one record shows every word, whether the list is a table, cards or lines. */
 const oneRecord = (root: string, text: string) => {
   const words = collapse(text).split(' ').filter(Boolean);
-  return words.length < 2 ? 'false' : `[...(${root})?.querySelectorAll('[data-record-id]')??[]].some(r=>{const t=r.innerText.replace(/\\s+/g,' ');return ${literal(words)}.every(w=>t.includes(w))})`;
+  // A record in a calendar belongs to its day: "今天 1" is a record showing 1 under today's heading.
+  return words.length < 2 ? 'false' : `[...(${root})?.querySelectorAll('[data-record-id]')??[]].some(r=>{const d=r.closest('.pc-agenda-day')?.querySelector('.pc-agenda-date')?.innerText??'';const t=(d+' '+r.innerText).replace(/\\s+/g,' ');return ${literal(words)}.every(w=>t.includes(w))})`;
 };
 const component = (id: string) => `[...document.querySelectorAll('[data-component-id]')].find(el=>el.dataset.componentId===${literal(id)})`;
+/** The button that opens a part's sheet, dialog or confirmation; it may sit in the page header rather than the part. */
+const opener = (id: string) => `[...document.querySelectorAll('[data-pc-open]')].find(el=>el.dataset.pcOpen===${literal(id)})`;
+/** Open a part's closed sheet or dialog, as a person would, when what the step needs is inside it. */
+async function reach(browser: BuilderBrowser, id: string, target: string) {
+  if (await browser.evaluate<boolean>(`(()=>{const el=${target};return !!el&&!!el.closest('dialog:not([open])')})()`)) { await browser.click(opener(id)); await browser.wait(`!(${target})?.closest('dialog:not([open])')`); }
+}
+/** Folded records (the catalog's accordion) are opened before their text is read. */
+const unfold = (root: string) => `(${root})?.querySelectorAll('details:not([open])').forEach(el=>{el.open=true})`;
 /** `selected` remembers, per collection, the record a case chose, for actions that sit on that record. */
 async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['steps'][number], selected: Map<string, string>) {
   if (step.action === 'reload') { await browser.evaluate('globalThis.__molisPluginReady=false'); await browser.command('Page.reload'); await browser.wait('globalThis.__molisPluginReady===true'); return; }
@@ -70,6 +79,19 @@ async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['ste
   const root = component(step.componentId);
   if (step.action === 'fill') {
     const field = `[...(${root})?.querySelectorAll('[data-field]')??[]].find(el=>el.name===${literal(step.field)})`;
+    await reach(browser, step.componentId, field);
+    // A short set of choices shows as chips: pick the chip, as a person would.
+    // A case may name a choice by its value or by the words the chip shows.
+    const chips = await browser.evaluate<Array<[string, string]> | null>(`(()=>{const el=${field};return el&&el.dataset.pcChoice!==undefined?[...el.parentElement.querySelectorAll('[data-pc-value]')].map(c=>[c.dataset.pcValue,c.textContent]):null})()`);
+    if (chips) {
+      const wanted = String(step.value), chip = chips.find(([value]) => value === wanted) ?? chips.find(([, words]) => words === wanted);
+      if (!chip) throw new Error('「' + step.field + '」没有「' + wanted + '」这个选项（可选：' + chips.map(([, words]) => words).join('、') + '）');
+      await browser.click(`[...(${field}).parentElement.querySelectorAll('[data-pc-value]')].find(el=>el.dataset.pcValue===${literal(chip[0])})`); return;
+    }
+    // Date and time pickers take their value directly; a moment is given to the minute, in this machine's time.
+    if (typeof step.value === 'string' && await browser.evaluate<boolean>(`['date','datetime-local','time','month'].includes((${field})?.type)`)) {
+      await browser.evaluate(`(()=>{const el=${field},v=${literal(step.value)};const d=new Date(v);el.value=el.type==='datetime-local'&&/[zZ]|[+-]\\d{2}:?\\d{2}$/.test(v)&&!isNaN(d)?new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16):el.type==='datetime-local'?v.slice(0,16):el.type==='date'?v.slice(0,10):v;el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));})()`); return;
+    }
     if (typeof step.value === 'boolean') await browser.evaluate(`(()=>{const el=${field};if(!el)throw Error('验收字段不存在');if(el.type==='checkbox')el.checked=${step.value};else el.value=${literal(String(step.value))};el.dispatchEvent(new Event('change',{bubbles:true}));})()`);
     else await browser.fill(field, step.value);
   } else if (step.action === 'submit') {
@@ -79,15 +101,26 @@ async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['ste
       const record = selected.get(host); if (!record) throw new Error('要先选中「' + host + '」里的一条记录');
       const feedback = `[...document.querySelectorAll('[data-pc-feedback]')].find(el=>el.dataset.pcFeedback===${literal(step.componentId)})`;
       await browser.evaluate(`(()=>{const el=${feedback};if(el){el.className='';el.textContent='';}})()`);
+      // A folded record (the catalog's accordion) is opened to reach the buttons inside it.
+      await browser.evaluate(`(()=>{const r=${record};if(r instanceof HTMLDetailsElement)r.open=true})()`);
       await browser.click(`[...(${record})?.querySelectorAll('[data-pc-action]')??[]].find(el=>el.dataset.pcAction===${literal(step.componentId)})`);
-      await browser.wait(`(()=>{const el=${feedback};if(el?.className==='pc-error')throw Error(el.textContent);return el?.className==='pc-success'})()`);
+      // An action that cannot be undone asks first; the case confirms it.
+      const confirm = `[...document.querySelectorAll('dialog[open][data-pc-confirm]')].find(el=>el.dataset.pcConfirm===${literal(step.componentId)})?.querySelector('[data-pc-confirm-yes]')`;
+      await browser.wait(`!!(${confirm})||(()=>{const el=${feedback};return !!el&&(el.classList.contains('pc-success')||el.classList.contains('pc-error'))})()`);
+      if (await browser.evaluate<boolean>(`!!(${confirm})`)) await browser.click(confirm);
+      await browser.wait(`(()=>{const el=${feedback};if(el?.classList.contains('pc-error'))throw Error(el.textContent);return !!el?.classList.contains('pc-success')})()`);
       return;
     }
     // The browser silently refuses a form with an empty required field; name the field instead of timing out.
     const empty = await browser.evaluate<string>(`[...(${root})?.querySelectorAll('form [data-field]')??[]].filter(el=>!el.checkValidity()).map(el=>el.name).join('、')`);
     if (empty) throw new Error('表单还有必填字段是空的：' + empty);
-    await browser.click(`(${root})?.querySelector('[type=submit]')`);
-    await browser.wait(`(()=>{const el=${root};if(el?.querySelector('.pc-error')?.textContent)throw Error(el.querySelector('.pc-error').textContent);return !!el?.querySelector('.pc-success')&& !el.querySelector('[type=submit]')?.disabled})()`);
+    const submit = `(${root})?.querySelector('[type=submit]')`;
+    // A standing action that cannot be undone opens its confirmation first.
+    const confirm = `[...document.querySelectorAll('dialog[data-pc-confirm]')].find(el=>el.dataset.pcConfirm===${literal(step.componentId)})`;
+    if (await browser.evaluate<boolean>(`!!(${confirm})&&!(${confirm}).closest('[hidden]')&&(${submit})?.hidden`)) {
+      await browser.click(opener(step.componentId)); await browser.click(`(${confirm})?.querySelector('[data-pc-confirm-yes]')`);
+    } else { await reach(browser, step.componentId, submit); await browser.click(submit); }
+    await browser.wait(`(()=>{const el=${root},error=el?.querySelector('[data-pc-feedback].pc-error');if(error?.textContent)throw Error(error.textContent);return !!el?.querySelector('.pc-success')&& !el.querySelector('[type=submit]')?.disabled})()`);
   } else if (step.action === 'select') {
     // Ids are made at run time, so a case may name the record by the text it shows.
     const record = step.recordId !== undefined
@@ -95,11 +128,13 @@ async function executeStep(browser: BuilderBrowser, step: BrowserAcceptance['ste
       : `[...(${root})?.querySelectorAll('[data-record-id]')??[]].find(el=>el.innerText.includes(${literal(step.text ?? '')}))`;
     await browser.wait(`!!(${record})`);
     selected.set(step.componentId, record);
+    await browser.evaluate(`(()=>{const r=${record};if(r instanceof HTMLDetailsElement)r.open=true})()`);
     const choose = `(${record})?.querySelector('[data-pc-select]')`;
     if (await browser.evaluate<boolean>(`!!${choose}`)) await browser.click(choose);
   }
   // Visible text is compared with whitespace collapsed: line breaks between a record's parts are layout, not content.
-  else if (step.action === 'expect') await browser.wait(`${flat(root)}.includes(${literal(collapse(step.text))})||${oneRecord(root, step.text)}`);
+  if (['expect', 'expectOrder', 'expectAbsent'].includes(step.action)) await browser.evaluate(unfold(root));
+  if (step.action === 'expect') await browser.wait(`${flat(root)}.includes(${literal(collapse(step.text))})||${oneRecord(root, step.text)}`);
   else if (step.action === 'expectOrder') await browser.wait(`(()=>{const t=${flat(root)};let at=-1;for(const part of ${literal(step.texts.map(collapse))}){const next=t.indexOf(part,at+1);if(next<0)return false;at=next;}return true;})()`);
   else if (step.action === 'expectAbsent') { await browser.wait('globalThis.__molisPluginPending===0&&!document.querySelector("[data-pc-pending]")'); const present = await browser.evaluate<boolean>(`${flat(root)}.includes(${literal(collapse(step.text))})||${oneRecord(root, step.text)}`); if (present) throw new Error('验收不应显示：' + step.text); }
   else if (step.action === 'expectValue') {
@@ -165,9 +200,10 @@ class BuilderBrowser {
     await this.command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 }); await this.command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
   }
   async fill(expression: string, value: string) {
-    await this.click(expression);
+    // The catalog's select hides the native element behind its own menu; its value is set directly.
     const select = await this.evaluate<boolean>(`(${expression})?.tagName==='SELECT'`);
-    if (select) { await this.evaluate(`(()=>{const el=${expression};el.value=${literal(value)};el.dispatchEvent(new Event('change',{bubbles:true}));})()`); return; }
+    if (!select) await this.click(expression);
+    if (select) { await this.evaluate(`(()=>{const el=${expression};const v=${literal(value)};el.value=[...el.options].some(o=>o.value===v)?v:[...el.options].find(o=>o.textContent===v)?.value??v;el.dispatchEvent(new Event('change',{bubbles:true}));})()`); return; }
     await this.command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', modifiers: 4, commands: ['selectAll'] });
     await this.command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', modifiers: 0 }); await this.command('Input.insertText', { text: value });
   }

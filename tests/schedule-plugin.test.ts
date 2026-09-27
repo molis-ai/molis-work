@@ -15,6 +15,7 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { directScheduleActions } from "./schedule-direct-actions.js";
 
 const primitives: ScheduleUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -143,25 +144,24 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
 
 test("Schedule HTTP 能列出任务并暂停", async () => {
   const jobs = [job()];
+  const unused = () => { throw new Error("unused"); };
   const routes = new SchedulePluginRouteTable(createScheduleRouteHandlers({
-    listJobs: () => jobs,
-    setEnabled: (jobId, enabled) => {
-      const current = jobs.find((item) => item.job_id === jobId);
-      if (!current) throw new Error("missing");
-      const next = { ...current, enabled };
-      jobs[0] = next;
-      return next;
-    },
-    listTasks: () => [],
-    createTask: () => {
-      throw new Error("unused");
-    },
-    setTaskEnabled: () => {
-      throw new Error("unused");
-    },
-    openTask: () => {
-      throw new Error("unused");
-    },
+    actions: directScheduleActions({
+      listJobs: () => jobs,
+      setEnabled: (jobId, enabled) => {
+        const current = jobs.find((item) => item.job_id === jobId);
+        if (!current) throw new Error("missing");
+        const next = { ...current, enabled };
+        jobs[0] = next;
+        return next;
+      },
+      listTasks: () => [],
+      createTask: unused,
+      updateTask: unused,
+      archiveTask: unused,
+      setTaskEnabled: unused,
+      openTask: unused,
+    }),
     changed: () => undefined,
   }));
   const listed = await routes.handle({

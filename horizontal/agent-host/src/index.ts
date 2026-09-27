@@ -452,7 +452,8 @@ export class AgentHost implements AgentHostApi {
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
       throw new AgentHostError("agent.role_execution_exceeded", "当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
     }
-    if (!request.execution_plan) hostTools = hostTools.filter(tool => !STEP_TOOLS.includes(tool));
+    // A round without a plan of its own keeps the board tools its role grants: it reads the project's board, and reads and
+    // reports on steps handed to its session, even ones handed while it runs. The Host's board hook allows nothing else.
 
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.
@@ -532,7 +533,9 @@ export class AgentHost implements AgentHostApi {
         const tools = child.host_tools ?? [];
         const childExecution = child.execution ?? "read-only";
         // A child in the main workspace never writes files; it may run commands (each reviewed) only when its parent holds run-command.
-        const allowed = ["read-file", "list", "search", "context-remaining", ...(childWorkspaces && childExecution !== "read-only" ? ["write", "edit-file"] : []), ...(childExecution === "workspace-write" ? ["run-command"] : [])];
+        const allowed = ["read-file", "list", "search", "context-remaining", ...(childWorkspaces && childExecution !== "read-only" ? ["write", "edit-file"] : []), ...(childExecution === "workspace-write" ? ["run-command"] : []),
+          // Reading and waiting on the parent's background commands, when the parent holds that itself.
+          ...(hostTools.includes("await-commands") ? ["command-output", "await-commands"] : [])];
         if (!childWorkspaces && childExecution === "text-edit" || tools.some(tool => !allowed.includes(tool) || !childWorkspaces && !hostTools.includes(tool))) throw new AgentHostError("agent.role_execution_exceeded", "只读子角色请求了当前父任务未开放的工具");
         if (EXECUTION_CAPABILITIES[childExecution].some(capability => adapter.descriptor.capabilities[capability] === "unsupported")) throw new AgentHostError("agent.capability_unavailable", "运行时不能执行声明的子角色操作");
         const prompt = authority.prompts?.find(prompt => prompt.prompt_id === child.role_id && prompt.version === child.version);

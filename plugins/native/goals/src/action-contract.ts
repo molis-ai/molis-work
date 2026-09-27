@@ -1,8 +1,10 @@
-import type { ActionCallContext, ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionAudience, ActionCallContext, ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export function goalAction<Input, Output>(id: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema): ActionDefinition<Input, Output> {
+/** `plugins` opens one action to installed plugins too (still under the plugin's own granted permissions). */
+export function goalAction<Input, Output>(id: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, plugins = false): ActionDefinition<Input, Output> {
+  const audiences: ActionAudience[] = ["user", "agent", "workflow", "mcp", ...(plugins ? ["plugin" as const] : [])];
   return { capability_id: id, version: 1, operation, action: { title, description,
-    kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
+    kind: operation === "query" ? "query" : "operation", scope: "project", audiences,
     permissions: [operation === "query" ? "goals:read" : "goals:write"], subject_kinds: ["goal"], input_schema: input, output_schema: output } };
 }
 

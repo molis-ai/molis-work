@@ -127,3 +127,19 @@ test("native event providers project original Feed, Inbox, source state and proj
     assert.equal(after.events.some(event => event.subject.id === activeEntry.entry_id || event.subject.id === active.item_id), false);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("Home says nothing about plugins turned off in the project, but still reports sources that cannot answer", async () => {
+  const service = new ActionService();
+  service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: caller.project_id! }, definitions: Object.values(homeEventActions),
+    handlers: createHomeEventHandlers(service, { capability_id: "home.recommendations.missing", version: 1 }) });
+  const source = (id: string, title: string, availability: { available: false; code: string; reason: string }) => {
+    const query = defineHomeEventsAction(id, ["unknown-note"], title, ["notes:read"]);
+    service.registerProvider({ provider: { provider_id: id, title, kind: "plugin", plugin_id: id, project_id: caller.project_id! }, availability: () => availability,
+      definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title, icon: "note" }, events: [original] }) }] });
+  };
+  source("off.notes.events", "停用插件事项", { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" });
+  source("down.notes.events", "服务中断事项", { available: false, code: "actions.service_unavailable", reason: "笔记服务未启动" });
+  const result = await service.invoke(caller, homeEventActions.events, window) as HomeEventsResult;
+  assert.equal(result.events.length, 0);
+  assert.deepEqual(result.issues, ["服务中断事项：笔记服务未启动"]);
+});

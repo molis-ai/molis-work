@@ -31,12 +31,6 @@ export const inboxManifest: PluginManifest = {
   action_scenes: [inboxNextScene],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
-  behaviors: [
-    { behavior_id: "compose", title: "整理成文稿", effect: "read", subject_kinds: ["inbox_entry"] },
-    { behavior_id: "verify", title: "先核查", effect: "read", subject_kinds: ["inbox_entry"] },
-    { behavior_id: "done", title: "做完了", effect: "write", subject_kinds: ["inbox_entry"] },
-    { behavior_id: "dismiss", title: "忽略", effect: "write", subject_kinds: ["inbox_entry"] },
-  ],
   judgment_subjects: [
     { subject_kind: "inbox_entry", title: "Inbox 条目" },
   ],

@@ -141,6 +141,10 @@ export interface PrologueStartInput {
   mode: "plan" | "build";
   /** `digest`: the task carries earlier rounds; do not replay the session's verbatim history. */
   history?: "digest";
+  /** The project work item this round waited as; it takes that item over. */
+  queued_work_id?: string;
+  /** The session's name as the person sees it. */
+  session_title?: string;
 }
 
 /** Host observation times only; the SDK ledger owns content and execution state. */
@@ -157,8 +161,12 @@ export interface PrologueRuntimePort {
   /** The window the runtime packs against when a model states none; a configured window is capped by it. */
   defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
-  amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number): Promise<NonNullable<AgentRunView["step_board"]>>;
+  amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string): Promise<NonNullable<AgentRunView["step_board"]>>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
+  projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
+  messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
+  waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
@@ -261,6 +269,10 @@ interface RunRecord {
 
 export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
+  readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
+  readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
+  readonly waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -279,6 +291,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   constructor(options: PrologueAdapterOptions) {
     this.#runtime = options.runtime;
+    if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
+    if (options.runtime.messages) this.messages = options.runtime.messages;
+    if (options.runtime.waits) this.waits = options.runtime.waits;
+    if (options.runtime.background) this.background = options.runtime.background;
     if (options.runtime.subagents) this.subagents = {
       ...(options.runtime.subagents.workspaces ? { workspaces: true as const } : {}),
       list: async run => { await this.read(run); return options.runtime.subagents!.list(run); },
@@ -391,8 +407,20 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
     const record = await this.#loadSession(session.session_id);
     const latest = record.runs.at(-1);
+    // Who holds the unfinished steps of the latest planned round: a directory shows what waits on the person.
+    let steps: AgentSessionStatus["steps"];
+    const planned = [...record.runs].reverse().find(ref => this.#requireRun(ref.run_id).view.frozen.execution_plan);
+    if (planned && this.#runtime.readStepBoard) {
+      try {
+        const board = await this.#runtime.readStepBoard(planned);
+        const open = board && !board.terminal ? board.nodes.filter(node => !["succeeded", "failed", "cancelled"].includes(node.state)) : [];
+        const count = (kind: string) => open.filter(node => node.owner?.kind === kind).length;
+        if (open.length) steps = { mine: count("person"), subtasks: count("subtask"), unowned: count("none") };
+      } catch { /* an unreadable graph shows no counts, never made-up ones */ }
+    }
     return { owner: { ...record.owner }, status: { session_id: session.session_id, latest_phase: latest ? this.#requireRun(latest.run_id).view.phase : null,
-      recovery: Boolean(record.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false } };
+      recovery: Boolean(record.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
+      ...(steps && (steps.mine || steps.subtasks || steps.unowned) ? { steps } : {}) } };
   }
 
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
@@ -535,6 +563,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(role.actions ? { actions: role.actions } : {}),
       mode,
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
+      ...(request.queued_work_id ? { queued_work_id: request.queued_work_id } : {}),
+      ...(request.session_title ? { session_title: request.session_title.slice(0, 120) } : {}),
     });
 
     const ref: AgentRunRef = {
@@ -620,18 +650,21 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   /**
    * A person adjusts a plan graph while its round runs, or between rounds while the graph is unfinished and belongs to
-   * the session's latest round: "继续计划" carries on from that same graph, so a blocked step is decided (or a step
-   * skipped or added) before the plan continues. An earlier round's graph, or a finished one, stays the record it was.
+   * the session's latest plan round (later rounds, if any, were only conversation and have ended): "继续计划" carries on
+   * from that same graph, so a blocked step is decided (or a step skipped or added) before the plan continues. An
+   * earlier plan's graph, or a finished one, stays the record it was.
    */
-  async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number) {
+  async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string) {
     const current = await this.read(run);
     if (isEnded(current.phase)) {
       const record = await this.#loadSession(run.session_id);
-      if (record.runs.at(-1)?.run_id !== run.run_id) throw new PrologueAdapterError("agent.session_busy", "这一轮之后已有新的一轮，它的计划图不再调整；请在最新一轮上调整");
+      const at = record.runs.findIndex(entry => entry.run_id === run.run_id);
+      const later = record.runs.slice(at + 1).map(entry => this.#requireRun(entry.run_id).view);
+      if (later.some(view => view.frozen.execution_plan || !isEnded(view.phase))) throw new PrologueAdapterError("agent.session_busy", "这一轮之后已有新的计划轮或仍在进行的一轮，它的计划图不再调整；请在最新的计划轮上调整");
       if (!current.step_board || current.step_board.terminal) throw new PrologueAdapterError("agent.session_busy", "这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
     }
     if (!this.#runtime.amendStepBoard) throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能调整计划图");
-    return this.#runtime.amendStepBoard(run, amendment, expectedVersion);
+    return this.#runtime.amendStepBoard(run, amendment, expectedVersion, actorId);
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {

@@ -1,6 +1,8 @@
+import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { connectorAccountActions } from "./connector-account-actions.js";
 import { githubWhoami } from "@molis-ai/molis-work-integration-github";
-import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHost } from "./web-http.js";
 import { L } from "./web-locale.js";
 import { listConnectorSettingsCards, liveConnectorIds } from "./connector-directory.js";
@@ -9,11 +11,10 @@ import {
   bindFeishuCli,
   clearGmailOAuthForManualToken,
   connectorCredentialStatus,
-  resolveConnectorToken,
   unbindConnectorToken,
 } from "./connector-credentials.js";
-import { feishuCliFetch, feishuCliMarker, feishuCliStatus, startFeishuCliLogin, startFeishuCliSetup } from "./feishu-cli.js";
-import { completeNotionOAuth, resolveUsableNotionToken, startNotionOAuth } from "./notion-oauth.js";
+import { feishuCliStatus, startFeishuCliLogin, startFeishuCliSetup } from "./feishu-cli.js";
+import { completeNotionOAuth, startNotionOAuth } from "./notion-oauth.js";
 import { pollGithubDeviceFlow, startGithubDeviceFlow, storeGithubClientId } from "./github-oauth.js";
 import {
   completeGmailOAuthFlow, cancelGmailOAuthFlow,
@@ -23,7 +24,8 @@ import {
 import { clearOAuthConnectionTarget, oauthConnectionRefs, prepareOAuthConnectionId, readOAuthConnectionTarget, saveOAuthConnectionTarget } from "./connector-oauth-targets.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withContextJourneys, contextJourneyId } from "./context-onboarding-store.js";
-import { refreshFeedConnectionState } from "./web-connector-connections.js";
+import { refreshFeedConnectionState } from "./connector-source-state.js";
+import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 
 const TOKEN_PATH = /^\/api\/settings\/connectors\/([a-z][a-z0-9-]*)\/token$/u;
 const WHOAMI_PATH = /^\/api\/settings\/connectors\/([a-z][a-z0-9-]*)\/whoami$/u;
@@ -37,6 +39,7 @@ export async function handleLocalConnectorsSettingsHttp(
   response: ServerResponse,
   url: URL,
   homeDirectory: string | undefined,
+  accounts?: BoundActionClient,
 ): Promise<boolean> {
   if (!homeDirectory) return false;
   const method = request.method ?? "";
@@ -90,18 +93,24 @@ export async function handleLocalConnectorsSettingsHttp(
       } else {
         await completeGmailOAuthFlow({ code: url.searchParams.get("code") ?? "", state: state || undefined });
       }
+      finishConnectorAuthorization(homeDirectory, state, "connected");
       response.writeHead(302, {
         location: target?.onboarding ? returnToOnboarding("connected") : targetId ? `/settings/connectors?connected=gmail&connection=${targetId}` : "/settings/connectors?connected=gmail",
         "cache-control": "no-store",
       });
       response.end();
     } catch (error) {
+      finishConnectorAuthorization(homeDirectory, state, url.searchParams.get("error") === "access_denied" ? "cancelled" : "failed");
       if (target?.onboarding) {
         withContextJourneys(homeDirectory, store => { const journey = store.get(target!.onboarding!.id); if ((!journey.oauth_state || journey.oauth_state === state) && journey.oauth_status === "pending") { journey.auto_start = false; journey.oauth_status = url.searchParams.get("error") === "access_denied" ? "cancelled" : "failed"; journey.error = target?.expired ? "Google 授权已过期，已选材料仍在。请重新连接，或跳过 Gmail。" : null; store.save(journey); } });
         cancelGmailOAuthFlow(state);
         clearOAuthConnectionTarget("gmail", state);
         response.writeHead(302, { location: returnToOnboarding(url.searchParams.get("error") === "access_denied" ? "cancelled" : "failed"), "cache-control": "no-store" }); response.end();
-      } else sendJson(response, 400, { error: error instanceof Error ? error.message : L("Gmail 授权失败") });
+      } else {
+        cancelGmailOAuthFlow(state);
+        clearOAuthConnectionTarget("gmail", state);
+        connectorAuthorizationFailed(response, "gmail", url.searchParams.get("error") === "access_denied");
+      }
     }
     return true;
   }
@@ -130,11 +139,13 @@ export async function handleLocalConnectorsSettingsHttp(
         }));
         refreshFeedConnectionState(homeDirectory, result.connectionId);
       }
+      finishConnectorAuthorization(homeDirectory, url.searchParams.get("state") ?? "", "connected");
       response.writeHead(302, { location: result.connectionId
         ? `/settings/connectors?connected=notion&connection=${result.connectionId}` : "/settings/connectors?connected=notion", "cache-control": "no-store" });
       response.end();
     } catch (error) {
-      sendJson(response, 400, { error: error instanceof Error ? error.message : L("Notion 授权失败") });
+      finishConnectorAuthorization(homeDirectory, url.searchParams.get("state") ?? "", url.searchParams.get("error") === "access_denied" ? "cancelled" : "failed");
+      connectorAuthorizationFailed(response, "notion", url.searchParams.get("error") === "access_denied");
     }
     return true;
   }
@@ -152,7 +163,7 @@ export async function handleLocalConnectorsSettingsHttp(
         connectionId: targetId,
         displayName: typeof body.display_name === "string" ? body.display_name.trim().slice(0, 100) : undefined,
       });
-      sendJson(response, 200, { ...started, ...(targetId ? { connection_id: targetId } : {}) });
+      sendJson(response, 200, { ...started, ...(targetId ? { connection_id: targetId, authorization_id: beginConnectorAuthorization(homeDirectory, new URL(started.authorizationUrl).searchParams.get("state")!, targetId, "notion") } : {}) });
     } catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : L("Notion 授权启动失败") }); }
     return true;
   }
@@ -177,44 +188,18 @@ export async function handleLocalConnectorsSettingsHttp(
   }
   const whoamiMatch = url.pathname.match(WHOAMI_PATH);
   if (whoamiMatch && method === "POST") {
-    const connectorId = whoamiMatch[1]!;
-    const token = connectorId === "notion" ? await resolveUsableNotionToken() : resolveConnectorToken(connectorId);
-    if (!token) {
-      sendJson(response, 409, { error: L("未连接"), code: "connector_disconnected" });
-      return true;
+    // The account check is the registered connector action; this path keeps the settings page's statuses and fields.
+    if (!accounts) { sendJson(response, 503, { error: L("连接账号服务尚未装配") }); return true; }
+    try {
+      const account = await accounts.invoke(connectorAccountActions.read, { connector_id: whoamiMatch[1]! });
+      sendJson(response, 200, account.scopes ? { login: account.login, scopes: account.scopes } : { login: account.login });
+    } catch (error) {
+      const code = error instanceof ActionError ? error.code : "";
+      const status = code === "connectors.disconnected" ? 409 : code === "connectors.needs_auth" ? 401 : code === "connectors.configuration" ? 400
+        : code === "connectors.unknown" ? 404 : code.startsWith("actions.") ? 403 : 502;
+      sendJson(response, status, { error: error instanceof Error ? error.message : L("无法读取账号"),
+        ...(code === "connectors.disconnected" ? { code: "connector_disconnected" } : { failure: code === "connectors.needs_auth" ? "needs_auth" : code === "connectors.configuration" ? "configuration" : "network", code }) });
     }
-    if (connectorId === "github") {
-      const result = await githubWhoami({ token });
-      if (!result.ok) {
-        sendJson(response, result.failure === "needs_auth" ? 401 : 502, {
-          error: result.failure === "needs_auth" ? L("GitHub 需要重新授权") : (result.message || L("无法读取 GitHub 账号")),
-          failure: result.failure,
-        });
-        return true;
-      }
-      sendJson(response, 200, { login: result.login, scopes: result.scopes });
-      return true;
-    }
-    if (!isCatalogConnectorId(connectorId)) {
-      sendJson(response, 404, { error: L("没有这个 Connector") });
-      return true;
-    }
-    const fetchImpl = connectorId === "feishu" && token === feishuCliMarker() ? feishuCliFetch : undefined;
-    let result = await catalogWhoami({ connectorId, token, fetchImpl });
-    if (!result.ok && result.failure === "needs_auth" && connectorId === "notion") {
-      try {
-        const renewed = await resolveUsableNotionToken(true);
-        if (renewed) result = await catalogWhoami({ connectorId, token: renewed });
-      } catch { /* Keep the original account error. */ }
-    }
-    if (!result.ok) {
-      sendJson(response, result.failure === "needs_auth" ? 401 : result.failure === "configuration" ? 400 : 502, {
-        error: result.message || L("无法读取账号"),
-        failure: result.failure,
-      });
-      return true;
-    }
-    sendJson(response, 200, { login: result.login });
     return true;
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/github/client") {
@@ -301,7 +286,7 @@ export async function handleLocalConnectorsSettingsHttp(
       authorizationUrl: started.authorizationUrl,
       state: started.state,
       redirectUri: started.redirectUri,
-      ...(targetId ? { connection_id: targetId } : {}),
+      ...(targetId ? { connection_id: targetId, authorization_id: beginConnectorAuthorization(homeDirectory, started.state, targetId, "gmail") } : {}),
     });
     return true;
   }

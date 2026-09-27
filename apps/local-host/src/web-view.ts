@@ -8,7 +8,7 @@ import { createLocalFeedApplication } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
-import { createScheduleRouteHandlerPorts } from "@molis-ai/molis-work-plugin-schedule";
+import { createScheduleActionPorts } from "@molis-ai/molis-work-plugin-schedule";
 
 export interface WebViewOptions {
   databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
@@ -39,7 +39,7 @@ function feedDirectorySnapshot(feed: FeedApplication, boardId: string): FeedSnap
 }
 
 function scheduleProjection(db: LocalProjectDatabase["db"]): Pick<MolisWorkWebView, "schedule_jobs" | "schedule_tasks"> {
-  const ports = createScheduleRouteHandlerPorts({ db, schedule: scheduleServiceFor(db) });
+  const ports = createScheduleActionPorts({ db, schedule: scheduleServiceFor(db) });
   return {
     schedule_jobs: ports.listJobs(),
     schedule_tasks: ports.listTasks(),

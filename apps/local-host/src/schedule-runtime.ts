@@ -42,6 +42,19 @@ function ensureConversationWakeup(): void {
   });
 }
 
+/**
+ * A host-owned wakeup (e.g. the studio's plugin reminders). The project tick supplies the database the job lives in.
+ * Registering twice for the same plugin and capability replaces the handler.
+ */
+export function registerHostWakeup(pluginId: string, capabilityId: string,
+  handler: (db: ScheduleSqliteDatabase, input: Parameters<Parameters<PluginWakeupIndex["register"]>[2]>[0]) => Promise<{ detail?: string } | void>): () => void {
+  return wakeupIndex.register(pluginId, capabilityId, async (input) => {
+    const ctx = tickContext.getStore();
+    if (!ctx) throw new Error("闹钟叫醒没有项目现场");
+    return handler(ctx.db, input);
+  });
+}
+
 export function bindScheduledTaskRunner(db: ScheduleSqliteDatabase, runner: ScheduledTaskRunner): void {
   runners.set(db, runner);
 }

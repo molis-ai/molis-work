@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { redactMcpError, type ExactRef, type Runtime } from "@prologue/sdk";
-import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { realpath } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 
+export type HostMcpConnection = string | { credentialRef?: string; revision: string } | null;
 const KIND = "molis-mcp";
 /** Each configuration has a distinct SDK connection identity; old calls cannot target a replacement. */
 export const mcpConnectionId = (ref: AgentMcpSourceRef) => ref.configuration_version === undefined ? ref.server : `${ref.server}@${ref.configuration_version}`;
@@ -20,11 +23,18 @@ function endpoint(value: unknown) {
   return url.toString();
 }
 
+/** An HTTP server's tools touch no files; the runner still needs an authorized root, so it gets the system temporary directory. */
+let temporaryRoot: Promise<string> | undefined;
+const callRoot = () => temporaryRoot ??= realpath(tmpdir());
+
 /** Configuration belongs to the project; connection, tools and effects belong to SDK. */
 export function createPrologueMcpLibrary(runtime: Runtime, options: {
-  resolveConnection?: (connectionId: string, endpoint: string) => string | null | Promise<string | null>;
+  resolveConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
+  subscribeConnections?: (listener: (connectionId: string) => void) => () => void;
   credentialRefFor?: (ref: string) => Promise<ExactRef<"credential">>;
-} = {}): AgentMcpLibrary {
+} = {}): AgentMcpLibrary & { dispose(): void } {
+  const linked = new Map<string, { account: string; credential?: string; revision?: string }>();
+  const invalidated = new Set<string>();
   const busy = new Map<string, { action: string; abort: AbortController }>();
   const errors = new Map<string, string>();
   const connection = (id: string) => runtime.mcp.list().find(item => item.id === id);
@@ -47,6 +57,33 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
     for (const conn of runtime.mcp.list().filter(item => item.id === id || item.id.startsWith(id + "@"))) {
       await runtime.disconnectMcp(conn.ref); runtime.mcp.remove(conn.ref);
     }
+  };
+  const unsubscribe = options.subscribeConnections?.(account => {
+    for (const [id, link] of linked) if (link.account === account) {
+      invalidated.add(id);
+      void close(id).catch(() => { errors.set(id, "账号已变更，请重新连接"); });
+    }
+  });
+  const resolveHost = async (saved: Saved) => {
+    const resolved = await options.resolveConnection?.(saved.auth_connection_id!, saved.endpoint!);
+    if (!resolved) throw new Error("所选 MCP 连接不可用，请在服务连接中重新授权");
+    const ref = typeof resolved === "string" ? resolved : resolved.credentialRef;
+    if (ref && !options.credentialRefFor) throw new Error("MCP 凭据解析不可用");
+    const credentialRef = ref ? await options.credentialRefFor!(ref) : undefined;
+    return { credentialRef, revision: typeof resolved === "string" ? undefined : resolved.revision };
+  };
+  const refreshSelected = async (saved: Saved) => {
+    if (!saved.auth_connection_id) return;
+    try {
+      if (invalidated.has(saved.id)) throw new Error("MCP 账号已改变，请重新连接");
+      const current = await resolveHost(saved);
+      const previous = linked.get(saved.id);
+      if (!previous || previous.revision !== current.revision) throw new Error("MCP 账号已改变，请重新连接");
+      if (previous.credential !== JSON.stringify(current.credentialRef)) {
+        await close(saved.id);
+        await library.control(saved, saved.id, "connect");
+      }
+    } catch (error) { await close(saved.id); throw error; }
   };
   const locked = async <T>(id: string, action: string, work: (abort: AbortController) => Promise<T>) => {
     if (busy.has(id)) throw new Error("这个 MCP 正在处理另一项操作，请等待或取消连接");
@@ -111,6 +148,8 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
         if (action === "connect") {
           if (!record.saved.enabled) throw new Error("请先启用这个 MCP 服务");
           if (connection(connectionId)?.health === "connected") throw new Error("这个 MCP 已连接");
+          invalidated.delete(id);
+          linked.delete(id);
           const saved = record.saved;
           const conn = connection(connectionId) ?? runtime.mcp.add({ id: connectionId, label: saved.label, transport: saved.transport, enabled: true, protocolMajor: 1 });
           if (saved.transport === "stdio") {
@@ -119,12 +158,15 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
           } else {
             let credentialRef = saved.credential_ref;
             if (saved.auth_connection_id) {
-              const hostRef = await options.resolveConnection?.(saved.auth_connection_id, saved.endpoint!);
-              if (!hostRef || !options.credentialRefFor) throw new Error("所选 MCP 连接不可用，请在 Connectors 中重新授权");
-              credentialRef = await options.credentialRefFor(hostRef);
+              linked.set(saved.id, { account: saved.auth_connection_id });
+              const host = await resolveHost(saved);
+              credentialRef = host.credentialRef;
+              linked.set(saved.id, { account: saved.auth_connection_id, credential: JSON.stringify(credentialRef), revision: host.revision });
             }
+            if (invalidated.has(id)) throw new Error("MCP 账号已改变，请重新连接");
             await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } });
           }
+          if (invalidated.has(id)) { await close(id); throw new Error("MCP 账号已改变，请重新连接"); }
           if (abort.signal.aborted) { await close(id);throw new Error("连接已取消"); }
           runtime.adoptMcpTools(conn.ref);
         } else if (action === "disconnect") await close(id);
@@ -140,9 +182,48 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
         const {saved,version} = await held(owner,ref.server);
         if(ref.configuration_version !== version) throw new Error("MCP 服务配置版本已变化，请重新选择资料来源");
         if(!saved.enabled || connection(mcpConnectionId(ref))?.health !== "connected") throw new Error("MCP 资料来源已断开或停用，请重新连接");
+        await refreshSelected(saved);
         resolved.push({server:saved.id,configuration_version:version,server_label:saved.label});
       }
       return resolved;
+    },
+    async tools(owner) {
+      const rows: AgentMcpToolDescriptor[] = [];
+      for (const server of await library.list(owner)) {
+        const conn = server.health === "connected" ? connection(mcpConnectionId({ server: server.id, configuration_version: server.version })) : undefined;
+        if (!conn || !server.enabled) continue;
+        for (const tool of runtime.mcp.snapshotOf(conn.ref).tools) rows.push({ server: server.id, server_label: server.label, configuration_version: server.version,
+          tool: tool.name, version: tool.shapeFingerprint, description: tool.description ?? "", input_schema: structuredClone(tool.inputShape as Record<string, unknown>) });
+      }
+      return rows;
+    },
+    live(ref) {
+      const conn = connection(mcpConnectionId(ref));
+      return conn?.health === "connected" && runtime.mcp.snapshotOf(conn.ref).tools.some(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version);
+    },
+    async call(owner, ref, args, callOptions = {}) {
+      const [checked] = await library.validate(owner, [ref]);
+      const { saved } = await held(owner, checked!.server);
+      const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
+      // Adopted on connect; adopting again after a reconnect keeps the catalog on the live shape.
+      const conn = connection(mcpConnectionId(checked!));
+      if (!conn || !runtime.tools.get(name)) runtime.adoptMcpTools(conn!.ref);
+      const root = await runtime.workspace.authorize({ path: saved.transport === "stdio" ? saved.directory!.canonical_path : await callRoot() });
+      const observation = await runtime.createToolInvoker().invoke({
+        request: { name, version: checked!.version!, args: { ...args } },
+        run: runtime.createSystemToolRunner(root.ref),
+        // The shape, version and live connection were checked just above; the configuration cannot change under this call.
+        recheck: () => library.live!(checked!),
+        now: await runtime.readClock(),
+        ...(callOptions.signal ? { signal: callOptions.signal } : {}),
+        // This call was already authorized by the Molis action directory for its caller (local user, workflow or granted client);
+        // the SDK still records it as an external write and runs it through its own chain.
+        onAwaiting: effect => {
+          if (!effect.pending) return;
+          void runtime.readClock().then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock));
+        },
+      });
+      return { text: observation.text, truncated: observation.truncated };
     },
     async validate(owner, selected) {
       const resolved = [];
@@ -151,12 +232,15 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
         if (ref.configuration_version !== version) throw new Error("MCP 服务配置版本已变化或未固定，请重新选择");
         const conn = connection(mcpConnectionId(ref));
         if (!saved.enabled || conn?.health !== "connected") throw new Error("选中的 MCP 服务已停用或断开，请重新连接或取消选择");
-        const tool = runtime.mcp.snapshotOf(conn.ref).tools.find(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version);
+        await refreshSelected(saved);
+        const refreshed = connection(mcpConnectionId(ref));
+        if (!refreshed || refreshed.health !== "connected") throw new Error("MCP 连接已改变，请重新连接");
+        const tool = runtime.mcp.snapshotOf(refreshed.ref).tools.find(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version);
         if (!ref.version || !tool) throw new Error("MCP 工具形状版本已经变化，请查看新参数并重新选择");
         resolved.push({ server: saved.id, tool: tool.name, version: tool.shapeFingerprint, configuration_version: version, server_label: saved.label });
       }
       return resolved;
     },
   };
-  return library;
+  return Object.assign(library, { dispose: () => { unsubscribe?.(); linked.clear(); } });
 }

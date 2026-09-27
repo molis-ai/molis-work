@@ -2,17 +2,21 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { randomUUID } from 'node:crypto';
+import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import { goalsActions } from '@molis-ai/molis-work-plugin-goals';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
-import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
+import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
+import { builderSkill } from './skill.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
@@ -20,12 +24,19 @@ import { runBuilderBrowserAcceptance } from './browser.js';
 import { ArtifactsModule } from '@molis-ai/molis-work-module-artifacts';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformOptions } from '../plugin-platform.js';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 const isolatedActions = (projectId: string): PluginPlatformOptions['actions'] => { const service = new ActionService(); return { registry: service, client: service, project_id: projectId }; };
-import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './installed.js';
+import { EXPOSED_ACTION_ACTOR, installedSignature, releaseVersion, sandboxedPluginDefinition, SCHEDULED_RUN_ACTOR } from './installed.js';
+import { exposeInstalledPlugin } from './exposed-actions.js';
+import { bindScheduledRuns, createScheduledRuns, registerInstalledCaller } from './schedules.js';
+import { hostNetwork } from './network.js';
+import { pluginSecrets, type PluginSecrets } from './secrets.js';
+import { bindReminderDelivery, createReminders } from './reminders.js';
+import { scheduleServiceFor } from '../schedule-runtime.js';
 import { capabilityLimits, hostCapabilities, keepNewestRecords, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
+import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {
@@ -43,7 +54,11 @@ export interface AgentStudioOptions {
   browserExecutable?: string;
   actorId?: string;
   capabilities?: PluginPlatformOptions['capabilities'];
-  actions?: PluginPlatformOptions['actions'];
+  actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
+  /** Enables a built-in plugin in this project (by its manifest id), as project settings would. */
+  enablePlugin?(pluginId: string): Promise<void>;
+  /** How many operations the code agents write at once (default 3). */
+  parallel?: number;
 }
 interface Installation { pluginId: string; buildId: string; version: number; state: string; effects: SandboxEffects }
 interface Studio {
@@ -55,6 +70,19 @@ interface Studio {
   runners: Map<string, { key: string; runner: Promise<SandboxRunner> }>;
   /** Plugin Runtime for this project's installed agent-built plugins. */
   platform: PluginPlatform;
+  /** Everything generated plugins may be granted here: the project's unified action directory. */
+  catalog(): Promise<CatalogCapability[]>;
+  /** Withdraws the studio's own capabilities from the project's action directory. */
+  unregister(): void;
+  /** Stops the scheduler from running this project's installed plugins through this studio. */
+  stopScheduledRuns?(): void;
+  /** Offers an installed plugin's functions in the action directory; withdraws all of them when the studio closes. */
+  expose?(release: AgentRelease): void;
+  withdrawExposed?(): void;
+  /** Secrets people saved for plugins' network requests. */
+  secrets?: PluginSecrets;
+  /** A proposal's picture from the images plugin (W7). */
+  mockupImage?(jobId: string, imageId: string): Promise<{ base64: string; mime_type: string }>;
 }
 const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>();
 const MODEL_KEY = 'plugin-builder:agent-studio:model';
@@ -148,10 +176,81 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     });
     /** Builds whose interface acceptance is running: their trial identity answers with stand-ins meanwhile. */
     const accepting = new Set<string>();
-    const capability = hostCapabilities({ generate }, identity => identity.namespace === 'installed'
-      || identity.installationId.startsWith(STABLE_PREVIEW) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length)));
+    // The project's goals, through the Goals plugin's own actions, as this plugin installation (never as the person),
+    // with only the one permission each call needs.
+    const actions = options.actions ?? isolatedActions(options.boardId);
+    const caller = (identity: Readonly<SandboxIdentity>, definition: ActionDefinition, permission: string): ActionCallContext => ({
+      actor_id: 'plugin:' + identity.pluginId, actor_kind: 'runtime', project_id: actions.project_id, audience: 'plugin',
+      plugin_install_id: identity.installationId, permissions: [permission], allowed_actions: [{ capability_id: definition.capability_id, version: definition.version }] });
+    const goals: CapabilityImplementations['goals'] = {
+      async list(identity) {
+        const page = await actions.client.invoke(caller(identity, goalsActions.list, 'goals:read'), goalsActions.list, { limit: 100 }) as { goals: Array<{ goal_id: string; title: string; work_status: string }> };
+        return page.goals.map(goal => ({ id: goal.goal_id, title: goal.title, status: goal.work_status }));
+      },
+      async note(identity, input) {
+        // The goal's history names the plugin as people know it; grants stay with its stable identity.
+        const buildId = identity.pluginId.replace(/^io\.molis\.work\.generated\./, ''), title = studio.workflow.store.versions(buildId)[0]?.design.title ?? studio.workflow.store.get(buildId)?.design?.title;
+        const author = { ...caller(identity, goalsActions.note, 'goals:write'), ...(title ? { audit_actor_id: '插件「' + title + '」' } : {}) };
+        const result = await actions.client.invoke(author, goalsActions.note, { goal_id: input.goalId, body: input.text, idempotency_key: randomUUID() }) as { recorded?: unknown };
+        return { recorded: result.recorded === true };
+      },
+    };
+    // Reminders: the studio's own scheduler jobs; a due one becomes an Inbox item that opens the plugin.
+    bindReminderDelivery();
+    const reminders = createReminders({ boardId: options.boardId, schedule: scheduleServiceFor(options.store.db as Parameters<typeof scheduleServiceFor>[0]), storage,
+      title: pluginId => { const buildId = pluginId.replace(/^io\.molis\.work\.generated\./, ''); return studio.workflow.store.versions(buildId)[0]?.design.title ?? studio.workflow.store.get(buildId)?.design?.title; },
+      link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
+    const live = (identity: Readonly<SandboxIdentity>) => identity.namespace === 'installed'
+      || identity.installationId.startsWith(STABLE_PREVIEW) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
+    // The studio's own capabilities join the project's action directory; the catalog is that directory, nothing else.
+    // Scheduled runs: the plugin's own operations at set times, run like a person's click; results can go to the Inbox.
+    bindScheduledRuns();
+    const scheduledRuns = createScheduledRuns({ boardId: options.boardId, schedule: scheduleServiceFor(options.store.db as Parameters<typeof scheduleServiceFor>[0]), storage,
+      installed: pluginId => {
+        const record = studio.platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature.startsWith(SIGNATURE) && item.state !== 'uninstalled');
+        const release = record && studio.workflow.store.versions(record.publisher_signature.slice(SIGNATURE.length)).find(item => releaseVersion(item.version) === record.version);
+        return release ? { title: release.design.title, operations: release.design.contract.operations } : undefined;
+      },
+      link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
+    studio.unregister = registerPlatformCapabilities(actions, { generate, reminders, schedules: scheduledRuns });
+    studio.catalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
+    const titleOf = (pluginId: string) => { const buildId = pluginId.replace(/^io\.molis\.work\.generated\./, ''); return studio.workflow.store.versions(buildId)[0]?.design.title ?? studio.workflow.store.get(buildId)?.design?.title; };
+    const legacy = hostCapabilities({ generate, goals, reminders }, live), current = catalogCapabilities({ actions, catalog: () => studio.catalog(), live, author: titleOf });
+    // Designs made against the catalog call real actions; designs from before keep the studio's own list and shapes.
+    const capabilityFor = (design?: AgentDesign | null) => design?.catalog === CATALOG_VERSION ? current : legacy;
+    const standInsFor = (design?: AgentDesign | null): NonNullable<SandboxServices['capability']> => design?.catalog === CATALOG_VERSION
+      ? { async call(_context, id, input) { const entry = (await studio.catalog()).find(item => item.offered && item.id === id); if (!entry) throw new Error('平台目录里没有开放给插件的能力：' + id); return standIn(entry, input); } }
+      : standInCapabilities();
     // Gate identities are never stable, so gates always see the stand-ins; the person's trial sees the real capability.
-    const preview: SandboxServices = { ...previewServices(storage), capability };
+    // The network: the installed plugin fully; before that (trial, checks, acceptance) approved sites are only read, a
+    // write gets the stand-in. A website has no schema to invent an answer from, and reading it changes nothing.
+    const secrets = studio.secrets = pluginSecrets(home, options.boardId, storage);
+    const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
+    const previewFor = (design?: AgentDesign | null): SandboxServices => ({ ...previewServices(storage), capability: capabilityFor(design), network });
+    // W7: pictures of proposals through the images plugin's own actions, as the person, when an image service is set up.
+    const imageAction = async <T,>(capability: string, input: unknown): Promise<T> => {
+      const caller = { actor_id: options.actorId ?? 'web-user', project_id: actions.project_id, audience: 'user' as const, permissions: ['images:connections:read', 'images:generate', 'images:read'] };
+      const view = (options.actions?.inspect ? await options.actions.inspect(caller) : []).find(item => item.capability_id === capability);
+      if (!view) throw new Error('这个项目里没有图片功能');
+      return await actions.client.invoke(caller, { capability_id: capability, version: view.version, provider_id: view.provider.provider_id }, input) as T;
+    };
+    const imageService = async () => (await imageAction<{ connections: Array<{ id: string; available?: boolean }> }>('images.connections.list', {})).connections.find(item => item.available !== false);
+    const images: NonNullable<AgentBuilderPorts['mockups']> = {
+      available: async () => Boolean(await imageService().catch(() => undefined)),
+      async draw(request, signal) {
+        const service = await imageService();
+        if (!service) return { reason: '没有可用的生图服务' };
+        let { job } = await imageAction<{ job: { id: string; status: string; images: Array<{ id: string }>; error: string } }>('images.jobs.start',
+          { request_id: 'builder-' + request.key.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 120), connection_id: service.id, prompt: request.prompt });
+        // One request; waiting is only reading its state, never asking the service again.
+        for (let waited = 0; job.status === 'running' && waited < 180_000; waited += 3_000) {
+          await new Promise(resolve => setTimeout(resolve, 3_000)); signal.throwIfAborted();
+          ({ job } = await imageAction<{ job: typeof job }>('images.jobs.get', { id: job.id }));
+        }
+        return job.status === 'succeeded' && job.images[0] ? { jobId: job.id, imageId: job.images[0].id } : { reason: job.error || (job.status === 'running' ? '三分钟内没有画完' : '没有画出来') };
+      },
+    };
+    studio.mockupImage = (jobId, imageId) => imageAction<{ base64: string; mime_type: string }>('images.images.read', { id: jobId, image_id: imageId });
     const choice = options.choice ?? selectionPorts(home);
     const effects = (build: AgentBuild) => buildManifest(build.design!.contract).effects;
     const stopRunner = async (buildId: string) => {
@@ -167,7 +266,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       if (current?.key === key) return current.runner;
       // A newer bundle replaces both lanes, so the trial never mixes versions.
       if (current) await stopRunner(build.id);
-      const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: effects(build), services: preview, limits: capabilityLimits(effects(build)),
+      const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: effects(build), services: previewFor(build.design), limits: capabilityLimits(effects(build)),
         identity: { projectId: options.boardId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
       studio.runners.set(slot, { key, runner });
       runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
@@ -181,14 +280,26 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       capturePrivateData: installId => privateStorage.snapshotInstallationData(installId),
       restorePrivateData: (installId, snapshot) => privateStorage.restoreInstallationData(installId, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),
       // Generated plugins declare no public actions; a host without an action service still needs one for the executor.
-      ...(options.capabilities ? { capabilities: options.capabilities } : {}), actions: options.actions ?? isolatedActions(options.boardId) });
+      ...(options.capabilities ? { capabilities: options.capabilities } : {}), actions });
     const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw ? JSON.parse(raw) as SandboxEffects : null; };
     const installed = () => studio.platform.runtime.list().filter(item => item.publisher_signature.startsWith(SIGNATURE) && item.state !== 'uninstalled');
     const releasesOf = (buildId: string) => studio.workflow.store.versions(buildId);
     const definition = (release: AgentRelease, approved: SandboxEffects) =>
-      sandboxedPluginDefinition(release, approved, releasesOf(release.buildId).map(item => item.version).filter(version => version < release.version), { capability });
+      sandboxedPluginDefinition(release, approved, releasesOf(release.buildId).map(item => item.version).filter(version => version < release.version), { capability: capabilityFor(release.design), network });
     /** True when `next` asks for nothing the person has not already approved. */
     const covered = (next: SandboxEffects, approved: SandboxEffects) => Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
+    // D16: what an installed plugin offers joins the project's action directory while it runs.
+    const exposed = new Map<string, () => void>();
+    const withdraw = (pluginId: string) => { exposed.get(pluginId)?.(); exposed.delete(pluginId); };
+    const expose = (release: AgentRelease) => {
+      withdraw(release.pluginId);
+      try { exposed.set(release.pluginId, exposeInstalledPlugin(actions, release, async (pluginId, operation, input) =>
+        await studio.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: EXPOSED_ACTION_ACTOR, query: {}, body: { operation, input } })
+          ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } })); }
+      catch (error) { console.warn('[plugin-builder] 插件功能没能登记到动作目录', release.pluginId, error); }
+    };
+    studio.withdrawExposed = () => { for (const pluginId of [...exposed.keys()]) withdraw(pluginId); };
+    studio.expose = expose;
     const lifecycle: AgentBuilderPorts['lifecycle'] = async (action, release, grants) => {
       const consent = (grants as { consent?: unknown } | undefined)?.consent === true;
       const record = installed().find(item => item.plugin_id === release.pluginId);
@@ -202,6 +313,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
           const code = studio.platform.runtime.list().find(item => item.plugin_id === release.pluginId)?.last_error_code;
           throw new Error('安装没有完成：' + (report.failed[0]?.message ?? report.blocked[0]?.message ?? '插件未能启动') + (code ? '（' + code + '）' : ''));
         }
+        expose(release);
         return;
       }
       if (!record) throw new Error('这个插件还没有安装');
@@ -211,21 +323,38 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         const next = definition(release, covered(release.permissions, approved) ? approved : release.permissions);
         const state = action === 'upgrade' ? await studio.platform.upgrade(release.pluginId, next) : await studio.platform.rollback(release.pluginId, next);
         if (state?.status !== 'running') throw new Error((action === 'upgrade' ? '升级' : '回滚') + '没有完成：' + (state?.message ?? '插件未能启动') + '，原版本继续可用');
+        expose(release);
         return;
       }
-      if (action === 'disable') { studio.platform.supervisor.revoke(release.pluginId); await studio.platform.runtime.stop(record.install_id); return; }
-      if (action === 'enable') { const state = await studio.platform.supervisor.enable(release.pluginId); if (state.status !== 'running') throw new Error('启用没有完成：' + (state.message ?? '')); return; }
+      if (action === 'disable') { withdraw(release.pluginId); studio.platform.supervisor.revoke(release.pluginId); await studio.platform.runtime.stop(record.install_id); return; }
+      if (action === 'enable') { const state = await studio.platform.supervisor.enable(release.pluginId); if (state.status !== 'running') throw new Error('启用没有完成：' + (state.message ?? '')); expose(release); return; }
       if (action === 'uninstall') {
-        studio.platform.supervisor.revoke(release.pluginId);
+        withdraw(release.pluginId); studio.platform.supervisor.revoke(release.pluginId);
+        reminders.cancelAll(release.pluginId); scheduledRuns.cancelAll(release.pluginId); secrets.remove(release.pluginId);
         await studio.platform.runtime.uninstall(record.install_id, { retain_private_data: (grants as { keepData?: unknown } | undefined)?.keepData === true });
         storage.delete(APPROVED_KEY + release.pluginId);
       }
     };
     const ports: AgentBuilderPorts = {
       projectId: options.boardId,
-      // The platform capabilities a design may declare. Other plugins' actions are not offered yet.
-      catalog: async () => studioCapabilityCatalog(),
+      // What a design may use: the project's unified action directory, as offered to generated plugins.
+      catalog: async () => (await studio.catalog()).filter(entry => entry.offered).map(entry => ({ id: entry.id, title: entry.title, source: entry.source.title + (entry.installed ? '' : '（这个项目还没启用；用到时会先问用户要不要启用）'), effect: entry.effect,
+        description: entry.description + (entry.costly ? '（会产生费用：只放在由用户点击触发的 command 里）' : ''), input: entry.input, ...(entry.output ? { output: entry.output } : {}) })),
+      catalogVersion: CATALOG_VERSION,
+      // A design that uses a plugin this project has not enabled waits for the person; enabling it continues the build.
+      async missingPlugins(design) {
+        if (design.catalog !== CATALOG_VERSION) return [];
+        const used = new Set(design.contract.operations.flatMap(operation => operation.effects.capabilities ?? [])), missing = new Map<string, { pluginId: string; title: string; capabilities: string[] }>();
+        for (const entry of await studio.catalog()) if (entry.offered && !entry.installed && used.has(entry.id) && entry.source.plugin_id) {
+          const item = missing.get(entry.source.plugin_id) ?? { pluginId: entry.source.plugin_id, title: entry.source.title, capabilities: [] };
+          item.capabilities.push(entry.title); missing.set(entry.source.plugin_id, item);
+        }
+        return [...missing.values()];
+      },
+      ...(options.enablePlugin ? { async enablePlugins(pluginIds: readonly string[]) { for (const pluginId of pluginIds) await options.enablePlugin!(pluginId); } } : {}),
       resources: [],
+      ...(options.parallel ? { parallel: options.parallel } : {}),
+      mockups: images,
       models: options.models,
       agent: options.agents ?? (async (build, purpose) => {
         const selection = selected();
@@ -236,10 +365,17 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         return create({ buildRoot, storageRoot: join(studio.root, 'runs', build.id), ...access(selection) });
       }),
       validateContract: contract => assertContract(contract),
+      skill: stage => builderSkill(stage),
       async prepareBuild(previous, design, manifest) {
         const directory = join(studio.root, 'builds', previous.id, design.contract.revision);
-        await rm(directory, { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
-        await createBuildProject(directory, design.contract, manifest, { capabilities: [], resources: [] });
+        await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
+        // The code agent reads what each capability the design uses takes and returns, and how checks answer it.
+        const used = new Set(design.contract.operations.flatMap(operation => operation.effects.capabilities ?? []));
+        const described = design.catalog === CATALOG_VERSION
+          ? (await studio.catalog()).filter(entry => entry.offered && used.has(entry.id)).map(entry => ({ id: entry.id, title: entry.title, description: entry.description, effect: entry.effect, input: entry.input, output: entry.output ?? null,
+            inChecks: entry.provider_id === PLATFORM_PROVIDER_ID ? '由固定替身代答（见说明）' : entry.effect === 'read' ? '由替身按输出结构给出示例值（列表里一条记录，文字字段是「示例」）' : '由替身代答，不会真的写入' }))
+          : [...used].map(id => studioCapabilityCatalog().find(entry => entry.id === id)).filter(Boolean);
+        await createBuildProject(directory, design.contract, manifest, { capabilities: described as SandboxJson, resources: [] });
         // A revision keeps the implementation and tests of every operation whose contract did not change,
         // so only the parts that actually changed go back to the code agent.
         const before = previous.design, from = previous.directory;
@@ -247,14 +383,19 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
           const old = before.contract.operations.findIndex(item => item.id === operation.id);
           if (old < 0 || !isDeepStrictEqual(canonical(before.contract.operations[old]), canonical(operation))) continue;
           for (const kind of ['src', 'tests']) {
-            try { await writeFile(join(directory, kind, 'operations', index + '.ts'), await readBuildFile(from, `${kind}/operations/${old}.ts`), { mode: 0o600 }); }
+            try {
+              const source = await readBuildFile(from, `${kind}/operations/${old}.ts`);
+              await writeFile(join(directory, kind, 'operations', index + '.ts'), source, { mode: 0o600 });
+              // It stays connected without another check, so it is settled as it was.
+              if (kind === 'src' && previous.connected.includes(operation.id)) { const settled = join(settledFor(directory), 'src/operations'); await mkdir(settled, { recursive: true, mode: 0o700 }); await writeFile(join(settled, index + '.ts'), source, { mode: 0o600 }); }
+            }
             catch { /* a missing or unsafe previous file is simply written again by the code agent */ }
           }
         }
         return directory;
       },
       check: (build, operationIds, signal) => runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
-        operationIds, services: preview, mockServices: { capability: standInCapabilities() }, grants: effects(build), signal,
+        operationIds, services: previewFor(build.design), mockServices: { capability: standInsFor(build.design), network }, grants: effects(build), signal, settled: settledFor(build.directory!),
         identity: { projectId: options.boardId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
       call: async (build, operationId, input) => (await runnerFor(build, slowOperations(build.design!.contract).has(operationId) ? 'slow' : 'quick')).call(operationId, input),
       async sources(build) {
@@ -290,8 +431,13 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     // Installed plugins resume at their installed version after a host restart.
     for (const item of installed()) {
       const release = releasesOf(item.publisher_signature.slice(SIGNATURE.length)).find(candidate => releaseVersion(candidate.version) === item.version);
-      if (release) await studio.platform.start([{ definition: definition(release, approvedFor(release.pluginId) ?? release.permissions), grants: ['storage:private'] }]).catch(() => undefined);
+      if (release) { const report = await studio.platform.start([{ definition: definition(release, approvedFor(release.pluginId) ?? release.permissions), grants: ['storage:private'] }]).catch(() => undefined);
+        if (report?.running.includes(release.pluginId)) studio.expose?.(release); }
     }
+    // From here on, due runs of this project's installed plugins run through this studio (and ones that waited run now).
+    studio.stopScheduledRuns = await registerInstalledCaller(options.store.db as Parameters<typeof registerInstalledCaller>[0], options.boardId, async (pluginId, operation, input) =>
+      await studio.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: SCHEDULED_RUN_ACTOR, query: {}, body: { operation, input } })
+        ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } });
     return studio;
   })();
   boards.set(options.boardId, created);
@@ -304,15 +450,18 @@ function publicBuild(build: AgentBuild) {
   return { ...rest, history: history.map(({ directory: _path, ...item }) => item),
     checks: Object.fromEntries(Object.entries(checks).map(([key, value]) => [key, { passed: value.passed, gates: value.gates }])) };
 }
+/** Each operation's last passing source for one build revision, beside (not inside) what the code agent can write. */
+const settledFor = (directory: string) => directory + '.settled';
 function publicRelease<T extends { directory?: string; bundlePath?: string; packagePath?: string }>(release: T) {
   const { directory: _directory, bundlePath: _bundle, packagePath: _package, ...rest } = release;
   return rest;
 }
 const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
 function page(title: string, body: string, script: string, controlToken: string) {
+  // Plugins are drawn with the UI catalog's components, so the page carries the product's own stylesheet, theme and select menu.
   return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escapeHtml(title)
-    + '</title><style>html,body{margin:0}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}' + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES + '</style></head><body>' + renderIconSprite() + body
-    + '<script>globalThis.molisWorkControlHeaders=()=>({"content-type":"application/json","x-molis-work-control-token":' + literal(controlToken) + ',"x-molis-work-idempotency-key":crypto.randomUUID()});' + script + '</script></body></html>';
+    + '</title><script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>html,body{margin:0}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}' + SELECT_MENU_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES + '</style></head><body>' + renderIconSprite() + body
+    + '<script>globalThis.molisWorkControlHeaders=()=>({"content-type":"application/json","x-molis-work-control-token":' + literal(controlToken) + ',"x-molis-work-idempotency-key":crypto.randomUUID()});' + script + '</script><script>' + SELECT_MENU_CLIENT_SCRIPT + '</script></body></html>';
 }
 function html(response: ServerResponse, body: string) {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(body);
@@ -378,12 +527,36 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       html(response, page(build.title, '<main class="as-preview-page" data-studio-preview="' + escapeHtml(build.id) + '"></main>', factories + ',mode:"preview",build:' + literal(build.id) + '});', controlToken));
       return true;
     }
-    const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route);
+    const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route), mockup = /^\/builds\/([a-f0-9-]{36})\/mockups\/([a-z0-9-]{1,64})$/u.exec(route);
+    if (mockup && method === 'GET') {
+      const picture = workflow.store.require(mockup[1]!).candidates.find(item => item.id === mockup[2])?.mockup;
+      if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendLocalWebJson(response, 404, { error: '这个方案还没有效果图' }); return true; }
+      const image = await studio.mockupImage!(picture.jobId, picture.imageId).catch(() => null);
+      if (!image) { sendLocalWebJson(response, 404, { error: '效果图读取失败' }); return true; }
+      response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
+    }
+    // Secrets for a plugin's network requests: saved by the person, listed without their values.
+    if (route === '/secrets' && (method === 'GET' || method === 'POST')) {
+      try {
+        const body = method === 'POST' ? await readLocalWebBody(request) : {}, pluginId = String(method === 'POST' ? body.pluginId ?? '' : url.searchParams.get('pluginId') ?? '');
+        if (!/^io\.molis\.work\.generated\.[a-f0-9-]{36}$/.test(pluginId)) throw new Error('只能为这里生成的插件保存密钥');
+        if (method === 'POST') studio.secrets!.save(pluginId, { name: String(body.name ?? ''), header: String(body.header ?? ''), value: String(body.value ?? '') });
+        sendLocalWebJson(response, 200, { secrets: studio.secrets!.list(pluginId) });
+      } catch (error) { sendLocalWebJson(response, 400, { error: message(error) }); }
+      return true;
+    }
     if (route === '/state' && method === 'GET') {
       const raw = studio.storage.get(MODEL_KEY);
-      const state = await workflow.state();
+      // A directory that cannot be read leaves the board with the studio's own list, and says why rather than hiding it.
+      let catalogError: string | undefined;
+      const state = await workflow.state(), catalog = await studio.catalog().catch(error => {
+        catalogError = error instanceof Error ? error.message : String(error); console.error('[plugin-builder] capability catalog unavailable:', error); return [] as CatalogCapability[]; });
       sendLocalWebJson(response, 200, { ...state, builds: state.builds.map(publicBuild), releases: state.releases.map(publicRelease), model: raw ? JSON.parse(raw) : null, components: PLUGIN_COMPONENTS,
-        capabilities: STUDIO_CAPABILITIES.map(({ id, title, consent }) => ({ id, title, consent })) });
+        // The capability board: the unified directory as offered to plugins (and what is not, with why), plus the studio's
+        // own list that designs from before the catalog still use.
+        capabilities: [...catalog.map(({ id, version, title, consent, effect, source, offered, reason, description, installed }) => ({ id, version, title, consent, effect, source, offered, reason, description, installed })),
+          ...STUDIO_CAPABILITIES.filter(item => !catalog.some(entry => entry.id === item.id)).map(({ id, title, consent }) => ({ id, title, consent, legacy: true }))],
+        ...(catalogError ? { catalogError } : {}) });
       return true;
     }
     if (route === '/settings' && method === 'POST') {
@@ -433,6 +606,7 @@ export async function releaseAgentStudio(store: LocalProjectDatabase, boardId: s
   const studio = await pending.catch(() => null);
   if (!studio) return;
   await studio.workflow.close();
+  studio.unregister?.(); studio.stopScheduledRuns?.(); studio.withdrawExposed?.();
   // Stop installed plugins' processes; their installations stay and resume when the project opens again.
   for (const pluginId of studio.platform.supervisor.enabledPluginIds()) {
     const state = studio.platform.supervisor.state(pluginId); studio.platform.supervisor.revoke(pluginId);

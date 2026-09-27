@@ -6,7 +6,7 @@ export const packageDescriptor = {
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2"],
   ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["schedule.ui-contribution.v1", "schedule.http-routes.v1", "schedule.conversation-tasks.v1"],
+  capabilities: ["schedule.ui-contribution.v1", "schedule.http-routes.v1", "schedule.conversation-tasks.v1", "schedule.actions.v1"],
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
@@ -15,10 +15,18 @@ export * from "./ui.js";
 export * from "./routes.js";
 export {
   createScheduleRouteHandlers,
-  createScheduleRouteHandlerPorts,
   scheduleRouteErrorResponse,
 } from "./route-handlers.js";
 export type { ScheduleRouteHandlerPorts } from "./route-handlers.js";
+export { createScheduleActionPorts } from "./service.js";
+export {
+  SCHEDULE_ACTIONS,
+  SCHEDULE_ACTION_PERMISSIONS,
+  createScheduleActionHandlers,
+  scheduleActions,
+  type ScheduleActionPorts,
+  type ScheduleTaskInput,
+} from "./actions.js";
 export { SCHEDULE_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SCHEDULE_EN } from "./en.js";
 export { SCHEDULE_STYLES } from "./styles.js";

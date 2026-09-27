@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codingContinuation, originalTask, planTask, CONTINUATION_MARKER } from "@molis-ai/molis-work-plugin-coding";
+import { codingContinuation, originalTask, planTask, CONTINUATION_MARKER, planContinuesAfterTalk } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 const run = (over: Partial<AgentRunView> & { task?: string } = {}) => ({
@@ -120,4 +120,16 @@ test("并行和协作轮次也能一键继续：列出上一轮子任务的状�
   assert.equal(codingContinuation({ number: 1, run: run({ frozen: { role_id: "coordinator" } as never }), reviews: [], commands: [] }).intent, "collaborate");
   const unread = codingContinuation({ number: 1, run: run({ frozen: { role_id: "writers" } as never }), reviews: [], commands: [], subagents: null });
   assert.match(unread.task, /子任务状态不可读取：先让用户在结果区核对，不要凭记忆重派/);
+});
+
+test("问过几句话之后，最近一次计划轮仍可继续；后面还有计划轮或没结束的轮次时不行", () => {
+  const open = { step_board: { board_id: "b", version: 3, terminal: false, nodes: [] } } as never;
+  const talk = (phase: string) => ({ phase, frozen: { role_id: "discuss" } }) as never;
+  const planned = { phase: "completed", frozen: { role_id: "writers", execution_plan: { title: "t" } } } as never;
+  assert.equal(planContinuesAfterTalk(open, []), true);
+  assert.equal(planContinuesAfterTalk(open, [talk("completed"), talk("stopped")]), true, "questions asked after the plan do not close it");
+  assert.equal(planContinuesAfterTalk(open, [talk("running")]), false, "a round still going comes first");
+  assert.equal(planContinuesAfterTalk(open, [planned]), false, "a later plan round is the one to continue");
+  assert.equal(planContinuesAfterTalk({ step_board: { board_id: "b", version: 3, terminal: true, nodes: [] } } as never, [talk("completed")]), false);
+  assert.equal(planContinuesAfterTalk({} as never, [talk("completed")]), false, "a round without a plan is only continued as the newest");
 });

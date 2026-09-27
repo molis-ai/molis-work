@@ -4,7 +4,7 @@
 
 Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts` 的实际 mount 和页面调用；否则侧栏可见但正文为空。
 
-平台合同变了（Manifest 字段、MCP、behaviors / function_scenes、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
+平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
 ## 安装 Skill
 
@@ -17,6 +17,28 @@ ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/ski
 ```
 
 Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plugin-dev`。npm 包路径是 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。本仓库里 `.cursor/skills/molis-plugin-dev` 已指向这份正文。
+
+## 一套标准：官方插件与生成插件
+
+`skills/molis-plugin-dev` 是做插件的唯一标准：官方插件（人或编码 Agent 手写）按它写，插件创作台生成插件时，主线设计与代码 Agent 在运行时经 Prologue 挂载它（设计阶段挂 `process.md`、`generated-design.md`、`ui.md` 的质量线与 `capabilities.md`；代码阶段挂 `generated-code.md` 与 `capabilities.md`；版本取正文摘要，写进每次运行的 promptVersion）。
+
+- 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
+- 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。
+- 能力：`capabilities.md`——统一动作服务是唯一目录；动作写清 `effect`（read / write / irreversible），带 `agent` 受众的可逆动作自动对生成插件开放，`plugin: false` 可退出。
+
+生成插件从能力到安装：
+- 能力板是项目的统一动作目录。目录第二次询问时带上动作需要的权限，只列真能调用的；插件没在本项目启用的显示"未启用"。
+- 选定方案后，方案里每个能力的合法候选由系统算出：同一提供方、读写类别相同、与这项功能同样贴近。有多个时由 Jev 选定，说明书按选定能力的真实输入输出来写。
+- 用到未启用的插件时，构建停在决定卡片：启用后接着构建；不启用，就把"不要用它"交回主线设计修订。
+- 试用与验收时，别处的写入与读取都由替身按输出 schema 代答：列表里有一条文字为「示例」的记录。
+- 安装授权分"它自己的数据 / 会读取 / 会替你改动"列出；不可撤销的动作不开放。
+- 安装后，生成插件的每项功能登记为统一目录里的动作：提供方是 `plugin:<插件 id>`，能力 id 是 `generated.<构建号前 8 位>.<功能 id>`，受众为用户、agent、MCP 和插件。停用或卸载时撤回，升级时换成新版本的。调用在插件自己的沙箱里运行，身份是插件本身。
+- 平台能力里有到点提醒（`reminders.*`）和定时执行（`schedules.*`）：到点在沙箱里运行插件自己的功能，结果可以进收件箱；项目还没打开时，打开后补跑。
+- 联网（`networkDomains`）：只能 https、访问批准的确切域名、公网地址；安装前只读，写入用替身。本机代理用 fake-IP 模式时，域名会解析到 198.18.0.0/15；按用户决定，这一段放行（插件只能按批准的域名访问，不能直接写地址）。
+- 和模型的连接中断（fetch failed、terminated 等）时，主线设计与代码 Agent 都会自动重问两次，不计入修复轮数；已经写下的文件保留。
+- 设计答卷里的常见笔误由宿主整理并在构建记录里写明：方案草图里各页重复的组件名按页改名；类型提示里带空格（`string(YYYY-MM-DD HH:mm)`）照常识别；读记录列表却写了 `{{字段}}` 的文字块，改为显示刚执行的命令结果。命令输入里的幂等键、请求号从表单去掉，由代码生成；同页刚得到的一句文字结果，预填到下一张表单对应的文字字段。写在列表 `actions` 里的按钮移到页面上和列表并列；例子里只写了字段名或类型名的期望值（`"loggedAt": "loggedAt"`），只检查字段存在。模型长时间连不上时，重问三次后构建停下并说明原因，不占修复轮数。完整设计里的组件名仍须唯一，由主线设计修正。
+
+改这些章节会直接改变插件创作台的行为：改完用 `tests/agent-built-plugins-agent.test.ts`（挂载）与一次真实生成验证。
 
 ## 创建和运行
 
@@ -101,7 +123,7 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 无需再手写一份 MCP 管理工具。Host 会从上述合同生成查看位置、启用、停用三项动作，沿用场景的版本、提供方和生命周期，进入现有能力目录及对外授权设置。只有消费场景、没有自定义动作的插件也适用。配置权限与运行权限独立；缺少模型或执行权限时，有配置权的用户仍能停用原绑定。外部客户端须获具体管理动作的授权，不能借其他动作的同名权限执行。
 
-当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者。Agent 旧行为目录、其他存量消费者和完整系统管理体验仍在迁移。以下 `mcp_exports` 仅用于维护已有兼容入口，不作为新增能力再建目录或名单的理由。
+当前范围：Home、Inbox、Feed 的绑定与真实触发已进入共同场景；工作流交接保留原调用者并按交付键幂等。规则编辑器与 Agent 的可选能力都从动作目录派生，旧 `behaviors` 声明已从内置插件移除。以下 `mcp_exports` 仅用于维护已有兼容入口，不作为新增能力再建目录或名单的理由。
 
 ## 对外 MCP
 
@@ -112,7 +134,7 @@ Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己
 ### 作者要做的
 
 1. 存量兼容名的 Manifest schema 2 `mcp_exports` 保留 `tool_id`（插件内唯一，`[a-z0-9][a-z0-9_-]*`）、`description`、`input_schema`（`type: "object"`）、`effect`（`read` 或 `write`）。可选 `audience`（省略 = `runtime`）、`scope`（省略 = 当前绑定项目必须启用本插件）。还须用非空 `required_actions` 列出 `{ capability_id, version, provider_id? }`；provider 省略指本插件。所有引用的动作已授权且可用，旧工具才进入调用目录。
-2. 不要写 `enabled`、不要写对外正式名、不要在 `input_schema` 里放 `board_id` / `database_path` / `web_base_url` / `actor_id` / `actor_kind` / `runtime_actor_id` / `submitted_session_id`。身份由 Host 注入。`mcp_exports` 会自动进行为总表，`behavior_id` 就是公开工具名，`subject_kinds` 是 `mcp_invoke`；不要再为同一个工具写一条 `behaviors`。
+2. 不要写 `enabled`、不要写对外正式名、不要在 `input_schema` 里放 `board_id` / `database_path` / `web_base_url` / `actor_id` / `actor_kind` / `runtime_actor_id` / `submitted_session_id`。身份由 Host 注入。可调用能力只以 `actions` 声明；旧 `behaviors` 字段已废弃，内置插件均已移除，不要再写。
 3. 公开名由 Host 盖：`molis_work_v1_<短名>_<tool_id>`。短名是项目插件 id，不是在 Manifest 里拼出来的。
 4. Handler 只认 `{ tool_id, arguments }`。未在 Manifest 登记的 `tool_id` 即使代码里有实现也到不了。
 5. 兼容名称默认关。开关不授予动作权限，客户端另须取得每项所需动作授权；现有与新连接的下次发现和调用都读取当前状态。旧复合工具须覆盖全部参数分支，例如 Pages 翻译并新建、Jelly 自动读取版本后的写入。需要更窄的权限时直接调用对应公共动作。不要把开关做进插件自己的 `settings-page`。

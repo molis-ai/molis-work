@@ -5,7 +5,7 @@ export const packageDescriptor = {
   maturity: "partial",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["workflows.ui-contribution.v1", "workflows.http-routes.v1"],
+  capabilities: ["workflows.ui-contribution.v1", "workflows.http-routes.v1", "workflows.actions.v1"],
 } as const;
 
 export * from "./model.js";
@@ -17,7 +17,9 @@ export { WORKFLOWS_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { WORKFLOWS_NATIVE_PLUGIN_ROUTES, WorkflowsPluginRouteTable } from "./routes.js";
 export type { WorkflowsPluginRouteHandler, WorkflowsPluginRouteRequest, WorkflowsPluginRouteResponse } from "./routes.js";
 export { createWorkflowsRouteHandlers, workflowsRouteErrorResponse } from "./route-handlers.js";
-export type { WorkflowsRoutePorts, WorkflowStationInfo, WorkflowStartItem } from "./route-handlers.js";
+export type { WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+export { WORKFLOWS_ACTIONS, WORKFLOWS_ACTION_PERMISSIONS, createWorkflowsActionHandlers, workflowsActions,
+  type WorkflowContentPorts, type WorkflowStationInfo, type WorkflowsActionPorts } from "./actions.js";
 export { workflowsManifest } from "./manifest.js";
 export { openWorkflowsStore, WorkflowsStore } from "./store.js";
 export type { WorkflowSummary } from "./store.js";

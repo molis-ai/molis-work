@@ -8,7 +8,7 @@ import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modu
 import { BuilderWorkflow, type BuilderPorts, type ChoiceQuestion } from "../plugins/native/plugin-builder/src/workflow.js";
 import { builderManifest } from "../plugins/native/plugin-builder/src/manifest.js";
 import { builderPrompts } from "../plugins/native/plugin-builder/src/roles.js";
-import { builderRoutes } from "../plugins/native/plugin-builder/src/routes.js";
+import { builderRoutesWithActions as builderRoutes } from "./fixtures/builder-routes.js";
 import { RecordStore } from "../plugins/native/plugin-builder/src/records.js";
 import type { Design } from "../plugins/native/plugin-builder/src/model.js";
 

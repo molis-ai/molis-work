@@ -7,7 +7,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 const captures = new URL("../.impeccable/review/home-start/", import.meta.url);
 const homeHasQuotes = "!!document.querySelector('[data-home-quote], [data-home-quotes], .home-reflection, .home-quote-pages, .immersive-home blockquote, .immersive-home figure') || /千里之行|Stephen Hawking|Intelligence is the ability/.test(document.querySelector('.immersive-home')?.textContent || '')";
 
-test("Settings gear sits above the account avatar and opens settings in the stage", { timeout: 45_000 }, async t => {
+test("The project button holds settings and the account, and opens settings in the stage", { timeout: 45_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const {command,sessionId,evaluate,navigate,click,origin,projectId,waitFor}=browser;
   const directory = new URL("../.impeccable/review/home-footer-quotes/", import.meta.url);
@@ -18,25 +18,25 @@ test("Settings gear sits above the account avatar and opens settings in the stag
   await waitFor("document.body.dataset.desktopSurface==='home'");
   for(const width of [761,760,600,390]){
     await command("Emulation.setDeviceMetricsOverride",{width,height:844,deviceScaleFactor:1,mobile:width<=600},sessionId);
-    if(width<=600 && !await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');
     for(const theme of ["light","dark"]){
       await evaluate(`document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);
-      await waitFor("getComputedStyle(document.querySelector('.personal-account')).color===getComputedStyle(document.querySelector('[data-plugin-id=home]')).color");
+      // The person rides with the project: capabilities, settings and the account open from the round button at the foot.
+      await evaluate("document.querySelector('.bar-end [data-project-menu]').open=true");
+      await waitFor("getComputedStyle(document.querySelector('.personal-account')).color===getComputedStyle(document.querySelector('.navigator-project-manage')).color");
       await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),gear=document.querySelector('[data-plugin-id=settings]'),name=account.querySelector('strong'),detail=account.querySelector('small'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),footer=document.querySelector('.personal-sidebar-footer'),rail=document.querySelector('.plugin-rail');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {name:rect(name),detail:rect(detail),avatar:rect(avatar),icon:rect(icon),account:rect(account),gear:rect(gear),rail:rect(rail),copyDisplay:getComputedStyle(account.querySelector('.personal-account-copy')).display,footerBorder:getComputedStyle(footer).borderTopWidth,decoration:getComputedStyle(account).textDecorationLine,color:getComputedStyle(account).color,expectedColor:getComputedStyle(document.querySelector('[data-plugin-id=home]')).color,path:location.pathname}})()`);
-      assert.equal(metrics.copyDisplay,"none",width+theme+": account copy is icon-rail only");
+      const metrics=await evaluate<any>(`(()=>{const account=document.querySelector('.personal-account'),avatar=account.querySelector('.personal-account-avatar'),icon=avatar.querySelector('svg'),popover=account.closest('.navigator-project-menu-popover'),button=document.querySelector('.bar-end .navigator-project-selector');const rect=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};return {avatar:rect(avatar),icon:rect(icon),account:rect(account),popover:rect(popover),button:rect(button),copyDisplay:getComputedStyle(account.querySelector('.personal-account-copy')).display,name:account.querySelector('strong').getBoundingClientRect().width,decoration:getComputedStyle(account).textDecorationLine}})()`);
+      assert.notEqual(metrics.copyDisplay,"none",width+theme+": the account shows its name and space");
+      assert.ok(metrics.name>0,width+theme+": the name is readable");
       assert.equal(metrics.decoration,"none",width+theme);
-      assert.equal(metrics.color,metrics.expectedColor,width+theme+": use the workbench theme");
-      assert.ok(metrics.gear.bottom<=metrics.account.y+1,width+theme+": settings gear sits above the avatar");
+      assert.ok(await evaluate("Boolean(document.querySelector('[data-plugin-id=settings]').closest('.bar-end [data-project-menu] [data-personal-menu]'))"),width+theme+": settings live under the project button");
       assert.ok(Math.abs(metrics.avatar.x+metrics.avatar.width/2-metrics.icon.x-metrics.icon.width/2)<1,width+theme+": avatar centered horizontally");
       assert.ok(Math.abs(metrics.avatar.y+metrics.avatar.height/2-metrics.icon.y-metrics.icon.height/2)<1,width+theme+": avatar centered vertically");
-      assert.ok(metrics.account.bottom<=844 && metrics.account.right<=width,width+theme);
-      assert.ok(metrics.account.bottom<=metrics.rail.bottom+1,width+theme+": account stays in the plugin rail");
-      if (width > 600) assert.ok(metrics.account.height <= 38, width+theme+": compact desktop account "+metrics.account.height);
-      else assert.ok(metrics.account.height >= 40 && metrics.account.height <= 48, width+theme+": drawer account "+metrics.account.height);
-      assert.equal(metrics.footerBorder, "0px", width+theme+": no hairline above the account footer");
+      assert.ok(metrics.popover.x>=0 && metrics.popover.right<=width && metrics.popover.y>=0,width+theme+": the menu stays on screen");
+      assert.ok(metrics.popover.bottom<=metrics.button.y,width+theme+": the menu opens above the button, never over it");
+      assert.ok(metrics.account.height>=30 && metrics.account.height<=36,width+theme+": the account is one menu row like the others "+metrics.account.height);
       const shot=await command<{data:string}>("Page.captureScreenshot",{format:"png",captureBeyondViewport:false},sessionId);
       await writeFile(new URL("footer-"+width+"-"+theme+".png",directory),Buffer.from(shot.data,"base64"));
+      await evaluate("document.querySelector('.bar-end [data-project-menu]').open=false");
     }
   }
   await command("Emulation.setDeviceMetricsOverride",{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);

@@ -5,7 +5,7 @@ export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-cont
 export const WORKFLOWS_PLUGIN_ID = "io.molis.work.native.workflows";
 export const WORKFLOWS_PROJECT_PLUGIN_ID = "workflows";
 
-export type WorkflowLinkKind = "function" | "ai" | "manual";
+export type WorkflowLinkKind = "function" | "ai" | "manual" | "judgment";
 
 /** One handoff between two stations. Fields that do not belong to `kind` are kept so switching back restores them. */
 export interface WorkflowLink {
@@ -15,13 +15,43 @@ export interface WorkflowLink {
   readonly body_template: string;
   /** AI: what the next step needs from this one. */
   readonly instructions: string;
+  /** Judgment: the exact published Choice rule that checks this step, and the results that let the content through. */
+  readonly judgment?: { readonly capability_id: string; readonly version: number; readonly provider_id: string; readonly title?: string };
+  readonly pass?: readonly string[];
 }
 
 export interface WorkflowStation {
   readonly station_id: string;
-  /** Project plugin id of an existing plugin (feed, inbox, pages, lingguang …). */
+  /** Project plugin id of an existing plugin (feed, inbox, pages, lingguang …); `action` for a step that runs one action. */
   readonly plugin: string;
   readonly content?: WorkflowContentBinding;
+  /** An action step: the exact registered action it runs and how its input is filled from what arrives. */
+  readonly action?: WorkflowActionStep;
+}
+
+/** Where one input field of an action step comes from: a field of what the previous step handed over, or a fixed value. */
+export type WorkflowFieldSource =
+  | { readonly from: WorkflowPayloadField }
+  | { readonly value: string | number | boolean };
+export type WorkflowPayloadField = "title" | "body" | "source" | "url" | "date";
+export const WORKFLOW_PAYLOAD_FIELDS: readonly WorkflowPayloadField[] = ["title", "body", "source", "url", "date"];
+
+export interface WorkflowActionStep {
+  readonly ref: { readonly capability_id: string; readonly version: number; readonly provider_id: string };
+  readonly title: string;
+  /** Provider label for the visual group; identity is `ref`. */
+  readonly group?: string;
+  readonly mapping: Readonly<Record<string, WorkflowFieldSource>>;
+}
+
+export function isActionStation(station: Pick<WorkflowStation, "action">): station is WorkflowStation & { action: WorkflowActionStep } {
+  return !!station.action;
+}
+
+/** Fills an action's input from the handed-over content. Unmapped fields are left out; the action's own contract checks the rest. */
+export function mapActionInput(step: WorkflowActionStep, payload: WorkflowPayload, now = new Date()): Record<string, unknown> {
+  const fields: Record<WorkflowPayloadField, string> = { title: payload.title, body: payload.body, source: payload.source ?? "", url: payload.url ?? "", date: now.toISOString().slice(0, 10) };
+  return Object.fromEntries(Object.entries(step.mapping).map(([name, source]) => [name, "from" in source ? fields[source.from] : source.value]));
 }
 
 export interface WorkflowChain {
@@ -39,9 +69,11 @@ export interface Workflow extends WorkflowChain {
   readonly updated_at: string;
 }
 
-export type WorkflowHandoffActor = "function" | "ai" | "person";
+export type WorkflowHandoffActor = "function" | "ai" | "person" | "judgment";
 
 export interface WorkflowHandoff {
+  /** Fixed delivery identity `instance_id:from`; receivers return the same item for it, so a retry never delivers twice. */
+  readonly key?: string;
   readonly kind: WorkflowLinkKind;
   readonly actor: WorkflowHandoffActor;
   readonly at: string;
@@ -51,6 +83,17 @@ export interface WorkflowHandoff {
   readonly output: WorkflowPayload;
   /** AI: the instruction it followed. Function: the rule. Manual: nothing. */
   readonly rule?: string;
+  /** Judgment: the rule's answer; the content only went on because the answer was one of `pass`. */
+  readonly verdict?: WorkflowVerdict;
+}
+
+export interface WorkflowVerdict {
+  readonly choice: string | null;
+  readonly passed: boolean;
+  readonly status: "ok" | "needs_review";
+  readonly function_key: string;
+  readonly version: number;
+  readonly confidence: number | null;
 }
 
 export type WorkflowStepStatus = "pending" | "current" | "done";
@@ -63,6 +106,16 @@ export interface WorkflowStep {
   readonly arrived_at: string | null;
   /** Filled once this step has been handed to the next one. */
   readonly handoff: WorkflowHandoff | null;
+  /** Saved before delivery: a retry after a crash or a lost race re-sends exactly this, instead of asking the model again. */
+  /** attempted_at: an action step was called and its result never confirmed; attempt_error: what that call said when it failed after starting. */
+  readonly pending?: WorkflowHandoff & { readonly key: string; readonly attempted_at?: string; readonly attempt_error?: string };
+  /** An action step keeps what it received (the next handoff reads it) and what the action returned. */
+  readonly payload?: WorkflowPayload;
+  readonly result?: unknown;
+}
+
+export function handoffKey(instance: Pick<WorkflowInstance, "instance_id">, from: number): string {
+  return `${instance.instance_id}:${from}`;
 }
 
 export type WorkflowInstanceStatus = "active" | "done" | "stopped";
@@ -78,6 +131,8 @@ export interface WorkflowInstance {
   /** The chain as it was when this instance started; later edits to the workflow do not rewrite history. */
   readonly chain: WorkflowChain;
   readonly steps: readonly WorkflowStep[];
+  /** Why a run stopped before its last station, when a judgment held the content back. */
+  readonly stopped?: { readonly at: string; readonly from: number; readonly reason: string; readonly verdict?: WorkflowVerdict };
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -104,6 +159,10 @@ export function newStation(plugin: string): WorkflowStation {
 /** Whether a link can actually hand over. `aiAvailable` is the Host's answer about a configured text model. */
 export function linkReadiness(link: WorkflowLink, aiAvailable: boolean): { ready: boolean; reason: string } {
   if (link.kind === "manual") return { ready: true, reason: "" };
+  if (link.kind === "judgment") {
+    if (!link.judgment) return { ready: false, reason: "还没选判断规则" };
+    return link.pass?.length ? { ready: true, reason: "" } : { ready: false, reason: "还没选哪些结果可以交过去" };
+  }
   if (link.kind === "function") {
     return link.body_template.trim()
       ? { ready: true, reason: "" }
@@ -125,11 +184,15 @@ export function parseChain(value: unknown): WorkflowChain {
 }
 
 function parseStation(value: unknown): WorkflowStation {
-  const raw = (value && typeof value === "object" ? value : {}) as { station_id?: unknown; plugin?: unknown; content?: unknown };
+  const raw = (value && typeof value === "object" ? value : {}) as { station_id?: unknown; plugin?: unknown; content?: unknown; action?: unknown };
   const plugin = typeof raw.plugin === "string" ? raw.plugin.trim() : "";
   if (!/^[a-z][a-z0-9-]{1,40}$/.test(plugin)) throw new WorkflowError("workflows.invalid", "站点插件无效");
   const stationId = typeof raw.station_id === "string" && /^[a-zA-Z0-9-]{8,64}$/.test(raw.station_id)
     ? raw.station_id : crypto.randomUUID();
+  if (raw.action !== undefined) {
+    if (plugin !== "action" || raw.content !== undefined) throw new WorkflowError("workflows.invalid", "动作步骤只能引用一个动作");
+    return { station_id: stationId, plugin, action: parseActionStep(raw.action) };
+  }
   if (raw.content !== undefined) {
     const content = raw.content as WorkflowContentBinding;
     if (!content || typeof content.provider_id !== "string" || !content.provider_id.trim()
@@ -147,16 +210,57 @@ function parseStation(value: unknown): WorkflowStation {
   return { station_id: stationId, plugin };
 }
 
+function parseActionStep(value: unknown): WorkflowActionStep {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const ref = (raw.ref && typeof raw.ref === "object" ? raw.ref : {}) as Record<string, unknown>;
+  if (typeof ref.capability_id !== "string" || !/^[a-z0-9][a-z0-9_.-]{0,160}$/i.test(ref.capability_id) || !Number.isInteger(ref.version) || Number(ref.version) < 1
+    || typeof ref.provider_id !== "string" || !ref.provider_id.trim() || ref.provider_id.length > 300) throw new WorkflowError("workflows.invalid", "动作步骤引用无效");
+  const mappingRaw = (raw.mapping && typeof raw.mapping === "object" && !Array.isArray(raw.mapping) ? raw.mapping : {}) as Record<string, unknown>;
+  const entries = Object.entries(mappingRaw);
+  if (entries.length > 40) throw new WorkflowError("workflows.invalid", "动作步骤的字段过多");
+  const mapping: Record<string, WorkflowFieldSource> = {};
+  for (const [name, source] of entries) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) || !source || typeof source !== "object") throw new WorkflowError("workflows.invalid", "字段映射无效");
+    const entry = source as Record<string, unknown>;
+    if ("from" in entry) {
+      if (!WORKFLOW_PAYLOAD_FIELDS.includes(entry.from as WorkflowPayloadField)) throw new WorkflowError("workflows.invalid", `字段 ${name} 的来源无效`);
+      mapping[name] = { from: entry.from as WorkflowPayloadField };
+    } else if ("value" in entry && ["string", "number", "boolean"].includes(typeof entry.value)) {
+      if (typeof entry.value === "string" && entry.value.length > 8000) throw new WorkflowError("workflows.invalid", `字段 ${name} 的固定值过长`);
+      mapping[name] = { value: entry.value as string | number | boolean };
+    } else throw new WorkflowError("workflows.invalid", `字段 ${name} 的映射无效`);
+  }
+  return { ref: { capability_id: ref.capability_id, version: Number(ref.version), provider_id: ref.provider_id },
+    title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim().slice(0, 200) : ref.capability_id,
+    ...(typeof raw.group === "string" && raw.group.trim() ? { group: raw.group.trim().slice(0, 120) } : {}), mapping };
+}
+
 function parseLink(value: unknown): WorkflowLink {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
-  const kind = raw.kind === "function" || raw.kind === "ai" || raw.kind === "manual" ? raw.kind : "manual";
+  const kind = raw.kind === "function" || raw.kind === "ai" || raw.kind === "manual" || raw.kind === "judgment" ? raw.kind : "manual";
   const text = (field: unknown, max: number) => typeof field === "string" ? field.slice(0, max) : "";
+  // Fields of the other kinds are kept, so switching back restores what was written.
+  const judgment = parseJudgmentRef(raw.judgment);
+  const pass = Array.isArray(raw.pass) ? [...new Set(raw.pass.filter((value): value is string => typeof value === "string" && /^[a-z][a-z0-9_]{0,39}$/.test(value)))].slice(0, 8) : undefined;
   return {
     kind,
     title_template: text(raw.title_template, 400),
     body_template: text(raw.body_template, 8000),
     instructions: text(raw.instructions, 4000),
+    ...(judgment ? { judgment } : {}),
+    ...(pass ? { pass } : {}),
   };
+}
+
+function parseJudgmentRef(value: unknown): WorkflowLink["judgment"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.capability_id !== "string" || !/^functions\.published\.[a-z0-9][a-z0-9_.-]{0,120}$/.test(raw.capability_id)
+    || !Number.isInteger(raw.version) || Number(raw.version) < 1 || typeof raw.provider_id !== "string" || !raw.provider_id.trim()) {
+    throw new WorkflowError("workflows.invalid", "判断规则引用无效");
+  }
+  return { capability_id: raw.capability_id, version: Number(raw.version), provider_id: raw.provider_id,
+    ...(typeof raw.title === "string" ? { title: raw.title.slice(0, 200) } : {}) };
 }
 
 /** Insert a plugin into gap `gap` (0 = before the first station, stations.length = after the last). */
@@ -286,14 +390,16 @@ export function advanceInstance(
   handoff: WorkflowHandoff,
   arrived: WorkflowItemRef,
   at: string,
+  arrival: { readonly payload?: WorkflowPayload; readonly result?: unknown } = {},
 ): WorkflowInstance {
   if (instance.status !== "active") throw new WorkflowError("workflows.invalid", "这一次已经结束");
   if (from !== instance.current) throw new WorkflowError("workflows.conflict", "这一步已经交过了，请刷新后再看");
   if (from >= instance.steps.length - 1) throw new WorkflowError("workflows.invalid", "已经是最后一站");
   const next = from + 1;
   const steps = instance.steps.map((step, index): WorkflowStep => {
-    if (index === from) return { ...step, status: "done", handoff };
-    if (index === next) return { ...step, status: next === instance.steps.length - 1 ? "done" : "current", item: arrived, arrived_at: at };
+    if (index === from) { const { pending: _pending, ...rest } = step; return { ...rest, status: "done", handoff }; }
+    if (index === next) return { ...step, status: next === instance.steps.length - 1 ? "done" : "current", item: arrived, arrived_at: at,
+      ...(arrival.payload ? { payload: arrival.payload } : {}), ...(arrival.result !== undefined ? { result: arrival.result } : {}) };
     return step;
   });
   const finished = next === instance.steps.length - 1;

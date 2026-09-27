@@ -20,6 +20,8 @@ export interface BrowserAcceptance {
   >;
 }
 export interface AgentDesign {
+  /** The capability catalog the design was made against (see the host); absent for designs from before it. */
+  catalog?: string;
   id: string;
   title: string;
   description: string;
@@ -39,6 +41,8 @@ export interface AgentProposal {
   effects: SandboxEffects;
   /** Enough contract and parts to render the proposal on the canvas; never built or validated as a plugin. */
   preview: { contract: SandboxPluginContract; parts: PluginComponentPlan[] };
+  /** A picture of the proposal, when an image service is configured (W7): drawn once, never retried. */
+  mockup?: { status: 'drawing' | 'ready' | 'failed'; jobId?: string; imageId?: string; reason?: string };
 }
 export interface AgentBuildStep {
   id: string; agent: 'design' | 'ui' | 'code' | 'host'; action: string;
@@ -63,6 +67,8 @@ export interface AgentBuild extends AgentBuildSnapshot {
   browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string };
   runs: Array<{ id: string; role: string; phase: string; configuredModel: string; reportedModels: string[]; promptVersion: string; error?: string }>;
   pendingPart?: { id: string; candidates: string[]; reason: string };
+  /** Plugins the design uses that this project has not enabled: the build waits until the person enables them or declines. */
+  pendingPlugins?: Array<{ pluginId: string; title: string; capabilities: string[] }>;
   /** Operations a revision changes inside under the same contract (e.g. the model's instructions), with the change the code agent makes. */
   rework?: Record<string, string>;
   history: AgentBuildSnapshot[];

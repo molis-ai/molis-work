@@ -7,14 +7,12 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID,
   githubIntegrationManifest,
   githubWhoami,
 } from "@molis-ai/molis-work-integration-github";
 import {
   catalogConnectorIds,
   catalogIntegrationManifest,
-  catalogPublicBehaviorId,
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
@@ -30,6 +28,7 @@ import {
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { connectorAccountActions } from "../apps/local-host/src/connector-account-actions.js";
 import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/src/connector-directory.ts";
 import { GITHUB_AUTH_REF } from "../apps/local-host/src/connector-credentials.ts";
 import { CONNECTOR_MARKS } from "../apps/workbench/src/connector-marks.ts";
@@ -101,12 +100,12 @@ function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCa
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
-test("GitHub Integration Manifest is schema 2 and names whoami", () => {
+test("GitHub Integration Manifest is schema 2; its account check is the connector action, not a legacy behavior", () => {
   const parsed = parsePluginManifest(githubIntegrationManifest);
   assert.equal(parsed.schema_version, 2);
   assert.equal(parsed.host_api_version, 2);
-  assert.ok(parsed.behaviors?.some((row) => row.behavior_id === "whoami"));
-  assert.equal(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID, "github.whoami");
+  assert.equal(parsed.behaviors, undefined);
+  assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
 });
 
 test("connector directory covers common Codex/Claude/Grok accounts without empty packages", () => {
@@ -130,7 +129,7 @@ test("connector directory covers common Codex/Claude/Grok accounts without empty
     assert.ok(row.capabilities.every((item) => item.label.length > 0), row.connector_id);
     assert.ok(row.capabilities.some((item) => item.fulfillment === "live"), row.connector_id);
     if (!["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail"].includes(row.connector_id)) {
-      assert.equal(row.auth_kind, row.connector_id === "notion" || row.connector_id === "feishu" ? row.connector_id : "token", row.connector_id);
+      assert.equal(row.auth_kind, row.connector_id === "loom" ? "none" : row.connector_id === "notion" || row.connector_id === "feishu" ? row.connector_id : "token", row.connector_id);
       assert.equal(existsSync(join(ROOT, "..", "plugins", "official-integrations", row.connector_id)), false, row.connector_id);
     }
   }
@@ -191,7 +190,7 @@ test("Connectors settings cards distinguish account states and never echo the se
           { label: "Functions 可勾查看当前账号", fulfillment: "live" },
         ],
       },
-    ],
+    ].map(card => ({ ...card, method_options: HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === card.connector_id)?.method_options })),
   }, {
     L: (text) => text,
     escapeHtml: (value) => String(value ?? ""),
@@ -201,22 +200,22 @@ test("Connectors settings cards distinguish account states and never echo the se
   assert.match(html, /class="mw-card settings-connector-card"/);
   assert.match(html, /data-connector-group="live"/);
   assert.doesNotMatch(html, /data-connector-group="placeholder"/);
-  assert.match(html, /可以连接/);
-  assert.match(html, /工作 GitHub/);
-  assert.match(html, /私人 Gmail/);
-  assert.match(html, /settings-state--neutral[^>]*>凭据已保存/);
+  assert.match(html, /添加服务/);
+  assert.match(html, /octocat/);
+  assert.match(html, /me@example.com/);
+  assert.match(html, /settings-state--neutral[^>]*>已保存/);
   assert.match(html, /settings-state--warning[^>]*>需重新授权/);
   assert.match(html, /data-connector-open="wechat"/);
   assert.match(html, /data-connector-mark="github"/);
   assert.match(html, /data-connector-mark="wechat"/);
-  assert.match(html, /<svg[\s\S]*viewBox=/);
+  assert.match(html, /<img src="data:image\/svg\+xml,/);
   assert.match(html, /data-fulfillment="live"/);
   assert.match(html, /data-fulfillment="unfulfilled"/);
   assert.match(html, /Feed 拉未读通知/);
   assert.match(html, /data-connector-subgroup="chat"/);
   assert.match(html, /企业微信自建应用/);
   assert.match(html, /type="password"[^>]*data-connector-token="gmail"/);
-  assert.match(html, /type="password"[^>]*data-connector-token="wechat"/);
+  assert.match(html, /data-connector-auth="wechat" data-credential-separator=":"/);
   assert.match(html, /data-connector-token="github"/);
   assert.doesNotMatch(html, /ghp_liveTokenABCD/);
   assert.match(html, /出站动作未兑现/);
@@ -247,9 +246,10 @@ test("every connector detail exposes official https setup links", () => {
   assert.match(html, /https:\/\/id\.atlassian\.com\/manage-profile\/security\/api-tokens/);
   assert.match(html, /target="_blank"/);
   assert.match(html, /rel="noopener noreferrer"/);
-  const rendered = [...html.matchAll(/data-connector-setup-link/g)].length;
-  const expected = HOST_CONNECTOR_DIRECTORY.reduce((count, row) => count + (row.setup_links?.length ?? 0), 0);
-  assert.equal(rendered, expected);
+  for (const row of HOST_CONNECTOR_DIRECTORY) {
+    for (const link of row.setup_links ?? []) assert.ok(html.includes(primitives.escapeHtml(link.url)), link.url);
+  }
+
 });
 
 test("an existing Gmail account offers targeted OAuth reauthorization while the form adds another account", () => {
@@ -264,10 +264,10 @@ test("an existing Gmail account offers targeted OAuth reauthorization while the 
     icon: () => "",
   });
   assert.match(html, /data-connection-reauthorize="33333333-3333-4333-8333-333333333333"/);
-  assert.match(html, /凭据已保存/);
-  assert.match(html, /data-connector-gmail-oauth-start/);
+  assert.match(html, /data-connection-state>已保存/);
+  assert.match(html, /data-account-login="gmail"/);
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
-  assert.match(html, /添加新连接/);
+  assert.match(html, /添加另一个账号/);
   const manualTokenHtml = renderConnectorsSettings({
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
@@ -277,8 +277,8 @@ test("an existing Gmail account offers targeted OAuth reauthorization while the 
     escapeHtml: (value) => String(value ?? ""),
     icon: () => "",
   });
-  assert.match(manualTokenHtml, /data-connector-gmail-client-id/);
-  assert.match(manualTokenHtml, /data-connector-gmail-oauth-start/);
+  assert.match(manualTokenHtml, /data-protocol-field="client_id"/);
+  assert.match(manualTokenHtml, /data-protocol-start="oauth"/);
 });
 
 test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors", () => {
@@ -397,7 +397,7 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       };
       assert.equal(
         emptyCatalog.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
+          ?.behavior_ids.includes("github.whoami"),
         false,
       );
       const bound = await fetch(`${origin}/api/settings/connectors/github/token`, {
@@ -417,7 +417,7 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       const liveCatalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
         catalog: { destinations: Array<{ destination_id: string; behavior_ids: string[] }>; behaviors: Array<{ behavior_id: string }> };
       };
-      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID), false,
+      assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
         "the legacy connector settings API is not a registered Agent action");
       const whoami = await fetch(`${origin}/api/settings/connectors/github/whoami`, {
         method: "POST",
@@ -436,7 +436,7 @@ test("Connectors HTTP binds the same GitHub secret Feed uses, hides plaintext, a
       };
       assert.equal(
         after.catalog.destinations.find((row) => row.destination_id === "agent.mcp")
-          ?.behavior_ids.includes(GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID),
+          ?.behavior_ids.includes("github.whoami"),
         false,
       );
     } finally {
@@ -467,7 +467,6 @@ test("deleting a Feed GitHub source keeps the machine credential", async () => {
 test("catalog Slack whoami hits auth.test and appears in Functions only while bound", async () => {
   const parsed = parsePluginManifest(catalogIntegrationManifest("slack"));
   assert.equal(parsed.plugin_id, "io.molis.work.integration.slack");
-  assert.equal(catalogPublicBehaviorId("slack"), "slack.whoami");
   const urls: string[] = [];
   const result = await catalogWhoami({
     connectorId: "slack",
@@ -490,4 +489,20 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
     unbindConnectorToken("slack");
     assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
   });
+});
+
+
+test("Connector next steps follow the active connection method and never send MCP to Feed", () => {
+  const entry = HOST_CONNECTOR_DIRECTORY.find(row => row.connector_id === "notion")!;
+  const card = { ...entry, account_state: "disconnected" as const, feed_available: true };
+  const row = { connection_id: "review-connection", service_id: "notion", display_name: "Work", account_label: null,
+    source: "managed" as const, state: "connected" as const, auth_method: "mcp" as const };
+  const p = { L: (value: string) => value, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
+  const render = (connections: NonNullable<Parameters<typeof renderConnectorsSettings>[0]["connector_connections"]>) => renderConnectorsSettings({ connectors: [card], connector_connections: connections }, p).split('data-connector-next>')[1]!.split('</section>')[0]!;
+  assert.doesNotMatch(render([]), /data-connector-next-link/);
+  assert.match(render([row]), /settings\/coding-settings/);
+  assert.doesNotMatch(render([row]), /data-connector-next-link="feed"/);
+  assert.match(render([{ ...row, auth_method: "oauth" }]), /data-connector-next-link="feed"/);
+  assert.doesNotMatch(render([{ ...row, state: "disconnected" }]), /data-connector-next-link/);
+  assert.doesNotMatch(render([{ ...row, agent_available: false }]), /settings\/coding-settings/);
 });

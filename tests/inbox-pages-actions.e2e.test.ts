@@ -27,7 +27,6 @@ for (const width of [1440, 390]) {
       await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=inbox` }, sessionId));
       await waitFor("document.querySelector('[data-plugin-id=inbox]')");
       if (await evaluate("document.body.dataset.desktopSurface") !== "inbox") {
-        if (width === 390) await click('.workspace-chrome [data-directory-show]');
         await click('[data-plugin-strip] [data-plugin-id=inbox]');
       }
       await waitFor("document.body.dataset.desktopSurface === 'inbox'");

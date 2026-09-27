@@ -67,7 +67,19 @@ export class LingguangStore {
     return fromSparkRow(row);
   }
 
-  create(input: { title?: string; body?: string; project_id: string }): LingguangSpark {
+  /** A repeated `request_id` (a retried workflow delivery) returns the spark it created the first time. */
+  create(input: { title?: string; body?: string; project_id: string; request_id?: string }): LingguangSpark {
+    if (input.request_id) {
+      const requestId = input.request_id;
+      return this.transaction(() => {
+        const prior = this.db.prepare("SELECT spark_id FROM spark_requests WHERE project_id = ? AND request_id = ?")
+          .get(normalizeProjectId(input.project_id), requestId) as { spark_id: string } | undefined;
+        if (prior) return this.get(prior.spark_id, input.project_id);
+        const created = this.create({ title: input.title, body: input.body, project_id: input.project_id });
+        this.db.prepare("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)").run(created.project_id, requestId, created.id);
+        return created;
+      });
+    }
     const now = new Date().toISOString();
     const project_id = normalizeProjectId(input.project_id);
     const body = normalizeBody(input.body ?? "");
@@ -221,6 +233,12 @@ export function openLingguangStore(homeDirectory: string): LingguangStore {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       UNIQUE (project_id, spark_key)
+    );
+    CREATE TABLE IF NOT EXISTS spark_requests (
+      project_id TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      spark_id TEXT NOT NULL,
+      PRIMARY KEY (project_id, request_id)
     );
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,

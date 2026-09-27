@@ -17,18 +17,13 @@ export const packageDescriptor = {
   capabilities: ["connector.catalog.v1", "signal-adapter.catalog.v1"],
 } as const;
 
-export const CATALOG_WHOAMI_BEHAVIOR_ID = "whoami";
-
-export function catalogPublicBehaviorId(connectorId: string): string {
-  return `${connectorId}.whoami`;
-}
-
 export function catalogIntegrationManifest(connectorId: string): PluginManifest {
   const spec = getCatalogSpec(connectorId);
   return {
     schema_version: 2,
     plugin_id: `io.molis.work.integration.${connectorId}`,
-    version: "1.0.0",
+    // 1.1.0: the account check moved to the connector action `connectors.account.read`.
+    version: "1.1.0",
     name: spec.title,
     kind: "integration",
     publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
@@ -44,14 +39,6 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     },
     artifacts: { produces: [], consumes: [] },
     ui: { contributions: [`settings.integration.${connectorId}`] },
-    behaviors: [
-      {
-        behavior_id: CATALOG_WHOAMI_BEHAVIOR_ID,
-        title: `查看当前 ${spec.title} 账号`,
-        effect: "read",
-        subject_kinds: ["mcp_invoke", "session"],
-      },
-    ],
   };
 }
 

@@ -24,12 +24,15 @@ import {
 } from "./prologue.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import { createPrologueSubagents, verifySubagentStart, exactCharacterKey, type PrologueSubagentRoot } from "./prologue-subagents.js";
-import { createPrologueMcpLibrary, mcpConnectionId } from "./prologue-mcp.js";
+import { createPrologueMcpLibrary, mcpConnectionId, type HostMcpConnection } from "./prologue-mcp.js";
 import { createPrologueCheckpoints, type PrologueRewindIntent } from "./prologue-checkpoints.js";
 import { createPrologueGitReviews, type PrologueGitReviewPort } from "./prologue-git.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskboard.js";
+import { createProjectWork, projectWorkDigest, workPaths } from "./prologue-project-work.js";
+import { createSessionMessages, MAX_BROADCAST } from "./prologue-messages.js";
+import { createPrologueWaits } from "./prologue-waits.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -93,7 +96,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    * reference that resolves to nothing.
    */
   resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
-  resolveMcpConnection?: (connectionId: string, endpoint: string) => string | null | Promise<string | null>;
+  resolveMcpConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
+  subscribeMcpConnections?: (listener: (connectionId: string) => void) => () => void;
 }
 
 // This resource combines base/role/Character/project instructions, selected
@@ -137,23 +141,30 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
     resolveHost: resolveModelHostname,
     beforeModelDispatch: async () => { await dispatchGuards.getStore()?.(); },
+    // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
+    // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
+    retryUnansweredModelCalls: true,
   });
   const runtime = await createRuntime({
     app: options.app,
     host,
     preset: "local-agent",
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
-    config: { agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 20 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
+    // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
+    // Background commands belong to the session and keep running after its round (the person's decision), at most four
+    // at a time; a parked session waits up to a week, like a request.
+    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 } }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 20 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
       : { sandbox: "read-only", approval: "on-request" },
-    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }] }, rules: codingExecutionRules } : {}),
+    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "session-send" }] }, rules: codingExecutionRules } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     resolveConnection: options.resolveMcpConnection,
+    subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
   const registeredMethods = new Map<string, Skill>();
@@ -262,6 +273,17 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           return { kind: "tool-operation", tool: subject.name, summary: subject.name === "dispatch-subagent" ? (attempt.subagent_roots?.length ? "分派独立目录子任务；修改仍需审查，结果仍需核对" : "分派只读子任务；结果仍需核对") : "向原子任务补充要求",
             fields: [...readable, { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
         }
+        // Stopping a background command has no review resource of its own: the card names the command it stops.
+        if (subject.what === "tool" && subject.name === "command-stop") {
+          if (typeof subject.input !== "string") throw new Error("停止命令的参数不可读，不能批准");
+          const args = JSON.parse(subject.input);
+          const handle = args && typeof args === "object" && typeof args.handle === "string" ? args.handle : "";
+          const task = handle ? runtime.background.get(handle) : undefined;
+          reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+          return { kind: "tool-operation", tool: subject.name, summary: task ? "停止一条后台命令" : "停止一条命令",
+            fields: [{ label: "命令", value: task?.summary ?? handle }, ...(task ? [{ label: "现在", value: task.state === "running" ? "还在运行" : task.state }] : []),
+              { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
+        }
         if (subject.what === "tool" && subject.name.startsWith("molis-action-")) {
           if (typeof subject.input !== "string") throw new Error("Action arguments are unavailable");
           const index = await readIndex(pending.origin!.session!);
@@ -298,13 +320,24 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           && Array.isArray(review.envAllowlist) && review.envAllowlist.every((name: unknown) => typeof name === "string") && typeof review.escalate === "boolean") {
           reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
           return { kind: "command", ...(childDirectory ? { workspace_path: childDirectory } : {}), command: review.executable, args: review.argv, cwd: review.cwd,
-            timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate };
+            timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate,
+            ...(review.background === true ? { background: true, outlives_run: review.outlivesRun === true } : {}) };
         }
         if (review.kind !== "workspace-patch" || review.version !== 1 || typeof review.path !== "string"
           || typeof review.baseExists !== "boolean" || typeof review.baseText !== "string" || typeof review.nextText !== "string") throw new Error("这类操作的完整审查尚未接通，不能批准");
         reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+        // A file this round writes joins its work's scope; other work under way that covers it is named on the card.
+        const work = pending.origin?.run ? runWork.get(pending.origin.run) : undefined;
+        let concurrent: string[] = [];
+        if (work) {
+          void projectWork.touch(work.project, work.id, review.path).catch(() => undefined);
+          try {
+            const seen = await projectWork.read(work.project, { session_id: work.session.id, directory: work.directory, paths: [review.path] });
+            concurrent = seen.overlaps.map(overlap => `会话「${overlap.work.title.slice(0, 40)}」（${overlap.work.state === "running" ? "进行中" : "等待开始"}）`);
+          } catch { /* the card still shows the change itself */ }
+        }
         return { kind: "text-edit", ...(childDirectory ? { workspace_path: childDirectory } : {}), target_path: review.path, exists: review.baseExists,
-          before_text: review.baseExists ? review.baseText : null, after_text: review.nextText };
+          before_text: review.baseExists ? review.baseText : null, after_text: review.nextText, ...(concurrent.length ? { concurrent } : {}) };
       },
   };
   const approvals = options.reviewQueue && new PrologueApprovalBridge({
@@ -439,7 +472,84 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     try { await next; }
     finally { if (indexUpdates.get(id) === next) indexUpdates.delete(id); }
   };
-  const stepBoards = createPrologueTaskBoards(runtime, async run => (await readIndex(run.session_id))?.attempts.find(attempt => attempt.run_id === run.run_id));
+  // The project's work under way, on one standing SDK graph per project; what each item covers is kept beside it.
+  const workKind = `molis-project-work-${createHash("sha256").update(options.app.appId).digest("hex").slice(0, 24)}`;
+  const workVersions = new Map<string, number>();
+  const projectWork = createProjectWork(runtime, {
+    async load(project) {
+      const record = await host.storage.get({ kind: workKind, id: project });
+      if (!record || record.tombstoned) return {};
+      workVersions.set(project, record.version);
+      const bytes = await host.storage.readSecure({ kind: workKind, id: project });
+      try { return JSON.parse(new TextDecoder().decode(bytes)); } finally { bytes.fill(0); }
+    },
+    async save(project, scopes) {
+      const bytes = new TextEncoder().encode(JSON.stringify(scopes));
+      try {
+        const record = await host.storage.commit({ kind: workKind, id: project, expectedVersion: workVersions.get(project) ?? 0, metadata: { schema: 1 }, secureBody: bytes });
+        workVersions.set(project, record.version);
+      } finally { bytes.fill(0); }
+    },
+  }, runId => runWork.has(runId));
+  /** Each session's main round running now, for messages that should reach it at once. */
+  const liveSessions = new Map<string, string>();
+  /** Unfinished plan steps another session handed to this one (its own plan's are not "handed"), board by board. */
+  const handedSteps = (session: ExactRef<"session">) => runtime.boards.assignedTo(session)
+    .filter(board => !board.standing)
+    .map(board => ({ board: board.ref.id, nodes: board.nodes.filter(node => node.reports.some(report => report.handover?.to?.kind === "session" && report.handover.to.id === session.id)) }))
+    .filter(board => board.nodes.length > 0);
+  /** Tell a session's main round that is running now; false when it has none. */
+  const steerSession = async (sessionId: string, text: string) => {
+    const run = liveSessions.get(sessionId), active = run ? activeRuns.get(run) : undefined;
+    if (!active?.live()) return false;
+    await active.steer(text);
+    return true;
+  };
+  const messages = createSessionMessages(runtime, {
+    async owner(sessionId) {
+      const index = await readIndex(sessionId).catch(() => undefined);
+      return index ? { project: index.owner.board_id, ref: index.ref, subtask: Boolean(index.parent_run) } : undefined;
+    },
+    async title(project, sessionId) {
+      const listed = (await projectWork.read(project).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId);
+      return listed?.title ?? (await readIndex(sessionId).catch(() => undefined))?.title ?? sessionId;
+    },
+    steer: (sessionId, text) => steerSession(sessionId, text),
+    async overlapping(sessionId) {
+      // The files this session's round under way names or wrote, against the other work under way in its directory.
+      const index = await readIndex(sessionId).catch(() => undefined);
+      if (!index) return [];
+      const project = index.owner.board_id, mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && item.state === "running");
+      if (!mine) return [];
+      const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
+      return [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))];
+    },
+  });
+  /** Parked sessions and background commands; a wait that fires while its session runs a round is told to that round. */
+  const waitsPort = createPrologueWaits(runtime, {
+    project: async sessionId => (await readIndex(sessionId).catch(() => undefined))?.owner.board_id,
+    title: async sessionId => {
+      const index = await readIndex(sessionId).catch(() => undefined);
+      if (!index) return sessionId;
+      return (await projectWork.read(index.owner.board_id).catch(() => ({ items: [] }))).items.find(item => item.session_id === sessionId)?.title ?? index.title;
+    },
+    steer: (sessionId, text) => steerSession(sessionId, text),
+  });
+  /** Main rounds registered as project work: which item, in which project and directory. */
+  const runWork = new Map<string, { project: string; id: string; session: ExactRef<"session">; directory: string }>();
+  const stepBoards = createPrologueTaskBoards(runtime, async run => {
+    const index = await readIndex(run.session_id), attempt = index?.attempts.find(attempt => attempt.run_id === run.run_id);
+    return attempt && { ...attempt, session: index!.ref };
+  }, async (run, text) => {
+    // Only a round still running hears about changes; a settled one reads the graph when it next starts.
+    const active = activeRuns.get(run.run_id);
+    if (!active?.live()) return false;
+    await active.steer(text);
+    return true;
+  }, async sessionId => {
+    const index = await readIndex(sessionId);
+    return index ? projectWork.boardId(index.owner.board_id) : undefined;
+  }, sessionId => liveSessions.has(sessionId));
   const rememberReview = async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
     const request = options.reviewQueue!.get(receipt.review_id);
     if (!request) throw new Error("原审查请求不可读取，不能保存决定");
@@ -552,7 +662,54 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const port: PrologueRuntimePort = {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
-    amendStepBoard: (run, amendment, expectedVersion) => stepBoards.amend(run, amendment, expectedVersion),
+    amendStepBoard: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor),
+    messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),
+      sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),
+      act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
+      async prioritize(project, sessionId, actorId) {
+        const index = await readIndex(sessionId).catch(() => undefined);
+        if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
+        // Its work under way (or waiting): the files it names, against the other work under way in its directory.
+        const mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && ["running", "waiting"].includes(item.state));
+        if (!mine) return { notified: [], paths: [] };
+        const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
+        const targets = [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))].slice(0, MAX_BROADCAST);
+        const paths = [...new Set(seen.overlaps.flatMap(overlap => overlap.paths))];
+        const at = (await runtime.readClock()).wallTimeMs;
+        for (const [n, target] of targets.entries()) {
+          const other = await readIndex(target).catch(() => undefined);
+          if (!other) continue;
+          await runtime.sessions.open(other.ref);
+          runtime.delivery.send({ from: index.ref, to: other.ref, kind: "notice", idempotencyKey: `priority.${sessionId.slice(0, 16)}.${String(at)}.${String(n)}`,
+            body: `（宿主代用户发出）用户把会话「${mine.title.slice(0, 40)}」标成了优先。它要改 ${paths.join("、")}：请让出这些文件——先别再改它们，手头和它们有关的修改先停下，说明你停在哪里；等它做完或用户另行安排再继续。和这些文件无关的部分照常做。（标记人：${actorId}）` }, at);
+        }
+        await runtime.delivery.flush();
+        return { notified: targets, paths };
+      } },
+    waits: waitsPort.waits,
+    background: waitsPort.background,
+    projectWork: {
+      read: (project, probe) => projectWork.read(project, probe && { ...(probe.session_id ? { session_id: probe.session_id } : {}), directory: probe.directory, paths: workPaths(probe.text) }),
+      async queue(project, input, actorId) {
+        const index = await readIndex(input.session.session_id);
+        if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
+        const item = await projectWork.queue(project, { session: index.ref, title: input.title?.slice(0, 120) ?? index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
+        // The session is parked on the work it waits for: it is started with `data` when that work ends.
+        const target = (await projectWork.read(project)).items.find(work => work.work_id === input.after);
+        let waitId: string;
+        try {
+          waitId = await waitsPort.parkOnWork(index.ref, await projectWork.boardId(project), input.after, `等「${(target?.title ?? input.after).slice(0, 40)}」那一轮完成后再开始`,
+            { app: input.data ?? null, work_id: item.work_id });
+        } catch (error) {
+          // That work's session is already waiting on this one: they would wait on each other for ever.
+          await projectWork.release(project, item.work_id, actorId, "没有排上：会互相等待").catch(() => undefined);
+          if ((error as { code?: unknown }).code === "WAIT_CYCLE") throw new Error(`不能这样等：「${(target?.title ?? input.after).slice(0, 40)}」那边已经在等这个会话，两边会一直互相等。先让其中一边继续，或者不等直接开始。`);
+          throw error;
+        }
+        return { ...item, wait_id: waitId };
+      },
+      release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
+    },
     recovery: {
       inspect: session => inspectRecovery(session.session_id),
       close: async (session, runId, expectedVersion) => {
@@ -711,7 +868,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         textResources.push({ ref, as: "original" });
       }
       const childRoots: PrologueSubagentRoot[] = [];
-      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
+      if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report", "session-send"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
       for (const grant of input.subagent_workspaces ?? []) {
         const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
         if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
@@ -720,7 +877,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       }
       const childRoles = new Map<string, NonNullable<PrologueStartInput["subagents"]>[number]>();
       for (const role of input.subagents ?? []) {
-        const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(role.execution === "workspace-write" ? ["run-command"] : [])];
+        const allowed = ["read-file", "list", "search", "context-remaining", ...(childRoots.length && role.execution !== "read-only" ? ["write", "edit-file"] : []), ...(role.execution === "workspace-write" ? ["run-command"] : []),
+          // A child may read and wait on its parent's background commands when the parent waits on them itself.
+          ...(input.character.tools.includes("await-commands") ? ["command-output", "await-commands"] : [])];
         if (!childRoots.length && role.execution === "text-edit" || role.host_tools.some(tool => !allowed.includes(tool) || !childRoots.length && !input.character.tools.includes(tool))) throw new Error("子角色超出本轮允许的工具与目录");
         const ref = await stageInstructions(runtime, role.prompts.map(prompt => prompt.body).join("\n\n"));
         const draft = runtime.characters.create({ id: `molis-child-${randomUUID()}`, version: role.version, name: role.name, role: role.role_id,
@@ -736,9 +895,33 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const plan = input.provenance.frozen.execution_plan;
       const continued = input.provenance.frozen.continues_step_board_of;
       // A continued plan keeps its graph — with every step a person inserted, skipped or reordered — rather than starting over.
-      const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan) : undefined;
+      const stepBoard = plan ? continued ? await stepBoards.resume({ session_id: input.session_id, run_id: continued }) : await stepBoards.admit(plan, session.ref) : undefined;
+      // A round without a plan of its own still starts knowing where the session's unfinished graph stands.
+      const earlier = plan ? undefined : [...index.attempts].reverse().find(attempt => attempt.step_board && attempt.frozen.execution_plan);
+      // The graph as it stands travels with this round's task, where it reads as newer than the conversation before it.
+      const digest = plan && stepBoard ? stepBoards.digest(stepBoard, plan, session.ref.id)
+        : earlier ? stepBoards.standing(earlier.step_board!, earlier.frozen.execution_plan!, session.ref.id) : "";
+      if (digest) textResources.push({ ref: await stageTextResource(runtime, digest, "coding-board-digest"), as: "original" });
+      // What other sessions in the project are doing, and where it overlaps this round, as the round starts.
+      const project = index.owner.board_id, workText = `${input.task}\n${(plan?.steps ?? []).map(step => `${step.title}\n${step.acceptance}`).join("\n")}`;
+      const scopePaths = none ? [] : workPaths(workText);
+      if (!none && input.root_path && !index.parent_run) {
+        try {
+          const seen = await projectWork.read(project, { session_id: session.ref.id, directory: input.root_path, paths: scopePaths });
+          const note = projectWorkDigest(await projectWork.boardId(project), seen.items, session.ref.id, seen.overlaps, input.character.tools.includes("session-send") && !index.parent_run);
+          if (note) textResources.push({ ref: await stageTextResource(runtime, note, "coding-project-work"), as: "original" });
+        } catch { /* the project's list is a courtesy to the round; a failed read leaves it out rather than stopping the round */ }
+        // Messages other sessions left for this one while it was not running.
+        const inbox = await messages.inbox(session.ref.id, project).catch(() => "");
+        if (inbox) textResources.push({ ref: await stageTextResource(runtime, inbox, "coding-session-inbox"), as: "original" });
+        // Steps other sessions handed to this one and not yet done: where they are, so this round can go on with them.
+        const handed = handedSteps(session.ref);
+        if (handed.length) textResources.push({ ref: await stageTextResource(runtime, ["别的会话交给你、还没做完的步骤（任务图上现在归你）：",
+          ...handed.flatMap(one => one.nodes.map(node => `- 任务图 ${one.board}：${node.id}「${node.title.slice(0, 60)}」（${node.state}）`)),
+          "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "coding-handed-steps"), as: "original" });
+      }
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
-        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard.ref.id, plan)] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
+        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
       if (!none) {
         await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
         await mcpLibrary.validateSources(index.owner,input.mcp_sources ?? []);
@@ -788,7 +971,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         });
         throw error;
       }
-      const started = await dispatchGuards.run(input.beforeDispatch ?? (() => {}), () => runtime.startAgentRun({
+      const dispatchGuard = async () => {
+        await input.beforeDispatch?.();
+        if (!none) {
+          await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
+          await mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
+        }
+      };
+      const started = await dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun({
         session,
         ...(root ? { rootRef: root.ref } : { workspace: "none" as const }),
         // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
@@ -814,7 +1004,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                   host_tools: [...role.host_tools], text_materials: [], skills: [], mcp_tools: [], mcp_sources: [], budget: null,
                   prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: prompt.layer ?? "role" })) } }] });
             runRoots.set(childRun.run_id, granted.rootRef);
-            activeRuns.set(childRun.run_id, { live: () => observed.run.state === "running", steer: text => observed.control.steer({ text }) });
+            activeRuns.set(childRun.run_id, { live: () => ["prepared", "running"].includes(observed.run.state), steer: text => observed.control.steer({ text }) });
             const bridgeFailed = async () => {
               const reason = "子任务的宿主审查或归属记录失败，已停止执行；请核对原工具结果后继续";
               const errors = subagentBridgeErrors.get(observed.parentRun.id) ?? {};
@@ -844,7 +1034,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         } } : {}),
         // Packed against the model's own window when it states a smaller one than the runtime default.
         ...(input.compaction || input.provenance.frozen.model_context ? { context: {
-          ...(input.compaction ? { compactAboveTokens: input.compaction.above_tokens } : {}),
+          // A failed early compaction does not end a round whose history still fits the window (the person chose this).
+          ...(input.compaction ? { compactAboveTokens: input.compaction.above_tokens, continueWhenCompactionFails: true } : {}),
           ...(input.provenance.frozen.model_context ? { windowTokens: input.provenance.frozen.model_context.window_tokens } : {}),
         } } : {}),
         ...(input.compaction ? {
@@ -896,8 +1087,21 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       catch (error) { actionController.abort(); started.control.stop("cancelled"); throw error; }
       if (actionTools?.names.length) actionControllers.set(started.run.ref.id, actionController);
       let stopping: Promise<void> | undefined;
-      activeRuns.set(started.run.ref.id, { live: () => started.run.state === "running" && stopping === undefined,
+      // A round is live until it ends: before its first model event it is still "prepared", and it hears a steer then too.
+      activeRuns.set(started.run.ref.id, { live: () => ["prepared", "running"].includes(started.run.state) && stopping === undefined,
         steer: text => started.control.steer({ text }) });
+      if (plan && stepBoard) stepBoards.follow(stepBoard.ref, { session_id: session.ref.id, run_id: started.run.ref.id }, plan);
+      // A main round is work under way in its project until it ends; a subtask's work is its parent's.
+      if (!none && input.root_path && !index.parent_run) {
+        try {
+          const workId = await projectWork.begin(project, { session: session.ref, run_id: started.run.ref.id, title: input.session_title ?? index.title, task: input.task,
+            directory: input.root_path, paths: scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
+          runWork.set(started.run.ref.id, { project, id: workId, session: session.ref, directory: input.root_path });
+          liveSessions.set(session.ref.id, started.run.ref.id);
+          // The round it was parked to start has started: that wait is taken up, so its firing starts nothing more.
+          if (input.queued_work_id) await waitsPort.startedQueued(session.ref.id, input.queued_work_id).catch(() => undefined);
+        } catch { /* not listed as project work; the round itself is unaffected */ }
+      }
       const control = started.control;
       return {
         run: {
@@ -906,6 +1110,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
             started.run.subscribe((event) => {
               if (["completed", "failed", "cancelled"].includes(event.type)) {
                 actionController.abort(); actionControllers.delete(started.run.ref.id);
+                if (stepBoard) stepBoards.unfollow(stepBoard.ref.id);
+                if (liveSessions.get(session.ref.id) === started.run.ref.id) liveSessions.delete(session.ref.id);
+                const work = runWork.get(started.run.ref.id);
+                if (work) { runWork.delete(started.run.ref.id); void projectWork.end(work.project, work.id, event.type === "cancelled" ? "stopped" : event.type).catch(() => undefined); }
+                // A round that finished normally saw every message given to it; unanswered requests are settled.
+                if (work && event.type === "completed") void messages.settle(session.ref.id).catch(() => undefined);
+                // One that failed will not answer the requests someone waits on; they are ended so the waiting session wakes.
+                if (work && event.type === "failed") void messages.failed(session.ref.id).catch(() => undefined);
               }
               if (event.type === "command-receipt") {
                 const events = commandEvents.get(started.run.ref.id) ?? [];
@@ -936,7 +1148,17 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         },
       };
     },
-    shutdown: async () => { closingBuilders = true; await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]); for (const controller of actionControllers.values()) controller.abort(); actionControllers.clear(); stepBoards.close(); detachReviews?.(); await checkpoints?.close(); await gitReviews?.close(); return runtime.shutdown(); },
+    shutdown: async () => {
+      mcpLibrary.dispose();
+      closingBuilders = true;
+      await Promise.all([inference.close(), ...[...builders].map(builder => builder.close())]);
+      for (const controller of actionControllers.values()) controller.abort();
+      actionControllers.clear();
+      stepBoards.close(); messages.close(); waitsPort.close();
+      detachReviews?.();
+      await checkpoints?.close(); await gitReviews?.close();
+      return runtime.shutdown();
+    },
   };
 
   return Object.assign(new PrologueAgentAdapter({

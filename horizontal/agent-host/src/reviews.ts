@@ -34,8 +34,9 @@ export class AgentReviewError extends Error {
 function standingKey(request: AgentReviewRequest): string | null {
   const document = request.document;
   if (request.kind !== "command" || document.kind !== "command" || !request.run || document.escalate !== false) return null;
+  // Running a command and leaving it running in the background are different approvals.
   return JSON.stringify([request.board_id, request.plugin_id, request.run.session_id, document.command, document.args,
-    document.cwd, document.workspace_path ?? null, document.env_allowlist ?? null, document.timeout_ms]);
+    document.cwd, document.workspace_path ?? null, document.env_allowlist ?? null, document.timeout_ms, document.background === true, document.outlives_run === true]);
 }
 
 interface ReviewRow {

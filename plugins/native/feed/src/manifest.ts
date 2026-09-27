@@ -2,6 +2,8 @@ import { feedCaptureScene } from "./scenes.js";
 import { feedContentActions, feedSubjectAction, feedSourceSubjectAction } from "./content-actions.js";
 import { feedHomeEventsAction } from "./home-events.js";
 import { feedRuleActions } from "./rule-actions.js";
+import { feedItemActions } from "./item-actions.js";
+import { feedSourceActions } from "./source-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 
@@ -26,19 +28,12 @@ export const feedManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-feed-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [...new Set([...Object.values(feedContentActions), ...Object.values(feedRuleActions), feedHomeEventsAction].flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 内容、捕捉规则与首页事项" })),
+  permissions: [...new Set([...Object.values(feedContentActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedHomeEventsAction].flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 内容、捕捉规则与首页事项，处理消息去向与管理来源" })),
   capabilities: { provides: [], consumes: [] },
-  actions: [...Object.values(feedContentActions), ...Object.values(feedRuleActions), feedSubjectAction, feedSourceSubjectAction, feedHomeEventsAction],
+  actions: [...Object.values(feedContentActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedSubjectAction, feedSourceSubjectAction, feedHomeEventsAction],
   artifacts: { produces: [], consumes: [] },
   requires: [],
   action_scenes: [feedCaptureScene],
-  behaviors: [
-    { behavior_id: "open", title: "打开", effect: "read", subject_kinds: ["feed_item"] },
-    { behavior_id: "reauth", title: "重新授权", effect: "write", subject_kinds: ["source"] },
-    { behavior_id: "save", title: "保存为资料", effect: "write", subject_kinds: ["feed_item"] },
-    { behavior_id: "promote", title: "升格为 Goal", effect: "write", subject_kinds: ["feed_item"] },
-    { behavior_id: "archive", title: "忽略", effect: "write", subject_kinds: ["feed_item"] },
-  ],
   judgment_subjects: [
     { subject_kind: "feed_item", title: "Feed 消息" },
     { subject_kind: "source", title: "来源" },

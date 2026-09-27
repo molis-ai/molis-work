@@ -17,6 +17,8 @@ async function fixture() {
     db = new Database(join(directory, "server.sqlite"));
     db.pragma("foreign_keys = ON");
     db.exec(`CREATE TABLE IF NOT EXISTS mw_members(id TEXT PRIMARY KEY, display_name TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS mw_projects(id TEXT PRIMARY KEY,title TEXT,owner_id TEXT REFERENCES mw_members(id),scope_json TEXT);
+      CREATE TABLE IF NOT EXISTS mw_access(project_id TEXT REFERENCES mw_projects(id),member_id TEXT REFERENCES mw_members(id),role TEXT,PRIMARY KEY(project_id,member_id));
       CREATE TABLE IF NOT EXISTS mw_sessions(id TEXT PRIMARY KEY, member_id TEXT REFERENCES mw_members(id), expires_at INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS mw_events(cursor INTEGER PRIMARY KEY AUTOINCREMENT, scope_kind TEXT NOT NULL,
         scope_id TEXT NOT NULL, kind TEXT NOT NULL, entity_id TEXT NOT NULL, thread_id TEXT);`);
@@ -231,4 +233,71 @@ test("IM naming and its receipt roll back together even when the shared identity
     assert.equal((f.db.prepare("SELECT COUNT(*) AS n FROM mw_members").get() as {n:number}).n, 1);
     assert.equal((await f.post(anonymous, "/session", { client_id: key, display_name: "不同名字" })).status, 409);
   } finally { await f.close(); }
+});
+
+
+test("project main group uses live project access; tags, quotes, search and read cursors survive restart", async () => {
+  const f = await fixture();
+  try {
+    const alice=await f.person("Alice"),bob=await f.person("Bob"),stranger=await f.person("Outside");
+    f.db.prepare("INSERT INTO mw_projects VALUES ('project-one','Design',?,'{}')").run(alice.member.id);
+    for (const member of [alice,bob]) f.db.prepare("INSERT INTO mw_access VALUES ('project-one',?,'editor')").run(member.member.id);
+    const legacy=(await f.post(alice.session,'/rooms',{title:'Design'})).body.room;
+    const room=(await f.post(alice.session,'/projects/project-one/room')).body.room;
+    assert.notEqual(room.id,legacy.id,'matching names never migrate legacy history');
+    assert.equal(room.project_id,'project-one');
+    assert.equal((await f.post(bob.session,'/projects/project-one/room')).body.room.id,room.id);
+    assert.equal((await f.post(stranger.session,'/projects/project-one/room')).status,403);
+    assert.equal((await f.call(bob.session,'GET',`/rooms/${legacy.id}`)).status,403);
+    assert.equal((await f.call(alice.session,'GET',`/rooms/${room.id}/invite`)).status,403);
+    assert.equal((await f.post(alice.session,`/rooms/${room.id}/threads`,{title:'Empty'})).status,400);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM im_threads').get().n,0);
+    const body={title:'Launch',body:'First **decision**',client_id:randomUUID()};
+    const thread=(await f.post(alice.session,`/rooms/${room.id}/threads`,body)).body.thread;
+    assert.equal((await f.post(alice.session,`/rooms/${room.id}/threads`,body)).body.thread.id,thread.id);
+    const messages=(await f.call(bob.session,'GET',`/rooms/${room.id}/threads/${thread.id}/messages`)).body.messages;
+    assert.equal(messages.length,1);assert.equal(messages[0].body,'First **decision**');
+    const reply=(await f.post(bob.session,`/rooms/${room.id}/messages`,{body:'Agreed',quote_id:messages[0].id})).body.message;
+    assert.equal(reply.quoted_message.id,messages[0].id);
+    assert.equal(reply.quoted_message.thread_id,thread.id);
+    const secret=(await f.post(alice.session,`/rooms/${legacy.id}/messages`,{body:'Private decision'})).body.message;
+    assert.equal((await f.post(bob.session,`/rooms/${room.id}/messages`,{body:'forged',quote_id:secret.id})).status,404);
+    assert.deepEqual((await f.call(bob.session,'GET',`/rooms/${room.id}/search?q=decision`)).body.messages.map(m=>m.id),[messages[0].id]);
+    assert.equal((await f.call(bob.session,'GET',`/rooms/${room.id}/read`)).body.unread[thread.id],true);
+    await f.post(bob.session,`/rooms/${room.id}/read`,{message_id:messages[0].id});
+    assert.equal((await f.call(bob.session,'GET',`/rooms/${room.id}/read`)).body.unread[''],true,'reading a thread never clears the group');
+    await f.restart();
+    assert.equal((await f.call(bob.session,'GET',`/rooms/${room.id}/read`)).body.unread[thread.id],false);
+    f.db.prepare("DELETE FROM mw_access WHERE member_id=?").run(bob.member.id);
+    assert.throws(()=>f.domain.assertRoomMember(room.id,bob.member.id),{code:'im.forbidden'});
+    for(const suffix of ['', '/messages', '/search?q=decision', '/read'])assert.equal((await f.call(bob.session,'GET',`/rooms/${room.id}${suffix}`)).status,403);
+    assert.equal((await f.post(bob.session,`/rooms/${room.id}/messages`,{body:'revoked'})).status,403);
+    assert.equal((await f.call(bob.session,'GET','/rooms')).body.rooms.length,0);
+    assert.deepEqual(f.db.pragma('foreign_key_check'),[]);
+  } finally {await f.close();}
+});
+
+test('existing Thread identifiers and shared replies survive nullable-source migration', async () => {
+  const {createImSchema}=await import('../server/src/im/schema.js');
+  const db=new Database(':memory:');
+  try {
+    db.pragma('foreign_keys = ON');
+    db.exec(`CREATE TABLE mw_members(id TEXT PRIMARY KEY); CREATE TABLE mw_sessions(id TEXT PRIMARY KEY);
+      CREATE TABLE mw_projects(id TEXT PRIMARY KEY); INSERT INTO mw_members VALUES ('a');
+      CREATE TABLE im_rooms(id TEXT PRIMARY KEY,title TEXT,owner_id TEXT,invite_token TEXT,created_at TEXT,updated_at TEXT);
+      CREATE TABLE im_threads(id TEXT PRIMARY KEY,room_id TEXT REFERENCES im_rooms(id),title TEXT,source_message_id TEXT NOT NULL REFERENCES im_messages(id),created_by TEXT,created_at TEXT,updated_at TEXT);
+      CREATE TABLE im_messages(sequence INTEGER PRIMARY KEY,id TEXT UNIQUE,room_id TEXT,thread_id TEXT REFERENCES im_threads(id),author_id TEXT,body TEXT,shared_message_id TEXT REFERENCES im_messages(id),created_at TEXT);
+      INSERT INTO im_rooms VALUES ('r','Old room','a','old-invite','now','now');
+      INSERT INTO im_messages VALUES (1,'source','r',NULL,'a','Original',NULL,'now');
+      INSERT INTO im_threads VALUES ('t','r','Old thread','source','a','now','now');
+      INSERT INTO im_messages VALUES (2,'reply','r','t','a','Reply',NULL,'now');
+      INSERT INTO im_messages VALUES (3,'share','r',NULL,'a','','reply','now');`);
+    createImSchema(db);createImSchema(db);
+    assert.equal(db.prepare('SELECT thread_id FROM im_messages WHERE id=?').get('reply').thread_id,'t');
+    assert.equal(db.prepare('SELECT source_message_id FROM im_threads WHERE id=?').get('t').source_message_id,'source');
+    assert.equal(db.prepare('SELECT shared_message_id FROM im_messages WHERE id=?').get('share').shared_message_id,'reply');
+    assert.equal(db.prepare('SELECT project_id FROM im_rooms').get().project_id,null);
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);
+    assert.equal(db.pragma('foreign_keys',{simple:true}),1);
+  } finally {db.close();}
 });

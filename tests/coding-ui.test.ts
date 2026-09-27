@@ -66,6 +66,9 @@ test("不可用的工具页保留标签但禁用，并带上理由", () => {
 
 test("项目没绑定工作区时如实说明，不显示一个猜出来的路径", () => {
   const html = renderCodingWorkbench(model({ workspace_path: null }));
+  // The built-in Agent's grants open for this project, from a link the Host's project-local prefixing leaves alone.
+  const project = renderCodingWorkbench(model({ route_prefix: "/projects/p-1" }));
+  assert.match(project, /href="\.\.\/\.\.\/capabilities\/access\?client=agent%3Aprologue&amp;project=p-1"/);
   assert.match(html, /还没有绑定工作区目录/);
   assert.doesNotMatch(html, /data-coding-workspace="/);
   assert.match(html, /data-coding-workspace-open/);

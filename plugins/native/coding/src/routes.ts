@@ -1,4 +1,5 @@
-import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction, parseExactActionReferences, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
@@ -6,7 +7,7 @@ import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import { isDeepStrictEqual } from "node:util";
 import { materialChoices, materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentMessageAttachment, type AgentPeopleMessageAction, type AgentSessionMessage, type AgentWait, type AgentSessionStatus, type AgentSubagentWorkspace, type AgentRunControl, type AgentRunView, type AgentSkillRef, type AgentMcpToolRef, type AgentMcpSourceRef, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { CodingSessionRecord, CodingSessionStore } from "./store.js";
 import type { CodingSessionState } from "./projection.js";
@@ -15,10 +16,10 @@ import { CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
-import { codingContinuation } from "./continuation.js";
+import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
 import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
-import { CodingCooperationStore, DELEGATION_STATE_LABEL, type CodingDelegation } from "./cooperation.js";
+import { CodingCooperationStore, DELEGATION_ENDED, DELEGATION_STATE_LABEL, MAX_DELEGATION_HOPS, type CodingDelegation, type DelegationState } from "./cooperation.js";
 import { attachMentions, readWorkspaceFileCapability, symbolsIn, workspaceFileIndex } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
@@ -93,6 +94,11 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
   if(new Set(refs.map(ref=>ref.server)).size!==refs.length) throw new Error("MCP 资料来源重复");
   return refs;
 }
+/** A capability this host does not offer reads as nothing chosen; any other failure is still a failure. */
+const unlessMissing = <T>(call: Promise<T>, fallback: T): Promise<T> =>
+  call.catch((error: unknown) => { if ((error as { code?: unknown })?.code === "kernel.capability_missing") return fallback; throw error; });
+/** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
+const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 function nextConfiguration(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
   const config = value as Record<string, unknown>;
@@ -131,9 +137,11 @@ function stepAmendment(value: unknown): AgentStepAmendment {
   const words = (key: string, label: string, max: number) => { const found = entry[key]; if (typeof found !== "string" || !found.trim() || found.length > max) throw new Error(`请填写${label}（不超过 ${max} 字）`); return found.trim(); };
   switch (entry.kind) {
     case "skip": return { kind: "skip", node: id("node"), reason: words("reason", "跳过原因", 300) };
-    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300) };
+    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300), ...(entry.mine === true ? { mine: true as const } : {}) };
     case "unblock": return { kind: "unblock", node: id("node"), note: words("note", "你的决定", 500) };
     case "move": if (entry.direction !== "up" && entry.direction !== "down") throw new Error("移动方向无效"); return { kind: "move", node: id("node"), direction: entry.direction };
+    case "assign": if (entry.to !== "me" && entry.to !== "session") throw new Error("改派对象无效"); return { kind: "assign", node: id("node"), to: entry.to };
+    case "resolve": if (entry.state !== "succeeded" && entry.state !== "failed") throw new Error("结果无效"); return { kind: "resolve", node: id("node"), state: entry.state, note: words("note", "结果说明", 500) };
     default: throw new Error("不支持的计划调整");
   }
 }
@@ -144,10 +152,24 @@ function amendmentNote(amendment: AgentStepAmendment, board: AgentStepBoard): st
   const tail = "请先用 board-read 读取最新版本，按新的顺序继续；不要重做已完成的步骤。";
   switch (amendment.kind) {
     case "skip": return `我调整了本轮计划：跳过${name(amendment.node)}，原因：${amendment.reason}。${tail}`;
-    case "insert": return `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}。新步骤在任务图里的编号以 board-read 为准（user- 开头），轮到它时照常报告 running 与结果。${tail}`;
+    case "insert": return amendment.mine
+      ? `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}，由我自己处理。你不要报告这一步；等它完成后再继续依赖它的步骤。${tail}`
+      : `我调整了本轮计划：在${name(amendment.after)}之后插入新步骤「${amendment.title}」，完成条件：${amendment.acceptance}。新步骤在任务图里的编号以 board-read 为准（user- 开头），轮到它时照常报告 running 与结果。${tail}`;
     case "unblock": return `关于受阻的${name(amendment.node)}，我的决定：${amendment.note}。请按这个决定继续。${tail}`;
     case "move": return `我调整了本轮计划顺序：把${name(amendment.node)}${amendment.direction === "up" ? "提前" : "推后"}一步。${tail}`;
+    case "assign": return amendment.to === "me"
+      ? `我把${name(amendment.node)}改派给我自己处理。你（以及原来负责它的子任务）不要再报告这一步；等它完成后再继续依赖它的步骤。${tail}`
+      : `我把${name(amendment.node)}交回本会话，由你负责报告和完成。${tail}`;
+    case "resolve": return `我处理的${name(amendment.node)}${amendment.state === "succeeded" ? "已经完成" : "失败了"}：${amendment.note}。${amendment.state === "succeeded" ? "依赖它的步骤现在可以继续。" : "请看依赖它的步骤怎么办，需要我决定就说明。"}${tail}`;
   }
+}
+
+/**
+ * Whether an earlier round may still be continued: only a plan round whose graph is unfinished, when every round
+ * after it was plain conversation (no plan of its own) and has ended.
+ */
+export function planContinuesAfterTalk(run: Pick<AgentRunView, "step_board">, later: ReadonlyArray<Pick<AgentRunView, "frozen" | "phase">>): boolean {
+  return Boolean(run.step_board && !run.step_board.terminal) && later.every(view => !view.frozen.execution_plan && isTerminalAgentPhase(view.phase));
 }
 
 function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionState {
@@ -159,9 +181,38 @@ function sessionState(run: Pick<AgentRunView, "phase">): CodingSessionState {
   return "running";
 }
 
-/** Coding owns intent and organization; execution is always obtained through Host capabilities. */
-export function codingRoutes(context: PluginStartContext, ports?: CodingExecutionPorts): PluginRouteBinding[] {
+/** What each started Coding activation runs in the background (the loop taking up fired waits), to stop with it. */
+const activations = new Map<string, AbortController>();
+const activationKey = (context: PluginStartContext) => `${context.install_id}:${context.board_id ?? ""}`;
+/** The plugin stops: its background loops end. */
+export function stopCodingSurface(context: PluginStartContext): void {
+  activations.get(activationKey(context))?.abort();
+  activations.delete(activationKey(context));
+}
+
+/**
+ * Routes for the workbench, and the owner-bound actions the Runtime instance redeems for Coding's business surface.
+ * Coding owns intent and organization; execution is always obtained through Host capabilities.
+ */
+export function codingSurface(context: PluginStartContext, ports?: CodingExecutionPorts): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
+  const actions: ActionHandlerBinding[] = [];
+  const routes = codingRouteBindings(context, ports, actions);
+  return { routes, actions };
+}
+
+function codingRouteBindings(context: PluginStartContext, ports: CodingExecutionPorts | undefined, actions: ActionHandlerBinding[]): PluginRouteBinding[] {
   const boardId = context.board_id ?? "";
+  activations.get(activationKey(context))?.abort();
+  const stopped = new AbortController();
+  activations.set(activationKey(context), stopped);
+  const pause = (ms: number) => new Promise<void>(resolve => {
+    if (stopped.signal.aborted) { resolve(); return; }
+    const timer = setTimeout(() => { stopped.signal.removeEventListener("abort", done); resolve(); }, ms);
+    // A loop waiting to look again does not keep the process alive on its own.
+    (timer as { unref?: () => void }).unref?.();
+    const done = () => { clearTimeout(timer); resolve(); };
+    stopped.signal.addEventListener("abort", done, { once: true });
+  });
   const busy = new Set<string>();
   const summaries = summaryCache();
   const cooperation = () => new CodingCooperationStore(context.services!.storage!);
@@ -170,14 +221,94 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   /** Every fixed output of this project's Coding sessions, with the session it came from. */
   const sessionOutputs = (execution: CodingExecutionPorts) => [...execution.reportReferences?.() ?? [], ...execution.changeSetReferences?.() ?? [], ...execution.planReferences?.() ?? []]
     .flatMap(reference => { const [, encoded] = reference.artifact_id.split(":"); return encoded ? [{ reference, session_id: decodeURIComponent(encoded) }] : []; });
-  /** A delegation as either side sees it: the other session named, and its end noticed when that session is gone. */
-  const delegationView = (execution: CodingExecutionPorts, delegation: CodingDelegation, actor: string) => {
-    const title = sessionTitle(execution);
-    if (delegation.to_session && !title(delegation.to_session) && !["completed", "rejected", "cancelled", "failed"].includes(delegation.state)) {
-      try { delegation = cooperation().apply(delegation.delegation_id, undefined, "failed", "failed", actor, new Date().toISOString(), () => {}, "接收委派的会话已不存在"); } catch { /* a concurrent change wins; shown as read */ }
-    }
-    const other = (id: string | null) => { if (!id) return null; try { const record = execution.sessions.get(boardId, id); return { session_id: id, title: record.title, state: record.state, updated_at: record.updated_at }; } catch { return { session_id: id, title: null, state: null, updated_at: null }; } };
-    return { ...delegation, state_label: DELEGATION_STATE_LABEL[delegation.state], from: other(delegation.from_session), to: other(delegation.to_session) };
+  const sideOf = (execution: CodingExecutionPorts, id: string | null) => {
+    if (!id) return null;
+    try { const record = execution.sessions.get(boardId, id); return { session_id: id, title: record.title, state: record.state, updated_at: record.updated_at }; }
+    catch { return { session_id: id, title: null, state: null, updated_at: null }; }
+  };
+  /** A delegation from before delegations went by letter: shown as it was, changed no more. */
+  const legacyView = (execution: CodingExecutionPorts, delegation: CodingDelegation) =>
+    ({ ...delegation, legacy: true as const, state_label: DELEGATION_STATE_LABEL[delegation.state], from: sideOf(execution, delegation.from_session), to: sideOf(execution, delegation.to_session) });
+  /**
+   * A delegation is a letter for people between two sessions (the SDK's envelope, never handed to a model): the
+   * request carries the task and the fixed outputs handed over, each delivery is a reply carrying the fixed output
+   * handed back, and every step — sent, delivered, accepted, started, delivered back, taken or returned with why — is
+   * on the request's history.
+   */
+  const isDelegation = (letter: AgentSessionMessage) => letter.audience === "people" && letter.kind === "request";
+  const letterBody = (letter: AgentSessionMessage): Record<string, unknown> => {
+    try { const value = JSON.parse(letter.body) as unknown; return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; } catch { return {}; }
+  };
+  const artifactOf = (attachment: AgentMessageAttachment | undefined) => attachment?.kind === "artifact" && attachment.version !== undefined ? { artifact_id: attachment.id, version: attachment.version } : undefined;
+  const asAttachment = (reference: { artifact_id: string; version: number }): AgentMessageAttachment => ({ kind: "artifact", id: reference.artifact_id, version: reference.version });
+  const iso = (ms: number) => new Date(ms).toISOString();
+  type LetterHistory = NonNullable<AgentSessionMessage["history"]>;
+  /** The delegation's state from its letter's: accepted and started is under way; how it was cancelled says why. */
+  const delegationStateOf = (state: AgentSessionMessage["state"], history: LetterHistory): DelegationState => {
+    if (state === "queued") return "received";
+    if (state === "accepted") return history.some(entry => entry.event === "started") ? "committing" : "accepted";
+    if (state === "cancelled") { const how = history.find(entry => entry.state === "cancelled")?.event; return how === "failed" ? "failed" : how === "rejected" ? "rejected" : "cancelled"; }
+    if (state === "expired") return "failed";
+    return state;
+  };
+  const RECEIPT_EVENT: Record<string, string> = { sent: "submitted" };
+  const delegationView = (execution: CodingExecutionPorts, letter: AgentSessionMessage, letters: AgentSessionMessage[]) => {
+    const said = letterBody(letter), history = letter.history ?? [];
+    const codingOf = (runtime: string) => execution.sessions.byRuntimeSession(boardId, runtime)?.session_id ?? null;
+    const replies = letters.filter(one => one.audience === "people" && one.kind === "reply" && one.in_reply_to === letter.message_id);
+    const deliveries = replies.map(reply => {
+      const about = letterBody(reply), decided = (reply.history ?? []).find(entry => entry.state === "accepted" || entry.state === "rejected");
+      return { delivery_id: reply.message_id, kind: about.kind === "changeset" ? "changeset" as const : "report" as const, artifact: artifactOf(reply.attachments?.[0]) ?? null,
+        run_id: String(about.run_id ?? ""), title: String(about.title ?? ""), note: String(about.note ?? ""),
+        state: decided?.state === "rejected" ? "rejected" as const : decided ? "accepted" as const : "sent" as const,
+        ...(decided?.state === "rejected" && decided.note ? { reason: decided.note } : {}), sent_at: iso(reply.sent_at_ms),
+        ...(decided ? { decided_at: iso(decided.at_ms), decided_by: decided.by ?? "" } : {}) };
+    });
+    const receipts = history.map((entry, index) => ({ event: RECEIPT_EVENT[entry.event] ?? entry.event, state: delegationStateOf(entry.state, history.slice(0, index + 1)),
+      at: iso(entry.at_ms), actor: entry.by ?? "", ...(entry.note ? { note: entry.note } : {}), ...(artifactOf(entry.attachments?.[0]) ? { artifact: artifactOf(entry.attachments?.[0]) } : {}),
+      ...(entry.late ? { recorded_only: true as const } : {}) }));
+    const state = delegationStateOf(letter.state, history), from = codingOf(letter.from_session), to = codingOf(letter.to_session);
+    return { delegation_id: letter.message_id, from_session: from, to_session: to, title: String(said.title ?? ""), task: String(said.task ?? ""),
+      materials: (letter.attachments ?? []).flatMap(one => artifactOf(one) ?? []), hops: letter.hops ?? 1, state, state_label: DELEGATION_STATE_LABEL[state],
+      // Every step either letter took: an action named against an older count is refused as a change under it.
+      revision: history.length + replies.reduce((sum, reply) => sum + (reply.history?.length ?? 0), 0), deliveries, receipts,
+      created_at: iso(letter.sent_at_ms), from: sideOf(execution, from), to: sideOf(execution, to) };
+  };
+  /** Letters for a delegation go between runtime sessions: a session that has not run yet gets its own now. */
+  const runtimeSessionOf = async (record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, actorId: string) => {
+    if (record.runtime_session_id) return record.runtime_session_id;
+    const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
+    const chosen = typeof saved === "string" ? (JSON.parse(saved) as { workspace_id?: string }).workspace_id : undefined;
+    const workspaces = await api.invoke(projectSettingsCapabilities.workspaces, []);
+    const workspace = workspaces.find(entry => entry.workspace_id === chosen && entry.realpath_verified) ?? workspaces.find(entry => entry.realpath_verified);
+    if (!workspace) throw new Error("请先为这个项目选择已授权的工作区目录");
+    const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
+    const session = await api.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: workspace.canonical_path, realpath_verified: true }, title: record.title }]);
+    execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
+    return session.session_id;
+  };
+  /** The delegation named, as this session sees it; an action against an older revision is refused. */
+  const delegationOf = async (record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, id: string, expected: unknown) => {
+    if (cooperation().get(id)) throw new Error("这是迁移前的委派记录，只读，不能再操作");
+    const letters = record.runtime_session_id ? await api.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id]) : [];
+    const letter = letters.find(one => one.message_id === id && isDelegation(one));
+    if (!letter) throw new Error("找不到这个委派");
+    const view = delegationView(execution, letter, letters);
+    if (typeof expected === "number" && expected !== view.revision) throw new Error("协作状态刚刚变化，请刷新后再操作");
+    return { letter, letters, view, mine: record.runtime_session_id! };
+  };
+  /** After the delegation ended, an action is kept on its history as late, and changes nothing. */
+  const lateOnly = async (api: Capabilities, runtimeId: string, letter: AgentSessionMessage, label: string, event: string, note?: string): Promise<never> => {
+    await api.invoke(agent.actOnPeopleMessage, [runtimeId, letter.message_id, "record", { event, ...(note ? { note } : {}) }]);
+    throw Object.assign(new Error(`这个委派已结束（${label}）；这次操作只记录，不改变结果`), { code: "coding.cooperation_ended" });
+  };
+  /** A session made for a delegation starts on it with its first round: that is its acceptance. */
+  const startDelegation = async (record: CodingSessionRecord, api: Capabilities, runtimeSession: string) => {
+    const letters = await api.invoke(agent.readMessages, [record.runtime_id, runtimeSession]);
+    const incoming = letters.filter(letter => isDelegation(letter) && letter.to_session === runtimeSession).at(-1);
+    if (!incoming || !["delivered", "accepted"].includes(incoming.state) || (incoming.history ?? []).some(entry => entry.event === "started")) return;
+    if (incoming.state === "delivered") await api.invoke(agent.actOnPeopleMessage, [record.runtime_id, incoming.message_id, "accept", { note: "发送第一轮即视为接受" }]);
+    await api.invoke(agent.actOnPeopleMessage, [record.runtime_id, incoming.message_id, "record", { event: "started" }]);
   };
   const savedBudget = (sessionId: string): { tokens: number } | null => {
     const saved = context.services?.storage?.get(`budget:${sessionId}`);
@@ -220,7 +351,14 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         since = waited.version;
         const record = execution.sessions.get(boardId, sessionId), next = sessionState(view);
         if (next !== record.state) execution.sessions.setState(boardId, sessionId, next, record.updated_at);
-        if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) break;
+        if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) {
+          // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.
+          if (view.phase !== "reconcile-required" && await openWaitOf(api, execution.sessions.get(boardId, sessionId)).catch(() => undefined)) {
+            execution.sessions.setState(boardId, sessionId, "queued", new Date().toISOString());
+            wakeLoop(api, execution, session.runtime_id);
+          }
+          break;
+        }
       }
     })().catch(() => undefined).finally(() => { if (current()) following.delete(sessionId); });
   };
@@ -236,12 +374,40 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       try { for (const status of await api.invoke(agent.readSessionStatuses, [runtimeId, ids])) statuses.set(`${runtimeId}:${status.session_id}`, status); }
       catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : "会话暂不可读" }); }
     }
+    // Parked sessions, from the SDK; the loop that takes fired waits up is (re)started here, after a restart too.
+    const parked = new Map<string, AgentWait>(), running = new Map<string, { task_id: string; summary: string; started_at_ms: number }[]>();
+    for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
+      try { for (const [session, wait] of await openWaits(api, runtimeId)) parked.set(`${runtimeId}:${session}`, wait); } catch { /* shown as not waiting */ }
+      // Background commands still running, kept on each session so the list across projects can show them.
+      try {
+        for (const task of await api.invoke(agent.readBackground, [runtimeId])) if (task.state === "running") {
+          const key = `${runtimeId}:${task.session_id}`;
+          running.set(key, [...running.get(key) ?? [], { task_id: task.task_id, summary: task.summary, started_at_ms: task.started_at_ms }]);
+        }
+      } catch { /* left as last read */ }
+      wakeLoop(api, execution, runtimeId);
+    }
+    for (const record of records) if (record.runtime_session_id) {
+      const now = running.get(`${record.runtime_id}:${record.runtime_session_id}`) ?? null;
+      if (JSON.stringify(now) !== JSON.stringify(execution.sessions.backgroundOf(boardId, record.session_id))) execution.sessions.setBackground(boardId, record.session_id, now);
+    }
     const sessions = records.map(record => {
-      let checkpointBusy = false;
+      let checkpointBusy = false, steps = execution.sessions.stepsOf(boardId, record.session_id);
+      // A parked session waits whatever its last round did — unless a round is under way right now.
+      const wait = record.runtime_session_id ? parked.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
+      const status = record.runtime_session_id ? statuses.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
+      const active = status && !("error" in status) && status.latest_phase && !isTerminalAgentPhase(status.latest_phase);
+      if (wait && !active) {
+        if (record.state !== "queued") record = execution.sessions.setState(boardId, record.session_id, "queued", record.updated_at);
+        return { ...record, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: waitView(wait),
+          goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+      }
       if (record.runtime_session_id) {
         const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
         if (status && !("error" in status)) {
           checkpointBusy = status.checkpoint_busy;
+          const read = status.steps ?? null;
+          if (JSON.stringify(read) !== JSON.stringify(steps)) { execution.sessions.setSteps(boardId, record.session_id, read); steps = read; }
           const next = status.recovery ? "reconcile-required" : status.latest_phase ? sessionState({ phase: status.latest_phase }) : "idle";
           if (next !== record.state) record = execution.sessions.setState(boardId, record.session_id, next, record.updated_at);
         } else if (record.state !== "reconcile-required") {
@@ -250,35 +416,305 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
         }
       }
-      return { ...record, checkpoint_busy: checkpointBusy, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+      return { ...record, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
     });
     const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
     const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
     return { sessions, methods, mcp, models: await execution.models(),
       // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
       // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
-      workspace: await api.invoke(projectSettingsCapabilities.browsingWorkspace, []) ?? await api.invoke(projectsCapabilities.readWorkspace, []),
-      workspaces: await api.invoke(projectSettingsCapabilities.workspaces, []),
+      // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
+      workspace: await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null),
+      workspaces: await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []),
       runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
         roles: await api.invoke(agent.availableRoles, [runtime.runtime_id, context.plugin_id]),
       }))),
     };
   };
-  const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => ({
-    route_id,
-    async handle(request) {
-      const api = context.services?.capabilities;
-      if (!ports || !api || !boardId) return { status: 503, body: { error: "Coding 执行入口尚未装配" } };
-      try {
-        await ports.ready();
-        return { status: 200, body: await handle(request, api, ports) };
-      } catch (error) {
-        const code = (error as { code?: string }).code;
-        return { status: code === "coding.session_unknown" ? 404 : code === "agent.session_busy" ? 409 : 400,
-          body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}) } };
-      }
-    },
+  /**
+   * Start a round in a session: from the person's send, or later from a queued round when the work it waited for is
+   * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
+   */
+  const startRound = async (record: ReturnType<typeof selected>, body: Record<string, unknown>, actorId: string,
+    api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts) => {
+        // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
+    const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
+    if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
+    const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(boardId, record.session_id);
+    if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
+    const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
+    let task = plan && continueOf === undefined ? plan.source.task : text(body.task, "任务", 100_000);
+    // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
+    if (plan && record.runtime_session_id && continueOf === undefined) {
+  const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+  const snapshot = await api!.invoke(agent.readSession, [session]);
+  for (const ref of snapshot.runs) {
+    const existing = await api!.invoke(agent.readRun, [session, ref]);
+    if (existing.frozen.text_materials.some(item => item.source_artifact_id === plan.confirmed!.artifact_id && item.source_version === plan.confirmed!.version)) return { run: { ref: existing.ref, frozen: existing.frozen }, existing: true };
+  }
+  if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
+    }
+    const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
+    if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
+    const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+    const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
+    if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
+    const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
+    if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
+    // Files named with @ travel with the task, as they read at this moment.
+    task = (await attachMentions(query => api!.invoke(readWorkspaceFileCapability, query), workspace.workspace_id, task)).task;
+    const subagent_workspaces: AgentSubagentWorkspace[] = [];
+    if (role === "writers") {
+  const assignments = codingWriterAssignments(body.writer_assignments, true);
+  // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned.
+  const owned = (await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id })).filter(child => !child.problem);
+  const tasks = assignments.map(assignment => {
+    const child = owned.find(child => child.workspace_id === assignment.workspace_id);
+    const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
+    if (!child || !grant) throw new Error("分工目录不属于当前主仓库，或已取消授权；请重新选择独立工作树");
+    subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
+    return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
   });
+  task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
+  if (task.length > 100_000) throw new Error("总任务与分工合计超过 100000 字符，请缩短后发送");
+    } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw new Error("独立写入分工只用于并行写入方式");
+    const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
+    const models = await execution.models();
+    const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
+    if (!model) throw new Error("所选模型不可用，请在全局模型设置中检查配置");
+    const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
+    const availability = roles.find((entry) => entry.role_id === role);
+    if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
+    const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
+    const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
+    if (character) {
+  if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
+  if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
+  execution.characters.resolve(character);
+    }
+    const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
+    const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(execution));
+    if (goal) text_materials.unshift(goal.material);
+    if (plan) text_materials.unshift(planMaterial(plan));
+    if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+    const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
+  : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
+    if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
+    // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
+    // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
+    let earlier: AgentRunView[] | undefined;
+    const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
+    let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
+    // A session given its runtime session before it ran (a delegation's letters need one) still starts with its first round.
+    const firstRound = !record.runtime_session_id || !(await earlierRuns()).length;
+    // The digest is written by the round's own model from the rounds' records, building on the one the latest digest
+    // round carried; the call runs beside the project's other operations. If it cannot be written, the Host's own
+    // record-based digest carries the round and the page says why. Either way it is written once per round.
+    let digest: { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string } | undefined;
+    const digestFor = async () => digest ??= await (async () => {
+  const runs = await earlierRuns();
+  try {
+    const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", instructions: HISTORY_SUMMARY_INSTRUCTIONS,
+      material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
+    if (draft.usage) {
+      const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
+      context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
+        tokens: { input: spent.tokens.input + draft.usage.input, output: spent.tokens.output + draft.usage.output } }));
+    }
+    return { text: summaryDigest(runs, draft.text, task), source: "model" as const, ...(draft.usage ? { usage: draft.usage } : {}) };
+  } catch (error) {
+    return { text: codingHistoryDigest(runs, task), source: "records" as const, problem: error instanceof Error ? error.message : "模型没有写出摘要" };
+  }
+    })();
+    const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
+  ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
+  ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
+      // A round that waited for other work takes over the item it waited as.
+      ...(typeof body.queued_work_id === "string" ? { queued_work_id: body.queued_work_id } : {}),
+      // Listed in the project's work by the name the person sees (a new session is named from its first task).
+      session_title: firstRound && record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title,
+  ...(mode === "digest" ? { history: "digest" as const } : {}),
+  budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
+  model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    let run;
+    try { run = await start(history); }
+    catch (error) {
+  if (history !== "session" || !record.runtime_session_id || (error as { code?: string }).code !== "CONTEXT_BUDGET_EXCEEDED") throw error;
+  history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
+  run = await start("digest");
+    }
+    if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
+    // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
+    // The round has started either way; the delegation shows its own last recorded state.
+    if (session.runtime_id === "prologue") await startDelegation(record, api!, session.session_id).catch(() => undefined);
+    if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
+    // A session named by default takes its name from the first task, the way a person would label it.
+    if (firstRound && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
+    execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
+    // How this round was started, so a round woken later (an answer arrived) starts the same way.
+    // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
+    // A round continued from a breakpoint goes on with the task it continues, not the continuation's own wording.
+    const lastStart = (() => { try { return JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as { origin_task?: unknown } | null; } catch { return null; } })();
+    const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
+    context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
+      workspace_id: body.workspace_id, actor_id: actorId,
+      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
+    follow(api!, execution, record.session_id, session, run.ref);
+    return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
+  ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+  };
+  /*
+   * A session parked until something happens: the model waits for an answer or a background command, or the person
+   * chose to wait for another session's work. The wait is kept by the SDK (it outlives a restart and fires on the
+   * event); this plugin only takes fired waits up — starting the next round with what happened — and keeps a note
+   * for the person when one should not start on its own.
+   */
+  type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
+  const OPEN_WAIT = ["waiting", "fired"];
+  /** Marked the priority by the person (kept with the plugin: a mark on the directory, not an execution state). */
+  const priorityOf = (sessionId: string) => Boolean(context.services?.storage?.get(`priority:${sessionId}`));
+  const noteKey = (waitId: string) => `wake-note:${waitId}`;
+  const noteOf = (waitId: string) => context.services?.storage?.get(noteKey(waitId)) ?? undefined;
+  const hold = (waitId: string, note: string) => context.services!.storage!.set(noteKey(waitId), note);
+  /** The project's open waits, by runtime session. */
+  const openWaits = async (api: Capabilities, runtimeId: string) => {
+    const byRuntime = new Map<string, AgentWait>();
+    for (const wait of await api.invoke(agent.readWaits, [runtimeId])) if (OPEN_WAIT.includes(wait.state)) byRuntime.set(wait.session_id, wait);
+    return byRuntime;
+  };
+  /** The session's open wait; none when the Host keeps no waits (an older runtime). */
+  const openWaitOf = async (api: Capabilities, record: CodingSessionRecord) => record.runtime_session_id
+    ? (await api.invoke(agent.readWaits, [record.runtime_id, record.runtime_session_id]).catch(() => [] as AgentWait[])).find(wait => OPEN_WAIT.includes(wait.state)) : undefined;
+  /** An "app" wait carries the round the person sent and the project work item it waits as. */
+  const appData = (wait: AgentWait) => {
+    const data = (wait.data ?? {}) as { app?: { body?: Record<string, unknown>; actor_id?: string } | null; work_id?: string };
+    return { body: data.app?.body ?? {}, actor: data.app?.actor_id ?? "web-user", work_id: data.work_id };
+  };
+  const waitingFor = (wait: AgentWait) => wait.by === "app" ? "work" : wait.on.some(one => one.kind === "envelope") ? "reply" : "command";
+  /** What the page shows about a parked session. */
+  const waitView = (wait: AgentWait) => ({ wait_id: wait.wait_id, after_title: wait.waiting_on, waiting_for: waitingFor(wait), reason: wait.reason, at: new Date(wait.created_at_ms).toISOString(),
+    ...(noteOf(wait.wait_id) ? { note: noteOf(wait.wait_id) } : {}) });
+  /** Whether a fired wait starts the next round on its own, or waits for the person (and why). */
+  const holdReason = (wait: AgentWait): string | undefined => {
+    const fired = wait.fired;
+    if (!fired) return undefined;
+    if (wait.by === "app" && fired.outcome === "not-done") return `${wait.waiting_on}没有完成，这一轮还在等你决定：现在开始，或取消等待。`;
+    if (fired.kind === "envelope" && fired.outcome === "withdrawn") return `${wait.waiting_on}：请求已撤回或过期，这一轮还在等你决定：现在开始，或取消等待。`;
+    return undefined;
+  };
+  /** The round a wait wakes to: what it waited for, what happened, and the task it had been doing. */
+  const wakeBody = (record: CodingSessionRecord, wait: AgentWait, person = false) => {
+    if (wait.by === "app") { const { body, work_id } = appData(wait); return { ...body, ...(work_id ? { queued_work_id: work_id } : {}) }; }
+    const saved = context.services?.storage?.get(`last-start:${record.session_id}`);
+    const last = saved ? JSON.parse(saved) as Record<string, unknown> : {};
+    const { actor_id: _actor, origin_task, ...how } = last;
+    const fired = wait.fired;
+    const what = person ? `你决定不再等${wait.waiting_on}，直接接着做。`
+      : !fired ? ""
+      : fired.outcome === "answered" ? `它的答复：${fired.text}`
+      : fired.outcome === "settled" ? `${wait.waiting_on.replace(/的答复$/, "")}那一轮已经结束，没有专门答复；它可能已经做了你请求的事，先读一下相关文件确认。`
+      : fired.outcome === "failed" && fired.kind === "envelope" ? `${wait.waiting_on}不会来了：${fired.text}。先读一下相关文件，确认对方做到了哪里，再决定自己接着做，还是改做别的。`
+      : fired.outcome === "interrupted" ? `你等的${fired.kind === "command" ? "后台命令" : "那件事"}被服务重启打断了，结果未知，不要当成成功；需要的话重新运行。\n${fired.text}`
+      : fired.outcome === "output" ? `你等的后台命令输出了你在等的内容（命令还在运行）。\n${fired.text}`
+      : `${fired.kind === "command" ? "后台命令" : ""}结束了（${({ succeeded: "成功", failed: "失败", stopped: "被停止" } as Record<string, string>)[fired.outcome] ?? fired.outcome}），结束于 ${new Date(fired.at_ms).toISOString()}（宿主记录的时间）。\n${fired.text}`;
+    // The original task travels on, so a round woken again still knows what it was for.
+    return { ...how, ...(typeof origin_task === "string" ? { origin_task } : {}), task: [`（接着之前的任务）你之前挂起等待：${wait.reason.slice(0, 400)}`, what,
+      `请接着完成原来的任务：${typeof origin_task === "string" ? origin_task : ""}`].filter(Boolean).join("\n") };
+  };
+  /** Take a fired wait up: start the next round with it, or leave it for the person with a note. */
+  const takeUp = async (api: Capabilities, execution: CodingExecutionPorts, runtimeId: string, wait: AgentWait): Promise<"started" | "held" | "later" | "not-ours"> => {
+    const record = execution.sessions.list(boardId).find(entry => entry.runtime_id === runtimeId && entry.runtime_session_id === wait.session_id);
+    if (!record) return "not-ours";
+    const reason = holdReason(wait);
+    if (reason) { hold(wait.wait_id, reason); return "held"; }
+    if (busy.has(record.session_id)) return "later";
+    busy.add(record.session_id);
+    try {
+      const actor = wait.by === "app" ? appData(wait).actor : (() => { try { return String(JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "{}").actor_id ?? "web-user"); } catch { return "web-user"; } })();
+      await startRound(execution.sessions.get(boardId, record.session_id), wakeBody(record, wait), actor, api, execution);
+      // Taken up here, unless starting the round already took it up.
+      await api.invoke(agent.resumeWait, [runtimeId, wait.wait_id, "唤醒后自动开始下一轮"]).catch(() => undefined);
+      return "started";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // The round it waited in may still be closing: try again shortly rather than give up.
+      if (/正在|进行中|still running|session_busy/.test(message)) return "later";
+      hold(wait.wait_id, `自动开始没有成功：${message}`);
+      return "held";
+    } finally { busy.delete(record.session_id); }
+  };
+  const waking = new Set<string>();
+  /** One loop per runtime: it waits for waits to fire (no polling of the things they wait on) and takes them up. */
+  const wakeLoop = (api: Capabilities, execution: CodingExecutionPorts, runtimeId: string) => {
+    if (waking.has(runtimeId) || stopped.signal.aborted) return;
+    waking.add(runtimeId);
+    void (async () => {
+      const held = new Set<string>();
+      // A Host that keeps no waits, or has gone, answers with errors: after a few the loop stops (a later read restarts it).
+      for (let failures = 0; failures < 3 && !stopped.signal.aborted;) {
+        let fired: AgentWait[];
+        try { fired = await api.invoke(agent.awaitFiredWaits, [runtimeId, 25_000, [...held]]); failures = 0; }
+        catch { failures += 1; await pause(5_000); continue; }
+        if (stopped.signal.aborted) break;
+        let later = false;
+        for (const wait of fired) {
+          const outcome = await takeUp(api, execution, runtimeId, wait).catch(() => "later" as const);
+          if (outcome === "held" || outcome === "not-ours") held.add(wait.wait_id);
+          if (outcome === "later") later = true;
+        }
+        if (later) await pause(2_000);
+      }
+    })().catch(() => undefined).finally(() => waking.delete(runtimeId));
+  };
+  /** The workspace a send names, as the directory it will run in. */
+  const directoryOf = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, workspaceId: unknown) => {
+    const workspace = (await api.invoke(projectSettingsCapabilities.workspaces, [])).find(entry => entry.workspace_id === workspaceId);
+    if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
+    return workspace.canonical_path;
+  };
+  /** Other sessions' work that overlaps what a send names: its text, and its plan's steps when it runs one. */
+  const overlapsFor = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, record: CodingSessionRecord, body: Record<string, unknown>) => {
+    const directory = await directoryOf(api, body.workspace_id);
+    const draft = body.plan_revision !== undefined ? execution.sessions.plan(boardId, record.session_id) : null;
+    const plan = draft?.confirmed ? confirmedPlan(context, record.session_id, draft.revision) : null;
+    const text = [typeof body.task === "string" ? body.task : "", plan ? plan.source.task : "", ...(plan?.content.steps ?? []).map(step => `${step.title}\n${step.acceptance}`)].join("\n");
+    const found = await api.invoke(agent.readProjectWork, [record.runtime_id, { ...(record.runtime_session_id ? { session_id: record.runtime_session_id } : {}), directory, text }]);
+    const sessions = execution.sessions.list(boardId);
+    return { directory, text, overlaps: found.overlaps.map(overlap => {
+      const other = sessions.find(entry => entry.runtime_session_id === overlap.work.session_id);
+      return { work_id: overlap.work.work_id, state: overlap.work.state, title: other?.title ?? overlap.work.title, task: overlap.work.task, paths: overlap.paths,
+        session_id: other?.session_id ?? null, ...(overlap.work.run_id ? { run_id: overlap.work.run_id } : {}), runtime_session_id: overlap.work.session_id };
+    }) };
+  };
+  const failure = (error: unknown) => {
+    const code = (error as { code?: string }).code;
+    return { status: code === "coding.session_unknown" || code === "actions.missing" ? 404 : code === "agent.session_busy" ? 409
+      : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : code === "actions.unredeemed" ? 503 : 400,
+      body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}) } };
+  };
+  const unassembled = () => Object.assign(new Error("Coding 执行入口尚未装配"), { code: "actions.unredeemed" });
+  const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts) => Promise<unknown>): PluginRouteBinding => {
+    const execute = async (request: PluginRouteRequest) => {
+      const api = context.services?.capabilities;
+      if (!ports || !api || !boardId) throw unassembled();
+      await ports.ready();
+      return handle(request, api, ports);
+    };
+    const action = codingRouteActions[route_id];
+    if (!action) return { route_id, async handle(request) {
+      try { return { status: 200, body: await execute(request) }; }
+      catch (error) { return (error as { code?: string }).code === "actions.unredeemed" ? { status: 503, body: { error: "Coding 执行入口尚未装配" } } : failure(error); }
+    } };
+    // The business surface is one owner-bound action; the route only translates its old parameters and status codes.
+    actions.push(bindOwnerPluginAction(context, action.definition, input => execute({ ...action.toRequest(input), pathname: "", actor_id: context.actor_id! })));
+    return { route_id, async handle(request) {
+      if (!context.actor_id || request.actor_id !== context.actor_id) return { status: 403, body: { error: "调用者与当前插件入口不一致", code: "actions.forbidden" } };
+      try {
+        if (!context.services?.actions) throw Object.assign(new Error("宿主未提供系统动作调用入口"), { code: "actions.unredeemed" });
+        return { status: 200, body: await context.services.actions.invoke(action.definition, action.toInput(request)) };
+      } catch (error) { return failure(error); }
+    } };
+  };
   const selected = (request: PluginRouteRequest, execution: CodingExecutionPorts) =>
     execution.sessions.get(boardId, request.params.sessionId ?? "");
   const reportRoute = (save: boolean) => route(save ? "coding.save-report" : "coding.read-report", async (request, api, execution) =>
@@ -647,7 +1083,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      if (!record.runtime_session_id) return { session: { ...record, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
+      const wait = await openWaitOf(api!, record).catch(() => undefined), queuedView = wait ? waitView(wait) : null, priority = priorityOf(record.session_id);
+      if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -666,7 +1103,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { session: { ...updated, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, queued: queuedView, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(record.session_id)),
@@ -741,9 +1178,20 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       return { runs: light, subagents: await subagentGroups(api!, record.session_id, session, full), taskboard_plans: codingTaskBoardPlans(context, record.session_id, full) };
     }),
     // Sessions working together: what this session delegated, what it was created for, and the sessions they touch.
-    route("coding.delegations", async (request, _api, execution) => {
+    route("coding.delegations", async (request, api, execution) => {
       const record = selected(request, execution);
-      const { outgoing, incoming } = cooperation().forSession(record.session_id);
+      const legacy = cooperation().forSession(record.session_id);
+      const mine = record.runtime_session_id;
+      let letters = mine ? await api!.invoke(agent.readMessages, [record.runtime_id, mine]) : [];
+      // A delegation whose receiving session is gone has failed; recorded once, then shown as such.
+      const gone = letters.filter(letter => isDelegation(letter) && letter.from_session === mine && ["queued", "delivered", "accepted"].includes(letter.state)
+        && !execution.sessions.byRuntimeSession(boardId, letter.to_session));
+      for (const letter of gone) await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, "cancel", { event: "failed", note: "接收委派的会话已不存在" }]).catch(() => undefined);
+      if (gone.length) letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine!]);
+      const outgoing = [...letters.filter(letter => isDelegation(letter) && letter.from_session === mine).reverse().map(letter => delegationView(execution, letter, letters)),
+        ...legacy.outgoing.map(item => legacyView(execution, item))];
+      const received = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1);
+      const incoming = received ? delegationView(execution, received, letters) : legacy.incoming ? legacyView(execution, legacy.incoming) : null;
       const referenced = [...new Set(savedMaterials(context, record.session_id).flatMap(ref => /^coding-(report|changeset|plan):/.test(ref.artifact_id) ? [decodeURIComponent(ref.artifact_id.split(":")[1]!)] : []))]
         .filter(id => id !== record.session_id);
       const outputsBySession = new Map<string, Array<{ reference: { artifact_id: string; version: number }; kind: string }>>();
@@ -754,85 +1202,119 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const relation = [outgoing.some(item => item.to_session === id) ? "你委派给它" : "", incoming?.from_session === id ? "它委派给你" : "", referenced.includes(id) ? "你引用了它的成果" : ""].filter(Boolean);
         return { session_id: id, title: session?.title ?? null, state: session?.state ?? null, updated_at: session?.updated_at ?? null, relation, outputs: (outputsBySession.get(id) ?? []).slice(-3).reverse() };
       });
-      return { outgoing: outgoing.map(item => delegationView(execution, item, request.actor_id)), incoming: incoming ? delegationView(execution, incoming, request.actor_id) : null, related };
+      return { outgoing, incoming, related };
     }),
-    // Delegating creates a session with the task as its draft; nothing runs until that session's person sends it.
-    route("coding.delegate", async (request, _api, execution) => {
+    // Delegating creates a session with the task as its draft and sends it the letter; nothing runs until that
+    // session's person sends it.
+    route("coding.delegate", async (request, api, execution) => {
       const record = selected(request, execution), body = bodyOf(request);
+      if (record.runtime_id !== "prologue") throw new Error("委派经 Prologue 的会话间通信送达，这个会话用的是别的运行时");
       const task = text(body.task, "委派的任务", 20_000), title = text(body.title ?? codingSessionTitleFrom(task), "委派标题", 80);
       const materials = materialSelection(body.materials ?? []);
       resolveMaterials(context, materials, sessionTitle(execution));
-      const at = new Date().toISOString(), store = cooperation();
-      const delegation = store.create({ from_session: record.session_id, title, task, materials, actor: request.actor_id, at });
+      const mine = await runtimeSessionOf(record, api!, execution, request.actor_id);
+      // How far the work has been passed on: one more than the delegation this session was created for.
+      const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
+      const hops = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1)?.hops ?? cooperation().forSession(record.session_id).incoming?.hops ?? 0;
+      if (hops + 1 > MAX_DELEGATION_HOPS) throw new Error(`委派最多转交 ${MAX_DELEGATION_HOPS} 层；这个会话本身已是第 ${hops} 层委派`);
+      const at = new Date().toISOString();
       const target = execution.sessions.create({ board_id: boardId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: "prologue", at });
-      context.services!.storage!.set(`draft:${target.session_id}`, task);
-      if (materials.length) context.services!.storage!.set(`materials:${target.session_id}`, JSON.stringify(materials));
-      // The work happens where the asking session works, with its model, unless the receiving person changes them.
-      const configuration = context.services!.storage!.get(`configuration:${record.session_id}`);
-      if (typeof configuration === "string") context.services!.storage!.set(`configuration:${target.session_id}`, configuration);
-      store.bindTarget(delegation.delegation_id, target.session_id);
-      const delivered = store.apply(delegation.delegation_id, delegation.revision, "delivered", "delivered", request.actor_id, at, item => { item.to_session = target.session_id; });
-      return { delegation: delegationView(execution, delivered, request.actor_id), session: target };
+      try {
+        context.services!.storage!.set(`draft:${target.session_id}`, task);
+        if (materials.length) context.services!.storage!.set(`materials:${target.session_id}`, JSON.stringify(materials));
+        // The work happens where the asking session works, with its model, unless the receiving person changes them.
+        const configuration = context.services!.storage!.get(`configuration:${record.session_id}`);
+        if (typeof configuration === "string") context.services!.storage!.set(`configuration:${target.session_id}`, configuration);
+        const theirs = await runtimeSessionOf(target, api!, execution, request.actor_id);
+        const sent = await api!.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: theirs, kind: "request", body: JSON.stringify({ title, task }),
+          attachments: materials.map(asAttachment), ttl_ms: DELEGATION_TTL_MS, hops }]);
+        // The session made for it holds it as its draft: it has arrived.
+        const delivered = await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, sent.message_id, "deliver", {}]);
+        return { delegation: delegationView(execution, delivered, []), session: execution.sessions.get(boardId, target.session_id) };
+      } catch (error) {
+        // Nothing was sent: the session made for it is put away rather than left waiting on a letter that never came.
+        execution.sessions.archive(boardId, target.session_id, new Date().toISOString());
+        throw error;
+      }
     }),
-    route("coding.delegation-action", async (request, _api, execution) => {
-      const record = selected(request, execution), body = bodyOf(request), store = cooperation();
-      const delegation = store.get(text(request.params.delegationId, "委派")), at = new Date().toISOString();
-      if (!delegation) throw new Error("找不到这个委派");
-      const revision = typeof body.expected_revision === "number" ? body.expected_revision : undefined;
+    route("coding.delegation-action", async (request, api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      const { letter, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
       const reason = typeof body.reason === "string" ? body.reason.trim() : "";
       if (reason.length > 2000) throw new Error("说明最多 2000 字");
-      let next: CodingDelegation;
+      const act = (action: AgentPeopleMessageAction, detail: { event?: string; note?: string } = {}) => api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, action, detail]);
+      const ended = DELEGATION_ENDED.includes(view.state);
+      let next: AgentSessionMessage;
       if (body.action === "accept" || body.action === "reject") {
-        if (delegation.to_session !== record.session_id) throw new Error("只有接收委派的会话可以接受或拒绝");
+        if (letter.to_session !== mine) throw new Error("只有接收委派的会话可以接受或拒绝");
         if (body.action === "reject" && !reason) throw new Error("拒绝委派时请写明原因");
-        next = body.action === "accept" ? store.apply(delegation.delegation_id, revision, "accepted", "accepted", request.actor_id, at)
-          : store.apply(delegation.delegation_id, revision, "rejected", "rejected", request.actor_id, at, () => {}, reason);
+        if (ended) return lateOnly(api!, record.runtime_id, letter, view.state_label, body.action === "accept" ? "accepted" : "rejected", reason);
+        if (body.action === "accept") {
+          if (view.state !== "delivered") throw new Error(`这个委派现在是「${view.state_label}」，不需要再接受`);
+          next = await act("accept");
+        } else if (view.state === "delivered") next = await act("reject", { note: reason });
+        // Accepted, not started yet: turning it down after all ends it the same way.
+        else if (view.state === "accepted") next = await act("cancel", { event: "rejected", note: reason });
+        else throw new Error("已经开始执行的委派不能再拒绝；可以交付成果，或请发起的会话取消");
       } else if (body.action === "cancel") {
-        if (delegation.from_session !== record.session_id) throw new Error("只有发起委派的会话可以取消");
-        next = store.apply(delegation.delegation_id, revision, "cancelled", "cancelled", request.actor_id, at, () => {}, reason || undefined);
+        if (letter.from_session !== mine) throw new Error("只有发起委派的会话可以取消");
+        if (ended) return lateOnly(api!, record.runtime_id, letter, view.state_label, "cancelled", reason);
+        next = await act("cancel", reason ? { note: reason } : {});
       } else throw new Error("不支持的协作操作");
-      return { delegation: delegationView(execution, next, request.actor_id) };
+      return { delegation: delegationView(execution, next, await api!.invoke(agent.readMessages, [record.runtime_id, mine])) };
     }),
     // Handing a finished round back: its report is fixed now if it was not yet; a fixed change must already be saved.
+    // The delivery is a reply to the delegation's letter.
     route("coding.delegation-deliver", async (request, api, execution) => {
-      const record = selected(request, execution), body = bodyOf(request), store = cooperation();
-      const delegation = store.get(text(request.params.delegationId, "委派"));
-      if (!delegation || delegation.to_session !== record.session_id) throw new Error("只有接收委派的会话可以交付成果");
+      const record = selected(request, execution), body = bodyOf(request);
+      const { letter, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
+      if (letter.to_session !== mine) throw new Error("只有接收委派的会话可以交付成果");
       const runId = text(body.run_id, "交付的轮次", 200), note = typeof body.note === "string" ? body.note.trim().slice(0, 2000) : "";
       const kind: "report" | "changeset" = body.kind === "changeset" ? "changeset" : body.kind === "report" ? "report" : (() => { throw new Error("请选择交付报告或固定变更"); })();
+      if (["received", "delivered", "accepted"].includes(view.state)) throw new Error("请先在这个会话里执行一轮，再交付成果");
+      if (DELEGATION_ENDED.includes(view.state)) return lateOnly(api!, record.runtime_id, letter, view.state_label, "delivery-sent", note);
+      if (view.deliveries.some(delivery => delivery.state === "sent")) throw new Error("上一次交付还在等发起的会话决定");
       let artifact, title;
       if (kind === "report") { const saved = await roundReport(record, runId, api!, true); if (!saved.reference) throw new Error("这一轮的报告没有固定下来"); artifact = saved.reference; title = saved.report.title; }
       else { const saved = readCodingChangeSet(context.services!.artifacts, record.session_id, runId); if (!saved) throw new Error("请先固定这一轮的变更，再交付"); artifact = saved.reference; title = "固定变更"; }
-      const at = new Date().toISOString(), delivery = { delivery_id: crypto.randomUUID(), kind, artifact, run_id: runId, title, note, state: "sent" as const, sent_at: at };
-      if (["received", "delivered", "accepted"].includes(delegation.state)) throw new Error("请先在这个会话里执行一轮，再交付成果");
-      const next = store.apply(delegation.delegation_id, typeof body.expected_revision === "number" ? body.expected_revision : undefined, "delivery-sent", null, request.actor_id, at,
-        item => { item.deliveries.push(delivery); }, note || undefined, artifact);
-      return { delegation: delegationView(execution, next, request.actor_id) };
+      const reply = await api!.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: letter.from_session, kind: "reply", in_reply_to: letter.message_id,
+        body: JSON.stringify({ kind, run_id: runId, title, note }), attachments: [asAttachment(artifact)], ttl_ms: DELEGATION_TTL_MS }]);
+      await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, reply.message_id, "deliver", {}]);
+      await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, letter.message_id, "record", { event: "delivery-sent", ...(note ? { note } : {}), attachments: [asAttachment(artifact)] }]);
+      const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
+      return { delegation: delegationView(execution, letters.find(one => one.message_id === letter.message_id)!, letters) };
     }),
-    // The asking session decides: taking a delivery completes the delegation and attaches it to the next round.
-    route("coding.delegation-decide", async (request, _api, execution) => {
-      const record = selected(request, execution), body = bodyOf(request), store = cooperation();
-      const delegation = store.get(text(request.params.delegationId, "委派"));
-      if (!delegation || delegation.from_session !== record.session_id) throw new Error("只有发起委派的会话可以决定是否收下交付");
-      const delivery = delegation.deliveries.find(item => item.delivery_id === request.params.deliveryId);
-      if (!delivery) throw new Error("找不到这次交付");
+    // The asking session decides: taking a delivery completes the delegation and attaches it to the next round;
+    // returning it says why, and the work stays with the other session.
+    route("coding.delegation-decide", async (request, api, execution) => {
+      const record = selected(request, execution), body = bodyOf(request);
+      const { letter, letters, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
+      if (letter.from_session !== mine) throw new Error("只有发起委派的会话可以决定是否收下交付");
+      const delivery = view.deliveries.find(item => item.delivery_id === request.params.deliveryId);
+      const reply = letters.find(one => one.message_id === request.params.deliveryId);
+      if (!delivery || !reply) throw new Error("找不到这次交付");
       if (delivery.state !== "sent") throw new Error("这次交付已经处理过");
-      const reason = typeof body.reason === "string" ? body.reason.trim() : "", at = new Date().toISOString();
-      const revision = typeof body.expected_revision === "number" ? body.expected_revision : undefined;
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+      if (body.decision !== "accept" && body.decision !== "reject") throw new Error("请选择收下或不收下");
+      if (body.decision === "reject" && !reason) throw new Error("不收下交付时请写明原因，对方会看到");
+      if (DELEGATION_ENDED.includes(view.state)) return lateOnly(api!, record.runtime_id, letter, view.state_label, body.decision === "accept" ? "delivery-accepted" : "delivery-rejected", reason);
+      const on = (id: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] } = {}) =>
+        api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, id, action, detail]);
+      const handed = delivery.artifact ? [asAttachment(delivery.artifact)] : [];
       if (body.decision === "reject") {
-        if (!reason) throw new Error("不收下交付时请写明原因，对方会看到");
-        const next = store.apply(delegation.delegation_id, revision, "delivery-rejected", null, request.actor_id, at, item => {
-          Object.assign(item.deliveries.find(entry => entry.delivery_id === delivery.delivery_id)!, { state: "rejected", reason, decided_at: at, decided_by: request.actor_id }); }, reason, delivery.artifact);
-        return { delegation: delegationView(execution, next, request.actor_id) };
+        await on(reply.message_id, "reject", { note: reason });
+        await on(letter.message_id, "record", { event: "delivery-rejected", note: reason, attachments: handed });
+      } else {
+        if (!delivery.artifact) throw new Error("这次交付没有带上固定成果");
+        resolveMaterials(context, [delivery.artifact], sessionTitle(execution));
+        await on(reply.message_id, "accept"); await on(reply.message_id, "complete");
+        await on(letter.message_id, "complete", { event: "delivery-accepted", attachments: handed });
+        const saved = savedMaterials(context, record.session_id);
+        if (!saved.some(ref => ref.artifact_id === delivery.artifact!.artifact_id && ref.version === delivery.artifact!.version) && saved.length < 30)
+          context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify([...saved, delivery.artifact]));
       }
-      if (body.decision !== "accept") throw new Error("请选择收下或不收下");
-      resolveMaterials(context, [delivery.artifact], sessionTitle(execution));
-      const next = store.apply(delegation.delegation_id, revision, "delivery-accepted", "completed", request.actor_id, at, item => {
-        Object.assign(item.deliveries.find(entry => entry.delivery_id === delivery.delivery_id)!, { state: "accepted", decided_at: at, decided_by: request.actor_id }); }, undefined, delivery.artifact);
-      const saved = savedMaterials(context, record.session_id);
-      if (!saved.some(ref => ref.artifact_id === delivery.artifact.artifact_id && ref.version === delivery.artifact.version) && saved.length < 30)
-        context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify([...saved, delivery.artifact]));
-      return { delegation: delegationView(execution, next, request.actor_id), attached: true };
+      const now = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
+      return { delegation: delegationView(execution, now.find(one => one.message_id === letter.message_id)!, now), ...(body.decision === "accept" ? { attached: true } : {}) };
     }),
     // Like /compact: the next round starts from the digest of earlier rounds instead of replaying them verbatim.
     route("coding.compact-next", async (request, _api, execution) => {
@@ -873,8 +1355,13 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再从断点继续");
       const index = snapshot.runs.findIndex(ref => ref.run_id === request.params.runId);
       if (index < 0) throw new Error("这轮执行不属于当前会话");
-      if (index !== snapshot.runs.length - 1) throw new Error("只能从最新一轮继续");
       const ref = snapshot.runs[index]!, run = await api!.invoke(agent.readRun, [session, ref]);
+      // Only the newest round picks up again, with one exception: the latest plan round's unfinished graph, when the
+      // rounds after it were only conversation (a question, say) and have ended. Nothing else is continued out of order.
+      if (index !== snapshot.runs.length - 1) {
+        const later = await Promise.all(snapshot.runs.slice(index + 1).map(entry => api!.invoke(agent.readRun, [session, entry])));
+        if (!planContinuesAfterTalk(run, later)) throw new Error("只能从最新一轮继续");
+      }
       const reviews = await api!.invoke(agent.readRunReviews, [session, ref]);
       // A receipt that cannot be read is reported as such, never skipped: the continuation must not overstate what ran.
       const commands = await Promise.all((run.command_outputs ?? []).map(async command => {
@@ -982,124 +1469,96 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       busy.add(record.session_id);
       try {
         const body = bodyOf(request);
-        // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
-        const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
-        if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
-        const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(boardId, record.session_id);
-        if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
-        const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
-        let task = plan && continueOf === undefined ? plan.source.task : text(body.task, "任务", 100_000);
-        // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
-        if (plan && record.runtime_session_id && continueOf === undefined) {
-          const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
-          const snapshot = await api!.invoke(agent.readSession, [session]);
-          for (const ref of snapshot.runs) {
-            const existing = await api!.invoke(agent.readRun, [session, ref]);
-            if (existing.frozen.text_materials.some(item => item.source_artifact_id === plan.confirmed!.artifact_id && item.source_version === plan.confirmed!.version)) return { run: { ref: existing.ref, frozen: existing.frozen }, existing: true };
-          }
-          if (snapshot.recovery || snapshot.checkpoint_busy) throw new Error("请先核对中断或回退结果，再执行计划");
+        if (await openWaitOf(api!, record)) throw new Error("这个会话挂起在等待中；先取消等待，或选择现在开始");
+        // "等它完成后再开始": the round is held as an item waiting on the other work, and starts on its own when it is done.
+        if (typeof body.wait_for === "string") {
+          if (["running", "paused", "waiting-answer", "waiting-approval"].includes(record.state)) throw new Error("这个会话还有一轮没结束，结束后再安排等待");
+          const { directory, overlaps } = await overlapsFor(api!, execution, record, body);
+          const target = overlaps.find(overlap => overlap.work_id === body.wait_for);
+          if (!target) throw new Error("要等待的那项工作已经结束或不再重叠，可以直接开始");
+          const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
+          const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
+            : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
+          if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
+          const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
+          const title = record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title;
+          if (title !== record.title) execution.sessions.rename(boardId, record.session_id, title, new Date().toISOString());
+          const { wait_for: _dropped, ...rest } = body;
+          // The session is parked on that work by the SDK, with the send as it was, to start when the work is done.
+          const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title, data: { body: rest, actor_id: request.actor_id } }]);
+          execution.sessions.setState(boardId, record.session_id, "queued", new Date().toISOString());
+          wakeLoop(api!, execution, record.runtime_id);
+          return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };
         }
-        const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
-        if (!role) throw new Error("请选择讨论、规划、修改文件、执行或评审");
-        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
-        const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
-        if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
-        const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
-        if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
-        // Files named with @ travel with the task, as they read at this moment.
-        task = (await attachMentions(query => api!.invoke(readWorkspaceFileCapability, query), workspace.workspace_id, task)).task;
-        const subagent_workspaces: AgentSubagentWorkspace[] = [];
-        if (role === "writers") {
-          const assignments = codingWriterAssignments(body.writer_assignments, true);
-          // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned.
-          const owned = (await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id })).filter(child => !child.problem);
-          const tasks = assignments.map(assignment => {
-            const child = owned.find(child => child.workspace_id === assignment.workspace_id);
-            const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
-            if (!child || !grant) throw new Error("分工目录不属于当前主仓库，或已取消授权；请重新选择独立工作树");
-            subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
-            return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
-          });
-          task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
-          if (task.length > 100_000) throw new Error("总任务与分工合计超过 100000 字符，请缩短后发送");
-        } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw new Error("独立写入分工只用于并行写入方式");
-        const identity = { board_id: boardId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
-        const models = await execution.models();
-        const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
-        if (!model) throw new Error("所选模型不可用，请在全局模型设置中检查配置");
-        const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
-        const availability = roles.find((entry) => entry.role_id === role);
-        if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
-        const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
-        const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
-        if (character) {
-          if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
-          if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
-          execution.characters.resolve(character);
-        }
-        const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
-        const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(execution));
-        if (goal) text_materials.unshift(goal.material);
-        if (plan) text_materials.unshift(planMaterial(plan));
-        if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
-        const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
-          : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
-        if (!record.runtime_session_id) execution.sessions.setRuntimeSession(boardId, record.session_id, session.session_id, new Date().toISOString());
-        // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
-        // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
-        let earlier: AgentRunView[] | undefined;
-        const earlierRuns = async () => earlier ??= await Promise.all((await api!.invoke(agent.readSession, [session])).runs.map(ref => api!.invoke(agent.readRun, [session, ref])));
-        let { history, reason: historyReason } = record.runtime_session_id ? nextHistoryMode((await earlierRuns()).at(-1), context.services?.storage?.get(`compact-next:${record.session_id}`) === "1") : { history: "session" as const, reason: undefined };
-        // The digest is written by the round's own model from the rounds' records, building on the one the latest digest
-        // round carried; the call runs beside the project's other operations. If it cannot be written, the Host's own
-        // record-based digest carries the round and the page says why. Either way it is written once per round.
-        let digest: { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string } | undefined;
-        const digestFor = async () => digest ??= await (async () => {
-          const runs = await earlierRuns();
-          try {
-            const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", instructions: HISTORY_SUMMARY_INSTRUCTIONS,
-              material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
-            if (draft.usage) {
-              const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
-              context.services!.storage!.set(`digest-usage:${record.session_id}`, JSON.stringify({ calls: spent.calls + 1,
-                tokens: { input: spent.tokens.input + draft.usage.input, output: spent.tokens.output + draft.usage.output } }));
-            }
-            return { text: summaryDigest(runs, draft.text, task), source: "model" as const, ...(draft.usage ? { usage: draft.usage } : {}) };
-          } catch (error) {
-            return { text: codingHistoryDigest(runs, task), source: "records" as const, problem: error instanceof Error ? error.message : "模型没有写出摘要" };
-          }
-        })();
-        const start = async (mode: "session" | "digest") => api!.invoke(agent.startRun, [record.runtime_id, { ...identity, session, directory, task: mode === "digest" ? (await digestFor()).text : task, role_id: role, text_materials, character, ...(character_skill_ids === undefined ? {} : {character_skill_ids}), ...(subagent_workspaces.length ? { subagent_workspaces } : {}),
-          ...(plan ? { execution_plan: { source: plan.confirmed!, title: plan.content.title, steps: executionSteps(plan.content) } } : {}),
-          ...(continueOf !== undefined ? { continue_step_board_of: continueOf } : {}),
-          ...(mode === "digest" ? { history: "digest" as const } : {}),
-          budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-          model_selection: { provider_id: model.provider_id, model_id: model.model_id }, skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
-        let run;
-        try { run = await start(history); }
-        catch (error) {
-          if (history !== "session" || !record.runtime_session_id || (error as { code?: string }).code !== "CONTEXT_BUDGET_EXCEEDED") throw error;
-          history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
-          run = await start("digest");
-        }
-        if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
-        // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
-        const incoming = cooperation().forSession(record.session_id).incoming;
-        if (incoming && ["delivered", "accepted"].includes(incoming.state)) {
-          const at = new Date().toISOString();
-          try {
-            if (incoming.state === "delivered") cooperation().apply(incoming.delegation_id, undefined, "accepted", "accepted", request.actor_id, at, () => {}, "发送第一轮即视为接受");
-            cooperation().apply(incoming.delegation_id, undefined, "started", "committing", request.actor_id, at);
-          } catch { /* the round has started; the delegation shows its own last recorded state */ }
-        }
-        if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
-        // A session named by default takes its name from the first task, the way a person would label it.
-        if (!record.runtime_session_id && record.title === DEFAULT_SESSION_TITLE) execution.sessions.rename(boardId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
-        execution.sessions.setState(boardId, record.session_id, "running", new Date().toISOString());
-        follow(api!, execution, record.session_id, session, run.ref);
-        return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
-          ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+        return await startRound(record, body, request.actor_id, api!, execution);
+      }
+      finally { busy.delete(record.session_id); }
+    }),
+    // Messages this session sent and received, and withdrawing an open one.
+    route("coding.messages", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) return { messages: [] };
+      const sessions = execution.sessions.list(boardId), coding = (runtime: string) => sessions.find(entry => entry.runtime_session_id === runtime);
+      // Letters for people (delegations and their deliveries) are shown with the delegation, not here.
+      return { messages: (await api!.invoke(agent.readMessages, [record.runtime_id, record.runtime_session_id])).filter(message => message.audience !== "people").map(message => {
+        const outgoing = message.from_session === record.runtime_session_id, other = coding(outgoing ? message.to_session : message.from_session);
+        return { ...message, from_title: coding(message.from_session)?.title ?? message.from_title, to_title: coding(message.to_session)?.title ?? message.to_title,
+          outgoing, peer: other ? { session_id: other.session_id, title: other.title } : null };
+      }) };
+    }),
+    route("coding.message-cancel", async (request, api, execution) => {
+      const record = selected(request, execution);
+      await api!.invoke(agent.cancelMessage, [record.runtime_id, text(request.params.messageId, "信")]);
+      return { cancelled: true };
+    }),
+    // Before a send: other sessions' work under way in the same directory that names the same files.
+    route("coding.scope-check", async (request, api, execution) => {
+      const record = selected(request, execution);
+      const { overlaps } = await overlapsFor(api!, execution, record, bodyOf(request));
+      return { overlaps };
+    }),
+    // A parked session: start it now (the wait is taken up by the person), or give the wait up.
+    route("coding.queued-round", async (request, api, execution) => {
+      const record = selected(request, execution), wait = await openWaitOf(api!, record), action = bodyOf(request).action;
+      if (!wait) throw new Error("这个会话没有在等待");
+      if (action === "cancel") {
+        // Giving up a wait for an answer withdraws the request; for the person's own wait, its project work item goes.
+        for (const one of wait.on) if (one.kind === "envelope") await api!.invoke(agent.cancelMessage, [record.runtime_id, one.envelope]).catch(() => undefined);
+        const { work_id } = appData(wait);
+        if (wait.by === "app" && work_id) await api!.invoke(agent.releaseProjectRound, [record.runtime_id, work_id, "用户取消了等待"]).catch(() => undefined);
+        await api!.invoke(agent.cancelWait, [record.runtime_id, wait.wait_id, "用户取消了等待"]);
+        execution.sessions.setState(boardId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
+        return { cancelled: true };
+      }
+      if (action !== "start") throw new Error("请选择现在开始或取消等待");
+      if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
+      busy.add(record.session_id);
+      try {
+        const started = await startRound(record, wakeBody(record, wait, true), request.actor_id, api!, execution);
+        await api!.invoke(agent.resumeWait, [record.runtime_id, wait.wait_id, "用户选择现在开始"]).catch(() => undefined);
+        return started;
       } finally { busy.delete(record.session_id); }
+    }),
+    // The person marks a session the priority: sessions whose work overlaps its own are asked to make way (only told).
+    route("coding.priority", async (request, api, execution) => {
+      const record = selected(request, execution), on = bodyOf(request).on === true;
+      const key = `priority:${record.session_id}`;
+      if (!on) { context.services!.storage!.delete(key); return { priority: false, notified: [] }; }
+      context.services!.storage!.set(key, new Date().toISOString());
+      if (!record.runtime_session_id) return { priority: true, notified: [], paths: [] };
+      const told = await api!.invoke(agent.prioritizeSession, [record.runtime_id, record.runtime_session_id]);
+      const sessions = execution.sessions.list(boardId);
+      return { priority: true, paths: told.paths, notified: told.notified.map(runtime => sessions.find(entry => entry.runtime_session_id === runtime)?.title ?? runtime) };
+    }),
+    // The session's background commands, and stopping one.
+    route("coding.background", async (request, api, execution) => {
+      const record = selected(request, execution);
+      if (!record.runtime_session_id) return { commands: [] };
+      return { commands: await api!.invoke(agent.readBackground, [record.runtime_id, record.runtime_session_id]) };
+    }),
+    route("coding.background-stop", async (request, api, execution) => {
+      const record = selected(request, execution);
+      return { stopped: await api!.invoke(agent.stopBackground, [record.runtime_id, text(request.params.taskId, "后台命令")]) };
     }),
     // The model drafts a commit message from the rounds that changed files; the person edits it and commits under review.
     route("coding.commit-draft", async (request, api, execution) => {

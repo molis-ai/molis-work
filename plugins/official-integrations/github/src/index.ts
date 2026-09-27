@@ -8,9 +8,6 @@ import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk"
 export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoamiResult } from "./provider.js";
 export { readResearchLibrary, type ResearchLibraryEntry } from "./research-library.js";
 
-export const GITHUB_WHOAMI_BEHAVIOR_ID = "whoami";
-export const GITHUB_WHOAMI_PUBLIC_BEHAVIOR_ID = "github.whoami";
-
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-integration-github",
   packagePath: "plugins/official-integrations/github",
@@ -25,7 +22,8 @@ export const packageDescriptor = {
 export const githubIntegrationManifest = {
   schema_version: 2,
   plugin_id: "io.molis.work.integration.github",
-  version: "1.1.0",
+  // 1.2.0: the account check moved to the connector action `connectors.account.read`.
+  version: "1.2.0",
   name: "GitHub",
   kind: "integration",
   publisher: {
@@ -44,14 +42,6 @@ export const githubIntegrationManifest = {
   },
   artifacts: { produces: [], consumes: [] },
   ui: { contributions: ["settings.integration.github"] },
-  behaviors: [
-    {
-      behavior_id: GITHUB_WHOAMI_BEHAVIOR_ID,
-      title: "查看当前 GitHub 账号",
-      effect: "read",
-      subject_kinds: ["mcp_invoke", "session"],
-    },
-  ],
 } as const satisfies PluginManifest;
 
 export function createGithubIntegrationPlugin(input: {

@@ -16,7 +16,6 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   const open=async()=>{
     await waitFor("document.querySelector('[data-plugin-id=form]')");
     if(await evaluate('document.body.dataset.desktopSurface')!=='form'){
-      if(width===390)await click('.workspace-chrome [data-directory-show]');
       await click('[data-plugin-strip] [data-plugin-id=form]');
     }
     await waitFor("document.body.dataset.desktopSurface === 'form'");

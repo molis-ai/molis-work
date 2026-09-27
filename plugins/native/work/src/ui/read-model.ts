@@ -99,9 +99,7 @@ export function buildWorkSessionView(input: WorkSessionViewInput): ProjectOperat
       .filter((value): value is string => Boolean(value))
       .sort((left, right) => Date.parse(right) - Date.parse(left))[0] ?? "";
     return {
-      id: catalog?.workspace_id
-        ?? input.normalizeWorkspace(workspacePath)?.workspace_id
-        ?? `workspace-path-${createHash("sha256").update(workspacePath).digest("hex").slice(0, 16)}`,
+      id: catalog?.workspace_id ?? sessionWorkspaceId(workspacePath, input.normalizeWorkspace),
       name: catalog?.display_name ?? (path.basename(workspacePath) || workspacePath),
       path: workspacePath,
       state,
@@ -150,4 +148,9 @@ function formatSessionTimestamp(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(time));
+}
+
+/** The id a folder used only by sessions (no catalog entry yet) is listed under; actions resolve the same id. */
+export function sessionWorkspaceId(canonicalPath: string, normalize: (path: string) => Pick<ProjectWorkspaceRef, "workspace_id"> | null | undefined): string {
+  return normalize(canonicalPath)?.workspace_id ?? `workspace-path-${createHash("sha256").update(canonicalPath).digest("hex").slice(0, 16)}`;
 }

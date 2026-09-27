@@ -113,8 +113,6 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 1");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor("innerWidth === 390");
-  await click("[data-directory-show]");
-  await waitFor("document.querySelector('[data-workspace]')?.classList.contains('is-directory-drawer-open')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
   await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'list' && Boolean(document.querySelector('.tree-node[data-select-goal=CORE]'))");
@@ -127,8 +125,6 @@ test("project workbench adds tabs without replacing existing ones and keeps spli
   await waitFor("document.querySelector('.tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')");
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-plugin=goals][data-item-id=CORE]').length"), goalTabsBefore + 1);
   const mothersBefore = await evaluate<number>("document.querySelectorAll('.tab-item[data-tab-kind=mother]').length");
-  await click("[data-directory-show]");
-  await waitFor("document.querySelector('[data-workspace]')?.classList.contains('is-directory-drawer-open')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[aria-current]')");
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-tab-kind=mother]').length"), mothersBefore);

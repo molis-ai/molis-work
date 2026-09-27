@@ -1,10 +1,11 @@
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-characters", packagePath: "plugins/native/characters", kind: "native-plugin", maturity: "partial",
   contract: "@molis-ai/molis-work-contracts/platform/plugin", migrationGoals: ["goal-reorg-f2", "coding-c12"], ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["characters.ui-contribution.v1", "characters.http-routes.v1"],
+  capabilities: ["characters.ui-contribution.v1", "characters.http-routes.v1", "characters.actions.v1"],
 } as const;
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { createCharactersPlugin } from "./plugin.js";
+export { CHARACTERS_ACTIONS, charactersActions, type CharacterUpdateInput } from "./actions.js";
 export type { CharactersPluginPorts } from "./plugin.js";
 export type { CharactersImportPorts, CharacterNativeRun } from "./imports.js";
 export { charactersManifest, CHARACTERS_PROJECT_PLUGIN_ID } from "./manifest.js";

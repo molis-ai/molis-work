@@ -18,7 +18,8 @@ async function fixture(t: TestContext) {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const project = await catalog.createProject({ display_name: "可删除的项目", actor_id: "test-user" });
   const other = await catalog.createProject({ display_name: "保留的项目", actor_id: "test-user" });
-  const localHost = createMolisWorkLocalHost();
+  // Same as production: the web server's Host owns this Home.
+  const localHost = createMolisWorkLocalHost({ homeDirectory });
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: TOKEN, localHost });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();

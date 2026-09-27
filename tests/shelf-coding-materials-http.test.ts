@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, GoalProjectApplication, DEMO_BOARD_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, GoalProjectApplication, DEMO_BOARD_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -13,16 +13,31 @@ import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-a
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { handleCodingPluginHttp } from "../apps/local-host/src/coding-surface.js";
-import { handleShelfNativePluginHttp, shelfProjectMaterials } from "../apps/local-host/src/shelf-native-plugin-http.js";
+import { handleShelfNativePluginHttp } from "../apps/local-host/src/shelf-native-plugin-http.js";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 
 test("Shelf project material confirms current full bytes, preserves original versions across edits and restart, and freezes trusted Coding input", async () => {
   const home = mkdtempSync(join(tmpdir(), "shelf-coding-")), dbPath = join(home, "board.db");
-  seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new GoalProjectApplication(store).initializeBoard({ board_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "init-other" });
+  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
+  const otherPath = join(home, "other.db"), otherStore = new LocalProjectDatabase(otherPath);
+  new GoalProjectApplication(otherStore).initializeBoard({ board_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "init-other" });
+  otherStore.close();
+  // Shelf copies are personal (Home); saving one as material runs in the chosen project's Runtime.
+  const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const shelfActions = bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
+  const projectShelf = (databasePath: string, boardId: string) => {
+    const reference = molisWorkHostProjectReference({ databasePath, boardId, projectId: boardId });
+    return { title: "测试项目", actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: boardId, audience: "user", permissions: SHELF_PROJECT_ACTION_PERMISSIONS })) };
+  };
   new CodingSessionStore(store.db).create({ board_id: DEMO_BOARD_ID, session_id: "app", title: "Shelf 固定材料", runtime_id: "prologue", at: new Date().toISOString() });
+  // A second connection only reads and archives Artifacts; one Host Runtime owns the project plugins, as in the web server.
   const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const starts: AgentStartRequest[] = [];
-  const host = () => ({ store, boardId: DEMO_BOARD_ID, actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
+  const demo = molisWorkHostProjectReference({ databasePath: dbPath, boardId: DEMO_BOARD_ID, projectId: DEMO_BOARD_ID });
+  const host = async () => ({ store: await localHost.withProject(demo, runtime => runtime.store), homeDirectory: home, boardId: DEMO_BOARD_ID,
+    actions: pluginActions(store, DEMO_BOARD_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -38,9 +53,9 @@ test("Shelf project material confirms current full bytes, preserves original ver
     const url = new URL(request.url!, "http://localhost");
     if (url.pathname.startsWith("/api/shelf")) {
       const project = url.searchParams.get("project");
-      await handleShelfNativePluginHttp(request, response, url, home,
-        project === "none" ? undefined : shelfProjectMaterials(artifacts(), project === "other" ? "other-project" : DEMO_BOARD_ID, "web-user", "测试项目"));
-    } else await handleCodingPluginHttp(request, response, url, host());
+      await handleShelfNativePluginHttp(request, response, url, { actions: shelfActions,
+        ...(project === "none" ? {} : { project: project === "other" ? projectShelf(otherPath, "other-project") : projectShelf(dbPath, DEMO_BOARD_ID) }) });
+    } else await handleCodingPluginHttp(request, response, url, await host());
   })().catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
@@ -53,6 +68,8 @@ test("Shelf project material confirms current full bytes, preserves original ver
   const output = "/api/plugins/io.molis.work.shelf/material-output";
   const start = (materials: unknown) => request(coding + "/runs", { task: "只读材料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", materials });
   try {
+    // The Coding surface starts this project's plugins with the fixture Agent capabilities; Host actions reuse that platform.
+    assert.equal((await request(coding + "/materials")).status, 200);
     const original = "\ufeff旧版🌲\r\n" + "完整原文。".repeat(700) + "\n末尾不能被预览截断";
     const admitted = await request("/api/shelf/items", { filename: "notes.md", bytes_base64: Buffer.from(original).toString("base64") });
     assert.equal(admitted.status, 200);
@@ -96,7 +113,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal((await start([saved2.body.reference])).status, 200); assert.equal(starts[1].text_materials?.[0]?.text, changed);
     await request(`/api/shelf/items/${id}/hide`, {});
     assert.equal((await request(path)).status, 400);
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await localHost.closeProject(demo);
     assert.deepEqual(artifacts().query.getArtifactVersion(DEMO_BOARD_ID, save.body.reference), originalRecord);
     assert.deepEqual((await request(output)).body.reference, saved2.body.reference, "output is durable across host restart");
     const restoredChoices = (await request(coding + "/materials")).body.materials;
@@ -116,6 +133,6 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal(artifacts().query.listArtifacts(DEMO_BOARD_ID, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE }).length, 2);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(home, { recursive: true, force: true });
+    await localHost.close(); store.close(); rmSync(home, { recursive: true, force: true });
   }
 });

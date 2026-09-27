@@ -2,6 +2,7 @@ import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
+import { SHELF_RUNTIME_ACTIONS } from "./runtime-actions.js";
 
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
 /** What the project database stores for this Plugin. */
@@ -19,7 +20,8 @@ export const shelfManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: SHELF_PLUGIN_ID,
-  version: "1.4.0",
+  version: "1.5.0",
+  upgrade_compatibility: { compatible_from_versions: ["1.4.0"] },
   name: "Shelf",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },
@@ -30,6 +32,8 @@ export const shelfManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "将明确选择的 Shelf 固定版本设为材料输出" },
   ],
   capabilities: { provides: [], consumes: [] },
+  // Redeemed by this project's Runtime instance. The personal store's actions are Home-level; the Host registers them from `SHELF_ACTIONS`.
+  actions: SHELF_RUNTIME_ACTIONS,
   artifacts: { produces: [{ artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }], consumes: [{ artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }, { artifact_type_id: "coding.report.v1", schema_version: 1 }, { artifact_type_id: "coding.changeset.v1", schema_version: 1 }] },
   ports: { inputs: [{ port: "coding-report", artifact_type_id: "coding.report.v1", schema_version: 1, optional: true }, { port: "coding-changeset", artifact_type_id: "coding.changeset.v1", schema_version: 1, optional: true }], outputs: [{ port: "material", artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 }] },
   routes: [

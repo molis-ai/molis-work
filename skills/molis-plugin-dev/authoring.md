@@ -13,7 +13,7 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 `definePlugin` 校验 Manifest 后冻结定义。`start(context)` 必须返回 `PluginContribution`：
 
 - integration → `kind: "integration"` + `connector_driver` + `signal_adapter`
-- app → `kind: "app"` + 兑现 Manifest 声明的 views/routes/mcp/behaviors；有命令再兑现 `commandAvailability` / `executeCommand`；有订阅再兑现 `onEvent`；有输入口再兑现 `onUpstreamReady` / `onUpstreamUnavailable`
+- app → `kind: "app"` + 兑现 Manifest 声明的 views/routes/mcp/actions（每个声明的动作都要有处理器，否则启动失败）；有命令再兑现 `commandAvailability` / `executeCommand`；有订阅再兑现 `onEvent`；有输入口再兑现 `onUpstreamReady` / `onUpstreamUnavailable`
 
 `PluginStartContext`：`requireGrant(permission)`；`services` 仅在应用 Host 里有：
 

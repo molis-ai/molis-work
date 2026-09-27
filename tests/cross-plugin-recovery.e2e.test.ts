@@ -12,7 +12,9 @@ test('Characters opens an existing project after its manifest upgrade without lo
   t.after(() => personal.close());
   const draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: '升级前的角色草稿', instructions: '保留原有做事方式', host_tools: null });
-  const legacy = { ...structuredClone(charactersManifest), version: '1.0.0',
+  // A real 1.0.0 had neither import routes, declared actions nor an upgrade range of its own.
+  const { upgrade_compatibility: _range, actions: _actions, ...current } = structuredClone(charactersManifest);
+  const legacy = { ...current, version: '1.0.0',
     routes: charactersManifest.routes.filter(route => !route.route_id.startsWith('characters.import') && route.route_id !== 'characters.discover') };
   const repository = new SqlitePluginRuntimeRepository(b.store.db);
   const installed = new PluginRuntime(repository).install({ definition: { manifest: legacy, async start() { return {}; } },
@@ -21,8 +23,10 @@ test('Characters opens an existing project after its manifest upgrade without lo
   await b.click('[data-plugin-strip] [data-plugin-id=characters]');
   await b.waitFor("document.querySelector('[data-character-list]')?.textContent.includes('升级前的角色草稿')");
   const upgraded = repository.get(installed.install.install_id)!;
-  assert.equal(upgraded.version, charactersManifest.version);
-  assert.notEqual(upgraded.version, legacy.version);
+  // The current implementation declares compatibility with 1.0.0, so it runs without rewriting the installed record;
+  // changing the recorded version stays an explicit market upgrade.
+  assert.equal(upgraded.version, legacy.version);
+  assert.ok(charactersManifest.upgrade_compatibility?.compatible_from_versions.includes(legacy.version));
   assert.deepEqual(upgraded.grants, installed.install.grants);
   assert.equal(upgraded.installed_at, installed.install.installed_at);
   assert.equal(personal.service.get(draft.character_id)?.instructions, '保留原有做事方式');
@@ -120,7 +124,6 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
   await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id=schedule]');
   await click('[data-schedule-new]');
   await evaluate(`{ const form = document.querySelector('[data-schedule-create-form]');

@@ -1,6 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
-import type { ActionMetadata } from "../platform/actions.js";
+import type { ActionDefinition, ActionMetadata } from "../platform/actions.js";
 
 export const modulesProjectsContract = {
   contractId: "io.molis.work.module.projects.v1",
@@ -196,19 +195,24 @@ export interface ProjectsApplicationApi {
  * a Plugin could widen into a write. A project with no workspace bound answers
  * null rather than a guessed path.
  */
+const WORKSPACE_SCHEMA = { type: "object", properties: {
+  workspace_id: { type: "string" }, canonical_path: { type: "string" },
+  realpath_verified: { type: "boolean" }, display_name: { type: "string" },
+}, required: ["workspace_id", "canonical_path", "realpath_verified", "display_name"], additionalProperties: false };
+
 export const projectsCapabilities = {
   listWorkspaces: {
     capability_id: "projects.workspaces.list.v1",
     version: 1,
     operation: "query",
     action: workspaceQuery("项目工作区", "列出当前项目已授权的工作区目录", false),
-  } as HostCapabilityDefinition<[], readonly ProjectWorkspaceRef[]>,
+  } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
   readWorkspace: {
     capability_id: "projects.workspace.read.v1",
     version: 1,
     operation: "query",
     action: workspaceQuery("首选工作区", "读取当前项目的首选工作区；没有绑定时返回空值", true),
-  } as HostCapabilityDefinition<[], ProjectWorkspaceRef | null>,
+  } as ActionDefinition<[], ProjectWorkspaceRef | null>,
 } as const;
 
 /** Current-project settings: each item is independently declared in Manifest consumes.
@@ -220,20 +224,43 @@ export const projectSettingsCapabilities = {
     version: 1,
     operation: "query",
     action: workspaceQuery("工作区设置", "读取当前项目可供插件选择的工作区", false),
-  } as HostCapabilityDefinition<[], readonly ProjectWorkspaceRef[]>,
+  } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
   browsingWorkspace: {
     capability_id: "projects.settings.browsing-workspace.read.v1",
     version: 1,
     operation: "query",
     action: workspaceQuery("浏览工作区", "读取当前项目选中的浏览工作区；选择已失效时返回空值", true),
-  } as HostCapabilityDefinition<[], ProjectWorkspaceRef | null>,
+  } as ActionDefinition<[], ProjectWorkspaceRef | null>,
+  /** Choosing which folder Files and Git browse is the person's own setting: the local user only. */
+  selectBrowsingWorkspace: {
+    capability_id: "projects.settings.browsing-workspace.select.v1",
+    version: 1,
+    operation: "command",
+    action: { title: "选择浏览工作区", description: "从当前项目已授权的工作区中选一个，供文件、Git 等浏览；不改变工作区授权", kind: "operation", scope: "project",
+      audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: { type: "string", minLength: 1, maxLength: 200 } },
+      output_schema: WORKSPACE_SCHEMA, output_type: "project.workspace" },
+  } as ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>,
 } as const;
 
+/** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog; repair and unlink also move the sessions that used the folder. */
+const membership = <Input, Output>(id: string, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<Input, Output> => ({
+  capability_id: id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
+    subject_kinds: ["project"], input_schema: { type: "object", properties: input, required: Object.keys(input), additionalProperties: false }, output_schema: { type: "object", properties: output, required: Object.keys(output) } },
+});
+const folderPath = { type: "string", minLength: 1, maxLength: 4096 }, folderId = { type: "string", minLength: 1, maxLength: 200 };
+const sessionCount = { type: "integer", minimum: 0 };
+export const projectWorkspaceActions = {
+  add: membership<{ workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.add", "关联工作目录", "把本机一个目录加入当前项目的工作目录",
+    { workspace_path: folderPath }, { workspace: { type: "object" } }),
+  repair: membership<{ workspace_id: string; workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord; updated_session_count: number }>("projects.workspaces.repair", "修复工作目录路径",
+    "目录搬走或改名后，把项目关系和使用它的会话一起指向新路径；中途失败会回滚", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" }, updated_session_count: sessionCount }),
+  unlink: membership<{ workspace_id: string }, { changed: boolean; updated_session_count: number }>("projects.workspaces.unlink", "解除工作目录", "解除当前项目与这个目录的关系；目录本身和会话内容都保留",
+    { workspace_id: folderId }, { changed: { type: "boolean" }, updated_session_count: sessionCount }),
+};
+
 function workspaceQuery(title: string, description: string, nullable: boolean): ActionMetadata {
-  const workspace = { type: "object", properties: {
-    workspace_id: { type: "string" }, canonical_path: { type: "string" },
-    realpath_verified: { type: "boolean" }, display_name: { type: "string" },
-  }, required: ["workspace_id", "canonical_path", "realpath_verified", "display_name"], additionalProperties: false };
+  const workspace = WORKSPACE_SCHEMA;
   return { title, description, kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: [], subject_kinds: ["project"], input_schema: { type: "array", maxItems: 0 },
     output_schema: nullable ? { anyOf: [workspace, { type: "null" }] } : { type: "array", items: workspace },

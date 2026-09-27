@@ -1,13 +1,4 @@
-import type { ContractDescriptor } from "./package.js";
-import { mcpPluginSlug, mcpPublicToolName, type PluginMcpEffect, type PluginMcpExportDeclaration } from "./plugin-mcp.js";
-
-export const platformPluginBehaviorContract = {
-  contractId: "io.molis.work.platform.plugin-behavior.v1",
-  kind: "platform",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "specs/archive/functions-system-capability/spec.md",
-} as const satisfies ContractDescriptor;
+import type { PluginMcpEffect } from "./plugin-mcp.js";
 
 const ID = /^[a-z0-9][a-z0-9-]*$/u;
 
@@ -27,23 +18,6 @@ export interface PluginFunctionSceneDeclaration {
 export interface PluginJudgmentSubjectDeclaration {
   readonly subject_kind: string;
   readonly title: string;
-}
-
-export interface RegisteredBehavior {
-  readonly behavior_id: string;
-  readonly plugin_id: string;
-  readonly title: string;
-  readonly effect: PluginMcpEffect;
-  readonly subject_kinds: readonly string[];
-  readonly source: "plugin" | "mcp" | "system";
-}
-
-export function publicBehaviorName(pluginSlug: string, behaviorId: string): string {
-  return `${pluginSlug}.${behaviorId}`;
-}
-
-export function mcpExportBehaviorId(pluginSlug: string, toolId: string): string {
-  return mcpPublicToolName(pluginSlug, toolId);
 }
 
 export function inspectBehaviors(_pluginId: string, behaviors: PluginBehaviorDeclaration[] | undefined): string[] {
@@ -132,51 +106,4 @@ export function inspectJudgmentSubjects(subjects: PluginJudgmentSubjectDeclarati
     }
   }
   return problems;
-}
-
-export function behaviorsFromMcpExports(
-  pluginId: string,
-  exports: readonly PluginMcpExportDeclaration[] | undefined,
-): RegisteredBehavior[] {
-  const slug = mcpPluginSlug(pluginId);
-  return (exports ?? []).map((entry) => ({
-    behavior_id: mcpExportBehaviorId(slug, entry.tool_id),
-    plugin_id: pluginId,
-    title: entry.description,
-    effect: entry.effect,
-    subject_kinds: ["mcp_invoke"],
-    source: "mcp" as const,
-  }));
-}
-
-export function behaviorsFromPluginDeclarations(
-  pluginId: string,
-  behaviors: readonly PluginBehaviorDeclaration[] | undefined,
-): RegisteredBehavior[] {
-  const slug = mcpPluginSlug(pluginId);
-  return (behaviors ?? []).map((entry) => ({
-    behavior_id: publicBehaviorName(slug, entry.behavior_id),
-    plugin_id: pluginId,
-    title: entry.title,
-    effect: entry.effect,
-    subject_kinds: entry.subject_kinds,
-    source: "plugin" as const,
-  }));
-}
-
-export function assembleRegisteredBehaviors(
-  manifests: readonly { plugin_id: string; mcp_exports?: readonly PluginMcpExportDeclaration[]; behaviors?: readonly PluginBehaviorDeclaration[] }[],
-  system: readonly RegisteredBehavior[] = [],
-): RegisteredBehavior[] {
-  const byId = new Map<string, RegisteredBehavior>();
-  for (const row of system) byId.set(row.behavior_id, row);
-  for (const manifest of manifests) {
-    for (const row of [
-      ...behaviorsFromMcpExports(manifest.plugin_id, manifest.mcp_exports),
-      ...behaviorsFromPluginDeclarations(manifest.plugin_id, manifest.behaviors),
-    ]) {
-      if (!byId.has(row.behavior_id)) byId.set(row.behavior_id, row);
-    }
-  }
-  return [...byId.values()];
 }

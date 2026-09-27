@@ -25,6 +25,8 @@ export type CodingSessionState =
    * partly landed.
    */
   | "reconcile-required"
+  /** Its next round waits for another session's work in the project to finish, then starts on its own. */
+  | "queued"
   | "done";
 
 export interface CodingSessionEntry {

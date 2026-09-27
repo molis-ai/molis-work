@@ -444,10 +444,11 @@ export function applyPrologueEvent(
       const replaced = (event as { replaced?: number }).replaced;
       const message = succeeded
         ? `已整理较早上下文${Number.isSafeInteger(replaced) ? `（替换 ${replaced} 条模型可见记录）` : ""}；当前要求与保留原文继续生效，原始会话未删除。`
-        : skipped ? "整理结果未缩短上下文，原上下文继续保留。" : event.type === "compaction-cancelled" ? "上下文整理已取消，原上下文未被替换。" : "上下文压缩失败，原上下文未被替换。";
+        : skipped ? "整理结果未缩短上下文，原上下文继续保留。" : event.type === "compaction-cancelled" ? "上下文整理已取消，原上下文未被替换。" : "上下文整理失败，原上下文未被替换；窗口还放得下就接着用它，放不下这一轮会停下。";
       if (activity) Object.assign(activity, { state: succeeded || skipped ? "completed" : "failed", summary: message, output: message, at });
       state.phase = "running";
-      if (!succeeded && !skipped) state.stop_reason = message;
+      // A failed compaction is not the round's end: the round goes on while its history fits, and says so if it stops.
+      if (event.type === "compaction-cancelled") state.stop_reason = message;
       return true;
     }
 
@@ -492,7 +493,9 @@ export function applyPrologueEvent(
       closeStreaming(state);
       closeUnappliedSteers(state);
       state.phase = "failed";
-      state.stop_reason = failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。" : failed.error === undefined
+      state.stop_reason = failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
+        : failed.error?.code?.startsWith("CONTEXT_COMPACTION") ? "上下文整理失败，原上下文未被替换，而它已放不下模型窗口，这一轮停下了；可以点继续再整理一次。"
+        : failed.error === undefined
         ? failed.why ?? "运行时报告失败"
         : `${failed.error.code}: ${failed.error.safeMessage}`;
       return true;

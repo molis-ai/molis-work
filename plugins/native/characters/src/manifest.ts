@@ -2,10 +2,11 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CHARACTERS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { CHARACTERS_ACTIONS } from "./actions.js";
 
 export const CHARACTERS_PROJECT_PLUGIN_ID = "characters";
 export const charactersManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.2.0", name: "Characters", kind: "app",
+  schema_version: 2, host_api_version: 2, plugin_id: CHARACTER_PLUGIN_ID, version: "1.4.0", upgrade_compatibility: { compatible_from_versions: ["1.3.0", "1.2.0", "1.1.0", "1.0.0"] }, name: "Characters", kind: "app",
   publisher: { publisher_id: "molis", signature: CHARACTER_PUBLISHER_SIGNATURE },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -13,6 +14,7 @@ export const charactersManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "将本人确认的角色内容发布为当前项目的固定版本" },
   ],
   capabilities: { provides: [], consumes: [agentHostCapabilities.listActions.capability_id, agentHostCapabilities.listRuntimes.capability_id] },
+  actions: CHARACTERS_ACTIONS,
   artifacts: { produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }], consumes: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }] },
   routes: [
     { route_id: "characters.actions", method: "GET", path: "/actions" },

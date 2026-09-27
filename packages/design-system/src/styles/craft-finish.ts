@@ -3,8 +3,12 @@ import { MW_PLUGINS } from "../palette.js";
 /** Craft finish: the last layer of every Molis Work page.
  *
  * One spatial idea runs through it. The chrome — titlebar, plugin rail, directory — is a quiet
- * desk. The work itself is one sheet of paper lying on it: rounded, lifted a hair, the same for
- * every plugin, so opening Feed or a Goal never changes what kind of place you are in.
+ * desk. The work itself is one sheet of paper lying on it: rounded, edged with one hairline, the
+ * same for every plugin, so opening Feed or a Goal never changes what kind of place you are in.
+ *
+ * Surfaces are flat and solid. Depth is a hairline, never a gradient; only things that truly
+ * float — menus, dialogs, tooltips, toasts — cast a shadow. Colour says status or selection and
+ * nothing else, so icons and labels stay neutral.
  *
  * Movement follows three rules. A press answers under the finger (a small give, then a spring
  * back). Arriving content rises a few pixels while it fades in. Only events that finish
@@ -40,10 +44,11 @@ const CRAFT_BASE_STYLES = `
     --ease-spring: cubic-bezier(.34, 1.45, .64, 1);
     --ease-swift: cubic-bezier(.4, 0, .2, 1);
     --dur-press: 110ms; --dur-hover: 140ms; --dur-move: 220ms; --dur-arrive: 320ms; --dur-moment: 640ms;
-    --lift-1: 0 0 0 1px var(--hairline), 0 1px 2px rgba(19, 21, 32, .04), 0 2px 6px -2px rgba(19, 21, 32, .05);
-    --lift-2: 0 0 0 1px var(--hairline), 0 2px 4px -1px rgba(19, 21, 32, .06), 0 8px 20px -6px rgba(19, 21, 32, .12);
-    --lift-3: 0 0 0 1px var(--hairline), 0 6px 14px -4px rgba(19, 21, 32, .10), 0 24px 56px -12px rgba(19, 21, 32, .22);
-    --sheet-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 7%, transparent), 0 1px 1px rgba(19, 21, 32, .03), 0 2px 8px -2px rgba(19, 21, 32, .05);
+    /* In-page depth is a hairline ring; --lift-3 is the one shadow, kept for overlays that float. */
+    --lift-1: 0 0 0 1px var(--line);
+    --lift-2: 0 0 0 1px var(--line-strong);
+    --lift-3: 0 0 0 1px var(--line), 0 16px 40px -16px rgba(19, 21, 32, .22);
+    --sheet-shadow: 0 0 0 1px var(--line);
     --press-shade: color-mix(in srgb, var(--ink) 5%, transparent);
     --tip-bg: #1c1d21; --tip-ink: #f4f5f6;
     --celebrate-a: var(--hue-green-fill, #4cb782);
@@ -52,10 +57,10 @@ const CRAFT_BASE_STYLES = `
   }
   html[data-resolved-theme="dark"],
   html[data-resolved-theme="dark"] ${PAGES} {
-    --lift-1: 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight), 0 1px 2px rgba(0, 0, 0, .4);
-    --lift-2: 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight), 0 8px 22px -6px rgba(0, 0, 0, .6);
-    --lift-3: 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight), 0 28px 64px -12px rgba(0, 0, 0, .7);
-    --sheet-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent), inset 0 1px 0 rgba(255, 255, 255, .04), 0 2px 10px -2px rgba(0, 0, 0, .5);
+    --lift-1: 0 0 0 1px var(--line);
+    --lift-2: 0 0 0 1px var(--line-strong);
+    --lift-3: 0 0 0 1px var(--line-strong), 0 20px 48px -16px rgba(0, 0, 0, .7);
+    --sheet-shadow: 0 0 0 1px var(--line);
     --press-shade: color-mix(in srgb, var(--ink) 7%, transparent);
     --tip-bg: #f4f5f6; --tip-ink: #16171a;
   }
@@ -63,7 +68,7 @@ const CRAFT_BASE_STYLES = `
   /* ─── Desk and sheet ───────────────────────────────────────────────────── */
   ${WORKBENCH} .immersive-workspace { background: var(--desk); }
   ${SHELL} .immersive-titlebar { background: var(--desk); box-shadow: none; }
-  ${SHELL} .plugin-stack { background: var(--desk); }
+  ${SHELL} .plugin-stack { background: var(--desk); border-right: 0; }
   ${SHELL} .tree-pane { background: var(--desk); border-right: 0; box-shadow: none; }
   @media (min-width: 601px) {
     ${SHELL} .tab-workspace { padding: 0 var(--sheet-inset) var(--sheet-inset) 0; background: var(--desk); box-sizing: border-box; }
@@ -76,7 +81,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .tab-workspace[data-exclusive] .tab-workspace-exclusive { inset: 0 var(--sheet-inset) var(--sheet-inset) 0; }
     ${SHELL} .tab-workspace-panes > .tab-pane.is-focused { box-shadow: var(--sheet-shadow); }
     ${SHELL} .tab-workspace-panes:has(> .tab-pane + .tab-pane) > .tab-pane.is-focused {
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 16%, transparent), 0 2px 12px -4px rgba(19, 21, 32, .10);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent);
     }
     /* The directory sits on the desk; one hair of desk separates it from the sheet. */
     ${SHELL} .tree-pane:not([hidden]) + .tree-resizer { background: transparent; }
@@ -90,9 +95,9 @@ const CRAFT_BASE_STYLES = `
   @media (min-width: 761px) {
     ${WORKBENCH} .immersive-home .home-flow { column-gap: 0; grid-template-columns: 112px minmax(0, 1fr) 0px; }
     ${WORKBENCH} .immersive-home[data-event="on"] .home-flow { grid-template-columns: 112px minmax(0, 1fr) clamp(300px, 26vw, 372px); }
-    ${WORKBENCH} .immersive-home .home-dates { padding: 10px 8px 0; background: color-mix(in srgb, var(--desk) 60%, var(--paper)); box-shadow: inset -1px 0 0 var(--line); }
+    ${WORKBENCH} .immersive-home .home-dates { padding: 10px 8px 0; background: var(--paper); box-shadow: inset -1px 0 0 var(--line); }
     ${WORKBENCH} .immersive-home[data-event="on"] .home-flow { padding-right: 0; }
-    ${WORKBENCH} .immersive-home .home-eventcol { box-shadow: inset 1px 0 0 var(--line); background: color-mix(in srgb, var(--desk) 30%, var(--paper)); }
+    ${WORKBENCH} .immersive-home .home-eventcol { box-shadow: inset 1px 0 0 var(--line); background: var(--paper); }
   }
 
   /* ─── Titlebar tabs: quiet pills; the current one is a small piece of the sheet ── */
@@ -106,11 +111,11 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .tab-strip .tab-item:has([aria-selected="true"]) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1);
   }
-  ${WORKBENCH} .tab-strip .tab-item svg { color: color-mix(in srgb, var(--plugin-tint, var(--muted)) 55%, var(--muted)); transition: color var(--dur-hover) var(--ease-swift); }
-  ${WORKBENCH} .tab-strip .tab-item:is(:hover, [aria-current]) svg { color: var(--plugin-tint, var(--ink-soft)); }
+  ${WORKBENCH} .tab-strip .tab-item svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-swift); }
+  ${WORKBENCH} .tab-strip .tab-item:is(:hover, [aria-current]) svg { color: var(--ink-soft); }
   ${WORKBENCH} .tab-strip .tab-item:active:not(:has(.tab-item-close:active)) { transform: scale(.975); }
   ${WORKBENCH} .tab-strip .tab-item.is-dragging,
-  ${WORKBENCH} .tab-strip .tab-item[data-dragging] { box-shadow: var(--lift-2); background: var(--paper); transform: scale(1.02); }
+  ${WORKBENCH} .tab-strip .tab-item[data-dragging] { box-shadow: var(--lift-3); background: var(--paper); }
   ${WORKBENCH} .tab-strip .tab-item-close { border-radius: 5px; }
   ${WORKBENCH} .tab-strip .tab-item-close:hover { background: var(--nav-active); color: var(--ink); }
   ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button) { border-radius: 7px; }
@@ -123,7 +128,7 @@ const CRAFT_BASE_STYLES = `
     border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-swift);
   }
-  ${PAGES} .tab-view-chip svg { width: 14px; height: 14px; color: var(--plugin-tint, var(--muted)); }
+  ${PAGES} .tab-view-chip svg { width: 14px; height: 14px; color: var(--ink-soft); }
   ${PAGES} .tab-view-chip:hover { background: var(--nav-hover); color: var(--ink-soft); }
   ${PAGES} .tab-view-chip[aria-current="page"] { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); cursor: default; }
   ${PAGES} .tab-view-chip.is-exclusive svg { color: var(--ink-soft); }
@@ -135,122 +140,464 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
   ${viewChipTints()}
 
-  /* ─── Plugin rail: this project's tools, then the ways to extend them, then you ─── */
+  /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
   :root ${SHELL} :is(.assistant-island-card, .workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
     background: transparent; box-shadow: none; border: 0;
   }
-  /* Zone hairlines sit in the 8px between zones and take no height; item tracks keep ::before for their chip. */
+  /* The zone hairline above the account sits in the 8px gap and takes no height. */
   @media (min-width: 601px) {
     ${SHELL} .plugin-rail { position: relative; overflow: visible; }
-    ${SHELL} :is(.plugin-rail, .plugin-rail .assistant-island)::before {
+    ${SHELL} .plugin-rail > .personal-sidebar-footer { position: relative; }
+    ${SHELL} .plugin-rail > .personal-sidebar-footer::before {
       content: ""; position: absolute; z-index: 1; top: -4.5px; left: 50%; width: 20px; height: 1px; margin-left: -10px;
-      background: var(--line-strong); pointer-events: none;
+      background: var(--line); pointer-events: none;
     }
     ${SHELL} .plugin-rail-items { overflow-x: hidden; }
   }
-  /* Group names read as hairlines in the icon rail and as quiet headings once names are shown. */
-  ${SHELL} .plugin-rail-group {
-    flex: none; width: 16px; height: 1px; margin: 5px auto; padding: 0; overflow: hidden;
+  /* Headings are hairlines in the icon rail and quiet words once names are shown. */
+  ${SHELL} :is(.plugin-rail-group, .plugin-rail-subgroup) {
+    flex: none; width: 16px; height: 1px; margin: 6px auto; padding: 0; overflow: hidden;
     background: var(--line); color: transparent; font-size: 0; line-height: 0; user-select: none;
   }
+  /* Plugins: the ones used lately and the current one stay; the rest open in place under 全部插件. */
+  ${SHELL} .plugin-rail-items:not(.is-tools-open) [data-rail-zone="more"],
+  ${SHELL} .plugin-rail-items:not(.is-tools-open) [data-rail-zone="tool"]:not(.is-recent, [aria-current]) { display: none; }
+  ${SHELL} .plugin-rail-toggle { color: var(--muted); }
+  /* While the full list is open, 收起 stays at the bottom of the list instead of scrolling away. */
+  ${SHELL} .plugin-rail-items.is-tools-open { scroll-padding-bottom: 44px; }
+  ${SHELL} .plugin-rail-items.is-tools-open > .plugin-rail-toggle { position: sticky; bottom: 0; z-index: 2; background: var(--desk); box-shadow: 0 -4px 0 var(--desk), 0 -5px 0 var(--line); }
+  ${SHELL} .plugin-rail-toggle > span { color: var(--muted); }
   ${SHELL} ${RAIL_LINK} {
-    border-radius: 10px;
+    border-radius: 8px;
     transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
   }
-  ${SHELL} ${RAIL_LINK} svg {
-    color: color-mix(in srgb, var(--plugin-tint, var(--muted)) 34%, var(--muted));
-    transition: color var(--dur-hover) var(--ease-swift), transform var(--dur-move) var(--ease-spring);
-  }
+  /* Icons stay neutral: position and a name say which tool it is, not a colour. */
+  ${SHELL} ${RAIL_LINK} svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-swift); }
   ${SHELL} ${RAIL_LINK}:hover { background: var(--nav-hover); }
-  ${SHELL} ${RAIL_LINK}:hover svg { color: var(--plugin-tint, var(--ink)); }
-  ${SHELL} ${RAIL_LINK}:active:not(:disabled) svg { transform: scale(.84); }
-  ${SHELL} :is(.plugin-rail, .assistant-island) .immersive-plugin-link:is([aria-current], [aria-expanded="true"]) svg { color: var(--plugin-tint, var(--ink)); }
-  ${SHELL} :is(.plugin-rail-items, .assistant-island-card)[data-seg-thumb]::before { border-radius: 10px; }
+  ${SHELL} ${RAIL_LINK}:is(:hover, [aria-current], [aria-expanded="true"]) svg { color: var(--ink); }
+  ${SHELL} :is(.plugin-rail-items, .assistant-island-card)[data-seg-thumb]::before { border-radius: 8px; background: var(--nav-active); }
   ${SHELL} .plugin-rail a.plugin-rail-item { text-decoration: none; color: inherit; }
-  /* The current plugin keeps a mark at its leading edge beside the travelling chip. */
-  ${SHELL} .plugin-rail-items .immersive-plugin-link[aria-current]::after {
-    content: ""; position: absolute; left: -4px; top: 50%; width: 3px; height: 16px; margin-top: -8px;
-    border-radius: 0 3px 3px 0; background: var(--plugin-tint, var(--ink));
-    animation: craft-rail-mark var(--dur-move) var(--ease-spring);
-  }
   ${SHELL} .plugin-rail-items .immersive-plugin-link { position: relative; }
-  @keyframes craft-rail-mark { from { transform: scaleY(.2); opacity: 0; } to { transform: none; opacity: 1; } }
   /* The rail's own toggle lives with Back and Forward in the titlebar, where macOS keeps a sidebar button. */
   ${SHELL} .workspace-history .navigation-labels-toggle { flex: none; align-self: center; margin: 0; padding: 0; min-height: 0; }
-  ${SHELL}[data-navigation-labels="true"] .workspace-history .navigation-labels-toggle { background: var(--nav-active); color: var(--ink); }
   ${SHELL} .navigator-project-search :is(.navigator-project-search-label, kbd) { display: none; }
+  /* Project settings live in the project's menu; the menu reads as a short list. */
+  ${SHELL} .navigator-project-menu-popover :is(.navigator-project-settings, .navigator-project-manage) {
+    display: flex; align-items: center; gap: 8px; width: auto; height: 32px; min-height: 32px; margin: 0; padding: 0 10px; border-radius: 8px;
+    background: transparent; box-shadow: none; color: var(--ink-soft); font-size: 13px; text-decoration: none;
+  }
+  ${SHELL} .navigator-project-menu-popover .navigator-project-settings { margin-top: 5px; border-top: 0; }
+  ${SHELL} .navigator-project-menu-popover > .navigator-project-manage + .navigator-project-settings { box-shadow: 0 -3px 0 -2px var(--line); }
+  ${SHELL} .navigator-project-menu-popover :is(.navigator-project-settings, .navigator-project-manage):hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} .navigator-project-menu-popover :is(.navigator-project-settings, .navigator-project-manage) svg { width: 15px; height: 15px; color: var(--muted); }
+  ${SHELL} .navigator-project-menu-popover > nav + .navigator-project-settings { box-shadow: 0 -5px 0 -4px var(--line); }
 
-  /* Names shown: a 208px sidebar with a project header, a search field, grouped tools and a personal footer. */
+  /* Names shown: a 208px sidebar — project, search, backbone, tools, then the person. */
   @media (min-width: 761px) {
-    ${SHELL}[data-navigation-labels="true"] { --plugin-rail-width: 208px; }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome .navigator-project-primary {
-      display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-auto-rows: auto; align-items: center; gap: 6px 2px; padding: 6px 8px 0;
+    ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-primary {
+      display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; align-items: center; gap: 6px; padding: 10px 16px 0;
     }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome .navigator-project-primary > * { grid-column: 1 / 3; }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome .navigator-project-menu { grid-column: 1; grid-row: 1; width: auto; min-width: 0; }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome .navigator-project-settings { grid-column: 2; grid-row: 1; width: 30px; height: 30px; min-height: 30px; }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome .navigator-project-search { grid-row: 2; }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome :is(.desktop-titlebar-drag, .navigator-directory-toggle, .immersive-show-directory) { display: none; }
-    ${SHELL}[data-navigation-labels="true"] .immersive-workspace .navigator-project-selector {
-      width: 100%; height: 34px; justify-content: flex-start; gap: 9px; padding: 0 8px 0 6px; border-radius: 10px;
+    ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-primary > * { grid-column: 1; }
+    ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-menu { grid-row: 1; width: auto; min-width: 0; }
+    ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-search { grid-row: 2; }
+    ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome :is(.desktop-titlebar-drag, .navigator-directory-toggle, .immersive-show-directory) { display: none; }
+    ${SHELL}:not([data-navigation-labels="false"]) .immersive-workspace .navigator-project-selector {
+      width: 100%; height: 34px; justify-content: flex-start; gap: 9px; padding: 0 8px 0 6px; border-radius: 8px;
     }
-    ${SHELL}[data-navigation-labels="true"] .navigator-project-selector strong { font-size: 13px; color: var(--ink); }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome .navigator-project-search {
-      display: flex; align-items: center; width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 8px; padding: 0 8px 0 10px; border-radius: 9px;
-      background: color-mix(in srgb, var(--ink) 4.5%, transparent); box-shadow: inset 0 0 0 1px var(--hairline); color: var(--faint); font-size: 12px;
+    ${SHELL}:not([data-navigation-labels="false"]) .navigator-project-selector strong { font-size: 13px; font-weight: 500; color: var(--ink); }
+    ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-search {
+      display: flex; align-items: center; width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 8px; padding: 0 8px 0 10px; border-radius: 8px;
+      background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--faint); font-size: 12px;
     }
-    ${SHELL}[data-navigation-labels="true"] .workspace-chrome .navigator-project-search:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); color: var(--muted); }
-    ${SHELL}[data-navigation-labels="true"] .navigator-project-search .navigator-project-search-label { display: inline; flex: 1; text-align: left; }
-    ${SHELL}[data-navigation-labels="true"] .navigator-project-search kbd {
-      display: inline; padding: 0 5px; border-radius: 5px; background: var(--paper); box-shadow: inset 0 0 0 1px var(--hairline);
+    ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-search:hover { box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--muted); }
+    ${SHELL}:not([data-navigation-labels="false"]) .navigator-project-search .navigator-project-search-label { display: inline; flex: 1; text-align: left; }
+    ${SHELL}:not([data-navigation-labels="false"]) .navigator-project-search kbd {
+      display: inline; padding: 0 5px; border-radius: 4px; background: transparent; box-shadow: inset 0 0 0 1px var(--line);
       color: var(--faint); font: inherit; font-size: 10.5px; line-height: 17px;
     }
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail-items { align-items: stretch; padding: 2px 8px 6px; gap: 1px; }
-    ${SHELL}[data-navigation-labels="true"] :is(.plugin-rail, .assistant-island) .plugin-rail-item {
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-items { align-items: stretch; padding: 4px 16px 8px; gap: 1px; }
+    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item {
       width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 10px; padding: 0 10px; border-radius: 8px;
     }
-    ${SHELL}[data-navigation-labels="true"] :is(.plugin-rail, .assistant-island) .plugin-rail-item svg { width: 16px; height: 16px; }
-    ${SHELL}[data-navigation-labels="true"] :is(.plugin-rail, .assistant-island) .plugin-rail-item > span { font-size: 13px; color: var(--ink-soft); }
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail-item:is([aria-current], [aria-expanded="true"]) > span { color: var(--ink); }
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail-items .immersive-plugin-link[aria-current]::after { left: -8px; }
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail-group {
-      width: auto; height: auto; margin: 10px 0 2px; padding: 0 10px; background: none; overflow: visible;
+    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item svg { width: 16px; height: 16px; }
+    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item > span { font-size: 13px; color: var(--ink-soft); }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-item:is([aria-current], [aria-expanded="true"]) > span { color: var(--ink); }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-toggle > span { color: var(--muted); }
+    ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail-group, .plugin-rail-subgroup) {
+      width: auto; height: auto; margin: 14px 0 3px; padding: 0 10px; background: none; overflow: visible;
       color: var(--faint); font-size: 11px; line-height: 18px; letter-spacing: .02em;
     }
-    ${SHELL}[data-navigation-labels="true"] :is(.plugin-rail, .plugin-rail .assistant-island)::before { left: 16px; right: 16px; width: auto; margin-left: 0; }
-    /* Personal tools share one row; each keeps its name. */
-    ${SHELL}[data-navigation-labels="true"] .assistant-island-card { flex-direction: row; align-items: center; gap: 2px; padding: 0 8px; }
-    ${SHELL}[data-navigation-labels="true"] .assistant-island .plugin-rail-item { flex: 1 1 0; min-width: 0; justify-content: center; gap: 6px; padding: 0 6px; }
-    ${SHELL}[data-navigation-labels="true"] .assistant-island .plugin-rail-item > span { font-size: 12px; }
-    /* You: the account takes the row, settings is its gear. */
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail .personal-sidebar-footer { flex-direction: row; align-items: center; gap: 2px; padding: 0 8px; }
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail .personal-account { order: 1; flex: 1; width: auto; min-width: 0; height: 36px; padding: 0 6px; border-radius: 10px; }
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail .personal-settings { order: 2; flex: none; width: 32px; padding: 0; justify-content: center; }
-    ${SHELL}[data-navigation-labels="true"] .plugin-rail .personal-settings > span { display: none; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-subgroup { margin-top: 8px; color: var(--faint); font-size: 11px; }
+    /* The account is the first container of the bottom row: the same 36px paper chip and hairline as the Dock beside it. */
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail > .personal-sidebar-footer::before { content: none; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-sidebar-footer {
+      flex-direction: row; align-items: center; gap: 0; width: auto; height: 36px; min-height: 36px; margin: 0 8px; padding: 0 5px 0 0;
+      border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
+      transition: box-shadow var(--dur-hover) var(--ease-swift);
+    }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-sidebar-footer:hover { box-shadow: 0 0 0 1px var(--line-strong); }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account {
+      flex: 1; width: auto; min-width: 0; height: 36px; min-height: 36px; gap: 8px; padding: 0 8px 0 10px;
+      border-radius: 10px 0 0 10px; background: transparent;
+    }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account:hover { background: transparent; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-avatar { width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft); box-shadow: none; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-avatar svg { width: 12px; height: 12px; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy strong { font-size: 13px; font-weight: 400; line-height: 18px; color: var(--ink-soft); }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy small { font-size: 12px; line-height: 18px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .account-global-trigger { width: 28px; height: 28px; border-radius: 7px; }
   }
-  /* A phone keeps personal tools in the drawer, so the top of the page has one row less. */
+  /* A phone has no personal row at the top: the Dock carries those entries at the foot of the page. */
   @media (max-width: 600px) {
     ${SHELL} { --assistant-island-row: 0px; }
-    ${SHELL} .plugin-rail .assistant-island { grid-column: auto; grid-row: auto; padding: 0; background: transparent; }
-    ${SHELL} .plugin-rail .assistant-island-card { flex-direction: column; width: 100%; height: auto; min-height: 0; padding: 4px; }
+    /* The drawer lets the account menu open beyond its edge instead of clipping it. */
+    ${SHELL} .plugin-rail { overflow: visible; }
+  }
+
+  /* ─── Bottom bar: the Dock, the resident Assistant, the project ────────────── */
+  /* No rail: the work spans the window. The bar under it is the only chrome besides the titlebar. */
+  ${SHELL} { --dock-h: 48px; }
+  ${WORKBENCH}[data-pane-embedded] .workbench-bar { display: none; }
+  @media (min-width: 601px) {
+    ${SHELL}, ${SHELL}:not([data-navigation-labels="false"]) { --plugin-rail-width: 8px; }
+    ${SHELL} .immersive-workspace,
+    ${SHELL} .immersive-workspace.is-directory-collapsed,
+    ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) var(--dock-h); }
+    ${SHELL} .immersive-workspace > .tree-pane { grid-row: 2; }
+    ${SHELL} .immersive-plugin-stage { grid-row: 2; }
+  }
+  ${SHELL} .workbench-bar {
+    grid-column: 1 / -1; grid-row: 3; position: relative; z-index: 30; min-width: 0;
+    display: grid; grid-template-columns: minmax(160px, 1fr) minmax(240px, 600px) minmax(160px, 1fr); align-items: center; gap: 12px;
+    padding: 0 8px 8px; background: var(--desk);
+  }
+  /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
+  ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+  ${SHELL} .bar-center { position: relative; min-width: 0; }
+  html ${SHELL} .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
+  ${SHELL} :is(.bar-start .account-global-trigger, .dock-pins, .bar-composer, .bar-resident, .bar-chat) { background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+
+  /* Shelf and 灵光: the person's own, two icon buttons against the right beside the project. */
+  ${SHELL} .bar-residents { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  ${SHELL} .bar-resident {
+    display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
+    color: var(--muted); cursor: pointer;
+  }
+  ${SHELL} .bar-resident svg { width: 18px; height: 18px; }
+  ${SHELL} .bar-resident:hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  ${SHELL} .bar-resident[aria-current] { background: var(--nav-active); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
+  ${SHELL} .bar-resident:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  /* The project's discussion: one button, one click, group and direct chat open beside the work. */
+  ${SHELL} .bar-chat {
+    display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
+    color: var(--muted); cursor: pointer;
+  }
+  ${SHELL} .bar-chat svg { width: 18px; height: 18px; }
+  ${SHELL} .bar-chat:hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  ${SHELL} .bar-chat[aria-expanded="true"] { background: var(--nav-active); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
+  ${SHELL} .bar-chat:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+
+  /* The Dock menu: which plugins stay, what is yours everywhere, settings and the account. */
+  ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
+  ${SHELL} .account-global-menu { position: relative; flex: none; }
+  ${SHELL} .account-global-trigger {
+    position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+    color: var(--muted); list-style: none; cursor: pointer; transition: box-shadow var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
+  }
+  ${SHELL} .account-global-trigger::-webkit-details-marker { display: none; }
+  ${SHELL} .account-global-trigger svg { width: 18px; height: 18px; }
+  ${SHELL} :is(.account-global-trigger:hover, .account-global-menu[open] > .account-global-trigger) { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  ${SHELL} .account-global-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .account-global-menu:not([open]):has([data-market-update-count]:not([hidden])) > .account-global-trigger::after {
+    content: ""; position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, var(--blue));
+  }
+  ${SHELL} .account-global-popover {
+    position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: grid; gap: 1px; width: 264px; max-height: min(70dvh, 620px); overflow: auto; padding: 6px;
+    border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-3);
+  }
+  ${SHELL} .account-global-heading { margin: 6px 8px 2px; color: var(--faint); font-size: 11px; line-height: 18px; }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) :is(.account-global-item, .dock-choice) {
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 32px; min-height: 32px;
+    margin: 0; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; box-shadow: none;
+    color: var(--ink-soft); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer;
+  }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) .account-global-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) :is(.account-global-item, .dock-choice) svg { flex: none; width: 16px; height: 16px; color: var(--muted); }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) :is(.account-global-item, .dock-choice):hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) .account-global-item[aria-current] { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) .account-global-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .account-global-popover .dock-choice > span { flex: 1; min-width: 0; text-align: left; }
+  ${SHELL} .account-global-popover .dock-choice[aria-pressed="true"] { color: var(--ink); }
+  ${SHELL} .account-global-popover .dock-choice[aria-pressed="true"] svg { color: var(--ink-soft); }
+  ${SHELL} .account-global-popover .dock-choice[aria-pressed="true"]::after {
+    content: ""; flex: none; width: 9px; height: 5px; margin: -3px 2px 0 0; border-left: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); transform: rotate(-45deg);
+  }
+  ${SHELL} .account-global-popover .dock-choice:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .account-global-popover .dock-choices { display: grid; gap: 1px; }
+  ${SHELL} .account-global-popover .plugin-rail-update-count { position: static; margin-left: auto; }
+  ${SHELL} .account-global-popover > .account-global-item:last-of-type { margin-bottom: 4px; }
+  /* The person, under the project button: capabilities, settings, then who you are and where — nearest the button. */
+  ${SHELL} .navigator-project-menu-popover .navigator-personal { display: grid; gap: 1px; margin-top: 5px; padding-top: 5px; box-shadow: inset 0 1px 0 var(--line); }
+  /* Same row as the project's own entries above, so the icons and names line up down the menu. */
+  ${SHELL} .navigator-personal .account-global-item { gap: 8px; }
+  ${SHELL} .navigator-personal .account-global-item > svg { width: 15px; height: 15px; }
+  ${SHELL} .navigator-personal .personal-account { height: 44px; margin-top: 4px; box-shadow: 0 -3px 0 -2px var(--line); }
+  ${SHELL} .navigator-personal .personal-account-avatar { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft); }
+  ${SHELL} .navigator-personal .personal-account-avatar svg { width: 13px; height: 13px; }
+  ${SHELL} .navigator-personal .personal-account-copy { display: grid; gap: 0; min-width: 0; text-align: left; line-height: 16px; }
+  ${SHELL} .navigator-personal .personal-account-copy strong { font-weight: 500; font-size: 13px; color: var(--ink); }
+  ${SHELL} .navigator-personal .personal-account-copy small { font-size: 11px; color: var(--faint); }
+
+  /* The Dock: 项目首页 first and always, then the plugins chosen to stay. */
+  ${SHELL} .dock-pins { display: flex; flex: 0 1 auto; align-items: center; gap: 2px; min-width: 0; height: 40px; padding: 0 4px; border-radius: 12px; }
+  ${SHELL} .dock-pin[hidden] { display: none; }
+  ${SHELL} .dock-pin.dock-pin-more { flex: none; width: auto; min-width: 32px; padding: 0 7px; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+  ${SHELL} .dock-pin.dock-pin-more:is([aria-expanded="true"], .has-current) { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} .dock-overflow {
+    position: absolute; z-index: 60; bottom: calc(100% + 8px); display: grid; gap: 1px; width: 208px; max-height: min(60dvh, 480px); overflow: auto; padding: 6px;
+    border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom left; animation: craft-rise-from-bar 180ms var(--ease-quint) both;
+  }
+  ${SHELL} .dock-overflow[hidden] { display: none; }
+  ${SHELL} .dock-overflow-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--ink-soft); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  }
+  ${SHELL} .dock-overflow-item svg { flex: none; width: 16px; height: 16px; color: var(--muted); }
+  ${SHELL} .dock-overflow-item:hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} .dock-overflow-item[aria-current] { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} .dock-overflow-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .dock-pins:empty { display: none; }
+  ${SHELL} .dock-pin {
+    display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px;
+    background: transparent; color: var(--muted); cursor: pointer; transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
+  }
+  ${SHELL} .dock-pin svg { width: 18px; height: 18px; }
+  ${SHELL} .dock-pin:hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} .dock-pin[aria-current] { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} .dock-pin:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  /* 项目首页 stays put; a hairline sets it apart from the plugins you chose. */
+  ${SHELL} .dock-pin.is-fixed { position: relative; margin-right: 5px; }
+  ${SHELL} .dock-pin.is-fixed:not(:only-child)::after { content: ""; position: absolute; right: -4px; top: 7px; width: 1px; height: 18px; background: var(--line); pointer-events: none; }
+
+  /* The resident Assistant, with the plugin switcher in front of it. */
+  ${SHELL} .bar-composer {
+    position: static; inset: auto; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px;
+    width: 100%; height: 40px; min-height: 40px; max-height: none; margin: 0; padding: 0 5px; border: 0; border-radius: 12px; overflow: visible;
+    transition: box-shadow var(--dur-hover) var(--ease-swift);
+  }
+  ${SHELL} .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong); }
+  ${SHELL} .bar-composer .assistant-composer-input { flex: 1; min-width: 0; }
+  /* Search opens from the same input: a quiet glyph with its shortcut, the one mouse entry to ⌘K. */
+  ${SHELL} .bar-composer-search {
+    display: inline-flex; flex: none; align-items: center; gap: 5px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
+    transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
+  }
+  ${SHELL} .bar-composer-search svg { width: 15px; height: 15px; }
+  ${SHELL} .bar-composer-search kbd { font: inherit; color: var(--faint); }
+  ${SHELL} .bar-composer-search:hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} .bar-composer-search:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  @media (max-width: 900px) { ${SHELL} .bar-composer-search kbd { display: none; } }
+  ${SHELL} .plugin-picker { position: relative; flex: none; min-width: 0; max-width: 46%; }
+  ${SHELL} .plugin-picker-trigger {
+    display: flex; align-items: center; gap: 6px; max-width: 100%; height: 30px; padding: 0 8px; border: 0; border-radius: 8px;
+    background: var(--nav-hover); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  ${SHELL} .plugin-picker-trigger:hover, ${SHELL} .plugin-picker-trigger[aria-expanded="true"] { background: var(--nav-active); }
+  ${SHELL} .plugin-picker-trigger > svg { flex: none; width: 12px; height: 12px; color: var(--muted); }
+  ${SHELL} .plugin-picker-current { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+  ${SHELL} .plugin-picker-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; color: var(--ink); }
+  ${SHELL} .plugin-picker-chip svg { flex: none; width: 14px; height: 14px; }
+  /* Split work area: one chip per pane; the focused pane reads darker. */
+  ${SHELL} .is-split .plugin-picker-chip { padding: 0 6px; border-radius: 6px; color: var(--muted); }
+  ${SHELL} .is-split .plugin-picker-chip.is-focused { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+  ${SHELL} .plugin-picker-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover {
+    position: absolute; z-index: 60; left: -5px; bottom: calc(100% + 13px); width: 272px; max-height: min(70dvh, 620px); overflow: auto; padding: 6px;
+    border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-3);
+  }
+  html ${SHELL} .workbench-bar .plugin-picker-popover[hidden] { display: none; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail { position: static; display: block; width: auto; height: auto; overflow: visible; background: transparent; border: 0; padding: 0; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail::before { content: none; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items { display: flex; flex-direction: column; align-items: stretch; gap: 1px; padding: 0; overflow: visible; background: transparent; box-shadow: none; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items [data-rail-zone] { display: flex !important; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { display: block !important; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-toggle { display: none !important; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item {
+    width: 100%; height: 32px; min-height: 32px; justify-content: flex-start; gap: 10px; padding: 0 10px; border-radius: 7px;
+  }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; font-size: 13px; color: var(--ink-soft); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item svg { width: 16px; height: 16px; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover :is(.plugin-rail-group, .plugin-rail-subgroup) {
+    width: auto; height: auto; margin: 8px 0 2px; padding: 0 10px; background: none; overflow: visible; color: var(--faint); font-size: 11px; line-height: 18px;
+  }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items[data-seg-thumb]::before { display: none; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] { background: var(--nav-active); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
+  /* Its answers open above the bar and stay until closed. */
+  ${SHELL} .assistant-panel {
+    position: absolute; z-index: 50; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
+    height: auto; max-height: min(460px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
+    border-radius: 12px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise 220ms var(--ease-quint) both;
+  }
+  ${SHELL} .assistant-panel[hidden] { display: none; }
+  /* The answer sets the height; a short one keeps the panel short. */
+  ${SHELL} .assistant-panel .assistant-plan { flex: 0 1 auto; min-height: 0; overflow: auto; padding: 14px 16px 16px; font-size: 13px; }
+  ${SHELL} .assistant-panel .assistant-plan > p.assistant-ask { margin: 0 0 10px; padding: 0 0 10px; box-shadow: inset 0 -1px 0 var(--line); color: var(--ink); font-weight: 500; }
+  ${SHELL} .assistant-panel .assistant-plan > strong { display: block; margin-bottom: 4px; font-weight: 500; }
+  ${SHELL} .assistant-panel .assistant-plan > p { color: var(--muted); }
+  /* ⌘K search opens from the same place: one entry for finding and for asking. */
+  @media (min-width: 601px) {
+    ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 8px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
+  }
+  @keyframes craft-dock-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  /* Everything that opens from the bar rises from it, anchored at the edge nearest its control. */
+  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+  html ${SHELL} .workbench-bar :is(.account-global-popover, .plugin-picker-popover:not([hidden])) { transform-origin: bottom left; animation: craft-rise-from-bar 180ms var(--ease-quint) both; }
+  html ${SHELL} .workbench-bar details[open] > .navigator-project-menu-popover { transform-origin: bottom right; animation: craft-rise-from-bar 180ms var(--ease-quint) both; }
+  /* Controls in the bar give under a press like every other button. */
+  ${SHELL} .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector) { transition: transform var(--dur-move) var(--ease-spring), background-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift); }
+  ${SHELL} .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector):active { transform: scale(.94); transition-duration: var(--dur-press); }
+
+  /* The project: a round button; its menu switches project, opens settings and group chat. */
+  html ${SHELL} .workbench-bar .bar-end .workspace-chrome { position: static; display: flex; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; grid-area: auto; }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { display: flex; flex-direction: row; align-items: center; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; gap: 0; background: transparent; box-shadow: none; }
+  html ${SHELL} .workbench-bar .bar-end :is(.navigator-project-search, .desktop-titlebar-drag, .navigator-directory-toggle, .immersive-show-directory) { display: none !important; }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu { position: relative; width: auto; }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector {
+    display: grid; grid-template-columns: 40px; place-items: center; justify-content: center; gap: 0; width: 40px; height: 40px; min-height: 40px;
+    padding: 0; border-radius: 50%; background: transparent; overflow: visible; list-style: none; cursor: pointer;
+  }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector::-webkit-details-marker { display: none; }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector > :is(strong, svg:last-child) { display: none; }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector .project-monogram { width: 40px; height: 40px; border-radius: 50%; font-size: 16px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); transition: box-shadow var(--dur-hover) var(--ease-swift); }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector:hover .project-monogram,
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu[open] > .navigator-project-selector .project-monogram { box-shadow: 0 0 0 2px var(--desk), 0 0 0 3px var(--line-strong); }
+  /* Between phone and desktop the three columns shrink together: residents drop their names, the Dock folds sooner. */
+  @media (max-width: 760px) {
+    ${SHELL} .workbench-bar { grid-template-columns: minmax(136px, 1fr) minmax(200px, 520px) minmax(136px, 1fr); }
+  }
+  /* A phone keeps a plugin's own list in a drawer. Its button stands just left of the project, and only when that
+     plugin has a list — navigation itself is the switcher's. The bar stays above the drawer and its scrim. */
+  @media (max-width: 600px) {
+    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; }
+    ${SHELL} .workbench-bar { z-index: 45; }
+    html ${SHELL} .immersive-workspace > .tree-pane,
+    html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: 54px; }
+    html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { gap: 8px; }
+    html ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-bar .bar-end .immersive-show-directory,
+    html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .navigator-directory-toggle {
+      display: inline-grid !important; place-items: center; order: -1; width: 40px; min-width: 40px; height: 40px; min-height: 40px; padding: 0; border: 0; border-radius: 12px;
+      background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--muted);
+    }
+    html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .immersive-show-directory { display: none !important; }
+    html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle) svg { width: 16px; height: 16px; }
+    html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle):hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover {
+    position: absolute; top: auto; left: auto; right: 0; bottom: calc(100% + 8px); width: 272px; min-width: 0; max-height: min(78dvh, 640px); overflow: auto;
+  }
+  /* The switch list keeps one layout at every width; the older sidebar rules only styled it on a desktop. */
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { display: block; padding: 6px 10px 2px; color: var(--faint); font-size: 11px; line-height: 18px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover nav { display: grid; gap: 1px; }
+  html ${SHELL} .workbench-bar .navigator-project-option {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 0 10px; border-radius: 8px;
+    color: var(--ink); font-size: 13px; text-decoration: none;
+  }
+  html ${SHELL} .workbench-bar .navigator-project-option > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  html ${SHELL} .workbench-bar .navigator-project-option strong { overflow: hidden; font-size: 13px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+  html ${SHELL} .workbench-bar .navigator-project-option > svg { flex: none; width: 14px; height: 14px; color: var(--ink-soft); }
+  html ${SHELL} .workbench-bar .navigator-project-option:hover { background: var(--nav-hover); }
+  html ${SHELL} .workbench-bar .navigator-project-option.is-current { background: var(--nav-active); }
+  html ${SHELL} .workbench-bar .navigator-project-option:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  /* One row system for the project menu: every row 32px, a 20px leading slot, one text column, and one kind of
+     divider with even space on both sides. */
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 6px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 10px 4px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 32px; min-height: 32px;
+    margin: 0; padding: 0 10px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
+    color: var(--ink-soft); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
+  }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item) > svg:first-child {
+    flex: none; width: 16px; height: 16px; margin: 0 2px; color: var(--muted);
+  }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item) > span:not(.personal-account-avatar):not(.personal-account-copy) {
+    position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; white-space: nowrap;
+  }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item):hover { background: var(--nav-hover); color: var(--ink); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item):hover > svg:first-child { color: var(--ink); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option.is-current, .navigator-project-settings[aria-current], .navigator-personal > .account-global-item[aria-current]) { background: var(--nav-active); color: var(--ink); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > span { gap: 10px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option .project-monogram { flex: none; width: 20px; height: 20px; border-radius: 6px; font-size: 11px; box-shadow: none; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > svg { margin-left: auto; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar {
+    display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft);
+  }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar svg { width: 12px; height: 12px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy { display: flex; align-items: baseline; gap: 6px; min-width: 0; line-height: 1; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy strong { font-size: 13px; font-weight: 400; color: var(--ink); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy small { font-size: 12px; color: var(--faint); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { display: grid; gap: 0; margin: 0; padding: 0; box-shadow: none; }
+  /* Groups: switch projects · this project · you. The divider is drawn in the gap, so it never touches a row. */
+  /* Who you are is shown, not clicked: no hover, no pointer. */
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account { cursor: default; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account:hover { background: transparent; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { position: relative; margin-top: 11px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal::before {
+    content: ""; position: absolute; left: 4px; right: 4px; top: -6px; height: 1px; background: var(--line); pointer-events: none;
+  }
+  ${SHELL} .navigator-project-menu-popover .navigator-project-im {
+    display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--ink-soft); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  }
+  ${SHELL} .navigator-project-menu-popover .navigator-project-im:hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} .navigator-project-menu-popover .navigator-project-im svg { width: 15px; height: 15px; color: var(--muted); }
+  /* Group chat grows from the project button. */
+  ${SHELL} .dock-window {
+    position: absolute; z-index: 50; right: 0; bottom: calc(100% + 8px); width: min(400px, calc(100vw - 16px)); display: flex; flex-direction: column; overflow: hidden;
+    height: min(560px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
+    border-radius: 12px; background: var(--paper); box-shadow: var(--lift-3); animation: craft-dock-rise 220ms var(--ease-quint) both;
+  }
+  ${SHELL} .dock-window[hidden] { display: none; }
+  ${SHELL} .dock-window-head { flex: none; display: flex; align-items: center; gap: 4px; height: 38px; padding: 0 6px 0 14px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${SHELL} .dock-window-head strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: var(--ink); }
+  ${SHELL} .dock-window-action {
+    display: inline-flex; align-items: center; gap: 6px; width: auto; height: 26px; padding: 0 8px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  ${SHELL} .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} .dock-window-action svg { width: 14px; height: 14px; }
+  ${SHELL} .dock-window-body { flex: 1; min-height: 0; overflow: hidden; }
+  ${SHELL} .dock-window-body iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--paper); }
+
+  /* A phone keeps the bar at the foot of the page: menu, the Assistant with its switcher, the project. */
+  @media (max-width: 600px) {
+    ${SHELL} .immersive-workspace,
+    ${SHELL} .immersive-workspace.is-directory-collapsed,
+    ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
+    ${SHELL} .workbench-bar { grid-row: 5; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 6px 8px 8px; box-shadow: inset 0 1px 0 var(--line); }
+    ${SHELL} .dock-pins, ${SHELL} .bar-residents { display: none; }
+    ${SHELL} .plugin-picker-trigger { max-width: 120px; }
+    html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
+    ${SHELL} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
+    html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }
 
   /* The project is its own mark: a letter on a stable hue, not a generic database glyph. */
   .project-monogram {
     --mono: var(--hue-indigo-fill, #5e6ad2);
-    display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 7px;
-    background: linear-gradient(155deg, color-mix(in srgb, var(--mono) 88%, white) 0%, var(--mono) 55%, color-mix(in srgb, var(--mono) 78%, black) 100%);
-    color: #fff; font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 0;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1px rgba(0, 0, 0, .06), 0 1px 2px rgba(19, 21, 32, .16);
-    text-shadow: 0 1px 1px rgba(0, 0, 0, .18);
+    display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 6px;
+    background: var(--mono); color: #fff; font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 0;
   }
   ${["indigo", "blue", "cyan", "mint", "green", "orange", "pink", "purple", "brown", "slate"].map((hue) => `.project-monogram[data-hue="${hue}"] { --mono: var(--hue-${hue}-fill); }`).join("\n  ")}
   ${SHELL} .workspace-chrome .navigator-project-selector { place-items: center; justify-content: center; }
   ${SHELL} .workspace-chrome .navigator-project-selector > svg:first-child:not(:only-child) { display: none; }
-  ${SHELL} .workspace-chrome .navigator-project-selector .project-monogram { transition: transform var(--dur-move) var(--ease-spring), box-shadow var(--dur-move) var(--ease-quint); }
-  ${SHELL} .workspace-chrome .navigator-project-selector:hover .project-monogram { transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1px rgba(0, 0, 0, .06), 0 4px 10px -2px color-mix(in srgb, var(--mono) 55%, transparent); }
-  ${SHELL} .workspace-chrome .navigator-project-selector:active .project-monogram { transform: scale(.9); }
-  ${SHELL} .workspace-chrome .navigator-project-menu[open] .project-monogram { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 0 0 2px var(--desk), 0 0 0 3.5px color-mix(in srgb, var(--mono) 60%, transparent); }
+  ${SHELL} .workspace-chrome .navigator-project-selector:hover { background: var(--nav-hover); }
+  ${SHELL} .workspace-chrome .navigator-project-menu[open] .navigator-project-selector { background: var(--nav-active); }
   .navigator-project-option .project-monogram { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
 
   /* Rail tooltip, drawn once in the page so scrolling columns cannot clip it. */
@@ -265,18 +612,21 @@ const CRAFT_BASE_STYLES = `
   .craft-tip[data-shown] { opacity: 1; transform: translate(var(--tip-x, 0), var(--tip-y, 0)); }
   .craft-tip kbd { margin-left: 8px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--tip-ink) 16%, transparent); color: inherit; font: inherit; font-size: 11px; opacity: .8; }
 
-  /* ─── Directory: rows on the desk; the selected one is a small raised sheet ── */
+  /* ─── Directory: rows on the desk; the selected one takes the neutral selection fill ── */
   ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item) {
     border-radius: var(--r-row);
     transition: background-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-swift);
   }
   ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item):active:not(:disabled) { background: var(--nav-press); }
   ${SHELL} .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .source-list-item.is-selected) {
-    background: var(--paper); box-shadow: var(--lift-1); color: var(--ink);
+    background: var(--nav-active); box-shadow: none; color: var(--ink);
   }
-  ${SHELL} .tree-pane .mw-dir-row-wrap:has(:is(.is-selected, [aria-current="page"])) { background: var(--paper); box-shadow: var(--lift-1); border-radius: var(--r-row); }
+  ${SHELL} .tree-pane .mw-dir-row-wrap:has(:is(.is-selected, [aria-current="page"])) { background: var(--nav-active); box-shadow: none; border-radius: var(--r-row); }
   ${SHELL} .tree-pane .mw-dir-row-wrap:has(:is(.is-selected, [aria-current="page"])) :is(.mw-dir-row, .directory-list-row) { background: transparent; box-shadow: none; }
   ${SHELL} .tree-pane .directory-list-row.is-selected :is(.tree-node, .tree-row) { background: transparent; }
+  /* A row's leading glyph names what it is, so it stays neutral; status keeps its own mark. */
+  ${SHELL} .tree-pane .mw-dir-row__icon { color: var(--muted); }
+  ${SHELL} .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"]) .mw-dir-row__icon { color: var(--ink); }
   ${SHELL} .tree-resizer::after { transition: opacity var(--dur-hover) var(--ease-swift), background-color var(--dur-hover) var(--ease-swift); }
   ${SHELL} .tree-resizer:is(:hover, :focus-visible, .is-dragging, [data-dragging])::after { background: var(--focus); opacity: .7; }
 
@@ -291,33 +641,24 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .home-shortcut-main, .project-card, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {
     transform: scale(.97); filter: none; transition-duration: var(--dur-press);
   }
-  ${PAGES} .mw-btn--primary {
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, .10), rgba(255, 255, 255, 0) 60%);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 1px 2px rgba(19, 21, 32, .18), 0 0 0 1px color-mix(in srgb, var(--action) 88%, black);
-  }
-  ${PAGES} .mw-btn--primary:hover:not(:disabled) { background-color: color-mix(in srgb, var(--action) 88%, var(--paper)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 3px 8px -2px rgba(19, 21, 32, .28), 0 0 0 1px color-mix(in srgb, var(--action) 88%, black); }
-  html[data-resolved-theme="dark"] ${PAGES} .mw-btn--primary {
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(0, 0, 0, .05));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 1px 2px rgba(0, 0, 0, .5), 0 0 0 1px color-mix(in srgb, var(--action) 80%, black);
-  }
-  html[data-resolved-theme="dark"] ${PAGES} .mw-btn--primary:hover:not(:disabled) { background-color: color-mix(in srgb, var(--action) 90%, var(--desk)); }
-  ${PAGES} .mw-btn--secondary:not(:disabled) { box-shadow: var(--lift-1); border-color: transparent; }
-  ${PAGES} .mw-btn--secondary:hover:not(:disabled) { box-shadow: var(--lift-2); }
+  /* Buttons are solid: one fill, one hairline, no sheen. */
+  ${PAGES} .mw-btn--primary { background-image: none; box-shadow: none; }
+  ${PAGES} .mw-btn--primary:hover:not(:disabled) { background-color: color-mix(in srgb, var(--action) 86%, var(--paper)); box-shadow: none; }
+  html[data-resolved-theme="dark"] ${PAGES} .mw-btn--primary:hover:not(:disabled) { background-color: color-mix(in srgb, var(--action) 88%, var(--desk)); }
+  ${PAGES} .mw-btn--secondary:not(:disabled) { box-shadow: none; border-color: var(--line); }
+  ${PAGES} .mw-btn--secondary:hover:not(:disabled) { box-shadow: none; border-color: var(--line-strong); background-color: var(--nav-hover); }
   ${WORKBENCH} .plugin-stage-chrome .tree-create,
   ${WORKBENCH} .goal-stage-chrome .tree-create {
-    border-color: transparent; background: var(--paper); box-shadow: var(--lift-1);
+    border-color: var(--line); background: var(--paper); box-shadow: none;
   }
-  ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create:hover { box-shadow: var(--lift-2); background: var(--paper); }
-  ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create svg { transition: transform var(--dur-move) var(--ease-spring); }
-  ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create:hover svg { transform: rotate(90deg); }
+  ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create:hover { border-color: var(--line-strong); background: var(--nav-hover); box-shadow: none; }
   ${PAGES} .mw-btn:disabled, ${PAGES} .mw-btn[aria-disabled="true"] { box-shadow: none; background-image: none; }
 
   /* Segmented controls: the thumb settles on a spring; slots brighten on hover. */
   ${PAGES} .mw-toggle-group { border-radius: 10px; }
-  ${PAGES} .mw-toggle-group[data-seg-thumb]::before { border-radius: 7px; box-shadow: var(--lift-1); }
+  ${PAGES} .mw-toggle-group[data-seg-thumb]::before { border-radius: 7px; box-shadow: 0 0 0 1px var(--line); }
   ${PAGES} .mw-toggle-group > .mw-toggle:not(.is-current, [aria-pressed="true"], [aria-current]):hover { color: var(--ink); }
   ${PAGES} .mw-toggle svg { transition: transform var(--dur-move) var(--ease-spring); }
-  ${PAGES} .mw-toggle:is(.is-current, [aria-pressed="true"]) svg { transform: scale(1.06); }
 
   /* Fields: a hairline that darkens, and a soft accent halo while you write. */
   ${PAGES} :is(.mw-input, .mw-textarea, .mw-select, .mw-input-group, .project-index-search) {
@@ -327,7 +668,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} :is(.mw-input-group, .project-index-search):focus-within {
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 7%, transparent);
   }
-  ${PAGES} [data-plain-field]:focus-visible { background-image: linear-gradient(var(--focus), var(--focus)); background-size: 100% 2px; background-position: 0 100%; background-repeat: no-repeat; }
+  ${PAGES} [data-plain-field]:focus-visible { box-shadow: inset 0 -2px 0 var(--focus); }
 
   /* Check and switch: the tick draws itself; the knob lands on a spring. */
   ${PAGES} .mw-check, ${PAGES} .mw-radio { transition: background-color var(--dur-hover) var(--ease-swift), border-color var(--dur-hover) var(--ease-swift), transform var(--dur-move) var(--ease-spring); }
@@ -363,7 +704,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
   ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop 170ms var(--ease-quint); }
   ${PAGES} details[open] > .navigator-project-menu-popover { animation: craft-drop 170ms var(--ease-quint); transform-origin: top left; }
-  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tab-menu) { border-radius: var(--r-card); box-shadow: var(--lift-2); }
+  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tab-menu) { border-radius: var(--r-card); box-shadow: var(--lift-3); }
   @keyframes craft-drop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
   ${PAGES} :is(.mw-menu, .tab-menu) :is([role="menuitem"], [role="option"], button) { transition: background-color 90ms var(--ease-swift), color 90ms var(--ease-swift); }
 
@@ -402,7 +743,7 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} [data-craft-new] { position: relative; }
   ${PAGES} [data-craft-new]::after {
     content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-    background: linear-gradient(90deg, color-mix(in srgb, var(--plugin-tint, var(--focus)) 24%, transparent), transparent 80%);
+    background: color-mix(in srgb, var(--focus) 12%, transparent);
     animation: craft-landed 1600ms var(--ease-swift) forwards;
   }
   @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
@@ -410,60 +751,57 @@ const CRAFT_BASE_STYLES = `
   /* Progress bars fill instead of appearing full. */
   ${WORKBENCH} :is(.goal-progress-bar, .tree-progress, .mw-progress) > :is(i, span, .mw-progress__bar) { transition: width 520ms var(--ease-quint), transform 520ms var(--ease-quint); }
 
-  /* ─── Status ───────────────────────────────────────────────────────────── */
-  /* Work that is actually moving breathes on the canvas and board — nowhere else. */
-  ${WORKBENCH} :is(.goal-canvas-node, .kanban-card, [data-graph-node], [data-kanban-card]) :is(.goal-status--executing, .goal-status--in_progress, .goal-status--clarifying, .goal-status--reviewing) :is(i, .goal-status-dot)::after,
-  ${WORKBENCH} :is([data-graph-node], [data-kanban-card]) .status-dot[data-tone="progress"]::after {
-    content: ""; position: absolute; inset: -3px; border-radius: 50%; background: currentColor; opacity: 0;
-    animation: craft-breathe 2.4s var(--ease-swift) infinite;
-  }
-  @keyframes craft-breathe { 0% { transform: scale(.6); opacity: .35; } 70%, 100% { transform: scale(1.8); opacity: 0; } }
-
   /* ─── Goal canvas ──────────────────────────────────────────────────────── */
-  ${WORKBENCH} .goal-canvas-viewport {
-    background-color: var(--paper);
-    background-image: radial-gradient(color-mix(in srgb, var(--ink) 13%, transparent) 1px, transparent 1.3px);
-    background-size: 22px 22px;
-  }
+  /* The canvas is plain paper: nodes and their links are the only marks on it. */
+  ${WORKBENCH} :is(.goal-canvas-viewport, .goal-frame-canvas) { background-color: var(--paper); background-image: none; }
+  ${WORKBENCH} .momentum-map.graph-stage { background: var(--paper); }
   ${WORKBENCH} .goal-canvas-viewport.is-panning { cursor: grabbing; }
   ${WORKBENCH} [data-graph-node] {
-    border-radius: var(--r-card); box-shadow: var(--lift-1); border-color: transparent;
-    transition: box-shadow var(--dur-move) var(--ease-quint), opacity var(--dur-move) var(--ease-swift);
+    border-radius: var(--r-card); box-shadow: none; border-color: var(--line);
+    transition: border-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), opacity var(--dur-move) var(--ease-swift);
   }
-  ${WORKBENCH} [data-graph-node]:hover { box-shadow: var(--lift-2); }
-  ${WORKBENCH} [data-graph-node].is-selected:not(.is-expanded-node) {
-    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--plugin-tint, var(--focus)) 70%, transparent), 0 0 0 5px color-mix(in srgb, var(--plugin-tint, var(--focus)) 12%, transparent), 0 8px 20px -6px rgba(19, 21, 32, .14);
-  }
+  ${WORKBENCH} [data-graph-node]:hover { border-color: var(--line-strong); }
+  /* Selection is neutral like everywhere else: a darker ink ring, not an accent stroke. */
+  ${WORKBENCH} [data-graph-node].is-selected:not(.is-expanded-node) { border-color: var(--ink-soft); box-shadow: 0 0 0 1px var(--ink-soft); }
   ${WORKBENCH} [data-graph-node].is-dragging { box-shadow: var(--lift-3); cursor: grabbing; z-index: 5; }
-  ${WORKBENCH} [data-graph-node].is-dragging > * { transform: rotate(-.6deg); }
   ${WORKBENCH} [data-graph-edge] path { transition: stroke var(--dur-move) var(--ease-swift), stroke-width var(--dur-move) var(--ease-swift), opacity var(--dur-move) var(--ease-swift); }
   ${WORKBENCH} [data-graph-edge].is-selected-path path { stroke-dasharray: 6 5; animation: craft-flow 900ms linear infinite; }
   @keyframes craft-flow { to { stroke-dashoffset: -11; } }
-  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) > div {
-    border-radius: 12px; background: color-mix(in srgb, var(--paper) 86%, transparent); box-shadow: var(--lift-2);
-    backdrop-filter: blur(10px) saturate(1.4); -webkit-backdrop-filter: blur(10px) saturate(1.4);
-  }
+  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) > div { border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
   ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-swift), transform var(--dur-move) var(--ease-spring); }
   ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button:hover { background: var(--nav-hover); }
-  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button:active { transform: scale(.88); }
+
+  /* A short window leaves the timeline a sliver; the record menu then opens as a sheet above the bar instead of
+     being cut off inside it. */
+  @media (max-height: 560px) and (min-width: 601px) {
+    ${WORKBENCH} .timeline-compose[open] > .timeline-compose-options {
+      position: fixed; top: auto; left: auto; right: 16px; bottom: calc(var(--dock-h, 0px) + 8px); z-index: 60;
+      max-height: calc(100dvh - var(--desktop-titlebar-height, 32px) - var(--dock-h, 0px) - 24px); overflow: auto;
+    }
+  }
+
+  /* Writing gets the whole height of a short window: while a Goal record form is open the bar steps aside, and it
+     returns when the form closes. */
+  @media (max-height: 560px) and (min-width: 601px) {
+    ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; }
+    ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
+  }
+
+  /* 能力 in the workbench: its page fills the cover, edge to edge on the sheet. */
+  ${WORKBENCH} [data-work-surface="capabilities"]:not([hidden]) { display: block; height: 100%; min-height: 0; padding: 0; }
+  ${WORKBENCH} .capabilities-frame { display: block; width: 100%; height: 100%; border: 0; background: var(--paper); }
 
   /* ─── Board ────────────────────────────────────────────────────────────── */
   ${WORKBENCH} [data-kanban-card] {
-    border-radius: 10px; box-shadow: var(--lift-1); border-color: transparent;
-    transition: box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-quint), background-color var(--dur-hover) var(--ease-swift);
+    border-radius: 10px; box-shadow: none; border-color: var(--line);
+    transition: border-color var(--dur-hover) var(--ease-swift), background-color var(--dur-hover) var(--ease-swift);
   }
-  ${WORKBENCH} [data-kanban-card]:hover { box-shadow: var(--lift-2); transform: translateY(-1px); }
-  ${WORKBENCH} [data-kanban-card]:active { transform: translateY(0) scale(.99); transition-duration: var(--dur-press); }
-  ${WORKBENCH} [data-kanban-card]:is(.is-selected, [aria-current="true"], [aria-selected="true"]) {
-    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--plugin-tint, var(--focus)) 70%, transparent), 0 6px 16px -6px rgba(19, 21, 32, .14);
-  }
+  ${WORKBENCH} [data-kanban-card]:hover { border-color: var(--line-strong); }
+  ${WORKBENCH} [data-kanban-card]:is(.is-selected, [aria-current="true"], [aria-selected="true"]) { border-color: var(--ink-soft); box-shadow: 0 0 0 1px var(--ink-soft); }
 
   /* ─── Goal work area ───────────────────────────────────────────────────── */
   ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-swift), transform var(--dur-move) var(--ease-spring); }
-  ${WORKBENCH} .goal-node-toolbar .goal-node-back:hover { transform: translateX(-2px); }
-  ${WORKBENCH} .plugin-stage-back svg { transition: transform var(--dur-move) var(--ease-spring); }
-  ${WORKBENCH} .plugin-stage-back:hover svg { transform: rotate(180deg) translateX(2px); }
-  ${WORKBENCH} .goal-details-aside { background: color-mix(in srgb, var(--desk) 40%, var(--paper)); }
+  ${WORKBENCH} .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
   ${WORKBENCH} .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
   ${WORKBENCH} .tui-empty, ${WORKBENCH} .goal-tui-empty { border-radius: var(--r-card); }
 
@@ -487,45 +825,37 @@ const CRAFT_BASE_STYLES = `
   @keyframes craft-sheet-open { from { opacity: 0; transform: translateY(12px) scale(.992); } to { opacity: 1; transform: none; } }
 
   /* ─── Home ─────────────────────────────────────────────────────────────── */
+  /* One paper surface. The timeline is neutral; colour is kept for what needs you. */
   ${WORKBENCH} .immersive-home .home-hero { position: relative; max-width: 46rem; padding: 28px 28px 20px; }
-  ${WORKBENCH} .immersive-home .home-dayview { position: relative; }
-  ${WORKBENCH} .immersive-home .home-dayview::before {
-    content: ""; position: absolute; inset: 0 0 auto; height: 220px; pointer-events: none;
-    background:
-      radial-gradient(60% 120% at 12% 0%, color-mix(in srgb, var(--hue-indigo-fill, #5e6ad2) 9%, transparent), transparent 70%),
-      radial-gradient(40% 90% at 46% 0%, color-mix(in srgb, var(--hue-cyan-fill, #4db7c9) 6%, transparent), transparent 70%);
-  }
-  ${WORKBENCH} .immersive-home .home-hero > *, ${WORKBENCH} .immersive-home .home-tl { position: relative; }
-  ${WORKBENCH} .immersive-home .craft-greeting {
-    display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted); font-size: 12px;
-  }
-  ${WORKBENCH} .immersive-home .craft-greeting::before {
-    content: ""; width: 7px; height: 7px; border-radius: 50%;
-    background: var(--craft-daylight, var(--hue-yellow-fill));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--craft-daylight, var(--hue-yellow-fill)) 22%, transparent);
-  }
-  ${WORKBENCH} .immersive-home .home-hero__date time { font-size: 36px; letter-spacing: -.045em; }
+  ${WORKBENCH} .immersive-home .craft-greeting { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+  ${WORKBENCH} .immersive-home .home-hero__date time { font-size: 34px; letter-spacing: -.04em; }
+  ${WORKBENCH} .immersive-home .home-hero__today { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
   ${WORKBENCH} .immersive-home .home-hero__stats b { color: var(--ink); }
+  ${WORKBENCH} .immersive-home :is(.home-hero__stats i, .home-day__dots i) { background: var(--line-strong) !important; }
   ${WORKBENCH} .immersive-home .home-tl { border-top-color: var(--line); padding: 0 16px 16px; }
   ${WORKBENCH} .immersive-home :is(.home-tl__head, .home-tl__rows) { max-width: calc(46rem - 32px); }
+  ${WORKBENCH} .immersive-home .home-tl__now u { background: color-mix(in srgb, var(--accent, var(--blue)) 35%, var(--paper)); }
+  ${WORKBENCH} .immersive-home :is(.home-erow, .home-detail) { --node: var(--muted) !important; }
   ${WORKBENCH} .immersive-home .home-erow:active { background: var(--nav-press); }
-  ${WORKBENCH} .immersive-home .home-erow__dot { transition: transform var(--dur-move) var(--ease-spring), box-shadow var(--dur-move) var(--ease-swift); }
-  ${WORKBENCH} .immersive-home .home-erow:hover .home-erow__dot { transform: scale(1.3); }
-  ${WORKBENCH} .immersive-home .home-erow.is-on .home-erow__dot { transform: scale(1.35); box-shadow: inset 0 0 0 5px var(--node), 0 0 0 4px color-mix(in srgb, var(--node) 18%, transparent); }
-  ${WORKBENCH} .immersive-home .home-tl__rows > * { animation: craft-rise 380ms var(--ease-quint) both; }
-  ${[...Array(12).keys()].map((index) => `${WORKBENCH} .immersive-home .home-tl__rows > :nth-child(${index + 1}) { animation-delay: ${40 + index * 28}ms; }`).join("\n  ")}
+  ${WORKBENCH} .immersive-home .home-erow.is-on { background: var(--nav-active); }
+  ${WORKBENCH} .immersive-home .home-erow.is-on .home-erow__when { color: var(--ink-soft); }
+  ${WORKBENCH} .immersive-home .home-erow.is-on .home-erow__dot { box-shadow: inset 0 0 0 5px var(--ink); }
+  ${WORKBENCH} .immersive-home :is(.home-erow__src, .home-detail__src) { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
+  ${WORKBENCH} .immersive-home :is(.home-erow__src, .home-detail__src) svg { color: var(--muted); }
+  /* The cascade marks arrival — the list's first load or another day — never a background refresh or a click. */
+  ${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > * { animation: craft-rise 320ms var(--ease-quint) both; }
+  ${[...Array(12).keys()].map((index) => `${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > :nth-child(${index + 1}) { animation-delay: ${30 + index * 20}ms; }`).join("\n  ")}
   /* The detail column is an inspector along the sheet's right edge, not a card floating in it. */
-  ${WORKBENCH} .immersive-home[data-event="on"] .home-eventcol { animation: craft-sheet-in 280ms var(--ease-quint); }
+  ${WORKBENCH} .immersive-home[data-event="on"] .home-eventcol { animation: craft-sheet-in 240ms var(--ease-quint); }
   ${WORKBENCH} .immersive-home .home-detail { border-radius: 0; box-shadow: none; background: transparent; }
   ${WORKBENCH} .immersive-home .home-detail__head { padding: 12px 10px 8px 18px; }
-  ${WORKBENCH} .immersive-home .home-detail__act { padding: 10px 12px; background: var(--paper); }
-  ${WORKBENCH} .immersive-home .home-day { transition: background-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
-  ${WORKBENCH} .immersive-home .home-day:active { transform: scale(.97); }
-  ${WORKBENCH} .immersive-home .home-day.is-on { box-shadow: var(--lift-1); }
-  ${WORKBENCH} .immersive-home .home-shortcut-add .home-shortcut-icon { transition: transform var(--dur-move) var(--ease-spring), border-color var(--dur-hover) var(--ease-swift), background-color var(--dur-hover) var(--ease-swift); }
-  ${WORKBENCH} .immersive-home .home-shortcut-add:hover .home-shortcut-icon { transform: rotate(90deg); }
-  ${WORKBENCH} .immersive-home .home-shortcut:not(.home-shortcut-add) .home-shortcut-icon { transition: transform var(--dur-move) var(--ease-spring), box-shadow var(--dur-move) var(--ease-quint); }
-  ${WORKBENCH} .immersive-home .home-shortcut:not(.home-shortcut-add):hover .home-shortcut-icon { transform: translateY(-2px); box-shadow: var(--lift-2); }
+  ${WORKBENCH} .immersive-home .home-detail__act { padding: 10px 12px; background: var(--paper); box-shadow: inset 0 1px 0 var(--line); }
+  ${WORKBENCH} .immersive-home .home-day { transition: background-color var(--dur-hover) var(--ease-swift); }
+  ${WORKBENCH} .immersive-home .home-day.is-on { background: var(--nav-active); box-shadow: none; }
+  ${WORKBENCH} .immersive-home .home-day__n s { background: var(--ink-soft); }
+  ${WORKBENCH} .immersive-home .home-shortcut-icon { box-shadow: none; }
+  ${WORKBENCH} .immersive-home .home-shortcut-add .home-shortcut-icon { transition: border-color var(--dur-hover) var(--ease-swift), background-color var(--dur-hover) var(--ease-swift); }
+  ${WORKBENCH} .immersive-home .home-shortcut:hover .home-shortcut-icon { background: var(--nav-hover); }
 
   /* ─── Feed reader: one compact heading row; a lone tab is not a choice ───── */
   ${WORKBENCH} .feed-source-header { padding: 14px 24px 0; }
@@ -541,14 +871,15 @@ const CRAFT_BASE_STYLES = `
 
   /* ─── Plugin market ────────────────────────────────────────────────────── */
   ${WORKBENCH} .plugin-market-body .mw-card {
-    border-color: transparent; box-shadow: var(--lift-1); border-radius: var(--r-card);
-    transition: box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-quint);
+    border-color: var(--line); box-shadow: none; border-radius: var(--r-card);
+    transition: border-color var(--dur-hover) var(--ease-swift);
   }
-  ${WORKBENCH} .plugin-market-body .mw-card:hover { box-shadow: var(--lift-2); transform: translateY(-1px); }
-  ${WORKBENCH} .plugin-market-icon { border-radius: 10px; background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, var(--paper)); color: var(--plugin-tint, var(--ink-soft)); transition: transform var(--dur-move) var(--ease-spring); }
-  ${WORKBENCH} .plugin-market-body .mw-card:hover .plugin-market-icon { transform: scale(1.06) rotate(-4deg); }
-  ${WORKBENCH} .plugin-market-installed-row > * { transition: transform var(--dur-move) var(--ease-spring), box-shadow var(--dur-move) var(--ease-quint); }
-  ${WORKBENCH} .plugin-market-installed-row > :hover { transform: translateY(-2px); box-shadow: var(--lift-2); }
+  ${WORKBENCH} .plugin-market-body .mw-card:hover { border-color: var(--line-strong); }
+  /* A card with a third action keeps its description readable and moves the actions to a row of their own. */
+  ${WORKBENCH} .plugin-market-body .mw-card:has(> .mw-btn ~ .mw-btn ~ .mw-btn) { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+  ${WORKBENCH} .plugin-market-body .mw-card:has(> .mw-btn ~ .mw-btn ~ .mw-btn) > .plugin-market-copy { flex: 1 1 calc(100% - 64px); }
+  ${WORKBENCH} .plugin-market-icon { border-radius: 8px; background: var(--nav-hover); color: var(--ink-soft); }
+  ${WORKBENCH} .plugin-market-installed-row > * { transition: border-color var(--dur-hover) var(--ease-swift); }
   ${WORKBENCH} .plugin-market-list > * { animation: craft-rise 360ms var(--ease-quint) both; }
   ${[...Array(10).keys()].map((index) => `${WORKBENCH} .plugin-market-list > :nth-child(${index + 1}) { animation-delay: ${index * 22}ms; }`).join("\n  ")}
 
@@ -557,39 +888,17 @@ const CRAFT_BASE_STYLES = `
 
   /* ─── Project index: the arrival page ──────────────────────────────────── */
   body.project-index-page { background: var(--desk); }
-  body.project-index-page .project-index { position: relative; }
-  body.project-index-page .project-index::before {
-    content: ""; position: fixed; inset: 0 0 auto; height: 360px; pointer-events: none; z-index: 0;
-    background:
-      radial-gradient(50% 100% at 20% 0%, color-mix(in srgb, var(--hue-indigo-fill, #5e6ad2) 10%, transparent), transparent 70%),
-      radial-gradient(40% 80% at 70% 0%, color-mix(in srgb, var(--hue-cyan-fill, #4db7c9) 7%, transparent), transparent 70%);
-  }
-  body.project-index-page .project-index-panel { position: relative; z-index: 1; }
   body.project-index-page .craft-greeting { margin: 0 0 10px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
-  body.project-index-page .craft-greeting::before {
-    content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--craft-daylight, var(--hue-yellow-fill));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--craft-daylight, var(--hue-yellow-fill)) 22%, transparent);
-  }
   body.project-index-page .project-index-heading h1 { letter-spacing: -.03em; }
   body.project-index-page .project-card {
-    position: relative; border-color: transparent; box-shadow: var(--lift-1); border-radius: 14px; overflow: hidden;
-    transition: box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-quint);
-    animation: craft-rise 460ms var(--ease-quint) both;
+    position: relative; border-color: var(--line); box-shadow: none; border-radius: 12px; background: var(--paper);
+    transition: border-color var(--dur-hover) var(--ease-swift);
+    animation: craft-rise 360ms var(--ease-quint) both;
   }
-  ${[...Array(9).keys()].map((index) => `body.project-index-page .project-card-grid > :nth-child(${index + 1}) { animation-delay: ${80 + index * 45}ms; }`).join("\n  ")}
-  body.project-index-page .project-card::before {
-    content: ""; position: absolute; inset: 0 0 auto; height: 72px; pointer-events: none; opacity: .9;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--mono, var(--hue-indigo-fill)) 11%, transparent), transparent);
-    transition: opacity var(--dur-move) var(--ease-swift);
-  }
-  ${["indigo", "blue", "cyan", "mint", "green", "orange", "pink", "purple", "brown", "slate"].map((hue) => `body.project-index-page .project-card:has(.project-monogram[data-hue="${hue}"]) { --mono: var(--hue-${hue}-fill); }`).join("\n  ")}
-  body.project-index-page .project-card:hover { box-shadow: var(--lift-2); transform: translateY(-2px); background: var(--paper); border-color: transparent; }
-  body.project-index-page .project-card:hover::before { opacity: 1; }
-  body.project-index-page .project-card > * { position: relative; }
-  body.project-index-page .project-card .project-monogram { width: 32px; height: 32px; border-radius: 10px; font-size: 15px; }
+  ${[...Array(9).keys()].map((index) => `body.project-index-page .project-card-grid > :nth-child(${index + 1}) { animation-delay: ${40 + index * 30}ms; }`).join("\n  ")}
+  body.project-index-page .project-card:hover { border-color: var(--line-strong); background: var(--paper); box-shadow: none; transform: none; }
+  body.project-index-page .project-card .project-monogram { width: 32px; height: 32px; border-radius: 8px; font-size: 15px; }
   body.project-index-page .project-card:has(.project-monogram) .project-card-icon { display: none; }
-  body.project-index-page .project-card footer svg { transition: transform var(--dur-move) var(--ease-spring); }
-  body.project-index-page .project-card:hover footer svg { transform: translateX(3px); }
   body.project-index-page .project-card:hover footer { color: var(--ink); }
   body.project-index-page > :is(.topbar, .project-directory-topbar),
   body.project-index-page[data-desktop-shell] > :is(.topbar, .project-directory-topbar) { background: transparent; box-shadow: none; border-bottom-color: transparent; position: relative; z-index: 2; }
@@ -664,7 +973,7 @@ const CRAFT_BASE_STYLES = `
 
 /** Under automation (headless review, e2e) the layer holds still so geometry reads settle at once. */
 const STILL_RESET = `
-  html[data-craft-still] :is(.immersive-home[data-event="on"] .home-eventcol, .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
+  html[data-craft-still] :is(.dock-window, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home[data-event="on"] .home-eventcol, .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
     dialog[open], ${DROPDOWN}, details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,
@@ -718,7 +1027,7 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   }
 
   /* ⌥1…⌥9 open the first nine tools of the rail, Home first. Typing, terminals and menus keep their keys. */
-  const railShortcuts = () => [...document.querySelectorAll(".plugin-rail-items [data-plugin-id]")]
+  const railShortcuts = () => [...document.querySelectorAll(".dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]")]
     .filter((node) => node.dataset.pluginId !== "plugin-builder" && node.getClientRects().length).slice(0, 9);
   document.addEventListener("keydown", (event) => {
     if (!event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || event.defaultPrevented) return;
@@ -732,8 +1041,57 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     node.click();
   });
 
+  /* Tools zone: the three used last stay on the rail; 全部工具 opens the rest in place and closes
+   * again once one is chosen. Presentation only — opening a tool is still the rail's own click. */
+  const RECENT_KEY = "molis-work:rail-recent-tools";
+  const railList = document.querySelector(".plugin-rail-items");
+  if (railList) {
+    const readRecent = () => {
+      try { const value = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); return Array.isArray(value) ? value.filter((item) => typeof item === "string") : []; }
+      catch { return []; }
+    };
+    const paintRecent = () => {
+      const recent = new Set(readRecent().slice(0, 3));
+      railList.querySelectorAll('[data-rail-zone="tool"][data-plugin-id]').forEach((node) => node.classList.toggle("is-recent", recent.has(node.dataset.pluginId)));
+    };
+    const remember = (id) => {
+      const list = readRecent();
+      if (list[0] === id) return;
+      try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...list.filter((item) => item !== id)].slice(0, 8))); } catch {}
+      paintRecent();
+    };
+    const toggle = railList.querySelector("[data-rail-tools-toggle]");
+    const toggleLabel = toggle && toggle.querySelector("span");
+    const openText = toggleLabel ? toggleLabel.textContent : "";
+    const closeText = (toggleLabel && toggleLabel.dataset.railToggleLabel) || openText;
+    const setOpen = (open) => {
+      railList.classList.toggle("is-tools-open", open);
+      if (!toggle) return;
+      const text = open ? closeText : openText;
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.setAttribute("aria-label", text);
+      toggle.title = text;
+      if (toggleLabel) toggleLabel.textContent = text;
+    };
+    if (toggle) toggle.addEventListener("click", () => setOpen(!railList.classList.contains("is-tools-open")));
+    railList.addEventListener("click", (event) => {
+      const chosen = event.target instanceof Element && event.target.closest('[data-rail-zone="tool"][data-plugin-id], [data-rail-zone="extend"]');
+      if (!chosen) return;
+      if (chosen.matches("[data-plugin-id]") && chosen.dataset.railZone === "tool") remember(chosen.dataset.pluginId);
+      if (railList.classList.contains("is-tools-open")) requestAnimationFrame(() => setOpen(false));
+    });
+    // A tool opened any other way — search, a link, a restored tab — counts as used too.
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const node = record.target;
+        if (node instanceof Element && node.matches('[data-rail-zone="tool"][data-plugin-id][aria-current]')) remember(node.dataset.pluginId);
+      }
+    }).observe(railList, { subtree: true, attributes: true, attributeFilter: ["aria-current"] });
+    paintRecent();
+  }
+
   /* Rail tooltips: one element in the page, placed beside the control, so no scroll column clips it. */
-  const TIP_TARGETS = ".plugin-stack :is(.immersive-plugin-link, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .personal-account, .navigator-directory-toggle, .immersive-show-directory), [data-craft-tip]";
+  const TIP_TARGETS = ".plugin-stack :is(.immersive-plugin-link, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .personal-account, .navigator-directory-toggle, .immersive-show-directory), .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
   const tip = document.createElement("div");
   tip.className = "craft-tip";
   tip.setAttribute("aria-hidden", "true");
@@ -746,14 +1104,15 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   const place = (node) => {
     const box = node.getBoundingClientRect();
     const beside = node.closest(".plugin-stack");
+    const above = node.closest(".workbench-bar");
     const x = beside ? box.right + 10 : box.left + box.width / 2 - tip.offsetWidth / 2;
-    const y = beside ? box.top + box.height / 2 - tip.offsetHeight / 2 : box.bottom + 8;
+    const y = beside ? box.top + box.height / 2 - tip.offsetHeight / 2 : above ? box.top - tip.offsetHeight - 8 : box.bottom + 8;
     tip.style.setProperty("--tip-x", Math.round(Math.max(6, Math.min(innerWidth - tip.offsetWidth - 6, x))) + "px");
     tip.style.setProperty("--tip-y", Math.round(Math.max(6, y)) + "px");
-    tip.style.transformOrigin = beside ? "left center" : "top center";
+    tip.style.transformOrigin = beside ? "left center" : above ? "bottom center" : "top center";
   };
   const showTip = (node) => {
-    const name = node.querySelector(":scope > span:not(.personal-account-avatar), .personal-account-copy");
+    const name = node.querySelector(":scope > span:not(.personal-account-avatar):not(.project-monogram), .personal-account-copy");
     if (name && name.getBoundingClientRect().width > 2) return;
     const text = labelFor(node);
     if (!text) return;

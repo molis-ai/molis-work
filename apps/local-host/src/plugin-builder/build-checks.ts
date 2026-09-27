@@ -1,7 +1,7 @@
 import { builtinModules } from 'node:module';
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, mkdir, writeFile, readdir, lstat, realpath, rm, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readdir, readFile, lstat, realpath, rm, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, extname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -12,11 +12,22 @@ import { assertContract, createSandboxRunner } from '@molis-ai/molis-work-plugin
 import type { SandboxRunner, SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import type { SandboxJson, SandboxOperationContract, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildCheckOptions, BuildCheckResult, BuildDependencyLock, BuildGateId } from './build-types.js';
-import { buildManifest, canonical, operationEntry, pathInside, readBuildFile, sdkDeclaration, SDK_MODULE } from './build-project.js';
+import { buildManifest, canonical, operationEntry, operationStub, pathInside, readBuildFile, sdkDeclaration, SDK_MODULE } from './build-project.js';
 import { installBuildDependencies } from './build-dependencies.js';
 
 export type { BuildCheckOptions, BuildCheckResult, BuildGate } from './build-types.js';
 const GATES: BuildGateId[] = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'];
+/** Serialises what passing checks of one build write together: settled sources and the bundle built from them. */
+const settling = new Map<string, Promise<unknown>>();
+async function underLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const previous = settling.get(key) ?? Promise.resolve(), next = previous.catch(() => undefined).then(work);
+  settling.set(key, next); try { return await next; } finally { if (settling.get(key) === next) settling.delete(key); }
+}
+/** An operation's last passing source, or its stub when it has not passed yet. */
+async function settledSource(settled: string, index: number, operationId: string): Promise<Buffer> {
+  try { return await readFile(join(settled, 'src/operations', index + '.ts')); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; return Buffer.from(operationStub(operationId)); }
+}
 const BUILTINS = new Set(builtinModules.map(name => name.replace(/^node:/, '')));
 
 /** Same host-owned path for Agent self-checks and the independent final verification. */
@@ -59,7 +70,11 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
         if (entry.isSymbolicLink()) throw new Error(`Source symlinks are prohibited: ${directory}/${entry.name}`);
         const name = `${directory}/${entry.name}`;
         if (entry.isDirectory()) await copySources(name);
-        else if (entry.isFile()) { if (!name.endsWith('.ts') || files.size > 512) throw new Error('Only bounded TypeScript source files are accepted'); await put(name, await readBuildFile(root, name)); }
+        else if (entry.isFile()) {
+          if (!name.endsWith('.ts') || files.size > 512) throw new Error('Only bounded TypeScript source files are accepted');
+          const other = options.settled ? /^src\/operations\/(\d+)\.ts$/.exec(name) : null, index = other ? Number(other[1]) : -1, operation = options.contract.operations[index];
+          await put(name, operation && !selected.includes(operation) ? await settledSource(options.settled!, index, operation.id) : await readBuildFile(root, name));
+        }
       }
     };
     await copySources('src');
@@ -89,6 +104,11 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
       const ast = ts.createSourceFile('operation.ts', source, ts.ScriptTarget.ES2022, true);
       let stub = false; const visit = (node: ts.Node) => { if (ts.isStringLiteral(node) && node.text === 'NOT_IMPLEMENTED') stub = true; ts.forEachChild(node, visit); }; visit(ast);
       if (stub) throw new Error(`${operation.id} still contains its generated implementation stub`);
+      // What an operation declares it reaches, it must actually reach: a hard-coded answer would pass every check.
+      const shared = [...files].filter(([path]) => path.startsWith(join(snapshot, 'src/')) && !path.startsWith(join(snapshot, 'src/operations/')) && path !== join(snapshot, 'src/index.ts')).map(([, text]) => text).join('\n');
+      const reachable = source + '\n' + shared;
+      if (operation.effects.networkDomains?.length && !/network\s*\.\s*request\s*\(/.test(reachable)) throw new Error(`${operation.id} declares network access to ${operation.effects.networkDomains.join(', ')} but never calls sdk.network.request`);
+      for (const capability of operation.effects.capabilities ?? []) if (!reachable.includes(capability)) throw new Error(`${operation.id} declares capability ${capability} but never calls it (sdk.capability.call('${capability}', …))`);
     }
     const probe = await startRunner(options, productionPath, options.contract, mockHost(options.mockServices), 'contract');
     await probe.stop();
@@ -123,8 +143,20 @@ export async function runPluginChecks(options: BuildCheckOptions): Promise<Build
     const output = join(root, 'build');
     try { if ((await lstat(output)).isSymbolicLink()) throw new Error('Build output cannot be a symbolic link'); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     await mkdir(output, { recursive: true });
-    const candidate = join(output, `bundle-${randomUUID()}.mjs`); await writeFile(candidate, bundle, { mode: 0o400 });
-    const target = join(output, 'plugin.mjs'); await rename(candidate, target);
+    const target = join(output, 'plugin.mjs'), settled = options.settled;
+    if (settled) await underLock(settled, async () => {
+      // This check passed: its operations' sources are now settled. The bundle is rebuilt from every settled source,
+      // so a check that started before another operation passed cannot write a bundle without it.
+      for (const operation of selected) {
+        const index = options.contract.operations.indexOf(operation), path = join(settled, 'src/operations', index + '.ts');
+        await mkdir(dirname(path), { recursive: true, mode: 0o700 }); await writeFile(path, files.get(join(snapshot, `src/operations/${index}.ts`))!, { mode: 0o600 });
+      }
+      const current = new Map(files);
+      for (const [index, operation] of options.contract.operations.entries()) current.set(join(snapshot, `src/operations/${index}.ts`), (await settledSource(settled, index, operation.id)).toString('utf8'));
+      const combined = await bundleCode(snapshot, current, dependencies, join(snapshot, 'src/index.ts'));
+      const candidate = join(output, `bundle-${randomUUID()}.mjs`); await writeFile(candidate, combined, { mode: 0o400 }); await rename(candidate, target);
+    });
+    else { const candidate = join(output, `bundle-${randomUUID()}.mjs`); await writeFile(candidate, bundle, { mode: 0o400 }); await rename(candidate, target); }
     result.bundlePath = target; result.passed = true;
   } catch (error) {
     if (!result.gates.some(gate => gate.id === current)) result.gates.push({ id: current, passed: false, detail: error instanceof Error ? error.message : String(error) });
@@ -225,13 +257,20 @@ function mockHost(overrides?: SandboxServices): SandboxServices {
   };
 }
 function includes(actual: SandboxJson, expected: SandboxJson): boolean {
+  // A partial list: every expected item is in the result somewhere ([] accepts any list).
+  if (Array.isArray(expected)) return Array.isArray(actual) && expected.every(item => actual.some(candidate => includes(candidate, item)));
   if (expected && typeof expected === 'object' && !Array.isArray(expected)) return Boolean(actual && typeof actual === 'object' && !Array.isArray(actual) && Object.entries(expected).every(([key, value]) => Object.hasOwn(actual, key) && includes((actual as Record<string, SandboxJson>)[key]!, value)));
+  // Within a partial expectation, a text is found inside the actual text ("在卡片之间留大量空白" in the full description).
+  if (typeof expected === 'string' && typeof actual === 'string') return actual.includes(expected);
   return isDeepStrictEqual(actual, expected);
 }
 async function runExample(runner: SandboxRunner, operation: SandboxOperationContract, example: SandboxOperationContract['examples'][number]): Promise<void> {
   if (example.error !== undefined) { try { await runner.call(operation.id, example.input); } catch (error) { if ((error as { code?: string }).code === example.error) return; throw error; } throw new Error(`${operation.id} example expected error ${example.error}`); }
   const actual = await runner.call(operation.id, example.input);
-  if (Object.hasOwn(example, 'output') ? !isDeepStrictEqual(actual, example.output) : !includes(actual, example.outputIncludes!)) throw new Error(`${operation.id} contract example produced an unexpected output`);
+  // Say what was expected and what came back: the code agent can only fix what it can see.
+  const exact = Object.hasOwn(example, 'output'), show = (value: unknown) => JSON.stringify(value)?.slice(0, 400) ?? 'undefined';
+  if (exact ? !isDeepStrictEqual(actual, example.output) : !includes(actual, example.outputIncludes!))
+    throw new Error(`${operation.id} contract example for input ${show(example.input)} expected ${exact ? '' : 'a result containing '}${show(exact ? example.output : example.outputIncludes)} but got ${show(actual)}`);
 }
 function testEntry(index: number, operationId: string): string {
   return `import {operations as production} from './src/index.ts';\nimport {tests} from './tests/operations/${index}.ts';\nconst canonical=${canonical.toString()};\nconst equal=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));\nconst subset=(a,b)=>b&&typeof b==='object'&&!Array.isArray(b)?Boolean(a&&typeof a==='object'&&!Array.isArray(a)&&Object.entries(b).every(([k,v])=>Object.hasOwn(a,k)&&subset(a[k],v))):equal(a,b);\nexport const operations={${JSON.stringify(operationId)}:async(_,sdk)=>{if(!Array.isArray(tests)||!tests.length||tests.length>100)throw Error('Each operation requires 1-100 Agent tests');let completed=0;for(const test of tests){if(typeof test!=='function')throw Error('Test must be async function');let assertions=0;const assert={same:(a,b)=>{assertions++;if(!equal(a,b))throw Error('same assertion failed')},includes:(a,b)=>{assertions++;if(!subset(a,b))throw Error('includes assertion failed')},rejectsCode:async(call,code)=>{assertions++;try{await call()}catch(e){if(e?.code===code)return;throw Error('Wrong rejection code')}throw Error('Expected rejection')}};await test(sdk,input=>production[${JSON.stringify(operationId)}](input,sdk),assert);if(!assertions)throw Error('Test made no assertions');completed++}return completed}};`;

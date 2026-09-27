@@ -15,6 +15,7 @@ import { shelfRouteErrorResponse } from "../plugins/native/shelf/src/route-error
 import { ShelfPluginRouteTable } from "../plugins/native/shelf/src/routes.js";
 import { SHELF_STYLES } from "../plugins/native/shelf/src/styles.js";
 import { renderShelfWorkbench } from "../plugins/native/shelf/src/ui.js";
+import { directShelfActions } from "./shelf-direct-actions.js";
 
 // The only stub is runtime availability, so client handoffs can be exercised
 // without installing or launching an agent. Storage and HTTP handlers are real.
@@ -31,7 +32,7 @@ async function openShelfBrowser(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "shelf-client-boundaries-"));
   const shelf = new FixtureShelfStore(join(home, "shelf"), { disabled: true });
   shelf.admit({ filename: "目录材料.md", bytes: Buffer.from("# Shelf 专用测试页\n"), mime: "text/markdown" });
-  const routes = new ShelfPluginRouteTable(createShelfRouteHandlers(shelf));
+  const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({ actions: directShelfActions(shelf) }));
   const requests: string[] = [];
   const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const html = `<!doctype html><html data-resolved-theme="light"><head><meta charset="utf-8"><style>

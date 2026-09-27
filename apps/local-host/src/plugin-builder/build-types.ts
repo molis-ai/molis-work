@@ -9,6 +9,12 @@ export interface BuildCheckOptions {
   services: SandboxServices; identity: SandboxIdentity; grants: SandboxEffects; signal?: AbortSignal;
   /** Deterministic capability/network fixtures. Never use production services for G5. */
   mockServices?: SandboxServices;
+  /**
+   * Where each operation's last passing source is kept. With it, the operations not being checked come from there (or
+   * their stub) rather than the working copy, so another operation being written at the same time cannot fail this
+   * check; and the bundle written on success holds every operation's last passing source.
+   */
+  settled?: string;
 }
 export interface BuildDependencyOptions {
   root: string; signal?: AbortSignal;

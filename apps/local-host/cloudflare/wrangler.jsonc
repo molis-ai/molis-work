@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../node_modules/wrangler/config-schema.json",
+  "name": "molis-oauth",
+  "account_id": "a7a6d1ad56cdc1179da80d05ff38e25c",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-27",
+  "workers_dev": false,
+  "observability": { "enabled": false },
+  "ratelimits": [{ "name": "AUTH_RATE_LIMITER", "namespace_id": "2026092701", "simple": { "limit": 60, "period": 60 } }],
+  "vars": { "PUBLIC_ORIGIN": "https://auth.molis.ai" },
+  "routes": [{ "pattern": "auth.molis.ai", "custom_domain": true }]
+}

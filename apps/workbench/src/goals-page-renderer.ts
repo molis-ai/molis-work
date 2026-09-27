@@ -3,9 +3,9 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
-import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderAssistantIsland, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
+import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderAccountGlobalItems, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { PERSONAL_PLUGIN_IDS } from "./plugin-catalog.js";
-import { renderPluginRailAccountFooter, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
+import { renderPersonalMenuItems, renderPluginRailAccountFooter, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
@@ -228,10 +228,12 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="app">
     <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell)}
-      <div class="plugin-stack">
-      ${renderWorkspaceChrome(primitives, projectTitlebarChrome)}
-      ${renderPluginRail(primitives, enabledPlugins, desktopAccountFooter, renderAssistantIsland(primitives, enabledPlugins), view.plugin_rail)}
-      </div>
+      ${renderWorkbenchBar(primitives, {
+        enabled: enabledPlugins,
+        rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail),
+        accountFooter: desktopAccountFooter.replace("<!-- account-global-items -->", renderAccountGlobalItems(primitives, enabledPlugins)),
+        projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
+      })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, {
@@ -285,6 +287,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="Artifacts" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives)}</section>
+            <section class="desktop-work-surface capabilities-surface" data-work-surface="capabilities" data-work-surface-label="${L("能力")}" hidden><iframe class="capabilities-frame" title="${L("能力")}" data-capabilities-frame></iframe></section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).join("")}
           </div>

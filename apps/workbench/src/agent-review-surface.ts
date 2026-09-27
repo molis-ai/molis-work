@@ -64,6 +64,8 @@ export const AGENT_REVIEW_STYLES = `
 .agent-review-fields dd { white-space:pre-wrap; max-height:220px; overflow:auto; }
 .agent-review-target { color:var(--ink); }
 .agent-review-meta { color:var(--muted); margin:4px 0 0; }
+.agent-review-concurrent { margin:6px 0 0; padding:6px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--amber) 14%, transparent); }
+.agent-review-background { margin:6px 0 0; padding:6px 8px; border-radius:6px; color:var(--ink); background:color-mix(in srgb, var(--accent, #3b82f6) 10%, transparent); }
 .agent-review-warning { margin:6px 0 0; padding:6px 10px; border-radius:6px; color:var(--text); background:color-mix(in srgb,var(--amber,#b7791f) 14%,transparent); font-size:13px; }
 .agent-review-command { white-space:pre-wrap !important; word-break:break-word; font:12px/1.6 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); color:var(--ink); }
 .agent-review-prompt { color:var(--muted); user-select:none; }
@@ -282,6 +284,7 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
       return `<div class="agent-review-doc" data-agent-review-kind="text-edit">
         <p class="agent-review-file"><span class="agent-review-target">${p.escape(document.target_path)}</span>${document.exists ? "" : `<span class="agent-review-tag">${p.escape("新建文件")}</span>`}<span class="agent-review-count" data-added>+${diff.added}</span><span class="agent-review-count" data-removed>−${diff.removed}</span></p>
         ${document.workspace_path ? `<p class="agent-review-meta">${p.escape(document.workspace_path)}</p>` : ""}
+        ${document.concurrent?.length ? `<p class="agent-review-concurrent" role="note">${p.escape("另一个会话也在改这个文件：" + document.concurrent.join("、") + "。批准前先确认不会互相覆盖。")}</p>` : ""}
         ${diff.html}
         <details class="agent-review-before" data-review-detail="before"><summary>${p.escape("修改前的完整内容")}</summary><pre>${p.escape(document.before_text ?? "文件尚不存在")}</pre></details>
         <details class="agent-review-after-full" data-review-detail="after"><summary>${p.escape("修改后的完整内容")}</summary><pre class="agent-review-after">${p.escape(document.after_text)}</pre></details>
@@ -292,10 +295,11 @@ function renderDocument(document: AgentReviewDocument, p: AgentReviewPrimitives)
         <pre class="agent-review-command"><span class="agent-review-prompt" aria-hidden="true">$</span> ${p.escape([document.command, ...document.args].map(shellWord).join(" "))}</pre>
         ${leakedMarkup([document.command, ...document.args].join(" ")) ? `<p class="agent-review-warning" role="note">${p.escape("命令里混有像工具调用标记的文本（例如 </arg…>、<item>），多半是模型输出出错；这样的命令通常无法正常运行，建议拒绝并说明。")}</p>` : ""}
         <p class="agent-review-meta">${p.escape(`在 ${document.cwd === "." ? "工作区根目录" : document.cwd} 运行 · ${document.escalate === undefined ? "执行范围未提供" : document.escalate ? "请求在沙箱外执行" : "在宿主执行边界内"}`)}</p>
+        ${document.background ? `<p class="agent-review-background" role="note">${p.escape(document.outlives_run ? "后台运行：不等它结束，这一轮结束后也继续跑，直到它自己结束或被停止；可以在会话的后台命令里随时停掉。" : "后台运行：不等它结束；这一轮结束时会一起停掉。")}</p>` : ""}
         <details class="agent-review-bounds" data-review-detail="bounds"><summary>${p.escape("执行边界")}</summary><dl>
           ${document.workspace_path ? `<dt>${p.escape("所属工作区")}</dt><dd>${p.escape(document.workspace_path)}</dd>` : ""}
           <dt>${p.escape("工作目录")}</dt><dd>${p.escape(document.cwd)}</dd>
-          <dt>${p.escape("超时")}</dt><dd>${p.escape(document.timeout_ms + " ms")}</dd>
+          <dt>${p.escape("超时")}</dt><dd>${p.escape(document.background ? "后台运行不限时" : document.timeout_ms + " ms")}</dd>
           <dt>${p.escape("继承的环境变量")}</dt><dd>${p.escape(document.env_allowlist?.join(", ") ?? "运行时未提供")}</dd>
           <dt>${p.escape("执行范围")}</dt><dd>${p.escape(document.escalate === undefined ? "运行时未提供" : document.escalate ? "请求在沙箱外执行；批准仅适用于这一次操作" : "按本轮宿主执行边界运行")}</dd>
         </dl></details>

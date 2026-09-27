@@ -42,7 +42,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     const drawerOpen = narrow() && workspace.dataset.mobileView === "tree";
     workspace.classList.toggle("is-directory-drawer-open", drawerOpen);
     scrim.hidden = !drawerOpen;
-    pluginRail?.toggleAttribute("inert", narrow() && !drawerOpen);
+    // The plugin list lives in the bar's switcher now, not in the drawer: it stays reachable at every width.
+    pluginRail?.removeAttribute("inert");
     treePane.toggleAttribute("inert", narrow() && !drawerOpen);
     stage.toggleAttribute("inert", drawerOpen);
     header.removeAttribute("inert");
@@ -94,7 +95,8 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     });
-    document.querySelectorAll("[data-assistant-island] [data-plugin-id]").forEach(button => {
+    // The bar's menus hold entries too (settings under the project, the market in the Dock menu); they show where you are.
+    document.querySelectorAll("[data-assistant-island] [data-plugin-id], [data-dock] :is([data-personal-menu], [data-global-menu]) [data-plugin-id]").forEach(button => {
       const active = button.dataset.pluginId === plugin;
       if (active) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
@@ -164,7 +166,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
   // The plugin list is one Tab stop: the current plugin is tabbable, arrows move between plugins.
   const railItems = pluginRail?.querySelector(".plugin-rail-items");
   if (railItems) {
-    const railButtons = () => [...railItems.querySelectorAll("[data-plugin-id], a.plugin-rail-item")].filter((button) => button.getClientRects().length && !button.disabled);
+    const railButtons = () => [...railItems.querySelectorAll("[data-plugin-id], a.plugin-rail-item, [data-rail-tools-toggle]")].filter((button) => button.getClientRects().length && !button.disabled);
     const syncRailTabStop = () => {
       const buttons = railButtons();
       const current = buttons.find((button) => button.classList.contains("is-current") || button.getAttribute("aria-current") === "page") || buttons[0];
@@ -173,7 +175,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     railItems.addEventListener("keydown", (event) => {
       if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
       const buttons = railButtons();
-      const index = buttons.indexOf(event.target.closest("[data-plugin-id], a.plugin-rail-item"));
+      const index = buttons.indexOf(event.target.closest("[data-plugin-id], a.plugin-rail-item, [data-rail-tools-toggle]"));
       if (index < 0) return;
       event.preventDefault();
       const next = event.key === "Home" ? buttons[0] : event.key === "End" ? buttons.at(-1)

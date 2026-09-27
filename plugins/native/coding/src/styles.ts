@@ -102,6 +102,18 @@ export const CODING_STYLES = `
 .coding-board-agent { max-width:6.5rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--muted); }
 .coding-board-avatar { flex:none; display:grid; place-items:center; width:18px; height:18px; border-radius:50%; font-size:9px; line-height:1; color:var(--ink); background:color-mix(in srgb, hsl(var(--board-avatar-hue, 210) 42% 48%) 26%, var(--paper)); }
 .coding-board-avatar.is-unknown { background:color-mix(in srgb, var(--muted) 14%, var(--paper)); box-shadow:inset 0 0 0 1px var(--line); }
+.coding-board-avatar svg { width:10px; height:10px; color:var(--muted); }
+.coding-board-avatar.is-person { box-shadow:inset 0 0 0 1px var(--ink); }
+.coding-board-meta[data-owner=none] .coding-board-agent { color:var(--amber); }
+.coding-board-meta[data-owner=person] .coding-board-agent { color:var(--ink); }
+.coding-queued { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 8px; padding:8px 12px; border-radius:var(--radius-item, 8px); background:color-mix(in srgb, var(--amber) 12%, var(--paper)); }
+.coding-queued p { margin:0; font-size:13px; color:var(--ink); }
+.coding-queued-actions, .coding-overlap-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.coding-overlap-body { display:grid; gap:12px; max-width:32rem; padding:20px; }
+.coding-overlap-body h2 { margin:0; font-size:15px; }
+.coding-overlap-body ul { margin:0; padding-left:18px; display:grid; gap:6px; font-size:13px; }
+.coding-overlap-body p { margin:0; font-size:12px; color:var(--muted); }
+.coding-board-check { display:inline-flex; align-items:center; gap:4px; flex:none; font-size:12px; color:var(--muted); white-space:nowrap; }
 .coding-board-tools { position:absolute; right:8px; top:2px; display:none; gap:2px; padding:0 2px; border-radius:6px; background:var(--paper); box-shadow:0 1px 3px color-mix(in srgb, var(--shadow-color, #000) 16%, transparent); }
 .coding-board-tools .mw-btn { width:24px; height:24px; min-height:24px; padding:0; }
 .coding-board-tools svg { width:12px; height:12px; }
@@ -220,6 +232,15 @@ dialog.coding-palette::backdrop { background:color-mix(in srgb,var(--ink) 18%,tr
 .coding-coop-related { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
 .coding-coop-related li { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; min-width:0; }
 .coding-coop-related .mw-btn { min-height:24px; height:auto; padding:2px 4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.coding-coop-mail { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.coding-coop-mail li { display:grid; gap:4px; min-width:0; padding:8px 0; border-top:1px solid var(--mw-border-subtle, var(--mw-border)); }
+.coding-coop-mail li:first-child { border-top:0; }
+.coding-coop-mail li[data-state="cancelled"], .coding-coop-mail li[data-state="expired"] { opacity:.7; }
+.coding-coop-mail .coding-coop-line { display:flex; flex-wrap:wrap; align-items:center; gap:2px 6px; }
+.coding-coop-mail .coding-coop-line .mw-btn { min-height:24px; height:auto; padding:2px 4px; max-width:100%; white-space:normal; text-align:left; overflow-wrap:anywhere; }
+.coding-coop-mail > li > .mw-btn { justify-self:start; }
+.coding-board-expired { font-size:11px; color:var(--mw-attention, var(--amber, #b7791f)); white-space:nowrap; }
+.coding-background-command { font-family:var(--mw-font-mono, ui-monospace, monospace); font-size:12px; overflow-wrap:anywhere; min-width:0; }
 .coding-delegate-outputs { display:grid; gap:4px; border:0; padding:0; margin:0; }
 .coding-earlier { display:block; margin:4px auto 20px; min-height:32px; padding:0 14px; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--muted); font:inherit; font-size:12px; cursor:pointer; }
 .coding-earlier:hover:not(:disabled) { color:var(--ink); border-color:color-mix(in srgb,var(--ink) 30%,var(--line)); }

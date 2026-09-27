@@ -55,3 +55,21 @@ test('operations that wait on the model get their own lane; everything else stay
   ] };
   assert.deepEqual([...slowOperations(contract)], ['concepts.ask']);
 });
+
+test('goals: stand-ins for checks, real reads in a trial, real notes only once installed', async () => {
+  const calls: string[] = [];
+  const service = hostCapabilities({ async generate() { return { text: '' }; },
+    goals: { async list(identity) { calls.push('list:' + identity.namespace); return [{ id: 'g1', title: '写完论文', status: 'active' }]; },
+      async note(identity, input) { calls.push('note:' + identity.namespace + ':' + input.goalId); return { recorded: true }; } } },
+    identity => identity.namespace === 'installed' || identity.installationId.startsWith('studio-preview:'));
+  const at = (namespace: 'preview' | 'installed', installationId: string) => ({ identity: { projectId: 'p', installationId, pluginId: 'io.molis.work.generated.x', namespace }, signal: new AbortController().signal, operationId: 'o' });
+  assert.deepEqual(await service.call(at('preview', 'checks:b1'), 'goals.list', {}), [{ id: 'goal-demo', title: '示例目标', status: 'active' }], 'gates see the stand-in');
+  assert.deepEqual(await service.call(at('preview', 'studio-preview:b1'), 'goals.list', {}), [{ id: 'g1', title: '写完论文', status: 'active' }], 'a trial reads the real goals');
+  assert.deepEqual(await service.call(at('preview', 'studio-preview:b1'), 'goals.note', { goalId: 'g1', text: '试一下' }), { recorded: true });
+  assert.deepEqual(calls, ['list:preview'], 'a trial never writes a note');
+  await service.call(at('installed', 'install-1'), 'goals.note', { goalId: 'g1', text: '今天读了两章' });
+  assert.deepEqual(calls, ['list:preview', 'note:installed:g1']);
+  await assert.rejects(service.call(at('installed', 'install-1'), 'goals.note', { goalId: '', text: 'x' }), /\$/, 'input is checked before anything is written');
+  const bare = hostCapabilities({ async generate() { return { text: '' }; } }, () => true);
+  await assert.rejects(bare.call(at('installed', 'install-1'), 'goals.list', {}), /还不能提供目标能力/);
+});

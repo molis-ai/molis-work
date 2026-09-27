@@ -8,7 +8,7 @@ test("plugin market sends a manual upgrade after a real browser click", { timeou
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   assert.ok(projectId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=market]')");
+  await waitFor("document.querySelector('[data-global-menu] [data-plugin-id=market]')");
 
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
     const nativeFetch = window.fetch.bind(window);
@@ -44,14 +44,14 @@ test("plugin market sends a manual upgrade after a real browser click", { timeou
     };
   })();` }, sessionId);
   await command("Page.reload", {}, sessionId);
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=market]')");
-  await waitFor("!document.querySelector('[data-plugin-strip] [data-plugin-id=market] [data-market-update-count]').hidden");
-  assert.equal(await evaluate<string>("document.querySelector('[data-plugin-strip] [data-market-update-count]').textContent"), "1", "update reminder appears before opening the market");
+  await waitFor("document.querySelector('[data-global-menu] [data-plugin-id=market]')");
+  await waitFor("!document.querySelector('[data-global-menu] [data-plugin-id=market] [data-market-update-count]').hidden");
+  assert.equal(await evaluate<string>("document.querySelector('[data-global-menu] [data-market-update-count]').textContent"), "1", "update reminder appears before opening the market");
 
-  await click('[data-plugin-strip] [data-plugin-id="market"]');
+  await click('[data-global-menu] [data-plugin-id="market"]');
   await waitFor("document.querySelector('[data-work-surface=market]') && !document.querySelector('[data-work-surface=market]').hidden");
   await waitFor("document.querySelector('[data-market-plugin=coding] [data-market-upgrade]')?.dataset.marketUpgrade === 'io.molis.work.coding'");
-  assert.equal(await evaluate<string>("document.querySelector('[data-plugin-strip] [data-market-update-count]').textContent"), "1");
+  assert.equal(await evaluate<string>("document.querySelector('[data-global-menu] [data-market-update-count]').textContent"), "1");
   assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=coding] [data-market-version]').textContent"), "已安装 v1.0.0 · 可升级至 v2.0.0");
   assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=coding] [data-market-upgrade]').textContent"), "升级");
   assert.equal(await evaluate<boolean>("document.querySelector('[data-market-plugin=coding] [data-market-upgrade]').disabled"), false);
@@ -61,13 +61,13 @@ test("plugin market sends a manual upgrade after a real browser click", { timeou
   await waitFor("document.querySelector('[data-market-status]')?.textContent === '旧私有数据校验失败：格式不支持'");
   assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=coding] [data-market-upgrade]').textContent"), "升级", "failed validation keeps the candidate available");
   assert.equal(await evaluate<boolean>("document.querySelector('[data-market-plugin=coding] [data-market-upgrade]').disabled"), false, "failed validation can be retried");
-  assert.equal(await evaluate<string>("document.querySelector('[data-plugin-strip] [data-market-update-count]').textContent"), "1");
+  assert.equal(await evaluate<string>("document.querySelector('[data-global-menu] [data-market-update-count]').textContent"), "1");
 
   await click('[data-market-plugin="coding"] [data-market-upgrade]');
   await waitFor("document.querySelector('[data-market-status]')?.textContent === '已升级至 v2.0.0'");
-  await waitFor("document.querySelector('[data-market-plugin=coding] [data-market-add]')?.textContent === '移除' && document.querySelector('[data-plugin-strip] [data-market-update-count]').hidden");
+  await waitFor("document.querySelector('[data-market-plugin=coding] [data-market-add]')?.textContent === '移除' && document.querySelector('[data-global-menu] [data-market-update-count]').hidden");
   assert.equal(await evaluate<boolean>("document.querySelector('[data-market-plugin=coding] [data-market-version]').hidden"), true);
-  assert.equal(await evaluate<string>("document.querySelector('[data-plugin-strip] [data-plugin-id=market]').getAttribute('aria-label')"), "插件市场");
+  assert.equal(await evaluate<string>("document.querySelector('[data-global-menu] [data-plugin-id=market]').getAttribute('aria-label')"), "插件市场");
   assert.deepEqual(await evaluate("window.__pluginUpgradeRequests"), [1, 2].map(() => ({
     pathname: `/projects/${projectId}/api/plugins/io.molis.work.coding/upgrade`,
     method: "POST",

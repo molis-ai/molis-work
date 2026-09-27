@@ -37,6 +37,8 @@ import { L } from "./web-locale.js";
 import type { WebProjectNavigation, WebSettingsSection } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, renderMolisWorkPrimitiveCatalog, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
+import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-experiments";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -46,6 +48,7 @@ import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-
 import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
 import { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
+import { CONNECTOR_ACCOUNT_PERMISSIONS } from "./connector-account-actions.js";
 import { handleConnectorConnectionsHttp } from "./web-connector-connections.js";
 import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
 import { listConnectorConnectionViews } from "./web-connector-connections.js";
@@ -143,7 +146,10 @@ export async function handleLocalCatalogWebRequest(
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handleCogniaNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
-  if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
+    shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },
+    experiments: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: [...EXPERIMENTS_ACTION_PERMISSIONS] })),
+  })) return;
   if (await handleOnboarding(request, response, url, serverOptions.homeDirectory, projects.length, localHost, controlToken)) return;
   if (request.method === "GET" && url.pathname === "/desktop/capsule") {
     response.writeHead(200, {
@@ -302,9 +308,10 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
-  if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost)) return;
   if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
-  if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory,
+    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: CONNECTOR_ACCOUNT_PERMISSIONS })))) return;
   if (await handleLocalMcpSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;

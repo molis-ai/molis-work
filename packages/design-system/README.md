@@ -42,8 +42,8 @@ icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"
 - **不准露出操作系统默认控件。** 选择打开后是 `mw-menu`，不是系统下拉。禁止系统色盘、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。原生 `<select>` 只可隐藏当值。原生 `<dialog>` 只留行为，外观走 `mw-*`。
 - 壳层 hover / 当前走 `--nav-hover` / `--nav-active` / `--ink`。靛（`--blue` / `--focus`）只给链接、选区和进行中，不是第二套实心按钮，也**不是焦点描边**。插件身份走 `--plugin-tint`；状态走 status family。图标色必须和所在表面成套，不要灰图标配随机强调色。
 - 键盘焦点只用 `--focus-stroke`：内侧 1px `--ink`。禁止 `outline: 2px solid var(--focus)`、`outline: 2px solid var(--blue)`、`0 0 0 2px var(--focus)` 和把字段边框涂成 `--focus`。危险态用 `--red`，厚度同样 1px。
-- 动效只用 `--dur-*` / `--motion-*` / `--ease-*` 和已有位移（分段滑块、插件轨、目录 yield、质感层的按压回弹与到达上浮）。状态切换要到达或走过去，不要硬切。行的 hover / press 只变色调；按钮按下回弹到 .97，卡片悬停抬一级，打开弹层的控件不缩放。完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`，不要各写一套。`prefers-reduced-motion` 与自动化下全部静止。不为动而动。视觉打磨属于本切片，编译通过不等于做完。
-- 空间是「桌面 + 一张纸页」：栏、目录、标签在桌面上，插件舞台在纸页里；插件不要再画自己的外框卡片。抬升只用 `--lift-1/2/3` 与 `--sheet-shadow`，遮罩不模糊。
+- 动效只用 `--dur-*` / `--motion-*` / `--ease-*` 和已有位移（分段滑块、插件轨、目录 yield、质感层的按压回弹与到达上浮）。状态切换要到达或走过去，不要硬切。行的 hover / press 只变色调；按钮按下回弹到 .97，卡片悬停只把发丝线加深一级（不上浮、不旋转），打开弹层的控件不缩放。完成与新到达用 `molisCraft.celebrate` / `molisCraft.land`，不要各写一套。`prefers-reduced-motion` 与自动化下全部静止。不为动而动。视觉打磨属于本切片，编译通过不等于做完。
+- 空间是「桌面 + 一张纸页」：栏、目录、标签在桌面上，插件舞台在纸页里；插件不要再画自己的外框卡片。一律纯色，不用渐变。`--lift-1/2` 与 `--sheet-shadow` 是 1px 线环，只有浮层用 `--lift-3` 阴影；遮罩不模糊。颜色只表达状态与选中，选中用 `--nav-active`。
 - 色用 token，不要在组件规则里写死 hex。后代选择器不要盖 `mw-*` 的填充和焦点。
 - 图标从库取：`icon("name")` 或 `#icon-name`。不要第二套 emoji/Unicode 图标。Shelf 文件类型 SVG 仍走插件自己的 glyph，动作图标用库。
 - 字重默认 400。层级靠字号和 `--ink` / `--ink-soft` / `--muted` / `--faint`。

@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.package.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
+  "compilerOptions": { "lib": ["ES2022", "DOM", "DOM.Iterable"], "rootDir": "src", "outDir": "dist" },
   "include": ["src/**/*.ts"]
 }

@@ -1,0 +1,48 @@
+Use case: ui-mockup.
+Asset type: a final high-fidelity desktop product design screenshot for Molis Work.
+Reference image: provided split-screen study. Preserve its PRODUCT LOGIC and bottom dock, but elevate the entire composition from a schematic study to exquisitely finished, realistic professional software. This is a new polished design variant, not a literal pixel-copy of the old image.
+
+Output a single ultra-crisp 1920 × 1200 landscape screenshot, straight-on, full-bleed application, no device frame, no collage, no explanatory labels outside the UI. Simplified Chinese must be highly legible, naturally typeset with PingFang SC / Inter style. The screenshot is illustrative project content, not a claim of working software.
+
+NON-NEGOTIABLE SPATIAL DESIGN: TRUE SPLIT SCREEN. Work takes the LEFT 65% of the main area, public project discussion takes the RIGHT 35%. A fine draggable divider separates them. Work has actually resized, is fully readable, and is NEVER hidden by chat. No floating chat popup, no modal, no full-screen communication dashboard, no third column. Thread opens inline below its source group message within the right pane. Keep top app tab strip and bottom shared dock spanning the entire app width. No global left navigation rail. Discussion originates from the bottom-right project discussion control.
+
+CRAFT DIRECTION: precise, calm, exceptionally well designed workstation software. Neutral WHITE and pale neutral gray surfaces, rich charcoal text, hairline #e6e7eb separators. Black/graphite primary buttons. One subtle muted indigo accent used sparingly for mentions, links, and a tiny unread dot. Absolutely NO GREEN SURFACES, NO GRADIENTS, no neon, no blue haze, no decorative blobs, no frosted glass. Text has crisp dark contrast. Elegant compact spacing; sophisticated typography with 14–16px equivalent chat body, 12px metadata, 18px chat headings, 28px document title at this reference size. Crisp outline icons consistent across the product, tidy rounded 6–8px controls, no giant pills, no excessive rectangular cards. Avatars are small tasteful monochromatic or softly tinted initials. Human collaboration, not a generic AI dashboard.
+
+SHELL:
+Top 44px application strip: small Molis Work wordmark at left, document tab '首页方案' selected, another tab '目标', small plus. Native understated window controls. Quiet light neutral gray background.
+Bottom 54px dock: Home and chosen work tools on left, centered modest rounded Assistant entry '问 Assistant，或搜索' with shortcut ⌘K, right '资料库', '灵光', selected '项目讨论' in a very subtle neutral active state and round project monogram M. Only the discussion icon has a tiny unread dot. Keep this dock aligned and believable, never oversized.
+
+LEFT WORK PANE ~1240px:
+A precise document editor surface, not a marketing landing page or skeleton. Top breadcrumb 'Molis 产品团队 / 设计', small page toolbar with edit, comments and more, generous but disciplined margins. Within left pane a centered editorial document column, max width about900px.
+Small muted label '产品设计 / V2'.
+Title '首页方案', compact metadata '周然 · 今天 09:42 更新', thin divider.
+Section '让新成员一眼读懂项目' 20px, short paragraph '进入项目后，先知道团队正在推进什么，再找到需要自己参与的讨论。'
+Section '信息优先级' and three horizontal editorial rows with tiny 01/02/03 numbers and thin dividers:
+01 当前目标   '明确这一阶段要完成什么'
+02 进行中的讨论   '优先呈现待确认的问题'
+03 最近产出   '让已经形成的结果随时可追溯'
+Below, an actual finished compact product design preview titled '首页布局预览', with tiny toolbar '桌面 · 100%' and a neutral border. This must look like a fully typeset real page preview, NOT gray skeleton placeholders or a wireframe: heading '早上好，一骏', subline '把今天的精力留给最重要的事。'; small section '正在推进', one restrained goal row '完成首页改版' with '周五交付', two short precise task lines '信息结构确认' and '页面细节实现'; alongside a compact section '需要确认' with '周五发布范围' and '项目成员试用'. Small section '最近产出' with document links '首页方案 v2' and '发布检查清单'. Neutral editorial software, no charts, counters, green tags or gratuitous dashboard tiles.
+Near the bottom of the editor document: an unobtrusive linked discussion annotation with branching icon '首页信息架构 · 已有结论 · 12 条回复'. It visually connects current work to the right pane. Avoid giant blank filler, oversized heading or huge fake mockup image.
+
+RIGHT DISCUSSION PANE ~680px, full available height:
+Slim top header with outline conversation icon, '项目讨论', project label 'Molis 产品团队' and down chevron; right small close/collapse-to-right icon. No maximize.
+Second compact header '# 项目主群' with down chevron, subtitle '12 位项目成员', right search and more.
+A slim summary strip separated by horizontal rules, not a colorful card: tiny sparkle icon and '自上次离开 · 8 条新消息'; text '首页结构已有结论，发布范围待确认。'; small 'AI 整理 · 查看来源'. Clearly not an official human decision. Occupies about80px max.
+
+Main group flow, consistent 30px avatars, 15px body, 12px times:
+1 林悦 09:42 '首页第二版放好了，先看信息层级，再看细节。'
+Below a compact file preview: a tiny real document thumbnail, '首页方案 v2.fig', secondary 'Figma · 2.4 MB', trailing subtle menu. Small reaction '👍 4' below, not a giant button.
+2 周然 09:46 '先露出正在推进的目标，再放最近讨论。'
+Immediately below this source, an EXPANDED public Thread. Use a fine branching vertical rule, slight indentation, almost-white background only if needed. It feels embedded in the conversation, not a second large independent window. Title '首页信息架构', small metadata '公开 Thread · 12 条回复', right quiet star and collapse chevron.
+At top inside thread a concise editorial conclusion row with check icon: '已确认的结论' followed by '首页优先展示目标与活跃讨论。'; small metadata '一骏确认 · 10:07', inline related document link '关联：首页方案'. This human confirmation is visibly distinct from the AI summary above.
+Two compact replies connected to source with a subtle branch:
+一骏 09:54 '目标和讨论放在同一层，新成员不用来回找。'
+陈默 10:00 '按当前目标 → 活跃讨论 → 最近产出实现。'
+A compact local reply field labeled '回复此 Thread…' and tiny send icon, not a second big composer.
+Then main group flow CONTINUES beneath the thread:
+3 许诺 10:12 '@一骏 周五先开放给项目成员，今天确认一下范围？'
+Below a collapsed second Thread link '周五发布范围 · 3 条回复 · 待确认'. Both threads are visible as public group discussion, no private conversations.
+
+Bottom of RIGHT pane: fixed main group composer, about94px, thin soft border with 8px corners and explicit label '发到 # 项目主群', placeholder '补充问题，或引用左侧工作…'. Minimal icon toolbar for attachment, @, document reference, formatting. Right black '发送' button with arrow. Ensure enough horizontal writing space and no clipping. Clear destination distinction from the inline Thread reply.
+
+Make ALL right-pane content fit with expert density, remove unnecessary ornament before shrinking text. The image should feel like a beautifully finished real app ready for a product design review: rich enough for professional collaboration, calm enough to remain secondary to doing the work. No fake online status, no private chat list, no sidebar contact roster, no irrelevant metrics. Extremely sharp final typography, balanced pane ratio, subtle gray layers, believable detailed interaction states.

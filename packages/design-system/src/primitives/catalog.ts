@@ -156,23 +156,23 @@ function typefaceSection(): string {
 /** Craft finish: the desk-and-sheet space, depth, corners, motion and the few moments that get one. */
 function craftSection(): string {
   const escape = (value: string) => value.replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[char] ?? char);
-  const lifts = [["--lift-1", "静止卡片 · 选中行"], ["--lift-2", "悬停 · 菜单"], ["--lift-3", "对话框"], ["--sheet-shadow", "纸页"]]
+  const lifts = [["--lift-1", "静止卡片 · 当前标签"], ["--lift-2", "悬停"], ["--lift-3", "菜单 · 对话框 · 拖动"], ["--sheet-shadow", "纸页"]]
     .map(([token, role]) => `<div class="mw-craft-lift" style="box-shadow: var(${token})"><code>${token}</code><small>${role}</small></div>`).join("");
   const radii = [["--r-tag", "5"], ["--r-row", "8"], ["--r-control", "9"], ["--r-card", "12"], ["--r-sheet", "12"], ["--r-dialog", "16"]]
     .map(([token, px]) => `<div class="mw-craft-radius" style="border-radius: var(${token})"><code>${token}</code><small>${px}px</small></div>`).join("");
   const motion = [
     ["--dur-press", "110ms", "按下的那一下：缩到 .97，再弹回"],
     ["--dur-hover", "140ms", "悬停：色调一步，不抬起"],
-    ["--dur-move", "220ms", "位置与抬升：芯片滑动、卡片浮起"],
+    ["--dur-move", "220ms", "位置：芯片滑动、分段滑块落位"],
     ["--dur-arrive", "320ms", "内容到达：上浮 6px 同时淡入"],
     ["--dur-moment", "640ms", "只属于完成与落地的一刻"],
   ].map(([token, value, role]) => `<tr><td><code>${token}</code></td><td>${value}</td><td>${role}</td></tr>`).join("");
   const monograms = [["Molis Work 示例项目", "project-demo"], ["增长实验", "project-growth"], ["Research", "project-research"], ["品牌手册", "project-brand"], ["Onboarding", "project-onboard"]]
     .map(([name, id]) => `<span class="mw-craft-mono">${renderProjectMonogram(name, id, escape)}<small>${escape(name)}</small></span>`).join("");
-  return section("craft", "质感 · 空间 · 动效", `<p class="mw-catalog__hint">桌面承载栏、目录与标签；工作是桌面上的一张纸页，每个插件都一样。按下有回弹，内容到达时上浮淡入，只有完成和新到达的东西拥有自己的一刻。减少动态效果时这些全部静止。</p>
+  return section("craft", "质感 · 空间 · 动效", `<p class="mw-catalog__hint">桌面承载栏、目录与标签；工作是桌面上的一张纸页，每个插件都一样。一律纯色：层次只用发丝线，只有浮层有阴影；颜色只表达状态与选中。按下有回弹，内容到达时上浮淡入，只有完成和新到达的东西拥有自己的一刻。减少动态效果时这些全部静止。</p>
     <div class="mw-catalog__specimens">
       ${specimen("空间 · 桌面与纸页", `<div class="mw-craft-space" aria-hidden="true"><i class="mw-craft-space__rail"></i><i class="mw-craft-space__dir"></i><div class="mw-craft-space__main"><i class="mw-craft-space__tabs"></i><div class="mw-craft-space__sheet"><b></b><b></b><b></b></div></div></div>`)}
-      ${specimen("抬升", `<div class="mw-craft-row">${lifts}</div>`)}
+      ${specimen("层次：线环与浮层阴影", `<div class="mw-craft-row">${lifts}</div>`)}
       ${specimen("圆角", `<div class="mw-craft-row">${radii}</div>`)}
       ${specimen("动效时长", `<table class="mw-table mw-craft-motion"><thead><tr><th>Token</th><th>时长</th><th>用在哪里</th></tr></thead><tbody>${motion}</tbody></table>`)}
       ${specimen("试一下", `<div class="mw-craft-row">

@@ -34,7 +34,6 @@ for (const width of [1440, 390]) test(`Images ${width}px: revoked and missing se
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=images` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=images]')");
   if (await evaluate("document.body.dataset.desktopSurface") !== "images") {
-    if (width === 390) await click(".workspace-chrome [data-directory-show]");
     await click('[data-plugin-strip] [data-plugin-id="images"]');
   }
   await waitFor("document.body.dataset.desktopSurface === 'images'");

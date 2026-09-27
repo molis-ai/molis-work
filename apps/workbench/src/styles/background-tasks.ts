@@ -8,6 +8,9 @@ export const BACKGROUND_TASKS_MENU_STYLES = `
   .background-tasks-menu .background-task-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .background-tasks-menu .background-task-head time { flex: none; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   .background-tasks-menu .background-task-detail { display: flex; gap: 8px; color: var(--muted); font-size: 12px; }
+  .background-tasks-menu .background-task-command { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 0 10px 6px 28px; font-size: 12px; color: var(--muted); }
+  .background-tasks-menu .background-task-command code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  .background-tasks-menu .background-task-command .mw-btn { min-height: 24px; height: 24px; padding: 0 8px; }
   .background-tasks-menu .background-task-project { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .background-tasks-menu .background-task:is([data-state="waiting-approval"], [data-state="waiting-answer"], [data-state="reconcile-required"]) .background-task-detail > :first-child { color: var(--ink); }
 `;

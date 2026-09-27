@@ -41,13 +41,31 @@ function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
 
 export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
+  // The Dock menu: the ways to extend the workbench, then which plugins stay in the Dock.
   return `<footer class="personal-sidebar-footer">
-    <button class="immersive-plugin-link plugin-rail-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
-    <button class="personal-account" type="button" data-account-link aria-label="${L("账号管理")}" title="${L("账号管理")}">
+    <details class="account-global-menu" data-global-menu>
+      <summary class="account-global-trigger" aria-label="${L("Dock 与插件")}" title="${L("Dock 与插件")}">${icon("package")}</summary>
+      <div class="account-global-popover">
+        <!-- account-global-items -->
+        <p class="account-global-heading">${L("常驻在 Dock")}</p>
+        <div class="dock-choices" data-dock-choices role="group" aria-label="${L("常驻在 Dock")}"></div>
+      </div>
+    </details>
+  </footer>`;
+}
+
+/** What belongs to the person rather than the project, under the project button: who you are and where (shown, not
+ * offered as a control until there is an account page), then capabilities and settings, both opening in the workbench. */
+export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
+  const { L, icon } = primitives;
+  return `<div class="navigator-personal" data-personal-menu>
+    <div class="personal-account" data-account-link>
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
       <span class="personal-account-copy"><strong>${L("一骏")}</strong><small>${L("本地空间")}</small></span>
-    </button>
-  </footer>`;
+    </div>
+    <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
+    <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
+  </div>`;
 }
 
 function renderSettingsNav(

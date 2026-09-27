@@ -1,5 +1,5 @@
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentSessionRef, type AgentRunRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { AgentHostError, type AgentHost, type AgentStartAuthority } from "./index.js";
 
@@ -36,6 +36,11 @@ export interface AgentCapabilityPorts<Context> {
   boardId(context: Context): string;
   /** Explicit historical owner, never inferred from a request. */
   legacyActorId?(context: Context): string | undefined;
+  /**
+   * After an owner's MCP servers were listed, saved or connected/disconnected: what they offer now may be republished
+   * (the Host's action directory follows it). A failure here never undoes the change itself.
+   */
+  mcpChanged?(context: Context, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner): void | Promise<void>;
 }
 
 /** A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage. */
@@ -64,6 +69,10 @@ export function registerAgentHostCapabilities<Context>(
   const ports = {
     agentHost: (call: Call) => owners.agentHost(call.source),
     boardId: (call: Call) => owners.boardId(call.source),
+    mcpChanged: async (call: Call, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) => {
+      try { await owners.mcpChanged?.(call.source, runtimeId, pluginId, library, owner); }
+      catch { /* The change itself succeeded; whoever follows it catches up on the next list. */ }
+    },
     authority: async (call: Call, pluginId: string): Promise<AgentStartAuthority> => {
       const caller = pluginFor(call, pluginId);
       const authority = await owners.authority(call.source, caller?.plugin_id ?? pluginId, caller);
@@ -103,6 +112,7 @@ export function registerAgentHostCapabilities<Context>(
     if (run.session_id !== session.session_id || !view.runs.some(entry => entry.run_id === run.run_id && entry.session_id === session.session_id)) {
       throw new AgentHostError("agent.run_unknown", "当前会话找不到这一轮执行");
     }
+    return view;
   };
   const disposers = [
     register(agentHostCapabilities.listActions, async (context, [runtimeId, pluginId]) => {
@@ -133,13 +143,17 @@ export function registerAgentHostCapabilities<Context>(
 
     register(agentHostCapabilities.listMcp, async (context, [runtimeId, pluginId]) => {
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, await ports.authority(context, pluginId));
-      return library.list(owner);
+      const servers = await library.list(owner);
+      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
+      return servers;
     }),
     register(agentHostCapabilities.saveMcp, async (context, [runtimeId, pluginId, input]) => {
       const authority = await ports.authority(context, pluginId);
       if (input.transport === "stdio" && (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path))) throw new AgentHostError("agent.directory_unauthorized", "MCP 进程目录必须是当前项目的授权工作区");
       const { library, owner } = ports.agentHost(context).mcpLibrary(runtimeId, authority);
-      return library.save(owner, input);
+      const saved = await library.save(owner, input);
+      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
+      return saved;
     }),
     register(agentHostCapabilities.controlMcp, async (context, [runtimeId, pluginId, id, action]) => {
       const authority = await ports.authority(context, pluginId);
@@ -149,7 +163,8 @@ export function registerAgentHostCapabilities<Context>(
         if (server?.transport === "stdio" && !authority.authorizedDirectories.includes(server.directory?.canonical_path ?? "")) throw new AgentHostError("agent.directory_unauthorized", "MCP 的原工作区已不可用，请重新配置");
       }
       await context.invocation.beforeEffect();
-      return library.control(owner, id, action);
+      await library.control(owner, id, action);
+      await ports.mcpChanged(context, runtimeId, pluginId, library, owner);
     }),
 
     register(agentHostCapabilities.createSession, async (context, [runtimeId, input]) => {
@@ -239,12 +254,109 @@ export function registerAgentHostCapabilities<Context>(
       await context.invocation.beforeEffect();
       await port.cancel(run, childId, caller?.actor_id ?? actorId);
     }),
+    // The project's work under way: every session's rounds in this project, never another project's.
+    register(agentHostCapabilities.readProjectWork, async (context, [runtimeId, probe]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.projectWork) return { items: [], overlaps: [] };
+      return adapter.projectWork.read(ports.boardId(context), probe);
+    }),
+    register(agentHostCapabilities.readMessages, async (context, [runtimeId, sessionId]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages) return [];
+      return adapter.messages.read(ports.boardId(context), sessionId);
+    }),
+    register(agentHostCapabilities.prioritizeSession, async (context, [runtimeId, sessionId]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages?.prioritize) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能标记优先");
+      await context.invocation.beforeEffect();
+      return adapter.messages.prioritize(ports.boardId(context), sessionId, caller?.actor_id ?? "user");
+    }),
+    register(agentHostCapabilities.sendPeopleMessage, async (context, [runtimeId, input]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages?.sendForPeople) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能发会话间的信");
+      await context.invocation.beforeEffect();
+      return adapter.messages.sendForPeople(ports.boardId(context), input, caller?.actor_id ?? "user");
+    }),
+    register(agentHostCapabilities.actOnPeopleMessage, async (context, [runtimeId, messageId, action, detail]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages?.act) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能处理会话间的信");
+      await context.invocation.beforeEffect();
+      return adapter.messages.act(ports.boardId(context), messageId, action, detail ?? {}, caller?.actor_id ?? "user");
+    }),
+    register(agentHostCapabilities.cancelMessage, async (context, [runtimeId, messageId]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages) throw new AgentHostError("agent.capability_unavailable", "当前运行时没有会话间的信");
+      await context.invocation.beforeEffect();
+      await adapter.messages.cancel(ports.boardId(context), messageId);
+    }),
+    // Parked sessions of this project: read, taken up when they fire, or given up by the person.
+    register(agentHostCapabilities.readWaits, async (context, [runtimeId, sessionId]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.waits) return [];
+      return adapter.waits.read(ports.boardId(context), sessionId);
+    }),
+    register(agentHostCapabilities.awaitFiredWaits, async (context, [runtimeId, timeoutMs, exclude]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.waits) return [];
+      return adapter.waits.awaitFired(ports.boardId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : []);
+    }),
+    register(agentHostCapabilities.resumeWait, async (context, [runtimeId, waitId, note]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.waits) throw new AgentHostError("agent.capability_unavailable", "当前运行时没有挂起与唤醒");
+      await context.invocation.beforeEffect();
+      return adapter.waits.resume(ports.boardId(context), waitId, note);
+    }),
+    register(agentHostCapabilities.cancelWait, async (context, [runtimeId, waitId, note]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.waits) throw new AgentHostError("agent.capability_unavailable", "当前运行时没有挂起与唤醒");
+      await context.invocation.beforeEffect();
+      return adapter.waits.cancel(ports.boardId(context), waitId, note);
+    }),
+    register(agentHostCapabilities.readBackground, async (context, [runtimeId, sessionId]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.background) return [];
+      return adapter.background.read(ports.boardId(context), sessionId);
+    }),
+    register(agentHostCapabilities.stopBackground, async (context, [runtimeId, taskId]) => {
+      pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.background) throw new AgentHostError("agent.capability_unavailable", "当前运行时没有后台命令");
+      await context.invocation.beforeEffect();
+      return adapter.background.stop(ports.boardId(context), taskId);
+    }),
+    register(agentHostCapabilities.queueProjectRound, async (context, [runtimeId, input]) => {
+      const view = await readScopedSession(context, input.session);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.projectWork) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能安排等待");
+      await context.invocation.beforeEffect();
+      return adapter.projectWork.queue(ports.boardId(context), input, pluginFor(context)?.actor_id ?? view.owner.actor_id ?? "user");
+    }),
+    register(agentHostCapabilities.releaseProjectRound, async (context, [runtimeId, workId, note]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.projectWork) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能安排等待");
+      await context.invocation.beforeEffect();
+      await adapter.projectWork.release(ports.boardId(context), workId, caller?.actor_id ?? "user", note);
+    }),
     register(agentHostCapabilities.amendStepBoard, async (context, [session, run, amendment, expectedVersion]) => {
-      await requireRun(context, session, run);
+      const view = await requireRun(context, session, run);
       const adapter = ports.agentHost(context).adapter(session.runtime_id);
       if (!adapter.amendStepBoard) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能调整计划图");
       await context.invocation.beforeEffect();
-      return adapter.amendStepBoard(run, amendment, expectedVersion);
+      // The person deciding: the calling plugin's actor, else the session's owner.
+      const actor = pluginFor(context)?.actor_id ?? view.owner.actor_id ?? owners.legacyActorId?.(context.source) ?? "user";
+      return adapter.amendStepBoard(run, amendment, expectedVersion, actor);
     }),
     register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);

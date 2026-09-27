@@ -18,17 +18,18 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
   const homeRail = await evaluate<Record<string, string>>(`(() => {
     const out = {};
-    for (const node of document.querySelectorAll('.plugin-rail-items [data-plugin-id]')) {
+    for (const node of document.querySelectorAll('.plugin-rail-items [data-plugin-id], [data-global-menu] [data-plugin-id]')) {
       const svg = node.querySelector('svg');
       out[node.dataset.pluginId] = svg ? getComputedStyle(svg).color : '';
     }
     return out;
   })()`);
   assert.ok(homeRail.goals && homeRail.feed && homeRail.sessions && homeRail.inbox && homeRail.market, "demo rail has work plugins and market: " + JSON.stringify(homeRail));
-  assert.notEqual(homeRail.goals, homeRail.home);
-  assert.notEqual(homeRail.goals, homeRail.feed);
-  assert.notEqual(homeRail.sessions, homeRail.inbox);
-  assert.notEqual(homeRail.goals, homeRail.market);
+  // Colour says selection, not identity: the current entry reads darker, every idle glyph shares one neutral.
+  assert.notEqual(homeRail.goals, homeRail.home, "the current entry reads darker than the rest");
+  assert.equal(homeRail.goals, homeRail.feed, "idle glyphs stay neutral; position and name say which tool it is");
+  assert.equal(homeRail.sessions, homeRail.inbox);
+  assert.equal(homeRail.goals, homeRail.market);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]').getAttribute('aria-current') === 'page'");
@@ -70,7 +71,6 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).runs, before.runs);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-  await click('[data-directory-show]');
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await evaluate("document.querySelector('[data-board-view-tab=list]')?.click()");
@@ -96,8 +96,9 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   const prefix = "/projects/" + projectId;
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/" }, sessionId));
   assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=artifacts]')"), null);
-  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-plugin-id=market]')"), null);
-  assert.equal(await evaluate("document.querySelector('.plugin-rail-items [data-work-surface-open=market]')?.dataset.pluginId"), "market");
+  // The market is yours everywhere, so it sits in the account menu rather than among this project's plugins.
+  assert.equal(await evaluate("Boolean(document.querySelector('.plugin-rail-items [data-plugin-id=market]'))"), false);
+  assert.equal(await evaluate("document.querySelector('.personal-sidebar-footer [data-global-menu] [data-work-surface-open=market]')?.dataset.pluginId"), "market");
   const railColors = await evaluate<{ current: string; idle: string; market: string; idleId: string }>(`(() => {
     const items = [...document.querySelectorAll('.plugin-rail-items [data-plugin-id]')].map((node) => ({
       id: node.dataset.pluginId,
@@ -106,12 +107,12 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
     }));
     const current = items.find((item) => item.current);
     const idle = items.find((item) => !item.current);
-    const marketNode = document.querySelector('.plugin-rail-items [data-plugin-id=market] svg');
+    const marketNode = document.querySelector('[data-global-menu] [data-plugin-id=market] svg');
     return { current: current?.color || '', idle: idle?.color || '', idleId: idle?.id || '', market: marketNode ? getComputedStyle(marketNode).color : '' };
   })()`);
   assert.ok(railColors.idle && railColors.current && railColors.market, "rail has current, idle and market icons: " + JSON.stringify(railColors));
   assert.notEqual(railColors.idle, railColors.current, "idle " + railColors.idleId + " keeps a different identity colour from the current plugin");
-  assert.notEqual(railColors.idle, railColors.market, "the market plus stays faint, not a work-plugin hue");
+  assert.equal(railColors.idle, railColors.market, "idle tools and the market share one neutral glyph colour");
   const otherId = await evaluate<string>(`(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'另一个项目',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()`);
   await click('[data-work-surface-open="market"]');
   await waitFor("!document.querySelector('[data-market-project]').disabled");

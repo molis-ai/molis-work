@@ -18,7 +18,8 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
   const workspace = { workspace_id: "fixture", canonical_path: await realpath(home), display_name: "Fixture", realpath_verified: true };
   let reads = 0, pauseAt = -1, release!: () => void, enter!: () => void, allowed = true, enabled = true;
   let barrier = Promise.resolve();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
+  // No Home: a Host with one always starts the system Agent service, which provides the Git review backend this test registers itself.
+  const host = new MolisWorkLocalHost({ completeText: null,
     actionAvailability: (_caller, action) => !enabled && action.provider.plugin_id === "io.molis.work.files"
       ? { available: false, code: "actions.plugin_disabled", reason: "已停用" } : { available: true },
     workspacesFor: async () => { if (++reads === pauseAt) { enter(); await barrier; } return [workspace]; },

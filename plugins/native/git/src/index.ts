@@ -66,7 +66,6 @@ export {
   GIT_RESULT_OUTPUT_PORT,
   GIT_RUN_CHANGESET_INPUT_PORT,
   GIT_WORKSPACE_INPUT_PORT,
-  GIT_WORKSPACE_SOURCE,
   gitManifest,
 } from "./manifest.js";
 export {

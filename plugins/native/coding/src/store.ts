@@ -34,6 +34,9 @@ export interface CodingSessionRecord {
   updated_at: string;
 }
 
+/** Unfinished plan steps by who holds them: the person, subtasks, no one. */
+export interface CodingStepHolders { mine: number; subtasks: number; unowned: number }
+
 export interface CreateCodingSessionInput {
   board_id: string;
   session_id: string;
@@ -78,9 +81,16 @@ export function migrateCodingSessions(db: CodingSqliteDatabase): void {
   `);
   const columns = db.prepare("PRAGMA table_info(coding_sessions)").all() as Array<{ name: string }>;
   if (!columns.some(column => column.name === "archived")) db.exec("ALTER TABLE coding_sessions ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))");
+  // Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
+  if (!columns.some(column => column.name === "steps_json")) db.exec("ALTER TABLE coding_sessions ADD COLUMN steps_json TEXT");
+  // Background commands the session left running, as last read: lets the list across projects show and stop them.
+  if (!columns.some(column => column.name === "background_json")) db.exec("ALTER TABLE coding_sessions ADD COLUMN background_json TEXT");
 }
 
 type Row = Record<string, unknown>;
+
+/** A background command a session left running. */
+export interface CodingRunningCommand { task_id: string; summary: string; started_at_ms: number }
 
 function mapSession(row: Row): CodingSessionRecord {
   return {
@@ -160,11 +170,41 @@ export class CodingSessionStore {
     return mapSession(row);
   }
 
+  /** The session behind a runtime session, archived or not. */
+  byRuntimeSession(boardId: string, runtimeSessionId: string): CodingSessionRecord | null {
+    const row = this.db.prepare(
+      "SELECT * FROM coding_sessions WHERE board_id = ? AND runtime_session_id = ?",
+    ).get(boardId, runtimeSessionId) as Row | undefined;
+    return row ? mapSession(row) : null;
+  }
+
   /** Newest first, which is the order the directory shows. */
   list(boardId: string): CodingSessionRecord[] {
     return (this.db.prepare(
       "SELECT * FROM coding_sessions WHERE board_id = ? AND archived = 0 ORDER BY updated_at DESC, session_id",
     ).all(boardId) as Row[]).map(mapSession);
+  }
+
+  /** Record who holds the session's unfinished plan steps; null when none are open. Not a change to the session. */
+  setSteps(boardId: string, sessionId: string, steps: CodingStepHolders | null): void {
+    this.db.prepare("UPDATE coding_sessions SET steps_json = ? WHERE board_id = ? AND session_id = ?")
+      .run(steps ? JSON.stringify(steps) : null, boardId, sessionId);
+  }
+
+  /** Record the background commands the session has running; null when none. Not a change to the session. */
+  setBackground(boardId: string, sessionId: string, running: CodingRunningCommand[] | null): void {
+    this.db.prepare("UPDATE coding_sessions SET background_json = ? WHERE board_id = ? AND session_id = ?")
+      .run(running?.length ? JSON.stringify(running) : null, boardId, sessionId);
+  }
+
+  backgroundOf(boardId: string, sessionId: string): CodingRunningCommand[] | null {
+    const row = this.db.prepare("SELECT background_json FROM coding_sessions WHERE board_id = ? AND session_id = ?").get(boardId, sessionId) as Row | undefined;
+    return typeof row?.background_json === "string" ? JSON.parse(row.background_json) as CodingRunningCommand[] : null;
+  }
+
+  stepsOf(boardId: string, sessionId: string): CodingStepHolders | null {
+    const row = this.db.prepare("SELECT steps_json FROM coding_sessions WHERE board_id = ? AND session_id = ?").get(boardId, sessionId) as Row | undefined;
+    return typeof row?.steps_json === "string" ? JSON.parse(row.steps_json) as CodingStepHolders : null;
   }
 
   setState(boardId: string, sessionId: string, state: CodingSessionState, at: string): CodingSessionRecord {

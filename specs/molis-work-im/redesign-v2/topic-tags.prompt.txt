@@ -1,0 +1,64 @@
+Use case: ui-mockup.
+Create a fresh, exceptionally refined high-fidelity design for Molis Work, a project collaboration app. The user explicitly asks to START OVER and make public Threads into TAGS, with much less dashboard feeling. Do not inherit a directory/table-of-contents/dashboard layout. This should feel like a calm, human conversation beside real work, with an original and elegant composition.
+
+Output ONE complete desktop application screenshot, 1600×1000 landscape, ultra-sharp simplified Chinese, flat straight-on, no device mockup, no presentation board, no labels outside the UI. Illustrative design content. Finish must be credible for a carefully crafted native desktop app.
+
+PRODUCT INVARIANTS:
+True left/right split. Existing work actually shrinks to the LEFT ~64%; the RIGHT ~36% is project discussion. Never a floating popup over work, never full-screen chat. Bottom-right discussion entry. ONE project main group, everyone can see every Thread. Threads are compact TEXT TAGS that remain visible inside the discussion pane. Select a tag to participate in that Thread in the same pane; no new page. The main group is always represented by a tag '主群'. This screenshot shows '主群' selected. Do NOT show a vertical thread list, a two-column thread directory, tables, status counters or a dashboard.
+
+VISUAL IDEA:
+A lively but quiet working conversation, closer to an intentionally designed writing app than enterprise messaging. Elegance through human scale, asymmetrical message placement, breathing room and confident small typography. Neutral pearl-white, clean white and charcoal, only the tiniest subdued blue touch for a link or unread dot. NO green backgrounds, no cream/terracotta aesthetic, no neon, gradients or glass. No colored avatar rainbow. No excessive outlines or rows of dividing rules. Strongly legible dark text. Beautiful Chinese sans serif with 15px body and 12px metadata equivalent. Do not make every heading bold. Corners soft but precise; containers should not look like dashboard cards. An interesting, restrained information arrangement is the art.
+
+APP SHELL:
+A very slim neutral top bar with small 'Molis Work' wordmark, simple tab '发布说明' selected, and another '首页方案'. Minimal window controls. Bottom dock spans the complete window, 50px high: home/tool icons left, small centered '问 Assistant，或搜索' field, shelf, lightbulb, selected conversation icon and project monogram M right. Icons neutral, no long labels, no blue highlight pill. Outer desk is almost white. The two working areas meet at a discreet adjustable vertical divider; both remain full usable surfaces. No extra side navigation.
+
+LEFT — ACTUAL WORK, completely new content and composition:
+A clean reading/editing surface for a real document, not an admin dashboard, not a document showing a screenshot of another document. Editorial reading column with max-width around700px and pleasing asymmetric margins within the left pane. Small breadcrumb 'Molis / 产品' at top and quiet edit and comment icons.
+Small title-meta '发布说明 · 草稿'.
+Main document title '让工作，少一点来回。' around30px, restrained weight, two short introductory lines:
+'这一版，我们把讨论带回正在做的事情旁边。'
+'目标、方案与团队的判断，不再散落在不同页面。'
+A short small-author line '一骏 · 今天 10:18' in muted gray.
+Then substantial natural document content, not huge filler:
+Subhead '从一条消息，到一个明确的决定'
+Paragraph '日常交流留在主群。需要展开的问题，用一个话题接住。每个人都能看到讨论的来处，也能找到最后确认的结论。'
+Two clean offset editorial paragraphs with small marginal labels '讨论' and '结论':
+'把问题说清楚。' followed by '引用正在看的方案，让团队从同一份上下文开始。'
+'把判断留下来。' followed by '确认后的结论关联回原工作，下一位加入的人也能读懂。'
+At the bottom, a small pale-neutral selected sentence with text caret, showing active work: '我们希望你花更少的时间对齐，更多的时间把事情做好。'
+A small marginal comment mark '2' beside that sentence, not a card. A tiny footer '已保存' or '3 分钟前更新'.
+No numbered 01/02/03 dashboard list. No embedded homepage preview, task cards, metrics or charts. The work is visibly in progress and remains dominant.
+
+RIGHT — CONVERSATION SPACE:
+Single subtle project header at top, no stacked banners. Title 'Molis 团队' about18px, small subtitle '项目主群 · 12 位成员'. At right three tiny monochrome member initials and a discreet collapse icon. Comfortable padding24px. No huge “项目讨论” banner.
+Immediately below, a COMPACT FLEX-WRAPPED TAG RIBBON, at most 2–3 lines, about80px high total. Tags are natural width, lightly rounded soft capsules, unselected very pale neutral fills with dark readable text, no heavy borders, no counts, no status badges, no index headings:
+selected near-black tag '主群' with white text;
+light tags '# 首页结构', '# 周五发布', '# 搜索体验', '# 新成员', '# 通知';
+small '+' at end.
+One tiny muted dot on '# 周五发布' is the only unread marker. Tags have generous touchable spacing but are not big tiles, not equal width. No “公开话题 6” heading. Under tag ribbon a single small caption if needed '话题对所有项目成员可见'. The tag area is visually light and leaves most of the height for conversation.
+
+Chat feed begins immediately after a calm small centered day marker '今天'. Use a few human-scale messages with generous but not excessive space, creating an attractive irregular rhythm. Do NOT arrange all messages as rigid full-width enterprise rows. Incoming messages mostly text on white, authored with small neutral circular initials and names. The user's own reply is a short pale-gray rounded speech bubble aligned to the right, distinctly human. Not every message needs an enclosing bubble.
+
+林悦   10:24
+'新版首屏已经放好了。先看看第一眼能不能读懂。'
+Below a single unobtrusive attachment line with paperclip '首页方案 v3.fig' and small '2.4 MB'. Tiny reaction '👍 3', no pill frame.
+
+周然   10:26
+'目标先出现，讨论紧随其后。细节我们放在 #首页结构 里聊。'
+The inline '#首页结构' uses the same light tag vocabulary as the ribbon, visually tying main-group messages to public Threads. NO expanded thread card.
+
+One self message aligned right, pale neutral bubble, author time tucked nearby:
+'好，我先看整体。'
+Tiny time '10:27' below, no read receipt surveillance.
+
+许诺   10:29
+'@一骏 周五先开放给项目成员，可以吗？'
+Then a very small inline tag '#周五发布' matching the tag at top. No giant linked card, arrow box or extra panel.
+
+A brief final own reply '可以，具体范围在话题里确认。' if space fits, otherwise omit it to preserve readable spacing.
+There is NO AI summary banner, no statistic card, no file thumbnail grid, no online/typing simulation, no contact list and no private chats.
+
+COMPOSER:
+Bottom of right pane a compact inviting writing surface, soft near-white/neutral fill and subtle rounded12px outline only here. Top input placeholder '发到主群，或 @ 一位伙伴…'. Lower row two understated controls '+' and '@', a small project-reference icon, and a dark circular send arrow aligned right. Height around90px. Clear destination but no redundant second header. Minimal clutter. All messages and composer legible and fully contained in the right pane.
+
+Overall: a new, inviting, purposeful DESIGN, not the previous clinical index layout with cosmetic tag changes. Keep the topics as light natural-width labels, free the conversation from dashboard density, create artistic balance with the real writing surface on the left and human dialogue on the right. The final screenshot should feel effortless, calm and remarkably well composed.

@@ -1,91 +1,53 @@
-import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
-import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
-import type { ConfigureFeedSourceScheduleInput, UpdateFeedSourceInput } from "./source-ports.js";
 import type { SourceHistoryDecision } from "./projection.js";
-import { requireParam, requireProvider, sourceRegistrationInput } from "./route-input.js";
+import { requireParam, requireProvider } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
+import { feedSourceActions, type FeedSourceRegistration } from "./source-actions.js";
 
 export function createFeedSourceRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
-  const feed = () => options.feed();
-  const sources = () => options.sources();
   const connectors = () => options.connectors();
   const changed = () => options.changed();
   return {
-    "feed.sources.create": ({ request }) => {
-      const input = sourceRegistrationInput(request.body);
-      if (!input) return { status: 400, body: { error: "来源参数无效" } };
-      const result = sources().register(input);
+    // Source routes translate the old URLs; every caller manages sources through the same registered Feed actions.
+    "feed.sources.create": async ({ request }) => {
+      const fields = ["kind", "name", "repository", "research_source", "definition_id", "query", "channel_id", "feed_url"];
+      const result = await options.actions.invoke(feedSourceActions.register,
+        Object.fromEntries(fields.flatMap(key => typeof request.body[key] === "string" ? [[key, request.body[key]]] : [])) as FeedSourceRegistration);
       changed();
       return { status: result.registered ? 201 : 200, body: result };
     },
-    "feed.sources.update": ({ params, request }) => {
-      const input: UpdateFeedSourceInput = {
-        ...(typeof request.body.name === "string" ? { name: request.body.name } : {}),
-        ...(typeof request.body.description === "string" ? { description: request.body.description } : {}),
-        ...(typeof request.body.scope === "string" ? { scope: request.body.scope } : {}),
-        ...(typeof request.body.feed_url === "string" ? { feed_url: request.body.feed_url } : {}),
-        ...(typeof request.body.connection_id === "string" ? { connection_id: request.body.connection_id } : {}),
-      };
-      const source = sources().update(requireParam(params.source_id, "Feed 来源不存在"), input);
+    "feed.sources.update": async ({ params, request }) => {
+      const result = await options.actions.invoke(feedSourceActions.update, { source_id: requireParam(params.source_id, "Feed 来源不存在"),
+        ...Object.fromEntries(["name", "description", "scope", "feed_url", "connection_id"].flatMap(key => typeof request.body[key] === "string" ? [[key, request.body[key]]] : [])) });
       changed();
-      return { status: 200, body: { source } };
+      return { status: 200, body: result };
     },
-    "feed.sources.delete": ({ params, request }) => {
-      const sourceId = requireParam(params.source_id, "Feed 来源不存在");
+    "feed.sources.delete": async ({ params, request }) => {
       const historyDecision = request.body.history_decision as SourceHistoryDecision;
       if (historyDecision !== "retain_history" && historyDecision !== "delete_local_history") {
         return { status: 400, body: { error: "删除来源前必须选择保留或删除本地历史" } };
       }
-      const deleted = sources().delete(sourceId, historyDecision);
+      const result = await options.actions.invoke(feedSourceActions.delete, { source_id: requireParam(params.source_id, "Feed 来源不存在"), history_decision: historyDecision });
       changed();
-      return { status: 200, body: { source: deleted, history_decision: historyDecision } };
+      return { status: 200, body: result };
     },
-    "feed.sources.schedule": ({ params, request }) => {
-      const input: ConfigureFeedSourceScheduleInput | null = request.body.mode === "manual"
-        ? { mode: "manual" }
-        : request.body.mode === "interval"
-            && typeof request.body.enabled === "boolean"
-            && Number.isInteger(request.body.interval_minutes)
-          ? {
-              mode: "interval",
-              enabled: request.body.enabled,
-              interval_minutes: Number(request.body.interval_minutes),
-            }
-          : null;
-      if (!input) return { status: 400, body: { error: "拉取计划参数无效" } };
-      const source = sources().configureSchedule(requireParam(params.source_id, "Feed 来源不存在"), input);
+    "feed.sources.schedule": async ({ params, request }) => {
+      const valid = request.body.mode === "manual" || (request.body.mode === "interval" && typeof request.body.enabled === "boolean" && Number.isInteger(request.body.interval_minutes));
+      if (!valid) return { status: 400, body: { error: "拉取计划参数无效" } };
+      const result = await options.actions.invoke(feedSourceActions.schedule, request.body.mode === "manual"
+        ? { source_id: requireParam(params.source_id, "Feed 来源不存在"), mode: "manual" }
+        : { source_id: requireParam(params.source_id, "Feed 来源不存在"), mode: "interval", enabled: request.body.enabled as boolean, interval_minutes: Number(request.body.interval_minutes) });
       changed();
-      return { status: 200, body: { source } };
+      return { status: 200, body: result };
     },
     "feed.sources.action": async ({ params, request }) => {
       const sourceId = requireParam(params.source_id, "Feed 来源不存在");
       const action = requireParam(params.action, "来源动作不存在");
-      const current = feed().getSource(options.boardId, sourceId);
-      if (action === "pause" || action === "resume") {
-        const source = sources().setEnabled(sourceId, action === "resume");
-        changed();
-        return { status: 200, body: { source } };
-      }
-      if (action === "disconnect") {
-        if (!isAccountConnectorSyncKind(current.sync_kind)) {
-          throw new FeedDomainError("公开来源不需要断开账号；可以暂停或删除", "feed_source_invalid_state");
-        }
-        const source = sources().disconnect(sourceId);
-        changed();
-        return { status: 200, body: { source } };
-      }
-      const idempotencyKey = typeof request.body.idempotency_key === "string"
-        ? request.body.idempotency_key
-        : "";
-      const result = current.sync_kind === "public_source"
-        ? await sources().sync(sourceId, { idempotencyKey, signal: AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000) })
-        : isAccountConnectorSyncKind(current.sync_kind)
-          ? await connectors().sync(sourceId, {
-              idempotencyKey,
-              mode: request.body.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal",
-            })
-          : (() => { throw new FeedDomainError("这个来源没有同步能力", "feed_source_not_syncable"); })();
+      const result = action === "pause" || action === "resume" ? await options.actions.invoke(feedSourceActions.enabled, { source_id: sourceId, enabled: action === "resume" })
+        : action === "disconnect" ? await options.actions.invoke(feedSourceActions.disconnect, { source_id: sourceId })
+        : await options.actions.invoke(feedSourceActions.sync, { source_id: sourceId,
+          ...(typeof request.body.idempotency_key === "string" ? { idempotency_key: request.body.idempotency_key } : {}),
+          ...(request.body.mode === "rebuild_cursor" ? { mode: "rebuild_cursor" as const } : {}) });
       changed();
       return { status: 200, body: result };
     },

@@ -27,7 +27,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   assert.equal(added.status,200);
   await b.reloadPage();
   const openPlugin=async(id:string)=>{
-    if(width<760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');
+    if(width<760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)"))await click('[data-directory-show]');
     await click(`[data-plugin-id="${id}"]`);
     if(width<760 && await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
   };

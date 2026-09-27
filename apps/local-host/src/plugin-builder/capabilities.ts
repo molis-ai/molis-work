@@ -13,6 +13,21 @@ import { studioCapability, type StudioCapability } from '@molis-ai/molis-work-pl
 export interface CapabilityImplementations {
   /** A tool-less model call with the plugin's own instructions, on the model the person configured. */
   generate(pluginId: string, input: { instructions: string; input: string }, signal: AbortSignal): Promise<{ text: string }>;
+  /** The project's goals, reached through the Goals plugin's own actions as this plugin installation. */
+  goals?: {
+    list(identity: Readonly<SandboxIdentity>): Promise<Array<{ id: string; title: string; status: string }>>;
+    note(identity: Readonly<SandboxIdentity>, input: { goalId: string; text: string }): Promise<{ recorded: boolean }>;
+  };
+  /** Reminders the platform delivers to the person's Inbox; a plugin only sees its own. */
+  reminders?: {
+    add(identity: Readonly<SandboxIdentity>, input: { at: string; text: string; repeat?: 'none' | 'daily' | 'weekly' }): { reminderId: string } | Promise<{ reminderId: string }>;
+    cancel(identity: Readonly<SandboxIdentity>, input: { reminderId: string }): { cancelled: boolean } | Promise<{ cancelled: boolean }>;
+  };
+  /** Runs of the plugin's own operations at set times; only designs made against the catalog reach them. */
+  schedules?: {
+    add(identity: Readonly<SandboxIdentity>, input: { operation: string; at: string; repeat?: 'none' | 'daily' | 'weekly'; input?: SandboxJson; inbox?: boolean }): { scheduleId: string } | Promise<{ scheduleId: string }>;
+    cancel(identity: Readonly<SandboxIdentity>, input: { scheduleId: string }): { cancelled: boolean } | Promise<{ cancelled: boolean }>;
+  };
 }
 type CapabilityService = NonNullable<SandboxServices['capability']>;
 /** Real model calls one plugin identity may make per minute. */
@@ -35,13 +50,28 @@ export function hostCapabilities(implementations: CapabilityImplementations, liv
   return {
     async call(context, id, input) {
       const capability = known(id); assertMatches(capability.input, input);
-      if (!live(context.identity)) return capability.standIn(input);
-      const key = [context.identity.pluginId, context.identity.namespace, context.identity.installationId].join('|'), now = Date.now();
-      const recent = (windows.get(key) ?? []).filter(at => now - at < 60_000);
-      if (recent.length >= MODEL_CALLS_PER_MINUTE) throw new SandboxError('RATE_LIMITED', '这个插件一分钟内调用模型的次数太多，请稍后再试');
-      recent.push(now); windows.set(key, recent);
-      const request = input as { instructions: string; input: string };
-      const output = await implementations.generate(context.identity.pluginId, { instructions: request.instructions, input: request.input }, context.signal) as unknown as SandboxJson;
+      // A capability that writes outside the plugin only writes for the installed plugin; a trial gets the stand-in.
+      if (!live(context.identity) || capability.writes && context.identity.namespace !== 'installed') return capability.standIn(input);
+      let output: SandboxJson;
+      if (id === 'model.generate') {
+        const key = [context.identity.pluginId, context.identity.namespace, context.identity.installationId].join('|'), now = Date.now();
+        const recent = (windows.get(key) ?? []).filter(at => now - at < 60_000);
+        if (recent.length >= MODEL_CALLS_PER_MINUTE) throw new SandboxError('RATE_LIMITED', '这个插件一分钟内调用模型的次数太多，请稍后再试');
+        recent.push(now); windows.set(key, recent);
+        const request = input as { instructions: string; input: string };
+        output = await implementations.generate(context.identity.pluginId, { instructions: request.instructions, input: request.input }, context.signal) as unknown as SandboxJson;
+      } else if (id.startsWith('reminders.')) {
+        const reminders = implementations.reminders;
+        if (!reminders) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这个项目还不能设置提醒');
+        try {
+          output = (id === 'reminders.add' ? await reminders.add(context.identity, input as { at: string; text: string; repeat?: 'none' | 'daily' | 'weekly' })
+            : await reminders.cancel(context.identity, input as { reminderId: string })) as unknown as SandboxJson;
+        } catch (error) { throw new SandboxError('CAPABILITY_REFUSED', error instanceof Error ? error.message : String(error)); }
+      } else {
+        const goals = implementations.goals;
+        if (!goals) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这个项目还不能提供目标能力');
+        output = (id === 'goals.list' ? await goals.list(context.identity) : await goals.note(context.identity, input as { goalId: string; text: string })) as unknown as SandboxJson;
+      }
       assertMatches(capability.output, output);
       return output;
     },

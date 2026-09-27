@@ -12,7 +12,6 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=jelly]')");
   if (await evaluate("document.body.dataset.desktopSurface") !== "jelly") {
-    if (width === 390) await click('.workspace-chrome [data-directory-show]');
     await click('[data-plugin-strip] [data-plugin-id=jelly]');
   }
   await waitFor("document.body.dataset.desktopSurface === 'jelly' && document.querySelector('[data-jelly-period-title]').textContent.length > 0");
@@ -49,7 +48,6 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   assert.notEqual(read().items[0]!.id, read().items[1]!.id);
   await reloadPage(); await waitFor("document.querySelector('[data-plugin-id=jelly]')");
   if (await evaluate("document.body.dataset.desktopSurface") !== "jelly") {
-    if (width === 390) await click('.workspace-chrome [data-directory-show]');
     await click('[data-plugin-strip] [data-plugin-id=jelly]');
   }
   await waitFor("document.querySelector('[data-jelly-period-title]').textContent.length > 0");

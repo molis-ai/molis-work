@@ -434,9 +434,12 @@ test("Agent suggestions respect subject contracts and exclude other scenes", () 
 test("Feed and Inbox declare scenes without naming the Functions plugin implementation", () => {
   assert.equal(feedManifest.action_scenes?.[0]?.scene_id, FEED_CAPTURE_SCENE_ID);
   assert.ok(!feedManifest.requires?.some((row) => row.capability_id === "functions.evaluate"));
-  assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "save"));
-  assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "promote"));
-  assert.ok(feedManifest.behaviors?.some((row) => row.behavior_id === "archive"));
+  // Saving, promoting and ignoring are real registered actions offered for a Feed item, not a separate behavior list.
+  const offered = feedManifest.actions?.find((row) => row.capability_id === "feed.items.offers")?.action.subject_offer_choices ?? [];
+  for (const [offer, capability] of [["feed.save", "feed.items.disposition"], ["feed.promote", "feed.items.promote"], ["feed.archive", "feed.items.disposition"]]) {
+    assert.equal(offered.find((row) => row.offer_id === offer)?.action.capability_id, capability);
+    assert.ok(feedManifest.actions?.some((row) => row.capability_id === capability));
+  }
   assert.equal(inboxManifest.action_scenes?.[0]?.scene_id, "inbox.next");
   assert.equal(inboxManifest.function_scenes, undefined);
   assert.equal(inboxManifest.plugin_id.includes("functions"), false);

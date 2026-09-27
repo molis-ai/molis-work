@@ -15,7 +15,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false},sessionId);
     await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
     await navigate(()=>command('Page.navigate',{url:prefix+'/'},sessionId));
-    const directory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-show]');};
+    const directory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)"))await click('[data-directory-show]');};
     const plugin=async(id:string)=>{await directory();await click(`[data-plugin-id=${id}]`);};
     const fill=async(selector:string,text:string)=>{await click(selector);await command('Input.insertText',{text},sessionId);};
     const capture=async(name:string)=>{const dir='.impeccable/review/journeys-v13';await mkdir(dir,{recursive:true});const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(shot.data,'base64'));};

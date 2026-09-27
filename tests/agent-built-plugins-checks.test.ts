@@ -109,3 +109,57 @@ test('cancellation stops gate work and never publishes a successful bundle', mac
   const timer = setTimeout(() => controller.abort(new Error('test cancelled')), 50);
   try { const result = await runPluginChecks({ ...f.options, signal: controller.signal }); assert.equal(result.passed, false); assert.equal(result.bundlePath, undefined); assert.ok(result.gates.some(g => /cancel|abort/i.test(g.detail)), JSON.stringify(result.gates)); } finally { clearTimeout(timer); await f.close(); }
 });
+
+test('with a settled directory, another operation being written at the same time cannot fail this check, and the bundle holds only passing sources', mac, async () => {
+  const f = await fixture(), settled = f.root + '.settled';
+  try {
+    // "later" is half-written by another code agent: it does not even type-check.
+    await writeFile(f.project.operationFiles.later!, `export default async function(input: number): Promise<string> { return input +`);
+    assert.equal((await runPluginChecks(f.options)).gates.find(g => g.id === 'G2')?.passed, false, 'without isolation the sibling breaks this check');
+    const result = await runPluginChecks({ ...f.options, settled });
+    assert.equal(result.passed, true, JSON.stringify(result.gates));
+    assert.match(await readFile(join(settled, 'src/operations/0.ts'), 'utf8'), /toUpperCase/, 'what passed is settled');
+    const bundle = await readFile(result.bundlePath!, 'utf8');
+    assert.match(bundle, /toUpperCase/); assert.match(bundle, /Implement later/, 'the unfinished sibling is its stub, not the half-written file');
+    // Once "later" passes, the next bundle has both, whichever check writes it.
+    await writeFile(f.project.operationFiles.later!, `import type {SandboxJson,SandboxSdk} from '@molis/plugin-sdk'; export default async function(_input:SandboxJson,_sdk:SandboxSdk):Promise<SandboxJson>{return null}`);
+    await writeFile(f.project.testFiles.later!, `import type {SandboxTest} from '@molis/plugin-sdk';export const tests:SandboxTest[]=[async(_sdk,call,assert)=>{assert.same(await call(null),null)}];`);
+    const later = await runPluginChecks({ ...f.options, operationIds: ['later'], settled }); assert.equal(later.passed, true, JSON.stringify(later.gates));
+    const both = await readFile(result.bundlePath!, 'utf8');
+    assert.match(both, /toUpperCase/); assert.doesNotMatch(both, /Implement later/);
+  } finally { await f.close(); await rm(settled, { recursive: true, force: true }); }
+});
+
+test('an installed plugin runs one of its operations by id only for the platform scheduler; people reach operations through its parts', mac, async () => {
+  const { sandboxedPluginDefinition, SCHEDULED_RUN_ACTOR } = await import('../apps/local-host/src/plugin-builder/installed.js');
+  const f = await fixture();
+  try {
+    const checked = await runPluginChecks(f.options); assert.equal(checked.passed, true, JSON.stringify(checked.gates));
+    const values = new Map<string, string>();
+    const storage = { get: (key: string) => values.get(key) ?? null, set: (key: string, value: string) => { values.set(key, value); }, delete: (key: string) => values.delete(key),
+      compareAndSet: (key: string, expected: string | null, value: string) => { if ((values.get(key) ?? null) !== expected) return false; values.set(key, value); return true; } };
+    const release = { buildId: 'b', pluginId: f.options.contract.pluginId, version: 1, design: { title: '回声', contract: f.options.contract, parts: [], acceptance: [] }, nodes: [],
+      manifest: f.options.manifest, directory: f.root, bundlePath: checked.bundlePath!, packagePath: f.root, permissions: {}, publishedAt: '' } as never;
+    const definition = sandboxedPluginDefinition(release, {}, []);
+    const running = await definition.start({ requireGrant() {}, services: { storage }, board_id: 'p', install_id: 'install-1' } as never) as { routes: Array<{ handle(request: unknown): Promise<{ status: number; body: unknown }> }> };
+    const call = (actor: string) => running.routes[0]!.handle({ method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: actor, body: { operation: 'echo', input: 'hi' } });
+    assert.deepEqual(await call('web-user'), { status: 400, body: { error: '未知的组件操作' } }, 'a page cannot call an operation directly');
+    assert.deepEqual(await call(SCHEDULED_RUN_ACTOR), { status: 200, body: { value: 'HI' } });
+    await definition.stop?.();
+  } finally { await f.close(); }
+});
+
+test('an operation that declares a site or a capability must actually reach it: a hard-coded answer fails G4', mac, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'plugin-checks-reach-'));
+  try {
+    const c = contract(); c.operations[0]!.effects = { networkDomains: ['api.example.com'] };
+    const manifest = buildManifest(c), project = await createBuildProject(root, c, manifest, []);
+    await writeFile(project.testFiles.echo!, `import type {SandboxTest} from '@molis/plugin-sdk';export const tests:SandboxTest[]=[async(_sdk,call,assert)=>{assert.same(await call('test'),'TEST')}];`);
+    const options: BuildCheckOptions = { root, contract: c, manifest, operationIds: ['echo'], services: {}, identity: { projectId: 'project', installationId: 'check', pluginId: c.pluginId, namespace: 'preview' }, grants: manifest.effects };
+    await writeFile(project.operationFiles.echo!, `import type {SandboxJson,SandboxSdk} from '@molis/plugin-sdk'; export default async function(input:SandboxJson,_sdk:SandboxSdk):Promise<SandboxJson>{return String(input).toUpperCase()}`);
+    const faked = await runPluginChecks(options);
+    assert.equal(faked.gates.find(g => g.id === 'G4')?.passed, false); assert.match(faked.gates.find(g => g.id === 'G4')!.detail, /never calls sdk\.network\.request/);
+    await writeFile(project.operationFiles.echo!, `import type {SandboxJson,SandboxSdk} from '@molis/plugin-sdk'; export default async function(input:SandboxJson,sdk:SandboxSdk):Promise<SandboxJson>{if(input==='live'){await sdk.network.request({url:'https://api.example.com/x'})}return String(input).toUpperCase()}`);
+    assert.equal((await runPluginChecks(options)).gates.find(g => g.id === 'G4')?.passed, true);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

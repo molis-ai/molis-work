@@ -16,7 +16,8 @@ const sources = { enum: ["notion", "feishu", "lark", "google-docs"] };
 const read = ["artifacts:read"], write = [...read, "artifacts:write"];
 const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", ARTIFACT_SUBJECT_KIND, "固定版本成果", read);
 const subject: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = { ...subjectDefinition,
-  action: { ...subjectDefinition.action, audiences: ["user", "agent", "workflow", "mcp"] } };
+  // Plugins read Artifacts through their own SDK with its consumption contracts, never through the subject reader.
+  action: { ...subjectDefinition.action, audiences: ["user", "agent", "workflow", "mcp"], plugin: false } };
 export interface ArtifactFileImport { source: "file"; filename: string; content: string; title?: string;
   source_id?: string; original_file?: { filename: string; mime: string; data_base64: string } }
 export interface ArtifactExternalImport { source: ExternalDocumentSource; url: string; connection_id?: string }

@@ -1,3 +1,4 @@
+import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
 import { ARTIFACT_ACTIONS } from "./actions.js";
@@ -22,7 +23,7 @@ export const artifactsManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [],
+  permissions: actionPermissionDeclarations(ARTIFACT_ACTIONS, "按调用者授权浏览、导入和引用成果"),
   capabilities: { provides: [], consumes: [] },
   actions: ARTIFACT_ACTIONS,
   artifacts: {

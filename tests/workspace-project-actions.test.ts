@@ -168,6 +168,9 @@ test("folder membership and the browsing choice are project settings: they work 
     assert.equal((await (await call("/api/project-settings/workspaces", "GET")).json() as { selected: string | null }).selected, workspace.workspace_id);
     const unknown = await call("/api/workspaces/workspace-unknown/unlink", "POST", { user_confirmed: true });
     assert.equal(unknown.status, 404);
+    // The capability library lists them for the person who may run them, like any other action.
+    const library = await (await fetch(`${origin}/capabilities/library?project=${encodeURIComponent(project.project_id)}`)).text();
+    for (const title of ["关联工作目录", "修复工作目录路径", "解除工作目录", "选择浏览工作区"]) assert.ok(library.includes(title), `${title} is in the library`);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

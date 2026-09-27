@@ -11,6 +11,7 @@ import { actionEffect } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { MODEL_STAND_IN_PREFIX, studioCapability } from '@molis-ai/molis-work-plugin-builder';
+import { isMcpToolCapability } from '../mcp-tool-actions.js';
 import type { CapabilityImplementations } from './capabilities.js';
 
 /** Designs made against this catalog call real actions with their real schemas; older designs keep the studio's own list. */
@@ -87,8 +88,9 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
     // answers its own installation, say) stands: the board does not offer what would fail when called.
     const code = view.availability.available === false ? view.availability.code : undefined, disabled = code === 'actions.plugin_disabled';
     const refused = code !== undefined && !disabled, isOffered = reachable && !refused;
-    // External MCP servers' tools are registered under the plugin that holds their configuration; on the board they are MCP.
-    const source = view.provider.kind === 'mcp' || view.capability_id.startsWith('mcp.external.') ? { kind: 'mcp' as const, title: view.provider.title }
+    // MCP tools are registered under whoever holds their configuration (the Coding plugin, or 服务连接 as a system
+    // provider); on the board they are MCP.
+    const source = view.provider.kind === 'mcp' || isMcpToolCapability(view.capability_id) ? { kind: 'mcp' as const, title: view.provider.title }
       : view.provider.kind === 'system' ? { kind: 'platform' as const, title: view.provider.title }
       : { kind: 'plugin' as const, title: view.provider.title, ...(view.provider.plugin_id ? { plugin_id: view.provider.plugin_id } : {}) };
     return { id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, title: view.action.title, description: view.action.description,

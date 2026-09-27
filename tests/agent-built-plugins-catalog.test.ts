@@ -38,6 +38,19 @@ test('the capability board is the project\'s action directory: platform, install
   assert.equal((await capabilityCatalog(actions, 'web-user')).some(entry => entry.id === 'model.generate'), false, 'withdrawn with the studio');
 });
 
+test('MCP tools show as MCP on the board whether a plugin or 服务连接 registered them', async () => {
+  const { actions } = project();
+  const tool = (capability_id: string): ActionDefinition => ({ capability_id, version: 1, operation: 'command',
+    action: { title: 'echo', description: 'echo', kind: 'operation', scope: 'project', audiences: ['user', 'agent', 'plugin'], permissions: [], subject_kinds: [], input_schema: schema } });
+  const handle = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: 1, handle: () => ({}) });
+  const external = tool('mcp.external.docs.echo'), connection = tool('mcp.connector.c1.echo');
+  actions.registry.registerProvider({ provider: { provider_id: 'coding', title: 'Coding', kind: 'plugin', plugin_id: 'coding', project_id: 'p' }, definitions: [external], handlers: [handle(external)] });
+  actions.registry.registerProvider({ provider: { provider_id: 'system.connectors#mcp:c1', title: '工作 Notion', kind: 'system' }, definitions: [connection], handlers: [handle(connection)] });
+  const catalog = await capabilityCatalog(actions, 'web-user');
+  assert.deepEqual(catalog.find(entry => entry.id === 'mcp.external.docs.echo')!.source, { kind: 'mcp', title: 'Coding' });
+  assert.deepEqual(catalog.find(entry => entry.id === 'mcp.connector.c1.echo')!.source, { kind: 'mcp', title: '工作 Notion' }, 'not "platform"');
+});
+
 test('a plugin calls real actions as itself, only when live; writes stay stand-ins until it is installed; costly calls are bounded', async () => {
   const { actions, calls, generated } = project();
   let live = true;

@@ -1,6 +1,7 @@
 import { PrivateWorkContextError as MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { WorkSessionHttpContext } from "./types.js";
-import { publicSessionRecord } from "./public-records.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workActions } from "../actions.js";
 
 /** Workspace membership stays with Projects; Work owns the confirmed Session launch and recovery UI flow. */
 export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Promise<boolean> {
@@ -137,19 +138,12 @@ export async function handleWorkspaceHttp(context: WorkSessionHttpContext): Prom
       return true;
     }
     try {
-      const session = await (await context.resourcesPromise).directory.create({
-        runtime_id: runtimeId,
-        actor_id: "web-user",
-        user_confirmed: true,
-        project_id: options.project.project_id,
-        current_goal_id: currentGoalId,
-        workspace_id: current.id,
-        workspace_path: current.path,
-        title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : null,
-      });
-      context.respond(201, { session: publicSessionRecord(session) });
+      // Launching in a workspace is the same registered session creation, with the folder this page checked.
+      if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
+      context.respond(201, await context.actions.invoke(workActions.create, { runtime_id: runtimeId, action: "create", current_goal_id: currentGoalId,
+        workspace_id: current.id, workspace_path: current.path, title: typeof body.title === "string" && body.title.trim() ? body.title.trim() : null }));
     } catch (error) {
-      context.respond(error instanceof MolisWorkSessionError ? 400 : 503, {
+      context.respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }

@@ -146,6 +146,6 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 
 内容型插件通过 SDK `defineWorkflowContentActions` / `bindWorkflowContentHandlers` 注册内容列表、读取、接收及可选空白创建。角色、输入输出及语义版本来自规范合同；Host 不再维护工作流 SUPPORTED / BLANK_START 或按插件 ID 分发。存量 Feed、Inbox、Pages、灵光已经接入，插件实现位于各自 `content-actions.ts`。
 
-平铺输入的命令（`audiences` 含 `workflow`）可直接作为流程的「动作步骤」，字段由用户映射；保存了能力引用的插件用 SDK `defineActionUsagesAction` 上报使用位置，能力库「已用在哪」与 `actions.usages.read` 按合同类型发现，Host 不维护名单。
+平铺输入的命令（`audiences` 含 `workflow`）可直接作为流程的「动作步骤」，字段由用户映射，编辑器显示字段的 schema `title`，请写上用户看得懂的标题；保存了能力引用的插件用 SDK `defineActionUsagesAction` 上报使用位置，能力库「已用在哪」与 `actions.usages.read` 按合同类型发现，Host 不维护名单。
 
 配置引用会固定提供方和动作版本；停用或升级不改写旧引用。普通 Runtime 插件只需 Manifest actions 与 start 返回 handlers，工作流目录即可发现。Native 仍由组合根注入数据 owner，不能把其业务实现放回工作流 HTTP。通用 schema 步骤映射仍未完成，不把该内容协议解释为所有能力都已可连线。

@@ -32,7 +32,9 @@ export const codingExecutionRules: readonly PolicyRule[] = [
 export function createPrologueTaskBoards(runtime: Runtime, original: (run: AgentRunRef) => Promise<PrologueStepBinding | undefined>,
   steer?: (run: AgentRunRef, text: string) => Promise<boolean>,
   /** The project's work graph a session may read (never report on): what other sessions are doing. */
-  projectBoard?: (session: string) => Promise<string | undefined>) {
+  projectBoard?: (session: string) => Promise<string | undefined>,
+  /** Whether a session has a round running now: a claim held by one that has not, and gone quiet, is marked expired. */
+  alive?: (session: string) => boolean) {
   const hook = "molis-confirmed-plan-scope";
   /** The round a call works for: the run's own, or for a subtask the round that dispatched it. */
   const roundOf = async (at: AgentRunRef): Promise<PrologueStepBinding | undefined> => {
@@ -60,6 +62,14 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       if (shared && (context.input as { board?: unknown } | undefined)?.board === shared) return { kind: "allow" };
     }
     if (!["board-read", "board-report"].includes(context.toolName) || !context.origin?.session || !context.origin.run) return denied;
+    // Steps another session handed to this one: read and reported on where they are, and nothing else on that graph.
+    const asked = context.input as { board?: unknown; node?: unknown } | undefined;
+    if (typeof asked?.board === "string") {
+      let other: ReturnType<typeof runtime.boards.get> | undefined;
+      try { other = runtime.boards.get({ kind: "task-board", id: asked.board, revision: 1 } as ExactRef<"task-board">); } catch { other = undefined; }
+      const mine = (node: { assignee?: { kind: string; id: string } | undefined }) => node.assignee?.kind === "session" && node.assignee.id === context.origin!.session;
+      if (other && (asked.node === undefined ? context.toolName === "board-read" && other.nodes.some(mine) : other.nodes.some(node => node.id === asked.node && mine(node)))) return { kind: "allow" };
+    }
     const attempt = await roundOf({ session_id: context.origin.session, run_id: context.origin.run });
     const args = context.input as { board?: unknown; node?: unknown } | undefined;
     if (!attempt?.step_board || !attempt.frozen.execution_plan || args?.board !== attempt.step_board.id) return denied;
@@ -84,7 +94,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     round.timer ??= setTimeout(() => {
       round.timer = undefined;
       const board = runtime.boards.get(round.ref);
-      const lines = [...round.nodes].flatMap(id => { const found = board.nodes.find(one => one.id === id); return found ? [stepLine(runtime, found, round.plan, round.run.session_id)] : []; });
+      const lines = [...round.nodes].flatMap(id => { const found = board.nodes.find(one => one.id === id); return found ? [stepLine(runtime, found, round.plan, round.run.session_id, alive)] : []; });
       round.nodes.clear();
       if (!lines.length) return;
       void steer(round.run, `任务图有更新（第 ${board.version} 版，不是你自己报的）：\n${lines.join("\n")}\n需要时先 board-read 取最新版本再继续。`)
@@ -108,14 +118,14 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
      * changes between rounds, and a model reads what comes last as current.
      */
     digest(board: SdkBoard, plan: AgentExecutionPlan, session: string) {
-      return summary(runtime, board, plan, session);
+      return summary(runtime, board, plan, session, alive);
     },
     /** An earlier round's graph, for a round without a plan of its own: read-only context, and nothing when it has ended. */
     standing(ref: ExactRef<"task-board">, plan: AgentExecutionPlan, session: string) {
       let board: SdkBoard;
       try { board = runtime.boards.get(ref); } catch { return ""; }
       if (board.terminal) return "";
-      return "本会话还有一张没结束的任务图。这一轮没有任务图工具，不能读取或回报它；要接着执行计划，请用户点「继续计划」。\n" + summary(runtime, board, plan, session);
+      return "本会话还有一张没结束的任务图。这一轮没有任务图工具，不能读取或回报它；要接着执行计划，请用户点「继续计划」。\n" + summary(runtime, board, plan, session, alive);
     },
     /** The unfinished graph of an earlier round in the same session, for a round that continues it. */
     async resume(run: AgentRunRef) {
@@ -137,7 +147,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       const attempt = await original(run);
       if (!attempt?.frozen.execution_plan) return undefined;
       if (!attempt.step_board) throw new Error("原计划没有可读取的任务图");
-      return shape(runtime, runtime.boards.get(attempt.step_board), attempt.frozen.execution_plan, run.session_id);
+      return shape(runtime, runtime.boards.get(attempt.step_board), attempt.frozen.execution_plan, run.session_id, alive);
     },
     /**
      * A person's change to the running graph, made only with SDK board operations: skipped and inserted steps,
@@ -234,7 +244,7 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
           break;
         }
       }
-      return shape(runtime, board, plan, run.session_id);
+      return shape(runtime, board, plan, run.session_id, alive);
     },
     close() { runtime.hooks.unregister(hook); unsubscribe(); for (const id of [...following.keys()]) stopFollowing(id); },
   };
@@ -277,6 +287,22 @@ function ownerOf(runtime: Runtime, assignee: Assignee, session: string): AgentSt
   return { kind: "other", label: "另一个角色" };
 }
 
+/** A claim held this long without a word, by a session with no round running, has expired (the person's decision). */
+export const CLAIM_EXPIRES_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * The holder, marked expired when it is a session with no round running that has not moved the step for a while.
+ * Nothing is taken back: the person, or the session that handed it out, reassigns it.
+ */
+function claimOf(runtime: Runtime, node: TaskNode, session: string, alive?: (session: string) => boolean, nowMs = Date.now()): AgentStepOwner {
+  const owner = ownerOf(runtime, node.assignee, session);
+  if (!alive || node.assignee?.kind !== "session" || !["session", "other"].includes(owner.kind) || ["succeeded", "failed", "cancelled"].includes(node.state)) return owner;
+  const last = node.reports.at(-1)?.atMs;
+  if (last === undefined || alive(node.assignee.id) || nowMs - last < CLAIM_EXPIRES_MS) return owner;
+  const hours = Math.floor((nowMs - last) / 3_600_000);
+  return { ...owner, label: `${owner.label}（认领已过期，${hours} 小时没有动静）`, expired: true };
+}
+
 const STATE_WORDS: Record<TaskNode["state"], string> = { "not-started": "等前置", ready: "可开始", running: "进行中", succeeded: "已完成", failed: "失败", cancelled: "已跳过", blocked: "受阻" };
 
 function reportBy(runtime: Runtime, report: Report, session: string): string | undefined {
@@ -296,29 +322,29 @@ function reportNote(runtime: Runtime, report: Report, session: string): string {
 }
 
 /** One step in a line: what it is, where it stands, who holds it, and the latest word on it. */
-function stepLine(runtime: Runtime, node: TaskNode, plan: AgentExecutionPlan, session: string): string {
-  const last = node.reports.at(-1), owner = ownerOf(runtime, node.assignee, session);
+function stepLine(runtime: Runtime, node: TaskNode, plan: AgentExecutionPlan, session: string, alive?: (session: string) => boolean): string {
+  const last = node.reports.at(-1), owner = claimOf(runtime, node, session, alive);
   const latest = last ? `；最近：${reportBy(runtime, last, session) ? reportBy(runtime, last, session) + "：" : ""}${reportNote(runtime, last, session).slice(0, 120)}` : "";
   return `- ${node.id}「${title(node, plan).slice(0, 60)}」${STATE_WORDS[node.state]}（${node.state}），负责：${owner.label}${latest}`;
 }
 
 /** The graph at a glance, as a round starts: every step with its holder, and the ones no one holds. */
-function summary(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, session: string): string {
+function summary(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, session: string, alive?: (session: string) => boolean): string {
   const nodes = executionOrder(board, plan), open = nodes.filter(node => !node.assignee && !["succeeded", "failed", "cancelled"].includes(node.state));
   // Read by the Host as the round starts, so it is newer than anything said earlier in the conversation: a person may
   // have reassigned, skipped or finished steps in between.
   return [`任务图现状（第 ${board.version} 版，宿主在这一轮开始时读取）。它比之前对话里提到的任务图状态更新：用户可能在两轮之间改派、跳过或完成了步骤。被问到谁在做哪一步、哪一步是什么状态时，以这里为准：`,
-    ...nodes.map(node => stepLine(runtime, node, plan, session)),
+    ...nodes.map(node => stepLine(runtime, node, plan, session, alive)),
     ...(open.length ? [`没人认领：${open.map(node => node.id).join("、")}`] : [])].join("\n");
 }
 
-function shape(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, session: string): AgentStepBoard {
+function shape(runtime: Runtime, board: SdkBoard, plan: AgentExecutionPlan, session: string, alive?: (session: string) => boolean): AgentStepBoard {
   const missing = plan.steps.find(step => !board.nodes.some(node => node.id === step.id));
   if (missing || board.nodes.some(node => !plan.steps.some(step => step.id === node.id) && !node.id.startsWith("user-"))) throw new Error("原步骤图与确认计划不一致");
   return { board_id: board.ref.id, version: board.version, terminal: board.terminal,
     nodes: executionOrder(board, plan).map(node => ({ id: node.id, state: node.state,
       reports: node.reports.map(report => { const by = reportBy(runtime, report, session);
         return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}) }; }),
-      owner: ownerOf(runtime, node.assignee, session),
+      owner: claimOf(runtime, node, session, alive),
       title: title(node, plan), depends_on: [...node.dependsOn], ...(node.id.startsWith("user-") ? { inserted: true } : {}) })) };
 }

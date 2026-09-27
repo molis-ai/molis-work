@@ -253,6 +253,13 @@ export function registerAgentHostCapabilities<Context>(
       if (!adapter.messages) return [];
       return adapter.messages.read(ports.boardId(context), sessionId);
     }),
+    register(agentHostCapabilities.prioritizeSession, async (context, [runtimeId, sessionId]) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(runtimeId);
+      if (!adapter.messages?.prioritize) throw new AgentHostError("agent.capability_unavailable", "当前运行时不能标记优先");
+      await context.invocation.beforeEffect();
+      return adapter.messages.prioritize(ports.boardId(context), sessionId, caller?.actor_id ?? "user");
+    }),
     register(agentHostCapabilities.cancelMessage, async (context, [runtimeId, messageId]) => {
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);

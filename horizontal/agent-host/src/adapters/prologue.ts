@@ -167,6 +167,7 @@ export interface PrologueRuntimePort {
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
+  holdsSteps?(sessionId: string): Promise<boolean>;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
@@ -272,6 +273,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  holdsSteps?: (session: AgentSessionRef) => Promise<boolean>;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
@@ -294,6 +296,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.messages) this.messages = options.runtime.messages;
     if (options.runtime.waits) this.waits = options.runtime.waits;
+    if (options.runtime.holdsSteps) { const holds = options.runtime.holdsSteps; this.holdsSteps = session => holds(session.session_id); }
     if (options.runtime.background) this.background = options.runtime.background;
     if (options.runtime.subagents) this.subagents = {
       ...(options.runtime.subagents.workspaces ? { workspaces: true as const } : {}),

@@ -1028,7 +1028,7 @@ index 00000000..38d03592
 +  });
 +}
 diff --git a/packages/sdk/src/composition/core/runtime.ts b/packages/sdk/src/composition/core/runtime.ts
-index 8e1690f1..53e90b66 100644
+index 8e1690f1..cfdbfd32 100644
 --- a/packages/sdk/src/composition/core/runtime.ts
 +++ b/packages/sdk/src/composition/core/runtime.ts
 @@ -1,3 +1,8 @@
@@ -1219,7 +1219,7 @@ index 8e1690f1..53e90b66 100644
      resources,
      usage,
      selectAdapter: imageAdapters,
-@@ -2431,11 +2491,81 @@ export async function createRuntime(
+@@ -2431,11 +2491,82 @@ export async function createRuntime(
  
    const delivery = createDeliveryBox({
      newId: domainId,
@@ -1271,7 +1271,8 @@ index 8e1690f1..53e90b66 100644
 +      node: (board, node) => {
 +        try {
 +          const found = boards.get(mintRef("task-board", board)).nodes.find((one) => one.id === node);
-+          return found === undefined ? undefined : { state: found.state, title: found.title };
++          return found === undefined ? undefined : { state: found.state, title: found.title,
++            ...(found.assignee?.kind === "session" ? { holder: found.assignee.id } : {}) };
 +        } catch {
 +          return undefined;
 +        }
@@ -1301,7 +1302,7 @@ index 8e1690f1..53e90b66 100644
    const characters = createCharacterRegistry({
      // **内置目录 App 可以整份关掉**——不强制产品人格。
      includeBuiltIns: runtimeConfig.character.includeBuiltIns,
-@@ -2625,6 +2755,10 @@ export async function createRuntime(
+@@ -2625,6 +2756,10 @@ export async function createRuntime(
        resources.assertUsableAs(binding.ref, binding.as),
      track: (run: Run, origin: { readonly session: string; readonly startedAtMs: number }) => {
        live.add(run);
@@ -1312,7 +1313,7 @@ index 8e1690f1..53e90b66 100644
        if (isTerminalRunState(run.state)) {
          return;
        }
-@@ -2652,6 +2786,12 @@ export async function createRuntime(
+@@ -2652,6 +2787,12 @@ export async function createRuntime(
    await goals.hydrate();
    await artifacts.hydrate();
    await boards.hydrate();
@@ -1325,7 +1326,7 @@ index 8e1690f1..53e90b66 100644
    /*
     * **队列也读回来。** 不读的话，「重启恢复队列」就只是一句注释——
     * 排在盘上的那几条会安静地永远不跑，而 App 那边显示它们还排着。
-@@ -2711,6 +2851,83 @@ export async function createRuntime(
+@@ -2711,6 +2852,83 @@ export async function createRuntime(
      return out;
    };
  
@@ -1409,7 +1410,7 @@ index 8e1690f1..53e90b66 100644
    const runtime: Runtime = {
      get identity() {
        return identity;
-@@ -2790,6 +3007,14 @@ export async function createRuntime(
+@@ -2790,6 +3008,14 @@ export async function createRuntime(
        return delivery;
      },
  
@@ -1424,7 +1425,7 @@ index 8e1690f1..53e90b66 100644
      get characters() {
        return characters;
      },
-@@ -3376,6 +3601,7 @@ export async function createRuntime(
+@@ -3376,6 +3602,7 @@ export async function createRuntime(
        assertReady(state);
        return surfaces;
      },
@@ -1432,7 +1433,7 @@ index 8e1690f1..53e90b66 100644
      get images() {
        assertReady(state);
        return images;
-@@ -3488,82 +3714,7 @@ export async function createRuntime(
+@@ -3488,82 +3715,7 @@ export async function createRuntime(
          callMcpTool,
        });
      },
@@ -1516,7 +1517,7 @@ index 8e1690f1..53e90b66 100644
      async connectMcp({ ref, transport, signal }): Promise<McpSnapshot> {
        assertReady(state);
        if (mcpShutdown.signal.aborted) {
-@@ -3846,9 +3997,28 @@ export async function createRuntime(
+@@ -3846,9 +3998,28 @@ export async function createRuntime(
       * 只剩「谁把什么接给了它」。
       */
      sessions: sessionSurface({
@@ -1548,7 +1549,7 @@ index 8e1690f1..53e90b66 100644
  
        assertReady: () => assertReady(state),
        report,
-@@ -3893,6 +4063,8 @@ export async function createRuntime(
+@@ -3893,6 +4064,8 @@ export async function createRuntime(
      async startAgentRun({
        session,
        rootRef,
@@ -1557,7 +1558,7 @@ index 8e1690f1..53e90b66 100644
        start,
        agent,
        runTool,
-@@ -3903,6 +4075,24 @@ export async function createRuntime(
+@@ -3903,6 +4076,24 @@ export async function createRuntime(
      }) {
        assertReady(state);
        assertAssembled(assembled, "agent", "Running an Agent");
@@ -1582,7 +1583,7 @@ index 8e1690f1..53e90b66 100644
        if (recoveringSessions.has(session.ref.id)) throw createPrologueError("EFFECT_RECONCILE_REQUIRED", "This session is being recovered; start a new run only after recovery finishes.");
        if (history !== undefined && history !== "session") {
          throw createPrologueError(
-@@ -3937,7 +4127,7 @@ export async function createRuntime(
+@@ -3937,7 +4128,7 @@ export async function createRuntime(
        assertSlotReady(assembly, "agent-loop", "Running an Agent");
        assertSlotReady(assembly, "context-pack", "Running an Agent");
        assertSlotReady(assembly, "model-protocol", "Running an Agent");
@@ -1591,7 +1592,7 @@ index 8e1690f1..53e90b66 100644
        /*
         * 显式摘要器可以填补未装配的默认槽，不能绕过明确关掉的槽。
         */
-@@ -3969,6 +4159,9 @@ export async function createRuntime(
+@@ -3969,6 +4160,9 @@ export async function createRuntime(
         * 改那张表碰不到已经开跑的这一个。
         */
        const installed = freezeSessionPackBinding(sessionPacks.get(session.ref.id));
@@ -1601,7 +1602,7 @@ index 8e1690f1..53e90b66 100644
        /*
         * 包的配置作为**一层**进来，在 App 显式之下、模块默认之上。
         *
-@@ -4045,18 +4238,24 @@ export async function createRuntime(
+@@ -4045,18 +4239,24 @@ export async function createRuntime(
         * 必须在第一次 catalog 之前同步取完——中间若夹了 await，目录
         * 和定义就可能来自两份不同的表。
         */
@@ -1629,7 +1630,7 @@ index 8e1690f1..53e90b66 100644
          posture,
          assembled,
          defaultMaxTurns: config.agent.maxTurns,
-@@ -4101,6 +4300,13 @@ export async function createRuntime(
+@@ -4101,6 +4301,13 @@ export async function createRuntime(
            : { subagentWorkspaces: subagentWorkspaceFact(frozenWorkspaces) }),
        });
  
@@ -1643,7 +1644,7 @@ index 8e1690f1..53e90b66 100644
        // freezeStart 已在第一次 await 前复制并冻结引用；历史读取失败仍不消耗幂等键。
        const historyMessages =
          history === "session" ? historyFromTurns((await session.conversation()).turns) : undefined;
-@@ -4157,14 +4363,18 @@ export async function createRuntime(
+@@ -4157,14 +4364,18 @@ export async function createRuntime(
         * 被记成父深度 + 1。并发名额仍是 Runtime 那一份。
         */
        const lineageDepth = subagentLineage.get(session.ref.id) ?? 0;
@@ -1665,7 +1666,7 @@ index 8e1690f1..53e90b66 100644
  
        /**
         * 二点五、Character。
-@@ -4191,6 +4401,8 @@ export async function createRuntime(
+@@ -4191,6 +4402,8 @@ export async function createRuntime(
            .filter((one) => isToolAllowed(frozen, one.name))
            .map((one) => one.name),
        ];
@@ -1674,7 +1675,7 @@ index 8e1690f1..53e90b66 100644
        /**
         * 这一次由哪个角色干活。
         *
-@@ -4257,7 +4469,7 @@ export async function createRuntime(
+@@ -4257,7 +4470,7 @@ export async function createRuntime(
            systemTools,
            catalogTools: visibleCatalog(),
            frozen,
@@ -1683,7 +1684,7 @@ index 8e1690f1..53e90b66 100644
          });
          return {
            all,
-@@ -4360,7 +4572,7 @@ export async function createRuntime(
+@@ -4360,7 +4573,7 @@ export async function createRuntime(
         * 还要再过一次本轮名单：开跑时点了 `skillNames`，目录里也只能
         * 有那几条，否则模型看得见却调不动。
         */
@@ -1692,7 +1693,7 @@ index 8e1690f1..53e90b66 100644
          ? skillSnapshot
              .catalog({ capabilities: available, forAutoSelection: true })
              .entries.filter(
-@@ -4394,8 +4606,12 @@ export async function createRuntime(
+@@ -4394,8 +4607,12 @@ export async function createRuntime(
         */
        const packFor = async (who: FrozenCharacter) => {
          const assembled = await packContext({
@@ -1707,7 +1708,7 @@ index 8e1690f1..53e90b66 100644
            persona: await gatherPersona({
              character: who,
              readChunk: (ref, offset) => resources.readChunk(ref, offset),
-@@ -4408,10 +4624,7 @@ export async function createRuntime(
+@@ -4408,10 +4625,7 @@ export async function createRuntime(
            // 改的，读口按它解析）和这一次运行自己给的那一段。分层拼接要
            // 跟着**实际生效的那个**——只看其中一个的话，模型看到的规矩会
            // 和它实际能读到的文件对不上。
@@ -1719,7 +1720,7 @@ index 8e1690f1..53e90b66 100644
            // 钩子改写过的那一份。没改就是原来那一份。
            // 显式续聊只把本轮新用户任务送进 `messages`；历史走 conversation，
            // 按原角色和数据来源入模，不经过 source:user 那条扁平路径，
-@@ -4553,6 +4766,7 @@ export async function createRuntime(
+@@ -4553,6 +4767,7 @@ export async function createRuntime(
                // 隐形档案，凭空写个名字等于替 App 认了一个角色。
                ...(isDefaultExecutor(character) ? {} : { character: character.ref.id }),
              },
@@ -1727,7 +1728,7 @@ index 8e1690f1..53e90b66 100644
        );
        /*
         * 报过的不再报。**按这一次 Run 记**——一次新的 Run 该重新看见
-@@ -4591,8 +4805,9 @@ export async function createRuntime(
+@@ -4591,8 +4806,9 @@ export async function createRuntime(
          }
          return undefined;
        };
@@ -1739,7 +1740,7 @@ index 8e1690f1..53e90b66 100644
            subagents: runSubagents,
            registry: subagentRegistry,
            parentRun: () => {
-@@ -4658,7 +4873,14 @@ export async function createRuntime(
+@@ -4658,7 +4874,14 @@ export async function createRuntime(
            ...(heldCompactor === undefined ? {} : { compactor: heldCompactor }),
            compactAboveTokens,
            windowTokens,
@@ -1754,7 +1755,7 @@ index 8e1690f1..53e90b66 100644
        /**
         * 内置那份：系统工具闭集里那些，各归各的主人。
         *
-@@ -4667,7 +4889,9 @@ export async function createRuntime(
+@@ -4667,7 +4890,9 @@ export async function createRuntime(
         * 没法被引用。
         */
        const runSignal: { current: AbortSignal | undefined } = { current: undefined };
@@ -1765,7 +1766,7 @@ index 8e1690f1..53e90b66 100644
            ...sharedSystemToolDeps({
              rootRef,
              ignore: assembledContext.ignore,
-@@ -4677,6 +4901,16 @@ export async function createRuntime(
+@@ -4677,6 +4902,16 @@ export async function createRuntime(
               * 就是没有人——凭空写个名字等于替 App 认了一个角色。
               */
              by: () => (isDefaultExecutor(character) ? undefined : character.ref),
@@ -1782,10 +1783,11 @@ index 8e1690f1..53e90b66 100644
              // 板的上界用**这一次**那份：包配得动它。
              boardLimits: config.orchestration.board,
              mcpConnections: frozen.mcpConnections,
-@@ -4685,6 +4919,35 @@ export async function createRuntime(
+@@ -4685,6 +4920,36 @@ export async function createRuntime(
            limits: frozen.limits,
            todo,
            evidence,
++          session: () => session.ref,
 +          background: {
 +            outlive: runtimeConfig.background.outliveRun,
 +            admit: () => { background.admit(session.ref); },
@@ -1818,7 +1820,7 @@ index 8e1690f1..53e90b66 100644
            async onCommandReceipt(callId, record) {
              const bytes = new TextEncoder().encode(JSON.stringify(record));
              const stage = resources.stage({ mediaKind: "json", byteLength: bytes.byteLength, label: "command-receipt" });
-@@ -5011,9 +5274,10 @@ export async function createRuntime(
+@@ -5011,9 +5276,10 @@ export async function createRuntime(
         * 闭集里那三样有主人的名字轮不到它们答。内置提问者同样：丢掉
         * `asksUser` 会把普通提问重新变成一笔虚构 Effect。
         */
@@ -1830,7 +1832,7 @@ index 8e1690f1..53e90b66 100644
          if (runTool !== undefined) {
            return runTool(callInput);
          }
-@@ -5051,7 +5315,7 @@ export async function createRuntime(
+@@ -5051,7 +5317,7 @@ export async function createRuntime(
  
        const packed = {
          ...start,
@@ -1839,7 +1841,7 @@ index 8e1690f1..53e90b66 100644
          // 未选续聊时仍把整包装进账，保持原来的独立起跑记账。
          // 显式续聊只记本轮新用户任务——历史已经在上一本账里，再记就成两份。
          messages:
-@@ -5107,7 +5371,7 @@ export async function createRuntime(
+@@ -5107,7 +5373,7 @@ export async function createRuntime(
            if (!runAbort.signal.aborted) {
              runAbort.abort();
            }
@@ -1848,7 +1850,7 @@ index 8e1690f1..53e90b66 100644
          });
          /*
           * 这一轮交给谁跑。**选择在这里冻住**，之后这一轮就认它。
-@@ -5214,6 +5478,7 @@ export async function createRuntime(
+@@ -5214,6 +5480,7 @@ export async function createRuntime(
                  });
                },
                skills: () => {
@@ -1856,7 +1858,7 @@ index 8e1690f1..53e90b66 100644
                  const seen = new Set(remindedSkills);
                  const fresh = skillSnapshot
                    .catalog({ capabilities: [] })
-@@ -5243,7 +5508,13 @@ export async function createRuntime(
+@@ -5243,7 +5510,13 @@ export async function createRuntime(
                  for (const one of fresh) {
                    remindedSubagents.add(one.ref.id);
                  }
@@ -1871,7 +1873,7 @@ index 8e1690f1..53e90b66 100644
                },
              },
            },
-@@ -5316,6 +5587,7 @@ export async function createRuntime(
+@@ -5316,6 +5589,7 @@ export async function createRuntime(
         */
        run.subscribe((event) => {
          if (isTerminalEventType(event.type)) {
@@ -1879,7 +1881,7 @@ index 8e1690f1..53e90b66 100644
            liveRuns.delete(run.ref.id);
            todo.finish();
            /*
-@@ -5347,7 +5619,7 @@ export async function createRuntime(
+@@ -5347,7 +5621,7 @@ export async function createRuntime(
             * 最常见的一种就是 Runtime 已经关了——那时 Host 那边本来
             * 就把所有子进程一起收了。
             */
@@ -1888,7 +1890,7 @@ index 8e1690f1..53e90b66 100644
          }
        });
        /*
-@@ -5377,6 +5649,10 @@ export async function createRuntime(
+@@ -5377,6 +5651,10 @@ export async function createRuntime(
      },
  
      async shutdown(): Promise<ShutdownReceipt> {
@@ -1899,7 +1901,7 @@ index 8e1690f1..53e90b66 100644
        await effects.pendings.endLiveWaits();
        /*
         * **心跳第一个停。**
-@@ -5446,6 +5722,8 @@ export async function createRuntime(
+@@ -5446,6 +5724,8 @@ export async function createRuntime(
         */
        await Promise.resolve();
        await subagentRegistry.flush();
@@ -1999,7 +2001,7 @@ index 5784a7d7..1a8bee4d 100644
    });
  }
 diff --git a/packages/sdk/src/composition/core/surfaces.ts b/packages/sdk/src/composition/core/surfaces.ts
-index 6b13b77a..1fb06682 100644
+index 6b13b77a..f79dfd97 100644
 --- a/packages/sdk/src/composition/core/surfaces.ts
 +++ b/packages/sdk/src/composition/core/surfaces.ts
 @@ -12,17 +12,20 @@
@@ -2063,7 +2065,7 @@ index 6b13b77a..1fb06682 100644
        characters.resolve(ref);
      }
    };
-@@ -299,6 +313,10 @@ export function taskBoardSurface(deps: {
+@@ -299,6 +313,28 @@ export function taskBoardSurface(deps: {
          nodeId: input.node,
          dependsOn: input.dependsOn,
        }),
@@ -2071,10 +2073,28 @@ index 6b13b77a..1fb06682 100644
 +      if (assignee.kind === "session" && assignee.id === deps.session?.()?.id) return "you (this session)";
 +      return deps.name?.(assignee) ?? (assignee.kind === "character" ? assignee.id : describeAssignee(assignee));
 +    },
++    handOver: async (input) => {
++      const session = deps.session?.();
++      if (session === undefined) {
++        throw createPrologueError("TOOL_UNAVAILABLE", "Only a run in a session can hand its steps to another session.");
++      }
++      const ref = at(input.board);
++      const held = boards.get(ref);
++      return boards.handOver({
++        ref,
++        expectedVersion: held.version,
++        nodeId: input.node,
++        from: session,
++        to: mintRef("session", input.to),
++        note: input.note,
++        atMs: await deps.now(),
++        limits,
++      });
++    },
      reassign: async (input) => {
        known(input.assignee);
        return boards.reassign({
-@@ -316,6 +334,10 @@ export function taskBoardSurface(deps: {
+@@ -316,6 +352,10 @@ export function taskBoardSurface(deps: {
          // **谁报的由这一层填**，不收模型给的名字：那样任何一跑都能
          // 冒充任何角色，而「只报得了自己名下的」就是一句空话。
          by: by(),
@@ -2085,7 +2105,7 @@ index 6b13b77a..1fb06682 100644
          note: input.note,
          atMs: await deps.now(),
          ...(input.state === undefined ? {} : { to: input.state }),
-@@ -324,6 +346,24 @@ export function taskBoardSurface(deps: {
+@@ -324,6 +364,24 @@ export function taskBoardSurface(deps: {
    };
  }
  
@@ -2110,7 +2130,7 @@ index 6b13b77a..1fb06682 100644
  /**
   * 派一个子任务。
   *
-@@ -394,6 +434,14 @@ export function subagentDispatcher(deps: {
+@@ -394,6 +452,14 @@ export function subagentDispatcher(deps: {
    readonly compactAboveTokens: number;
    /** 父亲这一跑冻住的窗口。 */
    readonly windowTokens: number;
@@ -2125,7 +2145,7 @@ index 6b13b77a..1fb06682 100644
  }): NonNullable<
    Parameters<typeof createSystemToolRunner>[0]["dispatchSubagent"]
  > {
-@@ -408,6 +456,51 @@ export function subagentDispatcher(deps: {
+@@ -408,6 +474,51 @@ export function subagentDispatcher(deps: {
      session,
      start,
    } = deps;
@@ -2177,7 +2197,7 @@ index 6b13b77a..1fb06682 100644
    return async (request, deferResult) => {
      assertNoImplicitInheritance(request);
      const childKey = request.idempotencyKey;
-@@ -442,13 +535,70 @@ export function subagentDispatcher(deps: {
+@@ -442,13 +553,70 @@ export function subagentDispatcher(deps: {
        deps.assertParentMayDispatch?.();
        subagents.assertCanDispatch();
      }
@@ -2251,7 +2271,7 @@ index 6b13b77a..1fb06682 100644
          network: {
            model: frozen.network.model === true,
            web: frozen.network.web === true,
-@@ -533,6 +683,44 @@ export function subagentDispatcher(deps: {
+@@ -533,6 +701,44 @@ export function subagentDispatcher(deps: {
          if (deps.durable || deps.onStarted !== undefined) {
            deps.holdChildStart?.(child.ref.id);
          }
@@ -2296,7 +2316,7 @@ index 6b13b77a..1fb06682 100644
          /**
           * 子循环。**同一个 `startAgentRun`**——同一套 Session / Run /
           * Effect / 事件账。它是调度，不是第二套执行核。
-@@ -548,7 +736,12 @@ export function subagentDispatcher(deps: {
+@@ -548,7 +754,12 @@ export function subagentDispatcher(deps: {
            rootRef: childRootRef,
            start: {
              ...start,
@@ -2310,7 +2330,7 @@ index 6b13b77a..1fb06682 100644
              /*
               * **子任务有自己的预算。** 不给的话它花的是父亲那一
               * 本，于是「一个跑飞的孩子」和「父亲自己跑飞」在账上
-@@ -574,6 +767,7 @@ export function subagentDispatcher(deps: {
+@@ -574,6 +785,7 @@ export function subagentDispatcher(deps: {
              idempotencyKey: `${frozen.idempotencyKey}.${request.idempotencyKey}`,
              mode: frozen.limits.mode,
              toolNames: effective.tools,
@@ -2318,7 +2338,7 @@ index 6b13b77a..1fb06682 100644
              /*
               * 点名了角色就让它按那份档案干活：角色说明进**它自己**的
               * 提示，工具在下面这份求交结果之内再收一次。
-@@ -633,8 +827,7 @@ export function subagentDispatcher(deps: {
+@@ -633,8 +845,7 @@ export function subagentDispatcher(deps: {
              deps.notifyParentUncertain?.();
              deps.registry.notifyUncertainAncestors(session.ref.id);
            }
@@ -2328,7 +2348,7 @@ index 6b13b77a..1fb06682 100644
                {
                  sessionRef: child.ref,
                  state,
-@@ -650,8 +843,23 @@ export function subagentDispatcher(deps: {
+@@ -650,8 +861,23 @@ export function subagentDispatcher(deps: {
                  ...(error === undefined ? {} : { error }),
                },
                config.orchestration.maxReportSummaryChars,
@@ -2355,7 +2375,7 @@ index 6b13b77a..1fb06682 100644
  
          if (deps.parentCancelled?.() === true) {
 diff --git a/packages/sdk/src/composition/core/system-tools.ts b/packages/sdk/src/composition/core/system-tools.ts
-index 11201b1e..d41d8c25 100644
+index 11201b1e..afcccce8 100644
 --- a/packages/sdk/src/composition/core/system-tools.ts
 +++ b/packages/sdk/src/composition/core/system-tools.ts
 @@ -7,7 +7,7 @@ import {
@@ -2423,7 +2443,19 @@ index 11201b1e..d41d8c25 100644
    /** 报一条进展，可以顺带改状态。**只报得了自己名下的。** */
    report(input: {
      readonly board: string;
-@@ -283,6 +297,20 @@ function nodeState(value: string, reporting: boolean): NodeState {
+@@ -237,6 +251,11 @@ export interface TaskBoardSurface {
+     readonly note: string;
+     readonly state: NodeState | undefined;
+   }): Promise<TaskBoard>;
++  /**
++   * Hand a step this session holds to another session: it takes the step on as it is (state and reports stay), and
++   * the handover is recorded on the step. Only a run in a session can; only a step it holds and has not finished.
++   */
++  handOver?(input: { readonly board: string; readonly node: string; readonly to: string; readonly note: string }): Promise<TaskBoard>;
+ }
+ 
+ /**
+@@ -283,6 +302,20 @@ function nodeState(value: string, reporting: boolean): NodeState {
    );
  }
  
@@ -2444,7 +2476,7 @@ index 11201b1e..d41d8c25 100644
  /**
   * 一个节点讲给模型听。
   *
-@@ -290,11 +318,30 @@ function nodeState(value: string, reporting: boolean): NodeState {
+@@ -290,11 +323,30 @@ function nodeState(value: string, reporting: boolean): NodeState {
   * 把两百个节点的进展全念出来会把上下文撑满，而**读的一方自己决定要
   * 多少**：想看就点名读那一个。
   */
@@ -2477,7 +2509,7 @@ index 11201b1e..d41d8c25 100644
      node.dependsOn.length < 1 ? undefined : `waits on ${node.dependsOn.join(", ")}`,
    ]
      .filter((one): one is string => one !== undefined)
-@@ -307,9 +354,7 @@ function describeNode(node: TaskNode, detailed: boolean): string {
+@@ -307,9 +359,7 @@ function describeNode(node: TaskNode, detailed: boolean): string {
    }
    return [
      head,
@@ -2488,7 +2520,7 @@ index 11201b1e..d41d8c25 100644
    ].join("\n");
  }
  
-@@ -346,6 +391,11 @@ export function createSystemToolRunner(input: {
+@@ -346,6 +396,11 @@ export function createSystemToolRunner(input: {
     * 那时没有「这一次声称做了什么」可核。
     */
    readonly evidence?: EvidenceLedger;
@@ -2500,10 +2532,12 @@ index 11201b1e..d41d8c25 100644
    /** Persist actual command facts before yielding the tool result. */
    readonly onCommandReceipt?: (callId: string, record: import("../../workspace/core/index.js").WorkspaceCommandRecord) => Promise<void>;
    /**
-@@ -416,6 +466,28 @@ export function createSystemToolRunner(input: {
+@@ -416,6 +471,30 @@ export function createSystemToolRunner(input: {
      readonly version: string;
      readonly abort?: ToolAbort;
    }) => Promise<string>;
++  /** The session this run works in, where one does: what it holds on a task board is "its own". */
++  readonly session?: () => ExactRef<"session"> | undefined;
 +  /**
 +   * The session's background commands: this run's, earlier runs', and its parent's. Not given: a command belongs to
 +   * the run that started it and nothing else knows it, as before.
@@ -2529,7 +2563,7 @@ index 11201b1e..d41d8c25 100644
    /** 等已经派出去的那几个，或者跟其中一个说话。 */
    readonly subagents?: {
      readReport?(ref: string, offset: number): Promise<{ readonly text: string; readonly offset: number; readonly total: number; readonly nextOffset: number | null; readonly state: string }>;
-@@ -599,6 +671,21 @@ export function createSystemToolRunner(input: {
+@@ -599,6 +678,21 @@ export function createSystemToolRunner(input: {
  
    // 忽略规则跟着这一次的装配走——**读也要拦**，不只是列表过滤。
    const reader = input.workspace.reader(input.rootRef, input.ignore);
@@ -2551,7 +2585,7 @@ index 11201b1e..d41d8c25 100644
  
    const text = (value: unknown, field: string): string => {
      if (typeof value !== "string" || value.length < 1) {
-@@ -669,7 +756,7 @@ export function createSystemToolRunner(input: {
+@@ -669,7 +763,7 @@ export function createSystemToolRunner(input: {
    }): Promise<string> => {
      switch (registration.name) {
        case "list": {
@@ -2560,7 +2594,7 @@ index 11201b1e..d41d8c25 100644
          // 被忽略的默认看不见。它们在磁盘上还在，只是不进默认集合。
          const visible = listed.entries.filter((entry) => input.ignore.isVisible(entry.path));
          return visible.length < 1
-@@ -677,14 +764,19 @@ export function createSystemToolRunner(input: {
+@@ -677,14 +771,19 @@ export function createSystemToolRunner(input: {
            : visible.map((entry) => `${entry.kind}\t${entry.path}`).join("\n");
        }
        case "search": {
@@ -2584,7 +2618,7 @@ index 11201b1e..d41d8c25 100644
        }
        case "read": {
          const path = text(args.path, "path");
-@@ -693,7 +785,15 @@ export function createSystemToolRunner(input: {
+@@ -693,7 +792,15 @@ export function createSystemToolRunner(input: {
          if (hidden !== undefined) {
            throw createPrologueError("ROOT_PATH_PROTECTED", `"${path}" is not in the default set: ${hidden}.`);
          }
@@ -2601,7 +2635,7 @@ index 11201b1e..d41d8c25 100644
        }
  
        case "write": {
-@@ -712,7 +812,8 @@ export function createSystemToolRunner(input: {
+@@ -712,7 +819,8 @@ export function createSystemToolRunner(input: {
        case "edit": {
          const path = text(args.path, "path");
          const find = text(args.find, "find");
@@ -2611,7 +2645,7 @@ index 11201b1e..d41d8c25 100644
          if (!current.includes(find)) {
            throw createPrologueError("TOOL_ARGUMENTS_INVALID", "That exact text is not in the file.");
          }
-@@ -842,13 +943,16 @@ export function createSystemToolRunner(input: {
+@@ -842,13 +950,16 @@ export function createSystemToolRunner(input: {
            started.set(opened.sessionId, "interactive");
            return `started interactive session ${opened.sessionId}; send input with command-input, read with command-output`;
          }
@@ -2631,7 +2665,7 @@ index 11201b1e..d41d8c25 100644
          const cursor = typeof args["cursor"] === "number" ? args["cursor"] : undefined;
          const out =
            kind === "interactive"
-@@ -886,7 +990,12 @@ export function createSystemToolRunner(input: {
+@@ -886,7 +997,12 @@ export function createSystemToolRunner(input: {
        }
        case "command-stop": {
          const handle = text(args["handle"], "handle");
@@ -2645,7 +2679,7 @@ index 11201b1e..d41d8c25 100644
          /*
           * 两种各用各的那一下。
           *
-@@ -1065,6 +1174,7 @@ export function createSystemToolRunner(input: {
+@@ -1065,6 +1181,7 @@ export function createSystemToolRunner(input: {
            ...(typeof args.maxToolCalls === "number" ? { maxToolCalls: args.maxToolCalls } : {}),
            ...(typeof args.maxTurns === "number" ? { maxTurns: args.maxTurns } : {}),
            ...(typeof args.workspace === "string" ? { workspace: args.workspace } : {}),
@@ -2653,7 +2687,7 @@ index 11201b1e..d41d8c25 100644
          }, afterDispatch !== undefined);
          /*
           * 说得出这活是谁干的。**派了三个角色出去就得分得清**——只说
-@@ -1134,6 +1244,48 @@ export function createSystemToolRunner(input: {
+@@ -1134,6 +1251,48 @@ export function createSystemToolRunner(input: {
            .join("\n");
        }
  
@@ -2702,26 +2736,76 @@ index 11201b1e..d41d8c25 100644
        case "steer-subagent": {
          if (input.subagents === undefined) {
            throw createPrologueError(
-@@ -1276,9 +1428,17 @@ export function createSystemToolRunner(input: {
+@@ -1271,14 +1430,66 @@ export function createSystemToolRunner(input: {
+             return `session ${id}`;
+           }
+           case "session-send": {
++            // A handover may name steps of a plan this session holds: they are checked before anything is sent.
++            const handing = args.kind === "handoff" && Array.isArray(args.steps) ? (args.steps as unknown[]).map(String) : [];
++            const handBoard = handing.length > 0 ? text(args.board, "board") : undefined;
++            if (handBoard !== undefined) {
++              if (input.board?.handOver === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "This run has no task board to hand steps from.");
++              const me = input.session?.();
++              for (const step of handing) {
++                const [node] = (await input.board.read({ board: handBoard, node: step, state: undefined, limit: undefined, cursor: undefined })).nodes;
++                if (node === undefined || node.assignee?.kind !== "session" || node.assignee.id !== me?.id || ["succeeded", "failed", "cancelled"].includes(node.state)) {
++                  throw createPrologueError("TOOL_ARGUMENTS_INVALID", `Step "${step}" is not an unfinished step of yours on board ${handBoard}; only those can be handed over. Nothing was sent.`);
++                }
++              }
++            }
++            const handedNote = handBoard === undefined ? "" : `\n\nSteps handed over to you on task board ${handBoard}: ${handing.join(", ")}. They are yours now: report on them with board-report.`;
++            // A notice to several sessions: one envelope each, under the same fan-out bound as any other sending.
++            if (Array.isArray(args.recipients)) {
++              if (args.to !== undefined) throw createPrologueError("TOOL_ARGUMENTS_INVALID", 'Give either "to" or "recipients", not both.');
++              if (args.kind !== "notice") throw createPrologueError("TOOL_ARGUMENTS_INVALID", 'Only a notice goes to several sessions at once; send a request to one session with "to".');
++              const recipients = [...new Set((args.recipients as unknown[]).map(String))];
++              if (recipients.length < 1) throw createPrologueError("TOOL_ARGUMENTS_INVALID", '"recipients" names at least one session.');
++              const sent: string[] = [];
++              for (const [index, one] of recipients.entries()) {
++                const each = await orchestration.send({ to: one, kind: "notice", body: text(args.body, "body"), idempotencyKey: `${text(args.idempotencyKey, "idempotencyKey")}.${String(index)}` });
++                sent.push(`envelope ${each.id} to ${one} is ${each.state}`);
++              }
++              return sent.join("\n");
++            }
+             const receipt = await orchestration.send({
+               to: text(args.to, "to"),
                kind: text(args.kind, "kind"),
-               body: text(args.body, "body"),
+-              body: text(args.body, "body"),
++              body: text(args.body, "body") + handedNote,
                idempotencyKey: text(args.idempotencyKey, "idempotencyKey"),
 +              ...(typeof args.inReplyTo === "string" ? { inReplyTo: args.inReplyTo } : {}),
 +              ...(args.wait === true ? { awaitReply: true } : {}),
              });
 +            // Waiting for the answer parks this session on it: it is resumed when the answer comes, not asked to look.
++            // The envelope is sent either way; a wait that would close a circle is refused, and the model is told why.
++            let circle: string | undefined;
 +            if (args.wait === true && input.waits?.canPark === true) {
-+              await input.waits.park([{ kind: "envelope", envelope: receipt.id }], `the answer to envelope ${receipt.id}: ${text(args.body, "body").slice(0, 300)}`);
++              try {
++                await input.waits.park([{ kind: "envelope", envelope: receipt.id }], `the answer to envelope ${receipt.id}: ${text(args.body, "body").slice(0, 300)}`);
++              } catch (error) {
++                if ((error as { code?: unknown }).code !== "WAIT_CYCLE") throw error;
++                circle = (error as { message?: string }).message ?? "it is already waiting on this session";
++              }
++            }
++            // The steps change hands once the handover is sent; the handover is on each step's record.
++            const handed: string[] = [];
++            if (handBoard !== undefined && input.board?.handOver !== undefined) {
++              for (const step of handing) {
++                await input.board.handOver({ board: handBoard, node: step, to: text(args.to, "to"), note: `handed over with envelope ${receipt.id}` });
++                handed.push(step);
++              }
 +            }
              // **送达不是接受。** 回执如实说现在到哪一步。
 -            return `envelope ${receipt.id} is ${receipt.state}`;
-+            return `envelope ${receipt.id} is ${receipt.state}` + (args.wait === true
++            return `envelope ${receipt.id} is ${receipt.state}` + (handed.length > 0 ? `; steps ${handed.join(", ")} are now held by session ${text(args.to, "to")}` : "") + (circle !== undefined
++              ? `; it was sent, but you cannot wait for its answer: ${circle}`
++              : args.wait === true
 +              ? "; you asked to wait for the answer: say what you are waiting for and end this turn, without doing what depends on it"
 +              : "");
            }
            case "session-wait": {
              const held = await orchestration.waitOn(text(args.envelope, "envelope"));
-@@ -1374,7 +1534,9 @@ export function createSystemToolRunner(input: {
+@@ -1374,7 +1585,9 @@ export function createSystemToolRunner(input: {
              if (held.nodes.length < 1) {
                return [head, "(no steps match)"].join("\n");
              }
@@ -2732,7 +2816,7 @@ index 11201b1e..d41d8c25 100644
              return [
                head,
                ...lines,
-@@ -1872,12 +2034,13 @@ export function createSystemToolRunner(input: {
+@@ -1872,12 +2085,13 @@ export function createSystemToolRunner(input: {
  function startedKind(
    started: ReadonlyMap<string, "background" | "interactive">,
    handle: string,
@@ -3845,7 +3929,7 @@ index 3d395680..69f73d98 100644
 +
 +export type { AgentRunGrants } from "./composition/api/index.js";
 diff --git a/packages/sdk/src/kernel/core/error.ts b/packages/sdk/src/kernel/core/error.ts
-index baf61a66..586ff258 100644
+index baf61a66..bf4e3187 100644
 --- a/packages/sdk/src/kernel/core/error.ts
 +++ b/packages/sdk/src/kernel/core/error.ts
 @@ -26,6 +26,12 @@ export type PrologueErrorCode =
@@ -3861,16 +3945,18 @@ index baf61a66..586ff258 100644
    | "MODEL_STRUCTURED_INVALID"
    /** 这份 schema 用了这个构建核不动的关键字。**当场失败**，不是「先跑起来，核不动的那几条就算过」。 */
    | "MODEL_STRUCTURED_UNSUPPORTED"
-@@ -384,6 +390,8 @@ export type PrologueErrorCode =
+@@ -384,6 +390,10 @@ export type PrologueErrorCode =
    | "CONTEXT_SOURCE_MISSING"
    | "TOOL_OBSERVATION_LATE"
    | "TOOL_PARALLEL_LIMIT"
 +  /** A session already runs as many background commands as it may. */
 +  | "BACKGROUND_LIMIT"
++  /** Parking would make sessions wait on each other in a circle. */
++  | "WAIT_CYCLE"
    | "TOOL_ARGUMENTS_INVALID"
    | "TOOL_TIMEOUT"
    | "TOOL_UNAVAILABLE"
-@@ -394,6 +402,8 @@ export interface PrologueError extends Error {
+@@ -394,6 +404,8 @@ export interface PrologueError extends Error {
    readonly name: "PrologueError";
    readonly code: PrologueErrorCode;
    readonly safeMessage: string;
@@ -3879,7 +3965,7 @@ index baf61a66..586ff258 100644
  }
  
  const CODES: ReadonlySet<string> = new Set([
-@@ -418,6 +428,7 @@ const CODES: ReadonlySet<string> = new Set([
+@@ -418,6 +430,7 @@ const CODES: ReadonlySet<string> = new Set([
    "MODEL_PURPOSE_AMBIGUOUS",
    "MODEL_NOT_FOUND",
    "MODEL_REFUSED",
@@ -3887,15 +3973,16 @@ index baf61a66..586ff258 100644
    "MODEL_STRUCTURED_INVALID",
    "MODEL_STRUCTURED_UNSUPPORTED",
    "MODEL_HTTP_ERROR",
-@@ -641,6 +652,7 @@ const CODES: ReadonlySet<string> = new Set([
+@@ -641,6 +654,8 @@ const CODES: ReadonlySet<string> = new Set([
    "CONTEXT_SOURCE_MISSING",
    "TOOL_OBSERVATION_LATE",
    "TOOL_PARALLEL_LIMIT",
 +  "BACKGROUND_LIMIT",
++  "WAIT_CYCLE",
    "TOOL_ARGUMENTS_INVALID",
    "TOOL_TIMEOUT",
    "TOOL_UNAVAILABLE",
-@@ -651,6 +663,7 @@ const CODES: ReadonlySet<string> = new Set([
+@@ -651,6 +666,7 @@ const CODES: ReadonlySet<string> = new Set([
  export function createPrologueError(
    code: PrologueErrorCode,
    safeMessage: string,
@@ -3903,7 +3990,7 @@ index baf61a66..586ff258 100644
  ): PrologueError {
    const error = new Error(safeMessage) as PrologueError;
    Object.defineProperties(error, {
-@@ -658,6 +671,7 @@ export function createPrologueError(
+@@ -658,6 +674,7 @@ export function createPrologueError(
      code: { value: code, enumerable: true },
      safeMessage: { value: safeMessage, enumerable: true },
    });
@@ -4716,7 +4803,7 @@ index 350c0b40..6ce212ab 100644
  
  /** 受信 App 回收来源用的那一份：展示 id 加真实根引用。 */
 diff --git a/packages/sdk/src/orchestration/core/taskboard.ts b/packages/sdk/src/orchestration/core/taskboard.ts
-index b4d79a1e..6947eb22 100644
+index b4d79a1e..fa52846d 100644
 --- a/packages/sdk/src/orchestration/core/taskboard.ts
 +++ b/packages/sdk/src/orchestration/core/taskboard.ts
 @@ -24,6 +24,41 @@ export type NodeState =
@@ -4814,7 +4901,19 @@ index b4d79a1e..6947eb22 100644
  }
  
  export interface TaskBoardStore {
-@@ -199,7 +248,26 @@ export interface TaskBoardStore {
+@@ -158,6 +207,11 @@ export interface TaskBoardStore {
+    */
+   admit(proposal: BoardProposal, limits?: BoardLimits): Promise<TaskBoard>;
+   get(ref: ExactRef<"task-board">): TaskBoard;
++  /**
++   * The unfinished tasks a session holds, board by board: its own plan's, and those another session handed to it.
++   * Read-only; a board with none is left out.
++   */
++  assignedTo(session: ExactRef<"session">): readonly { readonly ref: ExactRef<"task-board">; readonly standing: boolean; readonly nodes: readonly TaskNode[] }[];
+   /**
+    * 改一个节点的状态。**必须带当前图版本**——不带就是后写赢，
+    * 而两个调度者同时改同一张图时，后写赢会静默丢掉一次转换。
+@@ -199,7 +253,26 @@ export interface TaskBoardStore {
      readonly ref: ExactRef<"task-board">;
      readonly expectedVersion: number;
      readonly nodeId: string;
@@ -4842,7 +4941,7 @@ index b4d79a1e..6947eb22 100644
    }): Promise<TaskBoard>;
    /**
     * 在一个节点上报一条进展，可以顺带把状态改掉。
-@@ -216,6 +284,15 @@ export interface TaskBoardStore {
+@@ -216,6 +289,15 @@ export interface TaskBoardStore {
      readonly nodeId: string;
      /** 谁报的。**没绑档案就是 `undefined`**，那时报不了别人名下的活。 */
      readonly by: ExactRef<"character"> | undefined;
@@ -4858,7 +4957,7 @@ index b4d79a1e..6947eb22 100644
      readonly note: string;
      readonly atMs: number;
      /** 顺带改状态。不给就只留一条进展。 */
-@@ -247,12 +324,15 @@ export interface TaskBoardStore {
+@@ -247,12 +329,15 @@ export interface TaskBoardStore {
    subscribe(listener: (event: BoardEvent) => void): () => void;
  }
  
@@ -4876,7 +4975,7 @@ index b4d79a1e..6947eb22 100644
    /** 有人报了一条。**不带那句说明**——事件里只有身份和状态。 */
    | { readonly type: "node-reported"; readonly nodeId: string }
    | { readonly type: "board-cancelled" };
-@@ -267,6 +347,7 @@ interface Held {
+@@ -267,6 +352,7 @@ interface Held {
    order: string[];
    /** 吸入时那个键与提案指纹。**没给键就是没有**，那时它不参与去重。 */
    readonly intake: { readonly key: string; readonly fingerprint: string } | undefined;
@@ -4884,7 +4983,7 @@ index b4d79a1e..6947eb22 100644
  }
  
  /** 允许的状态转换。**终态不可改写。** */
-@@ -316,7 +397,29 @@ export function createTaskBoardStore(
+@@ -316,7 +402,29 @@ export function createTaskBoardStore(
     */
    const ROW_VERSION = 1;
  
@@ -4914,7 +5013,7 @@ index b4d79a1e..6947eb22 100644
      if (store === undefined) {
        return;
      }
-@@ -330,6 +433,7 @@ export function createTaskBoardStore(
+@@ -330,6 +438,7 @@ export function createTaskBoardStore(
          version: held.version,
          nodes: held.order.map((id) => held.nodes.get(id) as TaskNode),
          ...(held.intake === undefined ? {} : { intake: held.intake }),
@@ -4922,7 +5021,7 @@ index b4d79a1e..6947eb22 100644
        },
      });
    };
-@@ -340,8 +444,8 @@ export function createTaskBoardStore(
+@@ -340,8 +449,8 @@ export function createTaskBoardStore(
        ref: held.ref,
        version: held.version,
        nodes,
@@ -4933,7 +5032,7 @@ index b4d79a1e..6947eb22 100644
      };
    };
  
-@@ -354,7 +458,8 @@ export function createTaskBoardStore(
+@@ -354,7 +463,8 @@ export function createTaskBoardStore(
    };
  
    const listeners = new Set<(event: BoardEvent) => void>();
@@ -4943,7 +5042,7 @@ index b4d79a1e..6947eb22 100644
      for (const listener of listeners) {
        try {
          listener(event);
-@@ -525,6 +630,7 @@ export function createTaskBoardStore(
+@@ -525,6 +635,7 @@ export function createTaskBoardStore(
            nodes,
            order: row.value.nodes.map((node) => node.id),
            intake: row.value.intake,
@@ -4951,7 +5050,7 @@ index b4d79a1e..6947eb22 100644
          });
          if (row.value.intake !== undefined) {
            admitted.set(row.value.intake.key, row.value.id);
-@@ -558,7 +664,11 @@ export function createTaskBoardStore(
+@@ -558,7 +669,11 @@ export function createTaskBoardStore(
        }
  
        // 一、体积。**超预算整张拒绝。**
@@ -4964,7 +5063,7 @@ index b4d79a1e..6947eb22 100644
          throw createPrologueError("TASKBOARD_PROPOSAL_INVALID", "A task board needs at least one node.");
        }
        if (proposal.nodes.length > limits.maxNodes) {
-@@ -652,6 +762,7 @@ export function createTaskBoardStore(
+@@ -652,6 +767,7 @@ export function createTaskBoardStore(
            proposal.idempotencyKey === undefined
              ? undefined
              : { key: proposal.idempotencyKey, fingerprint },
@@ -4972,7 +5071,23 @@ index b4d79a1e..6947eb22 100644
        };
        for (const node of proposal.nodes) {
          held.nodes.set(node.id, {
-@@ -740,7 +851,7 @@ export function createTaskBoardStore(
+@@ -686,6 +802,15 @@ export function createTaskBoardStore(
+       return view(heldOf(ref));
+     },
+ 
++    assignedTo(session) {
++      const out: { ref: ExactRef<"task-board">; standing: boolean; nodes: TaskNode[] }[] = [];
++      for (const held of boards.values()) {
++        const nodes = view(held).nodes.filter((node) => node.assignee?.kind === "session" && node.assignee.id === session.id && !isTerminal(node.state));
++        if (nodes.length > 0) out.push({ ref: held.ref, standing: held.standing !== undefined, nodes });
++      }
++      return out;
++    },
++
+     async addNode({ ref, expectedVersion, node }): Promise<TaskBoard> {
+       const held = guard(ref, expectedVersion);
+       if (held.nodes.has(node.id)) {
+@@ -740,7 +865,7 @@ export function createTaskBoardStore(
        normalize(held);
        held.version += 1;
        await save(held);
@@ -4981,7 +5096,7 @@ index b4d79a1e..6947eb22 100644
        return view(held);
      },
  
-@@ -795,7 +906,7 @@ export function createTaskBoardStore(
+@@ -795,7 +920,7 @@ export function createTaskBoardStore(
        normalize(held);
        held.version += 1;
        await save(held);
@@ -4990,7 +5105,7 @@ index b4d79a1e..6947eb22 100644
        return view(held);
      },
  
-@@ -820,7 +931,36 @@ export function createTaskBoardStore(
+@@ -820,7 +945,36 @@ export function createTaskBoardStore(
        held.nodes.set(nodeId, { ...node, assignee });
        held.version += 1;
        await save(held);
@@ -5028,7 +5143,7 @@ index b4d79a1e..6947eb22 100644
        return view(held);
      },
  
-@@ -844,10 +984,13 @@ export function createTaskBoardStore(
+@@ -844,10 +998,13 @@ export function createTaskBoardStore(
         * 没绑档案的那一跑（`by` 是 `undefined`）报不了任何写着名字的
         * 节点：那时根本没有「我是谁」可比，而这一栏正是「这活归谁」。
         */
@@ -5044,7 +5159,7 @@ index b4d79a1e..6947eb22 100644
          );
        }
        if (input.note.length < 1) {
-@@ -861,7 +1004,8 @@ export function createTaskBoardStore(
+@@ -861,7 +1018,8 @@ export function createTaskBoardStore(
              "shorten it, or put the long form behind a resource reference.",
          );
        }
@@ -5054,7 +5169,7 @@ index b4d79a1e..6947eb22 100644
        // 满了丢最早的那条。**不是拒绝**——正在干活的那个不该因为
        // 「说过太多次」就再也报不上来。
        const kept = [...node.reports, report].slice(-limits.maxReportsPerNode);
-@@ -874,15 +1018,18 @@ export function createTaskBoardStore(
+@@ -874,15 +1032,18 @@ export function createTaskBoardStore(
         * ready 直接报成功」会被拒绝，却已经把那句说明留在了图上——版本
         * 没加、盘上没有，只有这个进程里多了一条谁也解释不了的进展。
         */
@@ -5078,7 +5193,7 @@ index b4d79a1e..6947eb22 100644
        }
        return view(held);
      },
-@@ -904,7 +1051,7 @@ export function createTaskBoardStore(
+@@ -904,7 +1065,7 @@ export function createTaskBoardStore(
        }
        held.version += 1;
        await save(held);
@@ -5087,7 +5202,7 @@ index b4d79a1e..6947eb22 100644
        return view(held);
      },
  
-@@ -958,7 +1105,7 @@ export function createTaskBoardStore(
+@@ -958,7 +1119,7 @@ export function createTaskBoardStore(
        held.version += 1;
        // **落下去再返回**：写不下去是稳定错误，不是「改成功了但没存」。
        await save(held);
@@ -5098,10 +5213,10 @@ index b4d79a1e..6947eb22 100644
    };
 diff --git a/packages/sdk/src/orchestration/core/waits.ts b/packages/sdk/src/orchestration/core/waits.ts
 new file mode 100644
-index 00000000..4f093d88
+index 00000000..469f1427
 --- /dev/null
 +++ b/packages/sdk/src/orchestration/core/waits.ts
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,408 @@
 +import { createPrologueError, mintRef, type ExactRef } from "../../kernel/core/index.js";
 +import type { BackgroundTask } from "./background.js";
 +import type { NodeState } from "./taskboard.js";
@@ -5177,7 +5292,8 @@ index 00000000..4f093d88
 +  envelope(id: string): { readonly state: string; readonly from: string; readonly to: string } | undefined;
 +  /** The first answer to an envelope. */
 +  replyTo(id: string): { readonly id: string; readonly body: string } | undefined;
-+  node(board: string, node: string): { readonly state: NodeState; readonly title: string } | undefined;
++  /** A node, with the session that holds it (its assignee) when a session does. */
++  node(board: string, node: string): { readonly state: NodeState; readonly title: string; readonly holder?: string } | undefined;
 +}
 +
 +export interface WaitLimits {
@@ -5313,6 +5429,34 @@ index 00000000..4f093d88
 +    }
 +  };
 +  const same = (a: WaitCondition, b: WaitCondition): boolean => JSON.stringify(a) === JSON.stringify(b);
++  /** The session a condition waits on: an envelope's recipient, a node's holder. A command waits on no session. */
++  const sessionOf = (condition: WaitCondition): string | undefined =>
++    condition.kind === "envelope" ? input.sources.envelope(condition.envelope)?.to
++    : condition.kind === "board-node" ? input.sources.node(condition.board, condition.node)?.holder
++    : undefined;
++  /**
++   * A path of open waits from `from` back to `to`, if there is one: parking `to` on `from` would then close a circle
++   * and neither would ever go on.
++   */
++  const pathBack = (from: string, to: string): string[] | undefined => {
++    const seen = new Set<string>();
++    const walk = (at: string, path: string[]): string[] | undefined => {
++      if (at === to) return path;
++      if (seen.has(at)) return undefined;
++      seen.add(at);
++      for (const wait of held.values()) {
++        if (wait.state !== "waiting" || wait.session.id !== at) continue;
++        for (const condition of wait.on) {
++          const next = sessionOf(condition);
++          if (next === undefined) continue;
++          const found = walk(next, [...path, next]);
++          if (found !== undefined) return found;
++        }
++      }
++      return undefined;
++    };
++    return walk(from, [from]);
++  };
 +
 +  /** Whether one condition has happened, and what happened. */
 +  const look = async (condition: WaitCondition, nowMs: number): Promise<WaitFiring | undefined> => {
@@ -5368,6 +5512,18 @@ index 00000000..4f093d88
 +      if (reason.length > limits.maxReasonChars) throw createPrologueError("TOOL_ARGUMENTS_INVALID", `A wait's reason is at most ${String(limits.maxReasonChars)} characters.`);
 +      if (request.data !== undefined && new TextEncoder().encode(JSON.stringify(request.data)).byteLength > limits.maxDataBytes) {
 +        throw createPrologueError("TOOL_ARGUMENTS_INVALID", `A wait keeps at most ${String(limits.maxDataBytes)} bytes of App data.`);
++      }
++      // Waiting on a session that (through others, perhaps) waits on this one would never end: refused, with the circle.
++      for (const condition of request.on) {
++        const target = sessionOf(condition);
++        if (target === undefined || target === request.session.id) continue;
++        const circle = pathBack(target, request.session.id);
++        if (circle !== undefined) {
++          throw createPrologueError(
++            "WAIT_CYCLE",
++            `Waiting on session ${target} would wait in a circle (${[request.session.id, ...circle].join(" → ")}): it is already waiting on this session. Answer what it waits for first, or go on another way.`,
++          );
++        }
 +      }
 +      const open = [...held.values()].find((wait) => wait.session.id === request.session.id && wait.state === "waiting");
 +      let parked: ParkedWait;
@@ -5732,7 +5888,7 @@ index afa0b2b9..2e9a0ea6 100644
        if (input.hooks !== undefined) {
          const origin = input.origin?.();
 diff --git a/packages/sdk/src/tool/core/system.ts b/packages/sdk/src/tool/core/system.ts
-index 8ba1b112..ae8e1092 100644
+index 8ba1b112..f1c4f317 100644
 --- a/packages/sdk/src/tool/core/system.ts
 +++ b/packages/sdk/src/tool/core/system.ts
 @@ -112,6 +112,13 @@ export const SYSTEM_TOOL_NAMES = [
@@ -5829,7 +5985,25 @@ index 8ba1b112..ae8e1092 100644
        },
        required: ["instruction", "tools", "idempotencyKey"],
        additionalProperties: false,
-@@ -552,7 +594,12 @@ const BLUEPRINTS: readonly Blueprint[] = [
+@@ -542,19 +584,36 @@ const BLUEPRINTS: readonly Blueprint[] = [
+     name: "session-send",
+     description:
+       "Send one envelope to another session in this app. Delivered is not accepted, and accepted is " +
+-      "not completed.",
++      "not completed. A handoff gives the recipient part of your work: name the steps of your plan it takes over " +
++      "with board and steps. A notice can go to several sessions at once with recipients.",
+     parameters: {
+       type: "object",
+       properties: {
+-        to: { type: "string", description: "Recipient session." },
++        to: { type: "string", description: "Recipient session (leave out when using recipients)." },
++        recipients: {
++          type: "array",
++          items: { type: "string" },
++          description: "Instead of to, for a notice: several sessions, each sent its own envelope.",
++        },
+         kind: {
+           type: "string",
            enum: ["notice", "request", "reply", "handoff", "status", "cancel-request", "inject"],
          },
          body: { type: "string", description: "Bounded text. No secrets, no absolute paths." },
@@ -5840,10 +6014,19 @@ index 8ba1b112..ae8e1092 100644
 +          type: "boolean",
 +          description: "Optional: you will wait for the answer before doing what depends on it. End your turn after sending; you are resumed when it is answered or the other work is done.",
 +        },
++        board: { type: "string", description: "With a handoff: the task board the handed-over steps are on." },
++        steps: {
++          type: "array",
++          items: { type: "string" },
++          description: "With a handoff: steps of yours (unfinished) that the recipient takes over; they change hands when it is sent.",
++        },
        },
-       required: ["to", "kind", "body", "idempotencyKey"],
+-      required: ["to", "kind", "body", "idempotencyKey"],
++      required: ["kind", "body", "idempotencyKey"],
        additionalProperties: false,
-@@ -595,7 +642,7 @@ const BLUEPRINTS: readonly Blueprint[] = [
+     },
+     effectKind: "mutate-external",
+@@ -595,7 +654,7 @@ const BLUEPRINTS: readonly Blueprint[] = [
        properties: {
          session: { type: "string" },
          text: { type: "string" },
@@ -5852,7 +6035,7 @@ index 8ba1b112..ae8e1092 100644
        },
        required: ["session", "text", "idempotencyKey"],
        additionalProperties: false,
-@@ -1162,6 +1209,34 @@ const BLUEPRINTS: readonly Blueprint[] = [
+@@ -1162,6 +1221,34 @@ const BLUEPRINTS: readonly Blueprint[] = [
      effectKind: "mutate-external",
      needs: "workspace",
    },
@@ -6370,10 +6553,10 @@ index 00000000..3a2bd617
 +});
 diff --git a/packages/sdk/test/background-waits.test.ts b/packages/sdk/test/background-waits.test.ts
 new file mode 100644
-index 00000000..968a5f20
+index 00000000..f8a6ccf1
 --- /dev/null
 +++ b/packages/sdk/test/background-waits.test.ts
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,211 @@
 +import { describe, expect, it } from "vitest";
 +import { createBackgroundRegistry, createWaitRegistry, type BackgroundTask } from "../src/orchestration/core/index.js";
 +import { mintRef } from "../src/kernel/core/index.js";
@@ -6463,7 +6646,7 @@ index 00000000..968a5f20
 +describe("挂起：等后台命令、答复或另一项工作，事后唤醒", () => {
 +  const setup = () => {
 +    const tasks = new Map<string, BackgroundTask>(), envelopes = new Map<string, { state: string; from: string; to: string }>();
-+    const replies = new Map<string, { id: string; body: string }>(), nodes = new Map<string, { state: "running" | "succeeded" | "failed"; title: string }>();
++    const replies = new Map<string, { id: string; body: string }>(), nodes = new Map<string, { state: "running" | "succeeded" | "failed"; title: string; holder?: string }>();
 +    const output = new Map<string, string>();
 +    const kept = memoryStore<unknown>();
 +    let n = 0;
@@ -6534,6 +6717,29 @@ index 00000000..968a5f20
 +    await expect(waits.park({ session: a, on: [{ kind: "command", task: "dev", until: "output", match: "(" }], reason: "x" }, clock)).rejects.toThrow(/not a valid regular expression/);
 +    await expect(waits.park({ session: a, on: [{ kind: "command", task: "dev", until: "exit" }], reason: "x", data: "y".repeat(200) }, clock)).rejects.toThrow(/at most 100 bytes/);
 +    expect(events).toEqual(["parked:w1", "parked:w1", "fired:w1", "resumed:w1", "parked:w2", "fired:w2", "cancelled:w2", "parked:w3", "fired:w3", "cancelled:w3", "parked:w4", "expired:w4"]);
++    waits.close();
++  });
++
++  it("互相等会拒绝：沿着「谁在等谁」查到自己，就说清是哪个圈", async () => {
++    const world = setup(), waits = world.make();
++    const [a, b, c] = ["a", "b", "c"].map((id) => mintRef("session", id));
++    // a waits for b's answer.
++    world.envelopes.set("ab", { state: "delivered", from: "a", to: "b" });
++    await waits.park({ session: a!, on: [{ kind: "envelope", envelope: "ab" }], reason: "等 b 答复" }, clock);
++    // b waiting for a's answer would close the circle.
++    world.envelopes.set("ba", { state: "delivered", from: "b", to: "a" });
++    const refused = await waits.park({ session: b!, on: [{ kind: "envelope", envelope: "ba" }], reason: "等 a 答复" }, clock).then(() => undefined, (error: { code: string; message: string }) => error);
++    expect(refused?.code).toBe("WAIT_CYCLE");
++    expect(refused?.message).toMatch(/b → a → b/);
++    expect(waits.list({ session: "b" })).toEqual([]);
++    // Through a work item: c holds the node b waits on, and c would wait on a (who waits on b): refused too.
++    world.nodes.set("p/nc", { state: "running", title: "c 的工作", holder: "c" });
++    await waits.park({ session: b!, on: [{ kind: "board-node", board: "p", node: "nc" }], reason: "等 c 做完", by: "app" }, clock);
++    world.envelopes.set("ca", { state: "delivered", from: "c", to: "a" });
++    await expect(waits.park({ session: c!, on: [{ kind: "envelope", envelope: "ca" }], reason: "等 a" }, clock)).rejects.toThrow(/c → a → b → c/);
++    // Waiting on someone who waits on nobody is fine.
++    world.envelopes.set("cx", { state: "delivered", from: "c", to: "x" });
++    expect((await waits.park({ session: c!, on: [{ kind: "envelope", envelope: "cx" }], reason: "等 x" }, clock)).state).toBe("waiting");
 +    waits.close();
 +  });
 +

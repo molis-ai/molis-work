@@ -92,10 +92,12 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         const mine=(placed.get(node.id)||[]).map(childRow),last=node.reports.at(-1);
         const holder=node.owner,held=holder?.kind==='subtask'?children.find(item=>item.child.subagent_id===holder.subagent_id)?.child:null;
         // Who does this step: its holder on the graph, not whoever runs the round.
-        const doer=!holder?executor:holder.kind==='session'?{name:executor.name,detail:'负责：本会话 · '+executor.detail}
+        // A claim held quiet too long by a session with no round running reads as expired, for you to reassign.
+        const short=(label)=>String(label||'').replace(/（认领已过期.*$/,''),expired=holder?.expired?{expired:true}:{};
+        const doer=!holder?executor:holder.kind==='session'?{name:executor.name,detail:'负责：'+(holder.expired?holder.label:'本会话')+' · '+executor.detail,...expired}
           :holder.kind==='subtask'?{name:holder.label,detail:'负责：'+holder.label+(held?' · 子代理 '+(held.role_name||roleName(held.role_id)):'')}
           :holder.kind==='person'?{name:'你',detail:'负责：你（这一步由你处理）',person:true}
-          :holder.kind==='none'?{name:'没人认领',detail:'这一步没有负责人',none:true}:{name:holder.label,detail:'负责：'+holder.label};
+          :holder.kind==='none'?{name:'没人认领',detail:'这一步没有负责人',none:true}:{name:short(holder.label),detail:'负责：'+holder.label,...expired};
         const done=mine.length?mine.filter(row=>['done','accepted'].includes(row.state[2])).length:settled(node)||decided==='accepted'?1:0;
         return {key:'step-'+id+'-'+node.id,label:node.inserted?'插入':'S'+(Number(node.id.replace('step-',''))||position+1),title:step.title,
           hint:(step.acceptance?'完成条件：'+step.acceptance:'')+(holder?'\\n负责：'+(holder.kind==='person'?'你':holder.label):'')+(last?'\\n最近回报：'+(last.by?last.by+'：':'')+last.note:''),
@@ -135,6 +137,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(row.executor?.none){node.dataset.owner='none';avatar.innerHTML=svg('user');avatar.title=row.executor.detail;avatar.setAttribute('aria-label','没人认领');}
     else if(row.executor){if(row.executor.person)node.dataset.owner='person';avatar.textContent=Array.from(row.executor.name)[0]||'?';avatar.style.setProperty('--board-avatar-hue',String(hue(row.executor.name)));avatar.title='执行：'+row.executor.detail;avatar.setAttribute('aria-label','执行者 '+row.executor.name);}
     const name=el('span','coding-board-agent',row.executor?.name||'');if(row.executor)name.title='执行：'+row.executor.detail;
+    if(row.executor?.expired){node.dataset.expired='true';const flag=el('span','coding-board-expired','认领已过期');flag.title=row.executor.detail;node.append(time,name,flag,avatar);return node;}
     node.append(time,name,avatar);return node;
   };
   const tools=(row,entry)=>{

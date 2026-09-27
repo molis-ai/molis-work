@@ -47,6 +47,7 @@ test("a round that ends parked on an answer or a background command waits as the
       if (id === agent.cancelWait.capability_id) { const one = waits.find(item => item.wait_id === input[1])!; one.state = "cancelled"; cancelledWaits.push(input[1]); return { ...one } as Output; }
       if (id === agent.cancelMessage.capability_id) { cancels.push(input[1]); return undefined as Output; }
       if (id === agent.readBackground.capability_id) return [] as Output;
+      if (id === agent.prioritizeSession.capability_id) return { notified: ["sdk-a"], paths: ["src/x.ts"] } as Output;
       if (id === agent.startRun.capability_id) {
         starts.push(input[1]);
         const park = parks.shift();
@@ -130,6 +131,12 @@ test("a round that ends parked on an answer or a background command waits as the
     assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
     assert.deepEqual([cancels, cancelledWaits], [["m5"], ["w5"]]);
     assert.equal(sessions.get(DEMO_BOARD_ID, "b").state, "done");
+    // Priority: the others are told to make way, by the names the person knows; the mark shows in the directory.
+    const marked = await call("/sessions/b/priority", { on: true });
+    assert.equal(marked.status, 200, JSON.stringify(marked.body));
+    assert.deepEqual([marked.body.priority, marked.body.notified, marked.body.paths], [true, ["改接口"], ["src/x.ts"]]);
+    assert.equal((await call("/state")).body.sessions.find((session: any) => session.session_id === "b").priority, true);
+    assert.equal((await call("/sessions/b/priority", { on: false })).body.priority, false);
     // Started now instead: the person's start takes the wait up.
     parks.push({ wait_id: "w6", on: [{ kind: "command", task: "bg-2", until: "exit" }], waiting_on: "后台命令 npm run build结束", reason: "等构建" });
     assert.equal((await call("/sessions/b/runs", send("第四件事"))).status, 200);

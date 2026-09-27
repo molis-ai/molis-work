@@ -241,7 +241,7 @@ export interface AgentSessionMessage {
   to_session: string;
   from_title: string;
   to_title: string;
-  kind: "request" | "notice" | "reply";
+  kind: "request" | "notice" | "reply" | "handoff";
   body: string;
   state: "queued" | "delivered" | "accepted" | "rejected" | "completed" | "expired" | "cancelled";
   sent_at_ms: number;
@@ -253,6 +253,11 @@ export interface AgentSessionMessage {
 export interface AgentSessionMessagesCapability {
   read(project: string, sessionId?: string): Promise<AgentSessionMessage[]>;
   cancel(project: string, messageId: string): Promise<void>;
+  /**
+   * The person made a session the priority: the sessions whose work under way overlaps its own (at most five) are
+   * told, on its behalf, to make way for those files. Nothing is paused; who stops is still the person's call.
+   */
+  prioritize?(project: string, sessionId: string, actorId: string): Promise<{ notified: string[]; paths: string[] }>;
 }
 
 /**
@@ -329,6 +334,8 @@ export interface AgentStepOwner {
   subagent_id?: string;
   /** The person holding it. */
   actor_id?: string;
+  /** A session holds it but has no round running and has not moved it for two hours: the person may reassign it. */
+  expired?: true;
 }
 
 export interface AgentStepBoard {
@@ -1015,6 +1022,8 @@ export interface AgentRuntimeAdapter {
   readonly messages?: AgentSessionMessagesCapability;
   /** Sessions parked until something happens, when this Runtime keeps them. */
   readonly waits?: AgentWaitsCapability;
+  /** Whether a session holds unfinished plan steps another session handed to it (it then keeps the step tools). */
+  holdsSteps?(session: AgentSessionRef): Promise<boolean>;
   /** Background commands of the project's sessions. */
   readonly background?: AgentBackgroundCapability;
   start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
@@ -1157,6 +1166,10 @@ export const agentHostCapabilities = {
   readMessages: {
     capability_id: "agent.messages.read.v1", version: 1, operation: "query",
   } as HostCapabilityDefinition<[runtimeId: string, sessionId?: string], AgentSessionMessage[]>,
+  /** The person made a session the priority: overlapping sessions are asked to make way. */
+  prioritizeSession: {
+    capability_id: "agent.messages.prioritize.v1", version: 1, operation: "command",
+  } as HostCapabilityDefinition<[runtimeId: string, sessionId: string], { notified: string[]; paths: string[] }>,
   /** The person withdraws an open message. */
   cancelMessage: {
     capability_id: "agent.messages.cancel.v1", version: 1, operation: "command",

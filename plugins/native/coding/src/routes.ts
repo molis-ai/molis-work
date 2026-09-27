@@ -321,7 +321,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
           record = execution.sessions.setState(boardId, record.session_id, "reconcile-required", record.updated_at);
         }
       }
-      return { ...record, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+      return { ...record, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
     });
     const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
     const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
@@ -479,6 +479,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
    */
   type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
   const OPEN_WAIT = ["waiting", "fired"];
+  /** Marked the priority by the person (kept with the plugin: a mark on the directory, not an execution state). */
+  const priorityOf = (sessionId: string) => Boolean(context.services?.storage?.get(`priority:${sessionId}`));
   const noteKey = (waitId: string) => `wake-note:${waitId}`;
   const noteOf = (waitId: string) => context.services?.storage?.get(noteKey(waitId)) ?? undefined;
   const hold = (waitId: string, note: string) => context.services!.storage!.set(noteKey(waitId), note);
@@ -974,8 +976,8 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      const wait = await openWaitOf(api!, record).catch(() => undefined), queuedView = wait ? waitView(wait) : null;
-      if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
+      const wait = await openWaitOf(api!, record).catch(() => undefined), queuedView = wait ? waitView(wait) : null, priority = priorityOf(record.session_id);
+      if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -994,7 +996,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(boardId, record.session_id, state, record.updated_at);
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { session: { ...updated, queued: queuedView, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { session: { ...updated, queued: queuedView, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(record.session_id)),
@@ -1383,6 +1385,17 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         await api!.invoke(agent.resumeWait, [record.runtime_id, wait.wait_id, "用户选择现在开始"]).catch(() => undefined);
         return started;
       } finally { busy.delete(record.session_id); }
+    }),
+    // The person marks a session the priority: sessions whose work overlaps its own are asked to make way (only told).
+    route("coding.priority", async (request, api, execution) => {
+      const record = selected(request, execution), on = bodyOf(request).on === true;
+      const key = `priority:${record.session_id}`;
+      if (!on) { context.services!.storage!.delete(key); return { priority: false, notified: [] }; }
+      context.services!.storage!.set(key, new Date().toISOString());
+      if (!record.runtime_session_id) return { priority: true, notified: [], paths: [] };
+      const told = await api!.invoke(agent.prioritizeSession, [record.runtime_id, record.runtime_session_id]);
+      const sessions = execution.sessions.list(boardId);
+      return { priority: true, paths: told.paths, notified: told.notified.map(runtime => sessions.find(entry => entry.runtime_session_id === runtime)?.title ?? runtime) };
     }),
     // The session's background commands, and stopping one.
     route("coding.background", async (request, api, execution) => {

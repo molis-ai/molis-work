@@ -395,7 +395,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const holders=session.steps?[session.steps.mine?'你负责 '+session.steps.mine+' 步':'',session.steps.subtasks?session.steps.subtasks+' 步在子任务手上':'',session.steps.unowned?'没人认领 '+session.steps.unowned+' 步':''].filter(Boolean).join(' · '):'';
       // Two sessions under way on the same Goal may be doing the same thing twice.
       const busyStates=['running','paused','waiting-answer','waiting-approval','queued'],twin=session.goal_id&&busyStates.includes(session.state)?visible.find(other=>other!==session&&other.goal_id===session.goal_id&&busyStates.includes(other.state)):null;
-      const label=(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
+      const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
       mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state;
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=document.createElement('section');group.className='coding-session-group';const heading=document.createElement('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
@@ -1078,6 +1078,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       renderQueued(id,data.session.queued);
+      renderPriority(id,data.session.priority===true);
       plans.update(id,data.plan ?? null,allRuns);
       subagents.update(id,subagentGroups);
       boardUpdate(id,data);
@@ -1422,6 +1423,17 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // One way to start a round, shared by the composer and by continuing from a breakpoint.
   /** A round waiting for another session: what it waits for, and starting it now or giving the wait up. */
   let queuedKey='';
+  /** Marked the priority: others whose work overlaps it are asked to make way; nothing is paused. */
+  const renderPriority=(id,on)=>{
+    const button=q('[data-coding-priority]');if(!button)return;button.hidden=!id;button.dataset.session=id||'';
+    button.setAttribute('aria-pressed',String(on));button.textContent=on?'优先中 · 取消':'标为优先';
+  };
+  q('[data-coding-priority]')?.addEventListener('click',async event=>{
+    const button=event.currentTarget,id=button.dataset.session;if(!id)return;const on=button.getAttribute('aria-pressed')!=='true';button.disabled=true;
+    try{const result=await api('/sessions/'+encodeURIComponent(id)+'/priority','POST',{on});renderPriority(id,result.priority);
+      status(!on?'已取消优先。':result.notified.length?'已标为优先，并通知「'+result.notified.join('」「')+'」让出 '+result.paths.join('、')+'；不会自动暂停它们。':'已标为优先。现在没有和它范围重叠、还在进行的会话，没有通知谁。');await refreshState();}
+    catch(error){status(error.message,true);}finally{button.disabled=false;}
+  });
   const renderQueued=(id,queued)=>{
     const box=q('[data-coding-queued]'),next=JSON.stringify([id,queued]);if(next===queuedKey)return;queuedKey=next;
     box.hidden=!queued;box.replaceChildren();if(!queued)return;

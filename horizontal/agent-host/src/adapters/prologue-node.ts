@@ -31,7 +31,7 @@ import { createPrologueCompactor } from "./prologue-compaction.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { createPrologueTaskBoards, codingExecutionRules } from "./prologue-taskboard.js";
 import { createProjectWork, projectWorkDigest, workPaths } from "./prologue-project-work.js";
-import { createSessionMessages } from "./prologue-messages.js";
+import { createSessionMessages, MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueWaits } from "./prologue-waits.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -480,6 +480,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   }, runId => runWork.has(runId));
   /** Each session's main round running now, for messages that should reach it at once. */
   const liveSessions = new Map<string, string>();
+  /** Unfinished plan steps another session handed to this one (its own plan's are not "handed"), board by board. */
+  const handedSteps = (session: ExactRef<"session">) => runtime.boards.assignedTo(session)
+    .filter(board => !board.standing)
+    .map(board => ({ board: board.ref.id, nodes: board.nodes.filter(node => node.reports.some(report => report.handover?.to?.kind === "session" && report.handover.to.id === session.id)) }))
+    .filter(board => board.nodes.length > 0);
   /** Tell a session's main round that is running now; false when it has none. */
   const steerSession = async (sessionId: string, text: string) => {
     const run = liveSessions.get(sessionId), active = run ? activeRuns.get(run) : undefined;
@@ -497,6 +502,15 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       return listed?.title ?? (await readIndex(sessionId).catch(() => undefined))?.title ?? sessionId;
     },
     steer: (sessionId, text) => steerSession(sessionId, text),
+    async overlapping(sessionId) {
+      // The files this session's round under way names or wrote, against the other work under way in its directory.
+      const index = await readIndex(sessionId).catch(() => undefined);
+      if (!index) return [];
+      const project = index.owner.board_id, mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && item.state === "running");
+      if (!mine) return [];
+      const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
+      return [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))];
+    },
   });
   /** Parked sessions and background commands; a wait that fires while its session runs a round is told to that round. */
   const waitsPort = createPrologueWaits(runtime, {
@@ -522,7 +536,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   }, async sessionId => {
     const index = await readIndex(sessionId);
     return index ? projectWork.boardId(index.owner.board_id) : undefined;
-  });
+  }, sessionId => liveSessions.has(sessionId));
   const rememberReview = async (sessionId: string, pendingId: string, receipt: AgentReviewReceipt): Promise<void> => {
     const request = options.reviewQueue!.get(receipt.review_id);
     if (!request) throw new Error("原审查请求不可读取，不能保存决定");
@@ -636,9 +650,33 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
     amendStepBoard: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor),
-    messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id) },
+    messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),
+      async prioritize(project, sessionId, actorId) {
+        const index = await readIndex(sessionId).catch(() => undefined);
+        if (!index || index.owner.board_id !== project) throw new Error("会话不属于这个项目");
+        // Its work under way (or waiting): the files it names, against the other work under way in its directory.
+        const mine = (await projectWork.read(project)).items.find(item => item.session_id === sessionId && ["running", "waiting"].includes(item.state));
+        if (!mine) return { notified: [], paths: [] };
+        const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
+        const targets = [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))].slice(0, MAX_BROADCAST);
+        const paths = [...new Set(seen.overlaps.flatMap(overlap => overlap.paths))];
+        const at = (await runtime.readClock()).wallTimeMs;
+        for (const [n, target] of targets.entries()) {
+          const other = await readIndex(target).catch(() => undefined);
+          if (!other) continue;
+          await runtime.sessions.open(other.ref);
+          runtime.delivery.send({ from: index.ref, to: other.ref, kind: "notice", idempotencyKey: `priority.${sessionId.slice(0, 16)}.${String(at)}.${String(n)}`,
+            body: `（宿主代用户发出）用户把会话「${mine.title.slice(0, 40)}」标成了优先。它要改 ${paths.join("、")}：请让出这些文件——先别再改它们，手头和它们有关的修改先停下，说明你停在哪里；等它做完或用户另行安排再继续。和这些文件无关的部分照常做。（标记人：${actorId}）` }, at);
+        }
+        await runtime.delivery.flush();
+        return { notified: targets, paths };
+      } },
     waits: waitsPort.waits,
     background: waitsPort.background,
+    holdsSteps: async sessionId => {
+      const index = await readIndex(sessionId).catch(() => undefined);
+      return Boolean(index && handedSteps(index.ref).length);
+    },
     projectWork: {
       read: (project, probe) => projectWork.read(project, probe && { ...(probe.session_id ? { session_id: probe.session_id } : {}), directory: probe.directory, paths: workPaths(probe.text) }),
       async queue(project, input, actorId) {
@@ -647,8 +685,16 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         const item = await projectWork.queue(project, { session: index.ref, title: input.title?.slice(0, 120) ?? index.title, task: input.task, directory: input.directory, paths: workPaths(input.task), after: input.after, person: actorId });
         // The session is parked on the work it waits for: it is started with `data` when that work ends.
         const target = (await projectWork.read(project)).items.find(work => work.work_id === input.after);
-        const waitId = await waitsPort.parkOnWork(index.ref, await projectWork.boardId(project), input.after, `等「${(target?.title ?? input.after).slice(0, 40)}」那一轮完成后再开始`,
-          { app: input.data ?? null, work_id: item.work_id });
+        let waitId: string;
+        try {
+          waitId = await waitsPort.parkOnWork(index.ref, await projectWork.boardId(project), input.after, `等「${(target?.title ?? input.after).slice(0, 40)}」那一轮完成后再开始`,
+            { app: input.data ?? null, work_id: item.work_id });
+        } catch (error) {
+          // That work's session is already waiting on this one: they would wait on each other for ever.
+          await projectWork.release(project, item.work_id, actorId, "没有排上：会互相等待").catch(() => undefined);
+          if ((error as { code?: unknown }).code === "WAIT_CYCLE") throw new Error(`不能这样等：「${(target?.title ?? input.after).slice(0, 40)}」那边已经在等这个会话，两边会一直互相等。先让其中一边继续，或者不等直接开始。`);
+          throw error;
+        }
         return { ...item, wait_id: waitId };
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
@@ -857,6 +903,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         // Messages other sessions left for this one while it was not running.
         const inbox = await messages.inbox(session.ref.id, project).catch(() => "");
         if (inbox) textResources.push({ ref: await stageTextResource(runtime, inbox, "coding-session-inbox"), as: "original" });
+        // Steps other sessions handed to this one and not yet done: where they are, so this round can go on with them.
+        const handed = handedSteps(session.ref);
+        if (handed.length) textResources.push({ ref: await stageTextResource(runtime, ["别的会话交给你、还没做完的步骤（任务图上现在归你）：",
+          ...handed.flatMap(one => one.nodes.map(node => `- 任务图 ${one.board}：${node.id}「${node.title.slice(0, 60)}」（${node.state}）`)),
+          "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "coding-handed-steps"), as: "original" });
       }
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
         ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));

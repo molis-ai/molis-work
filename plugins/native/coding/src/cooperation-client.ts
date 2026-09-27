@@ -14,7 +14,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const EVENT={submitted:'已提交',delivered:'已送达对方会话',accepted:'对方已接受',started:'对方开始执行','delivery-sent':'对方交付了成果','delivery-accepted':'已收下交付','delivery-rejected':'没有收下交付',completed:'已完成',rejected:'对方拒绝',cancelled:'已取消',failed:'失败'};
   const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'挂起等待',done:'本轮结束'};
   const TONE={received:'attention',delivered:'attention',accepted:'progress',committing:'progress',completed:'done',rejected:'blocked',cancelled:'idle',failed:'blocked'};
-  const MAIL_KIND={request:'请求',reply:'答复',notice:'通知'};
+  const MAIL_KIND={request:'请求',reply:'答复',notice:'通知',handoff:'交接'};
   const MAIL_STATE={queued:'等对方下一轮',delivered:'已交给对方',accepted:'对方已接受',completed:'已结束',rejected:'对方拒绝',cancelled:'已撤回',expired:'已过期'};
   const MAIL_TONE={queued:'attention',delivered:'progress',accepted:'progress',completed:'done',rejected:'blocked',cancelled:'idle',expired:'idle'};
   const TASK_STATE={running:'运行中',succeeded:'已成功结束',failed:'失败',stopped:'已停止',interrupted:'被服务重启打断'};

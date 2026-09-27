@@ -39,7 +39,7 @@ const leafReadiness = object({ verdict: enumeration(["ready", "split_required"])
     decision: enumeration(["keep", "split"]), reason: text })), rationale: text, unresolved_decisions: strings, independent_deliverables: strings, acceptance_criterion_ids: strings });
 const goalInput = object({ goal_id: text, title: text, outcome: text, why: text, business_logic: text,
   in_scope: strings, out_of_scope: strings, constraints: strings, required_inputs: strings, promised_outputs: strings,
-  leaf_readiness: leafReadiness, decomposition_review: goalDecompositionReviewSchema, definition_state: enumeration(["draft", "accepted"]),
+  leaf_readiness: leafReadiness, decomposition_review: nullable(goalDecompositionReviewSchema), definition_state: enumeration(["draft", "accepted"]),
   decomposition_state: enumeration(["abstract", "frontier_open", "closed_leaf", "closed_compound"]), priority: number,
   acceptance_criteria: array(object({ criterion_id: text, statement: text, decision_method: enumeration(["automated_check", "measurement", "inspection", "human_decision"]),
     pass_condition: text, target: nullable(record), required_evidence: strings }, ["statement", "decision_method", "pass_condition"])) },

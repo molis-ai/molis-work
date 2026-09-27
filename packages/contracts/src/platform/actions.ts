@@ -81,6 +81,13 @@ export interface ActionMetadata {
   readonly description: string;
   readonly kind: "query" | "judgment" | "operation" | "navigation";
   readonly scope: "home" | "project";
+  /**
+   * What calling it does to the world: reads, changes something that can be changed back, or cannot be undone.
+   * Omitted, it is inferred (see `actionEffect`). Irreversible actions are never offered to plugins.
+   */
+  readonly effect?: "read" | "write" | "irreversible";
+  /** `false` keeps an agent-facing action away from generated plugins even when it is reversible. */
+  readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
   readonly audiences: readonly ActionAudience[];
@@ -122,6 +129,22 @@ export type ActionAvailability = { readonly available: true } | {
   readonly code: string;
   readonly reason: string;
 };
+
+const IRREVERSIBLE_ID = /(?:^|[._-])(delete|trash|purge|destroy|erase|wipe|reset|uninstall|remove)(?:$|[._-])/u;
+/** An action's effect as declared, or inferred: queries and navigation read; deleting-like ids cannot be undone; the rest write. */
+export function actionEffect(action: Pick<ActionMetadata, "kind" | "effect">, capabilityId: string): "read" | "write" | "irreversible" {
+  if (action.effect) return action.effect;
+  if (action.kind === "query" || action.kind === "navigation") return "read";
+  return IRREVERSIBLE_ID.test(capabilityId) ? "irreversible" : "write";
+}
+/**
+ * Whether an action is offered to a caller of this audience. Generated plugins reach every action already offered to
+ * agents unless it cannot be undone or opts out; a plugin still needs the person's install-time grant to call it.
+ */
+export function actionReachesAudience(action: Pick<ActionMetadata, "kind" | "effect" | "plugin" | "audiences">, capabilityId: string, audience: ActionAudience): boolean {
+  if (action.audiences.includes(audience)) return audience !== "plugin" || actionEffect(action, capabilityId) !== "irreversible";
+  return audience === "plugin" && action.audiences.includes("agent") && action.plugin !== false && actionEffect(action, capabilityId) !== "irreversible";
+}
 
 export interface ActionView extends ActionReference {
   readonly operation: "query" | "command";
@@ -386,6 +409,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           || !["home", "project"].includes(String(a.scope)) || (a.scheduling !== undefined && a.scheduling !== "concurrent") || !strings(a.permissions) || !strings(a.subject_kinds)
           || !strings(a.audiences) || a.audiences.length === 0
           || !a.audiences.every(v => ["user", "agent", "workflow", "mcp", "plugin"].includes(v))
+          || (a.effect !== undefined && !["read", "write", "irreversible"].includes(String(a.effect))) || (a.plugin !== undefined && a.plugin !== false)
           || !object(a.input_schema) || (a.output_schema !== undefined && !object(a.output_schema))) {
           problems.push(`能力 ${key} 的输入输出、权限或展示定义不完整`);
           continue;

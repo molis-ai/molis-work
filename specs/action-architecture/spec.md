@@ -769,3 +769,17 @@ MCP 连接摘要授权：context_resolve/bind/create_and_bind 的连接事实继
 Coding 目标上下文的原 GoalRecord 读取也消费 contract 动作，当前状态继续消费 state；保持拒绝归档/回收站和原结果结构，不能只授权状态却从私有 owner 补出未授权约定。后续 Character/Coding 自身业务能力迁移保持原范围。
 
 初始化与 V3 导入管理入口注册为 Goals 的两项管理动作，复用原 BoardCommands 与 importLegacyV3Board 事务；目标 board 和审计作者由可信 Host 上下文注入。原 CLI 和管理 MCP 名称只适配到同一动作，保留原文件准备、输入错误顺序、幂等回执及禁止覆盖已有 board 的语义。此两项原本不向普通 Runtime MCP 开放，迁移维持 user + 可信 management 出处，typed 声明 host_only，不能让普通插件自填身份获得初始化/导入权限。导入 schema 描述实际读取的 V3 字段并允许旧文档附加字段，不重写原始数据或引入自动重试。验证无 board 初始化、原回执重放、导入实际映射、事务故障回滚、跨 board 拒绝、Host 停用策略、CLI/管理 MCP、普通 MCP/插件拒绝与重启。项目创建的内部 bootstrap 和持有原 store 的 SDK 领域 owner 继续保留，不能通过另建 registry 包装它们。
+
+## 插件受众的派生规则（2026-09-27，插件创作台 v3 加入，owner 线程不在线，经用户授权）
+
+为让生成插件使用平台与已安装插件的能力，而不必逐个提供方改受众，只加两处，不改变任何现有调用方看到的内容：
+
+- **新字段**：`ActionMetadata` 新增可选 `effect: 'read' | 'write' | 'irreversible'` 与 `plugin?: false`。
+- **推断规则**（`actionEffect`）：未声明 `effect` 时，query/navigation 视为读；能力 id 以动词段含 delete / trash / purge / destroy / erase / wipe / reset / uninstall / remove 的视为不可撤销；其余视为写。
+- **受众规则**（`actionReachesAudience`）：`ActionService` 的目录与调用检查改用这条规则。
+  - 带 `agent` 受众的动作对 `plugin` 受众同样可见、可调用，除非它不可撤销，或声明了 `plugin: false`。
+  - 显式带 `plugin` 受众的不可撤销动作也不给插件。
+  - 其他受众完全不变。
+- **调用授权不变**：插件调用仍由宿主传入的 `allowed_actions`（安装时用户授予的精确引用）限制。
+
+提供方若认为某个写动作不该给插件，写 `plugin: false`；若某个名字像删除的动作其实可撤销，写 `effect: 'write'`。测试：`tests/action-plugin-audience.test.ts`。方案：`specs/plugin-builder/work-items/studio-v3/spec.md` §6。

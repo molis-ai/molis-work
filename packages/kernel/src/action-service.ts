@@ -1,5 +1,5 @@
 import {
-  ActionError, inspectActionDeclarations, requireSynchronous,
+  ActionError, actionReachesAudience, inspectActionDeclarations, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
@@ -169,7 +169,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (definition.operation === "wait") return [];
       if (!definition.action || !provider || !context.actor_id
         || (provider.project_id && provider.project_id !== context.project_id)
-        || !definition.action.audiences.includes(context.audience)) return [];
+        || !actionReachesAudience(definition.action, definition.capability_id, context.audience)) return [];
       if (!inspection && !visible(definition as ActionDefinition, provider, context)) return [];
       return [{ capability_id: definition.capability_id, version: definition.version, operation: definition.operation,
         action: definition.action, provider, availability: this.registry.availability(context, definition) }];
@@ -404,7 +404,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
 
 function visible(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
   return !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
-    && d.action.audiences.includes(c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
+    && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
     && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))
     && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version
       && (!ref.provider_id || ref.provider_id === provider.provider_id)));

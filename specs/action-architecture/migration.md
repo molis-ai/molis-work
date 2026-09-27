@@ -1525,7 +1525,7 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 
 - 问题：服务连接里以 MCP 方式接入的账号（Atlassian、Notion、Figma、Linear 等）由 `connector-mcp.ts` 自带的 MCP 客户端直接调用，设置页「调用 MCP 工具」绕过动作目录、授权与调用记录，工作流、Agent 与对外客户端也用不到这些工具。这是 MCP Client 侧的第二条执行路径。
 - 改为 `connector-mcp-actions.ts`：每条 MCP 账号连接是 Home 目录里的一个提供方（`system.connectors#mcp:<连接>`），能力 `mcp.connector.<连接>.<工具>`，权限 `mcp:external`，受众含本机用户、工作流、内置 Agent、对外 MCP 与插件；版本随输入形状变化，记在 Home `config/connector-mcp-actions.json`。连接成功、「查看工具」或检查连接时记下服务当前提供的工具（`config/connector-mcp-tools.json`，不含凭据），Host 启动时带回；已删除的连接不再登记。可用性跟随连接：已删除或已断开时显示原因；授权失效在调用时返回 `actions.reauthorize`。执行仍由原连接客户端先核对服务当前的工具列表再调用。
-- 设置页「调用 MCP 工具」改为薄转发到同一动作（首次使用会先列一次工具）；无 Host 时保留原直接调用。
+- 设置页「调用 MCP 工具」改为薄转发到同一动作（首次使用会先列一次工具）；无 Host 时保留原直接调用（复查后已去掉，见「按调用链的代码复查」）。
 - 资源读取同样进入目录：上次列出时提供资源的连接登记一项「读取 MCP 资源」（`mcp.connector.<连接>.resources.read`，按协议本身是读取，登记为 query），设置页「读取 MCP 资源」薄转发到它。
 - 验证：`tests/connector-mcp.test.ts` 新增用例（真实 MCP 服务：列出前目录无条目、列出后出现且只列不调用、经目录调用到达服务一次、调用记录、无权限不到达服务、重启带回同一版本、断开后不可用并拒绝调用），该文件 10 项与连接器相关 32 项通过。浏览器实操（1280）：服务连接 → Figma → 官方 MCP（本机 3845 端口的测试服务）→ 连接并发现工具 → 「调用 MCP 工具」save_note，服务实际收到笔记；调用记录出现「save_note · Figma · 你 · mcp.connector.…@1」；能力库显示可使用；项目流程的可选步骤出现 Figma · save_note（字段 note）；断开后能力库显示「连接「Figma」已断开，请在服务连接中重新授权」。
 - 读写区分：官方客户端返回的工具带 `readOnlyHint` 等提示，但方案规定提示不是授权来源，这里与 Coding 外部 MCP 一致，全部按外部写入处理。Coding 外部 MCP 所用 Prologue SDK 的工具快照（`McpToolSpec`）只有名称、描述、形状指纹与输入形状，没有这些提示，读写区分须待 SDK 提供。
@@ -1605,3 +1605,7 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - Feed「立即拉取」的网络读取与写入在 Feed 服务内部完成，处理器无法在写入前插入 `beforeEffect`；拉取途中停用插件时，本次已开始的拉取仍会写完。
 
 复查后全量非浏览器回归：2632 项中 2568 通过、61 失败；与复查前本分支的全量逐项对比，唯一新增的是 `secret-store-keychain-retry` 的一项。该文件单独重跑时，三个不同用例轮流失败（都卡在子进程访问 macOS 钥匙串），复查没有改动存储与钥匙串代码，属已知的钥匙串时序不稳定。typecheck、boundary:check、build 均通过。
+
+复查后的浏览器验证：
+- 相关 e2e 14 个文件 29 项，6 项失败；把失败的 5 个文件分别在复查前（188d1c0d）和 main（e065b000）上重跑，这 6 项同样失败（main 在这些文件里失败 7 项），没有复查引入或仅本分支的失败。
+- 预览应用（本分支新代码，本机测试 MCP 服务 3845）：服务连接 → Figma：已断开的连接「调用 MCP 工具」返回目录给出的原因（已断开，请重新授权），服务端未收到；重新连接后调用 save_note，页面显示服务返回，服务端只收到一次，调用记录新增「save_note · Figma · 你 · mcp.connector.<连接>.save_note@1」。

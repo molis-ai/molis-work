@@ -1515,3 +1515,8 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 曾尝试让第二个 Host 沿用已有归属，全量对比发现它破坏上述约束（第二个 Host 仍会在同一存储上组装自己的 Agent 服务），已撤回。
 - 改为修正在一个进程里模拟多个进程的旧夹具（均在 main 上失败）：重启类用例先关闭前一个服务再开下一个（`plugin-outbound-mcp` 4 项、`mcp`、`jelly-actions`）；经常驻服务通道转发的 MCP 服务在同进程内共用常驻 Host（`goals-mcp-aliases`、`action-gateway`，调用仍走网关 URL）；`project-settings-deletion` 的 Host 与生产一致地带上 Home。
 - 仍失败且保留：`alchemist-host-lifecycle` 的「多个 Host 并存」用例（其场景在同一进程内已不可能；改用不同路径模拟另一进程后任务协调超时，未强行改动）；`project-settings-deletion` 止于设置导航链接的界面断言；`images-actions` 的凭据引用用例。三者在 main 上同样失败。
+
+## 全量非浏览器回归（2026-09-27 第二次）
+
+- 486 个非浏览器测试文件：本分支 2628 项中 2564 通过、61 失败；与 main（e065b000）同批基线逐项对比，没有仅本分支失败的用例，61 项均在 main 上同样失败；main 上另有 15 项在本分支通过（Files/Git 路由与动作、工作目录、MCP 连接与 Goals 别名、Jelly、网关等）。
+- 浏览器用例未做全量对比。

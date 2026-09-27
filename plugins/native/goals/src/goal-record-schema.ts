@@ -1,4 +1,4 @@
-import { text, count, boolean, array, object, nullable, enumeration } from "./event-action-schemas.js";
+import { text, count, boolean, array, object, nullable, enumeration, recordedDecisionMethod, recordedReviewStatus } from "./event-action-schemas.js";
 
 const strings = array(text), maybeText = nullable(text);
 export const goalRiskSchema = object({ risk_id: text, board_id: text, description: text, probability: text, impact: text, affected_surfaces: strings,
@@ -7,7 +7,7 @@ export const goalRiskSchema = object({ risk_id: text, board_id: text, descriptio
   state: enumeration(["open", "triggered", "resolved", "accepted", "expired"]),
   resolution_basis: nullable(object({ summary: text, evidence_refs: strings, residual_gaps: strings })), created_at: text, updated_at: text });
 const coverageStatus = enumeration(["complete", "partial", "integration_required", "uncovered"]);
-export const goalDecompositionReviewSchema = object({ status: enumeration(["complete", "paused"]), method_pack_ids: strings,
+export const goalDecompositionReviewSchema = object({ status: recordedReviewStatus, method_pack_ids: strings,
   task_context: enumeration(["game", "app", "ai_data", "content_research", "operations", "other"]), product_context: enumeration(["game", "app", "other"]),
   coverage: array(object({ area: text, disposition: enumeration(["goal", "owned", "not_applicable"]), goal_ids: strings, reason: text })),
   open_goal_ids: strings, next_step: text,
@@ -19,7 +19,7 @@ export const goalDecompositionReviewSchema = object({ status: enumeration(["comp
   }),
 }, ["status", "coverage", "open_goal_ids", "next_step"]);
 export const goalAcceptanceCriterionSchema = object({ criterion_id: text, goal_id: text, statement: text,
-  decision_method: enumeration(["automated_check", "measurement", "inspection", "human_decision"]), pass_condition: text,
+  decision_method: recordedDecisionMethod, pass_condition: text,
   target: nullable({ type: "object", additionalProperties: true }), required_evidence: strings });
 export const goalRecordSchema = object({ goal_id: text, board_id: text, title: text, outcome: text, why: text, business_logic: text,
   in_scope: strings, out_of_scope: strings, constraints: strings, required_inputs: strings, promised_outputs: strings,

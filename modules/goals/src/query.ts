@@ -19,6 +19,7 @@ import { GuidanceCommands } from "./guidance-commands.js";
 import { GoalsRepository } from "./repository.js";
 import { GoalQueryFactsRepository } from "./query-facts-repository.js";
 import { LegacyGoalCoverage } from "./legacy-coverage.js";
+import { hydratePlanningMethodPack } from "./planning/method-packs.js";
 
 export const DEFAULT_GOAL_POLICY: GoalPolicy = {
   goal_mode: "preferred",
@@ -138,7 +139,8 @@ export class GoalsQueryService implements GoalsQueryApi {
       risks: this.repository.listRisks(boardId),
       goal_risks: this.repository.listGoalRiskLinks(boardId),
       policy_bindings: this.repository.listActivePolicyBindings(boardId),
-      planning_method_packs: this.repository.listPlanningMethodPacks(boardId),
+      // Packs saved before later fields existed are completed on the way out, as the planning engine does.
+      planning_method_packs: this.repository.listPlanningMethodPacks(boardId).map(hydratePlanningMethodPack),
       project_guidance: this.repository.listProjectGuidanceEntries(boardId),
     };
   }

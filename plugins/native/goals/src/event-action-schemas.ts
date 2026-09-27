@@ -2,7 +2,7 @@ import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actio
 import { goalEventClosureKinds, goalEventConcernStatuses, goalEventDecisionEffectKinds, goalEventDecisionPurposes,
   goalEventFieldFormats, goalEventJudgmentVerdicts, goalEventRequirementCurrentStatuses, goalEventSemanticFamilies,
   goalEventTrustedAuthoritySources, goalEventTypeSourceKinds, goalEventUserConclusionVerdicts, goalEventWorkStatuses,
-  goalIntentSourceKinds } from "@molis-ai/molis-work-contracts/modules/goals";
+  goalIntentSourceKinds, goalDecisionMethods, goalDecompositionReviewStatuses } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export const text = { type: "string" };
 export const identifier = { type: "string", minLength: 1 };
@@ -14,6 +14,13 @@ export const enumeration = (values: readonly unknown[]): ActionSchema => ({ enum
 export const object = (properties: Record<string, ActionSchema>, required = Object.keys(properties)): ActionSchema => ({
   type: "object", properties, required, additionalProperties: false,
 });
+/**
+ * A recorded criterion's decision method. New criteria are checked against goalDecisionMethods when a Goal is created;
+ * criteria recorded before that check may carry an agent's own wording, and reading them must not fail.
+ */
+export const recordedDecisionMethod: ActionSchema = { type: "string", description: `通常是 ${goalDecisionMethods.join("、")} 之一；较早记录的可能是其他文字` };
+/** A recorded decomposition review's status, read the same way: checked when written, tolerated as recorded. */
+export const recordedReviewStatus: ActionSchema = { type: "string", description: `通常是 ${goalDecompositionReviewStatuses.join("、")} 之一；较早记录的可能是其他文字` };
 const strings = array(text), maybeText = nullable(text), maybeCount = nullable(count);
 const actorKind = enumeration(["user", "runtime", null]);
 const workStatus = enumeration(goalEventWorkStatuses), concernStatus = enumeration(goalEventConcernStatuses);
@@ -69,7 +76,7 @@ const requirementReport = object({ event_id: text, actor_id: text, actor_kind: a
 const conclusion = object({ decision_id: text, actor_id: text, verdict: enumeration(goalEventUserConclusionVerdicts), received_at: text, journal_seq: count });
 const requirement = object({ requirement_id: text, goal_id: text, statement: text,
   origin: object({ kind: enumeration(["goal_event_requirement", "imported_acceptance_criterion", "imported_human_approval", "create_input"]),
-    decision_method: enumeration(["automated_check", "measurement", "inspection", "human_decision"]), pass_condition: text, config_version: count,
+    decision_method: recordedDecisionMethod, pass_condition: text, config_version: count,
     planning: planningRequirement, policy_binding_ids: strings }, ["kind"]), bound_type_ids: strings, human_decision_required: boolean,
   current_report: nullable(requirementReport), user_conclusion: nullable(conclusion), currently_satisfied: boolean });
 

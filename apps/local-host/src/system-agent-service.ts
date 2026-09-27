@@ -55,8 +55,10 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         }),
       },
     });
-    const unbind = bindPrologueInference(storageHome, service.inference);
-    const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
+    // Another Host in this process may already own this Home's inference and builder (a web server and an MCP server
+    // started side by side). That owner stays the one references resolve to; this Host keeps its own actions.
+    const unbind = bindUnlessOwned(() => bindPrologueInference(storageHome, service.inference));
+    const unbindBuilder = bindUnlessOwned(() => bindPrologueBuilder(storageHome, service.createBuilderAgent));
     owner.release = () => { unbind(); unbindBuilder(); };
     const dispose = service.dispose.bind(service);
     service.dispose = () => { owner.release?.(); owners.delete(localHost); return dispose(); };
@@ -67,4 +69,12 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
 /** A closing Host stops offering its Home's inference at once, so its successor can bind before teardown finishes. */
 export function releaseSystemAgentService(localHost: MolisWorkLocalHost): void {
   owners.get(localHost)?.release?.();
+}
+
+function bindUnlessOwned(bind: () => () => void): () => void {
+  try { return bind(); }
+  catch (error) {
+    if ((error as { code?: string }).code === "inference.home_in_use") return () => undefined;
+    throw error;
+  }
 }

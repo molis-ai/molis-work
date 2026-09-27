@@ -32,9 +32,10 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
   await writeFile(join(root, "src/a.ts"), "export const a = 1;\n"); await writeFile(join(root, "src/b.ts"), "export const b = 1;\n");
   const ids: Record<string, string> = {}, seen: Record<string, string[]> = {}, toolsOf: Record<string, string[]> = {};
   let board = "", releaseHolders!: () => void; const holders = new Promise<void>(resolve => { releaseHolders = resolve; });
+  let releaseK!: () => void; const holdK = new Promise<void>(resolve => { releaseK = resolve; });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = bodyOf(init), messages = JSON.stringify(body.messages), system = JSON.stringify(body.system);
-    const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(A|B|C|D|E|F|G|H|I)_TASK/)?.[1]).find(Boolean);
+    const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(A|B|C|D|E|F|G|H|I|J|K)_TASK/)?.[1]).find(Boolean);
     if (!who) return response("其他。");
     const turns = (seen[who] ??= []); turns.push(messages); const turn = turns.length;
     toolsOf[who] ??= (body.tools ?? []).map((tool: { name: string }) => tool.name);
@@ -66,6 +67,13 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
       if (turn === 1) return response("", { name: "session-send", input: { to: ids.H, kind: "request", body: "你先告诉我 X", idempotencyKey: "g-ask", wait: true } });
       return response("等 H。");
     }
+    if (who === "J") {
+      // J asks K, which is still working, and waits for the answer.
+      if (turn === 1) return response("", { name: "session-send", input: { to: ids.K, kind: "request", body: "你那边的常量叫什么？", idempotencyKey: "j-ask", wait: true } });
+      return response("等 K。");
+    }
+    // K is held in its round until J has asked, then its model call fails outright.
+    if (who === "K") { await holdK; return new Response(JSON.stringify({ type: "error", error: { type: "api_error", message: "fixture failure" } }), { status: 500, headers: { "content-type": "application/json" } }); }
     if (who === "I") {
       // I has no plan of its own: it first names the project's board and a made-up step, is told how to do it, and
       // then hands the work over in the body alone.
@@ -159,6 +167,19 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     assert.match(seen.I![1]!, /is not a task board of your plan\. To hand work over without plan steps, leave out board and steps/);
     assert.match(seen.I![2]!, /envelope \S+ is queued/);
     assert.deepEqual((await adapter.messages!.read("b", i.session.session_id)).map(message => [message.kind, message.to_title]), [["handoff", "B"]]);
+    // The session asked fails its round without answering: the one waiting on it wakes, told so, and the letter says why.
+    const k = await run("K", { task: "K_TASK 做自己的事" }), j = await run("J", { task: "J_TASK 问 K" });
+    const kRound = await k.start();
+    await until("K is under way", () => (seen.K?.length ?? 0) >= 1);
+    await ended((await j.start()).ref);
+    assert.equal((await adapter.waits!.read("b", j.session.session_id))[0]!.state, "waiting");
+    releaseK();
+    assert.equal((await ended(kRound.ref)).phase, "failed");
+    const woke = (await adapter.waits!.awaitFired("b", 10_000)).filter(wait => wait.session_id === j.session.session_id);
+    assert.deepEqual(woke.map(wait => [wait.session_id, wait.fired?.kind, wait.fired?.outcome, wait.fired?.text]), [[j.session.session_id, "envelope", "failed", "收信的会话那一轮失败了，没有答复"]]);
+    const letter = (await adapter.messages!.read("b", j.session.session_id))[0]!;
+    assert.deepEqual([letter.state, letter.history!.at(-1)!.event], ["cancelled", "failed"]);
+    await adapter.waits!.resume("b", woke[0]!.wait_id, "woken");
     // A claim left quiet: A's round is over and step-1 has not moved for three hours — it reads as expired, nothing is
     // taken back.
     const realNow = Date.now(), later = realNow + 3 * 60 * 60 * 1000;
@@ -166,5 +187,5 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     const stale = (await adapter.read(aRound.ref)).step_board!.nodes.find(step => step.id === "step-1")!;
     assert.deepEqual([stale.state, stale.owner?.kind, stale.owner?.expired], ["running", "session", true]);
     assert.match(stale.owner!.label, /认领已过期，3 小时没有动静/);
-  } finally { releaseHolders(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
+  } finally { releaseHolders(); releaseK(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

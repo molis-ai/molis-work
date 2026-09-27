@@ -85,7 +85,9 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(!mail.length)return;const list=el('ol','coding-coop-mail');
     for(const message of mail.slice().reverse()){
       const item=el('li'),head=el('div','coding-coop-head'),line=el('p','coding-coop-line');item.dataset.state=message.state;
-      const chip=el('span','mw-status mw-status--plain',MAIL_STATE[message.state]||message.state);chip.dataset.tone=MAIL_TONE[message.state]||'idle';
+      // Ended because the receiving round failed, not withdrawn by anyone.
+      const failed=message.state==='cancelled'&&(message.history||[]).some(entry=>entry.event==='failed');
+      const chip=el('span','mw-status mw-status--plain',failed?'对方那一轮失败，未答复':(MAIL_STATE[message.state]||message.state));chip.dataset.tone=failed?'blocked':(MAIL_TONE[message.state]||'idle');
       head.append(el('strong','',(message.outgoing?'发出的':'收到的')+(MAIL_KIND[message.kind]||message.kind)+(message.await_reply?'（在等答复）':'')),chip);
       line.append(document.createTextNode(message.outgoing?'给':'来自'),message.peer?sessionLink(message.peer):el('span','',message.outgoing?'「'+message.to_title+'」':'「'+message.from_title+'」'),el('time','',time(message.sent_at_ms)));
       const body=el('details','coding-coop-task');body.append(el('summary','',message.body.split('\\n')[0].slice(0,80)),el('p','',message.body));

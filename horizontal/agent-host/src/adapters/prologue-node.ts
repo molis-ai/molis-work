@@ -1025,7 +1025,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         } } : {}),
         // Packed against the model's own window when it states a smaller one than the runtime default.
         ...(input.compaction || input.provenance.frozen.model_context ? { context: {
-          ...(input.compaction ? { compactAboveTokens: input.compaction.above_tokens } : {}),
+          // A failed early compaction does not end a round whose history still fits the window (the person chose this).
+          ...(input.compaction ? { compactAboveTokens: input.compaction.above_tokens, continueWhenCompactionFails: true } : {}),
           ...(input.provenance.frozen.model_context ? { windowTokens: input.provenance.frozen.model_context.window_tokens } : {}),
         } } : {}),
         ...(input.compaction ? {
@@ -1106,6 +1107,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
                 if (work) { runWork.delete(started.run.ref.id); void projectWork.end(work.project, work.id, event.type === "cancelled" ? "stopped" : event.type).catch(() => undefined); }
                 // A round that finished normally saw every message given to it; unanswered requests are settled.
                 if (work && event.type === "completed") void messages.settle(session.ref.id).catch(() => undefined);
+                // One that failed will not answer the requests someone waits on; they are ended so the waiting session wakes.
+                if (work && event.type === "failed") void messages.failed(session.ref.id).catch(() => undefined);
               }
               if (event.type === "command-receipt") {
                 const events = commandEvents.get(started.run.ref.id) ?? [];

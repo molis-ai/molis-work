@@ -287,11 +287,15 @@ index aebbf7de..ff853719 100644
  
 diff --git a/docs/slices/bounded-inference.md b/docs/slices/bounded-inference.md
 new file mode 100644
-index 00000000..5af455d9
+index 00000000..2c2fe6d7
 --- /dev/null
 +++ b/docs/slices/bounded-inference.md
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,27 @@
 +# Bounded inference on the owning Runtime
++
++## Review fixes (2026-09-27)
++
++Persist and restore the safe HTTP error status (integer 400–599) in Session event ledgers, retaining compatibility with older errors without status. Do not serialize arbitrary error properties or raw responses. Runtime configuration owns the default tool timeout; ToolCatalog uses that same value without a reverse Runtime-to-Tool dependency. Keep the 60-second default, App overrides and each tool's own deadline unchanged. Validate real Node restart, legacy/error projection, module boundaries and tool limits, then distribute a reproducible SDK package. Local inference and external CLI migration remain deferred by the consumer.
 +
 +The consumer needs its existing text, images, structured TypeSafe judgments and local inference to share one Runtime and Host. No App model HTTP fallback or second runtime is allowed.
 +
@@ -346,10 +350,19 @@ index 3041404e..5a668b61 100644
 +
 +`Runtime.startAgentRun` accepts `workspace: "none"` with explicit `agent.toolNames: []`. It preserves the same Character, text resources, history, loop, control, budget and Session ledger while rejecting workspace access and tools. Rooted runs keep their required-root behavior. See [bounded Agent scopes](../../../../docs/slices/bounded-inference.md).
 diff --git a/packages/sdk/src/agent/core/loop.ts b/packages/sdk/src/agent/core/loop.ts
-index 3d32de17..8241fac0 100644
+index 3d32de17..c1dbee76 100644
 --- a/packages/sdk/src/agent/core/loop.ts
 +++ b/packages/sdk/src/agent/core/loop.ts
-@@ -371,6 +371,15 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+@@ -209,6 +209,8 @@ export interface AgentLoopInput {
+     readonly compactor?: ContextCompactor;
+     /** 估出来的 token 数过了这个就先压一次。 */
+     readonly compactAboveTokens?: number;
++    /** 提前压失败时，窗口还放得下就接着跑，再攒一个 `compactAboveTokens` 后再压；不给就失败。 */
++    readonly continueWhenCompactionFails?: boolean;
+     /**
+      * 每次请求前的窗口硬上限。真实 Runtime 从 `AgentContextOptions.windowTokens`
+      * 传入已解析值；直接调用沿现役默认 120000。
+@@ -371,6 +373,15 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
    let toolNameRepaired = false;
    let resamples = 0;
    const MAX_RESAMPLES = 2;
@@ -365,7 +378,7 @@ index 3d32de17..8241fac0 100644
    /**
     * 因为溢出压过几次。
     *
-@@ -856,6 +865,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+@@ -856,6 +867,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
         *     模型的。未知帧同理：没读懂的东西不该变成模型说过的话。
         */
        if (
@@ -373,7 +386,29 @@ index 3d32de17..8241fac0 100644
          event.type === "reasoning-delta" ||
          event.type === "unknown" ||
          // 用量也照原样转发：**不转发的话「这次花了多少」在 Agent
-@@ -1214,16 +1224,53 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+@@ -914,8 +926,19 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+           if (stopIfHalted(pending, false)) {
+             return;
+           }
+-          done({ type: "failed", error: compacted.error });
+-          return;
++          // 压是为了省窗口，不是窗口已经放不下：放得下、调用方又允许，就用原来的接着跑。
++          let fits = false;
++          if (input.guards.continueWhenCompactionFails === true) {
++            try {
++              assertWindowFits({ prefix: prefix(), history, windowTokens, tools: input.recipe.toolSpecs() });
++              fits = true;
++            } catch { /* 放不下：照旧失败 */ }
++          }
++          if (!fits) {
++            done({ type: "failed", error: compacted.error });
++            return;
++          }
++          compactedContextTokens = visibleTokens();
+         }
+       }
+       // 压缩是异步的：摘要在飞时请求的暂停/取消/转向，在发出之前生效。
+@@ -1214,16 +1237,53 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
          pending = [...lifted];
        }
      }
@@ -430,7 +465,7 @@ index 3d32de17..8241fac0 100644
        if (stalled !== undefined && resamples < MAX_RESAMPLES) {
          resamples += 1;
          // **两边都退。** 只退循环那个计数的话，重采样照样吃掉轮次预算，
-@@ -1233,13 +1280,26 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+@@ -1233,13 +1293,26 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
          history.push(
            runtimePromptRecord(
              stalled === "truncated"
@@ -458,7 +493,7 @@ index 3d32de17..8241fac0 100644
        if (input.guards.guardrails.length > 0) {
          /*
           * **输出护栏在终态前跑。**
-@@ -1250,7 +1310,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+@@ -1250,7 +1323,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
          const verdict = await runGuardrails({
            rails: input.guards.guardrails,
            stage: "output",
@@ -467,7 +502,7 @@ index 3d32de17..8241fac0 100644
            onError: input.guards.guardrailOnError,
            isCancelled: input.run.isCancelled,
          });
-@@ -1306,7 +1366,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+@@ -1306,7 +1379,7 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
         */
        try {
          // 空话不成候选，那一条在提炼那一侧判——**这里不重复一遍**。
@@ -546,10 +581,22 @@ index 922224b5..da408b14 100644
 +
 +export type { AgentRunGrants } from "../core/agent-permissions.js";
 diff --git a/packages/sdk/src/composition/core/agent-context.ts b/packages/sdk/src/composition/core/agent-context.ts
-index 1bba71f6..c6774fce 100644
+index 1bba71f6..b6d3b833 100644
 --- a/packages/sdk/src/composition/core/agent-context.ts
 +++ b/packages/sdk/src/composition/core/agent-context.ts
-@@ -74,9 +74,15 @@ export { DEFAULT_CONTEXT_WINDOW_TOKENS };
+@@ -56,6 +56,11 @@ export interface AgentContextOptions {
+    * **不影响分支摘要。**
+    */
+   readonly compactAboveTokens?: number;
++  /**
++   * An early compaction that fails does not end the run while what it has still fits the window: the run goes on with
++   * it and tries again once another `compactAboveTokens` has come in. Off by default: a failed compaction ends the run.
++   */
++  readonly continueWhenCompactionFails?: boolean;
+ }
+ 
+ export { DEFAULT_CONTEXT_WINDOW_TOKENS };
+@@ -74,9 +79,15 @@ export { DEFAULT_CONTEXT_WINDOW_TOKENS };
   */
  export type AssembleAgentContext = typeof assembleAgentContext;
  
@@ -566,7 +613,7 @@ index 1bba71f6..c6774fce 100644
    readonly messages: readonly ModelMessage[];
    readonly options: AgentContextOptions;
    /**
-@@ -157,7 +163,7 @@ export async function assembleAgentContext(input: {
+@@ -157,7 +168,7 @@ export async function assembleAgentContext(input: {
    // ——不编一份。只读根上那份的话，monorepo 里最具体的那一份规矩永远
    // 不生效，而那恰恰是最该生效的一份。
    const repository: InstructionFile[] = [];
@@ -575,7 +622,7 @@ index 1bba71f6..c6774fce 100644
      for (const layer of instructionLayers(input.workingDirectory)) {
        for (const name of input.config.instructionNames) {
          const path = layer === "." ? name : `${layer}/${name}`;
-@@ -179,7 +185,7 @@ export async function assembleAgentContext(input: {
+@@ -179,7 +190,7 @@ export async function assembleAgentContext(input: {
      maxChars: input.config.maxInstructionChars,
    });
  
@@ -1028,7 +1075,7 @@ index 00000000..38d03592
 +  });
 +}
 diff --git a/packages/sdk/src/composition/core/runtime.ts b/packages/sdk/src/composition/core/runtime.ts
-index 8e1690f1..cfdbfd32 100644
+index 8e1690f1..84722258 100644
 --- a/packages/sdk/src/composition/core/runtime.ts
 +++ b/packages/sdk/src/composition/core/runtime.ts
 @@ -1,3 +1,8 @@
@@ -1574,7 +1621,7 @@ index 8e1690f1..cfdbfd32 100644
 +            agent.workingDirectory !== undefined || (agent.skillNames?.length ?? 0) > 0 ||
 +            (agent.mcpConnections?.length ?? 0) > 0 || (agent.mount?.sources?.length ?? 0) > 0 ||
 +            (agent.mount?.artifacts?.length ?? 0) > 0 ||
-+            Object.keys(input_context ?? {}).some((key) => key !== "windowTokens" && key !== "compactAboveTokens")) {
++            Object.keys(input_context ?? {}).some((key) => !["windowTokens", "compactAboveTokens", "continueWhenCompactionFails"].includes(key))) {
 +          throw createPrologueError("AGENT_START_INVALID", "A workspace-free Agent requires explicit toolNames: [] and cannot carry a root, tools, subagents, or workspace context.");
 +        }
 +      } else if (rootRef === undefined || workspace.get(rootRef) === undefined) {
@@ -1602,7 +1649,15 @@ index 8e1690f1..cfdbfd32 100644
        /*
         * 包的配置作为**一层**进来，在 App 显式之下、模块默认之上。
         *
-@@ -4045,18 +4239,24 @@ export async function createRuntime(
+@@ -4000,6 +4194,7 @@ export async function createRuntime(
+       const compactAboveTokens =
+         input_context?.compactAboveTokens ?? config.context.compactAboveTokens;
+       const windowTokens = input_context?.windowTokens ?? DEFAULT_CONTEXT_WINDOW_TOKENS;
++      const continueWhenCompactionFails = input_context?.continueWhenCompactionFails === true;
+       /**
+        * 这个名字这一轮看不看得见。**Session 级隔离落在这里。**
+        *
+@@ -4045,18 +4240,24 @@ export async function createRuntime(
         * 必须在第一次 catalog 之前同步取完——中间若夹了 await，目录
         * 和定义就可能来自两份不同的表。
         */
@@ -1630,7 +1685,7 @@ index 8e1690f1..cfdbfd32 100644
          posture,
          assembled,
          defaultMaxTurns: config.agent.maxTurns,
-@@ -4101,6 +4301,13 @@ export async function createRuntime(
+@@ -4101,6 +4302,13 @@ export async function createRuntime(
            : { subagentWorkspaces: subagentWorkspaceFact(frozenWorkspaces) }),
        });
  
@@ -1644,7 +1699,7 @@ index 8e1690f1..cfdbfd32 100644
        // freezeStart 已在第一次 await 前复制并冻结引用；历史读取失败仍不消耗幂等键。
        const historyMessages =
          history === "session" ? historyFromTurns((await session.conversation()).turns) : undefined;
-@@ -4157,14 +4364,18 @@ export async function createRuntime(
+@@ -4157,14 +4365,18 @@ export async function createRuntime(
         * 被记成父深度 + 1。并发名额仍是 Runtime 那一份。
         */
        const lineageDepth = subagentLineage.get(session.ref.id) ?? 0;
@@ -1666,7 +1721,7 @@ index 8e1690f1..cfdbfd32 100644
  
        /**
         * 二点五、Character。
-@@ -4191,6 +4402,8 @@ export async function createRuntime(
+@@ -4191,6 +4403,8 @@ export async function createRuntime(
            .filter((one) => isToolAllowed(frozen, one.name))
            .map((one) => one.name),
        ];
@@ -1675,7 +1730,7 @@ index 8e1690f1..cfdbfd32 100644
        /**
         * 这一次由哪个角色干活。
         *
-@@ -4257,7 +4470,7 @@ export async function createRuntime(
+@@ -4257,7 +4471,7 @@ export async function createRuntime(
            systemTools,
            catalogTools: visibleCatalog(),
            frozen,
@@ -1684,7 +1739,7 @@ index 8e1690f1..cfdbfd32 100644
          });
          return {
            all,
-@@ -4360,7 +4573,7 @@ export async function createRuntime(
+@@ -4360,7 +4574,7 @@ export async function createRuntime(
         * 还要再过一次本轮名单：开跑时点了 `skillNames`，目录里也只能
         * 有那几条，否则模型看得见却调不动。
         */
@@ -1693,7 +1748,7 @@ index 8e1690f1..cfdbfd32 100644
          ? skillSnapshot
              .catalog({ capabilities: available, forAutoSelection: true })
              .entries.filter(
-@@ -4394,8 +4607,12 @@ export async function createRuntime(
+@@ -4394,8 +4608,12 @@ export async function createRuntime(
         */
        const packFor = async (who: FrozenCharacter) => {
          const assembled = await packContext({
@@ -1708,7 +1763,7 @@ index 8e1690f1..cfdbfd32 100644
            persona: await gatherPersona({
              character: who,
              readChunk: (ref, offset) => resources.readChunk(ref, offset),
-@@ -4408,10 +4625,7 @@ export async function createRuntime(
+@@ -4408,10 +4626,7 @@ export async function createRuntime(
            // 改的，读口按它解析）和这一次运行自己给的那一段。分层拼接要
            // 跟着**实际生效的那个**——只看其中一个的话，模型看到的规矩会
            // 和它实际能读到的文件对不上。
@@ -1720,7 +1775,7 @@ index 8e1690f1..cfdbfd32 100644
            // 钩子改写过的那一份。没改就是原来那一份。
            // 显式续聊只把本轮新用户任务送进 `messages`；历史走 conversation，
            // 按原角色和数据来源入模，不经过 source:user 那条扁平路径，
-@@ -4553,6 +4767,7 @@ export async function createRuntime(
+@@ -4553,6 +4768,7 @@ export async function createRuntime(
                // 隐形档案，凭空写个名字等于替 App 认了一个角色。
                ...(isDefaultExecutor(character) ? {} : { character: character.ref.id }),
              },
@@ -1728,7 +1783,7 @@ index 8e1690f1..cfdbfd32 100644
        );
        /*
         * 报过的不再报。**按这一次 Run 记**——一次新的 Run 该重新看见
-@@ -4591,8 +4806,9 @@ export async function createRuntime(
+@@ -4591,8 +4807,9 @@ export async function createRuntime(
          }
          return undefined;
        };
@@ -1740,9 +1795,11 @@ index 8e1690f1..cfdbfd32 100644
            subagents: runSubagents,
            registry: subagentRegistry,
            parentRun: () => {
-@@ -4658,7 +4874,14 @@ export async function createRuntime(
+@@ -4657,8 +4874,16 @@ export async function createRuntime(
+             : { onStarted: subagentOptions.onStarted }),
            ...(heldCompactor === undefined ? {} : { compactor: heldCompactor }),
            compactAboveTokens,
++          ...(continueWhenCompactionFails ? { continueWhenCompactionFails } : {}),
            windowTokens,
 +          boards: {
 +            store: boards,
@@ -1755,7 +1812,7 @@ index 8e1690f1..cfdbfd32 100644
        /**
         * 内置那份：系统工具闭集里那些，各归各的主人。
         *
-@@ -4667,7 +4890,9 @@ export async function createRuntime(
+@@ -4667,7 +4892,9 @@ export async function createRuntime(
         * 没法被引用。
         */
        const runSignal: { current: AbortSignal | undefined } = { current: undefined };
@@ -1766,7 +1823,7 @@ index 8e1690f1..cfdbfd32 100644
            ...sharedSystemToolDeps({
              rootRef,
              ignore: assembledContext.ignore,
-@@ -4677,6 +4902,16 @@ export async function createRuntime(
+@@ -4677,6 +4904,16 @@ export async function createRuntime(
               * 就是没有人——凭空写个名字等于替 App 认了一个角色。
               */
              by: () => (isDefaultExecutor(character) ? undefined : character.ref),
@@ -1783,7 +1840,7 @@ index 8e1690f1..cfdbfd32 100644
              // 板的上界用**这一次**那份：包配得动它。
              boardLimits: config.orchestration.board,
              mcpConnections: frozen.mcpConnections,
-@@ -4685,6 +4920,36 @@ export async function createRuntime(
+@@ -4685,6 +4922,36 @@ export async function createRuntime(
            limits: frozen.limits,
            todo,
            evidence,
@@ -1820,7 +1877,7 @@ index 8e1690f1..cfdbfd32 100644
            async onCommandReceipt(callId, record) {
              const bytes = new TextEncoder().encode(JSON.stringify(record));
              const stage = resources.stage({ mediaKind: "json", byteLength: bytes.byteLength, label: "command-receipt" });
-@@ -5011,9 +5276,10 @@ export async function createRuntime(
+@@ -5011,9 +5278,10 @@ export async function createRuntime(
         * 闭集里那三样有主人的名字轮不到它们答。内置提问者同样：丢掉
         * `asksUser` 会把普通提问重新变成一笔虚构 Effect。
         */
@@ -1832,7 +1889,7 @@ index 8e1690f1..cfdbfd32 100644
          if (runTool !== undefined) {
            return runTool(callInput);
          }
-@@ -5051,7 +5317,7 @@ export async function createRuntime(
+@@ -5051,7 +5319,7 @@ export async function createRuntime(
  
        const packed = {
          ...start,
@@ -1841,7 +1898,7 @@ index 8e1690f1..cfdbfd32 100644
          // 未选续聊时仍把整包装进账，保持原来的独立起跑记账。
          // 显式续聊只记本轮新用户任务——历史已经在上一本账里，再记就成两份。
          messages:
-@@ -5107,7 +5373,7 @@ export async function createRuntime(
+@@ -5107,7 +5375,7 @@ export async function createRuntime(
            if (!runAbort.signal.aborted) {
              runAbort.abort();
            }
@@ -1850,7 +1907,7 @@ index 8e1690f1..cfdbfd32 100644
          });
          /*
           * 这一轮交给谁跑。**选择在这里冻住**，之后这一轮就认它。
-@@ -5214,6 +5480,7 @@ export async function createRuntime(
+@@ -5214,6 +5482,7 @@ export async function createRuntime(
                  });
                },
                skills: () => {
@@ -1858,7 +1915,7 @@ index 8e1690f1..cfdbfd32 100644
                  const seen = new Set(remindedSkills);
                  const fresh = skillSnapshot
                    .catalog({ capabilities: [] })
-@@ -5243,7 +5510,13 @@ export async function createRuntime(
+@@ -5243,7 +5512,13 @@ export async function createRuntime(
                  for (const one of fresh) {
                    remindedSubagents.add(one.ref.id);
                  }
@@ -1873,7 +1930,15 @@ index 8e1690f1..cfdbfd32 100644
                },
              },
            },
-@@ -5316,6 +5589,7 @@ export async function createRuntime(
+@@ -5266,6 +5541,7 @@ export async function createRuntime(
+              */
+             ...(heldCompactor === undefined ? {} : { compactor: heldCompactor }),
+             compactAboveTokens,
++            ...(continueWhenCompactionFails ? { continueWhenCompactionFails } : {}),
+             windowTokens,
+             objective: { check: judgeAgainstObjective },
+             fireCompaction: async (when) => {
+@@ -5316,6 +5592,7 @@ export async function createRuntime(
         */
        run.subscribe((event) => {
          if (isTerminalEventType(event.type)) {
@@ -1881,7 +1946,7 @@ index 8e1690f1..cfdbfd32 100644
            liveRuns.delete(run.ref.id);
            todo.finish();
            /*
-@@ -5347,7 +5621,7 @@ export async function createRuntime(
+@@ -5347,7 +5624,7 @@ export async function createRuntime(
             * 最常见的一种就是 Runtime 已经关了——那时 Host 那边本来
             * 就把所有子进程一起收了。
             */
@@ -1890,7 +1955,7 @@ index 8e1690f1..cfdbfd32 100644
          }
        });
        /*
-@@ -5377,6 +5651,10 @@ export async function createRuntime(
+@@ -5377,6 +5654,10 @@ export async function createRuntime(
      },
  
      async shutdown(): Promise<ShutdownReceipt> {
@@ -1901,7 +1966,7 @@ index 8e1690f1..cfdbfd32 100644
        await effects.pendings.endLiveWaits();
        /*
         * **心跳第一个停。**
-@@ -5446,6 +5724,8 @@ export async function createRuntime(
+@@ -5446,6 +5727,8 @@ export async function createRuntime(
         */
        await Promise.resolve();
        await subagentRegistry.flush();
@@ -2001,7 +2066,7 @@ index 5784a7d7..1a8bee4d 100644
    });
  }
 diff --git a/packages/sdk/src/composition/core/surfaces.ts b/packages/sdk/src/composition/core/surfaces.ts
-index 6b13b77a..f79dfd97 100644
+index 6b13b77a..4a2a7462 100644
 --- a/packages/sdk/src/composition/core/surfaces.ts
 +++ b/packages/sdk/src/composition/core/surfaces.ts
 @@ -12,17 +12,20 @@
@@ -2130,8 +2195,12 @@ index 6b13b77a..f79dfd97 100644
  /**
   * 派一个子任务。
   *
-@@ -394,6 +452,14 @@ export function subagentDispatcher(deps: {
+@@ -392,8 +450,18 @@ export function subagentDispatcher(deps: {
+   readonly compactor?: ContextCompactor;
+   /** 父亲这一跑冻住的触发阈值。 */
    readonly compactAboveTokens: number;
++  /** 父亲这一跑是否在提前压失败、窗口还放得下时接着跑。孩子照同一条。 */
++  readonly continueWhenCompactionFails?: boolean;
    /** 父亲这一跑冻住的窗口。 */
    readonly windowTokens: number;
 +  /** The task boards, when this Runtime has them: a dispatch naming `claims` hands those steps to the child. */
@@ -2145,7 +2214,7 @@ index 6b13b77a..f79dfd97 100644
  }): NonNullable<
    Parameters<typeof createSystemToolRunner>[0]["dispatchSubagent"]
  > {
-@@ -408,6 +474,51 @@ export function subagentDispatcher(deps: {
+@@ -408,6 +476,51 @@ export function subagentDispatcher(deps: {
      session,
      start,
    } = deps;
@@ -2197,7 +2266,7 @@ index 6b13b77a..f79dfd97 100644
    return async (request, deferResult) => {
      assertNoImplicitInheritance(request);
      const childKey = request.idempotencyKey;
-@@ -442,13 +553,70 @@ export function subagentDispatcher(deps: {
+@@ -442,13 +555,70 @@ export function subagentDispatcher(deps: {
        deps.assertParentMayDispatch?.();
        subagents.assertCanDispatch();
      }
@@ -2271,7 +2340,7 @@ index 6b13b77a..f79dfd97 100644
          network: {
            model: frozen.network.model === true,
            web: frozen.network.web === true,
-@@ -533,6 +701,44 @@ export function subagentDispatcher(deps: {
+@@ -533,6 +703,44 @@ export function subagentDispatcher(deps: {
          if (deps.durable || deps.onStarted !== undefined) {
            deps.holdChildStart?.(child.ref.id);
          }
@@ -2316,7 +2385,7 @@ index 6b13b77a..f79dfd97 100644
          /**
           * 子循环。**同一个 `startAgentRun`**——同一套 Session / Run /
           * Effect / 事件账。它是调度，不是第二套执行核。
-@@ -548,7 +754,12 @@ export function subagentDispatcher(deps: {
+@@ -548,7 +756,12 @@ export function subagentDispatcher(deps: {
            rootRef: childRootRef,
            start: {
              ...start,
@@ -2330,7 +2399,7 @@ index 6b13b77a..f79dfd97 100644
              /*
               * **子任务有自己的预算。** 不给的话它花的是父亲那一
               * 本，于是「一个跑飞的孩子」和「父亲自己跑飞」在账上
-@@ -574,6 +785,7 @@ export function subagentDispatcher(deps: {
+@@ -574,6 +787,7 @@ export function subagentDispatcher(deps: {
              idempotencyKey: `${frozen.idempotencyKey}.${request.idempotencyKey}`,
              mode: frozen.limits.mode,
              toolNames: effective.tools,
@@ -2338,7 +2407,15 @@ index 6b13b77a..f79dfd97 100644
              /*
               * 点名了角色就让它按那份档案干活：角色说明进**它自己**的
               * 提示，工具在下面这份求交结果之内再收一次。
-@@ -633,8 +845,7 @@ export function subagentDispatcher(deps: {
+@@ -595,6 +809,7 @@ export function subagentDispatcher(deps: {
+           context: {
+             compactAboveTokens: deps.compactAboveTokens,
+             windowTokens: deps.windowTokens,
++            ...(deps.continueWhenCompactionFails === true ? { continueWhenCompactionFails: true } : {}),
+           },
+         });
+         observedChild = { session: child, started: childRun };
+@@ -633,8 +848,7 @@ export function subagentDispatcher(deps: {
              deps.notifyParentUncertain?.();
              deps.registry.notifyUncertainAncestors(session.ref.id);
            }
@@ -2348,7 +2425,7 @@ index 6b13b77a..f79dfd97 100644
                {
                  sessionRef: child.ref,
                  state,
-@@ -650,8 +861,23 @@ export function subagentDispatcher(deps: {
+@@ -650,8 +864,23 @@ export function subagentDispatcher(deps: {
                  ...(error === undefined ? {} : { error }),
                },
                config.orchestration.maxReportSummaryChars,
@@ -4381,10 +4458,35 @@ index 00000000..afb5925a
 +  readOutcome(body: string): TypeSafeOutcome;
 +}
 diff --git a/packages/sdk/src/model/plugin/anthropic-compatible.ts b/packages/sdk/src/model/plugin/anthropic-compatible.ts
-index bdfb9331..5b9ecd81 100644
+index bdfb9331..b89ca7e4 100644
 --- a/packages/sdk/src/model/plugin/anthropic-compatible.ts
 +++ b/packages/sdk/src/model/plugin/anthropic-compatible.ts
-@@ -131,6 +131,8 @@ export function createAnthropicCompatibleParser(emit: (event: ModelEvent) => voi
+@@ -78,6 +78,24 @@ export function buildAnthropicCompatibleBody(input: {
+     }
+     last.content = blocks;
+   }
++  if (input.cache?.useCache === true && system.length < 1) {
++    // 没有系统段（有界文字只发一条用户消息）时，断点挂在最后一条用户消息的
++    // 末块上。不挂的话档位打开了、体里却一个缓存字段都没有——`required`
++    // 照价收费而调用方以为命中了。附件已经先排进去，所以末块是正文。
++    const messages = payload.messages as { role: string; content: unknown }[];
++    const last = messages.findLast((message) => message.role === "user");
++    if (last !== undefined) {
++      const blocks =
++        typeof last.content === "string"
++          ? [{ type: "text", text: last.content }]
++          : [...(last.content as Record<string, unknown>[])];
++      const tail = blocks.at(-1);
++      if (tail !== undefined) {
++        blocks[blocks.length - 1] = { ...tail, cache_control: { type: "ephemeral" } };
++        last.content = blocks;
++      }
++    }
++  }
+   if (input.tools !== undefined && input.tools.length > 0) {
+     payload.tools = input.tools.map((tool) => ({
+       name: tool.name,
+@@ -131,6 +149,8 @@ export function createAnthropicCompatibleParser(emit: (event: ModelEvent) => voi
        collector.noteInvalid();
        return;
      }
@@ -5838,16 +5940,15 @@ index 00000000..469f1427
 +  return registry;
 +}
 diff --git a/packages/sdk/src/runtime/core/config.ts b/packages/sdk/src/runtime/core/config.ts
-index 8053d9f1..9bc546f5 100644
+index 8053d9f1..878bea32 100644
 --- a/packages/sdk/src/runtime/core/config.ts
 +++ b/packages/sdk/src/runtime/core/config.ts
-@@ -1,3 +1,5 @@
-+import { DEFAULT_TOOL_LIMITS } from "../../tool/core/index.js";
+@@ -1,3 +1,4 @@
 +import { DEFAULT_IMAGE_LIMITS, type ImageLimits } from "../../model/core/index.js";
  import {
    DEFAULT_BREAKER_LIMITS,
    DEFAULT_DIAGNOSTIC_COMMANDS,
-@@ -6,10 +8,14 @@ import {
+@@ -6,10 +7,14 @@ import {
  import { MAX_INSTRUCTION_CHARS } from "../../context/core/index.js";
  import { DEFAULT_DELIVERY_LIMITS, type DeliveryLimits } from "../../delivery/core/index.js";
  import {
@@ -5862,7 +5963,7 @@ index 8053d9f1..9bc546f5 100644
  } from "../../orchestration/core/index.js";
  import {
    DEFAULT_INTAKE_LIMITS,
-@@ -63,6 +69,8 @@ export interface ModuleConfig {
+@@ -63,6 +68,8 @@ export interface ModuleConfig {
      compactAboveTokens?: number;
    }>;
    readonly tool?: Readonly<{
@@ -5871,7 +5972,7 @@ index 8053d9f1..9bc546f5 100644
      /** 一次工具观察回灌多少。看构建日志要 500 行，问一句 50 行就够。 */
      observation?: Readonly<{ maxLines?: number; maxBytes?: number }>;
      /** 超过这个数就把闭集外的工具**只报名字**，形状等模型来取。 */
-@@ -100,6 +108,10 @@ export interface ModuleConfig {
+@@ -100,6 +107,10 @@ export interface ModuleConfig {
    }>;
    /** 同一 App 内两个 Session 之间传话的上界。 */
    readonly delivery?: Partial<DeliveryLimits>;
@@ -5882,7 +5983,7 @@ index 8053d9f1..9bc546f5 100644
    /** 资料源切块的上界。 */
    readonly source?: Partial<SourceLimits>;
    readonly character?: Readonly<{
-@@ -111,6 +123,8 @@ export interface ModuleConfig {
+@@ -111,6 +122,8 @@ export interface ModuleConfig {
      extraction?: boolean;
    }>;
    readonly model?: Readonly<{
@@ -5891,7 +5992,7 @@ index 8053d9f1..9bc546f5 100644
      /** 一次运行最多花多少 token。不给就是不限。 */
      tokenBudget?: number;
    }>;
-@@ -142,6 +156,7 @@ export interface ResolvedConfig {
+@@ -142,6 +155,7 @@ export interface ResolvedConfig {
      compactAboveTokens: number;
    }>;
    readonly tool: Readonly<{
@@ -5899,7 +6000,7 @@ index 8053d9f1..9bc546f5 100644
      observation: Readonly<{ maxLines: number; maxBytes: number }>;
      /** 普通提问的存活时间。开跑冻结。 */
      inputWaitTtlMs: number;
-@@ -179,10 +194,12 @@ export interface ResolvedConfig {
+@@ -179,10 +193,12 @@ export interface ResolvedConfig {
      parse: ParseLimits;
    }>;
    readonly delivery: DeliveryLimits;
@@ -5913,15 +6014,15 @@ index 8053d9f1..9bc546f5 100644
  }
  
  /**
-@@ -218,6 +235,7 @@ export const DEFAULT_MODULE_CONFIG: ResolvedConfig = Object.freeze({
+@@ -218,6 +234,7 @@ export const DEFAULT_MODULE_CONFIG: ResolvedConfig = Object.freeze({
      compactAboveTokens: 100_000,
    }),
    tool: Object.freeze({
-+    maxTimeoutMs: DEFAULT_TOOL_LIMITS.maxTimeoutMs,
++    maxTimeoutMs: 60_000,
      observation: Object.freeze({ maxLines: 200, maxBytes: 32 * 1024 }),
      // 默认不延后。见上面那段。
      deferToolSchemasBeyond: undefined,
-@@ -244,13 +262,15 @@ export const DEFAULT_MODULE_CONFIG: ResolvedConfig = Object.freeze({
+@@ -244,13 +261,15 @@ export const DEFAULT_MODULE_CONFIG: ResolvedConfig = Object.freeze({
      intake: DEFAULT_INTAKE_LIMITS,
    }),
    delivery: DEFAULT_DELIVERY_LIMITS,
@@ -5938,7 +6039,7 @@ index 8053d9f1..9bc546f5 100644
  });
  
  /**
-@@ -277,6 +297,7 @@ export function resolveModuleConfig(...layers: readonly (ModuleConfig | undefine
+@@ -277,6 +296,7 @@ export function resolveModuleConfig(...layers: readonly (ModuleConfig | undefine
        context: Object.freeze({ ...resolved.context, ...strip(layer.context) }),
        tool: Object.freeze({
          ...resolved.tool,
@@ -5946,7 +6047,7 @@ index 8053d9f1..9bc546f5 100644
          ...strip({ deferToolSchemasBeyond: layer.tool?.deferToolSchemasBeyond }),
          inputWaitTtlMs: finiteTtl(layer.tool?.inputWaitTtlMs) ?? resolved.tool.inputWaitTtlMs,
          observation: Object.freeze({
-@@ -304,10 +325,12 @@ export function resolveModuleConfig(...layers: readonly (ModuleConfig | undefine
+@@ -304,10 +324,12 @@ export function resolveModuleConfig(...layers: readonly (ModuleConfig | undefine
          intake: Object.freeze({ ...resolved.resource.intake, ...strip(layer.resource?.intake) }),
        }),
        delivery: Object.freeze({ ...resolved.delivery, ...strip(layer.delivery) }),
@@ -5960,7 +6061,7 @@ index 8053d9f1..9bc546f5 100644
      });
    }
    return resolved;
-@@ -334,3 +357,8 @@ function strip<T extends object>(layer: T | undefined): Partial<T> {
+@@ -334,3 +356,8 @@ function strip<T extends object>(layer: T | undefined): Partial<T> {
      Object.entries(layer).filter(([, value]) => value !== undefined),
    ) as Partial<T>;
  }
@@ -5982,6 +6083,54 @@ index 8e742ca2..30b5f085 100644
  原问题等待、持久答案、独立Run输入事件与取消/重启的现役消费合同见 [AskUser](../../../../docs/slices/ask-user.md)。该合同不把UI或第二套等待状态搬入模块。
  
  ## 可配与可换
+diff --git a/packages/sdk/src/session/core/export.ts b/packages/sdk/src/session/core/export.ts
+index 603cf249..da9c117b 100644
+--- a/packages/sdk/src/session/core/export.ts
++++ b/packages/sdk/src/session/core/export.ts
+@@ -66,13 +66,14 @@ function redactEvent(event: ModelEvent): ModelEvent {
+ export function serializeEvents(events: readonly ModelEvent[]): string {
+   return JSON.stringify(events, (_key, value: unknown) => {
+     if (value instanceof Error) {
+-      const held = value as Error & { code?: string; safeMessage?: string };
++      const held = value as Error & { code?: string; safeMessage?: string; status?: unknown };
+       return {
+         __error: true,
+         name: held.name,
+         message: held.message,
+         ...(held.code === undefined ? {} : { code: held.code }),
+         ...(held.safeMessage === undefined ? {} : { safeMessage: held.safeMessage }),
++        ...(isSafeHttpStatus(held.status) ? { status: held.status } : {}),
+       };
+     }
+     return value;
+@@ -83,7 +84,7 @@ export function serializeEvents(events: readonly ModelEvent[]): string {
+ export function deserializeEvents(text: string): readonly ModelEvent[] {
+   const parsed: unknown = JSON.parse(text, (_key, value: unknown) => {
+     if (value !== null && typeof value === "object" && (value as { __error?: unknown }).__error === true) {
+-      const held = value as { name: string; message: string; code?: string; safeMessage?: string };
++      const held = value as { name: string; message: string; code?: string; safeMessage?: string; status?: unknown };
+       const error = new Error(held.message);
+       Object.defineProperties(error, {
+         name: { value: held.name, enumerable: true },
+@@ -91,6 +92,7 @@ export function deserializeEvents(text: string): readonly ModelEvent[] {
+         ...(held.safeMessage === undefined
+           ? {}
+           : { safeMessage: { value: held.safeMessage, enumerable: true } }),
++        ...(isSafeHttpStatus(held.status) ? { status: { value: held.status, enumerable: true } } : {}),
+       });
+       return error;
+     }
+@@ -102,6 +104,10 @@ export function deserializeEvents(text: string): readonly ModelEvent[] {
+   return parsed as readonly ModelEvent[];
+ }
+ 
++function isSafeHttpStatus(value: unknown): value is number {
++  return typeof value === "number" && Number.isInteger(value) && value >= 400 && value <= 599;
++}
++
+ /** 一个稳定的摘要。**不是加密**——它只回答「这包有没有被改过」。 */
+ function digestOf(value: unknown): string {
+   return fingerprintText(JSON.stringify(value));
 diff --git a/packages/sdk/src/session/core/run.ts b/packages/sdk/src/session/core/run.ts
 index f5b7a470..eaf0e597 100644
 --- a/packages/sdk/src/session/core/run.ts
@@ -6035,6 +6184,25 @@ index 603ec22b..d30c63f1 100644
            throw createPrologueError(
              "MODEL_NETWORK_FAILED",
              `Egress on the "${input.channel}" channel needs a credential.`,
+diff --git a/packages/sdk/src/tool/core/catalog.ts b/packages/sdk/src/tool/core/catalog.ts
+index f80d818f..7b8ee71c 100644
+--- a/packages/sdk/src/tool/core/catalog.ts
++++ b/packages/sdk/src/tool/core/catalog.ts
+@@ -1,4 +1,5 @@
+ import { createPrologueError } from "../../kernel/core/index.js";
++import { DEFAULT_MODULE_CONFIG } from "../../runtime/core/index.js";
+ import type { EffectKind } from "../../effect-policy/core/index.js";
+ 
+ /** 幂等边界。**未声明就是非幂等**，非幂等的结果未知时不自动重做。 */
+@@ -57,7 +58,7 @@ export interface ToolCatalogLimits {
+ }
+ 
+ export const DEFAULT_TOOL_LIMITS: ToolCatalogLimits = {
+-  maxTimeoutMs: 60_000,
++  maxTimeoutMs: DEFAULT_MODULE_CONFIG.tool.maxTimeoutMs,
+   maxParallel: 4,
+ };
+ 
 diff --git a/packages/sdk/src/tool/core/invoke.ts b/packages/sdk/src/tool/core/invoke.ts
 index afa0b2b9..2e9a0ea6 100644
 --- a/packages/sdk/src/tool/core/invoke.ts
@@ -6504,6 +6672,64 @@ index 2dc31092..e3b4691a 100644
  /** 正则检索最多读几份文件。**有界**——这一档是逐份读的。 */
  export const MAX_SEARCH_FILES = 200;
  /** 正则检索最多回几条。 */
+diff --git a/packages/sdk/test/agent-compaction-public.test.ts b/packages/sdk/test/agent-compaction-public.test.ts
+index d560f60a..2f796ece 100644
+--- a/packages/sdk/test/agent-compaction-public.test.ts
++++ b/packages/sdk/test/agent-compaction-public.test.ts
+@@ -411,6 +411,53 @@ describe("公开路径：压缩校验、取消与账", () => {
+     }
+   }, 20_000);
+ 
++  it("调用方允许时，提前压失败但窗口放得下就接着跑，再攒一个阈值后再压；放不下仍然失败", async () => {
++    let attempts = 0;
++    const probe: MemoryHostPrepareProbe = {};
++    const { runtime, cred, grant } = await agentRuntime({
++      probe,
++      seed: true,
++      compactor: async () => {
++        attempts += 1;
++        throw new Error("summariser down");
++      },
++    });
++    const seen: ModelEvent[] = [];
++    const { run, prepared } = await beginCompactRun({
++      runtime,
++      cred,
++      grant,
++      probe,
++      key: `cp-continue-${Math.random()}`.replace(".", "-"),
++      context: { compactAboveTokens: 1, continueWhenCompactionFails: true },
++    });
++    const terminal = await waitTerminal(run, seen);
++    expect(terminal.type).toBe("completed");
++    expect(seen.some((one) => one.type === "compaction-failed")).toBe(true);
++    expect(seen.some((one) => one.type === "compacted")).toBe(false);
++    expect(probe.prepareCount).toBe(prepared + 1);
++    expect(attempts).toBe(1);
++    await runtime.shutdown();
++
++    // A window too small for what the run has: the failure still ends it.
++    const tight: MemoryHostPrepareProbe = {};
++    const second = await agentRuntime({ probe: tight, seed: true, compactor: async () => { throw new Error("summariser down"); } });
++    const seenTight: ModelEvent[] = [];
++    const small = await beginCompactRun({
++      runtime: second.runtime,
++      cred: second.cred,
++      grant: second.grant,
++      probe: tight,
++      key: `cp-continue-tight-${Math.random()}`.replace(".", "-"),
++      // Room for what a run starts with, not for the earlier turns it carries.
++      context: { compactAboveTokens: 1, windowTokens: 400, continueWhenCompactionFails: true },
++    });
++    expect((await waitTerminal(small.run, seenTight)).type).toBe("failed");
++    expect(seenTight.some((one) => one.type === "compaction-failed")).toBe(true);
++    expect(tight.prepareCount ?? 0).toBe(small.prepared);
++    await second.runtime.shutdown();
++  }, 20_000);
++
+   it("挂起后取消只中止本次摘要，迟到结果忽略", async () => {
+     const probe: MemoryHostPrepareProbe = {};
+     let release: (text: string) => void = () => undefined;
 diff --git a/packages/sdk/test/agent-native-continuation.test.ts b/packages/sdk/test/agent-native-continuation.test.ts
 index f7cb38ec..98e67a47 100644
 --- a/packages/sdk/test/agent-native-continuation.test.ts
@@ -7581,6 +7807,20 @@ index 00000000..055af10a
 +await mutator.startBackground(plan, await runtime.readClock(), { outlive: true });
 +for (let i = 0; i < 200 && !existsSync(join(project, "pid")); i++) await new Promise((resolve) => setTimeout(resolve, 20));
 +process.exit(0);
+diff --git a/packages/sdk/test/host-agnostic-adapters.test.ts b/packages/sdk/test/host-agnostic-adapters.test.ts
+index 5ccfe38e..6ebf9db8 100644
+--- a/packages/sdk/test/host-agnostic-adapters.test.ts
++++ b/packages/sdk/test/host-agnostic-adapters.test.ts
+@@ -49,7 +49,8 @@ describe("随册发的 adapter 不许要 Node", () => {
+     const encoded = btoa(String.fromCharCode(...PNG));
+     const body = JSON.stringify({ data: [{ b64_json: encoded }] });
+     const out = withoutBuffer(() => OPENAI_IMAGES.readOutcome(body));
+-    expect([...(out.images[0]?.bytes ?? [])]).toEqual([...PNG]);
++    const first = out.images[0];
++    expect([...(first !== undefined && "bytes" in first ? first.bytes : [])]).toEqual([...PNG]);
+   });
+ 
+   it("**改图拼得出 multipart**，没有 `Buffer` 也一样", () => {
 diff --git a/packages/sdk/test/host-unanswered-retry.live.test.ts b/packages/sdk/test/host-unanswered-retry.live.test.ts
 new file mode 100644
 index 00000000..e1c61b62
@@ -7753,10 +7993,38 @@ index 00000000..605655f2
 +  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 +});
 diff --git a/packages/sdk/test/module-config.test.ts b/packages/sdk/test/module-config.test.ts
-index 48489c30..d86ce4fc 100644
+index 48489c30..3408beb4 100644
 --- a/packages/sdk/test/module-config.test.ts
 +++ b/packages/sdk/test/module-config.test.ts
-@@ -222,3 +222,17 @@ describe("阈值只有一处入口", () => {
+@@ -1,4 +1,5 @@
+ import { describe, expect, it } from "vitest";
++import { createToolCatalog } from "../src/tool/core/index.js";
+ import {
+   createRuntime,
+   DEFAULT_MODULE_CONFIG,
+@@ -12,6 +13,21 @@ import {
+ 
+ const APP = { appId: "prologue.harness", appVersion: "0.1.0" };
+ 
++it("standalone and Runtime tools retain the 60-second default ceiling", async () => {
++  const catalog = createToolCatalog();
++  const runtime = await createRuntime({ app: APP, host: createMemoryHost(), preset: "local-agent" });
++  const entry = { name: "deadline-check", version: "1", description: "Check default ceiling", parameters: { type: "object" },
++    effectKind: "safe-read" as const, timeoutMs: 60_000, idempotency: "pure" as const };
++  try {
++    expect(catalog.limits.maxTimeoutMs).toBe(60_000);
++    expect(runtime.tools.limits.maxTimeoutMs).toBe(60_000);
++    for (const tools of [catalog, runtime.tools]) {
++      expect(tools.register(entry).timeoutMs).toBe(60_000);
++      expect(() => tools.register({ ...entry, name: "overlong", timeoutMs: 60_001 })).toThrow();
++    }
++  } finally { await runtime.shutdown(); }
++});
++
+ /** 场景包给一层，App 再给一层。**App 是最终装配者，压得住包。** */
+ const PACK: ModuleConfig = {
+   tool: { observation: { maxLines: 500 } },
+@@ -222,3 +238,17 @@ describe("阈值只有一处入口", () => {
      expect(resolveModuleConfig({ orchestration: { subagent: { maxDepth: 1 } } }).orchestration.subagent.maxDepth).toBe(1);
    });
  });
@@ -7773,6 +8041,182 @@ index 48489c30..d86ce4fc 100644
 +      effectKind: "safe-read", timeoutMs: 300_001, idempotency: "pure" })).toThrow();
 +    expect(() => resolveModuleConfig({ tool: { maxTimeoutMs: NaN } })).toThrow();
 +  } finally { await runtime.shutdown(); }
++});
+diff --git a/packages/sdk/test/prompt-cache-breakpoint.test.ts b/packages/sdk/test/prompt-cache-breakpoint.test.ts
+new file mode 100644
+index 00000000..bf2972ec
+--- /dev/null
++++ b/packages/sdk/test/prompt-cache-breakpoint.test.ts
+@@ -0,0 +1,82 @@
++import { expect, it } from "vitest";
++import { createRuntime } from "../src/index.js";
++import { buildAnthropicCompatibleBody } from "../src/model/plugin/anthropic-compatible.js";
++import { createMemoryHost, type MemoryHostPrepareProbe } from "../src/testing/api/index.js";
++
++const app = { appId: "prologue.cache-breakpoint", appVersion: "1.0.0" };
++const answer = [
++  'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"ok"}}\n',
++  'data: {"type":"message_stop"}\n',
++];
++const decode = (body: Uint8Array) => JSON.parse(new TextDecoder().decode(body)) as {
++  system?: unknown;
++  messages: { role: string; content: unknown }[];
++};
++
++/** 有界文字那条路：一次性会话、一条用户消息、没有系统段。 */
++async function sentBody(promptCache: "off" | "best-effort" | "required", system?: string) {
++  const probe: MemoryHostPrepareProbe = {};
++  const host = createMemoryHost({ script: { frames: answer } }, probe);
++  const runtime = await createRuntime({ app, host, network: { model: true } });
++  const credentialRef = (await runtime.credentials.write({ label: "k", secret: { plaintext: new TextEncoder().encode("synthetic") } })).ref;
++  const session = await runtime.sessions.create({ ephemeral: true });
++  const run = await session.startRun({
++    protocol: "anthropic-compatible", endpoint: "https://api.anthropic.com/v1/messages", model: "m", credentialRef,
++    messages: [...(system === undefined ? [] : [{ role: "system" as const, text: system }]), { role: "user", text: "写一段摘要" }],
++    promptCache,
++  });
++  const outcome = await new Promise<string>((resolve) => {
++    run.subscribe((event) => {
++      if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") resolve(event.type);
++    });
++  });
++  await runtime.shutdown();
++  expect(outcome).toBe("completed");
++  return JSON.parse(probe.bodyText!) as { system?: unknown; messages: { role: string; content: unknown }[] };
++}
++
++it.each(["best-effort", "required"] as const)("没有系统段时 `%s` 把断点挂在用户消息上", async (mode) => {
++  const body = await sentBody(mode);
++  expect(body.system).toBeUndefined();
++  expect(body.messages).toEqual([
++    { role: "user", content: [{ type: "text", text: "写一段摘要", cache_control: { type: "ephemeral" } }] },
++  ]);
++});
++
++it("`off` 档一个缓存字段都不带，正文仍是原来的字符串", async () => {
++  const body = await sentBody("off");
++  expect(JSON.stringify(body)).not.toContain("cache_control");
++  expect(body.messages).toEqual([{ role: "user", content: "写一段摘要" }]);
++});
++
++it("有系统段时断点只在系统段上，用户消息不动", async () => {
++  const body = await sentBody("best-effort", "你是编辑");
++  expect(body.system).toEqual([{ type: "text", text: "你是编辑", cache_control: { type: "ephemeral" } }]);
++  expect(body.messages).toEqual([{ role: "user", content: "写一段摘要" }]);
++});
++
++it("带附件时断点落在正文块上，图片块不带", () => {
++  const body = decode(buildAnthropicCompatibleBody({
++    model: "m",
++    messages: [{ role: "user", text: "看图" }],
++    attachments: [{ placeholder: "@@img@@", mediaType: "image/png" }],
++    cache: { useCache: true },
++  }));
++  expect(body.messages[0]!.content).toEqual([
++    { type: "image", source: { type: "base64", media_type: "image/png", data: "@@img@@" } },
++    { type: "text", text: "看图", cache_control: { type: "ephemeral" } },
++  ]);
++});
++
++it("多轮时只挂最后一条用户消息，前面的不动", () => {
++  const body = decode(buildAnthropicCompatibleBody({
++    model: "m",
++    messages: [{ role: "user", text: "一" }, { role: "assistant", text: "二" }, { role: "user", text: "三" }],
++    cache: { useCache: true },
++  }));
++  expect(body.messages).toEqual([
++    { role: "user", content: "一" },
++    { role: "assistant", content: "二" },
++    { role: "user", content: [{ type: "text", text: "三", cache_control: { type: "ephemeral" } }] },
++  ]);
++});
+diff --git a/packages/sdk/test/session-error-status.live.test.ts b/packages/sdk/test/session-error-status.live.test.ts
+new file mode 100644
+index 00000000..77096390
+--- /dev/null
++++ b/packages/sdk/test/session-error-status.live.test.ts
+@@ -0,0 +1,82 @@
++import { mkdtemp, rm } from "node:fs/promises";
++import { createServer } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { createRuntime, type ModelEvent, type Runtime } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++import { deserializeEvents, serializeEvents } from "../src/session/core/index.js";
++
++it.each([401, 429, 503])("HTTP %i survives a real Node Session restart without another request", async status => {
++  const storageRoot = await mkdtemp(join(tmpdir(), "prologue-error-replay-"));
++  let calls = 0;
++  const server = createServer(async (request, response) => {
++    for await (const _ of request) { /* Drain the synthetic request. */ }
++    calls++;
++    response.writeHead(status, { "content-type": "application/json" });
++    response.end(JSON.stringify({ error: "private-provider-response" }));
++  });
++  const runtimes: Runtime[] = [];
++  try {
++    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++    const bound = server.address();
++    if (!bound || typeof bound === "string") throw new Error("Missing loopback address");
++    const boot = async () => {
++      const runtime = await createRuntime({ app: { appId: "prologue.error-replay", appVersion: "1.0.0" },
++        host: createNodeHost({ storageRoot }), network: { model: true, loopback: true } });
++      runtimes.push(runtime);
++      return runtime;
++    };
++    const first = await boot();
++    const session = await first.sessions.create();
++    const credentialRef = (await first.credentials.write({ label: "fixture", secret: { plaintext: new TextEncoder().encode("synthetic") } })).ref;
++    const run = await session.startRun({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${bound.port}/v1/chat/completions`,
++      model: "fixture", credentialRef, messages: [{ role: "user", text: "public fixture" }] });
++    await new Promise<void>(resolve => run.subscribe(event => {
++      if (["completed", "failed", "cancelled"].includes(event.type)) resolve();
++    }));
++    const before = await session.replay(run.ref);
++    expect(before.find(event => event.type === "failed")).toMatchObject({ error: { code: "MODEL_HTTP_ERROR", status } });
++    expect(serializeEvents(before)).not.toContain("private-provider-response");
++    await first.shutdown();
++    const second = await boot();
++    const reopened = await second.sessions.open(session.ref);
++    expect(reopened).toBeDefined();
++    const after = await reopened!.replay(run.ref);
++    expect(after).toEqual(before);
++    expect(after.find(event => event.type === "failed")).toMatchObject({ error: { code: "MODEL_HTTP_ERROR", status } });
++    expect(calls).toBe(1);
++  } finally {
++    await Promise.all(runtimes.map(runtime => runtime.shutdown()));
++    server.closeAllConnections();
++    await new Promise<void>(resolve => server.close(() => resolve()));
++    await rm(storageRoot, { recursive: true, force: true });
++  }
++});
++
++it("older error ledgers without HTTP status remain readable", () => {
++  const events = deserializeEvents(JSON.stringify([{ type: "failed", error: {
++    __error: true, name: "PrologueError", message: "safe failure", code: "MODEL_HTTP_ERROR", safeMessage: "safe failure",
++  } }]));
++  const event = events[0];
++  expect(event?.type).toBe("failed");
++  if (event?.type !== "failed") throw new Error("Missing failure");
++  expect(event.error).toBeInstanceOf(Error);
++  expect(event.error.code).toBe("MODEL_HTTP_ERROR");
++  expect(event.error.status).toBeUndefined();
++});
++
++it("error projection keeps only safe integer HTTP statuses and no arbitrary properties", () => {
++  for (const status of [400, 599, 200, 600, 429.5, "429", null]) {
++    const error = Object.assign(new Error("safe failure"), { code: "MODEL_HTTP_ERROR", safeMessage: "safe failure",
++      status, response: "private-provider-response" });
++    const encoded = serializeEvents([{ type: "failed", error } as ModelEvent]);
++    expect(encoded).not.toContain("private-provider-response");
++    const decoded = JSON.parse(encoded) as { error: { status?: unknown } }[];
++    expect(decoded[0]!.error.status).toBe(status === 400 || status === 599 ? status : undefined);
++    // A malformed status in a legacy/input ledger is not promoted to a safe error field either.
++    const restored = deserializeEvents(JSON.stringify([{ type: "failed", error: { __error: true, name: "Error", message: "safe", status } }]))[0];
++    if (restored?.type !== "failed") throw new Error("Missing failure");
++    expect(restored.error.status).toBe(status === 400 || status === 599 ? status : undefined);
++  }
 +});
 diff --git a/packages/sdk/test/subagent-character.test.ts b/packages/sdk/test/subagent-character.test.ts
 index 029d7f50..cf19dc7b 100644

@@ -25,14 +25,16 @@ export function wakeText(wait: AgentWait): string {
     .filter(Boolean).join("\n");
 }
 
-const view = (wait: ParkedWait, waitingOn: string): AgentWait => {
+const view = (wait: ParkedWait, waitingOn: string, ended?: { event: string; note?: string }): AgentWait => {
   const fired = wait.fired;
   const target = !fired ? "" : fired.condition.kind === "command" ? fired.condition.task : fired.condition.kind === "envelope" ? fired.condition.envelope : fired.condition.node;
   return {
     wait_id: wait.ref.id, session_id: wait.session.id, ...(wait.run ? { run_id: wait.run.id } : {}), by: wait.by, state: wait.state, reason: wait.reason, waiting_on: waitingOn,
     on: wait.on.map(one => one.kind === "command" ? { kind: "command" as const, task: one.task, until: one.until, ...(one.match === undefined ? {} : { match: one.match }) }
       : one.kind === "envelope" ? { kind: "envelope" as const, envelope: one.envelope } : { kind: "board-node" as const, board: one.board, node: one.node }),
-    ...(fired ? { fired: { kind: fired.condition.kind, target, outcome: fired.outcome, text: fired.text, at_ms: fired.atMs, ...(fired.reply ? { reply: fired.reply } : {}) } } : {}),
+    // A letter ended because the receiving round failed reads as failed, with why; one withdrawn or expired stays so.
+    ...(fired ? { fired: { kind: fired.condition.kind, target, outcome: ended?.event === "failed" ? "failed" as const : fired.outcome, text: ended?.note ?? fired.text, at_ms: fired.atMs,
+      ...(fired.reply ? { reply: fired.reply } : {}) } } : {}),
     ...(wait.data === undefined ? {} : { data: wait.data }),
     created_at_ms: wait.createdAtMs, expires_at_ms: wait.expiresAtMs,
     ...(wait.closedAtMs === undefined ? {} : { closed_at_ms: wait.closedAtMs }), ...(wait.note === undefined ? {} : { note: wait.note }),
@@ -70,7 +72,16 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
     }
     return parts.join("，或");
   };
-  const shown = async (wait: ParkedWait) => view(wait, await describe(wait));
+  // A letter that ended without an answer says how on its record (the other round failed, the person withdrew it).
+  const howEnded = (wait: ParkedWait): { event: string; note?: string } | undefined => {
+    const fired = wait.fired;
+    if (fired?.outcome !== "withdrawn" || fired.condition.kind !== "envelope") return undefined;
+    try {
+      const last = runtime.delivery.get({ kind: "envelope", id: fired.condition.envelope, revision: 1 } as never).history.at(-1);
+      return last ? { event: last.event, ...(last.note ? { note: last.note } : {}) } : undefined;
+    } catch { return undefined; }
+  };
+  const shown = async (wait: ParkedWait) => view(wait, await describe(wait), howEnded(wait));
   const unsubscribe = runtime.waits.subscribe(event => {
     if (event.type !== "fired") return;
     void (async () => {

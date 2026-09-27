@@ -603,6 +603,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
       : !fired ? ""
       : fired.outcome === "answered" ? `它的答复：${fired.text}`
       : fired.outcome === "settled" ? `${wait.waiting_on.replace(/的答复$/, "")}那一轮已经结束，没有专门答复；它可能已经做了你请求的事，先读一下相关文件确认。`
+      : fired.outcome === "failed" && fired.kind === "envelope" ? `${wait.waiting_on}不会来了：${fired.text}。先读一下相关文件，确认对方做到了哪里，再决定自己接着做，还是改做别的。`
       : fired.outcome === "interrupted" ? `你等的${fired.kind === "command" ? "后台命令" : "那件事"}被服务重启打断了，结果未知，不要当成成功；需要的话重新运行。\n${fired.text}`
       : fired.outcome === "output" ? `你等的后台命令输出了你在等的内容（命令还在运行）。\n${fired.text}`
       : `${fired.kind === "command" ? "后台命令" : ""}结束了（${({ succeeded: "成功", failed: "失败", stopped: "被停止" } as Record<string, string>)[fired.outcome] ?? fired.outcome}），结束于 ${new Date(fired.at_ms).toISOString()}（宿主记录的时间）。\n${fired.text}`;

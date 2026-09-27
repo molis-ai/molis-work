@@ -132,6 +132,17 @@ export function createSessionMessages(runtime: Runtime, sessions: MessageSession
       }
       await runtime.delivery.flush();
     },
+    /**
+     * A round of this session failed: requests someone is waiting on are ended with why, so the waiting session wakes
+     * and decides for itself (the person chose this), rather than waiting on a round that will not answer.
+     */
+    async failed(sessionId: string) {
+      const open = unanswered(sessionId).filter(envelope => envelope.awaitReply);
+      if (!open.length) return;
+      const at = await now();
+      for (const envelope of open) runtime.delivery.cancel(envelope.ref, { event: "failed", note: "收信的会话那一轮失败了，没有答复" }, at);
+      await runtime.delivery.flush();
+    },
     /** A project's messages, or one session's (sent and received), oldest first. */
     async read(project: string, sessionId?: string): Promise<AgentSessionMessage[]> {
       const all = sessionId

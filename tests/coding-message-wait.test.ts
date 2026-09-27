@@ -145,5 +145,13 @@ test("a round that ends parked on an answer or a background command waits as the
     assert.equal(now.status, 200, JSON.stringify(now.body));
     assert.match(starts[7].task, /你决定不再等后台命令 npm run build结束，直接接着做/);
     assert.ok(resumed.includes("w6"));
+    // The session asked failed its round without answering: B wakes on its own and is told to check for itself.
+    await until("B's started round ends", () => sessions.get(DEMO_BOARD_ID, "b").state === "done");
+    parks.push({ wait_id: "w7", on: [{ kind: "envelope", envelope: "m7" }], waiting_on: "会话「改接口」的答复", reason: "the answer to envelope m7" });
+    assert.equal((await call("/sessions/b/runs", send("第五件事"))).status, 200);
+    await until("B waits a fifth time", () => sessions.get(DEMO_BOARD_ID, "b").state === "queued");
+    fire("w7", { kind: "envelope", target: "m7", outcome: "failed", text: "收信的会话那一轮失败了，没有答复", at_ms: Date.now() });
+    await until("B wakes when the other round failed", () => starts.length === 10);
+    assert.match(starts[9].task, /会话「改接口」的答复不会来了：收信的会话那一轮失败了，没有答复。先读一下相关文件，确认对方做到了哪里/);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_BOARD_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

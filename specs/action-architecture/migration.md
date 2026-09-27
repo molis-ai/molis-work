@@ -1587,3 +1587,21 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 | 首页发现、推荐并执行动作 | 本节上文 | 预览应用 |
 | Character 与内置 Agent 使用授权能力 | 角色能力范围授权/撤权与「已用在哪」；Coding 会话中内置 Agent 经审查卡调用「记下灵光」并写入（模型回复来自本机替身） | 预览应用 |
 | 外部标准 MCP 客户端查询与写入 | 官方 SDK 客户端经 stdio 生产 launcher，Codex 身份按精确授权写入并列出灵光，页面与调用记录一致；Claude Code 身份看不到 | 预览应用 |
+
+## 按调用链的代码复查（2026-09-27）
+
+逐条从入口（页面/HTTP/MCP/Agent）经动作客户端、内核到提供方与业务实现复读本分支改动，修正如下（提交 74a409bd 起）：
+
+- 服务连接的 MCP 工具：设置页调用/读取只经目录一条路，按目录记下的准确引用执行，并以固定的本机用户上下文调用（与连接器账号动作同一做法）；去掉没有 Host 时直连服务器的旁路、每次整目录扫描和双重类型断言。
+- 两类 MCP 工具（服务连接、Coding 外部 MCP）共用 `apps/local-host/src/mcp-tool-actions.ts`：权限、id 前缀与 `isMcpToolCapability`、输入 schema 检查（改用内核 `compileActionSchema`）、随形状变化的版本簿、说明文案、JSON 落盘。外部工具处理器去掉与 `beforeEffect` 重复的在线检查。
+- Coding 外部 MCP 的目录同步改由 Agent Host 类型化的 `mcpChanged` 端口通知（列表/保存/连接变化之后），组合层不再按参数形状嗅探，也不再二次解析授权。
+- 工作流程：「交给下一站」拆为准备交接与执行动作步骤两个函数；站点、判断规则、动作步骤共用一次调用内的一次目录读取；删除与结束运行写入前也走 `beforeEffect`。
+- 调用记录：重复调用只改写最后一行，不再每条命令读写整份文件；共用 Home 的两个进程互不覆盖（新增用例）。
+- 类型：处理器直接用 `ActionExecutionContext.beforeEffect`；项目设置能力按 `ActionDefinition` 声明；角色 launch、Feed 立即拉取有了确切类型；分支新增代码不再有 `as unknown as`。
+- 命名：Host 的连接器账号提供方改为 `system.connectors`，与其他 Host 系统提供方一致。
+
+复查后保留的结构性折中（单一路径、无旁路，但实现形态可再收拾）：
+- Coding 的 15 个动作由适配器把输入还原成路由请求，复用原路由形态的业务函数；后续可把这些函数改为类型化输入。
+- Feed「立即拉取」的网络读取与写入在 Feed 服务内部完成，处理器无法在写入前插入 `beforeEffect`；拉取途中停用插件时，本次已开始的拉取仍会写完。
+
+复查后全量非浏览器回归：2632 项中 2568 通过、61 失败；与复查前本分支的全量逐项对比，唯一新增的是 `secret-store-keychain-retry` 的一项。该文件单独重跑时，三个不同用例轮流失败（都卡在子进程访问 macOS 钥匙串），复查没有改动存储与钥匙串代码，属已知的钥匙串时序不稳定。typecheck、boundary:check、build 均通过。

@@ -12,6 +12,7 @@ import { goalContextCapabilities } from "@molis-ai/molis-work-contracts/modules/
 import { bindActionClient, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { materializeGoalEventV35Fixture, goalEventV35Kinds } from "./goal-event-v35-fixture.js";
 import { readTestGoalCollection } from "./fixtures/web-view.js";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 
 test("Goals query actions preserve full bodies, cursor order, scope and live policy for typed consumers", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-query-actions-"));
@@ -37,6 +38,12 @@ test("Goals query actions preserve full bodies, cursor order, scope and live pol
     const snapshot = await actions.invoke(goalsActions.snapshot, {});
     assert.deepEqual(snapshot, await host.withProject(ref, r => r.store.snapshot(board_id)));
     assert.deepEqual(await typed.invoke(snapshotBoardCapability, { board_id }), snapshot);
+    // Saved contract revisions keep decomposition_review as null until a review exists; the snapshot contract must accept them.
+    const goal = (snapshot as { goals: Array<Record<string, unknown>> }).goals.find(row => row.goal_id === goal_id)!;
+    const saved = { goal_id, title: goal.title, outcome: goal.outcome, why: goal.why, business_logic: goal.business_logic, in_scope: [], out_of_scope: [], constraints: [],
+      required_inputs: [], promised_outputs: [], decomposition_review: null, acceptance_criteria: [] };
+    assert.doesNotThrow(() => assertActionInput(goalsActions.snapshot.action.output_schema, { ...snapshot, goal_contract_revisions: [{ goal_id, board_id, revision: 1,
+      contract: saved, effect: "metadata", source_proposal_id: null, changed_by: "user", reason: "初始合同", created_at: new Date().toISOString() }] }));
     const contract = await actions.invoke(goalsActions.contract, { goal_id });
     assert.deepEqual(contract, await host.withProject(ref, r => r.coordinator.goalQueries.readGoalContract(board_id, goal_id)));
     assert.deepEqual(await typed.invoke(readGoalContractCapability, { board_id, goal_id }), contract);

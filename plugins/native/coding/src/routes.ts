@@ -287,7 +287,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
   /** After the delegation ended, an action is kept on its history as late, and changes nothing. */
   const lateOnly = async (api: Capabilities, runtimeId: string, letter: AgentSessionMessage, label: string, event: string, note?: string): Promise<never> => {
     await api.invoke(agent.actOnPeopleMessage, [runtimeId, letter.message_id, "record", { event, ...(note ? { note } : {}) }]);
-    throw Object.assign(new Error(`这个委派已经${label}；这次操作只记录，不改变结果`), { code: "coding.cooperation_ended" });
+    throw Object.assign(new Error(`这个委派已结束（${label}）；这次操作只记录，不改变结果`), { code: "coding.cooperation_ended" });
   };
   /** A session made for a delegation starts on it with its first round: that is its acceptance. */
   const startDelegation = async (record: CodingSessionRecord, api: Capabilities, runtimeSession: string) => {
@@ -1221,7 +1221,7 @@ export function codingRoutes(context: PluginStartContext, ports?: CodingExecutio
         if (body.action === "reject" && !reason) throw new Error("拒绝委派时请写明原因");
         if (ended) return lateOnly(api!, record.runtime_id, letter, view.state_label, body.action === "accept" ? "accepted" : "rejected", reason);
         if (body.action === "accept") {
-          if (view.state !== "delivered") throw new Error(`这个委派${view.state_label}，不需要再接受`);
+          if (view.state !== "delivered") throw new Error(`这个委派现在是「${view.state_label}」，不需要再接受`);
           next = await act("accept");
         } else if (view.state === "delivered") next = await act("reject", { note: reason });
         // Accepted, not started yet: turning it down after all ends it the same way.

@@ -96,7 +96,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景与使用关系已由场景合同与各 owner 上报提供（同上三节） |
 | 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 事项按合同类型动态发现；动作按 offers 合同由各插件准备、首页复核后执行（Feed 消息、Inbox 事项、未知插件）；“说一句”按对象上下文选择会话并真实发送（见下文专节）。本地网页调用者的原生权限改由原生清单派生，不再手写 |
 | 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身动作与 F4 幂等交接/中断恢复已完成；判断规则交接与通用字段映射动作步骤已完成 |
-| Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 大部分完成：Agent/Character 精确能力选择经 AgentHost、Prologue 正式工具扩展与原审查队列执行（见“Agent 实际工具执行与 F1–F3 审查修复”）；角色管理本身已是 `characters.*` 动作。浏览器能力选择的最终复跑仍待完成 |
+| Character/Agent | modules/characters, horizontal/agent-host | 授权能力引用和统一调用 | 大部分完成：Agent/Character 精确能力选择经 AgentHost、Prologue 正式工具扩展与原审查队列执行（见“Agent 实际工具执行与 F1–F3 审查修复”）；角色管理本身已是 `characters.*` 动作。浏览器复跑已完成（见「Character 能力范围的浏览器复跑」） |
 | 系统岛与设置 | apps/workbench/src/immersive-shell.ts, settings-navigation.ts | 系统能力管理、唯一配置位置 | 部分完成：固定入口与真实目录/绑定；连接与旧 MCP 设置迁入，旧 URL 转发；能力库对每项能力显示「可用在哪」（调用方、首页事项、判断场景）与「已用在哪」（场景绑定 + 各使用方上报）；调用记录显示最近执行的操作（元数据，不含输入/结果）与判断记录；四个分区桌面/窄屏已实操 |
 | 生成与开发 | plugins/native/plugin-builder, packages/plugin-sdk, tooling/plugin-cli, skills/molis-plugin-dev | 默认注册能力和消费场景 | 生成模板默认注册系统动作（见“生成插件模板默认注册系统动作”）；Plugin Builder 自身业务面已注册为动作；生成插件调用外部 MCP 工具由 Plugin Builder 线在合并后接入 |
 
@@ -1503,3 +1503,8 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 - 生命周期：项目停用插件后目录显示「此项目未启用该插件」、执行被拒，重新启用即恢复；`tests/action-directory-installation.test.ts`。插件升级与兼容声明：`tests/plugin-upgrades.test.ts`。外部 MCP 断开、移除与重启：`tests/external-mcp-actions.test.ts`。
 - 上述 5 个文件 11 项通过；同批运行的 `uninstall.test.ts` 4 项失败，为整机卸载用例，main 上同样失败，与插件生命周期无关。
 - 仍属各插件自身的待办保留在其行中（如 Artifacts 的来源账号选择、灵光的模型连接统一、Files/Git 的跨主体执行）。
+
+## Character 能力范围的浏览器复跑（2026-09-27）
+
+- 内置 Agent 只看到「对外接入」授予「内置 Agent（Prologue）」的能力，以及默认开放的无额外权限查询；Character 只能在此范围内进一步缩小。这是设计，不是遗漏。
+- 实操（1280，预览 Home）：新建角色，取消「沿用任务选择的能力」，目录只有 7 项默认查询 → 在「对外接入」给内置 Agent 授权「Feed · 可交接内容」→ 回到角色刷新，出现该项 → 勾选并保存草稿（修订 2）→ 能力库该能力「已用在哪」列出：角色「新角色」、内置 Agent 授权，以及 4 个工作流程第 1 站（含新建的「消息收进 Shelf」）→ 撤销授权后重开角色，引用保留并显示「原能力、版本或授权不可用；引用保留，可明确移除」，没有被静默删除。

@@ -546,6 +546,7 @@ export const GAP_EN: Record<string, string> = {
   "部分内容暂时搜不到：": "Some content can't be searched right now: ",
   "搜索暂时不可用，请稍后重试": "Search is unavailable right now. Try again shortly.",
   "问助理：": "Ask the Assistant: ",
+  "内容里没有找到": "No content matches",
   "显示更多结果": "Show more results",
   "这条内容已被删除或归档，已从结果中移除": "This item was deleted or archived and has been removed from the results",
   "暂时打不开：": "Can't open this right now: ",

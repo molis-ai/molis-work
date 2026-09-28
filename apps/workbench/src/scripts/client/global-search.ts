@@ -166,7 +166,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       }).join("");
       return '<section class="global-search-group"><h3>' + escapeHtml(group.label) + "</h3>" + rows + "</section>";
     }).join("") + (remote.next && query.trim() ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(L("显示更多结果")) + "</button>" : "")
-      + (ask ? '<p class="global-search-empty">' + escapeHtml(L("没有匹配的内容")) + "</p>" + ask : "");
+      // Tools matched but content did not: say so about content only, not as if nothing matched.
+      + (ask ? '<p class="global-search-empty">' + escapeHtml(L("内容里没有找到")) + "</p>" + ask : "");
     paintSelection();
   };
   const request = async (path, body) => {

@@ -182,6 +182,14 @@
       "types": "./dist/services/agent-host.d.ts",
       "import": "./dist/services/agent-host.js"
     },
+    "./services/assistant": {
+      "types": "./dist/services/assistant.d.ts",
+      "import": "./dist/services/assistant.js"
+    },
+    "./services/agent-definitions": {
+      "types": "./dist/services/agent-definitions.d.ts",
+      "import": "./dist/services/agent-definitions.js"
+    },
     "./services/connector-host": {
       "types": "./dist/services/connector-host.d.ts",
       "import": "./dist/services/connector-host.js"

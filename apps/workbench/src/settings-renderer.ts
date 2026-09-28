@@ -8,6 +8,7 @@ import { createProjectSettingsFolds } from "./project-settings-folds.js";
 import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
+import { renderPromptSettings } from "./settings-prompts.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
 import { renderFunctionsWorkbench } from "./functions/ui.js";
@@ -213,6 +214,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     : view.section === "models" ? L("模型设置")
     : view.section === "runtimes"
       ? L("AI 与执行工具")
+    : view.section === "prompts"
+      ? L("Prompt 与 Character")
     : view.section === "mcp"
       ? L("MCP")
       : view.section === "connectors"
@@ -234,6 +237,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? renderAppearanceSettings(settingsPath)
       : view.section === "runtimes"
         ? renderRuntimeSettings(view)
+        : view.section === "prompts"
+          ? renderPromptSettings({ L })
         : view.section === "mcp"
           ? renderMcpSettings(view, desktopShell)
           : view.section === "connectors"

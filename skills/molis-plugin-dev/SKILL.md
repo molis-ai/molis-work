@@ -26,6 +26,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | SDK / CLI / 存储 / 测试 | [authoring.md](authoring.md) |
 | 调模型、跑 Agent、改提示词或模型设置 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md)（纯非 AI 功能不用读） |
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
+| 同一件工作在助理、插件页面和手动操作之间连续：对象读取、版本前提、页面声明、通知 | [continuity.md](continuity.md) |
 | 抄哪个现有插件 | [examples.md](examples.md) |
 
 本仓库开发时 `.cursor/skills/molis-plugin-dev` 已指向这里。装到别的 Agent：见文末「安装」。
@@ -132,6 +133,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - UI Slot、plugin-stage 壳、Design System 硬规则、客户端装配
 - native / app / integration 的 Host 接线位置（含 `createPluginPlatform`）
 - Plugin CLI / SDK `start` 兑现规则
+- 对象上下文读取、`result_subject`、版本前提、`data-assistant-context` 与助理通知（[continuity.md](continuity.md)）
 
 只改实现、合同没变：不必改 Skill。合同变了只改代码：任务没完。
 

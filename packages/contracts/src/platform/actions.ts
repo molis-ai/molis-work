@@ -1,7 +1,7 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 import { validActionResultView, type ActionResultView } from "./action-result.js";
-import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA } from "./action-subjects.js";
+import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } from "./action-subjects.js";
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_SCHEMA, type SubjectOfferChoice } from "./action-offers.js";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_COLLECTION_SCHEMA } from "./home-events.js";
 export * from "./home-events.js";
@@ -115,6 +115,12 @@ export interface ActionMetadata {
   readonly result_scene?: ActionSceneReference;
   /** Mandatory nested calls use the same caller's authority; this never grants access. */
   readonly required_actions?: readonly ActionReference[];
+  /**
+   * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
+   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind.
+   * Callers that keep relations to results (the Assistant's work) use it; undeclared, see `actionResultSubject`.
+   */
+  readonly result_subject?: { readonly id: string; readonly revision?: string };
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
@@ -455,10 +461,10 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           problems.push(`能力 ${key} 的能力依赖无效`);
         }
         if (a.output_type === SUBJECT_CONTEXT_TYPE || a.input_type === SUBJECT_REFERENCE_TYPE) {
-          if (raw.operation !== "query" || a.scope !== "project" || a.kind !== "query" || !a.subject_kinds.length
+          if (raw.operation !== "query" || (a.scope !== "project" && a.scope !== "home") || a.kind !== "query" || !a.subject_kinds.length
             || a.input_type !== SUBJECT_REFERENCE_TYPE || a.output_type !== SUBJECT_CONTEXT_TYPE
             || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_CONTEXT_INPUT_SCHEMA)
-            || canonicalSchema(a.output_schema) !== canonicalSchema(SUBJECT_CONTEXT_OUTPUT_SCHEMA)) {
+            || ![SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN].some(schema => canonicalSchema(a.output_schema) === canonicalSchema(schema))) {
             problems.push(`能力 ${key} 没有兑现对象上下文协议 v1 的输入输出合同`);
           }
         }
@@ -569,4 +575,36 @@ export function parseExactActionReferences(value: unknown): ExactActionReference
   });
   if (new Set(refs.map(ref => JSON.stringify(ref))).size !== refs.length) throw new ActionError("actions.reference_invalid", "Duplicate action selection");
   return refs;
+}
+
+
+/**
+ * How a person reads an input field that its schema did not title: the common names in plain words. A capability's own
+ * `title` always wins; this only covers the fields most business actions share.
+ */
+const COMMON_FIELD_LABELS: Readonly<Record<string, string>> = {
+  title: "标题", name: "名称", text: "内容", body: "正文", content: "内容", notes: "备注", note: "备注", description: "说明", summary: "摘要",
+  kind: "类型", type: "类型", status: "状态", priority: "优先级", category_id: "分类", tags: "标签", url: "链接",
+  date: "日期", start_date: "开始日期", end_date: "结束日期", due_date: "截止日期", start_time: "开始时间", end_time: "结束时间", time_zone: "时区",
+  starts_at: "开始", ends_at: "结束", remind_at: "提醒时间", expected_revision: "基于的版本", expected_version: "基于的版本", id: "对象", item: "内容",
+};
+export function actionFieldLabel(key: string, declared?: { title?: string; description?: string }): string {
+  if (declared?.title) return declared.title;
+  if (COMMON_FIELD_LABELS[key]) return COMMON_FIELD_LABELS[key]!;
+  return declared?.description && declared.description.length <= 24 ? declared.description : key;
+}
+
+/** A field's value as a person reads it: rich text as its text, minutes-of-day as a time, the rest as it is. */
+export function actionFieldValue(key: string, value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && /_time$/.test(key) && Number.isInteger(value) && value >= 0 && value < 1440) {
+    return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;
+  }
+  if (value && typeof value === "object" && (value as { type?: unknown }).type === "doc") {
+    const inline = (node: unknown): string => !node || typeof node !== "object" ? "" : typeof (node as { text?: unknown }).text === "string" ? (node as { text: string }).text
+      : Array.isArray((node as { content?: unknown }).content) ? ((node as { content: unknown[] }).content).map(inline).join("") : "";
+    return ((value as { content?: unknown[] }).content ?? []).map(inline).filter(Boolean).join("\n");
+  }
+  if (Array.isArray(value) && value.every(item => typeof item === "string")) return value.join("、");
+  return typeof value === "boolean" ? (value ? "是" : "否") : typeof value === "number" ? String(value) : JSON.stringify(value, null, 2);
 }

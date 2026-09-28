@@ -1,3 +1,4 @@
+import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { parseAgentRunBudget, agentTextMaterialContent, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -113,13 +114,14 @@ export interface PrologueStartInput {
   beforeStart?: AgentStartExecution["beforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
+  action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[];
   /** Host provenance, persisted before execution; never credentials or event history. */
   provenance: { frozen: AgentRunView["frozen"]; started_at: string };
   session_id: string;
-  /** Authorized root this Run may touch, already resolved by the Host. */
-  workspace?: "required" | "none";
+  /** Authorized root this Run may touch, already resolved by the Host. `business`: no root, the App's actions only. */
+  workspace?: "required" | "none" | "business";
   root_path?: string;
   model: PrologueModelConfiguration;
   /** Character frozen from the Plugin's own role declaration. */
@@ -157,6 +159,8 @@ export interface PrologueRunTiming {
 export interface PrologueRuntimePort {
   /** The SDK path really runs with no authorized root and no tools. */
   workspaceNone?: boolean;
+  /** The SDK runs App-tools work (`workspace: "app"`): no root, the session pack's actions and root-free tools. */
+  workspaceBusiness?: boolean;
   actionTools?: boolean;
   /** The window the runtime packs against when a model states none; a configured window is capped by it. */
   defaultContextWindowTokens?: number;
@@ -191,7 +195,7 @@ export interface PrologueRuntimePort {
 }
 
 export interface PrologueRestoredSession {
-  workspace?: "required" | "none";
+  workspace?: "required" | "none" | "business";
   title: string;
   owner: AgentSessionView["owner"];
   recovery?: AgentSessionView["recovery"];
@@ -201,6 +205,8 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     stop_intent?: "stopped" | "cancelled";
+    /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */
+    terminal?: boolean;
     timing?: PrologueRunTiming;
     original_questions?: Array<{ pending_id: string; pending_revision: number; kind: string; why: string }>;
     /** May be a durable incomplete prefix. Only an actual terminal event proves an ended Run. */
@@ -209,7 +215,7 @@ export interface PrologueRestoredSession {
 }
 
 interface SessionRecord {
-  workspace: "required" | "none";
+  workspace: "required" | "none" | "business";
   title: string;
   runs: AgentRunRef[];
   owner: AgentSessionView["owner"];
@@ -360,6 +366,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.descriptor = {
       runtime_id: PROLOGUE_RUNTIME_ID,
       ...(options.runtime.workspaceNone ? { supports_workspace_none: true } : {}),
+      ...(options.runtime.workspaceBusiness && options.runtime.actionTools ? { supports_workspace_business: true } : {}),
       ...(options.runtime.actionTools ? { supports_action_tools: true } : {}),
       display_name: "Prologue",
       provider_version: options.providerVersion ?? "0.0.0-rc.1",
@@ -383,6 +390,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef> {
     if (input.workspace === "none" && (!this.#runtime.workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
       throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此无工作区会话");
+    }
+    if (input.workspace === "business" && (!this.descriptor.supports_workspace_business || input.directory !== undefined || !input.actor_id?.trim())) {
+      throw new PrologueAdapterError("agent.capability_unavailable", "当前运行时不能创建此业务会话");
     }
     const session = await this.#runtime.sessions.create(input);
     this.#sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { board_id: input.board_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
@@ -427,13 +437,21 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     request = { ...request, budget: parseAgentRunBudget(request.budget) };
     request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#loadSession(request.session.session_id);
-    if (session.workspace !== (request.workspace ?? "required") || request.role?.workspace === "none" && request.workspace !== "none") {
+    if (session.workspace !== (request.workspace ?? "required") || request.role?.workspace === "none" && request.workspace !== "none"
+      || request.role?.workspace === "business" && request.workspace !== "business") {
       throw new PrologueAdapterError("agent.session_unknown", "不能改变原会话的工作区方式");
     }
     if (request.workspace === "none" && (!this.#runtime.workspaceNone || request.role?.workspace !== "none" || request.directory !== undefined
       || request.role.execution !== "read-only" || request.role.host_tools.length || request.role.actions?.tools.length || request.role.subagents?.length
       || request.action_tools?.length || request.mcp_tools?.length || request.mcp_sources?.length || request.skills?.length || request.execution_plan || request.subagent_workspaces?.length)) {
       throw new PrologueAdapterError("agent.capability_unavailable", "无工作区会话只能进行宿主冻结的无工具推理");
+    }
+    // Business work: no directory, the Host's frozen actions and root-free tools only; nothing file- or child-shaped.
+    if (request.workspace === "business" && (!this.descriptor.supports_workspace_business || request.role?.workspace !== "business" || request.directory !== undefined
+      || !["read-only", "operate"].includes(request.role.execution) || request.role.host_tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool))
+      || request.role.subagents?.length || request.role.subagent_workspaces?.length || request.mcp_tools?.length || request.mcp_sources?.length
+      || request.execution_plan || request.subagent_workspaces?.length)) {
+      throw new PrologueAdapterError("agent.capability_unavailable", "业务会话只能使用宿主冻结的业务动作与不碰目录的工具");
     }
     if (session.recovery) throw new PrologueAdapterError("agent.session_busy", session.recovery.reason);
     const latest = session.runs.at(-1);
@@ -496,7 +514,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     }
     if ((request.mcp_tools?.length || request.mcp_sources?.length) && this.descriptor.capabilities.mcp === "unsupported") throw new PrologueAdapterError("agent.capability_unavailable", "此运行时尚未接通 MCP 审查");
     if (role.compaction && !this.#runtime.compaction) throw new PrologueAdapterError("agent.capability_unavailable", "上下文整理尚未接通");
-    if (role.actions?.tools.length && !this.#runtime.actionTools) throw new PrologueAdapterError("agent.capability_unavailable", "Action tools are not connected to this runtime");
+    if ((role.actions?.tools.length || role.action_gateway) && !this.#runtime.actionTools) throw new PrologueAdapterError("agent.capability_unavailable", "Action tools are not connected to this runtime");
+    if (role.action_gateway && request.workspace !== "business") throw new PrologueAdapterError("agent.capability_unavailable", "能力网关只用于业务会话");
     const at = this.#now().toISOString();
     const state = emptyPrologueStreamState();
     state.prompt_includes_cache = model.protocol.startsWith("openai");
@@ -513,9 +532,11 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         prompt_id: prompt.prompt_id,
         version: prompt.version,
         layer: promptLayerOf(prompt),
+        ...(prompt.user_revision !== undefined ? { user_revision: prompt.user_revision } : {}),
       })),
       skills: (role.skills ?? []).map(({ body: _body, ...definition }) => ({ ...definition, tools: [...definition.tools] })),
       ...(request.action_tools === undefined ? {} : { action_tools: structuredClone(request.action_tools) }),
+      ...(role.action_gateway ? { action_gateway: true as const } : {}),
       mcp_tools: request.mcp_tools ?? [],
       mcp_sources: request.mcp_sources ?? [],
       host_tools: [...role.host_tools],
@@ -534,7 +555,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         prompt_includes_cache: model.protocol.startsWith("openai"),
       } } : {}),
       budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
-      ...(request.workspace === "none" ? { workspace: "none" } : { directory: structuredClone(request.directory) }),
+      ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { directory: structuredClone(request.directory) }),
     };
 
     await execution?.beforeStart?.();
@@ -543,7 +564,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       beforeDispatch: execution?.beforeDispatch,
       provenance: { frozen, started_at: at },
       session_id: request.session.session_id,
-      ...(request.workspace === "none" ? { workspace: "none" } : { root_path: request.directory.canonical_path }),
+      ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),
       model,
       character: {
         id: role.role_id,
@@ -561,6 +582,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       mcp_tools: request.mcp_tools ?? [],
       mcp_sources: request.mcp_sources ?? [],
       ...(role.actions ? { actions: role.actions } : {}),
+      ...(role.action_gateway ? { action_gateway: role.action_gateway } : {}),
       mode,
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
       ...(request.queued_work_id ? { queued_work_id: request.queued_work_id } : {}),
@@ -868,8 +890,18 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       }
       if (!saved.events || !isEnded(state.phase)) {
         closeInterruptedPrologueStream(state);
-        state.phase = "reconcile-required";
-        state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
+        if (saved.terminal) {
+          // The runtime sealed the run; only its progress stopped short (the service went down while it was ending).
+          // Nothing is left to reconcile for it — an operation with an unknown outcome would still be open work, and that
+          // holds the whole session for checking — so it reads as ended, and says why the record is short.
+          state.phase = saved.stop_intent === "stopped" ? "stopped" : "failed";
+          state.stop_reason = saved.stop_intent === "stopped"
+            ? "已停止（服务在这一轮结束时中断，过程记录不完整；运行时确认它已结束，没有待核对的操作）"
+            : "这一轮在服务中断时结束，过程记录不完整；运行时确认它已结束，没有待核对的操作。不会自动重跑。";
+        } else {
+          state.phase = "reconcile-required";
+          state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
+        }
       }
       if (state.phase === "cancelled" && saved.stop_intent === "stopped") {
         state.phase = "stopped";

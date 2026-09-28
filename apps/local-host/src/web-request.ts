@@ -1,4 +1,7 @@
 import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
+import { builtinAgents } from "./agent-definitions/builtin-agents.js";
+import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
@@ -57,7 +60,7 @@ import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { handleInformationAssistantHttp } from "./assistant-http.js";
+import { handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
@@ -106,7 +109,15 @@ export async function handleMolisWorkWebRequest(
     response.end();
     return;
   }
+  // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
+  if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
+    && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinAgents))) return;
   if (resolved.kind === "catalog_index") {
+    // Personal work needs no project: the Assistant answers on the project list too, in the person's own scope.
+    if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
+      localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady,
+      projectTitle: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
+    })) return;
     await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, resolved.projects, composition, {
       isPanelAlive: (panelId) => ptyHost.alive(panelId),
       releaseProject: async (databasePath) => {
@@ -378,8 +389,10 @@ export async function handleMolisWorkWebRequest(
             },
           },
         )) return;
-        if (url.pathname.startsWith("/api/assistant/") && await handleInformationAssistantHttp(request, response, url, {
-          actions: homeActions,
+        if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
+          localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectRef: hostReference,
+          projectTitle: async projectId => projectId === options.project?.project_id ? options.project.display_name
+            : composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
         })) return;
         if (serverOptions.homeDirectory && await handleWorkflowsNativePluginHttp(request, response, url, {
           // A workflow may use every action the person may run here, and nothing more: native plugins from their manifests, Runtime plugins by their installed grants.

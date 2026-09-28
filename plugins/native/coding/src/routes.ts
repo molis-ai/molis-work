@@ -1,4 +1,4 @@
-import { bindOwnerPluginAction, parseExactActionReferences, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction, parseExactActionReferences, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -994,6 +994,30 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     route("coding.characters", async (request, _api, execution) => {
       const record = selected(request, execution);
       return { characters: execution.characters?.list() ?? [], selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), runtime_id: record.runtime_id };
+    }),
+    // What the session is and where it stands, for whoever holds a reference to it (the Assistant's work, a reference
+    // in another plugin). Its revision moves with every round, so a holder can tell the session went on since.
+    route("coding.subject", async (request, api, execution) => {
+      const record = selected(request, execution);
+      const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
+      const intent = typeof saved === "string" ? (JSON.parse(saved) as { intent?: string }).intent : undefined;
+      const lines = [`状态：${record.state}${intent ? `；下一轮方式：${intent}` : ""}`, record.goal_id ? `关联目标：${execution.goalTitle(record.goal_id) ?? record.goal_id}` : ""];
+      let revision = "0";
+      if (record.runtime_session_id) {
+        const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
+        const snapshot = await api!.invoke(agent.readSession, [session]);
+        const runs = await Promise.all(snapshot.runs.slice(-3).map(ref => api!.invoke(agent.readRun, [session, ref])));
+        revision = String(snapshot.runs.length);
+        for (const run of runs) {
+          const task = run.turns.find(turn => turn.kind === "user")?.text ?? "";
+          const reply = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "";
+          const changed = [...new Set(run.activity.filter(item => ["write", "edit", "edit-file"].includes(item.name) && item.state === "completed").map(item => item.target))];
+          lines.push("", `一轮（${run.phase}）：${task.slice(0, 600)}`, ...(changed.length ? [`改动的文件：${changed.join("、")}`] : []), ...(reply ? [`结果：${reply.slice(0, 1200)}`] : []));
+        }
+      }
+      return subjectContext({ subject: { kind: "coding_session", id: record.session_id }, revision, title: record.title || "编码会话",
+        content: lines.filter((line, index) => line || index > 1).join("\n"), goal_ids: record.goal_id ? [record.goal_id] : [], session_id: record.session_id,
+        open: { surface: "coding", id: record.session_id } });
     }),
     route("coding.read-session", async (request, api, execution) => {
       const record = selected(request, execution);

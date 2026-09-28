@@ -360,10 +360,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   })()`), "the bar reads Dock · Assistant · Shelf/灵光 · project, left to right, none covering another");
   await evaluate(`(()=>{const input=document.querySelector('[data-assistant-input]');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await click("[data-assistant-send]");
-  await waitFor("!document.querySelector('[data-assistant-panel]').hidden && /尚未配置助手模型/.test(document.querySelector('[data-assistant-plan]')?.textContent || '')");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-plan] .assistant-ask')?.textContent"), "hello", "the answer is headed by the question");
+  // No model configured: the work is kept with what was typed, and the panel says what to do next.
+  await waitFor("!document.querySelector('[data-assistant-panel]').hidden && /模型/.test(document.querySelector('[data-assistant-thread] .assistant-problem')?.textContent || '')");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-thread] .assistant-problem a')?.getAttribute('href')"), "/settings/models", "the next step is one click away");
   assert.equal(await evaluate("document.querySelector('[data-assistant-input]')?.value"), "hello", "a failed question stays in the input");
-  assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0 && p.height<300;})()`), "a short answer keeps the panel short, above the input");
+  assert.match(await evaluate("document.querySelector('[data-assistant-work-title]')?.textContent"), /hello/, "the work exists, named after what was asked");
+  assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0;})()`), "the panel opens above the input, inside the window");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home", "asking leaves the work area where it was");
   // Switching goes through the list in front of the input; the chip follows.
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');

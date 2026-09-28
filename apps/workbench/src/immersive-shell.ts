@@ -1,5 +1,6 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { DIRECT_WORK_SURFACE_IDS, islandEntries, pluginMarketCards, railEntries } from "./plugin-catalog.js";
+import { renderAssistantDock } from "./assistant-dock.js";
 
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
@@ -151,21 +152,11 @@ export function renderWorkbenchBar(
       ${parts.accountFooter}
       <div class="dock-pins" data-dock-pins role="toolbar" aria-label="${L("常驻插件")}"></div>
     </div>
-    <div class="bar-center" data-assistant-island>
-      <section class="assistant-panel" data-assistant-panel aria-label="${L("助手")}" hidden>
-        <header class="dock-window-head"><strong>${L("助手")}</strong><button class="dock-window-action" type="button" data-assistant-panel-close aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button></header>
-        <div class="assistant-plan" data-assistant-plan aria-live="polite"><strong>${L("当前项目的信息处理")}</strong><p>${L("可以帮你起草 Feed 筛选规则，或把 Inbox 材料整理到 Pages。")}</p></div>
-      </section>
-      <form class="assistant-composer bar-composer" id="assistant-composer" data-assistant-composer aria-label="Molis Work Assistant">
-        <div class="plugin-picker" data-plugin-picker>
+    ${renderAssistantDock(primitives, { search: true, picker: `        <div class="plugin-picker" data-plugin-picker>
           <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("切换插件")}" title="${L("切换插件")}"><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
           <div class="plugin-picker-popover" data-plugin-picker-popover hidden>${parts.rail}</div>
         </div>
-        <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("问 Assistant，或搜索")}" aria-label="${L("发给 Assistant")}">
-        <button class="bar-composer-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<kbd>⌘K</kbd></button>
-        <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
-      </form>
-    </div>
+` })}
     <div class="bar-end">
       ${residents ? `<div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}</div>` : ""}
       <button class="bar-chat" type="button" data-dock-toggle="im" aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("项目讨论")}" aria-label="${L("项目讨论")}">${icon("message")}</button>

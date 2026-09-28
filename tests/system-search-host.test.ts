@@ -12,6 +12,7 @@ import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
@@ -61,6 +62,15 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     assert.deepEqual(ids(await search(refA, "法务", { scope: "personal" })), [], "project content is not personal content");
     assert.deepEqual(ids(await search(refB, "预算")).length, 1);
     assert.equal((await search(refB, "预算")).hits[0]!.title, "乙项目的预算");
+
+    // Personal (Home) content: one Cognia material, found from either project and from outside any project, never as project content.
+    const personalCaller = await localWebActionContext(host, undefined, LOCAL_OWNER_PERMISSIONS);
+    await host.homeActionClient().invoke(personalCaller, cogniaActions.createMaterial, { title: "个人知识：鲸落", body: "鲸落是深海生态的重要养分来源" });
+    for (const reference of [refA, refB]) assert.deepEqual(ids(await search(reference, "鲸落")), ["io.molis.work.cognia:cognia_material"]);
+    assert.deepEqual(ids(await search(refA, "鲸落", { scope: "project" })), []);
+    const homeOnly = await host.homeActionClient().invoke(personalCaller, searchActions.query, { query: "深海生态" }) as SearchQueryResponse;
+    assert.deepEqual(ids(homeOnly), ["io.molis.work.cognia:cognia_material"]);
+    assert.ok(homeOnly.sources.every(source => source.scope === "personal"), "a caller without a project sees no project source");
 
     // A change through the owner's command is visible to the next query; the old words are gone.
     await call(refA, pagesActions.update, { id: page.id, expected_version: page.version, body: doc("成本控制在六十万以内。") });

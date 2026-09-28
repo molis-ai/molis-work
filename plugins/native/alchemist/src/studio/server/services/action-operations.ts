@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, searchEntriesPage, searchText, type SearchEntry, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApiDependencies } from "../api/dependencies.js";
 import { alchemistOperations, type AlchemistOperationInput, type AlchemistOperationName } from "../../shared/contracts/actions.js";
 import { deriveDirectionTitle } from "../../shared/contracts/direction.js";
@@ -28,6 +28,19 @@ function implementations(d: ApiDependencies): Implementations {
   };
   return {
     ...createWorkspaceOperations(d),
+    searchEntries: input => {
+      const directions = d.directions.list().filter(entry => entry.workspaceId === d.workspaceId && entry.status !== "archived").map((entry): SearchEntry => ({
+        subject: { kind: "alchemist-direction", id: entry.id }, revision: entry.updatedAt, title: entry.title, summary: searchText(entry.description, 4000),
+        updated_at: entry.updatedAt, content: "summary", open: { surface: "alchemist", id: entry.id } }));
+      const ideas = d.ideas.listIdeas().flatMap((idea): SearchEntry[] => {
+        const content = d.ideas.getVersion(idea.id, idea.currentVersion)?.content;
+        if (!content) return [];
+        return [{ subject: { kind: "alchemist-idea", id: idea.id }, revision: `${idea.currentVersion}:${idea.lifecycle}:${idea.updatedAt}`, title: content.title || "未命名 Idea",
+          summary: searchText([content.coreProblem, content.coreMechanism, content.valueProposition].filter(Boolean).join("\n"), 4000), updated_at: idea.updatedAt, content: "summary",
+          open: { surface: "alchemist", id: idea.id } }];
+      });
+      return searchEntriesPage([...directions, ...ideas], input);
+    },
     reuseCandidates: (input, signal) => d.workReuse.candidates(input, signal),
     reuseAssess: (input, signal) => d.workReuse.assess(input, signal),
     reusePublish: async (input, signal) => ({ reference: await d.workReuse.publish(input.reportId, signal) }),

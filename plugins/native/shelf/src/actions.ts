@@ -5,6 +5,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { parseSettingsWriteBody } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
+import { createShelfSearchHandlers, shelfSearchEntriesAction } from "./search.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -78,6 +79,7 @@ export const shelfActions = {
     object({ clip: { anyOf: [record(["clip_id", "kind", "title", "body"]), { type: "null" }] } }), write, LOCAL),
   deleteClip: define<{ clip_id: string }, { deleted: true }>("clipboard.delete", "删除剪贴板记录", "删除一条剪贴板历史", "command", object({ clip_id: id }), object({ deleted: { const: true } }), write, LOCAL),
   clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }), write, LOCAL),
+  searchEntries: shelfSearchEntriesAction,
 };
 export const SHELF_ACTIONS: readonly ActionDefinition[] = Object.values(shelfActions);
 export const SHELF_ACTION_PERMISSIONS = [...new Set(SHELF_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -157,6 +159,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.clip, input => ({ clip: ports.addClipboard(input.text, { concealed: input.concealed === true, types: input.types ?? [] }) })),
     bind(shelfActions.deleteClip, input => { ports.deleteClipboard(input.clip_id); return { deleted: true as const }; }),
     bind(shelfActions.clipToMaterial, async input => ({ item: await ports.clipboardToMaterial(input.clip_id) })),
+    ...createShelfSearchHandlers(() => ports.snapshot()),
   ];
 }
 

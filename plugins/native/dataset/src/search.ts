@@ -27,7 +27,7 @@ export function createDatasetSearchHandlers(withStore: <T>(run: (store: DatasetS
         if ((error as { code?: string })?.code === "dataset.not_found") throw new ActionError("actions.subject_unavailable", "数据表已删除");
         throw error;
       }
-      return subjectContext({ subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: dataset.title, content: datasetSearchContent(dataset), goal_ids: [], session_id: null });
+      return subjectContext({ subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: dataset.title, content: datasetSearchContent(dataset), goal_ids: [], session_id: null, open: { surface: DATASET_PROJECT_PLUGIN_ID, id: dataset.id } });
     }) },
   ];
 }

@@ -32,7 +32,7 @@ export function createWorkflowsSearchHandlers(projectId: string, withStore: <T>(
         throw error;
       }
       return subjectContext({ subject: { kind: "workflow", id: workflow.workflow_id }, revision: String(workflow.revision), title: workflow.title,
-        content: workflowSearchContent(workflow), goal_ids: [], session_id: null });
+        content: workflowSearchContent(workflow), goal_ids: [], session_id: null, open: { surface: WORKFLOWS_PROJECT_PLUGIN_ID, id: workflow.workflow_id } });
     } },
   ];
 }

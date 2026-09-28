@@ -24,7 +24,7 @@ export function createLingguangSearchHandlers(withStore: <T>(run: (store: Linggu
       }
       if (spark.status === "discarded") throw new ActionError("actions.subject_unavailable", "这条灵光已丢弃");
       return subjectContext({ subject: { kind: "spark", id: spark.id }, revision: revisionOf(spark), title: spark.title || searchText(spark.body, 80),
-        content: spark.body, goal_ids: [], session_id: null });
+        content: spark.body, goal_ids: [], session_id: null, open: { surface: LINGGUANG_PROJECT_PLUGIN_ID, id: spark.id } });
     }) },
   ];
 }

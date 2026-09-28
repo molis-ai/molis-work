@@ -239,6 +239,25 @@ test("a subscriber that cannot start keeps the event pending and reports why", a
   assert.equal(rig.bus.log(BOARD).length, 1, "事件仍保留在日志里");
 });
 
+test("a later event cannot acknowledge an earlier activation failure", async () => {
+  const seen: unknown[] = [];
+  const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const files = eventPlugin({ id: FILES, subscribes: [{ type: CHANGED, version: 1, from: [CODING] }],
+    failUntil: 2, onEvent: event => { seen.push(event.payload); } });
+  const rig = harness([coding.definition, files.definition]);
+  await rig.start();
+  rig.publish(CODING, CHANGED, 1, { index: 1 });
+  rig.publish(CODING, CHANGED, 1, { index: 2 });
+  await rig.bus.drain();
+  assert.deepEqual(seen, []);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]?.delivered_sequence, 0);
+  await rig.bus.resume(BOARD); await rig.bus.drain();
+  assert.deepEqual(seen, [{ index: 1 }, { index: 2 }]);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]?.delivered_sequence, 2);
+  await rig.bus.resume(BOARD); await rig.bus.drain();
+  assert.equal(seen.length, 2);
+});
+
 test("a restart replays what the subscriber never acknowledged, exactly once", async () => {
   const received: unknown[] = [];
   const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });

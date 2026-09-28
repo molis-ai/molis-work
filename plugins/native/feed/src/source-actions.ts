@@ -1,5 +1,5 @@
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
-import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import type { FeedApplication } from "./application.js";
@@ -21,7 +21,7 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema,
   audiences: readonly ActionAudience[] = SHARED, permissions: readonly string[] = ["feed:read", "feed:write"]): ActionDefinition<Input, Output> {
   return { capability_id: `feed.sources.${suffix}`, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project",
-    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output } };
+    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output, ...(suffix === "sync" ? { scheduling: "concurrent" as const } : {}) } };
 }
 
 export type FeedSourceRegistration = Record<string, unknown> & { kind: string };
@@ -59,10 +59,10 @@ export interface FeedSourceActionPorts {
 
 const asActionError = (error: unknown) => error instanceof FeedStoreError || error instanceof FeedDomainError ? new ActionError(error.code, error.message) : error;
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
-  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionCallContext) => Output | Promise<Output>): ActionHandlerBinding => ({
+  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     // Judgments a sync starts keep this call's authority, pinned to the Feed action that started them.
-    handle: async (caller, input) => { try { return await handle(input as Input, retainActionAuthority(caller, { ...definition, provider_id: FEED_PLUGIN_ID })); } catch (error) { throw asActionError(error); } },
+    handle: async (caller, input) => { try { return await handle(input as Input, retainActionAuthority(caller, { ...definition, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect)); } catch (error) { throw asActionError(error); } },
   });
   const a = feedSourceActions;
   return [
@@ -94,10 +94,10 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       const current = ports.feed().getSource(board, input.source_id);
       const idempotencyKey = input.idempotency_key ?? "";
       if (current.sync_kind === "public_source") {
-        return await ports.sources(caller).sync(input.source_id, { idempotencyKey, signal: AbortSignal.any([AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000), ...(caller.signal ? [caller.signal] : [])]) });
+        return await ports.sources(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect, signal: AbortSignal.any([AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000), ...(caller.signal ? [caller.signal] : [])]) });
       }
       if (isAccountConnectorSyncKind(current.sync_kind)) {
-        return await ports.connectors(caller).sync(input.source_id, { idempotencyKey, mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" });
+        return await ports.connectors(caller).sync(input.source_id, { idempotencyKey, signal: caller.signal, beforeEffect: caller.beforeEffect, mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" });
       }
       throw new FeedDomainError("这个来源没有同步能力", "feed_source_not_syncable");
     }),

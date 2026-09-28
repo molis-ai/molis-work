@@ -33,7 +33,7 @@
 
 ## 已收
 
-152 份，在 [`archive/`](archive/)。其中按开头状态收走的是第一批；后来对着代码核对、确认产品里已经有这份行为的，也收在同一处。
+155 份，在 [`archive/`](archive/)。其中按开头状态收走的是第一批；后来对着代码核对、确认产品里已经有这份行为的，也收在同一处。
 
 <details>
 <summary>名单</summary>
@@ -41,6 +41,7 @@
 - [accepted-compound-closure](archive/accepted-compound-closure/spec.md)
 - [active-goal-lifecycle](archive/active-goal-lifecycle/spec.md)
 - [additive-tabs](archive/additive-tabs/spec.md)
+- [architecture-followup](archive/architecture-followup/spec.md)
 - [assistant-rail-island](archive/assistant-rail-island/spec.md)
 - [calm-status-language](archive/calm-status-language/spec.md)
 - [chrome-plugin-rail](archive/chrome-plugin-rail/spec.md)

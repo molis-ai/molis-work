@@ -1,9 +1,10 @@
+import { defineAction } from "../packages/plugin-sdk/src/actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, retainActionAuthority, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
@@ -173,4 +174,25 @@ test("effect guard rechecks the actual Catalog installation after an asynchronou
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" });
     assert.equal(await client.invoke(context, action, {}), 1);
   } finally { release.resolve(); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("a typed Plugin SDK child keeps its originating invocation's effect guard", async () => {
+  const service = new ActionService(), entered = gate(), release = gate();
+  let writes = 0;
+  const child = defineAction({ ...definition, capability_id: "fixture.sdk.child" }, async context => {
+    entered.resolve(); await release.promise;
+    await context.beforeEffect();
+    return ++writes;
+  });
+  const disposeChild = service.registerProvider({ provider: { provider_id: "child", title: "Child", kind: "plugin", project_id: "a" }, definitions: [child.definition], handlers: [child.handler] });
+  const register = () => service.registerProvider({ provider: { provider_id: "origin", title: "Origin", kind: "system", project_id: "a" }, definitions: [definition], handlers: [{ ...definition,
+    handle: context => service.invoke(retainActionAuthority(context, { ...definition, provider_id: "origin" }, context.beforeEffect), child.definition, {}) }] });
+  let dispose = register();
+  try {
+    const pending = service.invoke(caller, definition, {}), rejected = assert.rejects(pending, errorCode("actions.provider_changed"));
+    await entered.promise; dispose(); dispose = register(); release.resolve(); await rejected;
+    assert.equal(writes, 0, "a still-registered child cannot outlive the parent's registration");
+    assert.equal(await service.invoke(caller, definition, {}), 1);
+  } finally { release.resolve(); dispose(); disposeChild(); }
 });

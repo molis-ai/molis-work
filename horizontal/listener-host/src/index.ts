@@ -283,7 +283,11 @@ export class ListenerHost implements ListenerHostApi {
     operation_id: string;
     adapter: RawEventAdapter;
     intent?: Record<string, unknown>;
+    signal?: AbortSignal;
+    beforeEffect?(): Promise<void>;
   }): Promise<ListenerRunReceipt> {
+    const beforeEffect = async () => { await input.beforeEffect?.(); input.signal?.throwIfAborted(); };
+    await beforeEffect();
     const prior = this.getRunByOperationId(input.project_id, input.operation_id);
     if (prior?.phase === "terminal") return { ...prior, replayed: true, accepted: [] };
 
@@ -312,7 +316,7 @@ export class ListenerHost implements ListenerHostApi {
     try {
       const pending = this.pendingDeliveries(input.project_id, input.source_id, input.operation_id);
       for (const delivery of pending) {
-        const processed = await this.acceptDelivery(delivery, input.adapter);
+        const processed = await this.acceptDelivery(delivery, input.adapter, beforeEffect);
         accepted.push(processed);
         if (processed.receipt.created) run.created_count += 1;
         else run.deduped_count += 1;
@@ -324,12 +328,14 @@ export class ListenerHost implements ListenerHostApi {
         );
       }
 
+      await beforeEffect();
       const checkpoint = this.checkpoint(input.project_id, input.source_id);
       const connectorReceipt = await this.connector.invoke({
         connection_id: input.connection_id,
         cursor: checkpoint.cursor,
         intent: input.intent,
       });
+      await beforeEffect();
       run.connector_receipt = summarizeConnectorReceipt(connectorReceipt);
       if (!connectorReceipt.result.ok) {
         const failure = connectorReceipt.result;
@@ -367,11 +373,12 @@ export class ListenerHost implements ListenerHostApi {
             "Raw Event 已隔离，必须先处理或替换 Adapter，cursor 不会推进",
           );
         }
-        const processed = await this.acceptDelivery(delivery, input.adapter);
+        const processed = await this.acceptDelivery(delivery, input.adapter, beforeEffect);
         accepted.push(processed);
         if (processed.receipt.created) run.created_count += 1;
         else run.deduped_count += 1;
       }
+      await beforeEffect();
       this.advanceCursor(input.project_id, input.source_id, connectorReceipt.result.cursor_after);
       const completedAt = this.now().toISOString();
       const completed = this.saveRun({
@@ -386,6 +393,7 @@ export class ListenerHost implements ListenerHostApi {
       this.resetCheckpoint(input.project_id, input.source_id, completedAt);
       return { ...completed, replayed: false, accepted };
     } catch (error) {
+      await beforeEffect();
       const code = error instanceof ListenerHostError ? error.code : "listener_connector_failed";
       const interruptedAt = this.now().toISOString();
       this.saveRun({
@@ -416,8 +424,10 @@ export class ListenerHost implements ListenerHostApi {
   private async acceptDelivery(
     delivery: Delivery,
     adapter: RawEventAdapter,
+    beforeEffect: () => Promise<void>,
   ): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
     try {
+      await beforeEffect();
       const partial = adapter.toSignalDraft(delivery.event, {
         project_id: delivery.project_id,
         source_id: delivery.source_id,
@@ -436,6 +446,7 @@ export class ListenerHost implements ListenerHostApi {
         },
       });
       await this.options.afterSignalAccepted?.(delivery.event, receipt);
+      await beforeEffect();
       const at = this.now().toISOString();
       this.db.prepare(`
         UPDATE listener_deliveries
@@ -448,6 +459,7 @@ export class ListenerHost implements ListenerHostApi {
       }
       return { event: delivery.event, receipt };
     } catch (error) {
+      await beforeEffect();
       const nextAttempt = delivery.attempt + 1;
       const quarantined = nextAttempt >= (this.options.maxDeliveryAttempts ?? 5);
       const at = this.now().toISOString();

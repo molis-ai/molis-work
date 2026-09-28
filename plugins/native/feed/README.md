@@ -40,6 +40,8 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
+来源拉取和规则判断在项目队列外等待。Host 为同一数据库/项目/来源提供共享活动租约；不同幂等键也不能并发拉取同一来源。来源配置改变或原调用取消/撤权后，旧响应不提交结果和失败状态，原运行可在新调用中恢复。账号链路把相同执行检查传到 Listener 的每个异步提交点。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

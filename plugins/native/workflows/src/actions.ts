@@ -1,7 +1,7 @@
-import { ActionError, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
-  isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS,
+  isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
   type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
 import type { WorkflowSummary, WorkflowsStore } from "./store.js";
@@ -201,7 +201,10 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
   };
   type Reach = ReturnType<typeof reachFor>;
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, content: WorkflowContentPorts, caller: ActionExecutionContext, reach: Reach) => Promise<O>): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, scoped(caller), caller, reachFor(caller)),
+    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => {
+      const authority = retainActionAuthority(caller, { ...definition, provider_id: WORKFLOWS_PLUGIN_ID }, caller.beforeEffect);
+      return handle(input as I, scoped(authority), caller, reachFor(authority));
+    },
   });
   /** An action step resolves against the caller's own directory; its mapping must still fit the action's contract. */
   const resolveAction = async (reach: Reach, station: WorkflowStation & { action: WorkflowActionStep }): Promise<WorkflowActionChoice> => {
@@ -316,7 +319,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
    * Runs an action step with the fixed handoff mapped into its fields. Actions carry no delivery key, so a run whose result
    * was never confirmed is not repeated unless the person says so; the attempt is recorded before the call.
    */
-  const runActionStep = async (reach: Reach, current: WorkflowInstance, from: number, pending: Pending, target: WorkflowStation & { action: WorkflowActionStep },
+  const runActionStep = async (caller: ActionExecutionContext, reach: Reach, current: WorkflowInstance, from: number, pending: Pending, target: WorkflowStation & { action: WorkflowActionStep },
     retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowItemRef; arrival: { payload: WorkflowPayload; result: unknown } }> => {
     if (pending.attempted_at && !retry) {
       throw new WorkflowError("workflows.uncertain", `上次执行「${target.action.title}」${pending.attempt_error ? `时出错（${pending.attempt_error}）` : "没有确认结果"}；请先到${target.action.group ?? "对应插件"}确认是否已经生效，再决定是否重试`);
@@ -324,6 +327,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     const choice = await resolveAction(reach, target);
     const mapped = mapActionInput(target.action, pending.output);
     const attempt: Pending = { ...pending, attempted_at: new Date().toISOString() };
+    await caller.beforeEffect();
     const instance = await ports.withStore(store => store.saveInstance(current, withPending(current, from, attempt)));
     let result: unknown;
     try { result = await reach.invoke(choice.ref, mapped); }
@@ -333,6 +337,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const code = (error as { code?: unknown }).code;
       const settled = typeof code === "string" && REFUSED_BEFORE_RUNNING.has(code) ? clean
         : { ...attempt, attempt_error: (error instanceof Error ? error.message : String(error)).slice(0, 400) };
+      await caller.beforeEffect();
       await ports.withStore(store => store.saveInstance(instance, withPending(instance, from, settled))).catch(() => undefined);
       throw error;
     }
@@ -417,8 +422,9 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const target = current.chain.stations[from + 1]!;
       let arrived: WorkflowItemRef;
       let arrival: { payload?: WorkflowPayload; result?: unknown } = {};
-      if (isActionStation(target)) ({ instance: current, arrived, arrival } = await runActionStep(reach, current, from, pending, target, input.retry_action === true));
+      if (isActionStation(target)) ({ instance: current, arrived, arrival } = await runActionStep(caller, reach, current, from, pending, target, input.retry_action === true));
       else arrived = await content.receive(target.plugin, pending.output, { instance_id: current.instance_id, step: from + 1, title: current.title }, target.content);
+      await caller.beforeEffect();
       const { attempted_at: _attempted, attempt_error: _error, ...recorded } = pending;
       try {
         const base = current;

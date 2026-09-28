@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openPagesStore, releaseGenerationAttempt } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
 const record = { request_id: "lease-1", project_id: "a", request_hash: "hash", status: "running" as const, document_id: null, inputs: [], instructions: "Keep", title: "Lease", error: null, updated_at: new Date().toISOString() };
@@ -17,7 +17,7 @@ test("a running generation from another process keeps its lease; an ended attemp
     // Still in progress here: a second call is told it is still generating.
     assert.throws(() => store.beginGeneration(record), /仍在生成/);
     // This call ended without writing (cancelled or refused): the next call takes the request over.
-    releaseGenerationAttempt(mine);
+    store.releaseGenerationAttempt(mine);
     const next = store.beginGeneration(record);
     assert.notEqual(next.updated_at, mine.updated_at);
     // An attempt this process never started (another process, or a restart) keeps the lease until it ages out.
@@ -32,4 +32,21 @@ test("a running generation from another process keeps its lease; an ended attemp
     finally { again.close(); }
     assert.equal(store.beginGeneration(record).status, "running");
   } finally { store.close(); }
+});
+
+test("releasing a reopened Home attempt cannot release the same request in another Home", t => {
+  const homeA = mkdtempSync(join(tmpdir(), "pages-home-a-")), homeB = mkdtempSync(join(tmpdir(), "pages-home-b-"));
+  t.after(() => { rmSync(homeA, { recursive: true, force: true }); rmSync(homeB, { recursive: true, force: true }); });
+  t.mock.method(Date, "now", () => Date.parse("2026-09-28T12:00:00.000Z"));
+  const first = openPagesStore(homeA), second = openPagesStore(homeB);
+  const a = first.beginGeneration(record), b = second.beginGeneration(record);
+  assert.equal(a.updated_at, b.updated_at);
+  first.close();
+  const reopened = openPagesStore(homeA);
+  try {
+    reopened.releaseGenerationAttempt(a);
+    assert.throws(() => second.beginGeneration(record), /仍在生成/);
+    assert.notEqual(reopened.beginGeneration(record).updated_at, a.updated_at);
+    assert.equal(second.generation(record.project_id, record.request_id)?.updated_at, b.updated_at);
+  } finally { reopened.close(); second.close(); }
 });

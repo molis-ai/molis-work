@@ -67,7 +67,7 @@ export function toFeedPublicError(error: unknown): FeedPublicError {
   if (code.includes("interrupted")) {
     return { code, category: "interrupted", retryable: true, user_action: "retry", safe_message: message };
   }
-  if (code.includes("conflict")) {
+  if (code.includes("conflict") || code === "feed_source_changed") {
     return { code, category: "conflict", retryable: false, user_action: "refresh", safe_message: message };
   }
   if (code.includes("not_found")) {

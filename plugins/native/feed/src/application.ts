@@ -301,9 +301,12 @@ export class FeedApplication {
   async evaluateItems(boardId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
     if (!itemIds.length || itemIds.length > 20) throw new FeedStoreError("feed_invalid_transition", "请选择 1–20 条消息试跑规则");
     const items = [...new Set(itemIds)].map((id) => this.getFeedItem(boardId, id));
+    const alreadyPending = new Set(this.pendingInboxJudgments.keys());
     for (const item of items) this.captureAfterIngest(item);
-    this.pendingFeedJudgments.push(...items);
-    await this.flushPendingJudgments(caller);
+    const ownedEntries = [...this.pendingInboxJudgments].filter(([key]) => !alreadyPending.has(key)).map(([, event]) => event.entry_id);
+    // Concurrent evaluations own their input batch; they must not drain another call's queue.
+    await this.judgeFeedItems(items, caller);
+    await this.flushPendingInboxJudgments(caller, ownedEntries);
     return { evaluated: items.length };
   }
 
@@ -318,6 +321,11 @@ export class FeedApplication {
 
   async flushPendingJudgments(caller?: ActionCallContext): Promise<void> {
     const feedItems = this.pendingFeedJudgments.splice(0);
+    await this.judgeFeedItems(feedItems, caller);
+    await this.flushPendingInboxJudgments(caller);
+  }
+
+  private async judgeFeedItems(feedItems: readonly FeedItemRecord[], caller?: ActionCallContext): Promise<void> {
     for (const queued of feedItems) {
       let item: FeedItemRecord;
       try { item = this.getFeedItem(queued.board_id, queued.item_id); }
@@ -326,7 +334,6 @@ export class FeedApplication {
       await this.ports.captureJudgment?.({ board_id: item.board_id, item_id: item.item_id, rule_ids: ruleIds }, caller);
       await this.ports.homeJudgment?.({ kind: "feed_item", id: item.item_id, board_id: item.board_id }, caller);
     }
-    await this.flushPendingInboxJudgments(caller);
   }
 
   async flushPendingInboxJudgments(caller?: ActionCallContext, entryIds?: readonly string[]): Promise<void> {
@@ -380,18 +387,21 @@ export class FeedApplication {
     return this.requireOutRules().delete(boardId, ruleId);
   }
 
-  recordCaptureJudgment(item: FeedItemRecord, rule: FeedOutRuleRecord, judgment: JudgmentRecord): void {
+  recordCaptureJudgment(item: FeedItemRecord, rule: FeedOutRuleRecord, judgment: JudgmentRecord): string | undefined {
+    let createdEntry: string | undefined;
     if (judgment.subject.kind !== "feed_item" || judgment.subject.id !== item.item_id || judgment.subject.board_id !== item.board_id) {
       throw new FeedStoreError("feed_invalid_transition", "判断结果与当前 Feed 消息不符");
     }
     if (rule.admission === "inbox" && (judgment.outcome === "needs_review" || judgment.suggested_behavior_ids.includes("inbox.admit"))) {
-      this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", {
+      const admission = this.ensureInboxEntryForFeedItem(item.board_id, item.item_id, "source_rule", {
         rule_id: rule.rule_id, rule_name: rule.name, judgment_id: judgment.judgment_id,
         function_key: rule.function_key, function_version: judgment.function_version, needs_review: judgment.outcome === "needs_review",
       });
+      if (admission.created) createdEntry = admission.entry.entry_id;
     }
     this.ports.appendEvent(item.board_id, "judgment", judgment.judgment_id, "judgment_completed", judgment.outcome,
       { judgment_id: judgment.judgment_id }, judgment.created_at);
+    return createdEntry;
   }
 
   setDisposition(

@@ -18,6 +18,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 从需求到发布的八步、每步做完的标准 | [process.md](process.md) |
 | 能力：读、写、不可撤销，谁能调用 | [capabilities.md](capabilities.md) |
 | 生成插件的说明书怎么设计 | [generated-design.md](generated-design.md) |
+| 生成插件的 AI 边界（创作台直接挂载） | [generated-ai.md](generated-ai.md) |
 | 生成插件的代码怎么写 | [generated-code.md](generated-code.md) |
 | 字段词典 | [elements.md](elements.md) |
 | 画面、槽、客户端 | [ui.md](ui.md) |

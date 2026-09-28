@@ -1,3 +1,4 @@
+import type { FeedSyncExecution } from "./source-ports.js";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
@@ -159,7 +160,7 @@ export class FeedConnectorService {
     return result;
   }
 
-  sync(sourceId: string, input: { idempotencyKey: string; mode?: ConnectorSyncMode }) {
+  sync(sourceId: string, input: FeedSyncExecution & { idempotencyKey: string; mode?: ConnectorSyncMode }) {
     return this.syncHandler.sync(sourceId, input);
   }
 

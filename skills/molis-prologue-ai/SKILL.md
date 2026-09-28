@@ -7,6 +7,8 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 架构与示例在仓库手册 [`docs/platform/PROLOGUE-AI.md`](../../docs/platform/PROLOGUE-AI.md)（只在源码仓库里，不随安装包发布）；本文是执行清单，单独也够用。插件本身怎么写仍按 [`molis-plugin-dev`](../molis-plugin-dev/SKILL.md)。
 
+生成插件沙箱使用 [generated-ai.md](../molis-plugin-dev/generated-ai.md)：通过 `model.generate` 进入同一 Home Runtime；创作台设计与代码阶段都直接挂载该章。不要给沙箱套 Native 的 `caller.beforeEffect()` 接口。
+
 ## 什么时候读
 
 - 动作或页面要调模型、生成图片、做 TypeSafe 判断。
@@ -34,7 +36,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 
 1. **选用法**（手册第 2 节）：单次有界调用 → Host 端口；多轮带工具 → Agent 角色；专门编排 → 新适配器。不要为统一而套 Agent 循环。
 2. **定义动作**：权限写 `model:invoke`；等模型的动作写 `scheduling: "concurrent"`；`effect` 与真实效果一致（名字里有 delete/remove/trash 会被推断为不可撤销，不对就用 `withActionEffect` 显式声明）。
-3. **处理器**：读快照 → 把 `caller.signal` 传给模型 → 返回后 `await caller.beforeEffect()` → 按快照/版本提交；空结果、超时、错误都不制造成功结果，输入保留。
+3. **处理器**：读快照 → 把 `caller.signal` 传给模型 → 返回后 `await caller.beforeEffect()` → 按快照/版本提交；嵌套动作/场景用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；空结果、超时、错误都不制造成功结果，输入保留。
 4. **Host 装配**：只注入函数端口（`completeText`、`modelAvailability`），未配置时 `actions.connection_required`。插件不拿密钥、不依赖 `@prologue/sdk`。
 5. **Agent 角色**（如需要）：Manifest `agent` 块声明 `execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`；提示词正文随插件包导出并在 `apps/workbench/src/plugin-catalog.ts` 的 `BUILTIN_PLUGIN_AGENTS` 可见；在 Prologue 上登记钩子一律 `forSession`。
 6. **错误**：执行服务不可用用 `inferenceServiceUnavailableReason` 如实说明；派出前被宿主复核拒绝用 `isDispatchRefusal` 识别，说明「没有发出」而不是网络问题；供应商 HTTP 错误按状态给可操作提示；不要把 SDK 细节透给用户。

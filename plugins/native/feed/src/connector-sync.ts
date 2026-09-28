@@ -1,3 +1,5 @@
+import { sourceSyncGuard } from "./source-sync-guard.js";
+import type { FeedSyncExecution } from "./source-ports.js";
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ListenerHostError, type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
@@ -15,8 +17,12 @@ export class FeedConnectorSync {
   }
   async sync(
     sourceId: string,
-    input: { idempotencyKey: string; mode?: ConnectorSyncMode },
+    input: FeedSyncExecution & { idempotencyKey: string; mode?: ConnectorSyncMode },
   ): Promise<FeedSourceSyncResult> {
+    const release = this.ports.acquireSync?.(this.boardId, sourceId);
+    try { return await this.run(sourceId, input); } finally { release?.(); }
+  }
+  private async run(sourceId: string, input: FeedSyncExecution & { idempotencyKey: string; mode?: ConnectorSyncMode }): Promise<FeedSourceSyncResult> {
     const source = this.feed.getSource(this.boardId, sourceId);
     if (!isAccountConnectorSyncKind(source.sync_kind)) {
       throw new FeedDomainError("这个来源不是账号连接器", "connector_wrong_sync_kind");
@@ -27,6 +33,8 @@ export class FeedConnectorSync {
     if (!source.enabled || source.status === "paused") {
       throw new FeedDomainError("来源已暂停，请先恢复", "feed_source_paused");
     }
+    const beforeEffect = sourceSyncGuard(this.feed, source, input);
+    await beforeEffect();
     const key = normalizeIdempotencyKey(input.idempotencyKey);
     const operationId = stableId("connector-operation", `${source.source_id}\u0000${key}\u0000${input.mode ?? "normal"}`);
     const prior = this.feed.getSourceRunByOperationId(this.boardId, operationId);
@@ -57,12 +65,14 @@ export class FeedConnectorSync {
           attention: item.attention,
         });
       });
-      listenerResult = await listener.run(operationId, input.mode ?? "normal");
+      listenerResult = await listener.run(operationId, input.mode ?? "normal", { signal: input.signal, beforeEffect });
       await this.feed.flushPendingJudgments();
     } catch (error) {
+      await beforeEffect();
       const updatedAt = new Date().toISOString();
       const errorCode = error instanceof ListenerHostError ? error.code : safeConnectorErrorCode(error);
       await this.ports.reportCrash(source.source_id, errorCode);
+      await beforeEffect();
       const latest = this.feed.getSource(this.boardId, sourceId);
       this.feed.upsertSource({
         ...latest,
@@ -79,6 +89,7 @@ export class FeedConnectorSync {
       );
       throw new FeedDomainError("连接器同步未取得可信终态，本次没有写成成功；可稍后安全重试。", "feed_source_sync_interrupted");
     }
+    await beforeEffect();
     const completedAt = new Date().toISOString();
     const connectorReceipt = listenerResult.connector_receipt ?? {};
     if (listenerResult.outcome === "failed") {

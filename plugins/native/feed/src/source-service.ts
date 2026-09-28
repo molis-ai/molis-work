@@ -5,6 +5,8 @@ import type { FeedSourceRecord, FeedSourceSchedule, SourceHistoryDecision } from
 import type { FeedSourcePorts, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult } from "./source-ports.js";
 import { normalizeRegistration } from "./source-request.js";
 import { stableId, sha256, bounded, sameHttpsUrl } from "./source-input.js";
+import { sourceSyncGuard } from "./source-sync-guard.js";
+import type { FeedSyncExecution } from "./source-ports.js";
 import { PublicSourceSync } from "./source-sync.js";
 export class FeedSourceService {
   readonly feed: FeedApplication;
@@ -13,14 +15,20 @@ export class FeedSourceService {
     this.feed = ports.feed;
     this.publicSync = new PublicSourceSync(ports, boardId);
   }
-  sync(sourceId: string, input: { idempotencyKey: string; signal?: AbortSignal }): Promise<FeedSourceSyncResult> {
-    const source = this.activeSource(sourceId);
-    if (source.kind === "research_library") {
-      if (!this.ports.syncRepository) throw new FeedDomainError("研究库适配器不可用", "feed_source_invalid_configuration");
-      return this.ports.syncRepository(source, input);
-    }
-    return this.publicSync.sync(source, input);
+  async sync(sourceId: string, input: FeedSyncExecution & { idempotencyKey: string }): Promise<FeedSourceSyncResult> {
+    const release = this.ports.acquireSync?.(this.boardId, sourceId);
+    try {
+      const source = this.activeSource(sourceId);
+      const execution = { ...input, beforeEffect: sourceSyncGuard(this.feed, source, input) };
+      await execution.beforeEffect();
+      if (source.kind === "research_library") {
+        if (!this.ports.syncRepository) throw new FeedDomainError("研究库适配器不可用", "feed_source_invalid_configuration");
+        return await this.ports.syncRepository(source, execution);
+      }
+      return await this.publicSync.sync(source, execution);
+    } finally { release?.(); }
   }
+
   register(input: RegisterFeedSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const normalized = normalizeRegistration(input, this.ports.providers);
     const syncKind = "public_source";

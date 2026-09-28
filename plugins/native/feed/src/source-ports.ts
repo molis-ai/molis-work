@@ -22,8 +22,14 @@ export interface FeedSourceProviders {
     withSuccess(cursor: unknown, receipt: RssFetchReceipt | null, at: string): unknown;
   };
 }
+export interface FeedSyncExecution {
+  signal?: AbortSignal;
+  beforeEffect?(): Promise<void>;
+}
 export interface FeedSourcePorts {
-  syncRepository?(source: FeedSourceRecord, input: { idempotencyKey: string; signal?: AbortSignal }): Promise<FeedSourceSyncResult>;
+  /** Host-wide lease shared by every service instance for the same database/source. */
+  acquireSync?(boardId: string, sourceId: string): () => void;
+  syncRepository?(source: FeedSourceRecord, input: FeedSyncExecution & { idempotencyKey: string }): Promise<FeedSourceSyncResult>;
   feed: FeedApplication;
   providers: FeedSourceProviders;
   createRuntime(source: FeedSourceRecord): PublicFeedRuntime;

@@ -193,3 +193,5 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 验证：[home-action-scenes.test.ts](../../tests/home-action-scenes.test.ts) 使用正式安装插件的独立 SQLite 记录，检查实际判断历史、首页建议、读取权限、版本变化、来源替换及旧绑定迁移。
 
 判断编辑器的 Agent 用途直接读取当前授权目录中带 `agent` 或 `mcp` audience 的能力，无须声明旧 MCP 名称或增加作者白名单。能力引用同时包含 ID、版本和提供方；Choice/Noul 的可选结果映射保存该引用，调用返回 `recommended_actions`。调用者仍须根据业务输入合同构造参数，再通过共同服务单独调用。推荐不执行、不授权；发布和判断前后检查来源与授权，失效引用保留。旧连接凭据本身不代表可调用能力，只有正式注册动作才进入目录。
+
+`defineAction` 的处理器接收 `ActionExecutionContext`。等待模型、网络或其他异步工作后，写入前调用 `await context.beforeEffect()`，再验证原对象版本。该检查由 dispatcher 创建，不能由业务输入提供；它覆盖取消、注册替换、生命周期与实时授权。嵌套调用保留外层检查时使用合同层 `retainActionAuthority(context, originReference, context.beforeEffect)`。

@@ -52,6 +52,10 @@ jobs:
       - name: Action and plugin contracts
         run: pnpm test:contracts
 
+      # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
+      - name: Alchemist plugin tests
+        run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
+
   verify:
     name: Verify
     needs: architecture-boundaries

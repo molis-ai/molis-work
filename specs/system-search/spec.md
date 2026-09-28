@@ -211,14 +211,16 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 | P5 | SDK、Skill、手册、包说明、SSOT、架构需求书、产品范围 | 完成（3715bdfc 及之前） |
 | P6 | 真实场景：隔离 Home 预览与浏览器实操、真实 MCP 进程、助理授权 | 见下 |
 
-与助理分支：已合入 `feature/system-assistant` c50288ea（含 origin/main 21cdfbf8），本分支须在其后合入 main。
+与助理分支：已合入 `feature/system-assistant` aa5b1a61（含 origin/main 21cdfbf8），本分支须在其后合入 main。
 
 ### 工程通过（定向）
 
 - `tests/system-search.test.ts` 13 项：协议校验与分页辅助；未打开内容的中文 1–2 字、`Q4`/`q4`、全角 `ＯＫＲ`、前缀 `sea`、混排 `search方案`、`50万`、“算控”不误中；命令成功后的新建/修改/删除，无人通知的后台写入在新鲜期后被发现；项目、个人、MCP 授权与“只有列出没有读取器”的隔离；仅摘要内容不入索引也不读正文；打开核对与已删除移出；失败保留、状态为 stale/failed 与恢复；停用/启用/卸载/重装；重启不重读、删除与写坏索引文件后重建；翻页游标；按需查询来源不落盘。
 - `tests/system-search-host.test.ts`：真实 Home/目录/Host/Web 服务/Plugin Runtime——Pages、Form、灵光、Goals 的真实内容可搜；修改、删除、丢弃即时反映；两个项目互不可见；Cognia 个人内容在两个项目与项目外都可搜、限定本项目不出现；MCP 调用上下文逐项授权；未知 Runtime 插件只声明协议即被搜到、停用后消失；`/api/search/*` 需要控制令牌、项目外只有个人范围。
+- `tests/system-search-assistant.test.ts`：一轮真实的助理运行（真实 Host、真实 Prologue SDK 适配器与能力网关，只有模型回复是脚本）：模型先查能力目录找到 `search.query`，搜“营业执照”得到一份从未打开的问卷，再用 Form 的读取器读到正文，整轮无需人确认。
+- Shelf：本机的人能搜到材料与剪贴板；助理与 MCP 客户端只搜到材料，结果、摘要与来源状态里都没有剪贴板文字，即使客户端被授予剪贴板来源也一样（`system-search-host`、`shelf-actions`）。
 - `tests/system-search-lifecycle.test.ts`：项目里停用 Goals 后结果消失且状态为已停用、重新启用后重建；重启后 `indexed_at` 不变（未重建）；索引文件丢失后重建；真实 stdio MCP 进程只授予 `search.query` 看不到内容、授予来源与读取器后可搜到正文、撤销来源立即消失；助理经 `assistantAuthority` 调用 `search.query` 并用命中对象的读取器读到正文与打开位置，对助理关闭来源只影响助理。
-- 20 个插件的搜索来源在真实宿主注册时经 `inspectActionDeclarations` 校验无问题；`pnpm workspace:typecheck` 通过；`pnpm boundary:check` 仅剩助理分支 3 条既有错误（已由其在 1a98afed、bdf417c3 修复，待再次合入）。
+- 20 个插件的搜索来源在真实宿主注册时经 `inspectActionDeclarations` 校验无问题；`pnpm workspace:typecheck` 通过；合入助理分支 aa5b1a61 后 `pnpm build`、`pnpm workspace:typecheck` 通过，`pnpm boundary:check` 零错误；定向 12 个文件 45 项全部通过。
 
 ### 真实场景实操（隔离 Home，`search-dev` 4270，本分支构建）
 
@@ -228,6 +230,7 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 - 切到“仅个人”搜“鲸落”：命中 Cognia 资料；回车后 Cognia 打开的正是这份资料，并高亮“鲸落”。
 - 搜到“周会纪要”后从 Pages 接口删除它，再点这条旧结果：提示“这条内容已被删除或归档，已从结果中移除”，该条消失；再搜不到。
 - 无结果时显示空状态与一个不预选的“问助理”按钮，回车不触发。
+- 合入后重新构建：往 Shelf 记一条剪贴板“座头鲸航线”，⌘K 搜“座头鲸”命中这条剪贴板；搜“设置”只命中快捷操作时，结果下方写“内容里没有找到”并给出“问助理”按钮。
 - 发现并修复：结果返回前选中项被钳成 -1 导致回车无效；Esc 后立即 ⌘K 重开时延迟的关闭事件作废新查询；单库看板页被当成无项目；Home 级清理误删单库模式的索引。
 
 ### 浏览器既有用例
@@ -236,7 +239,18 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 
 ### 全量回归
 
-（进行中）
+`node scripts/run-tests.mjs`，本分支（合入 c50288ea 时的版本）与基线 c50288ea 各跑一遍，按失败名单比对：
+
+- 本分支 3139 项，3113 通过、19 失败、7 跳过；基线 3122 项，3105 通过、10 失败、7 跳过。
+- 基线的 10 项失败在本分支上全部同样失败（窄屏搜索按钮被隐藏、Goals 树、窄屏 Goal 抽屉、Goal Frame 下方分屏、窗格里打开相关 Goal、产品旅程、项目旅程 1440/390、设置分类页、Feed 判断），与搜索无关；单独在基线重跑的失败位置相同。
+- 只在本分支失败的 9 项：
+  - 5 项是本任务带来的预期变化，已改用例并通过：Dataset、Images 对外工具清单，Experiments 对外动作，purge 名单加入搜索索引，Shelf 对外工具清单。
+  - 其中 Shelf 这一项同时暴露了一个真实泄漏：剪贴板历史经 `shelf.search.entries` 对助理与 MCP 可见。已修复（来源受众，第 5.1 节），并补了宿主级用例。
+  - 4 项单独重跑通过：Feed 任务创建、Inbox 判断、公共文档客户端、工作计划入口。它们在两套全量同时运行时超时，属于负载下的偶发失败。
+- 合入助理分支 aa5b1a61 后重跑：
+  - 上面 4 项偶发失败全部通过。
+  - 搜索相关的浏览器用例：`immersive-directory`、`goals-tree` 通过（Goals 树在基线失败，合入后通过）；`product-experience-polish` 里“分屏打开”通过，“产品旅程”仍在第 97 行失败（与基线相同）。
+  - `global-ui-interaction` 的键盘选择用例：失败原因变了。基线上窄屏搜索按钮被隐藏；助理 73f3ef37 让它显示后，现在被底栏“项目讨论”按钮压住。在不含搜索代码的 aa5b1a61 上单独构建重跑，失败完全相同，已交给助理会话。
 
 ## 13. 未完成与限制
 
@@ -245,7 +259,7 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 - **项目列表页**（无项目）工作台没有搜索入口；个人内容可在任何项目里用“仅个人”搜，助理与 API 在无项目时也可用。
 - **跨项目搜索**不提供：调用者的项目作用域由可信上下文决定。
 - 命中定位依赖正文在页面上是可见文字；Dataset 单元格、Jelly 日历中未显示在当前视图的对象只能打开到对象，不一定高亮。
-- 助理的真实模型轮次（MiniMax）未跑搜索场景；已用助理运行时同一授权对象验证调用链。
+- 助理：用真实 Host、真实 Prologue SDK 与能力网关、脚本化的模型回复跑通了“查目录 → 搜索 → 读取命中对象”一轮；**真实模型（MiniMax）没有跑搜索场景**，模型会不会主动选用搜索要在用户实操里看。
 - **工作流**：`search.query` 对工作流受众开放，但现有工作流的“动作步骤”只提供命令类动作，查询类（搜索、对象读取）不能作为步骤；这是工作流步骤模型的范围，未在本任务改动。
 - 用户验收：未进行。
 

@@ -760,6 +760,32 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }
 
+  /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
+  .prompt-settings-notice { margin: 0 0 16px; padding: 10px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; }
+  .prompt-settings-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .prompt-settings-search { flex: 1 1 220px; min-width: 0; }
+  .prompt-group-title { margin: 0 0 8px; font-size: 14px; }
+  .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
+  .prompt-roles { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .prompt-role { display: inline-flex; flex-direction: column; padding: 5px 9px; border-radius: 7px; box-shadow: 0 0 0 1px var(--line); font-size: 12px; }
+  .prompt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .prompt-row { padding: 8px 10px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
+  .prompt-row-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
+  .prompt-row-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .prompt-row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+  .prompt-row-meta { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 6px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
+  .prompt-state--user { color: var(--ink); background: var(--nav-active); }
+  .prompt-state--updated { color: var(--warning, #b7791f); }
+  .prompt-editor { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .prompt-editor-text { width: 100%; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.55; }
+  .prompt-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .prompt-editor-count { margin-left: auto; font-size: 11px; }
+  .prompt-default summary, .prompt-history summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  .prompt-default-text { max-height: 260px; overflow: auto; margin: 6px 0 0; padding: 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); white-space: pre-wrap; font-size: 12px; }
+  .prompt-history-list { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink-soft); }
+  @media (max-width: 600px) { .prompt-row-head { grid-template-columns: minmax(0, 1fr); } .prompt-row-meta { justify-content: flex-start; } }
+
   /* The project is its own mark: a letter on a stable hue, not a generic database glyph. */
   .project-monogram {
     --mono: var(--hue-indigo-fill, #5e6ad2);

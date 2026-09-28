@@ -1,3 +1,4 @@
+import { PROMPT_SETTINGS_CLIENT_SCRIPT } from "../settings-prompts.js";
 import { MCP_ACCESS_CLIENT_SCRIPT } from "./mcp-access.js";
 import { CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { MODEL_SETTINGS_CLIENT_SCRIPT } from "./settings-models.js";
@@ -118,7 +119,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   })();
 `;
 
-export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + `
+export const SETTINGS_CLIENT_SCRIPT = MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + `
   (() => {
     const projectManager = document.querySelector("[data-project-manager]");
     if (projectManager) {

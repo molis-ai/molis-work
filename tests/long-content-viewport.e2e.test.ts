@@ -51,7 +51,8 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   assert.deepEqual(await visible('[data-inbox-detail]:not([hidden]) .inbox-reference-footer'),inboxFooter);
   assert.equal((await probe('[data-inbox-detail]:not([hidden]) .inbox-reference-body')).overflow,"auto");
   const entryId=await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
-  await navigate(()=>click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]'));
+  // Completing is handled in place (status request, then the Inbox stage refreshes); the page does not navigate.
+  await click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]');
   await waitFor("document.querySelector(" + JSON.stringify('[data-inbox-stage-group="history"] [data-inbox-entry-id="' + entryId + '"]') + ")");
   const history=await (await fetch(`${origin}/projects/${projectId}/api/inbox?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
   assert.equal(history.entries.find(e=>e.entry_id===entryId)?.status,"done");

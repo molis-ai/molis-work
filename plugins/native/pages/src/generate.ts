@@ -1,5 +1,5 @@
 import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { PagesStore } from "./store.js";
+import { releaseGenerationAttempt, type PagesStore } from "./store.js";
 import { PagesError } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
@@ -10,14 +10,15 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
   signal?.throwIfAborted();
   const request = withStore(store => store.beginGeneration(record));
   if (request.status === "completed" && request.document_id) return { document: withStore(store => store.get(request.document_id!, record.project_id)), replayed: true };
+  const refusedEnds = async () => {
+    try { signal?.throwIfAborted(); await beforeEffect?.(); }
+    catch (refused) { releaseGenerationAttempt(request); throw refused; }
+  };
   const fail = async (error: unknown): Promise<never> => {
-    // A cancelled call releases its own running attempt so the person can retry at once instead of
-    // being told for minutes that it is still generating; failGeneration only matches this attempt's
-    // updated_at, so a record another call has taken over is untouched. Any other failure bookkeeping
-    // is an effect: if authority is gone, leave the running record for the owner recovery path.
-    const cancelled = signal?.aborted === true;
-    if (!cancelled) await beforeEffect?.();
-    withStore(store => store.failGeneration(request, cancelled ? "已取消生成，材料已保留，可重试" : error instanceof Error ? error.message : "生成失败"));
+    // Failure bookkeeping is also an effect. If the call was cancelled or lost authority it writes nothing;
+    // it only notes, in this process, that its attempt is over, so a new call here can take the request over.
+    await refusedEnds();
+    withStore(store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
     throw error;
   };
   let body: PagesBody;
@@ -50,7 +51,7 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
       : markdown.split(/\n\n+/).map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) };
   } catch (error) { return fail(error); }
   // A rejected guard must not be caught as a model/storage failure and retried as another write.
-  await beforeEffect?.();
+  await refusedEnds();
   try {
     const document = withStore(store => store.completeGeneration(request, body));
     return { document, replayed: false };

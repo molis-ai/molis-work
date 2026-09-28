@@ -39,6 +39,19 @@ export interface PagesImportDocumentsInput {
   readonly documents: readonly { readonly title: string; readonly body: PagesBody }[];
 }
 
+/**
+ * Generation attempts this process started: true while in progress, false once the call ended without being allowed to
+ * write (cancelled, revoked, disabled). Such a call leaves its running record untouched, and a new call in this process
+ * may take the request over at once; attempts from other processes keep the stored lease. Memory only.
+ */
+const attempts = new Map<string, boolean>();
+const attemptKey = (record: Pick<PagesGenerationRecord, "project_id" | "request_id" | "updated_at">) =>
+  `${record.project_id}\u0000${record.request_id}\u0000${record.updated_at}`;
+/** The attempt's call ended without writing: this process may start the request again without waiting out the lease. */
+export function releaseGenerationAttempt(record: Pick<PagesGenerationRecord, "project_id" | "request_id" | "updated_at">): void {
+  if (attempts.has(attemptKey(record))) attempts.set(attemptKey(record), false);
+}
+
 export class PagesStore {
   constructor(private readonly db: DatabaseSync) {}
 
@@ -101,10 +114,14 @@ export class PagesStore {
       const prior = this.generation(record.project_id, record.request_id);
       if (prior?.request_hash && prior.request_hash !== record.request_hash) throw new PagesError("pages.invalid", "同一个请求的材料或要求已改变，请重新生成");
       if (prior?.status === "completed") { this.db.exec("COMMIT"); return prior; }
-      if (prior?.status === "running" && Date.now() - Date.parse(prior.updated_at) < 180_000) throw new PagesError("pages.unavailable", "这份文稿仍在生成，请稍后查看结果");
+      // A fresh running record keeps its lease, unless this process started that attempt and it has already ended.
+      if (prior?.status === "running" && Date.now() - Date.parse(prior.updated_at) < 180_000
+        && attempts.get(attemptKey(prior)) !== false) throw new PagesError("pages.unavailable", "这份文稿仍在生成，请稍后查看结果");
       const next = { ...(prior ?? record), status: "running" as const, error: null, updated_at: new Date(Math.max(Date.now(), prior ? Date.parse(prior.updated_at) + 1 : 0)).toISOString() };
       this.saveGeneration(next);
       this.db.exec("COMMIT");
+      if (prior) attempts.delete(attemptKey(prior));
+      attempts.set(attemptKey(next), true);
       return next;
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
@@ -121,6 +138,7 @@ export class PagesStore {
       const document = this.create({ project_id: record.project_id, title: record.title, body });
       this.saveGeneration({ ...record, status: "completed", document_id: document.id, error: null, updated_at: new Date().toISOString() });
       this.db.exec("COMMIT");
+      attempts.delete(attemptKey(record));
       return document;
     } catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
@@ -129,6 +147,7 @@ export class PagesStore {
     const next = { ...record, status: "failed", error: message.slice(0, 500), updated_at: new Date(Math.max(Date.now(), Date.parse(record.updated_at) + 1)).toISOString() };
     this.db.prepare("UPDATE page_generations SET updated_at = ?, record_json = ? WHERE project_id = ? AND request_id = ? AND updated_at = ? AND json_extract(record_json, '$.status') = 'running'")
       .run(next.updated_at, JSON.stringify(next), record.project_id, record.request_id, record.updated_at);
+    attempts.delete(attemptKey(record));
   }
 
   private saveGeneration(record: PagesGenerationRecord): void {

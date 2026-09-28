@@ -512,9 +512,45 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (announcing) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: item.capability_id } }));
     }));
   };
+  const objectsBox = island.querySelector("[data-assistant-objects]");
+  const RELATION_LABEL = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
+  const objectState = (object) => object.state === "changed" ? L("已被修改") + " · " + L("现为版本") + " " + object.current_revision + " · " + L("这项工作记下版本") + " " + object.recorded_revision
+    : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
+    : object.current_revision ? L("未变") + " · " + L("版本") + " " + object.current_revision : L("可用");
+  const renderObjects = (work) => {
+    if (!objectsBox) return;
+    const objects = work && view.objects ? view.objects : [];
+    const signature = JSON.stringify([work && work.work_id, objects.map((o) => [o.relation, o.subject.kind, o.subject.id, o.state, o.current_revision, o.recorded_revision, o.title])]);
+    if (objectsBox.dataset.signature === signature) return;
+    objectsBox.dataset.signature = signature;
+    objectsBox.hidden = !objects.length;
+    if (!objects.length) { objectsBox.replaceChildren(); return; }
+    const changed = objects.filter((o) => o.state === "changed").length;
+    const gone = objects.filter((o) => o.state === "missing").length;
+    const wasOpen = objectsBox.querySelector("details")?.open;
+    const details = el("details", "assistant-objects-list");
+    details.open = wasOpen === undefined ? changed + gone > 0 : wasOpen;
+    details.append(el("summary", "", L("这项工作的对象") + " · " + objects.length + (changed ? " · " + changed + " " + L("项已被修改") : "") + (gone ? " · " + gone + " " + L("项已不存在") : "")));
+    const list = el("ul", "assistant-objects-items");
+    objects.forEach((object) => {
+      const row = el("li", "assistant-object assistant-object--" + object.state);
+      row.append(el("span", "assistant-object-relation", L(RELATION_LABEL[object.relation] || object.relation)), el("span", "assistant-object-title", object.title),
+        el("span", "assistant-object-state", objectState(object)));
+      if (object.open && host.openItem) {
+        const open = el("button", "assistant-object-open", L("打开")); open.type = "button";
+        open.setAttribute("aria-label", L("打开") + "：" + object.title);
+        open.addEventListener("click", () => host.openItem(object.open.surface, object.open.id, object.title));
+        row.append(open);
+      }
+      list.append(row);
+    });
+    details.append(list);
+    objectsBox.replaceChildren(details);
+  };
   const render = () => {
     const stick = nearBottom();
     const work = view && view.work.work_id === currentId ? view.work : null;
+    renderObjects(work);
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
@@ -537,7 +573,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (shown) {
       const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
       box.append(el("p", "", shown.message));
-      if (work && work.state === "needs-check" && !problem) {
+      if (work && work.state === "needs-check") {
         // What the interrupted round really did, then an explicit close. Nothing is re-run.
         const check = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("查看实际发生了什么")); check.type = "button";
         check.addEventListener("click", async () => {
@@ -665,18 +701,44 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     removed.delete("selection");
     paintMaterials();
   });
+  /** Official surfaces whose tab item is an object with a shared context reader; a plugin that declares its own context wins. */
+  const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", sessions: "session", artifacts: "artifact" };
   const surfaceContext = () => {
     const surface = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find(visible);
-    if (!surface) return null;
-    try { return JSON.parse(surface.getAttribute("data-assistant-context") || "null"); } catch { return null; }
+    if (surface) {
+      try { return JSON.parse(surface.getAttribute("data-assistant-context") || "null"); } catch { return null; }
+    }
+    // No declaration: the open tab still says which object the person is on.
+    const tab = document.querySelector(".tab-item[aria-current='page'][data-item-id]");
+    if (!tab) return null;
+    const kind = TAB_KINDS[tab.dataset.plugin];
+    const title = tab.getAttribute("title") || "";
+    return { plugin_id: tab.dataset.plugin, surface_title: title, ...(kind ? { object: { kind, id: tab.dataset.itemId, title } } : {}) };
+  };
+  /* What the person looks at is not what they work on. A page object joins the current work only when it already
+     belongs to it (opened from it, produced by it) or when the person adds it; a new work starts from it. */
+  const joined = new Set();
+  const objectKey = (object) => object.kind + ":" + object.id;
+  const belongsToWork = (object) => Boolean(view && view.work.work_id === currentId && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id));
+  const pageObject = () => {
+    const context = surfaceContext();
+    if (!context || !context.object || removed.has("object")) return null;
+    const object = context.object;
+    const related = !currentId || belongsToWork(object);
+    return { object, context, related, included: related || joined.has(objectKey(object)) };
   };
   const clip = (text, size) => text.length > size ? text.slice(0, size - 1) + "…" : text;
   /** The materials this Send would carry, each named and removable; page items are marked as coming from the page. */
   const materialsNow = () => {
     const context = surfaceContext();
     const items = [];
-    if (context && context.object && !removed.has("object")) items.push({ key: "object", label: L("正在看") + "：" + (context.object.title || context.object.id), auto: true });
-    if (context && context.unsaved && context.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
+    const page = pageObject();
+    if (page) {
+      const label = L("正在看") + "：" + (page.object.title || page.object.id);
+      if (page.included) items.push({ key: "object", label, auto: !joined.has(objectKey(page.object)), note: currentId && page.related ? L("这项工作的对象") : "" });
+      else items.push({ key: "object", label, optional: true });
+    }
+    if (page && page.included && context.unsaved && context.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
     if (selection && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(selection.text.replace(/\s+/g, " "), 28), auto: true });
     files.forEach((file) => items.push({ key: "file:" + file.material_id, label: file.title, auto: false }));
     return items;
@@ -684,19 +746,29 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   function paintMaterials() {
     if (!materialsButton) return;
     const items = materialsNow();
+    const carried = items.filter((item) => !item.optional);
     materialsButton.hidden = !items.length;
-    if (materialsCount) materialsCount.textContent = String(items.length);
-    materialsButton.setAttribute("aria-label", L("本次发送带上的材料") + "：" + items.length);
+    if (materialsCount) materialsCount.textContent = String(carried.length) + (carried.length < items.length ? "+" : "");
+    materialsButton.setAttribute("aria-label", L("本次发送带上的材料") + "：" + carried.length + (carried.length < items.length ? "，" + L("另有正在看的对象未加入") : ""));
     if (!materialsList || materialsList.hidden) return;
     materialsList.replaceChildren(el("p", "assistant-popover-title", L("本次发送带上的材料")));
     if (!items.length) materialsList.append(el("p", "assistant-muted", L("没有材料。可以在页面上选中内容，或添加文件。")));
     items.forEach((item) => {
-      const row = el("div", "assistant-material");
-      row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", item.auto ? L("来自当前页面") : L("你添加的")));
+      const row = el("div", "assistant-material" + (item.optional ? " assistant-material--optional" : ""));
+      if (item.optional) {
+        // Browsing is not working on it: the person decides whether this round takes it.
+        row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", L("与这项工作无关，不会带上")));
+        const add = el("button", "assistant-material-add", L("加入本轮")); add.type = "button";
+        add.addEventListener("click", () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMaterials(); materialsList.querySelector("button")?.focus(); });
+        row.append(add); materialsList.append(row); return;
+      }
+      row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", item.note || (item.auto ? L("来自当前页面") : L("你添加的"))));
       const drop = el("button", "assistant-material-remove", "×"); drop.type = "button";
       drop.setAttribute("aria-label", L("不带上") + "：" + item.label);
       drop.addEventListener("click", () => {
-        if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
+        const page = item.key === "object" ? pageObject() : null;
+        if (page && joined.has(objectKey(page.object))) joined.delete(objectKey(page.object));
+        else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
         paintMaterials(); (materialsList.querySelector("button") || materialsButton).focus();
       });
       row.append(drop); materialsList.append(row);
@@ -768,21 +840,27 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const surface = (context && context.plugin_id) || (active && active.dataset.pluginId) || "home";
     const title = (context && context.surface_title) || (current ? current.textContent.trim() : "");
     const result = { source: Object.assign({ surface }, context && context.plugin_id ? { plugin_id: context.plugin_id } : {}, title ? { title } : {}), captured_at: new Date().toISOString() };
-    if (context && context.object && !removed.has("object")) result.object = context.object;
-    if (context && context.unsaved) result.unsaved = true;
+    const page = pageObject();
+    if (page && page.included) result.object = page.object;
+    if (context && context.unsaved && page && page.included) result.unsaved = true;
     if (selection && !removed.has("selection")) result.selection = { text: selection.text, truncated: selection.truncated };
     return result;
   };
   const sendMaterials = () => {
     const context = surfaceContext();
     const list = files.map((file) => Object.assign({}, file));
-    if (context && context.unsaved && context.draft_text && !removed.has("draft")) {
+    const page = pageObject();
+    if (page && currentId && joined.has(objectKey(page.object))) {
+      list.push({ material_id: "object", kind: "object", title: page.object.title || page.object.id, explicit: true, object: page.object,
+        source: { surface: context.plugin_id || "page", ...(context.plugin_id ? { plugin_id: context.plugin_id } : {}) } });
+    }
+    if (page && page.included && context.unsaved && context.draft_text && !removed.has("draft")) {
       list.unshift({ material_id: "draft", kind: "text", title: L("未保存的修改") + "：" + ((context.object && context.object.title) || ""), text: context.draft_text,
         explicit: false, draft: true, source: { surface: context.plugin_id, plugin_id: context.plugin_id }, object: context.object });
     }
     return list;
   };
-  const consumeMaterials = () => { files = []; selection = null; removed.clear(); paintMaterials(); };
+  const consumeMaterials = () => { files = []; selection = null; removed.clear(); joined.clear(); paintMaterials(); };
   let typed = false;
   input.addEventListener("input", () => { typed = true; syncSend(); saveDraft(false); if (String(input.value || "").trim()) setStarters(false); });
   input.addEventListener("keydown", (event) => {

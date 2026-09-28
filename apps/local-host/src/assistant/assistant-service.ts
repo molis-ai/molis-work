@@ -1,12 +1,13 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
   type AssistantActivity, type AssistantCard, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
+  type AssistantRelatedWork, type AssistantWorkObject,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredRound, type StoredWork } from "./assistant-store.js";
@@ -41,6 +42,8 @@ export interface AssistantServicePorts {
   timeZone?: string;
   /** The person's own actions in a work's project, for driving a plugin's Agent (Coding) as its page would. */
   personActions?(work: StoredWork): Promise<PersonActions>;
+  /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
+  scopeActions?(work: StoredWork): Promise<PersonActions>;
 }
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
@@ -188,6 +191,36 @@ function describeReview(document: AgentReviewRequest["document"]): { summary: st
 type CapabilityTitles = Map<string, { title: string; provider: string }>;
 
 /** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
+/** Coding sessions as a related object; Coding's own subject reader serves this kind. */
+export const CODING_SESSION_KIND = "coding_session";
+
+/** A work as the source of its relations: its project namespace, or none for personal work. */
+function identity(work: StoredWork): { work_id: string; project_id: string | null } {
+  return { work_id: work.work_id, project_id: work.scope.kind === "project" ? work.scope.project_id : null };
+}
+
+function revisionOf(version: string | number | undefined): string | null {
+  return version === undefined || version === null || version === "" ? null : String(version);
+}
+
+const RELATION_WORDS: Record<AssistantWorkObject["relation"], string> = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
+
+/** The work's objects as the model reads them: what each is to the work, and whether it changed since. */
+function describeObjects(objects: readonly AssistantWorkObject[]): string {
+  const lines = objects.map(object => {
+    const where = `${object.title}（${object.subject.kind}，标识 ${object.subject.id}）`;
+    const state = object.state === "changed" ? `已被修改：这项工作记下的是版本 ${object.recorded_revision}，现在是版本 ${object.current_revision}`
+      : object.state === "missing" ? "已不存在（被删除或移走）" : object.state === "unavailable" ? "暂时读不到"
+      : object.current_revision ? `未变，版本 ${object.current_revision}` : "可用";
+    return `- ${RELATION_WORDS[object.relation]}：${where}——${state}`;
+  });
+  const notes = [
+    objects.some(object => object.state === "changed") ? "标为“已被修改”的对象，在这项工作之后被用户或其他入口改过：继续之前先读取它的当前版本，在当前版本上接着做，保留其中的修改，不要用这项工作之前的内容覆盖；提交修改时带上当前版本。" : "",
+    objects.some(object => object.state === "missing") ? "已不存在的对象不要重新创建，除非用户明确要求；先说明它已不在。" : "",
+  ].filter(Boolean);
+  return [...lines, ...(notes.length ? ["", ...notes] : [])].join("\n");
+}
+
 /** The modes a Coding round can run in, as Coding's own page offers them. */
 const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"];
 
@@ -250,14 +283,14 @@ export class AssistantService {
         if (view) views.set(round.run_id, view);
       }));
     }
-    const titles = this.titles.get(ownerOf(work));
+    const titles = await this.capabilityTitles(work);
     const rounds: AssistantRound[] = stored.slice(-30).map(round => this.roundView(round, views.get(round.run_id), titles));
     const latest = rounds.at(-1);
     const state = stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(recovery));
     // Only a round that is really waiting on a decision shows one; a review left behind by an ended round is not offered.
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     return { work: this.publicWork(work, state), rounds, reviews: work.session_id ? this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [],
-      cards: this.store.cards(work.work_id).map(card => cardView(card)),
+      cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work),
       ...(recovery ? { problem: { message: recovery.reason, action: "核对上一轮的实际结果后再继续" } } : {}) };
   }
 
@@ -275,7 +308,9 @@ export class AssistantService {
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined;
     try {
+      const created = !input.work_id;
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
+      this.linkSent(work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
@@ -351,10 +386,10 @@ export class AssistantService {
   /** A Coding work, read from Coding's session: the same rounds, questions and confirmations its page shows. */
   private async codingRead(work: StoredWork): Promise<AssistantWorkView> {
     const executor = work.executor as Extract<StoredWork["executor"], { kind: "coding" }>;
-    if (!executor.session_id) return { work: this.publicWork(work, "idle"), rounds: [], reviews: [], cards: [] };
+    if (!executor.session_id) return { work: this.publicWork(work, "idle"), rounds: [], reviews: [], cards: [], objects: await this.workObjects(work) };
     let read: CodingSessionRead;
     try { read = await (await this.coding(work)).read(executor.session_id, 6); }
-    catch (error) { return { work: this.publicWork(work, "needs-check"), rounds: [], reviews: [], cards: [], problem: { message: `Coding 会话暂时读不到：${error instanceof Error ? error.message : String(error)}` } }; }
+    catch (error) { return { work: this.publicWork(work, "needs-check"), rounds: [], reviews: [], cards: [], objects: await this.workObjects(work), problem: { message: `Coding 会话暂时读不到：${error instanceof Error ? error.message : String(error)}` } }; }
     const stored = new Map(this.store.rounds(work.work_id).map(round => [round.run_id, round]));
     const rounds: AssistantRound[] = read.runs.map(run => {
       const own = stored.get(run.ref.run_id);
@@ -368,8 +403,86 @@ export class AssistantService {
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     const reviews = runtimeSession ? this.reviewsFor(host, { ...work, session_id: runtimeSession }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
     const shown: StoredWork = { ...work, executor: { ...executor, ...(read.configuration?.intent ? { mode: read.configuration.intent } : {}) } };
-    return { work: this.publicWork(shown, state), rounds, reviews, cards: [],
+    return { work: this.publicWork(shown, state), rounds, reviews, cards: [], objects: await this.workObjects(work),
       ...(read.recovery_required ? { problem: { message: read.error ?? "Coding 会话有需要核对的中断操作", action: "打开 Coding 核对" } } : {}) };
+  }
+
+  /**
+   * How the scope's capabilities are called, for showing a round's steps by name. Kept from the last dispatch; after a
+   * restart it is read again from the current catalog rather than showing internal identifiers.
+   */
+  private async capabilityTitles(work: StoredWork): Promise<CapabilityTitles | undefined> {
+    const known = this.titles.get(ownerOf(work));
+    if (known) return known;
+    try {
+      const authority = await this.ports.authority(work);
+      if (!authority.actions) return undefined;
+      const views = await (await authority.actions(RUNTIME)).discover();
+      const titles: CapabilityTitles = new Map(views.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }]));
+      this.titles.set(ownerOf(work), titles);
+      return titles;
+    } catch { return undefined; }
+  }
+
+  /** What the person sent with a round, and — for a new work — the object it started from, as the work's relations. */
+  private linkSent(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): void {
+    const id = identity(work);
+    try {
+      if (context?.object) this.store.relations.link(id, "origin", { kind: context.object.kind, id: context.object.id, revision: revisionOf(context.object.version) }, "工作从这个对象开始");
+      for (const material of materials) {
+        if (!material.object) continue;
+        this.store.relations.link(id, "material", { kind: material.object.kind, id: material.object.id, revision: material.draft ? null : revisionOf(material.object.version) },
+          material.explicit ? "用户把它加入这一轮" : "用户保留了当前页面的这个对象");
+      }
+    } catch { /* A relation that fails to record never stops the person's Send. */ }
+  }
+
+  /** A command the Assistant ran for this work succeeded: keep the object it created or changed, at its new revision. */
+  recordResult(work: StoredWork, view: ActionView, input: unknown, output: unknown): void {
+    const result = actionResultSubject(view.action, input, output);
+    if (!result) return;
+    this.store.relations.link(identity(work), "result", { kind: result.subject.kind, id: result.subject.id, revision: result.revision },
+      `${view.provider.title} · ${view.action.title}`);
+  }
+
+  /**
+   * The objects a work relates to, read again from their owners. Nothing is copied: the owner says what it is now,
+   * and the work compares that with the revision it recorded — which is how an edit the person made by hand shows up.
+   */
+  async workObjects(work: StoredWork): Promise<AssistantWorkObject[]> {
+    const relations = this.store.relations.forWork(identity(work));
+    if (!relations.length) return [];
+    let actions: PersonActions | null = null;
+    let readers: readonly ActionView[] = [];
+    try { actions = await this.ports.scopeActions?.(work) ?? null; readers = actions ? (await actions.discover()).filter(view => isSubjectReader(view.action)) : []; }
+    catch { actions = null; }
+    return Promise.all(relations.slice(-40).map(async relation => {
+      const base = { relation: relation.relation, subject: { kind: relation.object.kind, id: relation.object.id }, recorded_revision: relation.object.revision, recorded_at: relation.recorded_at };
+      const reader = readers.find(view => view.action.subject_kinds.includes(relation.object.kind) && view.availability.available);
+      if (!actions || !reader) return { ...base, title: relation.object.id, current_revision: null, state: "unavailable" as const };
+      try {
+        const context = await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: relation.object.id }) as ActionSubjectContext;
+        const changed = relation.object.revision !== null && context.revision !== relation.object.revision;
+        return { ...base, title: context.title || relation.object.id, current_revision: context.revision, state: changed ? "changed" as const : "current" as const,
+          ...(context.open ? { open: context.open } : {}) };
+      } catch (error) {
+        const code = (error as { code?: string }).code ?? "";
+        return { ...base, title: relation.object.id, current_revision: null, state: /not_found|missing|deleted/.test(code) ? "missing" as const : "unavailable" as const };
+      }
+    }));
+  }
+
+  /** The works that relate to an object in a project (or in the person's own scope), for that object's page. */
+  async related(projectId: string | null, subject: { kind: string; id: string }): Promise<AssistantRelatedWork[]> {
+    const rows = this.store.relations.forObject(projectId, subject);
+    const out: AssistantRelatedWork[] = [];
+    for (const row of rows) {
+      let work: StoredWork;
+      try { work = this.store.get(this.actorId, row.work_id); } catch { continue; }
+      if (work.archived) continue;
+      out.push({ work_id: work.work_id, title: work.title, state: await this.stateSafely(work), relation: row.relation, recorded_revision: row.object.revision, updated_at: work.updated_at });
+    }
+    return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   }
 
   /** A Coding work's next-round mode, kept on Coding's session so both entries agree. */
@@ -382,6 +495,7 @@ export class AssistantService {
     if (!sessionId) {
       sessionId = await coding.createSession(work.title);
       this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
+      this.store.relations.link(identity(work), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "Coding 会话承接这项工作");
     }
     await coding.setMode(sessionId, mode);
     return this.read(workId);
@@ -536,6 +650,7 @@ export class AssistantService {
     if (!sessionId) {
       sessionId = await coding.createSession(work.title);
       work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
+      this.store.relations.link(identity(work), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "Coding 会话承接这项工作");
       // The mode chosen before the first Send is saved on the session, where the Coding page reads it too.
       if (mode) await coding.setMode(sessionId, mode);
     }
@@ -638,6 +753,8 @@ export class AssistantService {
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
     if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
+    const objects = await this.workObjects(work);
+    if (objects.length) out.push(...chunked({ ...base, title: "这项工作的对象" }, "objects", describeObjects(objects)));
     out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", offered.length ? this.directory(offered) : "本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"));
     if (context) {
       const lines = [`页面：${context.source.title ?? context.source.surface}${context.source.plugin_id ? `（${context.source.plugin_id}）` : ""}`,

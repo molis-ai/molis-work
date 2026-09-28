@@ -22,7 +22,9 @@ export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version"
  */
 export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "actionClient" | "homeActionClient">, work: StoredWork, disabled: () => ReadonlySet<string>,
   /** Records a suggestion for the person, checked against the capabilities offered now. */
-  offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>): AgentStartAuthority {
+  offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>,
+  /** Told after a command succeeded, with the action as offered, so the work can keep a relation to what it changed. */
+  changed?: (view: ActionView, input: unknown, output: unknown) => void): AgentStartAuthority {
   const reference = work.project_ref;
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [], ...(signal ? { signal } : {}) });
@@ -31,9 +33,11 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
     return catalog.filter(view => view.action.audiences.includes("agent") && (!view.provider.project_id || view.provider.project_id === caller.project_id)
       && !off.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })));
   };
+  let offered: readonly ActionView[] = [];
   const context = async (validate?: () => void | Promise<void>, signal?: AbortSignal): Promise<ActionCallContext> => {
     const caller = base(work.session_id ?? undefined, signal);
     const allowed = accepted(await localHost.inspectActions(caller, reference), caller);
+    offered = allowed;
     return { ...caller, permissions: [...new Set(allowed.flatMap(view => view.action.permissions))],
       allowed_actions: allowed.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
       // Re-read at dispatch: an action switched off, removed or no longer offered to agents after the round began is refused.
@@ -59,10 +63,34 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
         const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
         if (!view) throw new ActionError("assistant.action_revoked", "这项能力已对助理关闭或不再可用");
         assertActionInput(view.action.input_schema, input);
+        requireVersionPrecondition(view, input);
       },
-      invoke: async (action, input, signal) => service().invoke(await context(validate, signal), action, input),
+      invoke: async (action, input, signal) => {
+        const caller = await context(validate, signal);
+        const output = await service().invoke(caller, action, input);
+        const view = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+        if (view && view.operation === "command") {
+          try { changed?.(view, input, output); } catch { /* The change happened; a relation that failed to record is not a failed change. */ }
+        }
+        return output;
+      },
     }),
   };
+}
+
+/**
+ * A change to an existing object that could carry the revision it was read at must carry it: otherwise it may
+ * overwrite what the person (or anything else) changed since. Checked before the person is asked to approve.
+ */
+export function requireVersionPrecondition(view: Pick<ActionView, "operation" | "action">, input: unknown): void {
+  if (view.operation !== "command") return;
+  const declared = (view.action.input_schema as { properties?: Record<string, unknown> }).properties ?? {};
+  const field = ["expected_version", "expected_revision"].find(name => name in declared);
+  if (!field || !input || typeof input !== "object") return;
+  const value = (input as Record<string, unknown>)[field];
+  if (value === undefined || value === null || value === "") {
+    throw new ActionError("assistant.version_required", `修改已有对象时要带上读取时的版本（${field}）：先读取它的当前版本再提交，避免覆盖别人在此之后的修改。`);
+  }
 }
 
 /** The project's confirmed guidance as the project layer; personal work and unreadable guidance contribute nothing. */

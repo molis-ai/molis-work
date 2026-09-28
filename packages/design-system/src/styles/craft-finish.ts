@@ -478,6 +478,22 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-works-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   ${ASSIST} .assistant-works-meta { font-size: 11px; color: var(--muted); }
   ${ASSIST} .assistant-works-new { flex-direction: row; font-size: 13px; color: var(--muted); }
+  /* What the work started from, used, produced and handed to — as the owners have them now. */
+  ${ASSIST} .assistant-objects { flex: none; padding: 4px 10px; box-shadow: inset 0 -1px 0 var(--line); font-size: 12px; }
+  ${ASSIST} .assistant-objects[hidden] { display: none; }
+  ${ASSIST} .assistant-objects summary { cursor: pointer; color: var(--muted); padding: 2px 0; border-radius: 5px; }
+  ${ASSIST} .assistant-objects summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  ${ASSIST} .assistant-objects-items { list-style: none; margin: 4px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow: auto; }
+  ${ASSIST} .assistant-object { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 6px; }
+  ${ASSIST} .assistant-object-relation { font-size: 11px; color: var(--muted); padding: 0 5px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); white-space: nowrap; }
+  ${ASSIST} .assistant-object-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+  ${ASSIST} .assistant-object-state { font-size: 11px; color: var(--faint); white-space: nowrap; }
+  ${ASSIST} .assistant-object--changed .assistant-object-state { color: var(--warning, #b7791f); }
+  ${ASSIST} :is(.assistant-object--missing, .assistant-object--unavailable) .assistant-object-state { color: var(--danger, #c53030); }
+  ${ASSIST} .assistant-object-open, ${ASSIST} .assistant-material-add { padding: 1px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; cursor: pointer; }
+  ${ASSIST} :is(.assistant-object-open, .assistant-material-add):hover { background: var(--nav-hover); }
+  ${ASSIST} :is(.assistant-object-open, .assistant-material-add):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-material--optional .assistant-material-label { color: var(--muted); }
   /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
   ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
   ${ASSIST} .assistant-empty { color: var(--muted); }

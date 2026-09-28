@@ -205,6 +205,8 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     stop_intent?: "stopped" | "cancelled";
+    /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */
+    terminal?: boolean;
     timing?: PrologueRunTiming;
     original_questions?: Array<{ pending_id: string; pending_revision: number; kind: string; why: string }>;
     /** May be a durable incomplete prefix. Only an actual terminal event proves an ended Run. */
@@ -887,8 +889,18 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       }
       if (!saved.events || !isEnded(state.phase)) {
         closeInterruptedPrologueStream(state);
-        state.phase = "reconcile-required";
-        state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
+        if (saved.terminal) {
+          // The runtime sealed the run; only its progress stopped short (the service went down while it was ending).
+          // Nothing is left to reconcile for it — an operation with an unknown outcome would still be open work, and that
+          // holds the whole session for checking — so it reads as ended, and says why the record is short.
+          state.phase = saved.stop_intent === "stopped" ? "stopped" : "failed";
+          state.stop_reason = saved.stop_intent === "stopped"
+            ? "已停止（服务在这一轮结束时中断，过程记录不完整；运行时确认它已结束，没有待核对的操作）"
+            : "这一轮在服务中断时结束，过程记录不完整；运行时确认它已结束，没有待核对的操作。不会自动重跑。";
+        } else {
+          state.phase = "reconcile-required";
+          state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
+        }
       }
       if (state.phase === "cancelled" && saved.stop_intent === "stopped") {
         state.phase = "stopped";

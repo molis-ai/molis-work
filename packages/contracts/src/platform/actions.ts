@@ -107,6 +107,12 @@ export interface ActionMetadata {
   readonly result_scene?: ActionSceneReference;
   /** Mandatory nested calls use the same caller's authority; this never grants access. */
   readonly required_actions?: readonly ActionReference[];
+  /**
+   * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
+   * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind.
+   * Callers that keep relations to results (the Assistant's work) use it; undeclared, see `actionResultSubject`.
+   */
+  readonly result_subject?: { readonly id: string; readonly revision?: string };
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {

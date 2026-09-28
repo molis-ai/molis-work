@@ -239,11 +239,61 @@ export interface AssistantPendingReview {
   expires_at: string | null;
 }
 
+/**
+ * How a work relates to an object, as Context Ledger edges the Assistant owns. The object itself, its content and its
+ * current revision stay with its owner; the edge keeps only the reference and the revision at the time.
+ */
+export const ASSISTANT_RELATIONS = {
+  /** The object the work was started from. */
+  origin: "assistant.work.origin",
+  /** An object the person put into a round, at the revision it had then. */
+  material: "assistant.work.material",
+  /** An object the work created or changed, at the revision it produced. */
+  result: "assistant.work.result",
+  /** A professional Agent's session that carries (part of) the work, e.g. a Coding session. */
+  session: "assistant.work.session",
+} as const;
+export type AssistantRelation = keyof typeof ASSISTANT_RELATIONS;
+
+/**
+ * An object a work is related to, read again from its owner: where it is now, and whether it changed since the work
+ * last recorded it (the person edited it, something else did, or it is gone).
+ */
+export interface AssistantWorkObject {
+  relation: AssistantRelation;
+  subject: { kind: string; id: string };
+  title: string;
+  /** The revision the work recorded; null when it recorded only the identity. */
+  recorded_revision: string | null;
+  /** The owner's revision now; null when it cannot be read. */
+  current_revision: string | null;
+  /**
+   * `current` — as recorded; `changed` — the owner has a newer revision (for a result: someone changed what the work
+   * produced); `missing` — the owner no longer has it; `unavailable` — it cannot be read now (plugin off, no access).
+   */
+  state: "current" | "changed" | "missing" | "unavailable";
+  recorded_at: string;
+  /** Where the person opens it. */
+  open?: { surface: string; id: string };
+}
+
+/** A work that relates to an object, for the object's own page ("this document belongs to …"). */
+export interface AssistantRelatedWork {
+  work_id: string;
+  title: string;
+  state: AssistantWorkState;
+  relation: AssistantRelation;
+  recorded_revision: string | null;
+  updated_at: string;
+}
+
 export interface AssistantWorkView {
   work: AssistantWork;
   rounds: AssistantRound[];
   reviews: AssistantPendingReview[];
   cards: AssistantCard[];
+  /** The objects this work started from, used, produced and handed to, as their owners have them now. */
+  objects: AssistantWorkObject[];
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }

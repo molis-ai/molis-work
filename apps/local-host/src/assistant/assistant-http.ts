@@ -32,7 +32,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   const store = new AssistantStore(openHomeSqliteDatabase(ports.homeDirectory, ASSISTANT_STORE_NAME));
   const service: AssistantService = new AssistantService(store, {
     host: async () => { await ports.agentReady(); return ports.agentHost; },
-    authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views)),
+    authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
+      (view, input, output) => service.recordResult(work, view, input, output)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work) }),
     projectTitle: ports.projectTitle,
     // The person's own actions in the work's project, as the page there would use them.
@@ -40,6 +41,15 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       const reference = work.project_ref;
       if (!reference) throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作");
       const client = ports.localHost.actionClient(reference);
+      return {
+        discover: async () => client.discover(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS)),
+        invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS), action, input),
+      };
+    },
+    // Reading related objects back from their owners, as the person: the work's project, or the Home for personal work.
+    scopeActions: async work => {
+      const reference = work.project_ref;
+      const client = reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient();
       return {
         discover: async () => client.discover(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS)),
         invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS), action, input),
@@ -62,6 +72,12 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       const { service, store } = assistantServiceFor(ports);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
       if (method === "GET" && parts.length === 1 && parts[0] === "works") return { status: 200, body: { works: await service.list() } };
+      // The works that relate to one object here: for that object's own page ("belongs to …", continue it).
+      if (method === "GET" && parts.length === 1 && parts[0] === "related") {
+        const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
+        if (!kind || !id) return { status: 400, body: { error: "需要对象种类与标识" } };
+        return { status: 200, body: { works: await service.related(ports.projectRef?.project_id ?? null, { kind, id }) } };
+      }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }

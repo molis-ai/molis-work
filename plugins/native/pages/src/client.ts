@@ -223,7 +223,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const unsaved = Boolean(selected && (saveTimer || dirty));
     const context = { plugin_id: "io.molis.work.pages", surface_title: "Pages" };
     if (selected) {
-      context.object = { kind: "page", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
+      context.object = { kind: "pages_document", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
       context.starters = [
         { label: L("总结这篇文档"), prompt: L("总结当前这篇文档的要点") },
         { label: L("改写得更简洁"), prompt: L("把当前这篇文档改写得更简洁，保留原意") },
@@ -676,7 +676,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   ${PAGES_IMPORT_CLIENT_SCRIPT}
 
   // The Assistant changed a Pages document: show the saved version, unless the person has edits of their own in flight.
-  window.addEventListener("molis:assistant-effect", (event) => {
+  window.addEventListener?.("molis:assistant-effect", (event) => {
     const capability = event.detail && event.detail.capability_id;
     if (typeof capability !== "string" || capability.indexOf("pages.") !== 0) return;
     void (async () => {

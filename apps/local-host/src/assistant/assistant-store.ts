@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { AssistantRelations } from "./assistant-relations.js";
 import type { AssistantContextSnapshot, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
@@ -78,8 +79,12 @@ export class AssistantStoreError extends Error {
 }
 
 export class AssistantStore {
+  /** What each work started from, used, produced and handed to: Context Ledger edges in this same database. */
+  readonly relations: AssistantRelations;
+
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     db.exec(SCHEMA);
+    this.relations = new AssistantRelations(db, now);
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor }): StoredWork {

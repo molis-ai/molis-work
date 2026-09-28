@@ -272,3 +272,18 @@ test("a round that only announces its next step is continued once, and the perso
     assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.state), ["completed"]);
   } finally { await f.close(); }
 });
+
+test("the gateway takes a capability's fields put beside its identity as the input they meant, and still reviews the exact value", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", text: "flattened" } }),
+    () => reply(undefined, "Saved."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "Save a note saying flattened", request_id: "req-00000041" }, { project_ref: f.project });
+    const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    assert.deepEqual(view.reviews[0]!.fields.find(field => field.label === "内容"), { label: "内容", value: "flattened" });
+    await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.notes.prepare("SELECT body FROM notes").get()!.body, "flattened");
+  } finally { await f.close(); }
+});

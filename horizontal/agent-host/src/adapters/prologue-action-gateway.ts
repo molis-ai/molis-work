@@ -19,7 +19,10 @@ const describe = (view: ActionView) => {
 function parseCapability(args: Record<string, unknown>): CapabilityArgs {
   if (typeof args.capability_id !== "string" || !args.capability_id || typeof args.provider_id !== "string" || !args.provider_id
     || !Number.isSafeInteger(args.version)) throw new ActionError("actions.reference_invalid", "Name the capability exactly: capability_id, version and provider_id as find-capabilities returned them.");
-  return { capability_id: args.capability_id, version: args.version as number, provider_id: args.provider_id, input: args.input };
+  // Models sometimes put the capability's fields beside its identity instead of inside `input`: that is the input they meant.
+  const { capability_id: _id, version: _version, provider_id: _provider, input, ...beside } = args;
+  return { capability_id: args.capability_id, version: args.version as number, provider_id: args.provider_id,
+    input: input !== undefined ? input : Object.keys(beside).length ? beside : undefined };
 }
 
 /**
@@ -104,7 +107,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const capability = { type: "object", properties: {
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
     input: { description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
-  }, required: ["capability_id", "version", "provider_id", "input"], additionalProperties: false };
+  }, required: ["capability_id", "version", "provider_id"] };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
     registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const } });
   const suggest = { type: "object", properties: {

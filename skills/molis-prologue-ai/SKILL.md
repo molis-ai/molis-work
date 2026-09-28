@@ -38,6 +38,9 @@ description: How to add or change an AI capability in Molis Work — anything th
 2. **定义动作**：权限写 `model:invoke`；等模型的动作写 `scheduling: "concurrent"`；`effect` 与真实效果一致（名字里有 delete/remove/trash 会被推断为不可撤销，不对就用 `withActionEffect` 显式声明）。
 3. **处理器**：读快照 → 把 `caller.signal` 传给模型 → 返回后 `await caller.beforeEffect()` → 按快照/版本提交；嵌套动作/场景用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；空结果、超时、错误都不制造成功结果，输入保留。
 4. **Host 装配**：只注入函数端口（`completeText`、`modelAvailability`），未配置时 `actions.connection_required`。插件不拿密钥、不依赖 `@prologue/sdk`。
+   - **提示词要登记，用户能看能改**：指令写在插件的 `src/prompts.ts`，用 `defineInstructionPrompt({ owner_id, prompt_id, version, title, purpose, used_by, body })` 声明，从包入口导出 `<插件>_INSTRUCTIONS`；调用时传 `instructed(指令, 数据)`，端口类型写 `InstructedPrompt`／`ModelPromptInput`，不收裸字符串。指令只写要求，用户材料和本次参数放在数据里。
+   - Host 适配器经 `resolveModelPrompt(home, prompt, 插件 id)` 取有效正文（用户在“Prompt 与 Character”里改过就用用户版，并记一次使用）；内置插件的 `*_INSTRUCTIONS` 加进 `apps/local-host/src/agent-definitions/builtin-instructions.ts`。
+   - 不经 Agent Host 的 Agent（如插件创作台）也一样：Prompt 登记在同一处，运行时经端口取有效正文，版本里写出 `+user.<修订号>`。
 5. **Agent 角色**（如需要）：Manifest `agent` 块声明 `execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`；提示词正文随插件包导出并在 `apps/workbench/src/plugin-catalog.ts` 的 `BUILTIN_PLUGIN_AGENTS` 可见；在 Prologue 上登记钩子一律 `forSession`。
 6. **错误**：执行服务不可用用 `inferenceServiceUnavailableReason` 如实说明；派出前被宿主复核拒绝用 `isDispatchRefusal` 识别，说明「没有发出」而不是网络问题；供应商 HTTP 错误按状态给可操作提示；不要把 SDK 细节透给用户。
 7. **取消与恢复**：被取消/撤权/停用的调用不再写任何记录；长任务用持久记录 + `request_id` 幂等，重试不重复调模型。
@@ -46,6 +49,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 ## 验证与验收
 
 - `node scripts/run-tests.mjs tests/action-model-scheduling.test.ts`（等模型的动作必须并发，例外要写理由）。
+- `node scripts/run-tests.mjs tests/prompt-registration.test.ts`（定义的指令必须已登记、插件端口不收裸字符串、Host 直接调模型只能在带理由的过渡清单里）。
 - 仿 `tests/action-before-effect.test.ts` 覆盖「等模型时撤权 / 停用 / 取消」不写入且可恢复。
 - 模型替身放在生产接缝：`new MolisWorkLocalHost({ homeDirectory, completeText })` 或 `bindPrologueInference(home, client)`；不要 mock 全局 `fetch`。
 - 改了 `horizontal/agent-host`：跑 `tests/agent-*.test.ts` 与 `tests/prologue-*.test.ts`；动到真实 SDK 路径时用本机替身模型服务跑一次（见 `tests/agent-budget-prologue.test.ts`）。

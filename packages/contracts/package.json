@@ -154,6 +154,10 @@
       "types": "./dist/platform/plugin-agent.d.ts",
       "import": "./dist/platform/plugin-agent.js"
     },
+    "./platform/model-prompts": {
+      "types": "./dist/platform/model-prompts.d.ts",
+      "import": "./dist/platform/model-prompts.js"
+    },
     "./platform/plugin-events": {
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"

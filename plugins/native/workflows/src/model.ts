@@ -1,3 +1,5 @@
+import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { WORKFLOWS_AI_HANDOFF } from "./prompts.js";
 import type { ActionResultPresentation, WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Workflows: pure data rules. No storage, no network, no plugin internals. */
@@ -324,13 +326,10 @@ export function applyFunctionRule(link: WorkflowLink, input: WorkflowPayload, no
   return { title, body: fillLines(link.body_template).trim(), url: input.url ?? null, source: input.source ?? null, feed_item_id: null };
 }
 
-export function aiHandoffPrompt(link: WorkflowLink, input: WorkflowPayload, from: string, to: string): string {
-  return [
-    "你在一条工作流程里负责一段交接：把上一步的结果整理成下一步能接着用的内容。",
+export function aiHandoffPrompt(link: WorkflowLink, input: WorkflowPayload, from: string, to: string): InstructedPrompt {
+  return instructed(WORKFLOWS_AI_HANDOFF, [
     `上一步：${from}；下一步：${to}。`,
     `这段交接的要求：${link.instructions.trim()}`,
-    "只依据下面的内容，不补充材料里没有的事实。",
-    "输出格式：第一行是标题（不要加 # 或引号），空一行，然后是正文（可用 Markdown）。不要输出其他说明。",
     "",
     "上一步的内容：",
     `标题：${input.title}`,
@@ -338,7 +337,7 @@ export function aiHandoffPrompt(link: WorkflowLink, input: WorkflowPayload, from
     input.url ? `链接：${input.url}` : "",
     "正文：",
     input.body.slice(0, 60_000),
-  ].filter((line) => line !== "").join("\n");
+  ].filter((line) => line !== "").join("\n"));
 }
 
 export function parseAiHandoff(text: string, input: WorkflowPayload): WorkflowPayload {

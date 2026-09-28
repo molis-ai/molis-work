@@ -746,7 +746,8 @@ const CRAFT_BASE_STYLES = `
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 48px; min-width: 48px; }
-    ${SHELL} .bar-composer .bar-composer-search { display: none; }
+    /* Search stays reachable on a phone: the icon alone. */
+    ${SHELL} .bar-composer .bar-composer-search { flex: none; gap: 0; padding: 0 6px; }
     ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 64px; }
     ${SHELL} .bar-composer .plugin-picker-trigger > svg { display: none; }
     ${SHELL} .bar-composer .plugin-picker-trigger { padding: 0 7px; max-width: 64px; }
@@ -755,7 +756,7 @@ const CRAFT_BASE_STYLES = `
     ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .bar-composer-search) { display: none; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }
@@ -767,7 +768,19 @@ const CRAFT_BASE_STYLES = `
   .prompt-group-title { margin: 0 0 8px; font-size: 14px; }
   .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
   .prompt-roles { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-  .prompt-role { display: inline-flex; flex-direction: column; padding: 5px 9px; border-radius: 7px; box-shadow: 0 0 0 1px var(--line); font-size: 12px; }
+  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 5px 9px; border: 0; border-radius: 7px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  .prompt-role:hover { background: var(--hover); }
+  .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
+  .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
+  .prompt-role-focus p { margin: 2px 0 0; color: var(--muted); }
+  .prompt-diagnostics { margin-top: 20px; }
+  .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+  .prompt-diagnostics-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+  .prompt-diagnostics-issues { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
+  .prompt-diagnostics-issue--warning { color: var(--tone-attention, var(--amber)); }
+  .prompt-diagnostics-issue--info { color: var(--muted); }
+  .prompt-diagnostics-heading { margin: 16px 0 0; font-size: 13px; font-weight: 500; }
   .prompt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .prompt-row { padding: 8px 10px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
   .prompt-row-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }

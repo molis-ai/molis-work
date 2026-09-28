@@ -1,7 +1,10 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextAccess, ContextEdge, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { ASSISTANT_RELATIONS, type AssistantRelation } from "@molis-ai/molis-work-contracts/services/assistant";
+
+/** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
+type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 /** The Assistant writes its relations as itself, in its own partition of its own database. */
 const ACCESS: ContextAccess = { actor_id: "module:assistant", scope: { kind: "personal", id: "assistant" } };

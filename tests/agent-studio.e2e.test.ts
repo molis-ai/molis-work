@@ -24,7 +24,7 @@ test('studio: a request becomes a working, published plugin that the person can 
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0); let modelDelay = 0;
   const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...fixture,
-    generate: async (pluginId: string, input: { instructions: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
+    generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
   const server: Server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;

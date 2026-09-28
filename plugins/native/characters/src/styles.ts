@@ -37,6 +37,12 @@ export const CHARACTERS_STYLES = `
   .plugin-stage-list > .characters-hint { margin: 0 0 6px; padding-inline: 12px; }
   [data-character-reload] { align-self: flex-start; }
   .characters-hint, .characters-editor small { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .characters-builtin { margin-top: 18px; padding: 12px 12px 0; border-top: 1px solid var(--line); }
+  .characters-builtin h2 { font-size: 13px; font-weight: 400; margin: 0 0 4px; }
+  .characters-builtin > .characters-hint { margin: 0 0 8px; }
+  .characters-builtin-item { display: flex; flex-direction: column; gap: 2px; padding: 7px 8px; margin: 2px -8px; border-radius: 7px; color: var(--ink); text-decoration: none; font-size: 13px; }
+  .characters-builtin-item:hover, .characters-builtin-item:focus-visible { background: var(--hover); }
+  .characters-builtin-item small { color: var(--muted); font-size: 12px; }
   [data-character-list] > button { width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; white-space: normal; }
   [data-character-list] small { flex: none; color: var(--muted); }
   .characters-notice { position: absolute; bottom: 0; left: 0; right: 0; margin: 0; padding: 8px 20px; background: var(--paper); color: var(--ink); font-size: 12px; z-index: 2; }

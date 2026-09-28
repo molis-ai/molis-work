@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { AgentDefinitionsError, type AgentDefinitions } from "./agent-definitions.js";
+import { UNREGISTERED_MODEL_CALLS } from "./builtin-instructions.js";
 
 /** The local Web's single person, as every other local write. */
 const WEB_ACTOR = "web-user";
@@ -16,6 +17,7 @@ export async function handleAgentDefinitionsHttp(request: IncomingMessage, respo
       const key = url.searchParams.get("key") ?? (typeof body.key === "string" ? body.key : "");
       if (method === "GET" && path === "/prompts") return { status: 200, body: { prompts: definitions.prompts() } };
       if (method === "GET" && path === "/roles") return { status: 200, body: { roles: definitions.roles() } };
+      if (method === "GET" && path === "/diagnostics") return { status: 200, body: definitions.diagnostics(UNREGISTERED_MODEL_CALLS) };
       if (method === "GET" && path === "/prompt") return { status: 200, body: { prompt: definitions.prompt(key), history: definitions.history(key), uses: definitions.uses(key) } };
       const expected = body.expected_revision === null || body.expected_revision === undefined ? null : Number(body.expected_revision);
       if (method === "POST" && path === "/prompt") return { status: 200, body: { prompt: definitions.save(key, String(body.body ?? ""), expected, WEB_ACTOR) } };

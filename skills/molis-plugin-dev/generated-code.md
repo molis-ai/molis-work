@@ -31,7 +31,7 @@
 - 能力要幂等键（`idempotency_key`）或请求号时，由代码按稳定业务身份生成并保存；同一意图的重试必须复用，用户发起新的意图才换键。例如一份已保存草稿的同一修订发布用 `publish:${draft.id}:${draft.revision}`，修订不同才产生新键。不要在每次尝试里用 `Date.now()` 或随机数重新生成，也不要让用户填写内部键。先持久化请求身份，再调用能力；超时后保留该身份用于重试。
 - **联网**：`const response = await sdk.network.request({ url: 'https://…', method?: 'GET', headers?: {…}, body?: '…', secretRefs?: ['名称'] })`，返回 `{ status, headers, body }`（body 是文本，JSON 自己解析）。只能访问 effects 里 `networkDomains` 列出的域名；不跟随重定向，响应超过 1MB 会报错。安装前读取（GET）会真的访问批准的网站，写入（POST 等）由替身代答 `status 200, body ''`。测试不能伪造网站的回答：只断言结构和你自己保存的内容；解析失败、状态不是 2xx 时给出合同里声明的错误，不要崩。
 - **到点提醒 / 定时执行**（`reminders.add`、`schedules.add`）：时间用 `new Date(...).toISOString()`，要能取消就把返回的 id 存下来。定时执行只能运行这个插件自己的功能，`inbox: true` 时那项功能返回的 `text`（没有就用 `summary`）会成为一条收件箱事项，所以被定时运行的功能要返回一句给人看的 `text`。两者在检查和试用里都由替身代答，安装后才真正设置。
-- **调用模型**（`model.generate`）：`const { text } = await sdk.capability.call('model.generate', { instructions: '给模型的要求', input: '要处理的内容' }) as { text: string }`。替身代答为 `'［模型替身］' + input 前 40 字`。instructions 按操作描述写清楚模型只输出什么、格式和长度（例如「只输出一个启发式问题，不超过 50 字，不要编号、不要解释、不要给答案」）；把去掉首尾空白后的回答存下来；要结构时写清格式并容错解析，解析失败保留原文。
+- **调用模型**（`model.generate`）：先在本操作文件里 `export const prompts = [{ id: 'hint', title: '启发提问', purpose: '…', body: '给模型的要求' }] as const;`（全部字面量，id 插件内唯一），再 `const { text } = await sdk.capability.call('model.generate', { prompt: 'hint', input: '要处理的内容' }) as { text: string }`；不要传 `instructions`，也不要把输入拼进要求（用户会在设置里改这些要求）。替身代答为 `'［模型替身］' + input 前 40 字`。body 按操作描述写清楚模型只输出什么、格式和长度（例如「只输出一个启发式问题，不超过 50 字，不要编号、不要解释、不要给答案」）；把去掉首尾空白后的回答存下来；要结构时写清格式并容错解析，解析失败保留原文。
 
 ## 测试
 

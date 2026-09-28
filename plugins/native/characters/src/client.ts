@@ -138,6 +138,31 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   });
   q('confirm').addEventListener('click', () => void act(async () => { if (confirmation) await confirmation(); }));
   dialog.addEventListener('close', () => { confirmation = null; });
+  // The system's and Plugins' Characters are registered with the Host; they are changed where their prompts are.
+  const EXECUTION = { 'read-only': '只读', 'text-edit': '可改文字', 'workspace-write': '可改文件、运行命令', operate: '可调用业务能力' };
+  const renderBuiltin = async () => {
+    const box = q('builtin-list'), section = q('builtin');
+    try {
+      const response = await fetch(section.dataset.characterBuiltinApi, { headers: molisWorkControlHeaders() });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || '读取失败');
+      const roles = [...payload.roles].sort((a, b) => (a.source.kind === 'system' ? 0 : 1) - (b.source.kind === 'system' ? 0 : 1));
+      box.replaceChildren();
+      if (!roles.length) { box.textContent = '没有登记的系统或插件角色。'; return; }
+      // They are the Home's, not the project's; the settings page still returns to this project.
+      const parts = location.pathname.split('/'), project = parts[1] === 'projects' ? parts[2] : '';
+      for (const role of roles) {
+        const link = document.createElement('a'); link.className = 'characters-builtin-item';
+        link.href = section.dataset.characterBuiltinSettings + '?role=' + encodeURIComponent(role.key) + (project ? '&project=' + project : '') + (new URLSearchParams(location.search).get('desktop') === '1' ? '&desktop=1' : '');
+        const name = document.createElement('span'); name.textContent = role.name + (role.subagent ? ' · 子任务' : '');
+        const meta = document.createElement('small');
+        meta.textContent = (role.source.kind === 'system' ? '系统 · ' + role.source.title : '插件 · ' + role.source.title + (role.source.plugin_version ? ' ' + role.source.plugin_version : ''))
+          + ' · ' + (EXECUTION[role.execution] || role.execution) + (role.edited ? ' · 含你的修改' : '');
+        link.append(name, meta); box.append(link);
+      }
+    } catch (error) { box.textContent = '系统与插件角色暂时读不到：' + (error.message || '请稍后重试'); }
+  };
+  void renderBuiltin();
   importsView = (${CHARACTER_IMPORT_CLIENT_FACTORY})({root,q,request,current,load,select,act,save,dirty,note});
   actionsView = (${CHARACTER_ACTION_CLIENT})({q,request,changed:remember});
   void actionsView.refresh();

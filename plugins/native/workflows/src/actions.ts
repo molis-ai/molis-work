@@ -1,3 +1,4 @@
+import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
@@ -123,7 +124,7 @@ export interface WorkflowsActionPorts {
   /** The Host's full schema validator, also used by actual action dispatch. */
   assertInput(schema: ActionSchema, input: unknown): void;
   aiAvailable(): boolean;
-  completeText?(prompt: string, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<string>;
   changed?(): void;
 }
 

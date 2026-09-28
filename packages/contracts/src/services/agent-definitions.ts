@@ -21,7 +21,11 @@ export const AGENT_PROMPT_MAX_CHARS = 20_000;
 /** Who a definition comes from. */
 export type AgentDefinitionSource =
   | { kind: "system"; module: string; title: string }
-  | { kind: "plugin"; plugin_id: string; plugin_version: string; title: string };
+  | { kind: "plugin"; plugin_id: string; plugin_version: string; title: string;
+      /** How the Plugin came to be here: shipped with the system, or made in the Plugin Builder and installed. */
+      origin?: "builtin" | "generated";
+      /** An installed Plugin the person has stopped: its prompts stay visible and editable, but nothing calls them. */
+      state?: "enabled" | "disabled" };
 
 /**
  * `agent` — one part of a role the Host composes and freezes when a run starts; `instruction` — what a direct model
@@ -62,6 +66,8 @@ export interface AgentDefinitionRegistration {
   source: AgentDefinitionSource;
   prompts: AgentPromptRegistration[];
   roles: AgentRoleRegistration[];
+  /** What the Host knows is not registered for this owner, and why (shown in developer diagnostics). */
+  notes?: string[];
 }
 
 export interface AgentPromptView {
@@ -120,4 +126,21 @@ export interface AgentPromptUse {
   user_revision: number | null;
   caller: string;
   at: string;
+}
+
+/** A model call the Host knows reaches a model without a registered prompt, and why (a transitional exception). */
+export interface AgentUnregisteredCall { owner_id: string; title: string; reason: string }
+
+/** Developer diagnostics: what each owner registered, and what of it is not in effect or not registered, with why. */
+export interface AgentDefinitionsDiagnostics {
+  owners: Array<{
+    owner_id: string;
+    source: AgentDefinitionSource;
+    prompts: number;
+    instructions: number;
+    roles: number;
+    edited: number;
+    issues: Array<{ level: "warning" | "info"; text: string }>;
+  }>;
+  unregistered: AgentUnregisteredCall[];
 }

@@ -1,6 +1,6 @@
 import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
-import { builtinAgents } from "./agent-definitions/builtin-agents.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
@@ -111,7 +111,7 @@ export async function handleMolisWorkWebRequest(
   }
   // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
   if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
-    && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinAgents))) return;
+    && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
   if (resolved.kind === "catalog_index") {
     // Personal work needs no project: the Assistant answers on the project list too, in the person's own scope.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
@@ -181,7 +181,10 @@ export async function handleMolisWorkWebRequest(
         }
 
         const codingServices: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn"> = {
-          actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id },
+          // Metadata inspection travels with the directory: whichever page opens the Plugin Builder first (the workbench
+          // render, or the studio itself), its capability catalog is the project's whole directory, not an empty list.
+          actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id,
+            inspect: caller => localHost.inspectActions(caller, hostReference) },
           characterSpawn: request => ptyHost.spawn(request),
           characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
           homeDirectory: serverOptions.homeDirectory,
@@ -200,7 +203,7 @@ export async function handleMolisWorkWebRequest(
         if (await handleAgentStudioHttp(request, response, url, { store, boardId: options.boardId, homeDirectory: serverOptions.homeDirectory,
           routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
           models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user",
-          actions: { ...codingServices.actions, inspect: caller => localHost.inspectActions(caller, hostReference) },
+          actions: codingServices.actions,
           // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
           ...(options.project ? { enablePlugin: async (pluginId: string) => {
             const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);

@@ -1,13 +1,16 @@
 import path from "node:path";
-import type { DatabaseSync } from "node:sqlite";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
-  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView,
+  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+
+/** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
+type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 export const AGENT_DEFINITIONS_STORE = "agent-definitions";
 const USES_KEPT = 200;
@@ -67,6 +70,8 @@ export class AgentDefinitions {
   }
 
   unregister(ownerId: string): void { this.owners.delete(ownerId); }
+
+  hasPrompt(ownerId: string, promptId: string): boolean { return Boolean(this.owners.get(ownerId)?.prompts.some(prompt => prompt.prompt_id === promptId)); }
 
   registrations(): AgentDefinitionRegistration[] { return [...this.owners.values()].map(value => structuredClone(value)); }
 
@@ -171,6 +176,24 @@ export class AgentDefinitions {
     return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };
   }
 
+  /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */
+  diagnostics(unregistered: readonly AgentUnregisteredCall[] = []): AgentDefinitionsDiagnostics {
+    const used = new Set((this.db.prepare("SELECT DISTINCT key FROM prompt_uses").all() as Array<{ key: string }>).map(row => row.key));
+    const owners = [...this.owners.values()].map(owner => {
+      const views = owner.prompts.map(prompt => this.view(owner, prompt));
+      const issues: AgentDefinitionsDiagnostics["owners"][number]["issues"] = [];
+      if (owner.source.kind === "plugin" && owner.source.state === "disabled") issues.push({ level: "warning", text: "插件已停用：这些 Prompt 暂时不会被调用，你的修改会保留" });
+      for (const note of owner.notes ?? []) issues.push({ level: "warning", text: note });
+      const stale = views.filter(view => view.default_updated);
+      if (stale.length) issues.push({ level: "warning", text: `${stale.length} 段你的版本基于旧默认，默认已更新：${stale.map(view => view.title).join("、")}` });
+      const idle = views.filter(view => !used.has(view.key));
+      if (idle.length) issues.push({ level: "info", text: `${idle.length} 段登记后还没有被调用过（功能可能还没用到）：${idle.map(view => view.title).join("、")}` });
+      return { owner_id: owner.owner_id, source: structuredClone(owner.source), prompts: views.filter(view => view.kind === "agent").length,
+        instructions: views.filter(view => view.kind === "instruction").length, roles: owner.roles.length, edited: views.filter(view => view.effective === "user").length, issues };
+    });
+    return { owners, unregistered: unregistered.map(item => ({ ...item })) };
+  }
+
   uses(key: string, limit = 20): AgentPromptUse[] {
     return (this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?").all(key, limit) as unknown as AgentPromptUse[]).map(row => ({ ...row }));
   }
@@ -231,13 +254,26 @@ export interface BuiltinAgent { owner_id: string; source: AgentDefinitionSource;
 const registries = new Map<string, AgentDefinitions>();
 
 /** One register per Home, opened once, with the system's and built-in Plugins' definitions registered. */
-export function agentDefinitionsFor(homeDirectory: string, builtins: () => readonly BuiltinAgent[]): AgentDefinitions {
+export function agentDefinitionsFor(homeDirectory: string, registrations: () => readonly AgentDefinitionRegistration[]): AgentDefinitions {
   const home = path.resolve(homeDirectory);
   let registry = registries.get(home);
   if (!registry) {
     registry = new AgentDefinitions(openHomeSqliteDatabase(home, AGENT_DEFINITIONS_STORE));
     registries.set(home, registry);
+    for (const registration of registrations()) registry.register(registration);
   }
-  for (const agent of builtins()) registry.register(agentRegistration(agent.owner_id, agent.source, agent.manifest, agent.prompts));
   return registry;
+}
+
+/** Instruction prompts as registrations, grouped under their owners and merged into any Agent registration of the same owner. */
+export function withInstructions(registrations: readonly AgentDefinitionRegistration[], instructions: readonly InstructionPrompt[],
+  sourceOf: (ownerId: string) => AgentDefinitionSource): AgentDefinitionRegistration[] {
+  const merged = new Map(registrations.map(registration => [registration.owner_id, structuredClone(registration)]));
+  for (const instruction of instructions) {
+    const owner = merged.get(instruction.owner_id) ?? { owner_id: instruction.owner_id, source: sourceOf(instruction.owner_id), prompts: [], roles: [] };
+    owner.prompts.push({ prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
+      used_by: [...instruction.used_by], body: instruction.body });
+    merged.set(instruction.owner_id, owner);
+  }
+  return [...merged.values()];
 }

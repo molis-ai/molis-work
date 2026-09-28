@@ -73,8 +73,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const stateLabel = (state) => L(STATE_LABELS[state] || state || "");
-  const scopeLabel = (scope) => !scope ? "" : scope.kind === "personal" ? L("个人")
-    : project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目");
+  const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
+    : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
   const currentWork = () => works.find((work) => work.work_id === currentId) || (view && view.work.work_id === currentId ? view.work : null);
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   const setPanel = (open) => { if (panel) panel.hidden = !open; };
@@ -319,7 +319,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     titleEl.textContent = work ? work.title : L("新工作");
     stateEl.textContent = work ? stateLabel(work.state) : "";
     stateEl.dataset.state = work ? work.state : "";
-    scopeEl.textContent = work ? scopeLabel(work.scope) : (newScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
+    scopeEl.textContent = work ? scopeLabel(work.scope, work.scope_title) : (newScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
     const state = work ? work.state : "idle";
     island.querySelector('[data-assistant-control="pause"]').hidden = state !== "running";
     island.querySelector('[data-assistant-control="resume"]').hidden = state !== "paused";
@@ -350,6 +350,34 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (shown) {
       const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
       box.append(el("p", "", shown.message));
+      if (work && work.state === "needs-check" && !problem) {
+        // What the interrupted round really did, then an explicit close. Nothing is re-run.
+        const check = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("查看实际发生了什么")); check.type = "button";
+        check.addEventListener("click", async () => {
+          check.disabled = true;
+          try {
+            const report = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery");
+            const OUTCOMES = { completed: "已发生", failed: "失败，没有发生", "not-dispatched": "没有执行", unknown: "结果未知，请到原处核对" };
+            const list = el("ul", "assistant-recovery");
+            report.rounds.forEach((round) => {
+              round.operations.forEach((op) => list.append(el("li", "", op.summary + " — " + L(OUTCOMES[op.outcome] || op.outcome))));
+              if (!round.operations.length) list.append(el("li", "", L("这一轮没有记录到任何操作")));
+              round.blockers.forEach((why) => list.append(el("li", "assistant-muted", why)));
+              if (round.can_close) {
+                const close = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("已核对，结束这一轮")); close.type = "button";
+                close.addEventListener("click", async () => {
+                  close.disabled = true;
+                  try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
+                  catch (error) { showProblem({ message: error.message }); }
+                });
+                list.append(close);
+              }
+            });
+            check.replaceWith(list);
+          } catch (error) { showProblem({ message: error.message }); }
+        });
+        box.append(check);
+      }
       if (shown.action) {
         if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; box.append(link); }
         else box.append(el("p", "assistant-muted", L(shown.action)));
@@ -372,7 +400,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     works.forEach((work) => {
       const item = el("button", "assistant-works-item"); item.type = "button"; item.dataset.workId = work.work_id;
       if (work.work_id === currentId) item.setAttribute("aria-current", "true");
-      const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope));
+      const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title));
       meta.dataset.state = work.state;
       item.append(el("span", "assistant-works-title", work.title), meta);
       item.addEventListener("click", () => { setWorks(false); switchTo(work.work_id); });

@@ -1,11 +1,11 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentPendingQuestion, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantContextSnapshot, type AssistantControl, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
@@ -135,11 +135,18 @@ export class AssistantService {
     const works = this.store.list(this.actorId);
     if (!works.length) return [];
     const host = await this.ports.host();
-    return Promise.all(works.map(async work => this.publicWork(work, await this.stateFor(host, work))));
+    return Promise.all(works.map(async work => this.publicWork(await this.named(work), await this.stateFor(host, work))));
+  }
+
+  /** Works started before scope titles were kept still show their project's name. */
+  private async named(work: StoredWork): Promise<StoredWork> {
+    if (work.scope.kind !== "project" || work.scope_title) return work;
+    const title = await this.ports.projectTitle?.(work.scope.project_id).catch(() => null);
+    return title ? { ...work, scope_title: title } : work;
   }
 
   async read(workId: string): Promise<AssistantWorkView> {
-    const work = this.store.get(this.actorId, workId);
+    const work = await this.named(this.store.get(this.actorId, workId));
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const stored = this.store.rounds(work.work_id);
@@ -175,7 +182,7 @@ export class AssistantService {
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined;
     try {
-      work = input.work_id ? this.store.get(this.actorId, input.work_id) : this.createWork(text, input.scope, context, caller);
+      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller);
       const result = await this.dispatch(work, text, materials, context);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
@@ -227,6 +234,30 @@ export class AssistantService {
     return this.read(workId);
   }
 
+  /** What an interrupted round really did, from the runtime's receipts. Nothing is replayed. */
+  async recovery(workId: string): Promise<AssistantRecovery> {
+    const work = this.store.get(this.actorId, workId);
+    if (!work.session_id) return { blockers: [], rounds: [] };
+    const adapter = (await this.ports.host()).adapter(RUNTIME);
+    if (!adapter.recovery) throw new AssistantError("assistant.unsupported", "当前运行时不能核对中断的执行");
+    return this.recoveryView(await adapter.recovery.inspect(sessionRef(work)));
+  }
+
+  /** The person has checked the outcome: close the interrupted round so the work can go on. Never re-runs it. */
+  async closeInterrupted(workId: string, input: { run_id: string; version: number }): Promise<AssistantWorkView> {
+    const work = this.store.get(this.actorId, workId);
+    if (!work.session_id || !this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw new AssistantError("assistant.scope", "这一轮不属于这项工作");
+    const adapter = (await this.ports.host()).adapter(RUNTIME);
+    if (!adapter.recovery) throw new AssistantError("assistant.unsupported", "当前运行时不能核对中断的执行");
+    await adapter.recovery.close(sessionRef(work), String(input.run_id), Number(input.version));
+    return this.read(workId);
+  }
+
+  private recoveryView(report: AgentRecoveryReport): AssistantRecovery {
+    return { blockers: [...report.blockers], rounds: report.runs.filter(run => !run.subagent).map(run => ({ run_id: run.run_id, version: run.version, can_close: run.can_close,
+      blockers: [...run.blockers], operations: run.operations.map(operation => ({ summary: operation.summary, outcome: operation.outcome })) })) };
+  }
+
   saveDraft(workId: string, draft: string): AssistantWork {
     if (typeof draft !== "string" || draft.length > MAX_TEXT) throw new AssistantError("assistant.invalid", "草稿过长");
     const work = this.store.update(this.actorId, workId, null, { draft }, false);
@@ -243,12 +274,13 @@ export class AssistantService {
     return this.publicWork(work, await this.stateSafely(work));
   }
 
-  private createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller): StoredWork {
+  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller): Promise<StoredWork> {
     const wanted: AssistantScope = scope ?? (caller.project_ref ? { kind: "project", project_id: caller.project_ref.project_id } : { kind: "personal" });
     if (wanted.kind === "project" && wanted.project_id !== caller.project_ref?.project_id) {
       throw new AssistantError("assistant.scope", "只能在当前打开的项目里为它新建工作；个人工作不需要项目");
     }
-    return this.store.create({ actor_id: this.actorId, title: titleFrom(text), scope: wanted, origin: context?.source ?? null,
+    const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
+    return this.store.create({ actor_id: this.actorId, title: titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}),
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 

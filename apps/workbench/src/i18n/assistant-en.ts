@@ -66,6 +66,13 @@ export const ASSISTANT_EN: Record<string, string> = {
   "输入已保留": "Your text is kept",
   "打开模型设置": "Open model settings",
   "改为开始新工作": "Start a new work instead",
+  "查看实际发生了什么": "See what actually happened",
+  "已发生": "happened",
+  "失败，没有发生": "failed, did not happen",
+  "没有执行": "not executed",
+  "结果未知，请到原处核对": "outcome unknown — check where it would have happened",
+  "这一轮没有记录到任何操作": "This round recorded no operations",
+  "已核对，结束这一轮": "Checked — close this round",
   "准确参数与能力": "Exact input and capability",
   "完整参数": "Full input",
 };

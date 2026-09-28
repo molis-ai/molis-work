@@ -54,9 +54,10 @@ export class AssistantStore {
     db.exec(SCHEMA);
   }
 
-  create(input: { actor_id: string; title: string; scope: AssistantScope; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference }): StoredWork {
+  create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference }): StoredWork {
     const at = this.now().toISOString();
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
+      ...(input.scope_title ? { scope_title: input.scope_title } : {}),
       session_id: null, draft: "", created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
       ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}) };
     this.db.prepare("INSERT INTO assistant_works(work_id,actor_id,revision,updated_at,archived,body) VALUES (?,?,?,?,0,?)")

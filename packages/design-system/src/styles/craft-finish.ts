@@ -515,6 +515,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
   ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--wash); }
   ${ASSIST} .assistant-problem p { margin: 0; }
+  ${ASSIST} .assistant-recovery { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding-left: 18px; font-size: 12px; }
   /* On the project list the Assistant floats at the foot of the page, in the person's own scope. */
   body.project-index-page .project-index { padding-bottom: 96px; }
   body.project-index-page .project-index-dock { position: fixed; z-index: 40; left: 50%; bottom: 16px; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); }

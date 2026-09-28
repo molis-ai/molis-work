@@ -95,6 +95,8 @@ export interface AssistantWork {
   revision: number;
   title: string;
   scope: AssistantScope;
+  /** How the person names the scope: their project's name, or absent for personal work. */
+  scope_title?: string;
   /** Where the person started it. */
   origin: AssistantSurfaceRef | null;
   state: AssistantWorkState;
@@ -155,6 +157,18 @@ export interface AssistantWorkView {
   reviews: AssistantPendingReview[];
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
+}
+
+/** An interrupted round, as the runtime's own receipts show it: what happened, what did not, what is unknown. */
+export interface AssistantRecovery {
+  blockers: string[];
+  rounds: Array<{
+    run_id: string;
+    version: number;
+    can_close: boolean;
+    blockers: string[];
+    operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
+  }>;
 }
 
 export interface AssistantSendInput {

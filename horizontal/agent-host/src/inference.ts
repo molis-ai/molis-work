@@ -36,3 +36,14 @@ export class PrologueInferenceError extends Error {
     super(message); this.name = "PrologueInferenceError";
   }
 }
+
+/**
+ * When the Home's execution service itself cannot take the request, the person needs that reason, not a
+ * provider or network hint. Returns undefined for model and provider failures, which consumers explain themselves.
+ */
+export function inferenceServiceUnavailableReason(error: unknown): string | undefined {
+  const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code: unknown }).code) : "";
+  if (code === "agent.storage_busy") return "这台电脑上另一个 Molis Work 进程正在使用 AI 执行服务，请在那个窗口操作，或关闭它后重试";
+  if (code === "inference.unbound" || code === "inference.closed" || code === "inference.home_in_use") return "AI 执行服务尚未就绪或已停止，请稍后重试";
+  return undefined;
+}

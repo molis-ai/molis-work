@@ -78,3 +78,9 @@ test("cancelling during lazy Runtime startup releases the caller before startup 
   await entered.promise; controller.abort(); await rejected;
   ready.resolve({ completeText: async () => assert.fail("cancelled initialization dispatched a model") } as Client);
 });
+
+test("a Home execution service held by another process is reported as such, not as a model failure", async () => {
+  const complete = hostCompleteText({ env: env(), resolveInference: async () => { throw Object.assign(new Error("busy"), { code: "agent.storage_busy" }); } })!;
+  await assert.rejects(complete("material"), (error: { code?: string; message?: string }) =>
+    error.code === "actions.service_unavailable" && /另一个 Molis Work 进程/.test(error.message ?? "") && !/模型返回|超时/.test(error.message ?? ""));
+});

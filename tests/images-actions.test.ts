@@ -123,3 +123,20 @@ test('Images adopts existing credential references without decrypting or copying
   assert.equal(revoked.connections[0]!.auth_connection_id, list.auth_connections[0]!.connection_id);
   assert.equal(revoked.auth_connections.length, 1, 'Discovery must not recreate disconnected legacy accounts');
 });
+
+test('Images names a busy Home execution service instead of blaming the provider or network',async t=>{
+  const f=await fixture(t);let calls=0;
+  const server=createServer(async(req,res)=>{for await(const _ of req);calls++;res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:[{b64_json:PNG}]}));});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise<void>(resolve=>server.close(()=>resolve())));
+  const address=server.address();assert.ok(address&&typeof address==='object');
+  // Another process owns this Home's Agent runtime: the exclusive lock a second Web or MCP host would hold.
+  const {mkdirSync}=await import('node:fs');const {DatabaseSync}=await import('node:sqlite');
+  mkdirSync(join(f.home,'agent-runtime'),{recursive:true});
+  const lock=new DatabaseSync(join(f.home,'agent-runtime','.molis-runtime-owner.db'));lock.exec('BEGIN EXCLUSIVE');t.after(()=>lock.close());
+  const {connection}=await f.global.invoke(actions.saveConnection,{name:'Busy images',api_format:'openai-images',base_url:`http://127.0.0.1:${address.port}/v1`,model:'fixture-images'});
+  const {job}=await f.client.invoke(actions.start,{request_id:'busy',connection_id:connection.id,prompt:'被占用时'});
+  const failed=await terminal(f.client,job.id);
+  assert.equal(failed.status,'failed');assert.equal(calls,0);
+  assert.match(failed.error??'',/另一个 Molis Work 进程正在使用 AI 执行服务/);
+  assert.doesNotMatch(failed.error??'',/无法连接厂商|网络/);
+});

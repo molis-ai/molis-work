@@ -1,4 +1,5 @@
 import { resolvePrologueInference } from "./prologue-inference-host.js";
+import { inferenceServiceUnavailableReason } from "@molis-ai/molis-work-service-agent-host";
 import { resolve } from "node:path";
 import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ImagesService, ImagesError, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
@@ -26,11 +27,11 @@ export class ImagesHostService {
       const sealed = (ref: string | null) => ref ? runWithMolisWorkHome(home, () => peekSealedEntry(ref)) : null;
       shared = { owners: new Set(), service: new ImagesService({ homeDirectory: home,
         generate: async (input, signal) => {
-          const inference = await resolvePrologueInference(home);
-          signal.throwIfAborted();
           const endpoint = input.api_format === "openai-images" ? `${input.base_url}/images/generations`
             : `${input.base_url}/models/${encodeURIComponent(input.model)}:generateContent`;
           try {
+            const inference = await resolvePrologueInference(home);
+            signal.throwIfAborted();
             return await inference.generateImages({ protocol: input.api_format, endpoint, model: input.model,
               credential_ref: input.credential_ref, resolveCredential: input.resolveCredential,
               prompt: input.prompt, ...(input.size ? { size: input.size } : {}),
@@ -45,6 +46,8 @@ export class ImagesHostService {
             if (typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599) {
               throw new ImagesError("images.provider_http", `HTTP ${status}：${guidance[status] ?? "厂商服务暂时不可用，请稍后再手动重试。"}`, 502);
             }
+            const unavailable = inferenceServiceUnavailableReason(error);
+            if (unavailable) throw new ImagesError("images.runtime_unavailable", `${unavailable}。`, 503);
             throw error; // ImagesService publishes only its own typed errors; unknown SDK details stay private.
           }
         },

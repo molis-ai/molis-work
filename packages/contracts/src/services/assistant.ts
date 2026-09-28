@@ -162,7 +162,19 @@ export interface AssistantWork {
   created_at: string;
   updated_at: string;
   archived: boolean;
+  /**
+   * The Character the person chose to carry this work's rounds: an exact published version, in force from the next
+   * round on. Absent means the Assistant itself. Only project work can have one (Characters are published per project).
+   */
+  character?: AssistantCharacter;
 }
+
+/** An exact published Character version, as the person chose it. */
+export interface AssistantCharacterRef { artifact_id: string; version: number }
+export interface AssistantCharacter extends AssistantCharacterRef { title: string }
+
+/** A Character the person may choose for project work, and whether it can run now (never swapped for another). */
+export interface AssistantCharacterChoice { reference: AssistantCharacterRef; title: string; available: boolean; reason?: string }
 
 /** One thing the round did, in the person's terms: looked something up, read, changed, asked. Never the raw tool log. */
 export interface AssistantActivity {
@@ -189,6 +201,8 @@ export interface AssistantRound {
   run_id: string;
   /** Who ran it: the Assistant, or the professional Agent the work was handed to. */
   executor?: "assistant" | "coding";
+  /** The Character that really carried this round, frozen at its start; absent when the Assistant itself did. */
+  character?: AssistantCharacter;
   /** What the person sent this round. */
   text: string;
   materials: Array<Pick<AssistantMaterial, "material_id" | "kind" | "title" | "explicit" | "draft" | "source" | "object">>;
@@ -321,6 +335,8 @@ export interface AssistantSendInput {
   mode?: string;
   /** For a new work carried by Coding: continue this existing session (the one open on the Coding page) instead of a new one. */
   coding_session_id?: string;
+  /** The Character to carry this and later rounds (null: the Assistant itself); omitted keeps the work's choice. */
+  character?: AssistantCharacterRef | null;
   /** Required for a new work; ignored for an existing one, whose scope never changes. */
   scope?: AssistantScope;
   text: string;

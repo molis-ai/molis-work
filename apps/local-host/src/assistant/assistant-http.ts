@@ -11,6 +11,7 @@ import { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { AssistantError, AssistantService } from "./assistant-service.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./assistant-store.js";
+import { codingCharacterPorts } from "../characters-host.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = "web-user";
@@ -34,7 +35,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output)),
-      project_prompts: await assistantProjectPrompts(ports.localHost, work) }),
+      project_prompts: await assistantProjectPrompts(ports.localHost, work),
+      // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
+      ...(work.project_ref ? { resolveCharacter: await projectCharacters(ports, work.project_ref).then(characters => characters.resolve) } : {}) }),
+    characters: async project => (await projectCharacters(ports, project)).list().map(choice => ({ reference: { ...choice.reference }, title: choice.title, available: choice.available,
+      ...(choice.reason ? { reason: choice.reason } : {}) })),
     projectTitle: ports.projectTitle,
     // The person's own actions in the work's project, as the page there would use them.
     personActions: async work => {
@@ -61,6 +66,12 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   return entry;
 }
 
+/** The person's published Characters in one project: listed with whether each can run, and frozen exactly for a round. */
+async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostProjectReference) {
+  const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.board_id, artifacts: runtime.coordinator.artifacts.query }));
+  return codingCharacterPorts(ports.homeDirectory, WEB_ACTOR, board, artifacts);
+}
+
 /**
  * `/api/assistant/*`, served under whichever project page the person is on. The page's project only decides the
  * scope of a *new* work; an existing work keeps the scope it was started with.
@@ -77,6 +88,11 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
         if (!kind || !id) return { status: 400, body: { error: "需要对象种类与标识" } };
         return { status: 200, body: { works: await service.related(ports.projectRef?.project_id ?? null, { kind, id }) } };
+      }
+      // Characters the person may choose here: for a work (its own project), or for a new work on this page.
+      if (method === "GET" && parts.length === 1 && parts[0] === "characters") {
+        const work = url.searchParams.get("work") ?? undefined;
+        return { status: 200, body: { characters: await service.characters(work, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };

@@ -46,4 +46,6 @@ export const ASSISTANT_AGENT: AgentManifest = {
     role_id: ASSISTANT_ROLE_ID, version: 1, name: "个人工作助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base"], host_tools: [...BUSINESS_HOST_TOOLS],
   }],
+  // A Character the person published in the work's project may carry a round: exact version, their own, this project only.
+  characters: { selection: "optional-exact-artifact", scope: "project-owner", role_ids: [ASSISTANT_ROLE_ID] },
 };

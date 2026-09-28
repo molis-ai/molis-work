@@ -85,6 +85,45 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // The choice is made against what is saved now, not what this panel last read.
   modeButton?.addEventListener("click", async () => { if (!modesPop.hidden) { setModes(false); return; } if (currentId) await refresh().catch(() => {}); setModes(true); });
+  // Which Character carries the next round: the work's own choice, or one made here that the next Send brings along.
+  // Only the Assistant's own project work has Characters (they are published per project); a Coding work picks its own.
+  const characterButton = island.querySelector("[data-assistant-character]");
+  const characterLabel = island.querySelector("[data-assistant-character-label]");
+  const charactersPop = island.querySelector("[data-assistant-characters]");
+  let newCharacter = null, pendingCharacter;
+  const chosenCharacter = () => { const work = currentWork(); return work ? (pendingCharacter !== undefined ? pendingCharacter : work.character || null) : newCharacter; };
+  const characterAllowed = () => { const work = currentWork();
+    return work ? work.executor.kind !== "coding" && work.scope.kind === "project" : newExecutor === "assistant" && newScope === "project" && Boolean(project); };
+  const setCharacters = async (open) => {
+    if (!charactersPop) return;
+    charactersPop.hidden = !open;
+    characterButton?.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    const work = currentWork(), chosen = chosenCharacter();
+    charactersPop.replaceChildren(el("p", "assistant-popover-title", L("由哪个角色负责（从下一轮开始）")));
+    let choices = [];
+    try { choices = (await api("/characters" + (work ? "?work=" + encodeURIComponent(work.work_id) : ""))).characters; }
+    catch (error) { charactersPop.append(el("p", "assistant-material-origin", error.message)); }
+    const pick = (value) => { setCharacters(false); if (work) pendingCharacter = value; else newCharacter = value; paintTarget(); input.focus(); };
+    const own = el("button", "assistant-starter"); own.type = "button";
+    if (!chosen) own.setAttribute("aria-current", "true");
+    own.append(el("strong", "", L("助理自己")), el("span", "assistant-material-origin", " " + L("不指定角色")));
+    own.addEventListener("click", () => pick(null));
+    charactersPop.append(own);
+    choices.forEach((choice) => {
+      const item = el("button", "assistant-starter"); item.type = "button";
+      const same = chosen && chosen.artifact_id === choice.reference.artifact_id && chosen.version === choice.reference.version;
+      if (same) item.setAttribute("aria-current", "true");
+      item.append(el("strong", "", choice.title), el("span", "assistant-material-origin", " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || L("当前不可用")))));
+      // An unavailable version is shown with why, and cannot be chosen: nothing runs under a name it is not.
+      if (!choice.available) item.disabled = true;
+      else item.addEventListener("click", () => pick({ artifact_id: choice.reference.artifact_id, version: choice.reference.version, title: choice.title }));
+      charactersPop.append(item);
+    });
+    if (!choices.length) charactersPop.append(el("p", "assistant-material-origin", L("这个项目里还没有你发布的 Character；在 Characters 里新建并发布后就能选择。")));
+    (charactersPop.querySelector("[aria-current]") || charactersPop.querySelector("button:not([disabled])"))?.focus();
+  };
+  characterButton?.addEventListener("click", async () => { if (!charactersPop.hidden) { setCharacters(false); return; } if (currentId) await refresh().catch(() => {}); await setCharacters(true); });
   // A surface says the person changed something there that this work may show: read the work again.
   window.addEventListener("molis:assistant-surface-changed", (event) => {
     const detail = event.detail || {}, work = currentWork();
@@ -156,6 +195,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         modeButton.setAttribute("aria-label", L(work ? "下一轮的方式" : "第一轮的方式") + " · " + label);
       }
     }
+    if (characterButton) {
+      const allowed = characterAllowed(), chosen = chosenCharacter();
+      characterButton.hidden = !allowed;
+      if (allowed && characterLabel) {
+        characterLabel.textContent = L("角色") + "：" + (chosen ? chosen.title : L("助理"));
+        characterButton.setAttribute("aria-label", L("由哪个角色负责") + " · " + (chosen ? chosen.title + " v" + chosen.version : L("助理自己")));
+      }
+    }
     // Who carries the next new work: chosen before sending; an existing work keeps its own.
     if (executorButton) {
       executorButton.hidden = Boolean(work) || !codingHere();
@@ -203,7 +250,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const switchTo = async (id) => {
     if (id === currentId) return;
     saveDraft(true);
-    currentId = id; remember(); problem = null; view = null;
+    currentId = id; remember(); problem = null; view = null; pendingCharacter = undefined;
     thread.querySelectorAll(":scope > [data-round], :scope > [data-review], :scope > .assistant-problem").forEach((node) => node.remove());
     loadDraft(); render();
     if (id) { await refresh(); schedule(); }
@@ -438,6 +485,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     entries.sort((a, b) => a.order - b.order);
     // Which Agent ran this round, when the work changed hands.
     if (round.executor === "coding") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由 Coding Agent 执行")); }
+    else if (round.character) { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由角色负责") + "：" + round.character.title + " v" + round.character.version); }
     if (!round.turns.some((turn) => turn.kind === "user")) {
       const own = keyed(node, "data-entry", "task", () => el("div", "assistant-msg assistant-msg--user"));
       setText(own, round.text);
@@ -850,7 +898,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
   document.addEventListener("pointerdown", (event) => {
     if (!(event.target instanceof Element) || island.contains(event.target)) return;
-    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false);
+    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
@@ -858,6 +906,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (startersPop && !startersPop.hidden) { event.preventDefault(); event.stopPropagation(); setStarters(false); }
     if (executorsPop && !executorsPop.hidden) { event.preventDefault(); event.stopPropagation(); setExecutors(false); executorButton?.focus(); }
     if (modesPop && !modesPop.hidden) { event.preventDefault(); event.stopPropagation(); setModes(false); modeButton?.focus(); }
+    if (charactersPop && !charactersPop.hidden) { event.preventDefault(); event.stopPropagation(); setCharacters(false); characterButton?.focus(); }
   }, true);
   /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
   attach?.addEventListener("click", () => fileInput?.click());
@@ -923,6 +972,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     clearTimeout(draftTimer);
     await draftWrite;
     const body = { text, request_id: requestId, context: pageContext(), materials };
+    // The Character choice travels with the Send that makes it; the Host freezes that exact version or refuses.
+    const character = currentId ? pendingCharacter : newCharacter || undefined;
+    if (character !== undefined && characterAllowed()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
     if (currentId) body.work_id = currentId;
     else if (newExecutor !== "assistant") {
       body.executor = newExecutor;
@@ -937,7 +989,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       clearTimeout(draftTimer);
       // Sent text is nobody's draft any more, including the new-work draft it may have started as.
       if (!currentId || store.get(NEW_DRAFT_KEY) === text) store.set(NEW_DRAFT_KEY, null);
-      currentId = result.work.work_id; remember();
+      currentId = result.work.work_id; remember(); pendingCharacter = undefined; newCharacter = null;
       if (String(input.value || "").trim() === text) input.value = "";
       const index = works.findIndex((work) => work.work_id === result.work.work_id);
       if (index >= 0) works[index] = result.work; else works.unshift(result.work);

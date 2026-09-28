@@ -5,7 +5,7 @@ import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -44,6 +44,8 @@ export interface AssistantServicePorts {
   personActions?(work: StoredWork): Promise<PersonActions>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: StoredWork): Promise<PersonActions>;
+  /** The Characters the person published in a project, each saying whether it can run now. */
+  characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
 }
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
@@ -404,6 +406,7 @@ export class AssistantService {
       const created = !input.work_id;
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
       if (created && input.coding_session_id) work = await this.adoptCodingSession(work, input.coding_session_id);
+      work = await this.chooseCharacter(work, input.character);
       this.linkSent(work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode);
       this.store.finishRequest(this.actorId, input.request_id, result);
@@ -826,8 +829,10 @@ export class AssistantService {
       action_gateway: true,
       text_materials: await this.roundMaterials(work, materials, context, offered),
       history: "session", budget: { max_turns: ROUND_TURNS }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
+      // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
+      ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
     }, authority);
-    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString() });
+    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(work.character ? { character: { ...work.character } } : {}) });
     return this.result(work, "started", handle.ref.run_id);
   }
 
@@ -952,8 +957,30 @@ export class AssistantService {
     });
   }
 
+  /** The Characters the person may choose for a work: only project work has them, and only the Assistant's own rounds use them. */
+  async characters(workId: string | undefined, caller: AssistantCaller): Promise<AssistantCharacterChoice[]> {
+    const work = workId ? this.store.get(this.actorId, workId) : undefined;
+    const project = work ? work.project_ref : caller.project_ref;
+    if (!project || !this.ports.characters || work?.executor.kind === "coding") return [];
+    return this.ports.characters(project);
+  }
+
+  /** The person's choice of Character for this work from its next round on: checked now, never swapped for another. */
+  private async chooseCharacter(work: StoredWork, choice: AssistantCharacterRef | null | undefined): Promise<StoredWork> {
+    if (choice === undefined) return work;
+    if (choice === null) return work.character ? this.store.update(this.actorId, work.work_id, null, { character: undefined }, false) : work;
+    if (typeof choice !== "object" || typeof choice.artifact_id !== "string" || !Number.isSafeInteger(choice.version)) throw new AssistantError("assistant.invalid", "Character 版本引用无效");
+    if (work.executor.kind === "coding") throw new AssistantError("assistant.invalid", "这项工作由 Coding 负责，它的角色在 Coding 会话里选择");
+    if (!work.project_ref || !this.ports.characters) throw new AssistantError("assistant.invalid", "Character 发布在项目里，个人工作暂时不能指定角色；在项目里发起这项工作就可以选择");
+    const found = (await this.ports.characters(work.project_ref)).find(item => item.reference.artifact_id === choice.artifact_id && item.reference.version === choice.version);
+    if (!found) throw new AssistantError("assistant.invalid", "这个项目里没有这个 Character 版本");
+    if (!found.available) throw new AssistantError("assistant.character_unavailable", found.reason ?? "所选 Character 版本不可用，请明确选择其他版本，或不指定角色", undefined, "重新选择角色");
+    if (work.character?.artifact_id === choice.artifact_id && work.character.version === choice.version) return work;
+    return this.store.update(this.actorId, work.work_id, null, { character: { artifact_id: choice.artifact_id, version: choice.version, title: found.title } }, false);
+  }
+
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
-    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at,
+    return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest),
       phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: view.stop_reason } : {}), ended_at: view?.ended_at ?? null };

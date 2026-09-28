@@ -12,6 +12,8 @@ import type { HostCapabilityDefinition } from "./app-host.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
 import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
+import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
+export * from "./search-sources.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
 export type ActionSchema = Readonly<Record<string, unknown>>;
@@ -104,6 +106,8 @@ export interface ActionMetadata {
   readonly input_type?: string;
   readonly output_type?: string;
   readonly workflow_content?: WorkflowContentStation;
+  /** A system search source: the object kinds it lists and the Workbench surface each opens in (specs/system-search §5.1). */
+  readonly search_source?: SearchSourceDeclaration;
   /** Optional rule choices owned by this subject-offer query; targets belong to the same provider. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** A trigger action needs an enabled compatible binding in this consumer scene. */
@@ -486,6 +490,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
             problems.push(`${key} 首页事件查询必须使用完整规范合同`);
           }
         }
+        problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;
           if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)

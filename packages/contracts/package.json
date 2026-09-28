@@ -202,6 +202,10 @@
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
     },
+    "./services/search": {
+      "types": "./dist/services/search.d.ts",
+      "import": "./dist/services/search.js"
+    },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"

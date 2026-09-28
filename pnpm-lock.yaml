@@ -200,6 +200,9 @@ importers:
       '@molis-ai/molis-work-service-scheduler':
         specifier: workspace:*
         version: link:horizontal/scheduler
+      '@molis-ai/molis-work-service-search':
+        specifier: workspace:*
+        version: link:horizontal/search
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:packages/storage
@@ -474,6 +477,9 @@ importers:
       '@molis-ai/molis-work-service-scheduler':
         specifier: workspace:*
         version: link:../../horizontal/scheduler
+      '@molis-ai/molis-work-service-search':
+        specifier: workspace:*
+        version: link:../../horizontal/search
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -663,6 +669,12 @@ importers:
         version: 1.1.0
 
   horizontal/scheduler:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  horizontal/search:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

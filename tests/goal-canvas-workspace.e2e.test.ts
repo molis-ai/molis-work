@@ -3,8 +3,9 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-const captures = new URL("../.impeccable/review/", import.meta.url);
+const captures = reviewEvidenceUrl("");
 
 test("Goal workspace keeps details in a sidebar rail; camera and draft survive reopen", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t);

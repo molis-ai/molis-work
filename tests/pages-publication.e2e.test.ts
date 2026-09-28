@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
   test(`Pages ${width}px: interrupted publication survives reload, resumes its original snapshot and keeps later edits`, { timeout: 90_000 }, async t => {
@@ -39,7 +40,7 @@ for (const width of [1440, 390]) {
       await waitFor("document.querySelector('[data-pages-artifact-bar]').textContent.includes('继续保存') && document.querySelector('[data-pages-note]').textContent.includes('当时的快照')");
       await evaluate(`(() => { const title = document.querySelector('[data-pages-title]'); title.value = '后续编辑仍在文稿中'; title.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);
       await waitFor("document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
-      const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+      const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
       const screenshot = async (state: string) => writeFile(new URL(`pages-publication-${state}-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
       await screenshot("pending");
       await click('[data-pages-artifact-bar]');

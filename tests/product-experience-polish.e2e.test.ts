@@ -3,8 +3,9 @@ import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { GoalProjectApplication, DEMO_BOARD_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-const shots = new URL('../.impeccable/review/product-experience-20260926/', import.meta.url);
+const shots = reviewEvidenceUrl("product-experience-20260926/");
 
 test('Product journeys: discover tools, create from empty states, save and recover without losing context', { timeout: 240_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded'); if (!b) return;

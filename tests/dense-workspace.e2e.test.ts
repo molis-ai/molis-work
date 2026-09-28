@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test('Dense workspace keeps many long tabs, nested panes and long Feed content inside the viewport',{timeout:90000},async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
@@ -36,7 +37,7 @@ test('Dense workspace keeps many long tabs, nested panes and long Feed content i
 
   assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1 && document.scrollingElement.scrollWidth<=innerWidth+1'),true);
   assert.equal(await evaluate("[...document.querySelectorAll('iframe.tab-content-frame')].every(f=>f.contentDocument.scrollingElement.scrollHeight<=f.clientHeight+1)"),true);
-  const dir='.impeccable/review/closing-v14';await mkdir(dir,{recursive:true});
+  const dir=`${REVIEW_EVIDENCE}/closing-v14`;await mkdir(dir,{recursive:true});
   const capture=async(name:string)=>{const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}.png`,Buffer.from(shot.data,'base64'));};
   await capture('dense-desktop');
   await b.reloadPage();await waitFor("document.querySelectorAll('[data-tab-pane]').length===3");

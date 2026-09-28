@@ -5,6 +5,7 @@ import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createLocalFeedApplication } from "../apps/local-host/src/feed-application.js";
 import { createLocalFeedSourceService } from "../apps/local-host/src/feed-source-service.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
   test(`Inbox ${width}px: select actual material, recover failed generation and edit the persisted Pages result`, { timeout: 90_000 }, async t => {
@@ -58,7 +59,7 @@ for (const width of [1440, 390]) {
       assert.equal(pages.get(record.document_id!, projectId!).title, "人工补充后的研究草稿");
       assert.match(JSON.stringify(pages.get(record.document_id!, projectId!).body), new RegExp(`/projects/${projectId}/`));
       assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-      const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+      const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
       await writeFile(new URL(`inbox-pages-actions-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
     } finally { pages.close(); }
   });

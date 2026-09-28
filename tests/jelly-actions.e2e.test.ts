@@ -3,6 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual plan, copy event and reload through actions`, { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
@@ -32,7 +33,7 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   await waitFor("!document.querySelector('[data-jelly-dialog]').open && document.querySelector('[data-jelly-block][data-kind=task]')");
   assert.equal(read().notes[0]!.blocks.filter(b => b.kind === "task").length, 1); assert.equal(read().items.length, 0);
   if (width === 390) assert.ok(await evaluate<number>("document.querySelector('[data-jelly-block][data-kind=task] [data-jelly-block-text]').getBoundingClientRect().width") > 250, "task text must retain readable width beside its checkbox");
-  const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+  const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
   await writeFile(new URL(`jelly-note-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await click('[data-jelly-back]'); await click('[data-jelly-view="calendar"]'); await click('[data-jelly-new]');
   await waitFor("document.querySelector('[data-jelly-item-dialog]').open");

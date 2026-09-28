@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 for (const [width,height] of [[1440,900],[390,640]]) {
   test(`Project journey ${width}: create Goal, record note, create Feed task, read and process Inbox`, {timeout:90000}, async t => {
@@ -18,7 +19,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const directory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)"))await click('[data-directory-show]');};
     const plugin=async(id:string)=>{await directory();await click(`[data-plugin-id=${id}]`);};
     const fill=async(selector:string,text:string)=>{await click(selector);await command('Input.insertText',{text},sessionId);};
-    const capture=async(name:string)=>{const dir='.impeccable/review/journeys-v13';await mkdir(dir,{recursive:true});const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(shot.data,'base64'));};
+    const capture=async(name:string)=>{const dir=`${REVIEW_EVIDENCE}/journeys-v13`;await mkdir(dir,{recursive:true});const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(shot.data,'base64'));};
     await plugin('goals');
     await evaluate("document.querySelector('[data-goal-collapse]')?.click()");
     await showGoalStageList();

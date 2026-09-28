@@ -3,8 +3,9 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-const captures = new URL("../.impeccable/review/home-talk-actions/", import.meta.url);
+const captures = reviewEvidenceUrl("home-talk-actions/");
 test("Home sends the actual text and subject to an explicit Session; drafts and uncertain delivery survive reload", { timeout: 80_000 }, async t => {
   let mode: "accept" | "delay" | "unknown" | "reject" = "accept";
   let release: ((value: unknown) => void) | undefined;

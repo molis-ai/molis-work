@@ -6,6 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 for (const width of [1440, 390]) test(`Cognia ${width}px: directory preview, import, synthesize, review and fixed citation through actual UI`, { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, async prompt => { assert.match(prompt, /ORIGINAL_EVIDENCE/); assert.doesNotMatch(prompt, /UPDATED_EVIDENCE/); return "# 已核对的知识\n保留来源中的原始事实 [S1]"; }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
@@ -32,7 +33,7 @@ for (const width of [1440, 390]) test(`Cognia ${width}px: directory preview, imp
   await click('[data-cognia-action=synthesize-current]'); await waitFor("document.querySelector('[data-cognia-dialog]').open");
   await click('[data-cognia-submit]'); await waitFor("document.querySelector('#cognia-dialog-title').textContent === '审阅知识草稿' && !document.querySelector('[data-cognia-submit]').disabled");
   assert.equal(read().materials.length, 1); assert.equal(read().drafts[0]!.references[0]!.revision, 1);
-  const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+  const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
   await writeFile(new URL(`cognia-review-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-dialog]').open && document.querySelector('[data-cognia-heading]').textContent === '已核对的知识'");
   assert.equal(read().materials.length, 2); assert.ok(read().drafts[0]!.saved_id);
@@ -97,7 +98,7 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   assert.equal(requests[0]!.body.model, "fixture-model"); assert.equal((requests[0]!.body.tools as unknown[] | undefined)?.length ?? 0, 0);
   assert.match(JSON.stringify(requests[0]!.body.messages), /LOCAL_UI_EVIDENCE/);
   assert.equal(read().materials.length, 1); assert.equal(read().drafts.length, 1);
-  const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+  const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
   await writeFile(new URL(`cognia-http-review-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-dialog]').open && document.querySelector('[data-cognia-heading]').textContent === '本机模型整理结果'");
   assert.equal(read().materials.length, 2); assert.equal(read().materials.find(m => m.title === "本机模型整理结果")!.body, "已核对本机资料 [S1]");

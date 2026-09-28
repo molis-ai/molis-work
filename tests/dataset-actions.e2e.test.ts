@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { openDatasetStore, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save ordering, conflict, versions, explicit AI and publication`, { timeout: 90_000 }, async t => {
   let modelCalls = 0;
@@ -96,7 +97,7 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   assert.equal(read()[0]!.title, '另一客户端修改'); assert.equal(read()[0]!.artifact_version, 0);
   await click('[data-dataset-back]'); await idle();
   assert.equal(await evaluate("document.querySelector('[data-dataset-stage-workspace]').hidden"), false);
-  const output = new URL('../.impeccable/review/action-service/', import.meta.url); await mkdir(output, { recursive: true });
+  const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
   await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   await writeFile(new URL(`dataset-conflict-${width}.png`, output), Buffer.from((await command<{data:string}>('Page.captureScreenshot', {format:'png'}, sessionId)).data, 'base64'));
   await moreClick('[data-dataset-reload]'); await waitFor("document.querySelector('[data-dataset-confirm]').open");

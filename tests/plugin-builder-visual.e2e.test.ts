@@ -12,6 +12,7 @@ import {seedDemoBoard,DEMO_BOARD_ID} from '../apps/local-host/src/demo-seed.js';
 import {handleBuilderHttp,releaseBuilderSurface} from '../apps/local-host/src/plugin-builder-surface.js';
 import {authorizeLocalWebRequest,sendLocalWebJson,type LocalMutationState} from '../apps/local-host/src/web-http.js';
 import {BrowserFixtureRuntime,ChromeHarness,type ChromePage} from './fixtures/plugin-builder-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // The built-in design is explicit sample content. UI playback does not represent a model run.
 // Visual reference: specs/plugin-builder/ui/design/approved-comp.png.
@@ -37,7 +38,7 @@ test('approved inspiration design supports real preview, publication and mobile 
  });
  await new Promise<void>(done=>server.listen(0,'127.0.0.1',done));
  const address=server.address();assert.ok(address&&typeof address==='object');const origin=`http://127.0.0.1:${address.port}`;
- const screenshots=resolve('.impeccable/review/plugin-builder-fidelity');await mkdir(screenshots,{recursive:true});
+ const screenshots=resolve(`${REVIEW_EVIDENCE}/plugin-builder-fidelity`);await mkdir(screenshots,{recursive:true});
  const downloads=join(directory,'downloads');await mkdir(downloads);
  await browser.command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
  await browser.command('Target.setDiscoverTargets',{discover:true});

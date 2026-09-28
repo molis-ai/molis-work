@@ -12,6 +12,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { functionAuthoringActions, functionContextActions, functionsActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import { createMcpActionGrant, hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("Agent authoring discovers runtime capabilities, preserves exact references, and MCP recommendations require a separate authorized business call", { timeout: 120_000 }, async t => {
   let onEvaluate: (() => Promise<void>) | undefined;
@@ -53,7 +54,7 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
   const history = () => withFunctionsService(homeDirectory, service => service.listJudgments().filter(row => row.function_key === draft.function_key), functions);
   const fill = async (selector: string, value: string) => evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('input', { bubbles: true })); node.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   const saved = () => waitFor("document.querySelector('[data-functions-save-status]')?.textContent === '已保存'");
-  const captures = new URL("../.impeccable/review/function-agent/", import.meta.url);
+  const captures = reviewEvidenceUrl("function-agent/");
   let external: LocalMcpServer | undefined;
   const owner: ActionCallContext = { actor_id: "owner", project_id: projectId, audience: "user", permissions: ["notes:read", "notes:write", "functions:manage", "functions:invoke"] };
   const actions = bindActionClient(localHost.actionClient(reference), () => owner);

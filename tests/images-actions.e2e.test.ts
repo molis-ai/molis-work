@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 
 for (const width of [1440, 390]) test(`Images ${width}px: revoked and missing selections stay explicit, then user chooses and generates`, { timeout: 90_000 }, async t => {
@@ -23,7 +24,7 @@ for (const width of [1440, 390]) test(`Images ${width}px: revoked and missing se
   const replacement = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "image-api", displayName: "备用图像账号", token: "fixture-only-replacement-key" }));
   const input = async (selector: string, value: string) => evaluate(`(() => { const node=document.querySelector(${JSON.stringify(selector)}); node.value=${JSON.stringify(value)}; node.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   const api = async (method: string, path: string, body?: unknown) => evaluate<any>(`(async () => { const r=await fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/images${path}`)}, {method:${JSON.stringify(method)},headers:molisWorkControlHeaders(),${body === undefined ? "" : `body:JSON.stringify(${JSON.stringify(body)}),`}}); const body=await r.json(); if(!r.ok)throw new Error(JSON.stringify(body)); return body; })()`);
-  const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+  const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
     const result = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);

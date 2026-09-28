@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, save conflicts and publication recovery`,{timeout:100_000},async t=>{
   const browser=await openGoalBrowser(t,true,undefined,null);if(!browser)return;
@@ -20,7 +21,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
     }
     await waitFor("document.body.dataset.desktopSurface === 'ppt'");
   };
-  const output=new URL('../.impeccable/review/action-service/',import.meta.url);await mkdir(output,{recursive:true});
+  const output=reviewEvidenceUrl("action-service/");await mkdir(output,{recursive:true});
   const screenshot=async(name:string)=>{
     await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
     await writeFile(new URL(`ppt-${name}-${width}.png`,output),Buffer.from((await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId)).data,'base64'));

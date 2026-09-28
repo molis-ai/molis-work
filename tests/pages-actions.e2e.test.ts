@@ -3,6 +3,7 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
   test(`Pages ${width}px: real create/edit, model candidate, restart and conflicting save`, { timeout: 90_000 }, async t => {
@@ -49,7 +50,7 @@ for (const width of [1440, 390]) {
     await click('button.feed-stage-entry[data-page-id]');
     await waitFor("document.querySelector('[data-pages-title]')?.value === '项目讨论记录' && document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes('整理后的文稿')");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-    const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+    const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
     await writeFile(new URL(`pages-actions-${width}.png`, output), Buffer.from((await command<{data:string}>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
     const other = openPagesStore(homeDirectory);
     try { const page = other.list(projectId!)[0]!; other.update(page.id, { title: "另一窗口的新标题" }, projectId!); } finally { other.close(); }

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 for (const [width, height] of [[1440, 900], [390, 640]]) {
   test(`Session association ${width}: failed draft, protected pending request, one saved relation and settings return`, { timeout: 60000 }, async t => {
@@ -53,7 +54,7 @@ for (const [width, height] of [[1440, 900], [390, 640]]) {
     assert.equal(await evaluate("document.querySelector('[data-session-add-dialog]').open"), true);
     await evaluate("document.querySelector('[data-session-add-form]').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))");
     assert.equal(await evaluate('window.sessionRequests'), 2, 'one failed request and one pending retry, no duplicate');
-    const dir = '.impeccable/review/journeys-v13'; await mkdir(dir, { recursive: true });
+    const dir = `${REVIEW_EVIDENCE}/journeys-v13`; await mkdir(dir, { recursive: true });
     const shot = await command<{data:string}>('Page.captureScreenshot', {format:'png'}, sessionId);
     await writeFile(`${dir}/session-pending-${width}.png`, Buffer.from(shot.data,'base64'));
     await navigate(() => evaluate('window.releaseSession()'));

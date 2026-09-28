@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test('Reduced motion updates Goal detail geometry together with its expanded state', async t => {
   const b = await openGoalBrowser(t); if (!b) return;
@@ -45,7 +46,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]},sessionId);
     const capture=async(name:string)=>{
       await evaluate('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))');
-      const dir=process.env.MOLIS_CONTENT_CAPTURE || '.impeccable/review/continuous-v11';await mkdir(dir,{recursive:true});
+      const dir=process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/continuous-v11`;await mkdir(dir,{recursive:true});
       const {data}=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);
       await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(data,'base64'));
     };
@@ -134,7 +135,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
       await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').focus()");
       if(theme==='dark')await capture('feed-editor-dark');
     }
-    await writeFile(`${process.env.MOLIS_CONTENT_CAPTURE || '.impeccable/review/continuous-v11'}/feed-focus-${width}.json`,JSON.stringify(focusEvidence,null,2));
+    await writeFile(`${process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/continuous-v11`}/feed-focus-${width}.json`,JSON.stringify(focusEvidence,null,2));
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
     await openPlugin('sessions');

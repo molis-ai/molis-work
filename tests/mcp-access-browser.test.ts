@@ -10,8 +10,9 @@ import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/a
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { hostActionToolName } from "../apps/local-host/src/mcp-action-grants.js";
 import { readMcpToolPreference } from "../apps/local-host/src/mcp-settings-store.js";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
-const artifacts = ".impeccable/review/action-service/mcp-access";
+const artifacts = `${REVIEW_EVIDENCE}/action-service/mcp-access`;
 const row = (id: string) => `[data-grant-row*=${JSON.stringify(id)}]`;
 
 test("MCP access UI saves real grants, drives standard MCP calls, handles lost responses and keeps lifecycle failures visible", { timeout: 100_000 }, async t => {

@@ -7,6 +7,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { saveJellyModelSettings, readJellyModelSettings, createJellyCompletion } from "../apps/local-host/src/jelly-model.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
   test(`configured model ${width}px: Lingguang replies and Jelly repairs a retained disconnected selection`, { timeout: 45_000 }, async t => {
@@ -65,7 +66,7 @@ for (const width of [1440, 390]) {
     await waitFor("document.querySelector('[data-jelly-model-status]')?.textContent.includes('选择仍保留')");
     assert.equal(await evaluate("document.querySelector('[data-jelly-provider=a]').getAttribute('aria-pressed')"), "true");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-    const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+    const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(new URL(`model-disconnected-${width}.png`, output), Buffer.from(shot.data, "base64"));
     await click('[data-jelly-dialog-ok]');

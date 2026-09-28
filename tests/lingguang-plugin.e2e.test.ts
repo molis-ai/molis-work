@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、带上下文的头脑风暴", { timeout: 90_000 }, async (t) => {
   const prompts: string[] = [];
@@ -153,7 +154,7 @@ for (const width of [1440, 390]) {
     assert.equal(await evaluate("document.querySelector('[data-lingguang-messages]').lastElementChild.querySelector('strong').textContent"), "灵光");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     const { mkdir, writeFile } = await import("node:fs/promises");
-    const output = new URL("../.impeccable/review/action-service/", import.meta.url);
+    const output = reviewEvidenceUrl("action-service/");
     await mkdir(output, { recursive: true });
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(new URL(`lingguang-dialogue-${width}.png`, output), Buffer.from(screenshot.data, "base64"));

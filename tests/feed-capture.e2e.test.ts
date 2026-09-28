@@ -9,6 +9,7 @@ import { DEMO_BOARD_ID, molisWorkHostProjectReference, createLocalFeedApplicatio
 import { feedCaptureScene } from "@molis-ai/molis-work-plugin-feed";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("Feed discovers an installed plugin judgment, previews without admission, saves and really consumes it on desktop and narrow screens", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null); if (!b) return;
@@ -76,10 +77,10 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await waitFor(`!document.querySelector('[data-feed-sources-dialog]')?.hidden && !document.querySelector('[data-feed-task-config="${source.source_id}"]')?.hidden`);
     await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await waitFor("document.documentElement.scrollWidth <= innerWidth + 1");
-    await mkdir(new URL("../.impeccable/review/feed-capture/", import.meta.url), { recursive: true });
+    await mkdir(reviewEvidenceUrl("feed-capture/"), { recursive: true });
     await evaluate(`document.querySelector('${section} [data-feed-out-rule-row]').scrollIntoView({ block: 'center', behavior: 'instant' })`);
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
-    await writeFile(new URL("../.impeccable/review/feed-capture/unavailable-narrow.png", import.meta.url), Buffer.from(screenshot.data, "base64"));
+    await writeFile(reviewEvidenceUrl("feed-capture/unavailable-narrow.png"), Buffer.from(screenshot.data, "base64"));
   } catch (error) {
     t.diagnostic(await evaluate(`JSON.stringify({ section: document.querySelector('${section}')?.innerText, busy: document.querySelector('${section} [data-feed-rule-composer]')?.getAttribute('aria-busy') })`));
     t.diagnostic(JSON.stringify(feed.listOutRules(DEMO_BOARD_ID).filter(rule => rule.match.source_id === source.source_id)));

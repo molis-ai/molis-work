@@ -9,6 +9,7 @@ import { inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@
 import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService } from "../apps/local-host/src/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("Inbox shows and runs an installed plugin judgment, then withdraws advice while preserving its stopped binding and history", { timeout: 90000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
@@ -66,7 +67,7 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     assert.ok((await localHost.sceneClient(reference).usages(caller)).some(usage => usage.function.capability_id === definition.capability_id && !usage.availability.available));
     assert.ok(withFunctionsService(homeDirectory, service => service.listJudgments()).some(record => record.judgment_id === history[0]!.judgment_id));
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth + 1"), true);
-    const dir = new URL("../.impeccable/review/inbox-current/", import.meta.url); await mkdir(dir, { recursive: true });
+    const dir = reviewEvidenceUrl("inbox-current/"); await mkdir(dir, { recursive: true });
     await writeFile(new URL("unavailable-narrow.png", dir), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   } finally { await runtime.stop(installed.install_id); }
 });

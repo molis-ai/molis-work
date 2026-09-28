@@ -193,6 +193,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       if (dockWindow && dockWindow.hidden) document.querySelector('[data-dock-toggle="' + dockWindow.dataset.dockWindow + '"]')?.click();
       const rail = element.closest('.plugin-rail-items');
       if (rail && !element.getClientRects().length && !rail.classList.contains('is-tools-open')) rail.querySelector('[data-rail-tools-toggle]')?.click();
+      // A Goal tab opens on its Frame; its workspace (directory, records, timeline) is behind 打开工作区.
+      const goalWork = element.closest('[data-goal-node-workspace], [data-goal-event-document], [data-goal-stage-list]');
+      const workEntry = [...document.querySelectorAll('[data-frame-goal-work]')].find(button => button.getClientRects().length);
+      if (goalWork && !element.getClientRects().length && workEntry) workEntry.click();
       const sourceRail = element.closest('[data-feed-source-rail]');
       if (sourceRail && !sourceRail.getClientRects().length) sourceRail.parentElement?.querySelector('[data-feed-rail-toggle]')?.click();
       const menu = element.closest('details:not([open])');
@@ -243,6 +247,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window, detail: 2 }));
     })()`);
   }
+  /** Open the current Goal tab's workspace view, the way a person clicks 打开工作区 on its Frame. */
+  async function openGoalWork() {
+    await evaluate(`[...document.querySelectorAll('[data-frame-goal-work]')].find(button => button.getClientRects().length)?.click()`);
+    await waitFor("Boolean(document.querySelector('[data-goal-node-workspace]')?.getClientRects().length) && Boolean(document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal)");
+  }
   async function showGoalStageList() {
     await evaluate(`(() => {
       document.querySelector('[data-plugin-strip] [data-plugin-id="goals"]')?.click();
@@ -250,5 +259,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     })()`);
     await waitFor("document.querySelector('[data-goal-canvas-shell]') && !document.querySelector('[data-goal-canvas-shell]').hidden && document.querySelector('[data-goal-stage-chrome] [data-open-create]')?.getBoundingClientRect().width > 0");
   }
-  return { store, localHost, databasePath, origin, before, sessionId, command, evaluate, waitFor, click, openGoalFrame, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, databasePath, origin, before, sessionId, command, evaluate, waitFor, click, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

@@ -1,4 +1,4 @@
-import type { ActionAvailability, ActionCallContext, ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withActionEffect, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyItem, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { runJellyAi, type JellyAiInput, type JellyAiPorts } from "./ai.js";
 import { jellyOccurrences, jellyProgress } from "./calendar.js";
@@ -31,8 +31,10 @@ export const jellyActions = {
   search: define<{ query: string }, { revision: number; items: (JellyItem | JellySeries)[]; notes: JellyWorkspace["notes"]; inspirations: JellyWorkspace["inspirations"] }>("search", "搜索 Jelly 内容", "搜索日历标题与随记、未归档笔记和灵感原文", "query", s.object({ query: { ...s.id, pattern: "\\S" } }), s.object({ revision: s.revision, items: s.array({ anyOf: [s.item, s.series] }), notes: s.array(s.note), inspirations: s.array(s.inspiration) })),
   exportNote: define<{ id: string; format?: "markdown" | "html" }, { content: string; filename: string; mime: string }>("note.export", "导出笔记正文", "将一篇笔记导出为 Markdown 或 HTML", "query", s.object({ id: s.id, format: { enum: ["markdown", "html"] } }, ["id"]), s.object({ content: s.text, filename: s.text, mime: s.text })),
   previewImport: define<{ source: unknown }, { preview: JellyPreview }>("workspace.import_preview", "预览 Jelly 备份导入", "校验完整备份，保存与来源及当前版本绑定的确认凭证；不导入内容", "command", s.object({ source: s.importSource }), s.object({ preview: s.preview })),
-  previewNoteDelete: define<{ id: string }, { preview: JellyPreview }>("note.delete_preview", "预览笔记永久删除", "要求笔记已归档；列出关联影响并保存确认凭证", "command", s.object({ id: s.id }), s.object({ preview: s.preview })),
-  previewInspirationDelete: define<{ id: string }, { preview: JellyPreview }>("inspiration.delete_preview", "预览灵感永久删除", "要求灵感已归档；保留已生成的笔记并保存确认凭证", "command", s.object({ id: s.id }), s.object({ preview: s.preview })),
+  // Saves a confirmation token; the deletion itself is the separate delete action.
+  previewNoteDelete: withActionEffect(define<{ id: string }, { preview: JellyPreview }>("note.delete_preview", "预览笔记永久删除", "要求笔记已归档；列出关联影响并保存确认凭证", "command", s.object({ id: s.id }), s.object({ preview: s.preview })), "write", false),
+  // Saves a confirmation token; the deletion itself is the separate delete action.
+  previewInspirationDelete: withActionEffect(define<{ id: string }, { preview: JellyPreview }>("inspiration.delete_preview", "预览灵感永久删除", "要求灵感已归档；保留已生成的笔记并保存确认凭证", "command", s.object({ id: s.id }), s.object({ preview: s.preview })), "write", false),
   manualPlan: define<AiInput, AiResult>("plan.manual", "按原文逐行拆解", "将原文逐行形成待采纳任务，不使用模型，不写入笔记或日历", "query", aiInput, planOutput),
   modelPlan: define<AiInput, AiResult>("plan.generate", "模型拆解行动计划", "根据原文或笔记选区生成待采纳任务；不自动写入或执行任务", "command", aiInput, planOutput, [...JELLY_READ, "model:invoke"], "concurrent"),
   digest: define<AiInput, AiResult>("inspiration.summarize", "提炼素材摘要", "保留逐条证据；灵感来源在生成结束后重新检查原文和素材，再保存摘要", "command", aiInput, s.object({ digest: s.digest, state: s.workspace }, ["digest"]), [...JELLY_WRITE, "model:invoke"], "concurrent"),

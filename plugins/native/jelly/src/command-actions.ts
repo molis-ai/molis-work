@@ -1,4 +1,4 @@
-import type { ActionDefinition, ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import type { JellyStore } from "./store.js";
 import * as s from "./action-schema.js";
@@ -46,7 +46,8 @@ export const jellyCommandActions = {
   "inspiration.digest_write": command("inspiration.digest_write", "将素材摘要写入笔记", { id: s.id, note_id: s.id }, ["id"]),
   "relation.attach": command("relation.attach", "关联日历事项与笔记", s.relationFields, ["owner_id", "note_id"]),
   "relation.detach": command("relation.detach", "解除日历事项与笔记关联", s.relationFields, ["owner_id", "note_id"]),
-  "relation.reset": command("relation.reset", "恢复重复实例的笔记关联", { owner_id: s.id, original_date: s.date }),
+  // Restores the recurring note relation; nothing is lost.
+  "relation.reset": withActionEffect(command("relation.reset", "恢复重复实例的笔记关联", { owner_id: s.id, original_date: s.date }), "write", false),
   "item.notes_to_note": command("item.notes_to_note", "将事项随记迁入笔记", { owner_id: s.id, original_date: s.nullable(s.date), mode: { enum: ["new", "append"] }, note_id: s.id }, ["owner_id", "mode"]),
   "task.schedule": command("task.schedule", "将笔记任务排入日历", { ...task, schedule: s.schedule, category_id: s.id, priority: s.priority }, ["note_id", "block_id", "schedule"]),
   "task.complete": command("task.complete", "完成或重开笔记任务", { ...task, completed: s.boolean, completion_description: s.text }, ["note_id", "block_id", "completed"]),

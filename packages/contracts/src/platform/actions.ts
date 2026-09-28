@@ -131,6 +131,14 @@ export type ActionAvailability = { readonly available: true } | {
   readonly reason: string;
 };
 
+/**
+ * Declare an action's real effect where its id would be misread by `actionEffect` (a "delete_preview" deletes
+ * nothing; a trash can be restored). `plugin: false` keeps an existing exclusion from generated plugins explicit.
+ */
+export function withActionEffect<D extends ActionDefinition<any, any>>(definition: D, effect: NonNullable<ActionMetadata["effect"]>, plugin?: false): D {
+  return { ...definition, action: { ...definition.action, effect, ...(plugin === false ? { plugin } : {}) } };
+}
+
 const IRREVERSIBLE_ID = /(?:^|[._-])(delete|trash|purge|destroy|erase|wipe|reset|uninstall|remove)(?:$|[._-])/u;
 /** An action's effect as declared, or inferred: queries and navigation read; deleting-like ids cannot be undone; the rest write. */
 export function actionEffect(action: Pick<ActionMetadata, "kind" | "effect">, capabilityId: string): "read" | "write" | "irreversible" {

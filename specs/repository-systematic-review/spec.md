@@ -50,12 +50,12 @@
 | W3 | 契约、注册、发现与接入遗漏（动作目录、MCP、端口、生命周期） | 完成（F-03、F-21、F-23、F-24；端口按 D-04） |
 | W4 | 模块边界与代码归属（Host 平铺、Coding 路由、越界读取） | 进行中（F-18 完成；F-19 待做） |
 | W5 | AI 能力与 Prologue 专项（入口清单、共享/下沉判断） | 进行中（F-04 完成；F-15 待 SDK 线） |
-| W6 | 前端质感与动线（真实界面） | 待开始 |
+| W6 | 前端质感与动线（真实界面） | 完成：基线浏览器失败涉及的动线逐一在隔离预览实操（1440/1024/756/601/390，含深色截图用例）；修 F-26～F-34 |
 | W7 | 清理：死代码、旧入口、旧文档、旧 spec、vendor | 进行中（F-12、F-13、F-20 完成；F-14 部分；F-17 待用户） |
 | W8 | 测试与预期对齐、CI 门禁恢复 | 完成（基线失败逐项对齐；F-08 合同子集进 CI） |
 | W9 | Prologue AI 开发手册、Prologue AI Skill、插件开发 Skill 更新与走查 | 完成 |
 | W9b | 用户 2026-09-27 补充：每个模块都有开发手册、开发规范与要求（落在各包 README 的「开发要求」一节：负责与不负责、公开入口、允许依赖、不变量、改动后必跑测试、相关手册/Skill；事实部分从代码提取，不变量逐包手写），并由门禁守住存在与链接有效 | 完成：69 个 README 都有这一节；写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`；门禁 `scripts/package-dev-requirements.mjs` 挂在 `pnpm boundary:check`（依赖与 package.json 双向一致、测试与链接存在），自身有允许/拒绝用例 |
-| W10 | 整体回归、最终交付 | 待开始 |
+| W10 | 整体回归、最终交付 | 进行中 |
 
 ## 6. 验收
 
@@ -119,6 +119,16 @@
 | F-23 | S3 | Workbench 按插件 id 分支把 Agent 提示词正文配给 Coding、创作台、Schedule；新插件声明了提示词却没有正文时不报错，Agent 以空角色启动 | `plugin-catalog.ts` 的三元分支 | 正文与声明分在两处，靠名单连接 | 正文随目录条目的 `agent` 声明；新增 `builtin-plugin-agent-texts` 门禁（提示词、压缩提示词、方法都要有正文；突变验证能抓到缺失） | 已完成 |
 | F-24 | S3 | 动作 `effect` 按 id 推断：`delete_preview`（只存确认凭证）、`goals.trash.set`（可恢复）、`relation.reset`、`sample.remove` 被当成不可撤销 | 目录导出 | 名字推断没有覆盖这些语义 | `withActionEffect` 显式声明为写，并保持原本不进生成插件（`plugin: false`） | 已完成 |
 | F-25 | S4 | 插件创作台 README 仍只写“解释器 v1”模式，没写 Agent 写代码、Local Host 构建检查与沙箱试跑 | README 与 `apps/local-host/src/plugin-builder/build-checks.ts` 对照 | 合入后文档未回写 | 已写进该包「开发要求」；README 正文待创作台负责人补一段 | 在途 |
+| F-26 | S2 | 首页：常驻今天的前一天事项只显示「23:18」；「此刻」线用字符串比时:分而画在昨天那条之前；30 秒刷新遇上在途请求不重绘，跨午夜日期要等请求返回才翻 | 预览实测（凌晨 02:09）；基线失败 project-home-start「跨午夜」 | 标签与时间比较只按时:分；刷新早退 | 跨天带日期、按时间戳画「此刻」、在途时先按当前时间重绘；单测 + 浏览器用例 | 已完成 |
+| F-27 | S1 | Feed 添加来源时计划保存失败：抛 ReferenceError，错误不显示、按钮永久禁用，来源已建却无法重试 | 预览复现；基线失败 product-interaction「recovers a failed schedule」 | b2fc65f3 删掉 `let phase` 却留下引用；客户端脚本是字符串片段，类型检查看不到 | 去掉失效引用；另见 F-35 | 已完成 |
+| F-28 | S3 | Feed 来源面板里「拉取频率」下拉 28px，旁边输入框 40px；设计系统与工作台还留着 22 行只对旧 `<dialog>` 生效的样式 | 预览实测 | 弹窗改为工作面面板后旧样式失效 | 下拉尺寸由 Feed 样式给出（保留箭头）；删除失效样式 | 已完成 |
+| F-29 | S2 | 底栏右侧 Shelf、灵光在 756px 被压到 18px 宽；直接改成不收缩又与聊天按钮重叠 | 预览实测 601/756/1024/1440 | 右列最小宽 160/136px 小于内容 182px | 右列至少等于内容宽度，中列最小 240→200；四档实测无重叠、无横向滚动 | 已完成 |
+| F-30 | S2 | 分屏时切走的标签 iframe 被删除，切回整页重载，展开、滚动、未保存输入丢失 | 基线失败 workbench-pane-feed「related Goal」 | 帧只按激活标签保留 | 隐藏保留，最多 4 个按最近使用淘汰 | 已完成 |
+| F-31 | S2 | 在 Goal 工作区目录里切到另一个 Goal，内容和地址变了，标签名与记录仍是原 Goal，刷新或切回会跳回 | 预览实测 | 标签系统未接 `molis-work:goal-changed` | 已有该 Goal 的标签就切过去，否则当前标签改指；不重复加载文档 | 已完成 |
+| F-32 | S2 | 在「归档」「回收站」分组里点 Goal 没有任何反应 | 预览实测 | selectGoal 在当前集合找不到就静默返回 | 整页打开它的页面（与直接打开链接一致）；浏览器用例覆盖 | 已完成 |
+| F-33 | S2 | 紧凑刷新失败后的整页回退每次都失败，目录停在旧数据且无任何提示 | 基线失败 goals-refresh「falls back」；捕获到被吞掉的「页面数据不完整」 | 回退要求已退役的 `[data-tree-footer]`；刷新里空 `catch` | 前置检查只要求目录与文档；空 catch 改为控制台警告 | 已完成 |
+| F-34 | S2 | 390×500 下 Goal 记录表单字段区只剩 45px，输入框被截 | 预览实测；基线失败 goal-form-viewport 390×500 | 底部操作条双重留白；矮窗口仍显示说明 | 去掉内层留白；高度 ≤560px 收起说明；字段区 95px | 已完成 |
+| F-35 | S3 | 工作台客户端脚本是拼接的字符串片段，TypeScript 看不到里面，删掉声明漏改引用只在出错分支才炸（F-27） | 代码 | 历史上为避免打包而用字符串 | 候选门禁：对拼接后的 `CLIENT_SCRIPT` 做「未声明标识符」检查，页面全局列白名单；原型在做 | 在途 |
 
 ### 基线失败的分类与处理（非浏览器，2834 项中 57 个失败）
 
@@ -149,6 +159,27 @@
 | work-terminal-client | 环境：xterm 6 的 UMD 主入口在 Node 下取不到具名导出（浏览器打包走 ESM） | 命名空间导入兼容两边 |
 | images-concurrency、alchemist-host-lifecycle | 测试拓扑过时 F-16 | 重写中 |
 
+### 基线失败的分类与处理（浏览器，171 项中 36 个失败）
+
+逐组在隔离预览（示例项目）里实操到当前界面后再改；「预期变化」都给出了依据的 spec 或提交。
+
+| 用例（文件） | 归类 | 处理 |
+| --- | --- | --- |
+| continuous-surfaces ×3、low-viewport ×2、product-interaction ×2、global-ui-interaction、project-user-journey 1440、goals-navigation（来源） | 预期变化（specs/feed-source-workbench：添加来源进来源栏、弹窗改工作面）+ 实现缺陷 F-27、F-28 | 夹具像人一样展开窄屏来源抽屉；按面板判断开合、来源栏按钮判断选中；修两处缺陷 |
+| project-settings-navigation ×3 | 预期变化（1348b3dd 新首次使用页，出口为「稍后再说」/「返回项目」） | 选择器改为 `#cx-exit`，行为一致 |
+| project-home-start | 实现缺陷 F-26 | 修复 + 按 craft-finish 更新一条几何断言 |
+| goals-document ×3、goals-navigation、goals-refresh ×2、goals-records、goals-storage-migration | 预期变化（specs/frame-task-navigation：Goal 先进 Frame 标签，工作区是内层视图）+ 实现缺陷 F-31、F-32、F-33 | 夹具与用例先「打开工作区」；阅读层「返回」回到触发处；单击过双击判定窗口再断言；修三处缺陷 |
+| goal-kanban、goal-canvas-workspace | 预期变化（共享侧栏宽度令牌；纸面留 8px 桌面、手机铺满） | 断言改为对齐令牌与纸面 |
+| goal-form-viewport 390×500 | 实现缺陷 F-34 | 修复 |
+| workbench-pane-feed（关联 Goal） | 实现缺陷 F-30 | 修复 |
+| cross-plugin-recovery | 预期变化（Shelf 在底栏）+ 实现缺陷 F-29 + 测试时序（编辑框异步出现） | 按底栏量入口；修复；等编辑框出现 |
+| coding-workbench | 预期变化（新增「能力」入口；窄屏目录抽屉退役） | 计数 5→6；去掉抽屉点击 |
+| configured-text ×2 | 预期变化（文字生成改经 Prologue，按流式请求）+ 测试缺陷（测试与宿主各加载一份推理绑定） | 替身回 SSE；从宿主构建产物导入 |
+| long-content-viewport ×2 | 预期变化（Inbox「完成」就地处理） | 不再等待导航 |
+| project-user-journey 390 | 预期变化（目录抽屉退役）+ 测试时序（标记已读是独立请求） | 断言底栏插件选择；有上限地等已读落库 |
+| immersive-directory | 预期变化（第四轮退役左轨、项目岛、Dock；Feed 消息改阅读列表） | 删除针对退役外壳的断言（现行底栏由同文件第二个用例覆盖），列表断言全部保留 |
+| shelf-dropagent-parity（只在 r1 失败） | 实现缺陷（CLI 探测缓存） | ad74f76b |
+
 ## 9. 待决事项（需用户决定）
 
 | 编号 | 事项 | 方案与取舍 | 建议 | 负责 |
@@ -167,3 +198,6 @@
 - 2026-09-27 第一轮修复后回归（r1）：非浏览器 2847 项，2842 通过、2 失败（Pages 初版修法与 F2 合同冲突，已重做；安装用例因回归期间改了 `skills/` 而比对失败，单独重跑通过，规则已写进 AGENTS.md）、3 跳过。浏览器 166 项，127 通过、35 失败（基线 171 项，131 通过、36 失败）；失败文件与基线一致，只多出 `shelf-dropagent-parity`（CLI 探测缓存，ad74f76b 已修）、少了 `chrome-inner-scroll` 与 `immersive-workbench`。
 - 2026-09-28 变基到 main（含 #89）后定向：Pages/动作/目录/门禁 43/43；effect 与 Skill 相关 84/84；内核与工作流 52/52；门禁单测 4/4；F-23 门禁突变（删去 Schedule 正文）确认会失败。
 - 2026-09-28 CI 子集：干净克隆按 CI 步骤（冻结安装 → `pnpm workspace:verify` → `pnpm test:contracts`）两遍均 108/108，子集约 48 秒。
+- 2026-09-28 包级「开发要求」所列测试合并跑：211 个文件、1137 项，1134 通过；2 项计时用例（飞书 CLI 状态 3 秒超时、Shelf CLI 探测）只在满载时超时，单独重跑通过，Shelf 用例已改为 `exec` 消除遗留子进程。
+- 2026-09-28 浏览器失败逐组修复后定向（每组修完即跑，均为本工作树构建）：project-settings-navigation 3/3、product-interaction 5/5、global-ui-interaction 3/3、low-viewport 2/2、continuous-surfaces 3/3、project-home-start 4/4、project-user-journey 2/2、cross-plugin-recovery 3/3、coding-workbench 1/1（连续两遍）、configured-text 2/2、long-content-viewport 2/2、workbench-pane-feed 3/3 及标签/分屏相关 10 项、goals-document 4/4、goals-navigation 3/3、goals-refresh 3/3、goals-records 1/1、goal-kanban 2/2、goal-canvas-workspace 1/1、goal-form-viewport 2/2、goals-storage-migration 1/1、immersive-directory 2/2。
+- 2026-09-28 界面实测（隔离预览，示例项目）：底栏 601/756/1024/1440 四档按钮尺寸与重叠；首页凌晨跨天标签与「此刻」位置；Feed 来源面板控件高度；Goal 标签随工作区选择切换（两种分支）；归档 Goal 从分组打开；390×500 记录表单字段区。

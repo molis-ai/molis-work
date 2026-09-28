@@ -7,7 +7,7 @@ import { insertHistoricalRisk } from "./historical-sql-fixture.js";
 test("Goal description keeps risk links and hash targets usable through real navigation", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, navigate, reloadPage } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, navigate, reloadPage, openGoalWork } = browser;
   const description = "用户接入 Runtime 后没有新开会话，误以为安装失败";
   insertHistoricalRisk(store.db, {
     risk_id: "RISK-FIRST-RESTART",
@@ -30,6 +30,7 @@ test("Goal description keeps risk links and hash targets usable through real nav
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   const riskVisible = "(() => { const e = document.getElementById('risk-RISK-FIRST-RESTART'); return Boolean(e && e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().height > 0 && !e.closest('[hidden]')); })()";
   await navigate(() => command("Page.navigate", { url: origin + "/goals/RELEASE#risk-RISK-FIRST-RESTART" }, sessionId));
+  await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
   await waitFor(riskVisible);
   assert.equal(await evaluate(`document.querySelector('[data-goal-factor-tab="risks"]').getAttribute("aria-selected")`), "true");
   assert.match(await evaluate<string>("document.querySelector('#risk-RISK-FIRST-RESTART')?.textContent || ''"), new RegExp(description.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));

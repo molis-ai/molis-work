@@ -45,6 +45,8 @@ export interface BuiltinPluginEntry {
   personal?: boolean;
   /** Market card copy. Presence means this Plugin is listed in the built-in market. */
   summary?: string;
+  /** Prompt bodies and methods for the Manifest's `agent` block; the package ships them, never the Manifest. */
+  agent?: { readonly prompts: readonly AgentPromptText[]; readonly skills?: readonly AgentSkillDefinition[] };
 }
 
 export interface PluginMarketCard {
@@ -58,14 +60,14 @@ export interface PluginMarketCard {
 
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   { project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, manifest: cogniaManifest, personal: true, summary: "导入本地知识，保留来源，整理为可追溯的知识。" },
-  { project_plugin_id: "plugin-builder", manifest: builderManifest, personal: true, summary: "用自然语言设计、构建并使用自己的插件。" },
+  { project_plugin_id: "plugin-builder", manifest: builderManifest, personal: true, summary: "用自然语言设计、构建并使用自己的插件。", agent: { prompts: builderPrompts } },
   { project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, manifest: imagesManifest, personal: true, summary: "连接生图服务，描述图片，预览并保存生成结果。" },
   { project_plugin_id: JELLY_PROJECT_PLUGIN_ID, manifest: jellyManifest, personal: true, summary: "安排事项、写笔记、收集灵感，把想法放进每天。" },
   { project_plugin_id: "experiments", manifest: experimentsManifest, personal: true, summary: "同一任务，独立比较模型的判断、耗时与成本。" },
   { project_plugin_id: GOALS_PROJECT_PLUGIN_ID, manifest: goalsManifest, summary: "确定目标，推进工作，留下结果。" },
   { project_plugin_id: WORK_PROJECT_PLUGIN_ID, manifest: workManifest, summary: "回到你的会话，继续正在做的事。" },
   { project_plugin_id: INBOX_PROJECT_PLUGIN_ID, manifest: inboxManifest, summary: "只看需要你介入的事项。" },
-  { project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, manifest: scheduleManifest, summary: "到点跑自己的对话任务，也叫醒其他插件的闹钟。" },
+  { project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, manifest: scheduleManifest, summary: "到点跑自己的对话任务，也叫醒其他插件的闹钟。", agent: { prompts: schedulePrompts } },
   { project_plugin_id: FEED_PROJECT_PLUGIN_ID, manifest: feedManifest, summary: "查看来源消息和完整流水。" },
   { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true, summary: "把文件放到置物架，处理副本，原件不动。" },
   { project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, manifest: lingguangManifest, personal: true, summary: "先记下还没想清楚的想法，再决定留下或丢掉。" },
@@ -77,7 +79,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   { project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID, manifest: alchemistManifest, personal: true, summary: "写下方向，炼成可比较的卡，再决定做不做。" },
   { project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID, manifest: workflowsManifest, personal: true, summary: "把已有插件按顺序串成一件可以做完的事。" },
   { project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, manifest: artifactsManifest, summary: "打开项目成果，查看保留下来的版本。" },
-  { project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest, summary: "围绕代码讨论、执行和审查，保留连续的任务记录。" },
+  { project_plugin_id: CODING_PROJECT_PLUGIN_ID, manifest: codingManifest, summary: "围绕代码讨论、执行和审查，保留连续的任务记录。", agent: { prompts: codingPrompts, skills: codingMethods } },
   { project_plugin_id: FILES_PROJECT_PLUGIN_ID, manifest: filesManifest, summary: "查看工作区文件与保留的内容。" },
   { project_plugin_id: GIT_PROJECT_PLUGIN_ID, manifest: gitManifest, summary: "查看工作区的版本与变更。" },
   { project_plugin_id: DIFF_PROJECT_PLUGIN_ID, manifest: diffManifest, summary: "比较固定版本，逐项阅读差异。" },
@@ -290,12 +292,8 @@ export const BUILTIN_PLUGIN_AGENTS: ReadonlyMap<string, {
   BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
     const agent = entry.manifest.agent;
     if (agent === undefined) return [];
-    const prompts = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID
-      ? codingPrompts
-      : entry.project_plugin_id === "plugin-builder" ? builderPrompts : entry.project_plugin_id === SCHEDULE_PROJECT_PLUGIN_ID
-        ? schedulePrompts
-        : [];
-    const skills = entry.project_plugin_id === CODING_PROJECT_PLUGIN_ID ? codingMethods : [];
+    const prompts = entry.agent?.prompts ?? [];
+    const skills = entry.agent?.skills ?? [];
     return [[entry.manifest.plugin_id, { manifest: agent, prompts, skills }] as const];
   }),
 );

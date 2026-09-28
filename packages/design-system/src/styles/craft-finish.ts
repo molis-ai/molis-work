@@ -754,7 +754,8 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
-    ${SHELL} .bar-composer:focus-within :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button) { display: none; }
+    /* Only while typing: focusing the switcher or a chip must keep it on screen. */
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button) { display: none; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }

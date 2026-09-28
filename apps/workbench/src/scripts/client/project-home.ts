@@ -161,12 +161,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         '<button type="button" class="mw-btn mw-btn--ghost home-start-browse" data-home-start="market">' + L('浏览更多工具') + ico('arrow') + '</button></div></div>');
       return;
     }
-    const nowLabel = homeFlow.clockLabel(new Date());
+    const nowAt = Date.now(), nowLabel = homeFlow.clockLabel(new Date(nowAt));
+    const nowLine = '<div class="home-tl__now"><b></b><i></i><em><u></u><span>' + L("此刻") + " " + nowLabel + "</span></em></div>";
     let html = "";
     let nowDrawn = false;
     list.forEach((event, index) => {
-      if (day?.today && !nowDrawn && event.when > nowLabel) {
-        html += '<div class="home-tl__now"><b></b><i></i><em><u></u><span>' + L("此刻") + " " + nowLabel + "</span></em></div>";
+      if (day?.today && !nowDrawn && event.at > nowAt) {
+        html += nowLine;
         nowDrawn = true;
       }
       html += '<button class="home-erow' + (index === 0 ? " is-first" : "") + (index === list.length - 1 ? " is-last" : "") + '"' +
@@ -181,6 +182,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         '<span class="home-erow__src">' + ico(event.icon) + esc(event.origin.title) + "</span>" +
         "</button>";
     });
+    // Everything today has already happened: "now" comes after the last of it.
+    if (day?.today && !nowDrawn) html += nowLine;
     paint(html);
     $$("[data-home-open-event]").forEach((btn) => btn.classList.toggle("is-on", btn.dataset.homeOpenEvent === eventId));
   };
@@ -287,7 +290,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   });
   addEventListener("resize", () => { if (home.dataset.dock === "open") placeTalk(); });
   const sync = () => {
-    if (syncInFlight) { refreshAgain = true; return syncInFlight; }
+    // A request still in flight must not hold the clock: the day turns over now, events follow when they arrive.
+    if (syncInFlight) { refreshAgain = true; render(); return syncInFlight; }
     syncInFlight = (async () => {
       do {
         refreshAgain = false;

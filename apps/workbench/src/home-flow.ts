@@ -11,6 +11,11 @@ export function createHomeFlow() {
     return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
   }
   function clockLabel(date: Date) { return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0"); }
+  /** An event shown on a day other than the one it happened on carries its own date, so "23:18" never reads as tonight. */
+  function whenLabel(date: Date, shownOn: string, locale?: string) {
+    return civilKey(date) === shownOn ? clockLabel(date)
+      : new Intl.DateTimeFormat(locale || "zh-CN", { month: "numeric", day: "numeric" }).format(date) + " " + clockLabel(date);
+  }
   function buildHomeDays(now: Date, locale?: string): HomeFlowDay[] {
     return Array.from({ length: 7 }, (_, index) => {
       const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + index - 3);
@@ -30,7 +35,7 @@ export function createHomeFlow() {
       const occurredDay = civilKey(date);
       const day = event.placement === "today" || (event.placement === "active" && !days.has(occurredDay)) ? today : occurredDay;
       if (!days.has(day)) return [];
-      return [{ ...event, day, when: clockLabel(date), at: date.getTime(), kind: event.category === "organization" ? "org" as const : "me" as const,
+      return [{ ...event, day, when: whenLabel(date, day, input.locale), at: date.getTime(), kind: event.category === "organization" ? "org" as const : "me" as const,
         plugin: event.origin.surface, icon: event.origin.icon, lead: event.summary, text: event.content }];
     }).sort((left, right) => left.at - right.at || left.id.localeCompare(right.id));
   }

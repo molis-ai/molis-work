@@ -41,59 +41,30 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   // Pin the viewport to the regression scenario so geometry does not depend on the host window size.
   await command('Emulation.setDeviceMetricsOverride', { width: 756, height: 469, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  // Scroll the Shelf entry into view inside the rail so the hit-test reflects the click path.
-  await evaluate(`(() => {
-    const el = document.querySelector('[data-plugin-strip] [data-plugin-id=shelf]');
-    if (el) el.scrollIntoView({ block: 'center', inline: 'center' });
-  })()`);
-  const layout = await evaluate(`(() => {
-    const rect = (el) => el ? (() => { const r = el.getBoundingClientRect(); return { x:r.x, y:r.y, w:r.width, h:r.height, top:r.top, bottom:r.bottom }; })() : null;
-    const stack = document.querySelector('.plugin-stack');
-    const items = document.querySelector('.plugin-rail-items');
-    const footer = document.querySelector('.personal-sidebar-footer');
-    const shelf = document.querySelector('[data-plugin-strip] [data-plugin-id=shelf]');
-    const itemsStyle = items ? getComputedStyle(items) : null;
-    const shelfRect = rect(shelf);
-    const itemsRect = rect(items);
-    const footerRect = rect(footer);
-    const hit = shelfRect ? document.elementFromPoint(shelfRect.x + shelfRect.w/2, shelfRect.y + shelfRect.h/2) : null;
-    const hitsShelf = !!(hit && (hit === shelf || (hit.closest && hit.closest('[data-plugin-strip] [data-plugin-id=shelf]'))));
-    return {
-      viewport: { w: innerWidth, h: innerHeight },
-      stack: rect(stack),
-      items: itemsRect,
-      footer: footerRect,
-      shelf: shelfRect,
-      shelfInsideItems: !!(shelf && items && shelfRect.bottom <= itemsRect.bottom + 1),
-      itemsScroll: items ? { scrollTop: items.scrollTop, scrollHeight: items.scrollHeight, clientHeight: items.clientHeight, overflowY: itemsStyle ? itemsStyle.overflowY : null } : null,
-      shelfHeight: shelfRect ? shelfRect.h : null,
-      hitTag: hit ? hit.tagName.toLowerCase() : null,
-      hitClosestRailItem: hit ? !!hit.closest('.plugin-rail-item, .personal-sidebar-footer, [data-plugin-id]') : null,
-      hitsShelf
-    };
+  // craft-finish round 4: Shelf is a resident button at the right of the bottom bar, not an item in a left rail.
+  // At this short, narrow window it must still be a whole, uncovered 32px+ target inside the viewport.
+  const layout = await evaluate<any>(`(() => {
+    const shelf = document.querySelector('.workbench-bar [data-bar-resident=shelf]');
+    const r = shelf?.getBoundingClientRect();
+    const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
+    const neighbours = [...document.querySelectorAll('.workbench-bar :is([data-bar-resident], .bar-chat, .bar-composer)')].filter(e => e !== shelf && e.getClientRects().length)
+      .map(e => e.getBoundingClientRect()).filter(n => r && n.left < r.right && n.right > r.left && n.top < r.bottom && n.bottom > r.top).length;
+    return { viewport: { w: innerWidth, h: innerHeight }, shelf: r ? { w: r.width, h: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null,
+      hitsShelf: !!(hit && shelf.contains(hit)), hitTag: hit?.tagName.toLowerCase(), neighbours };
   })()`);
   assert.equal(layout.viewport.w, 756);
   assert.equal(layout.viewport.h, 469);
-  // The rail lives inside the 48px-wide column; the middle .plugin-rail-items must be tall enough
-  // to expose at least one fully-sized entry, otherwise users can scroll past it but never click it.
-  const itemHeight = layout.items?.h ?? 0;
-  assert.ok(itemHeight >= layout.shelfHeight - 1,
-    `plugin-rail-items must fit at least one Shelf button (got ${itemHeight} vs button ${layout.shelfHeight})`);
-  // No overlap: the footer must start below the rail items and stay within the viewport.
-  assert.ok(layout.items && layout.footer, 'rail items and footer must both exist');
-  assert.ok(layout.footer.top + 0.5 >= layout.items.bottom - 0.5,
-    `footer must sit below rail items (items.bottom=${layout.items.bottom}, footer.top=${layout.footer.top})`);
-  assert.ok(layout.footer.bottom <= layout.viewport.h + 0.5,
-    `footer must stay within viewport (footer.bottom=${layout.footer.bottom}, vh=${layout.viewport.h})`);
-  // Hit test must land on the Shelf entry (or a tight ancestor of it), not on the bare rail container.
-  assert.ok(layout.shelfInsideItems, 'Shelf must live inside .plugin-rail-items');
-  assert.equal(layout.hitsShelf, true,
-    `elementFromPoint must hit the Shelf entry (got tag=${layout.hitTag}, closestRailItem=${layout.hitClosestRailItem})`);
+  assert.ok(layout.shelf, 'the bottom bar has a Shelf entry');
+  assert.ok(layout.shelf.w >= 32 && layout.shelf.h >= 32, 'Shelf keeps a whole target: ' + JSON.stringify(layout.shelf));
+  assert.ok(layout.shelf.top >= 0 && layout.shelf.bottom <= layout.viewport.h && layout.shelf.right <= layout.viewport.w, 'Shelf stays inside the viewport');
+  assert.equal(layout.neighbours, 0, 'no other bar control overlaps Shelf');
+  assert.equal(layout.hitsShelf, true, `elementFromPoint must hit the Shelf entry (got ${layout.hitTag})`);
   await click('[data-plugin-strip] [data-plugin-id=shelf]');
   const row = `[data-shelf-list=materials] [data-shelf-item="${a.item_id}"]`;
   await waitFor(`document.querySelector('${row}')`);
   await click(row);
   await click('[data-shelf-edit]');
+  await waitFor("document.querySelector('[data-shelf-editor]')");
   await evaluate(`{ const editor = document.querySelector('[data-shelf-editor]'); editor.value = '# A\\n最后输入也要保存';
     editor.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('[data-shelf-collapse]').click(); }`);
   await waitFor("document.querySelector('[data-shelf-stage-shell]').dataset.expanded === 'false'");
@@ -101,6 +72,7 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   assert.equal(shelf.readFile(second.item_id).bytes.toString('utf8'), '# B\n原文 B');
   await click(row);
   await click('[data-shelf-edit]');
+  await waitFor("document.querySelector('[data-shelf-editor]')");
   assert.equal(await evaluate("document.querySelector('[data-shelf-editor]').value"), '# A\n最后输入也要保存');
   await evaluate(`{ const original = window.fetch; window.restoreShelfFetch = () => window.fetch = original;
     window.fetch = (url, options) => String(url).endsWith('/${a.item_id}/edit')

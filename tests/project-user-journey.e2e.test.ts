@@ -37,10 +37,11 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     assert.equal(b.store.snapshot(DEMO_BOARD_ID).goals.find(g=>g.goal_id===goalId)?.title,'完成跨页面工作流验收');
     if (width < 760) {
       assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), false, 'creation opens the new Goal content');
-      await directory();
+      // craft-finish round 4 retired the narrow directory drawer: plugins are reached from the bottom bar's picker,
+      // and a reload returns to the same Goal content.
+      assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-picker-toggle]')?.getClientRects().length)"), true, 'narrow navigation is the bottom-bar plugin picker');
       await b.reloadPage();
-      assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), true, 'reload preserves an intentionally open directory');
-      await click('[data-directory-toggle]');
+      await waitFor("document.querySelector('[data-goal-frame-surface]')?.hidden===false && document.querySelector('[data-goal-frame-surface]').dataset.frameGoal==="+JSON.stringify(goalId));
     }
     await click('[data-frame-goal-work]');
     if(await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'"))await click('[data-goal-details-toggle]');
@@ -67,6 +68,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
     await evaluate(`document.querySelector('[data-feed-entry-id="${item.item_id}"]')?.click()`);
     await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]')`);
+    // Opening marks the item read with its own request; give it a bounded moment to land.
+    for(let i=0;i<40&&!feed.getItem(DEMO_BOARD_ID,item.item_id).read_at;i++)await new Promise(resolve=>setTimeout(resolve,50));
     assert.ok(feed.getItem(DEMO_BOARD_ID,item.item_id).read_at);
     await click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`);
     await waitFor("[...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线'))");

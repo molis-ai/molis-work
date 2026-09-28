@@ -1,6 +1,6 @@
 # 仓库系统整理（防腐）
 
-状态：本轮整理完成（2026-09-27 至 09-28）；用户 2026-09-28 要求把 F-15 在 SDK 里一并修掉并推送、开 PR。仍待用户的见第 9 节（D-03 删除旧包、D-02 产品范围改定）。要求原文是用户放在主检出的 `docs/prompts/repository-systematic-review.md`（未入库，本文第 1–2 节已收录其要点）；2026-09-27 追加：为每个模块写开发手册、规范与要求（W9b）。
+状态：本轮整理完成（2026-09-27 至 09-28）；用户 2026-09-28 要求把 F-15 在 SDK 里一并修掉并推送、开 PR（#91），随后委托完成 D-02 与 D-03。D-02 已定稿；D-03 的删除第二次被本机自动模式安全检查拒绝，仍须用户亲自执行（见第 9 节）。要求原文是用户放在主检出的 `docs/prompts/repository-systematic-review.md`（未入库，本文第 1–2 节已收录其要点）；2026-09-27 追加：为每个模块写开发手册、规范与要求（W9b）。
 分支 `chore/repo-systematic-review`（工作树 `~/code/goalboard-review`，基于 main `8b609527`）。本文是这次整理唯一的总 spec；逐项证据写在本文第 8、10 节，不另开进度文件。
 
 ## 1. 目标
@@ -110,7 +110,7 @@
 | F-14 | S4 | `specs/` 根目录约 184 份规格，README 只列 15 份在做，其余多已完成未归档 | 状态行扫描 | 归档规则只执行过一次 | 归档了开头写明已完成的两份。复核（2026-09-28）：根目录仍有 183 份；15 份在 `specs/README.md` 列为在做；开头写完成的另 2 份 README 注明仍有缺口，按规则保留；其余约 165 份没有状态句，按 README 规则须逐份对照代码才能归档，本轮未做（建议各线负责人按目录认领） | 部分完成，余下待办 |
 | F-15 | S3 | Prologue SDK 把「派发前授权被拒」（Character 停用、授权收回、密钥变了）归为 `MODEL_NETWORK_FAILED`：Coding 失败卡片说「连不上模型服务，检查网络或代理」，文字生成说「模型请求失败或超时」，图片说「无法连接厂商…请检查网络」；带备选模型时还会换目标再被拒一次 | `agent-action-tools-prologue` 用例；SDK 新用例修复前拿到 `MODEL_NETWORK_FAILED` | SDK 的 `beforeModelDispatch` 抛错没有专门的码，agent loop 与 session run 的 `mapNetworkError` 把一切未知错误改成网络失败；推理适配层再把它换成通用文案 | 用户 2026-09-28 要求修。SDK（molis-ai/prologue `fix/molis-dispatch-denied` 03c6ba0b，基于 claims 源码 af7375c7）：复核拒绝报 `EFFECT_NOT_AUTHORIZED` 并保留原因、不换备选，取消与超时不变；新包 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`。消费方：推理适配层把复核自己抛的错误原样交回（`isDispatchRefusal`），文字生成说「…；没有发给模型，材料已保留」，图片报 `images.not_sent`，Coding 失败卡片新增「这一轮的授权已失效」；手册、Skill、agent-host 开发要求同步 | 已完成 |
 | F-16 | S3 | Images 并发与 Alchemist 多宿主两个用例模拟「同一 Home 多个执行进程」，而生产中 stdio MCP 转发给常驻 Web 宿主 | 两用例在 main 上失败；9-27 迁移记录已指出 | 9-26 统一走 Prologue 后同 Home 只有一个执行进程 | 按生产转发拓扑重写：单一常驻宿主、项目范围授予、生产 MCP 启动器；第二个宿主断言 `inference.home_in_use` | 已完成 |
-| F-17 | S4 | `vendor/prologue-sdk` 39 个 tgz（35MB，含 F-15 新包）只 1 个在用；不进发布包，只增加仓库体积 | 锁文件与发布资产测试 | 旧包按约定保留以便回退 | 用户同意 D-03 后，删除操作被本机自动模式的安全检查拒绝，已撤回、未删除；需用户亲自执行或放行（进行中的 `feature/personal-work-assistant` 仍依赖 `compaction-growth.tgz`，应保留） | 待用户 |
+| F-17 | S4 | `vendor/prologue-sdk` 39 个 tgz（35MB，含 F-15 新包）只 1 个在用；不进发布包，只增加仓库体积 | 锁文件与发布资产测试 | 旧包按约定保留以便回退 | 用户同意 D-03 并在 09-28 再次委托后，删除操作两次被本机自动模式的安全检查拒绝，未删除；需用户亲自执行或放行。已核对全部本地与远端分支：未合入的分支里只有 `feature/personal-work-assistant` 自己改过引用（`compaction-growth.tgz`），另 3 个 09-20～22 的旧分支引用 `prologue-sdk-0.0.0-rc.1.tgz` 但与合并基点相同，合并 main 时直接取新包；可删的是除 `dispatch-denied` 与 `compaction-growth` 外的 37 个（进行中的 `feature/personal-work-assistant` 仍依赖 `compaction-growth.tgz`，应保留） | 待用户 |
 | F-18 | S3 | `apps/local-host/src` 约 250 个平铺文件 | 目录 | — | 判断：多为组合适配与 Node IO，按名称前缀已自然分区；整体搬迁只改路径不改职责，且会打断数百处测试引用、与并行工作冲突。不搬，在 `docs/platform/LOCAL-HOST.md` 写清分区与放置规则 | 已完成 |
 | F-19 | S3 | Coding `routes.ts` 是约 1400 行的单个闭包：委派信件视图转换、预算存储、子代理分组、后台唤醒循环与路由表混在一起 | 代码 | 各期功能叠加 | 委派信件视图拆到 `delegation-view.ts`，等待/唤醒的判断与文本拆到 `waits.ts`（纯函数、有单测），路由只留注入会话查找与存储的薄包装，−80 行；后台唤醒循环依赖起跑流程，仍留在路由 | 已完成 |
 | F-21 | S2 | 在处理器里等模型或外部服务的动作没有声明并发，等待期间占住整个项目（或 Home）的串行队列：一次 Alchemist 对话、Pages 生成/写作助手、灵光对话、Inbox 整理成文稿、外部 MCP 工具调用都会让同项目其他所有操作排队（可达数分钟）；Form/Dataset/Jelly/Workflows 已声明，同类行为不一致 | 改写后的 Alchemist 多调用者用例两个对话互相等待；宿主为此打「已占用项目操作队列 N 秒」日志 | 串行是默认，只有部分插件记得声明 | 上述动作声明 `scheduling: "concurrent"`（逐个核对：都在返回后按快照/CAS 提交，或本地不写状态）；新增门禁 `tests/action-model-scheduling.test.ts`：目录中所有声明 `model:invoke` 的动作必须并发，例外逐条写理由；灵光用例验证等模型时同项目读写照常完成（修复前失败） | 已完成 |
@@ -185,7 +185,7 @@
 | 编号 | 事项 | 方案与取舍 | 建议 | 负责 |
 | --- | --- | --- | --- | --- |
 | D-01 | 动作结果校验失败时内核怎么处理（F-03） | A. 保持致命：合同必须按「已存历史」写，靠 `tests/action-read-compatibility.test.ts` 用历史样本守住。B. 读动作结果不合规时降级为返回原值并记录诊断：页面不再整页打不开，但调用方拿到不合合同的数据。C. 只对写动作放宽（副作用已提交，报错会诱发重试）。 | A + 探测门禁；写动作结果不合规时报「已执行，但结果不符合合同」专用错误码，避免调用方以为失败而重试 | 用户决定；本线实现 |
-| D-02 | `PRODUCT.md` 仍只描述 V1 Goal 真相源，未覆盖插件平台、动作服务、Coding 等（F-13 相关） | A. 用户按现在的产品重写产品承诺。B. 本线起草「当前产品范围」一节供审阅。 | B：起草后由用户改定 | 用户 |
+| D-02 | `PRODUCT.md` 仍只描述 V1 Goal 真相源，未覆盖插件平台、动作服务、Coding 等（F-13 相关） | A. 用户按现在的产品重写产品承诺。B. 本线起草「当前产品范围」一节供审阅。 | B：起草后由用户改定。09-28 用户委托定稿：去掉草案标记；原文 5 处出入按代码现状改写（Web 对插件是必经界面、无左侧栏、「不是 Agent 调度器」写明 Schedule 与 Coding 委派的边界、品牌方向补 craft-finish、证据补平台层来源） | 已完成 |
 | D-03 | `vendor/prologue-sdk` 38 个不再使用的 tgz（约 34MB，F-17；F-15 换包后 claims 也不再使用） | A. 删除，回退时从 git 历史取。B. 保留（现约定）。C. 移到 git LFS 或独立仓库。 | A：发布包本就排除，删除只减仓库体积，回退路径仍在 | 用户 |
 | D-04 | 端口默认连线按插件名写死（F-11） | A. Manifest 输入端口声明 `default_source`（首选的来源端口角色）。B. 按类型唯一匹配自动连线，歧义时要求用户在连线页选择（需要先做连线页）。C. 维持名单，只服务 Coding 家族。 | 短期 C 并写进插件开发 Skill 的限制；有第三方端口插件时做 A | 用户 |
 | D-05 | CI 恢复哪些测试（F-08） | A. macOS runner 跑全量非浏览器（约 22 分钟，费用高）。B. ubuntu 跑一组稳定的契约与动作测试（本线挑选并在本机验证）。C. 维持现状。 | B，并在 PR 模板要求本机全量对比记录 | 用户（需推送验证） |

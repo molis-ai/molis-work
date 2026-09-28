@@ -36,6 +36,12 @@
 - **Character／Prompt／Skill 统一经 Host 登记并纳入开发流程**，是 P13 的前提（spec 第 9.1 节、AC45）。
 - 2026-09-28：执行类轮次只以“宣布要做”的文字结束、没有调用任何工具时，**自动续做一次**，并在轮次里标明“自动续做”（每次多一次模型调用）。实现：SDK `session-stop` 钩子（提交 22a1be08）＋ Host `announce-guard.ts`（只对可写角色、每轮最多一次）。
 
+- 2026-09-28：用户授权后续任务全部由我推进，需要判断时按推荐执行。以下标“按推荐（用户授权）”的都是这样定的，可随时改回。
+- 按推荐（用户授权）· P13 登记与覆盖：Agent 定义（Prompt、角色、Skill）登记在 Home 级的 Host 服务里；系统与内置插件在启动时登记，插件随安装、升级、停用、卸载登记。用户修改是 Home 级覆盖层（对所有项目生效），记录基于哪个默认版本；默认升级后标“默认已更新”并可对比，不自动合并；“恢复默认”撤掉覆盖层但保留历史。项目说明仍归项目设置，这里只显示并链接。
+- 按推荐（用户授权）· 直接调用模型的插件：插件在包内声明“指令 Prompt”（标识、版本、用途、正文），调用时交给 Host 登记的引用与数据，由 Host 取有效正文拼接；过渡期尚未迁移的调用列在自动检查的清单里并写明原因，逐个清零，不允许新增。
+- 按推荐（用户授权）· Character 设置：系统与插件的角色列为“系统 Character / 插件 Character”（名称、用途、来源版本、组成它的 Prompt），可改的是文字；角色能做什么（目录、工具、审批）由 Host 在代码里强制，界面写明改文字不改权限。用户自己的 Character 沿用现有管理。
+- 按推荐（用户授权）· 执行记录：Agent 轮次的冻结记录里写明每段 Prompt 用的是默认版还是用户版（含版本号）；直接调用记在登记服务的使用记录里（每段保留最近 200 次）。
+
 ## 3. 分期
 
 每期都要求：定向测试通过；在隔离 Home 上用真实 MiniMax 走通对应场景；截图或接口记录作为证据写入第 5 节。
@@ -195,3 +201,17 @@
 - 两个窗口同时发送、Coding 提问在底栏回答、暂停/继续的真实操作；交接时 Coding 页面单独打开时的即时提示。
 - 模型质量问题（非本期代码）：助理回复与记录里仍会写出运行号、检查点号等内部标识；设计阶段用了 Python 措辞（ValueError）并原样写进了变更记录。
 - 生成的助理与 Pages 修改确认里，`对象` 字段显示的是文档标识而非标题。
+
+## 7. P13 Agent 定义登记、Character 与 Prompt 设置（计划，2026-09-28）
+
+**盘点（代码中实际调用模型的地方）**
+- 经 Host 冻结的 Agent：个人助理（`assistant-agent.ts`）、Coding（主角色、子角色、压缩 Prompt、方法）、Schedule，以及内置目录 `BUILTIN_PLUGIN_AGENTS` 里的其他 Agent 插件。
+- 直接调用文字模型、Prompt 写在代码里：Pages（写作助手 `ai.ts`、材料生成 `generate.ts`）、Jelly（`ai.ts`）、Cognia（`ai.ts`、`cognia-prologue.ts`）、Form、Dataset、Workflows（交接）、灵光（对话）、Alchemist（`alchemist-prologue.ts`）、项目上手（`context-onboarding-service.ts`）、首页建议（`personal-assistant-prologue.ts`）、TypeSafe 判断（`typesafe-prologue.ts`）、图片（`images-service-host.ts`，正文来自用户）、插件创作台的设计与代码 Agent（`plugin-builder.ts` 等）。
+
+**分片**
+1. 登记服务与覆盖层：契约 `services/agent-definitions`；Home 级存储；系统与内置插件登记；Agent 开跑时由 Host 取有效正文，冻结记录写明默认版或用户版。
+2. 设置：新增“Prompt”设置模块（按来源分组、用途、层级、使用者、版本、编辑、恢复默认、默认更新时对比）；Character 设置加入系统与插件 Character。
+3. 直接调用迁移：插件声明指令 Prompt，调用改为“登记引用 + 数据”，逐个迁移上面列出的调用。
+4. 开发流程：自动检查（未登记的 Prompt、绕开登记的模型调用即失败，过渡清单写明原因）、开发者诊断（每个插件登记了什么、哪些未生效）、手册与 Skill。
+
+**进度**：见下方随实现更新。

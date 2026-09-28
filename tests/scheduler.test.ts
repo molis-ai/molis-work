@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import {
@@ -26,6 +29,52 @@ function service(clock: { now: Date }, calls: Array<Record<string, string>> = []
   });
   return { db, wakeupIndex, schedule, calls };
 }
+
+test("long wakeups renew through a second database connection without another owner tick", async t => {
+  t.mock.timers.enable({ apis: ["setInterval"] });
+  const home = mkdtempSync(join(tmpdir(), "schedule-lease-"));
+  const db = new Database(join(home, "jobs.sqlite")), observer = new Database(join(home, "jobs.sqlite"));
+  const released = Promise.withResolvers<void>();
+  const clock = { now: new Date("2026-09-22T00:00:00Z") };
+  let calls = 0;
+  const wakeupIndex = new PluginWakeupIndex();
+  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async (_input, control) => {
+    calls++; await released.promise; control.beforeEffect();
+  });
+  const owner = createScheduleService(db, { wakeupIndex, now: () => clock.now, leaseMs: 300 });
+  const other = createScheduleService(observer, { wakeupIndex, now: () => clock.now, leaseMs: 300 });
+  const job = owner.register({ plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "slow",
+    title: "slow", due_at: clock.now.toISOString(), recurrence: { kind: "interval", interval_ms: MIN_SCHEDULE_INTERVAL_MS } });
+  const running = owner.tick();
+  try {
+    for (let i = 0; i < 60; i++) { clock.now = new Date(clock.now.getTime() + 100); t.mock.timers.tick(100); }
+    assert.deepEqual(await other.tick(), { invoked: 0, skipped: 1, failed: 0 });
+    assert.equal(calls, 1);
+    released.resolve(); await running;
+    assert.equal(other.get(job.job_id)?.last_wakeup?.status, "ok");
+  } finally { released.resolve(); await running; db.close(); observer.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+for (const operation of ["pause", "cancel", "replace"] as const) test(`scheduler ${operation} fences the handler's late business effect`, async () => {
+  const clock = { now: new Date("2026-09-22T00:00:00Z") };
+  const { db, wakeupIndex, schedule } = service(clock);
+  const released = Promise.withResolvers<void>();
+  const effects: string[] = [];
+  wakeupIndex.register("io.molis.work.test.owner", "test.wakeup", async (_input, control) => {
+    await released.promise; control.beforeEffect(); effects.push("late");
+  });
+  const input = { plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "late", title: "late", due_at: clock.now.toISOString() };
+  const job = schedule.register(input), running = schedule.tick();
+  try {
+    if (operation === "pause") schedule.setEnabled(job.job_id, false);
+    else if (operation === "cancel") schedule.cancel(job.job_id);
+    else schedule.register({ ...input, due_at: new Date(clock.now.getTime() + 60_000).toISOString() });
+    released.resolve(); await running;
+    assert.deepEqual(effects, []);
+    assert.equal((db.prepare("SELECT COUNT(*) n FROM schedule_wakeups").get() as { n: number }).n, 0);
+    if (operation === "replace") assert.equal(schedule.get(job.job_id)?.next_due_at, "2026-09-22T00:01:00.000Z");
+  } finally { released.resolve(); await running; db.close(); }
+});
 
 test("登记后拨钟会叫醒 owner，参数带 object_ref 和 job_id", async () => {
   const clock = { now: new Date("2026-09-20T03:00:00.000Z") };

@@ -32,6 +32,17 @@ function fakeRuntime(runtimeId: string, opened: string[]): AgentRuntimeAdapter {
 
 const workspace = async () => ({ canonical_path: "/tmp/schedule-project", realpath_verified: true }) as never;
 
+test("a schedule cancelled while waiting for the Home Runtime cannot create an Agent session", async () => {
+  const opened: string[] = [], controller = new AbortController(), agentHost = new AgentHost();
+  agentHost.register(fakeRuntime("prologue", opened));
+  const runner = createHostScheduledTaskRunner({ agentHost, boardId: "b", projectId: "p", workspaceFor: workspace,
+    ready: async () => { controller.abort(new Error("schedule paused")); } });
+  await assert.rejects(runner.run({ title: "late", instructions: "wait", history: [] }, {
+    signal: controller.signal, beforeEffect: () => controller.signal.throwIfAborted(),
+  }), /schedule paused/);
+  assert.deepEqual(opened, []);
+});
+
 test("装了 Claude Code 也按 Prologue 跑：不按 Runtime 名字排序挑第一个", async () => {
   const opened: string[] = [];
   const agentHost = new AgentHost();

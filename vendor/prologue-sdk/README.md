@@ -12,7 +12,7 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 当前包 `prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz` 从已使用的 `03c6ba0b` 增量构建，保留全部既有修复。新增公开 `collectRun`，从原 Run 事件收集引用、终态、文字、模型和 typed usage；取消/超限清理原订阅并取消原 Run。普通 Run 在完成前执行声明的结构校验，失败仍保留用量，不自动重试。schema 增加 nullable/anyOf、字符串/数组长度和数值范围；不支持的约束继续派出前拒绝。新增纯语法 `decodeJsonOutput`，Model schema、Function 和 Molis 的 Alchemist/Jelly 复用；围栏容忍需显式启用，不能代替领域校验，不自动纠正。
 
-- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，基线 `03c6ba0b`；未提交增量完整保存在 [bounded-results.patch](bounded-results.patch)，包括源码、合同和测试，以及 main `21cdfbf8` 引入的网络授权增量。历史 [network-dispatch.patch](network-dispatch.patch) 相对 `af7375c7`，已包含在当前完整补丁中，不要重复应用。
+- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，源码提交 `4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962`，基线 `03c6ba0b`；增量完整保存在 [bounded-results.patch](bounded-results.patch)，包括源码、合同和测试，以及 main `21cdfbf8` 引入的网络授权增量。历史 [network-dispatch.patch](network-dispatch.patch) 相对 `af7375c7`，已包含在当前完整补丁中，不要重复应用。
 - SHA-256：`2269225bc71c3fd4fccaf4cdd5690244f6608348b79a56b73d50bbe6aef6b04a`。
 - 重建：检出 `03c6ba0b`，应用上述补丁，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz`。
 - SDK build 与结果收集/结构化/参数 38 项定向验证通过，含真实 Node Host + 本地 HTTP 模型成功、结构失败、取消和用量。全仓 `tsconfig.typecheck.json` 仍有原先两处 `agent-compaction-public.test.ts` 类型错误，未虚称通过。JSON 解码补充后 SDK build 与四文件 40 项验证通过，1 项真实 MiniMax 因无凭据跳过。消费端进度与其他验证见 [本次 spec](../../specs/platform-capability-consolidation/spec.md)。未发布 npm、未修改用户安装。

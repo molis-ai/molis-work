@@ -6,6 +6,7 @@ import {
   registerScheduleCapabilities,
   type ScheduleService,
   type ScheduleSqliteDatabase,
+  type ScheduleWakeupControl,
 } from "@molis-ai/molis-work-service-scheduler";
 import {
   SCHEDULE_PLUGIN_ID,
@@ -33,10 +34,10 @@ const missingRunner: ScheduledTaskRunner = {
 function ensureConversationWakeup(): void {
   if (wakeupBound) return;
   wakeupBound = true;
-  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input) => {
+  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("闹钟叫醒没有项目现场");
-    return handleScheduleTaskWakeup(ctx.db, input.object_ref, ctx.runner);
+    return handleScheduleTaskWakeup(ctx.db, input.object_ref, ctx.runner, undefined, control);
   });
 }
 
@@ -45,11 +46,11 @@ function ensureConversationWakeup(): void {
  * Registering twice for the same plugin and capability replaces the handler.
  */
 export function registerHostWakeup(pluginId: string, capabilityId: string,
-  handler: (db: ScheduleSqliteDatabase, input: Parameters<Parameters<PluginWakeupIndex["register"]>[2]>[0]) => Promise<{ detail?: string } | void>): () => void {
-  return wakeupIndex.register(pluginId, capabilityId, async (input) => {
+  handler: (db: ScheduleSqliteDatabase, input: Parameters<Parameters<PluginWakeupIndex["register"]>[2]>[0], control: ScheduleWakeupControl) => Promise<{ detail?: string } | void>): () => void {
+  return wakeupIndex.register(pluginId, capabilityId, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("闹钟叫醒没有项目现场");
-    return handler(ctx.db, input);
+    return handler(ctx.db, input, control);
   });
 }
 

@@ -22,14 +22,17 @@ export function createHostScheduledTaskRunner(options: {
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
 }): ScheduledTaskRunner {
   return {
-    async run(input) {
+    async run(input, control) {
+      control?.beforeEffect();
       await options.ready?.();
+      control?.beforeEffect();
       // Scheduled work runs on Prologue, the Home's model path. An installed CLI Runtime
       // is never picked just because its id sorts first.
       if (!options.agentHost.descriptors().some((descriptor) => descriptor.runtime_id === PROLOGUE_RUNTIME_ID)) {
         throw new Error("还没有可用的 Agent Runtime：到点执行需要 Prologue，请先配置文字模型");
       }
       const workspace = await options.workspaceFor(options.projectId);
+      control?.beforeEffect();
       if (workspace === null || !workspace.realpath_verified) {
         throw new Error("这个项目还没有绑定工作区，只读 Agent 无法启动");
       }
@@ -39,6 +42,7 @@ export function createHostScheduledTaskRunner(options: {
         manifest: declared.manifest,
         authorizedDirectories: [workspace.canonical_path],
         prompts: declared.prompts,
+        ...(control ? { beforeDispatch: () => control.beforeEffect() } : {}),
       };
       const runtimeId = PROLOGUE_RUNTIME_ID;
       const adapter = options.agentHost.adapter(runtimeId);
@@ -54,6 +58,7 @@ export function createHostScheduledTaskRunner(options: {
         directory,
         title: input.title,
       });
+      control?.beforeEffect();
       const handle = await options.agentHost.start(runtimeId, {
         session,
         board_id: options.boardId,
@@ -65,30 +70,44 @@ export function createHostScheduledTaskRunner(options: {
         directory,
       }, authority);
       const deadline = Date.now() + RUN_TIMEOUT_MS;
-      while (Date.now() < deadline) {
-        const view = await adapter.read(handle.ref);
-        if (view.phase === "awaiting-input" || view.phase === "awaiting-review") {
-          await adapter.control(handle.ref, { kind: "cancel" });
-          throw new Error("到点执行不能停下来等人确认");
-        }
-        if (isTerminalAgentPhase(view.phase)) {
-          if (view.phase !== "completed") {
-            throw new Error(view.stop_reason || `这一轮以 ${view.phase} 结束`);
+      let ended = false, cancelling: Promise<unknown> | undefined;
+      const cancel = () => { cancelling ??= adapter.control(handle.ref, { kind: "cancel" }).catch(() => undefined); return cancelling; };
+      const onAbort = () => { void cancel(); };
+      control?.signal.addEventListener("abort", onAbort, { once: true });
+      try {
+        while (Date.now() < deadline) {
+          control?.beforeEffect();
+          const view = await adapter.read(handle.ref);
+          control?.beforeEffect();
+          if (view.phase === "awaiting-input" || view.phase === "awaiting-review") {
+            throw new Error("到点执行不能停下来等人确认");
           }
-          const last = [...view.turns].reverse().find((turn) => turn.kind === "assistant");
-          if (!last?.text.trim()) throw new Error("Agent 没有写出正文");
-          return parseScheduledAgentReply(last.text);
+          if (isTerminalAgentPhase(view.phase)) {
+            ended = true;
+            if (view.phase !== "completed") {
+              throw new Error(view.stop_reason || `这一轮以 ${view.phase} 结束`);
+            }
+            const last = [...view.turns].reverse().find((turn) => turn.kind === "assistant");
+            if (!last?.text.trim()) throw new Error("Agent 没有写出正文");
+            return parseScheduledAgentReply(last.text);
+          }
+          await delay(POLL_MS, control?.signal);
         }
-        await delay(POLL_MS);
+        throw new Error("到点执行超时");
+      } finally {
+        control?.signal.removeEventListener("abort", onAbort);
+        if (!ended) await cancel();
+        else await cancelling;
       }
-      await adapter.control(handle.ref, { kind: "cancel" }).catch(() => undefined);
-      throw new Error("到点执行超时");
     },
   };
 }
 
-function delay(ms: number): Promise<void> {
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    const done = () => { clearTimeout(timer); signal?.removeEventListener("abort", done); resolve(); };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+    if (signal?.aborted) done();
   });
 }

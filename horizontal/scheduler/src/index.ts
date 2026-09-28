@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
 
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -11,6 +12,7 @@ import {
   type ScheduleRegisterInput,
   type ScheduleTickResult,
   type ScheduleWakeupInput,
+  type ScheduleWakeupControl,
   type ScheduleWakeupRecord,
   type ScheduleWakeupStatus,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
@@ -40,6 +42,7 @@ export type {
   ScheduleRegisterInput,
   ScheduleTickResult,
   ScheduleWakeupInput,
+  ScheduleWakeupControl,
   ScheduleWakeupRecord,
 };
 
@@ -55,7 +58,7 @@ export interface ScheduleSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export type ScheduleWakeupHandler = (input: ScheduleWakeupInput) => Promise<{ detail?: string } | void>;
+export type ScheduleWakeupHandler = (input: ScheduleWakeupInput, control: ScheduleWakeupControl) => Promise<{ detail?: string } | void>;
 
 export class PluginWakeupIndex {
   private readonly handlers = new Map<string, ScheduleWakeupHandler>();
@@ -72,12 +75,13 @@ export class PluginWakeupIndex {
     return this.handlers.has(wakeupKey(pluginId, capabilityId));
   }
 
-  async invoke(input: ScheduleWakeupInput): Promise<{ detail?: string } | void> {
+  async invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl): Promise<{ detail?: string } | void> {
     const handler = this.handlers.get(wakeupKey(input.plugin_id, input.capability_id));
     if (!handler) {
       throw new ScheduleError("schedule_handler_missing", "叫醒对象还没有提供执行接口");
     }
-    return handler(input);
+    control.beforeEffect();
+    return handler(input, control);
   }
 }
 
@@ -178,7 +182,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   // Tokens this process is still executing. A replacement service does not see
   // them, so a crash (no more renewal) leaves only the sqlite lease, which can
   // be taken over once it expires. This map is not the lock.
-  const executions = new Map<string, string>();
+  const executions = new Map<string, { token: string; controller: AbortController }>();
 
   function register(input: ScheduleRegisterInput): ScheduleJobRecord {
     const pluginId = normalizeIdentity(input.plugin_id, "插件身份");
@@ -208,12 +212,14 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         next_due_at = excluded.next_due_at,
         enabled = 1,
         lease_until = NULL,
+        lease_token = NULL,
         updated_at = excluded.updated_at
     `).run(
       jobId, pluginId, capabilityId, objectRef, title,
       recurrence.kind, recurrence.kind === "interval" ? recurrence.interval_ms : null,
       dueAt, existing?.last_wakeup_id ?? null, createdAt, clock,
     );
+    executions.get(jobId)?.controller.abort(new Error("Schedule replaced"));
     return mustRead(jobId);
   }
 
@@ -221,6 +227,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     const job = readOwned(jobId, pluginId);
     db.prepare("DELETE FROM schedule_wakeups WHERE job_id = ?").run(job.job_id);
     db.prepare("DELETE FROM schedule_jobs WHERE job_id = ?").run(job.job_id);
+    executions.get(jobId)?.controller.abort(new Error("Schedule cancelled"));
     return { cancelled: true };
   }
 
@@ -240,6 +247,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         SET enabled = 0, lease_until = NULL, lease_token = NULL, updated_at = ?
         WHERE job_id = ?
       `).run(clock, job.job_id);
+      executions.get(jobId)?.controller.abort(new Error("Schedule paused"));
     }
     return mustRead(job.job_id);
   }
@@ -255,6 +263,12 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   function get(jobId: string): ScheduleJobRecord | null {
     const row = db.prepare("SELECT * FROM schedule_jobs WHERE job_id = ?").get(jobId) as JobRow | undefined;
     return row ? toRecord(row) : null;
+  }
+
+  /** Read the shared lease so task owners do not rearm a one-shot wakeup that is still running. */
+  function isExecuting(jobId: string): boolean {
+    const row = db.prepare("SELECT lease_token, lease_until FROM schedule_jobs WHERE job_id = ?").get(jobId) as Pick<JobRow, "lease_token" | "lease_until"> | undefined;
+    return Boolean(row?.lease_token && row.lease_until && row.lease_until > iso(now()));
   }
 
   async function tick(at = now()): Promise<ScheduleTickResult> {
@@ -280,12 +294,14 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   function renewExecutions(at: Date): void {
     const leaseUntil = iso(new Date(at.getTime() + leaseMs));
     const clock = iso(at);
-    for (const [jobId, token] of executions) {
-      db.prepare(`
+    for (const [jobId, { token, controller }] of executions) {
+      if (controller.signal.aborted) continue;
+      const renewed = db.prepare(`
         UPDATE schedule_jobs
         SET lease_until = ?, updated_at = ?
         WHERE job_id = ? AND lease_token = ?
       `).run(leaseUntil, clock, jobId, token);
+      if (Number(renewed.changes) !== 1) controller.abort(new Error("Schedule execution no longer owned"));
     }
   }
 
@@ -316,7 +332,18 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     const wakeupId = `wakeup_${randomUUID()}`;
     const dueAt = job.next_due_at;
     const token = job.lease_token;
-    if (token) executions.set(job.job_id, token);
+    const controller = new AbortController();
+    if (token) executions.set(job.job_id, { token, controller });
+    const lifetime = createExecutionLifetime({ signal: controller.signal,
+      monitor: { intervalMs: Math.max(1, Math.min(1000, Math.floor(leaseMs / 3))), check: () => renewExecutions(now()) } });
+    const control: ScheduleWakeupControl = { signal: lifetime.signal, beforeEffect: () => {
+      lifetime.assertActive();
+      const owned = db.prepare("SELECT lease_token FROM schedule_jobs WHERE job_id = ?").get(job.job_id) as { lease_token: string | null } | undefined;
+      if (!token || owned?.lease_token !== token) {
+        controller.abort(new Error("Schedule execution no longer owned"));
+        lifetime.assertActive();
+      }
+    } };
     try {
       const nextDue = nextDueAfter(job, at);
       const stillEnabled = job.recurrence_kind === "interval" ? 1 : 0;
@@ -344,7 +371,8 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         if (!wakeupIndex.has(job.plugin_id, job.capability_id)) {
           throw new ScheduleError("schedule_handler_missing", "叫醒对象还没有提供执行接口");
         }
-        const reply = await wakeupIndex.invoke(input);
+        const reply = await wakeupIndex.invoke(input, control);
+        control.beforeEffect();
         detail = reply?.detail?.slice(0, 500) ?? null;
       } catch (error) {
         const code = error instanceof ScheduleError ? error.code : "";
@@ -380,7 +408,8 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         detail,
       };
     } finally {
-      if (token && executions.get(job.job_id) === token) executions.delete(job.job_id);
+      lifetime.dispose();
+      if (token && executions.get(job.job_id)?.token === token) executions.delete(job.job_id);
     }
   }
 
@@ -419,7 +448,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
     };
   }
 
-  return { register, cancel, setEnabled, list, get, tick };
+  return { register, cancel, setEnabled, list, get, isExecuting, tick };
 }
 
 export type ScheduleService = ReturnType<typeof createScheduleService>;

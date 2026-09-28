@@ -67,3 +67,5 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - SSOT: `docs/SSOT-MATRIX.md`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`
+
+对话任务的 runner 消费 Scheduler 执行控制，授权从本次唤醒的当前 lease 来，不能沿用创建动作的临时回调。等待前后复查任务版本和启停，暂停、归档或变更后的迟到结果不追加助手回复或失败说明；Host 把同一检查传入 Prologue 派出前门禁并取消原运行。

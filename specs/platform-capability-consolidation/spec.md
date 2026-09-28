@@ -18,7 +18,7 @@
 | 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
-| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 与安装生命周期串行；待实现 |
+| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | Scheduler 独立续租/提交控制已补齐；提醒与安装执行迁移继续待实现 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 核对动作 Session 后；待实现 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
@@ -68,6 +68,12 @@
 
 UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注入。scope 按 DOM 根节点去重，隐藏时停止视图轮询/SSE，恢复时读取权威状态；移除/卸载时取消请求并释放监听、定时器、动画帧和观察器。写命令不因切换视图擅自重试或取消服务端业务任务。异步响应在消费前检查 scope 与原请求 signal，防止卸载后旧响应覆盖重新挂载的页面。先迁移 Images 与 Builder，再迁移 Coding/Shelf；保持原 UI 与领域状态。验证使用真实 Chrome、HTTP 调用计数、延迟响应、隐藏/恢复/卸载/重复挂载，不能只靠脚本字符串快照。
 
+### Schedule 与安装执行的迁移顺序
+
+当前通用提醒、定时操作仍在 Builder Host 私有模块，调用者索引只以 boardId 分组，且要打开 Studio 才绑定执行入口；待执行队列先删后跑可能丢失工作。迁移到 Schedule 的提醒/任务管理和 Host 安装执行端口，保留历史身份、记录与固定 interval 语义，按数据库/Home、项目、安装实例隔离，生产唤醒不能依赖创作页面启动。新的持久任务拥有自己的执行身份与当前安装授权，不能保存创建动作的临时 beforeEffect。
+
+先修 Scheduler 前置缺口：其现有续租仅由下一次 tick 驱动，handler 等待时没有独立续租；暂停/取消仅挡住 scheduler 回执，领域 handler 仍可提交。复用 Kernel 执行生命周期驱动续租，并通过独立的 `ScheduleWakeupControl` 向处理器提供 signal 与提交前所有权检查（不混入可序列化业务 input）。Schedule 对话任务及 Host runner 消费此端口，失租、暂停和撤销后不写领域成功/失败。保留现有 scheduler 数据表与 lease token；注册覆盖同一任务时撤销旧执行身份。验证无额外 tick 的长等待、两连接竞争、暂停/取消/重排的迟到提交和对话持久化。随后迁移提醒/定时操作及安装运行启动链，不能以此前置修复宣称 05 完成。
+
 ### 当前验证记录
 
 - 第一批 AI 公共契约及 Cognia/Coding 迁移：整体 `pnpm build` 通过；16 个定向回归文件、105 项测试通过，含真实 Node Runtime 对本机 HTTP 模型替身的调用。后续源码改动需重新构建并运行相关回归。
@@ -78,7 +84,7 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 - 生成插件/Builder：公共生成端口替代 model-role Agent，删除私有记录轮转；设计/编码改为 SDK 有界收集。整体构建及 14 个相关回归文件的 108 项测试通过，覆盖真实 SDK + HTTP 模型、请求/结果阶段撤权、注销与取消、模型配置变更、原设计/编码/并发检查流程。生产 Runtime 构造扫描仅剩 Home composition 与用途独立的模型连接测试。
 - 公共搜索/证据归位：删除 Feed 专属 intent adapter 和正文实现，Alchemist 不再装配 Feed/RSS；公共 SEL query + Storage 接通两个真实消费者。整体构建、边界检查通过；20 个相关文件的 108 项测试通过，含真实 SEL 重放、取消并等待传输关闭、独立构造的历史密文读取、旧 API 互读、RSS 条件请求游标以及 Home 隔离。日志 `/tmp/platform-search-regression.log`。
 - 前端复核证据：Coding 的 timeline interval 和多处 MutationObserver 不释放；Builder 的全局 visibility 监听/ResizeObserver 无释放；Shelf 全局监听和 boot observer 无释放；Images 只检查 connected，隐藏时仍轮询。Shelf 客户端当前另有 Session 修改，接线前须合并其最新授权边界，不能覆盖。
-- 真实付费模型、外部搜索服务、浏览器体验与用户验收尚未执行；上述局部证据不代表 12 项整体完成。
+- 真实付费模型、外部搜索服务与用户本人验收尚未执行；浏览器仅覆盖后文明确记录的路径，上述局部证据不代表 12 项整体完成。
 
 - 结构化消费：SDK 构建通过，4 个相关测试文件 40 项通过、1 项真实 MiniMax 因缺少 Key 跳过；Molis 整体构建和边界检查通过。18 文件回归的生产路径 124 项通过；新增文件首次因测试从根目录导入未声明的 zod 失败，改用现有领域校验器后该文件 5/5 通过，总计 129 项。日志 `/tmp/platform-json-regression.log`、`/tmp/platform-json-correction-regression.log`。包含 Jelly 派出/返回撤权零写入、Alchemist 显式预算纠正上限与取消/撤权拒绝。
 
@@ -93,3 +99,5 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 - 长任务执行：Kernel `createExecutionLifetime` 经 Plugin SDK 供 Alchemist 续租与 Images 超时/持久取消共用，替换两处定时器和清理；修复 Alchemist 本地 shutdown 被当作普通失败及晚写入。Pages 的版本 fence 和 Builder 的 Prologue Run/工具取消已有各自必要语义，保留并沿调用链核对。整体构建、boundary、diff whitespace 检查通过。根目录相关回归 115 项通过，新公共工具测试首次因根目录未声明 Plugin SDK 包导入失败，改为现有测试惯例的源码入口后 4/4 通过，共 119 项；Alchemist 包内 26 文件 80/80 通过（含重新打开 SQLite 后保留 checkpoint、过期恢复不重复模型调用）。包内旧 work-reuse fixture 同时补齐上一轮 JSON 回执合同，未放宽业务断言。日志 `/tmp/platform-execution-regression.log`、`/tmp/platform-execution-recheck.log`、`/tmp/platform-execution-alchemist.log`。
 - 整合顺序更新：另一架构会话已完成并合入远端 main `21cdfbf8`（PR #95）。先在当前分支保存本次已验证改动，再合并该提交；SDK 同时保留本任务 bounded results/JSON 与 main 的 network dispatch 授权补丁，从真实源码重建合并包。整合完成后重新整体构建并验证实际冲突影响面，再推进 05–09。仅本地改造，不推送、不修改主检出。
 - main `21cdfbf8` 已整合到当前分支：保留 Host 新网络派出授权、Action 结果声明和 Shelf 对象选择入口；Shelf 新监听同时纳入本任务 lifecycle。SDK 从 `03c6ba0b` 的真实源码合成 bounded results/JSON/network dispatch，更新完整补丁与依赖。SDK 构建、8 文件 75 项通过、1 项真实模型跳过；520 个 dist 文件在源码构建、tarball、实际安装中一致。Molis 整体构建、boundary 通过，26 文件交叉回归 136/136 通过，日志 `/tmp/platform-combined-regression.log`。未重复 main 已独立验证的所有无交集用例。
+
+- Schedule 前置修复：独立续租、暂停/取消/重排后 handler 提交控制、Prologue 最终派出 guard、对话提交同事务复查。并发日历 tick 通过 Scheduler `isExecuting` 避免重排仍在执行的 once；标为已读不撤销原任务。整体构建及 boundary 通过；6 文件 36/36 回归通过（含两个 SQLite 连接、不再 tick 仍续租、取消后零业务写入、日历并发、原提醒/定时操作）。Feed 调度授权/并发回归也通过。最初新增对话 fixture 在注册 handler 前创建任务被正确拒绝，调整测试准备顺序后通过，未改放宽生产注册约束。日志 `/tmp/platform-scheduler-final.log`、`/tmp/platform-scheduler-recheck.log`。05 的提醒 owner、持久 pending 与安装 Runtime 解耦仍未完成。

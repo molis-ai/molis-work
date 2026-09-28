@@ -67,6 +67,12 @@ export interface ScheduleWakeupInput {
   due_at: string;
 }
 
+/** Trusted execution controls supplied by Scheduler; never persisted as task input. */
+export interface ScheduleWakeupControl {
+  readonly signal: AbortSignal;
+  beforeEffect(): void;
+}
+
 export class ScheduleError extends Error {
   constructor(
     readonly code:

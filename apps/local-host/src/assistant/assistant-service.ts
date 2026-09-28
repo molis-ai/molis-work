@@ -121,7 +121,8 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     const target = (verb === "read" || verb === "change") && named ? `${named.provider} · ${named.title}` : item.target;
     const reason = item.state !== "failed" ? undefined : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
       : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;
-    return [{ call_id: item.call_id, verb, target, state: item.state, ...(reason ? { reason } : {}), ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
+    const detail = item.state === "failed" && item.output ? item.output.replace(/\s+/g, " ").trim().slice(0, 300) : "";
+    return [{ call_id: item.call_id, verb, target, state: item.state, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
   });
 }
 

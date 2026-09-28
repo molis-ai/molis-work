@@ -50,11 +50,20 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     return view;
   };
   const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal) => {
-    const wrapped = view.action.input_schema.type !== "object";
-    const result = await gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-      wrapped ? args.input : args.input ?? {}, signal);
-    signal.throwIfAborted();
-    return JSON.stringify(result) ?? "null";
+    const schema = view.action.input_schema;
+    try {
+      const result = await gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
+        normalizedInput(view, args.input), signal);
+      signal.throwIfAborted();
+      return JSON.stringify(result) ?? "null";
+    } catch (error) {
+      // A contract mismatch is corrected in one step when the model sees the shape it must send.
+      const message = error instanceof Error ? error.message : String(error);
+      if (/输入不符合能力合同|input schema|does not match/i.test(message)) {
+        throw new ActionError((error as { code?: string }).code ?? "actions.input_invalid", `${message}. The input must be a JSON value matching this schema: ${JSON.stringify(schema).slice(0, 2000)}`);
+      }
+      throw error;
+    }
   };
   const executors: Record<string, ToolRunner> = {
     [GATEWAY_TOOLS.find]: guarded(async args => {
@@ -80,7 +89,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   };
   const capability = { type: "object", properties: {
     capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { description: "The capability's input, shaped by its input_schema from find-capabilities." },
+    input: { description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
   }, required: ["capability_id", "version", "provider_id", "input"], additionalProperties: false };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
     registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const } });
@@ -98,6 +107,17 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
 }
 
 /**
+ * The input a capability receives. Models often send it as a JSON string; a capability that does not take a string
+ * gets the value it meant, and an object capability given nothing gets `{}`.
+ */
+export function normalizedInput(view: ActionView, input: unknown): unknown {
+  const schema = view.action.input_schema;
+  let value = input;
+  if (typeof value === "string" && schema.type !== "string") { try { value = JSON.parse(value); } catch { /* left as given; the contract says why */ } }
+  return schema.type === "object" ? value ?? {} : value;
+}
+
+/**
  * Why a gateway call cannot go ahead, checked before any review: the capability is gone, switched off, unavailable,
  * or asked for through the wrong tool. Null when it may proceed (a change then still waits for the person).
  */
@@ -112,6 +132,9 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   const reads = actionEffect(view.action, view.capability_id) === "read";
   if (toolName === GATEWAY_TOOLS.change && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
+  // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
+  try { await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, normalizedInput(view, parsed.input)); }
+  catch (error) { return `${error instanceof Error ? error.message : String(error)}. The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`; }
   return null;
 }
 
@@ -151,8 +174,8 @@ export async function gatewayReview(gateway: Gateway, input: string): Promise<{ 
   const effect = actionEffect(view.action, view.capability_id);
   return { summary: `${view.provider.title} · ${view.action.title}`, fields: [
     { label: "效果", value: effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回" },
-    ...readableInput(view.action.input_schema, parsed.input ?? {}),
-    { label: "完整参数", value: JSON.stringify(parsed.input ?? {}, null, 2) },
+    ...readableInput(view.action.input_schema, normalizedInput(view, parsed.input)),
+    { label: "完整参数", value: JSON.stringify(normalizedInput(view, parsed.input), null, 2) },
     { label: "能力", value: `${view.action.description}（${view.capability_id}@${view.version}，${view.provider.provider_id}）` },
   ] };
 }

@@ -108,6 +108,7 @@ test("an action the person switched off for the Assistant is neither found nor r
     assert.ok(!JSON.stringify(f.requests[1].messages).includes("fixture.notes.write\""), "the switched-off action is not found");
     assert.equal(done.reviews.length, 0);
     assert.equal(done.rounds[0]!.activity.find(item => item.verb === "change")?.state, "failed");
+    assert.equal(done.reviews.length, 0);
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
   } finally { await f.close(); }
 });
@@ -183,5 +184,22 @@ test("business roles are declared narrowly and the Host keeps directories, MCP a
       { action_gateway: true, action_tools: [{ capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes" }] }]) {
       await assert.rejects(f.host.start("prologue", { ...base, ...extra } as never, authority as never), /业务|能力网关|directory|目录|MCP/);
     }
+  } finally { await f.close(); }
+});
+
+test("the gateway takes a JSON-string input as the value it means, and a contract error shows the shape to send", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: "{}" } }),
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "a", extra: true } } }),
+    () => reply(undefined, "Done."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "count, then save", request_id: "req-00000007" }, { project_ref: f.project });
+    // The invalid change never reaches the person: it is refused before any review, with the schema to send.
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["read:completed", "change:failed"]);
+    assert.match(done.rounds[0]!.activity[1]!.detail ?? "", /must be a JSON value matching this schema/);
+    assert.equal(done.reviews.length, 0);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
   } finally { await f.close(); }
 });

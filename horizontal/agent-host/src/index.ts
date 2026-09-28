@@ -1,5 +1,5 @@
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseExactActionReferences, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { importedCharacterInstructions } from "./character-import.js";
 import type {
   AgentManifest,
@@ -525,6 +525,7 @@ export class AgentHost implements AgentHostApi {
       const source = await authority.actions(runtimeId, validateCharacter);
       gateway = { operate: execution === "operate", client: {
         discover: async () => { validateCharacter?.(); return source.discover(); },
+        ...(source.check ? { check: (ref: ExactActionReference, input: unknown) => source.check!(ref, input) } : {}),
         invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
       } };
     }

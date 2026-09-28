@@ -117,6 +117,8 @@ export interface AssistantActivity {
   state: "started" | "completed" | "failed" | "unknown";
   /** Why it did not happen, when that is known: not authorized, declined by the person. */
   reason?: "not-authorized" | "declined";
+  /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */
+  detail?: string;
   sequence?: number;
 }
 

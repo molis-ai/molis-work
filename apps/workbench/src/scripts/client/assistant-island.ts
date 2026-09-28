@@ -286,6 +286,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const line = keyed(node, "data-entry", entry.key, () => el("p", "assistant-activity"));
         line.dataset.state = entry.item.state;
         setText(line, activityLine(entry.item));
+        if (entry.item.detail) line.title = entry.item.detail; else line.removeAttribute("title");
         node.append(line);
       }
     });

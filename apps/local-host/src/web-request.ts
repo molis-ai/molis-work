@@ -107,6 +107,11 @@ export async function handleMolisWorkWebRequest(
     return;
   }
   if (resolved.kind === "catalog_index") {
+    // Personal work needs no project: the Assistant answers on the project list too, in the person's own scope.
+    if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
+      localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady,
+      projectTitle: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
+    })) return;
     await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, resolved.projects, composition, {
       isPanelAlive: (panelId) => ptyHost.alive(panelId),
       releaseProject: async (databasePath) => {

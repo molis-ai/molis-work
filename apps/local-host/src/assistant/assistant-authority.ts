@@ -3,6 +3,7 @@ import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/pl
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidanceCapability } from "@molis-ai/molis-work-plugin-goals";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
@@ -49,6 +50,12 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
     authorizedDirectories: [],
     actions: async (_runtimeId, validate) => ({
       discover: async () => service().discover(await context(validate)),
+      // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
+      check: async (action, input) => {
+        const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+        if (!view) throw new ActionError("assistant.action_revoked", "这项能力已对助理关闭或不再可用");
+        assertActionInput(view.action.input_schema, input);
+      },
       invoke: async (action, input, signal) => service().invoke(await context(validate, signal), action, input),
     }),
   };

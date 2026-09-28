@@ -494,6 +494,8 @@ export interface AgentSubagentWorkspace {
 
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
+  /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
+  check?(reference: ExactActionReference, input: unknown): Promise<void>;
   invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
 }
 

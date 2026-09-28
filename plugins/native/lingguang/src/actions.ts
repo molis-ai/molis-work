@@ -1,6 +1,7 @@
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
+import { createLingguangSearchHandlers, lingguangSearchActions } from "./search.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -32,6 +33,8 @@ export const lingguangActions = {
   getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
   message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
     object({ id, body: { type: "string", minLength: 1, maxLength: 2000, pattern: "\\S" } }), conversationState, [...read, ...write, "model:invoke"]),
+  searchEntries: lingguangSearchActions.entries,
+  subject: lingguangSearchActions.subject,
 };
 export const LINGGUANG_ACTIONS: readonly ActionDefinition[] = Object.values(lingguangActions);
 export const LINGGUANG_ACTION_PERMISSIONS = [...new Set(LINGGUANG_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -70,6 +73,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
       await caller.beforeEffect();
       return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot));
     }, () => ports.modelAvailability()),
+    ...createLingguangSearchHandlers(ports.withStore),
   ];
 }
 

@@ -2,6 +2,7 @@ import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallC
 import type { DatasetRecord, DatasetVersionRecord, DatasetColumnInput, DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStore } from "./store.js";
+import { createDatasetSearchHandlers, datasetSearchActions } from "./search.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -33,6 +34,8 @@ export const datasetActions = {
   snapshot: define<Identity & { note?: string }, { version: DatasetVersionRecord }>("snapshot", "保存版本", "把当前表保存为可回滚的本机快照", "command", object({ ...identity, note: { ...text, maxLength: 80 } }, ["id"]), object({ version: snapshot })),
   rollback: define<Identity & { version_id: string }, { dataset: DatasetRecord }>("rollback", "回滚版本", "从当前表的指定快照恢复内容；保留发布引用与其他快照", "command", object({ ...identity, version_id: id }, ["id", "version_id"]), changed),
   promote: define<Identity, { dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布数据表", "把固定表内容存成 Artifact，或恢复上次中断发布；本机快照不进入发布内容", "command", object(identity, ["id"]), object({ dataset: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  searchEntries: datasetSearchActions.entries,
+  subject: datasetSearchActions.subject,
 };
 export const DATASET_ACTION_PERMISSIONS = [...new Set(Object.values(datasetActions).flatMap(d => d.action.permissions))];
 export interface DatasetActionPorts {
@@ -76,5 +79,6 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
     bind(datasetActions.rollback, (input, caller) => ports.withStore(store => ({ dataset: store.rollback(input.id, input.version_id, project(caller), input.expected_version) }))),
     bind(datasetActions.promote, (input, caller) => ports.withStore(store => promoteDataset(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
       () => ports.publishArtifact ? { available: true } : { available: false, code: "dataset.unavailable", reason: "当前环境不能发出 Artifact" }),
+    ...createDatasetSearchHandlers(ports.withStore),
   ];
 }

@@ -1,4 +1,4 @@
-import { ActionError, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEventWorkStatuses, goalIntentSourceKinds, type CreateGoalIntentInput, type CreateGoalIntentResult,
   type GoalEventDirectoryPage, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput,
@@ -37,6 +37,8 @@ const limit = { type: "integer", minimum: 1, maximum: 100 };
 
 export const goalsActions = {
   subject: defineSubjectContextAction("goals.subject.read", "goal", "目标上下文", ["goals:read"]),
+  /** System search: every current Goal with the same revision its context reader reports. */
+  searchEntries: defineSearchEntriesAction("goals.search.entries", [{ kind: "goal", title: "目标", surface: "goals" }], "目标", ["goals:read"]),
   ...goalsBoardActions,
   ...goalsEventActions,
   ...goalsPlanningActions,
@@ -119,6 +121,22 @@ export function createGoalsActionHandlers({ events, boardId, history, planning, 
       return subjectContext({ subject: { kind: "goal", id }, revision: `${goal.current_contract_revision}:${state.goal_event_cursor}`, title: goal.title,
         content: [state.intent.title, state.intent.why, state.intent.business_logic, goal.outcome, `当前工作状态：${state.work_status}`, state.progress_summary?.summary, state.progress_summary?.next_step].filter(Boolean).join("\n\n"), goal_ids: [id], session_id: null });
     } },
+    bindSearchEntriesHandler(goalsActions.searchEntries, () => {
+      const entries: SearchEntry[] = [];
+      let after: string | undefined;
+      do {
+        const page = events.listGoals({ board_id: boardId, limit: 100, ...(after ? { after_cursor: after } : {}) });
+        for (const item of page.goals) {
+          const goal = readGoal(item.goal_id);
+          if (!goal) continue;
+          const state = events.readState(boardId, item.goal_id);
+          entries.push({ subject: { kind: "goal", id: item.goal_id }, revision: `${goal.current_contract_revision}:${state.goal_event_cursor}`, title: goal.title,
+            summary: searchText(state.progress_summary?.summary ?? item.next_hint, 400), updated_at: item.updated_at, content: "context", open: { surface: "goals", id: item.goal_id } });
+        }
+        after = page.next_cursor ?? undefined;
+      } while (after);
+      return entries;
+    }),
     ...createGoalsBoardActionHandlers(boardId, board),
     createGoalsCollectionActionHandler(boardId, collection),
     { ...goalsActions.snapshot, handle: () => history.snapshot() },

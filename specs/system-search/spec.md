@@ -42,31 +42,31 @@
 
 | 插件 | 业务事实 owner / 数据位置 | 公共存储能力 | 现有读取 / 变更接口 | 可搜索内容 | 打开 | 结论 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Goals | `modules/goals`，项目库 | `LocalSqliteStorage` | `goals.subject.read`、events 查询与命令 | 标题、意图、为什么、业务逻辑、预期结果、进展摘要 | 条目标签 `goals` | 补条目列出 |
-| Work（Sessions） | `modules/private-work-context`，Home 会话登记 | Home SQLite | `sessions.subject.read`、会话动作 | 会话标题、Runtime、关联 Goal（私人终端正文加密，不入索引） | 条目标签 `sessions` | 补条目列出（仅摘要） |
-| Inbox | `modules/attention-resumption`，项目库 | 同上 | `inbox.subject.read`、`inbox.list`、`inbox.entry.status` | 事项标题、进入原因、关联对象摘要 | 条目标签 `inbox` | 补条目列出 |
-| Feed | `modules/feed`/`sources`，项目库；保留正文在 Feed 安全目录（AES-GCM 加密） | 同上 + SecretStore | `feed.subject.read`、`feed.source.subject.read`、Feed 查询与处置 | 材料标题、摘要、来源名；来源名称与说明。**正文加密存放，不进明文索引** | 条目标签 `feed`；来源走目录行 | 补条目列出（材料仅摘要；来源） |
-| Schedule | 插件，项目库 `schedule_conversation_tasks` | 项目库 | `schedule.list`、任务命令 | 对话任务标题与提示词 | 目录行 | 补对象读取 + 条目列出 |
-| Artifacts | `modules/artifacts`，项目库 | 同上 | `artifacts.subject.read`、浏览 | 成果标题、类型、内联正文（最新版本） | 条目标签 `artifacts` | 补条目列出 |
-| Coding | Runtime app，插件私有存储（项目库） | Plugin Runtime 私有存储 | `coding.subject.read`（助理分支）、16 项 `coding.*` | 会话标题、任务、最近轮次摘要 | 条目标签 `coding` | 补条目列出 |
+| Goals | `modules/goals`，项目库 | `LocalSqliteStorage` | `goals.subject.read`、events 查询与命令 | 标题、意图、为什么、业务逻辑、预期结果、进展摘要 | 条目标签 `goals` | 已接入：`goals.search.entries`，版本与读取器一致 |
+| Work（Sessions） | `modules/private-work-context`，Home 会话登记 | Home SQLite | `sessions.subject.read`、会话动作 | 会话标题、Runtime、关联 Goal（私人终端正文加密，不入索引） | 条目标签 `sessions` | 已接入（仅摘要）：`sessions.search.entries` |
+| Inbox | `modules/attention-resumption`，项目库 | 同上 | `inbox.subject.read`、`inbox.list`、`inbox.entry.status` | 事项标题、进入原因、关联对象摘要 | 条目标签 `inbox` | 已接入（仅摘要，关联材料正文留在 Feed）：`inbox.search.entries` |
+| Feed | `modules/feed`/`sources`，项目库；保留正文在 Feed 安全目录（AES-GCM 加密） | 同上 + SecretStore | `feed.subject.read`、`feed.source.subject.read`、Feed 查询与处置 | 材料标题、摘要、来源名；来源名称与说明。**正文加密存放，不进明文索引** | 条目标签 `feed`；来源走目录行 | 已接入：`feed.search.entries`（材料仅摘要，来源名称与说明） |
+| Schedule | 插件，项目库 `schedule_conversation_tasks` | 项目库 | `schedule.list`、任务命令 | 对话任务标题与提示词 | 目录行 `schedule` | 已接入：`schedule.subject.read`、`schedule.search.entries`（任务说明与每次运行的回报） |
+| Artifacts | `modules/artifacts`，项目库 | 同上 | `artifacts.subject.read`、浏览 | 成果标题、类型、内联正文（最新版本） | 条目标签 `artifacts` | 已接入（仅摘要）：每个成果最新可用版本的标题与负载文字 |
+| Coding | Runtime app，插件私有存储（项目库） | Plugin Runtime 私有存储 | `coding.subject.read`（助理分支）、16 项 `coding.*` | 会话标题、任务、最近轮次摘要 | 条目标签 `coding` | 已接入：`coding.search.entries`（Runtime 路由，Coding 升到 1.50.0） |
 | Files | 工作区文件（外部事实） | — | `files.*` 读授权目录 | 工作区文件属外部，快照已是 Artifact | — | 不接入：文件内容由工作区与 Git 拥有，按代码检索是另一类功能；Files 产出的快照经 Artifacts 可搜 |
 | Git | 工作区 Git（外部事实） | — | `git.*` | 同上，变更集是 Artifact | — | 不接入：同上 |
 | Diff | 无自有内容 | — | `diff.compare/state` | 无 | — | 不接入：只呈现已有快照的比较 |
 | Text stats | 无自有内容 | — | `text-stats.*` | 无 | — | 不接入：只统计已有快照 |
-| Cognia | 插件，`{home}/cognia/cognia.db`（Home 作用域） | `openHomeSqliteDatabase` | `cognia.material.*`（含自带搜索） | 资料标题、正文、标签、领域 | 目录行 `cognia` | 补对象读取（Home）+ 条目列出；自带搜索保留为插件内功能 |
-| 插件创作台 | 插件，项目库设计草稿与发布记录 | 项目库 | 创作台路由与平台动作 | 设计草稿名称与一句话需求 | 创作台页 | 待核对后定（第 12 节） |
-| Images | 插件，`{home}/images/images.db`（Home） | `openHomeSqliteDatabase` | `images.*` | 生成描述（提示词）与项目生成记录 | 目录行 | 补对象读取（Home）+ 条目列出 |
-| Jelly | 插件，`{home}/jelly/jelly.db`（单一工作区 JSON + 修订号，Home） | 同上 | `jelly.*`（读 workspace、命令） | 日程标题与备注、笔记、灵感 | 目录行 `jelly` | 补对象读取（Home）+ 条目列出 |
-| Experiments | 插件，Home | Home 文件 | `experiments.*` | 离线比较的任务说明 | 目录行 | 待核对后定 |
-| Shelf | `modules/shelf`，`{home}/shelf/` | 文件 + SQLite | `shelf.snapshot` 等 | 材料名称、抽出的文字 | 置物架 | 补对象读取（Home）+ 条目列出 |
-| 灵光 | 插件，`{home}/lingguang/lingguang.db`（按项目分区） | `openHomeSqliteDatabase` | `lingguang.list/get` 等 | 灵光标题与正文 | 条目标签 `lingguang` | 补对象读取 + 条目列出 |
-| Characters | `modules/characters` 草稿 | SQLite | `characters.list/state` 等 | 角色名称、做事方式说明 | 目录行 | 补对象读取 + 条目列出 |
-| Pages | 插件，`{home}/pages/pages.db`（按项目分区） | `openHomeSqliteDatabase` | `pages.subject.read`（助理分支）、`pages.list/get/update` | 标题与正文 | 条目标签 `pages` | 补条目列出 |
-| Form | 插件，`{home}/form/form.db`（按项目分区） | 同上 | `form.list/get` | 问卷标题、说明、题目与选项 | 目录行 `form` | 补对象读取 + 条目列出；填写结果不入索引（见下） |
-| Dataset | 插件，`{home}/dataset/dataset.db` | 同上 | `dataset.list/get` | 表名、说明、列名、单元格文字（截断） | 目录行 `dataset` | 补对象读取 + 条目列出 |
-| PPT | 插件，`{home}/ppt/ppt.db` | 同上 | `ppt.list/get` | 标题、说明、每页标题与正文 | 目录行 `ppt` | 补对象读取 + 条目列出 |
-| Alchemist | 插件，`{home}/alchemist/` 项目隔离 | 同上 | `alchemist.*`、`alchemist.playbook.context` | 方向、Idea 的标题与核心问题 | 目录行 `alchemist` | 补对象读取 + 条目列出 |
-| Workflows | 插件，`{home}/workflows/workflows.db`（按项目分区） | 同上 | `workflows.list/get` | 流程标题与步骤说明 | 目录行 | 补对象读取 + 条目列出 |
+| Cognia | 插件，`{home}/cognia/cognia.db`（Home 作用域） | `openHomeSqliteDatabase` | `cognia.material.*`（含自带搜索） | 资料标题、正文、标签、领域 | 目录行 `cognia` | 已接入（个人范围）：`cognia.subject.read`、`cognia.search.entries`；自带搜索保留为插件内功能 |
+| 插件创作台 | 插件，安装私有存储里的设计草稿与发布记录 | Plugin Runtime 私有存储 | 只有创作台自己的 HTTP 路由；平台动作在打开创作台后才懒加载登记 | 草稿标题与一句话需求 | 创作台页 | **真实缺口，未接入**：草稿没有动作层，宿主组合只在创作台打开后才登记提供方；要可搜需在项目打开时为草稿补读取与条目动作，属创作台 v3 组合（`specs/plugin-builder/work-items/studio-v3/spec.md`）。影响：创作台草稿搜不到；已发布的生成插件目前也不能声明协议型动作（见第 12 节） |
+| Images | 插件，`{home}/images/images.db`（生图服务在 Home，生成记录按项目分区） | `openHomeSqliteDatabase` | `images.*` | 生成描述（提示词）与模型 | 目录行 `images` | 已接入（项目）：`images.subject.read`、`images.search.entries` |
+| Jelly | 插件，`{home}/jelly/jelly.db`（单一工作区 JSON + 修订号，Home） | 同上 | `jelly.*`（读 workspace、命令） | 日程标题与备注、笔记、灵感 | 目录行 `jelly` | 已接入（个人范围）：日程、笔记、灵感三种对象与读取器 |
+| Experiments | 插件，Home | Home 文件 | `experiments.*` | 实验名称与状态 | 目录行 `experiments` | 已接入（仅摘要）：材料与答案是可能敏感的测试数据，不入索引 |
+| Shelf | `modules/shelf`，`{home}/shelf/` | 文件 + SQLite | `shelf.snapshot` 等 | 材料名称、抽出的文字 | 条目标签 `shelf` | 已接入（个人范围，仅摘要）：材料名称与抽出的文字、剪贴板 |
+| 灵光 | 插件，`{home}/lingguang/lingguang.db`（按项目分区） | `openHomeSqliteDatabase` | `lingguang.list/get` 等 | 灵光标题与正文 | 条目标签 `lingguang` | 已接入：只含未丢弃的灵光 |
+| Characters | `modules/characters` 草稿 | SQLite | `characters.list/state` 等 | 角色名称、做事方式说明 | 目录行 `characters` | 已接入：Runtime 插件以本人绑定动作提供（升到 1.5.0） |
+| Pages | 插件，`{home}/pages/pages.db`（按项目分区） | `openHomeSqliteDatabase` | `pages.subject.read`（助理分支）、`pages.list/get/update` | 标题与正文 | 条目标签 `pages` | 已接入：`pages.search.entries`，正文经助理分支的 `pages.subject.read` |
+| Form | 插件，`{home}/form/form.db`（按项目分区） | 同上 | `form.list/get` | 问卷标题、说明、题目与选项 | 目录行 `form` | 已接入：问卷本身；填写结果不入索引（见下） |
+| Dataset | 插件，`{home}/dataset/dataset.db` | 同上 | `dataset.list/get` | 表名、说明、列名、单元格文字（截断） | 目录行 `dataset` | 已接入 |
+| PPT | 插件，`{home}/ppt/ppt.db` | 同上 | `ppt.list/get` | 标题、说明、每页标题与正文 | 目录行 `ppt` | 已接入 |
+| Alchemist | 插件，`{home}/alchemist/` 项目隔离 | 同上 | `alchemist.*`、`alchemist.playbook.context` | 方向、Idea 的标题与核心问题 | 目录行 `alchemist` | 已接入（仅摘要）：方向与 Idea 的标题、核心问题与机制 |
+| Workflows | 插件，`{home}/workflows/workflows.db`（按项目分区） | 同上 | `workflows.list/get` | 流程标题与步骤说明 | 条目标签 `workflows` | 已接入：流程标题、步骤与交接规则（不含运行记录） |
 | 6 个官方集成（catalog、github、gmail、rss、web-query、youtube） | Provider 适配，不持有业务内容 | Connector/Listener Host | 连接与同步 | 拉到的内容成为 Feed 材料与来源 | — | 不单独接入：内容经 Feed 可搜 |
 
 Form 填写结果：属于填写人的回答，数量不受控；首期只索引问卷本身。原因写进插件适配说明，结果查看仍在 Form 里。
@@ -160,6 +160,7 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 - **项目删除**：删除该项目的全部索引行。
 - **Home 隔离**：索引属于创建它的 Home；不同 Home 各自一份。`{home}/search` 加入卸载清除名单；备份是 Home 的离线拷贝，索引随之或缺失都能自行修复。
 - **权限变化**：见 5.2，查询时实时按调用者目录过滤，撤权立即生效。
+- 业务数据在 Home 隔离、迁移、备份恢复、停用、卸载、删除项目时的现行规则（按代码核实）写在 `docs/platform/STORAGE-AND-EXCHANGE.md` 1.1 节；本任务没有改变任何插件的业务数据规则。
 
 ## 9. Workbench 用户路径
 
@@ -197,15 +198,52 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 
 工程门禁：`pnpm build`、`pnpm workspace:typecheck`、`pnpm boundary:check`，本任务定向测试与受影响的既有测试；浏览器用例覆盖全局搜索。
 
-## 12. 计划与进度
+## 12. 进度与证据
 
 | 步 | 内容 | 状态 |
 | --- | --- | --- |
-| P1 | 合同（提供与消费）、storage 索引适配（切分与 FTS5）、`horizontal/search` 服务、单元测试（中文、短词、增量、删除、失败、重建） | 进行中 |
-| P2 | Host 装配：系统动作、建索引上下文、标脏钩子、生命周期（停用、项目删除、卸载清除）、Web 路由 | 未开始 |
-| P3 | 插件适配：Goals、Pages、灵光、Form、Dataset、PPT、Workflows、Inbox、Feed、Artifacts、Sessions、Schedule、Coding；Home 作用域 Cognia、Jelly、Images、Shelf、Characters、Alchemist；复核插件创作台与 Experiments | 未开始 |
-| P4 | Workbench 搜索界面：范围、状态、打开、定位、无结果行为 | 未开始 |
-| P5 | SDK、插件开发 Skill、`docs/platform/PLUGIN-DEVELOPMENT.md`、SSOT 与包清单、各包「开发要求」 | 未开始 |
-| P6 | 真实场景：隔离 Home 预览、浏览器实操 S01–S10、MCP 与助理调用 | 未开始 |
+| P1 | 合同（提供与消费）、storage 索引适配、`horizontal/search` 服务 | 工程通过（bda1333c） |
+| P2 | Host 装配：`system.search`、建索引上下文、成功命令与提供方注册/撤下即标记、项目删除与卸载清理、Web 路由 | 工程通过（50ab6c6c、90495cc9） |
+| P3 | 21 个插件接入（第 3 节）；插件创作台为真实缺口 | 工程通过（7ae69d7e、37c75970、1cf17d7b、90495cc9） |
+| P4 | Workbench 搜索界面 | 工程通过、真实界面实操通过（5c24af3c、90495cc9） |
+| P5 | SDK、Skill、手册、包说明、SSOT、架构需求书、产品范围 | 完成（3715bdfc 及之前） |
+| P6 | 真实场景：隔离 Home 预览与浏览器实操、真实 MCP 进程、助理授权 | 见下 |
 
-证据与未完成项随各步写在下方。
+与助理分支：已合入 `feature/system-assistant` c50288ea（含 origin/main 21cdfbf8），本分支须在其后合入 main。
+
+### 工程通过（定向）
+
+- `tests/system-search.test.ts` 13 项：协议校验与分页辅助；未打开内容的中文 1–2 字、`Q4`/`q4`、全角 `ＯＫＲ`、前缀 `sea`、混排 `search方案`、`50万`、“算控”不误中；命令成功后的新建/修改/删除，无人通知的后台写入在新鲜期后被发现；项目、个人、MCP 授权与“只有列出没有读取器”的隔离；仅摘要内容不入索引也不读正文；打开核对与已删除移出；失败保留、状态为 stale/failed 与恢复；停用/启用/卸载/重装；重启不重读、删除与写坏索引文件后重建；翻页游标；按需查询来源不落盘。
+- `tests/system-search-host.test.ts`：真实 Home/目录/Host/Web 服务/Plugin Runtime——Pages、Form、灵光、Goals 的真实内容可搜；修改、删除、丢弃即时反映；两个项目互不可见；Cognia 个人内容在两个项目与项目外都可搜、限定本项目不出现；MCP 调用上下文逐项授权；未知 Runtime 插件只声明协议即被搜到、停用后消失；`/api/search/*` 需要控制令牌、项目外只有个人范围。
+- `tests/system-search-lifecycle.test.ts`：项目里停用 Goals 后结果消失且状态为已停用、重新启用后重建；重启后 `indexed_at` 不变（未重建）；索引文件丢失后重建；真实 stdio MCP 进程只授予 `search.query` 看不到内容、授予来源与读取器后可搜到正文、撤销来源立即消失；助理经 `assistantAuthority` 调用 `search.query` 并用命中对象的读取器读到正文与打开位置，对助理关闭来源只影响助理。
+- 21 个插件清单经 `inspectActionDeclarations` 校验无问题；`pnpm workspace:typecheck` 通过；`pnpm boundary:check` 仅剩助理分支 3 条既有错误（已由其在 1a98afed、bdf417c3 修复，待再次合入）。
+
+### 真实场景实操（隔离 Home，`search-dev` 4270，本分支构建）
+
+- 预置两个项目与 Pages、Form、灵光、Goals、Dataset、Cognia 真实内容，均未打开过。
+- ⌘K 搜“法务”（只在第 31 段正文里）：命中“第四季度计划要点”，摘要高亮；点开进入该文档，编辑器滚动到第 31 段，页面里 `CSS.highlights` 标出“法务/OKR”。
+- 搜“预算”只返回本项目文档，另一个项目的“另一个项目的预算”不出现。
+- 切到“仅个人”搜“鲸落”：命中 Cognia 资料；回车后 Cognia 打开的正是这份资料，并高亮“鲸落”。
+- 搜到“周会纪要”后从 Pages 接口删除它，再点这条旧结果：提示“这条内容已被删除或归档，已从结果中移除”，该条消失；再搜不到。
+- 无结果时显示空状态与一个不预选的“问助理”按钮，回车不触发。
+- 发现并修复：结果返回前选中项被钳成 -1 导致回车无效；Esc 后立即 ⌘K 重开时延迟的关闭事件作废新查询；单库看板页被当成无项目；Home 级清理误删单库模式的索引。
+
+### 浏览器既有用例
+
+`global-ui-interaction`、`immersive-directory`、`product-experience-polish`、`goals-tree`、`goals-narrow-navigation`：本任务引入的只有“分屏打开”一项（内容结果改为异步，用例改为先等结果出现，已通过）。其余 4 项在基线 c50288ea 上以相同位置失败（窄屏下 `[data-global-search-open]` 被隐藏；“产品旅程”第 97 行 Cognia 打开模型设置），与搜索无关，已告知助理会话。
+
+### 全量回归
+
+（进行中）
+
+## 13. 未完成与限制
+
+- **插件创作台草稿**不可搜（第 3 节）；**生成插件**不能声明协议型动作（搜索来源、对象读取器），其内容不可搜。两者都需要创作台 v3 的组合补动作层。
+- **Feed 保留正文**加密存放，不进明文索引；Feed 只按标题、摘要、来源与标签可搜。首期没有官方插件使用按需查询协议（协议、服务端合并与测试插件已验证）。
+- **项目列表页**（无项目）工作台没有搜索入口；个人内容可在任何项目里用“仅个人”搜，助理与 API 在无项目时也可用。
+- **跨项目搜索**不提供：调用者的项目作用域由可信上下文决定。
+- 命中定位依赖正文在页面上是可见文字；Dataset 单元格、Jelly 日历中未显示在当前视图的对象只能打开到对象，不一定高亮。
+- 助理的真实模型轮次（MiniMax）未跑搜索场景；已用助理运行时同一授权对象验证调用链。
+- **工作流**：`search.query` 对工作流受众开放，但现有工作流的“动作步骤”只提供命令类动作，查询类（搜索、对象读取）不能作为步骤；这是工作流步骤模型的范围，未在本任务改动。
+- 用户验收：未进行。
+

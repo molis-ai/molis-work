@@ -19,7 +19,7 @@
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | Scheduler 独立续租/提交控制已补齐；提醒与安装执行迁移继续待实现 |
-| 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent 消费已实现并验证；其余真实提供方与安装执行元数据继续复核 |
+| 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent 消费及 Native/Host 提供方已实现并验证；安装依赖变更与执行绑定随 05/07 完成 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
@@ -80,6 +80,10 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 
 将 model.generate 和真实 AI/外部工具提供方的已知事实迁入声明，Builder、Sandbox、Workflow、Agent/MCP 消费共同定义；旧生成物只保留输入输出转换，不能继续以能力名称推断执行政策。验证任意名字的声明能力也受相同预算/超时约束、目录与实际执行一致、原调用者隔离、取消后 late commit 被拒绝。未声明的旧能力不被静默标为免费，也不凭空添加产品预算。此切片与 05 的安装执行端口串行，元数据接口及真实消费者迁移完成前不标记 06 完成。频率计数为本机当前注册实例的调用保护，按 actor/project/install 跨入口共享，不承担跨重启计费；未声明的能力不添加默认预算。旧生成物仅保留 Goals 形状适配，其余调用进入统一目录，并在实际派出前重新检查原调用者。设计阶段按声明的 metered 费用拒绝页面自动 query；Agent 的入口上限可更严格。安装 sandbox 启动时读取目录策略，依赖更新后的执行绑定与恢复将随 05/07 补齐。
 
+### 真实提供方执行声明
+
+继续核对 Native AI 入口：Pages、Form、Dataset、灵光、Cognia、Jelly 的直接生成，Images/Experiments/Alchemist/Coding 的后台启动，以及 Feed/Inbox/Workflow/Functions、Home 判断与信息规划的模型或判断调用。由各提供方在实际定义处明确 `cost: metered`（可能消耗计量额度，不等于每次实际收费）；配置读取、取消、缓存读取不据此标为收费，也不以权限名推断。既有后台任务的业务时限、取消和恢复仍由其 owner 控制，本切片不把整个任务生命周期误当成 Action 处理器等待时限。没有单次动作总时限证据就不补假时限或统一频率。未知外部能力保持 unknown。额外确认 `alchemist.reuse.assess` 等待模型时仍占串行队列，因旧门禁只按 `model:invoke` 权限筛选而遗漏；它仅读取候选并在模型返回后核对原授权，改为显式 concurrent，并让门禁同时检查 metered 提供方。验证从真实 Home/项目目录读取并经 Builder 设计策略消费，确认直接生成与后台启动都会阻止页面自动收费查询，普通历史读取仍可用于查询。
+
 ### 当前验证记录
 
 - 第一批 AI 公共契约及 Cognia/Coding 迁移：整体 `pnpm build` 通过；16 个定向回归文件、105 项测试通过，含真实 Node Runtime 对本机 HTTP 模型替身的调用。后续源码改动需重新构建并运行相关回归。
@@ -109,3 +113,7 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 - Schedule 前置修复：独立续租、暂停/取消/重排后 handler 提交控制、Prologue 最终派出 guard、对话提交同事务复查。并发日历 tick 通过 Scheduler `isExecuting` 避免重排仍在执行的 once；标为已读不撤销原任务。整体构建及 boundary 通过；6 文件 36/36 回归通过（含两个 SQLite 连接、不再 tick 仍续租、取消后零业务写入、日历并发、原提醒/定时操作）。Feed 调度授权/并发回归也通过。最初新增对话 fixture 在注册 handler 前创建任务被正确拒绝，调整测试准备顺序后通过，未改放宽生产注册约束。日志 `/tmp/platform-scheduler-final.log`、`/tmp/platform-scheduler-recheck.log`。05 的提醒 owner、持久 pending 与安装 Runtime 解耦仍未完成。
 
 - 能力执行声明前置切片：Contracts/Plugin SDK 暴露 `action.execution`，Kernel 执行明确声明的超时与每 actor/project/install 频率，审计分类不分割预算；超时中止等待并拒绝迟到写入。Builder 的旧模型/提醒直调和两套频率窗口已删除，sandbox、设计校验及 Agent 工具读取提供方声明，外部 MCP 费用明确 unknown。原调用者在实际派出前仍重新校验；元数据和调用共用同一最高可用版本选择。手册、Skill 和模块 README 已同步。整体构建通过；首轮 39 文件 332/332，版本选择补充后 13 文件 146/146，最终身份与 Skill 调整后 10 文件 67/67，无跳过；69 包边界检查无错误。日志 `/tmp/platform-policy-regression.log`、`/tmp/platform-policy-recheck.log`、`/tmp/platform-policy-final.log`、`/tmp/platform-policy-boundary.log`。包含真实 SDK、原 SQLite、安装产物和 Studio 发布使用的 Chrome 路径；不代表真实付费模型验收。06 仍需真实 Native 提供方声明复核，05/07 仍需安装执行身份与依赖变更恢复。
+
+- 真实 Native/Host 提供方：在实际定义处补齐已知 AI 消耗声明，修复 Alchemist 复用评估占住项目队列。68 文件首轮 372/373 通过；唯一失败是新增门禁发现 Home 判断缺少声明，同链审查还找到 information.plan，两处补齐后重新整体构建，10 文件 70/70 通过。已通过的其他插件回归保留有效；69 包边界检查与 diff whitespace 检查通过。日志 `/tmp/platform-native-policy-build.log`、`/tmp/platform-native-policy-regression.log`、`/tmp/platform-native-policy-recheck.log`、`/tmp/platform-native-policy-boundary.log`。真实目录进入 Builder 策略及等待期间可编辑均有行为回归；未运行真实付费模型。
+
+接续位置：06 的声明及现有消费链已接通，接下来按 05 的迁移顺序解除提醒、定时 operation 和已安装 Runtime 对 Studio 打开的依赖，并保留旧记录与当前安装授权；07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。

@@ -135,9 +135,9 @@ const instance = { type: "object", required: ["instance_id", "workflow_id", "sta
 const payload = { type: "object", required: ["title", "body"] };
 const read = ["workflows:read"], write = ["workflows:write"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[]): ActionDefinition<I, O> {
+  permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
   // Handoffs wait on other plugins and on a model; the store's revisions and delivery keys keep concurrent calls safe.
-  return { capability_id: `workflows.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+  return { capability_id: `workflows.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation",
     scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "mcp"], permissions, subject_kinds: ["workflow"], input_schema: input, output_schema: output } };
 }
 
@@ -168,7 +168,7 @@ export const workflowsActions = {
   continue: define<{ id: string; from?: number; updated_at?: string; title?: string; body?: string; retry_action?: boolean }, { instance: WorkflowInstance }>("instances.continue", "交给下一站",
     "按这一段的交接方式（判断规则、模板转换、AI 整理或人工交接）把内容交给下一站；下一站是动作时按字段映射执行。同一步重试只交付一次；动作结果未确认时需明确 retry_action 才会重新执行", "command",
     object({ id, from: { type: "integer", minimum: 0 }, updated_at: text, title: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 100_000 }, retry_action: { type: "boolean" } }, ["id"]),
-    object({ instance }), [...write, "model:invoke"]),
+    object({ instance }), [...write, "model:invoke"], { cost: "metered" }),
   actionSteps: define<Record<string, never>, { actions: WorkflowActionChoice[]; fields: readonly string[] }>("steps.actions", "可放进流程的动作",
     "列出可以作为一步执行的已注册动作，按提供方分组，并给出每个输入字段；交过来的标题、正文、来源、链接和日期可以映射进去", "query", object({}),
     object({ actions: { type: "array" }, fields: { type: "array", items: text } }), read),

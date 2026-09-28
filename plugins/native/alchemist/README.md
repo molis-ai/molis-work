@@ -34,7 +34,7 @@ Studio 的 41 项业务已声明为 `alchemistActions`，输入输出验证与�
   - 未配置模型时保留输入并提示，不生成演示卡。
   - 预算不足产生部分报告，不能当作完整的双 Lens 依据；费用不可观测时不把调用数换算成金额。
   - 执行中的任务持续续租；任务状态与事件同事务保存。
-  - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送声明 `scheduling: "concurrent"`。
+  - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts`
 - 相关手册：[specs/alchemist-plugin/spec.md](../../../specs/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

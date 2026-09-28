@@ -1,5 +1,13 @@
 # Prologue SDK 构建来源
 
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+
+```bash
+git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
+```
+
+下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
+
 当前依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
 
 - Node Host 的 `beforeModelDispatch` 是 App 的撤权复核（授权被收回、Character 被停用、密钥变了）。它拒绝时一个字节都没出本机，原来却被 agent loop 与 session run 两处 `mapNetworkError` 改成 `MODEL_NETWORK_FAILED`，消费方据此提示"检查网络"；带备选目标时还会换到下一个目标再被拒一次。
@@ -57,7 +65,7 @@
 - 消费方：冻结安装、Agent Host / Local Host 类型检查通过，文字、图片、TypeSafe、Schedule、凭据与恢复共 75/75 通过；包内全部 514 个 dist 文件与 SDK 构建、实际安装逐字节一致。
 - 补充验证：SDK 全量 3321 项，3300 通过、20 跳过、1 项在 Chrome fixture 加载页面阶段失败；随后单独复跑 `computer-use.live.test.ts` 11/11 通过，未修改测试超时或生产行为。图片标准 MCP 端到端 1/1 通过，覆盖真实字节保存、跨进程重开、权限与幂等；这仍是受控图片服务，不代表商业图片服务验证。
 
-未提交或推送 SDK 源码、未发布 npm。旧包保留以便回退。本轮本地/CLI 暂缓范围与真实图片服务未验证项见消费方 [spec](../../specs/bp-delivery-parallel/work-items/prologue-convergence/spec.md)。
+未提交或推送 SDK 源码、未发布 npm。旧包保留以便回退（2026-09-28 起从 git 历史取，见本文开头）。本轮本地/CLI 暂缓范围与真实图片服务未验证项见消费方 [spec](../../specs/bp-delivery-parallel/work-items/prologue-convergence/spec.md)。
 
 ## 上一依赖：缓存断点
 

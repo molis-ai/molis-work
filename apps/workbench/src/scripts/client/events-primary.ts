@@ -677,8 +677,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
           if (form?.dataset.createdSourceId) {
             form.querySelectorAll("input, [data-feed-rss-definition]").forEach(input => input.disabled = true);
             feedSourcesDialog.querySelector("[data-feed-setup-back]").hidden = true;
-            sourceRegister.textContent = phase === "out-rule" ? L("重试保存捕捉规则") : L("重试保存计划");
-            form.querySelectorAll("[data-feed-add-out-rule-name], [data-feed-add-out-rule-contains]").forEach(input => input.disabled = false);
+            // The source exists; only its schedule is left to save (capture rules are set up later, in the source).
+            sourceRegister.textContent = L("重试保存计划");
           }
           if (inlineError) {
             inlineError.textContent = message;

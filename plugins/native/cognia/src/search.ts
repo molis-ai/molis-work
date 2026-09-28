@@ -20,7 +20,7 @@ export function createCogniaSearchHandlers(withStore: <T>(run: (store: CogniaSto
       let material: Material;
       try { material = store.read((input as { subject_id: string }).subject_id); }
       catch (error) {
-        if ((error as { code?: string })?.code === "cognia.not_found") throw new ActionError("actions.subject_unavailable", "资料已删除");
+        if ((error as { code?: string })?.code === "cognia.not_found") throw new ActionError("cognia.not_found", "资料已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "cognia_material", id: material.id }, revision: revisionOf(material), title: titleOf(material),

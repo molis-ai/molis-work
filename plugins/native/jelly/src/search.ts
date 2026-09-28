@@ -34,7 +34,7 @@ export function jellySearchEntries(state: JellyWorkspace): SearchEntry[] {
 
 export function createJellySearchHandlers(withStore: <T>(run: (store: JellyStore) => T) => T): ActionHandlerBinding[] {
   const read = () => withStore(store => store.read());
-  const missing = (label: string) => new ActionError("actions.subject_unavailable", `${label}已删除或已归档`);
+  const missing = (label: string) => new ActionError("jelly.not_found", `${label}已删除或已归档`);
   const id = (input: unknown) => (input as { subject_id: string }).subject_id;
   return [
     bindSearchEntriesHandler(jellySearchActions.entries, () => jellySearchEntries(read())),

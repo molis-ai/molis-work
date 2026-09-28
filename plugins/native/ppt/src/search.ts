@@ -23,7 +23,7 @@ export function createPptSearchHandlers(withStore: <T>(run: (store: PptStore) =>
       let presentation: PptRecord;
       try { presentation = store.get((input as { subject_id: string }).subject_id, project(caller)); }
       catch (error) {
-        if ((error as { code?: string })?.code === "ppt.not_found") throw new ActionError("actions.subject_unavailable", "演示稿已删除");
+        if ((error as { code?: string })?.code === "ppt.not_found") throw new ActionError("ppt.not_found", "演示稿已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "presentation", id: presentation.id }, revision: String(presentation.version), title: presentation.title,

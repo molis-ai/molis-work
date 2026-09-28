@@ -24,7 +24,7 @@ export function createDatasetSearchHandlers(withStore: <T>(run: (store: DatasetS
       let dataset: DatasetRecord;
       try { dataset = store.get((input as { subject_id: string }).subject_id, project(caller)); }
       catch (error) {
-        if ((error as { code?: string })?.code === "dataset.not_found") throw new ActionError("actions.subject_unavailable", "数据表已删除");
+        if ((error as { code?: string })?.code === "dataset.not_found") throw new ActionError("dataset.not_found", "数据表已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "dataset", id: dataset.id }, revision: String(dataset.version), title: dataset.title, content: datasetSearchContent(dataset), goal_ids: [], session_id: null, open: { surface: DATASET_PROJECT_PLUGIN_ID, id: dataset.id } });

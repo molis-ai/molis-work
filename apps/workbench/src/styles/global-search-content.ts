@@ -14,4 +14,5 @@ export const GLOBAL_SEARCH_CONTENT_STYLES = `
   .global-search-hit-snippet { font-size: 12px; line-height: 1.45; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .global-search-hit-snippet mark { background: color-mix(in srgb, #f5c542 42%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
   .global-search-more { display: block; margin: 4px auto 6px; font-size: 12px; }
+  .global-search-ask { display: block; margin: -8px 10px 12px; font-size: 13px; }
 `;

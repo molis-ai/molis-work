@@ -18,7 +18,7 @@ export function createScheduleSearchHandlers(projectId: string, tasks: () => rea
     { ...scheduleSearchActions.subject, handle: (caller, input) => {
       scoped(caller);
       const task = tasks().find(entry => entry.task_id === (input as { subject_id: string }).subject_id);
-      if (!task || task.archived) throw new ActionError("actions.subject_unavailable", "定时任务已归档或不存在");
+      if (!task || task.archived) throw new ActionError("schedule.not_found", "定时任务已归档或不存在");
       return subjectContext({ subject: { kind: "schedule_task", id: task.task_id }, revision: revisionOf(task), title: task.title, content: contentOf(task),
         goal_ids: [], session_id: null, open: { surface: "schedule", id: task.task_id } });
     } },

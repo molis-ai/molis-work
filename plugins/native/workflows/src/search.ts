@@ -28,7 +28,7 @@ export function createWorkflowsSearchHandlers(projectId: string, withStore: <T>(
       let workflow: Workflow;
       try { workflow = await withStore(store => store.get(id, scoped(caller))); }
       catch (error) {
-        if ((error as { code?: string })?.code === "workflows.not_found") throw new ActionError("actions.subject_unavailable", "流程已删除");
+        if ((error as { code?: string })?.code === "workflows.not_found") throw new ActionError("workflows.not_found", "流程已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "workflow", id: workflow.workflow_id }, revision: String(workflow.revision), title: workflow.title,

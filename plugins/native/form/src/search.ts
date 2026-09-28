@@ -27,7 +27,7 @@ export function createFormSearchHandlers(withStore: <T>(run: (store: FormStore) 
       let form: FormRecord;
       try { form = store.get(id, project(caller)); }
       catch (error) {
-        if (error && typeof error === "object" && (error as { code?: string }).code === "form.not_found") throw new ActionError("actions.subject_unavailable", "问卷已删除");
+        if (error && typeof error === "object" && (error as { code?: string }).code === "form.not_found") throw new ActionError("form.not_found", "问卷已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "form", id: form.id }, revision: String(form.version), title: form.title, content: formSearchContent(form), goal_ids: [], session_id: null, open: { surface: FORM_PROJECT_PLUGIN_ID, id: form.id } });

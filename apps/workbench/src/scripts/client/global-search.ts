@@ -45,7 +45,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const ITEM_TABS = ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])};
   const RECORD_ROWS = ${JSON.stringify([...pluginSearchRows().map(([plugin]) => plugin), "feed", "characters"])};
   const takeSearchHits = ${takeSearchHits.toString()};
-  const hasProject = Boolean(projectId);
+  // The palette lives on project (board) pages; a legacy single-board page has a project context without a catalog id.
+  const hasProject = Boolean(projectId) || document.body.hasAttribute("data-board-view");
   const scopes = hasProject ? ["all", "project", "personal"] : ["personal"];
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];
@@ -138,18 +139,16 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     // Content first when the words find something; tools stay reachable after it.
     const ordered = query.trim() ? [...content, ...groups] : groups;
     const noContent = query.trim() && !content.length && remote.status === "done" && remote.query === query.trim();
-    if (noContent && typeof askAssistant === "function") {
-      ordered.push({ label: L("没有匹配的内容"), items: [{ kind: "assistant", id: "assistant", title: L("问助理：") + "“" + query.trim() + "”", plugin: L("助理") }] });
-    }
+    // Asking the Assistant is a separate, explicit button: it is not a result, and Enter on no results starts nothing.
+    const ask = noContent && typeof askAssistant === "function"
+      ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(L("问助理：") + "“" + query.trim() + "”") + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
-    // An offer to ask the Assistant is never preselected: Enter on no results must not start work.
-    if (!explicit && hits[0]?.kind === "assistant") selected = -1;
-    else if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
+    if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
     if (statusLine) { const text = statusText(); statusLine.textContent = text; statusLine.hidden = !text; }
     paintScopes();
     if (!ordered.length) {
       const waiting = query.trim() && remote.status !== "done" && remote.status !== "error";
-      results.innerHTML = waiting ? "" : '<p class="global-search-empty">' + escapeHtml(L("没有匹配的内容")) + "</p>";
+      results.innerHTML = waiting ? "" : '<p class="global-search-empty">' + escapeHtml(L("没有匹配的内容")) + "</p>" + ask;
       input.removeAttribute("aria-activedescendant");
       return;
     }
@@ -166,7 +165,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         return html;
       }).join("");
       return '<section class="global-search-group"><h3>' + escapeHtml(group.label) + "</h3>" + rows + "</section>";
-    }).join("") + (remote.next && query.trim() ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(L("显示更多结果")) + "</button>" : "");
+    }).join("") + (remote.next && query.trim() ? '<button class="mw-btn mw-btn--ghost global-search-more" type="button" data-global-search-more>' + escapeHtml(L("显示更多结果")) + "</button>" : "")
+      + (ask ? '<p class="global-search-empty">' + escapeHtml(L("没有匹配的内容")) + "</p>" + ask : "");
     paintSelection();
   };
   const request = async (path, body) => {
@@ -256,7 +256,6 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   };
   const activate = async (item) => {
     if (!item) return;
-    if (item.kind === "assistant") { close(); askAssistant?.(input.value.trim()); return; }
     if (item.kind === "plugin") {
       close();
       requestAnimationFrame(() => { openPlugin?.(item.id); if (matchMedia('(max-width: 600px)').matches) setMobileView('document'); });
@@ -336,6 +335,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   });
   results.addEventListener("click", (event) => {
     if (event.target.closest("[data-global-search-more]")) { event.preventDefault(); void search(true); return; }
+    if (event.target.closest("[data-global-search-ask]")) { event.preventDefault(); const words = input.value.trim(); close(); askAssistant?.(words); return; }
     const hit = event.target.closest("[data-global-search-hit]");
     if (!hit) return;
     event.preventDefault();

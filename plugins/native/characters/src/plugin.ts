@@ -70,7 +70,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
         updated_at: draft.updated_at, content: "context" as const, open: { surface: "characters", id: draft.character_id } })), input)),
       bindOwnerPluginAction(context, a.subject, input => {
         const draft = ports.drafts.get(input.subject_id);
-        if (!draft || draft.state === "tombstoned") throw new ActionError("actions.subject_unavailable", "角色已删除");
+        if (!draft || draft.state === "tombstoned") throw new ActionError("character.not_found", "角色已删除");
         return subjectContext({ subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色",
           content: draft.instructions, goal_ids: [], session_id: null, open: { surface: "characters", id: draft.character_id } });
       }),

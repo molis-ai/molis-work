@@ -21,7 +21,7 @@ export function createImagesSearchHandlers(service: () => ImagesService): Action
       let job: ImageJob;
       try { job = service().getJob(project(caller), (input as { subject_id: string }).subject_id); }
       catch (error) {
-        if (/not_found/u.test(String((error as { code?: string })?.code ?? ""))) throw new ActionError("actions.subject_unavailable", "生成记录已删除");
+        if (/not_found/u.test(String((error as { code?: string })?.code ?? ""))) throw new ActionError("images.not_found", "生成记录已删除");
         throw error;
       }
       return subjectContext({ subject: { kind: "image_job", id: job.id }, revision: revisionOf(job), title: titleOf(job), content: [job.prompt, summaryOf(job)].filter(Boolean).join("\n"),

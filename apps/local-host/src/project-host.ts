@@ -263,8 +263,10 @@ export class MolisWorkLocalHost {
         project: projectId => this.host.status().projects.find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
         ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
+        // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
         knownProjects: async () => this.catalogRunner
-          ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)) : null,
+          ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),
+            ...this.host.status().projects.map(project => project.project_id)] : null,
         onError: (error, where) => { if (process.env.MOLIS_WORK_SEARCH_DEBUG) console.warn(`[search] ${where}:`, error); } });
     }
   }

@@ -62,6 +62,8 @@ export interface SearchServiceOptions {
   budgetMs?: number;
   /** Delay before a changed source is refreshed in the background. */
   refreshDelayMs?: number;
+  /** Projects that still exist in this Home; index rows of any other project are dropped. Null while unknown. */
+  knownProjects?(): Promise<readonly string[] | null>;
   onError?(error: unknown, where: string): void;
 }
 
@@ -138,19 +140,29 @@ export class SearchService {
     this.refreshDelayMs = options.refreshDelayMs ?? 800;
   }
 
-  /**
-   * Called by the Host whenever a command of a provider succeeded, from any entry, and when a provider is registered or
-   * withdrawn (install, enable, upgrade, disable, uninstall).
-   */
+  /** Called by the Host whenever a command of a provider succeeded, from any entry. Known sources refresh shortly after. */
   markChanged(providerId: string, projectId: string | null): void {
-    if (this.closed || providerId === SEARCH_PROVIDER_ID) return;
+    if (!this.announce(providerId, projectId)) return;
+    this.scheduleRefresh(providerId, projectId);
+  }
+
+  /**
+   * Called by the Host when a provider is registered or withdrawn (install, enable, upgrade, disable, uninstall).
+   * The next query re-checks that provider's sources and drops the ones that are gone; nothing runs now.
+   */
+  markRegistration(providerId: string, projectId: string | null): void {
+    this.announce(providerId, projectId);
+  }
+
+  private announce(providerId: string, projectId: string | null): boolean {
+    if (this.closed || providerId === SEARCH_PROVIDER_ID) return false;
     const seq = ++this.changeSeq;
     this.changed.set(`${projectId ?? ""}|${providerId}`, seq);
     // Home-scoped providers are called with a project context too; their content is personal.
     if (projectId) this.changed.set(`|${providerId}`, seq);
     this.reconciled.delete(projectId ?? "");
     this.reconciled.delete("");
-    this.scheduleRefresh(providerId, projectId);
+    return true;
   }
 
   async query(access: SearchAccess, input: SearchQueryRequest): Promise<SearchQueryResponse> {
@@ -249,7 +261,10 @@ export class SearchService {
     this.closed = true;
     for (const timer of this.refreshTimers.values()) clearTimeout(timer);
     this.refreshTimers.clear();
-    await Promise.allSettled([...this.inflight.values()]);
+    // A sync waiting on a closing project must not hold the Host's shutdown; its next write fails and is dropped.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([Promise.allSettled([...this.inflight.values()]), new Promise<void>(resolve => { timer = setTimeout(resolve, 3_000); })]);
+    clearTimeout(timer);
   }
 
   /* ---------------- sources ---------------- */
@@ -320,6 +335,14 @@ export class SearchService {
       if (record.project_id !== projectId || current.has(record.source_key)) continue;
       await this.inflight.get(record.source_key)?.catch(() => undefined);
       this.options.index.removeSource(record.source_key);
+    }
+    if (projectId !== null) return;
+    // A deleted project leaves nothing behind, whichever entry deleted it.
+    const projects = await this.options.knownProjects?.();
+    if (!projects) return;
+    const existing = new Set(projects);
+    for (const stale of new Set(this.options.index.sources().map(record => record.project_id).filter((id): id is string => !!id && !existing.has(id)))) {
+      this.removeProject(stale);
     }
   }
 

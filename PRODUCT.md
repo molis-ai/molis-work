@@ -25,6 +25,28 @@ Molis Work 是 Goal 的权威真相源。它把用户意图逐步整理成可理
 
 成功意味着用户不读技术协议也能在几秒内回答“现在目标是什么、接下来做什么、为什么还不能完成”。
 
+## Current Product Scope（草案，待用户改定）
+
+<!-- 2026-09-28 按代码现状起草（specs/repository-systematic-review D-02）。只写已从代码核实的事实；产品承诺由用户改定后去掉本注释。 -->
+
+本节以上是 V1 的 Goal 承诺，仍然有效。产品现在比它大：Goal 之外，项目里还有一组插件，它们经同一套动作服务和同一个 AI 运行时协作。
+
+- **一个 Home，一个常驻宿主。** `~/.molis-work` 下只有一个执行进程，管项目数据库、插件、动作目录和 AI 运行时。浏览器和 macOS App 打开同一个 loopback 工作台；CLI 与 MCP 入口不自己执行，转发给常驻宿主。
+- **项目按插件组织。** 每个项目启用一组插件。内置 25 个：Goals（Goal 的权威真相源）、Work（回到会话）、Inbox、Feed、Schedule、Artifacts；Coding 一族（Coding、Files、Git、Diff、Text stats）；以及个人插件 Cognia、插件创作台、Images、Jelly、Experiments、Shelf、灵光、Characters、Pages、Form、Dataset、PPT、Alchemist、Workflows。各插件的一句话说明以 `apps/workbench/src/plugin-catalog.ts` 为准。
+- **能力注册一次，到处可用。** 插件把查询和操作登记到共同动作目录；页面、工作流、Agent 和外部 MCP 客户端从同一目录发现并调用，权限按调用方和每个 MCP 客户端的授予裁决，执行过的调用留下记录。被取消或撤权的调用不再产生任何写入。
+- **AI 经同一运行时。** 文字、结构化判断、图片与 Agent 运行都经 Home 的 Prologue Runtime；模型、凭据与预算在同一处设置。Agent 的副作用进入审查队列，由人决定。
+- **Coding 是参照应用。** 围绕代码的讨论、执行、委派与审查保留连续的任务记录，能在沙箱仓库里开真实 PR。
+- **用户可以做自己的插件。** 插件创作台用自然语言设计插件，由 Agent 在沙箱里写代码，通过验证后在项目里使用。
+- **界面**：纯色扁平，没有左侧栏；统一底栏承载助手与插件选择、Shelf 与灵光、项目入口（`specs/craft-finish/spec.md`）。
+
+与上文仍需用户取舍的出入：
+
+1. 「Users」把 Web 写成“可选查看与确认界面”；现在多数插件只在 Web 工作台里可用。
+2. 「Operating Context」里“左侧保留项目与目标列表”已不符合当前无左栏的布局。
+3. 「Positioning」说“不是 Agent 调度器”：Board 仍不给 Goal 派单，但 Schedule 会按时运行 Agent 任务，Coding 会委派子任务。这条定位是否要改写，需要用户决定。
+4. 「Brand Commitments」的 Linear × coss.ui 描述早于 craft-finish 改版。
+5. 「Evidence on Hand」只列 V1 文件；平台层的事实来源见 `docs/SSOT-MATRIX.md`、`specs/action-architecture/spec.md`、`docs/platform/PROLOGUE-AI.md`。
+
 ## Positioning
 
 Molis Work 不是另一个 Kanban，也不是 Agent 调度器。它的差异机制是：

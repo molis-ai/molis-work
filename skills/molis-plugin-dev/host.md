@@ -149,3 +149,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 平铺输入的命令（`audiences` 含 `workflow`）可直接作为流程的「动作步骤」，字段由用户映射，编辑器显示字段的 schema `title`，请写上用户看得懂的标题；保存了能力引用的插件用 SDK `defineActionUsagesAction` 上报使用位置，能力库「已用在哪」与 `actions.usages.read` 按合同类型发现，Host 不维护名单。
 
 配置引用会固定提供方和动作版本；停用或升级不改写旧引用。普通 Runtime 插件只需 Manifest actions 与 start 返回 handlers，工作流目录即可发现。Native 仍由组合根注入数据 owner，不能把其业务实现放回工作流 HTTP。通用 schema 步骤映射仍未完成，不把该内容协议解释为所有能力都已可连线。
+
+## 异步提交
+
+等待模型/网络的动作按 `scheduling: "concurrent"` 执行，读快照 → 等待 → `await caller.beforeEffect()` → 版本比较提交。嵌套调用使用 `retainActionAuthority(caller, originReference, caller.beforeEffect)`，同时保留外层注册、权限和生命周期约束。来源拉取还需逐来源独占，不能只把串行标记改掉。被撤权或取消后，不写失败记账；此前已发出的外部操作保留未确认状态供恢复。

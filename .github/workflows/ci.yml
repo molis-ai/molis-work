@@ -39,7 +39,7 @@ jobs:
       - name: Verify Goal boundaries, migrations and release assets
         run: |
           node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
-          node scripts/run-tests.mjs tests/goals-storage-migration.test.ts tests/release-assets.test.ts
+          node scripts/run-tests.mjs tests/goals-storage-migration.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts
 
       - name: Typecheck product launchers and compatibility SDK
         run: |

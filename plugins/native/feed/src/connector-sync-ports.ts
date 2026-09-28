@@ -1,3 +1,4 @@
+import type { FeedSyncExecution } from "./source-ports.js";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ListenerCheckpoint, ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { SignalRecord } from "@molis-ai/molis-work-contracts/modules/signals";
@@ -6,11 +7,12 @@ import type { FeedApplication } from "./application.js";
 
 export type ConnectorSyncMode = NonNullable<Parameters<IntegrationProviderPort["sync"]>[0]["mode"]>;
 export interface FeedConnectorListener {
-  run(operationId: string, mode: ConnectorSyncMode): Promise<ListenerRunReceipt>;
+  run(operationId: string, mode: ConnectorSyncMode, execution?: FeedSyncExecution): Promise<ListenerRunReceipt>;
   checkpoint(): ListenerCheckpoint;
 }
 export interface FeedConnectorSyncPorts {
   feed: FeedApplication;
+  acquireSync?(boardId: string, sourceId: string): () => void;
   createListener(source: FeedSourceRecord, afterAccepted: (
     item: IntegrationProviderItem,
     signal: Pick<SignalRecord, "signal_id" | "revision">,

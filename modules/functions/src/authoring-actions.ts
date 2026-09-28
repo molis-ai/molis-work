@@ -1,5 +1,5 @@
 import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA, withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
 import { assertReadyToPublish } from "./store.js";
@@ -36,6 +36,7 @@ function define<I, O>(suffix: string, title: string, description: string, input_
   return { capability_id: `functions.authoring.${suffix}`, version: 1, operation: write ? "command" : "query", action: {
     title, description, kind: write ? "operation" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: preview ? ["functions:manage", "functions:invoke"] : ["functions:manage"], subject_kinds: [], input_schema, output_schema,
+    ...(preview ? { scheduling: "concurrent" as const } : {}),
   } };
 }
 
@@ -69,7 +70,7 @@ export const functionContextActions = {
 } as const;
 
 export function functionAuthoringHandlers(ports: FunctionsActionPorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
+  const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
     ...definition, handle: (caller, value) => run(value as I, caller), ...(availability ? { availability } : {}),
   });
   return [
@@ -77,15 +78,14 @@ export function functionAuthoringHandlers(ports: FunctionsActionPorts): ActionHa
     bind(functionAuthoringActions.get, args => ports.read(service => ({ function: service.get(args.id) }))),
     bind(functionAuthoringActions.create, args => ports.read(service => ({ function: service.create(args) }))),
     bind(functionAuthoringActions.update, args => ports.read(service => ({ function: service.updateDraft(args.id, args.patch, args.updated_at ?? undefined) }))),
-    bind(functionAuthoringActions.preview, (args, caller) => ports.run(async service => ({ function: await service.preview(args.id, args.input, args.updated_at ?? undefined, caller.signal) })),
+    bind(functionAuthoringActions.preview, (args, caller) => ports.run(async service => ({ function: await service.preview(args.id, args.input, args.updated_at ?? undefined, caller.signal, caller.beforeEffect) })),
       () => ports.credentialAvailable() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先连接判断服务" }),
     bind(functionAuthoringActions.publish, async (args, caller) => {
       const record = ports.read(service => service.get(args.id));
       if (record.status === "published") return { function: record };
       assertReadyToPublish(record);
       const scene = await ports.validatePublication?.(record, caller);
-      await caller.validate_authority?.({ ...functionAuthoringActions.publish, provider_id: "system.functions" });
-      caller.signal?.throwIfAborted();
+      await caller.beforeEffect();
       return ports.read(service => ({ function: service.publish(args.id, args.updated_at ?? record.updated_at, scene ?? undefined) }));
     }),
     bind(functionAuthoringActions.delete, args => ports.read(service => { service.deleteDraft(args.id, args.updated_at ?? undefined); return { ok: true }; })),

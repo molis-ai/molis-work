@@ -153,6 +153,8 @@ test('the plugin development Skill reaches the model through Prologue, as an exa
   assert.ok(design && code, 'the repository carries the Skill');
   assert.match(design.body, /交付流程/); assert.match(design.body, /生成插件：怎么设计/); assert.match(design.body, /质量线（所有插件）/); assert.match(design.body, /能力：读、写、不可撤销/);
   assert.match(code.body, /生成插件：代码怎么写/); assert.doesNotMatch(code.body, /生成插件：怎么设计/, 'the code stage mounts only what it needs');
+  assert.match(design.body, /生成插件：AI 经 Prologue/); assert.match(code.body, /生成插件：AI 经 Prologue/);
+  assert.match(code.body, /同一意图的重试必须复用/);
   assert.ok(design.body.length <= 20_000 && code.body.length <= 20_000);
   assert.equal(builderSkill('design')!.version, design.version, 'the version is the content, stable across loads');
   const root = await mkdtemp(join(tmpdir(), 'molis-skill-mount-')), build = join(root, 'build'); await mkdir(build);
@@ -165,6 +167,7 @@ test('the plugin development Skill reaches the model through Prologue, as an exa
     await agent.run({ role: 'designer', instruction: '只输出 JSON。', promptVersion: 'designer/3.0.0', task: '{}', contractRevision: 'draft', skills: [design] });
     assert.ok(seen.includes('本阶段遵循的规范') && seen.includes(design.id + '@' + design.version), 'the model is told which standard, exactly');
     assert.ok(seen.includes('生成插件：怎么设计'), 'and receives its text');
+    assert.ok(seen.includes('生成插件：AI 经 Prologue'), 'the AI rules reach the model, not only the root Skill link');
     // The next build on the same Home Runtime mounts the same version again (real runs failed here: "already exists").
     const next = await adapter.createBuilderAgent({ buildRoot: build, storageRoot: join(root, 'agent-2'), modelConfiguration: async () => ({ protocol: 'anthropic-compatible', endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' });
     try { seen = ''; await next.run({ role: 'designer', instruction: '只输出 JSON。', promptVersion: 'designer/3.0.0', task: '{}', contractRevision: 'draft', skills: [design] }); assert.ok(seen.includes('生成插件：怎么设计')); }

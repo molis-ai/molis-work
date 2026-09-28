@@ -21,6 +21,7 @@ function define<Input, Output>(id: string, title: string, description: string, i
   return { capability_id: id, version: 1, operation: judgment ? "command" : "query", action: {
     title, description, kind: judgment ? "judgment" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: judgment ? ["functions:invoke"] : [], subject_kinds: [], input_schema: input, output_schema: output,
+    ...(judgment ? { scheduling: "concurrent" as const } : {}),
   } };
 }
 
@@ -84,7 +85,7 @@ export function functionsActionProvider(ports: FunctionsActionPorts): ActionProv
         signal: caller.signal, record_history: !caller.scene_binding,
         before_evaluate: record => ports.validateRecommendations?.(record, caller),
         before_result: async record => { await ports.validateRecommendations?.(record, caller);
-          await caller.validate_authority?.({ ...functionsActions.invoke, provider_id: provider.provider_id }); } }));
+          await caller.beforeEffect(); } }));
     } },
   ] };
 }
@@ -97,6 +98,6 @@ export function publishedFunctionProvider(record: FunctionRecord, ports: Functio
       { version: record.version!, config_hash: record.config_hash, project_id: caller.project_id ?? undefined, signal: caller.signal,
         record_history: !caller.scene_binding, before_evaluate: current => ports.validateRecommendations?.(current, caller),
         before_result: async current => { await ports.validateRecommendations?.(current, caller);
-          await caller.validate_authority?.({ ...definition, provider_id: provider.provider_id }); } })),
+          await caller.beforeEffect(); } })),
   }] };
 }

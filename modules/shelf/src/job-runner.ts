@@ -23,22 +23,22 @@ export interface ShelfAgentProcessResult {
 export const SHELF_JOB_TIMEOUT_MS = 10 * 60 * 1000;
 
 /** Live agent processes, so a cancel from another request can reach them. */
-const RUNNING = new Map<string, ChildProcess>();
+const RUNNING = new Map<string, () => void>();
 
 /** Agents spawn helpers of their own, so a cancel takes down the whole group. */
 export function cancelAgentProcess(jobId: string): boolean {
-  const child = RUNNING.get(jobId);
-  if (!child) return false;
-  if (child.pid) {
-    try {
-      process.kill(-child.pid, "SIGTERM");
-      return true;
-    } catch {
-      /* the group is gone, fall back to the process itself */
-    }
-  }
-  child.kill("SIGTERM");
+  const cancel = RUNNING.get(jobId);
+  if (!cancel) return false;
+  cancel();
   return true;
+}
+
+function signalProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (child.pid) {
+    try { process.kill(-child.pid, signal); return; }
+    catch { /* the group is gone, fall back to the process itself */ }
+  }
+  child.kill(signal);
 }
 
 export function isAgentProcessRunning(jobId: string): boolean {
@@ -58,14 +58,23 @@ export function runAgentProcess(input: ShelfAgentProcessInput): Promise<ShelfAge
     let stdout = "";
     let stderr = "";
     let settled = false;
-    RUNNING.set(input.jobId, child);
+    let stopped: ShelfError | undefined;
+    let killTimer: ReturnType<typeof setTimeout> | undefined;
+    const stop = (reason: ShelfError) => {
+      if (settled || stopped) return;
+      stopped = reason;
+      signalProcessGroup(child, "SIGTERM");
+      killTimer = setTimeout(() => signalProcessGroup(child, "SIGKILL"), 1000);
+    };
+    RUNNING.set(input.jobId, () => stop(new ShelfError("shelf.cancelled", "任务已取消")));
     const timer = setTimeout(() => {
-      cancelAgentProcess(input.jobId);
+      stop(new ShelfError("shelf.timeout", "任务超时，请重试"));
     }, input.timeoutMs ?? SHELF_JOB_TIMEOUT_MS);
     const finish = (run: () => void) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(killTimer);
       RUNNING.delete(input.jobId);
       run();
     };
@@ -78,19 +87,19 @@ export function runAgentProcess(input: ShelfAgentProcessInput): Promise<ShelfAge
     });
     child.on("close", (code, signal) => {
       finish(() => {
-        if (signal) {
-          reject(new ShelfError("shelf.cancelled", "任务已取消"));
+        if (stopped || signal) {
+          reject(stopped ?? new ShelfError("shelf.cancelled", "任务已取消"));
           return;
         }
         if (code !== 0) {
           reject(new ShelfError("shelf.job_failed", "任务失败，请检查终端登录或权限"));
           return;
         }
-        resolve({
-          exit_code: code ?? 0,
-          last_message: lastMessage(input, stdout),
-          stderr,
-        });
+        // This runs in a process event callback, outside the Promise executor.
+        // Parsing/file errors must reject the job instead of escaping the host's event loop.
+        try {
+          resolve({ exit_code: code ?? 0, last_message: lastMessage(input, stdout), stderr });
+        } catch (error) { reject(error); }
       });
     });
   });

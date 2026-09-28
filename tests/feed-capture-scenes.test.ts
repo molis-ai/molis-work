@@ -127,7 +127,13 @@ test("Feed binds unknown judgments and rejects stale rule, item, provider and au
     assert.equal(f.history().length, 1, "revocation while an unknown judgment runs must prevent history and admission");
     const manualReady = new Promise<void>(resolve => { started = resolve; });
     const manualPending = actions.invoke(feedRuleActions.evaluate, { item_ids: [item.item_id] });
-    await manualReady; rule = feed.updateOutRule(runtime.board_id, rule.rule_id, { name: "处理期间修改" }); release();
+    await manualReady;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const changed = await Promise.race([actions.invoke(feedRuleActions.update, { rule_id: rule.rule_id, patch: { name: "处理期间修改" } }),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Feed judgment blocked the project queue")), 2000); })]);
+      rule = changed.rule;
+    } finally { clearTimeout(timer); release(); }
     await assert.rejects(manualPending, { code: "actions.binding_changed" });
     assert.equal(f.history().length, 1, "manual processing must report invalidated work, not claim it was applied");
     await race(() => stop(), "actions.scene_incompatible");

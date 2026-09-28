@@ -324,13 +324,14 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
 
 /** Keep the originating operation's transport authority when it calls a nested action or scene.
  * This does not grant permissions; the dispatcher still checks each target's current registration and policy. */
-export function retainActionAuthority(context: ActionCallContext, origin: ActionReference & { provider_id: string }): ActionCallContext {
+export function retainActionAuthority<Context extends ActionCallContext>(context: Context, origin: ActionReference & { provider_id: string }, beforeEffect?: () => Promise<void>): Context {
   const validate = context.validate_authority;
-  if (!validate) return context;
+  if (!validate && !beforeEffect) return context;
   const pinned = { capability_id: origin.capability_id, version: origin.version, provider_id: origin.provider_id };
-  return { ...context, validate_authority: async reference => {
-    await validate(pinned);
-    if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate(reference);
+  return { ...context, validate_authority: async (reference: ActionReference) => {
+    await beforeEffect?.();
+    await validate?.(pinned);
+    if (reference.capability_id !== pinned.capability_id || reference.version !== pinned.version || reference.provider_id !== pinned.provider_id) await validate?.(reference);
   } };
 }
 

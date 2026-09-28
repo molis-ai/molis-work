@@ -31,12 +31,14 @@ test("a workflow step runs any registered action — even one the Host never hea
   // A plugin the Host code knows nothing about: its manifest and handler are all it takes.
   const tickets: { title: string; detail: string; priority: string }[] = [];
   let failNext = false;
+  let pauseTicket: (() => Promise<void>) | undefined;
   const create = defineAction<{ title: string; detail?: string; priority: "low" | "high" }, { ticket_id: number }>({ capability_id: "fixture.tickets.create", version: 1, operation: "command",
     action: { title: "新建工单", description: "在工单插件里建一张工单", kind: "operation", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: ["tickets:write"],
       subject_kinds: ["ticket"], input_schema: { type: "object", properties: { title: { type: "string", minLength: 1, description: "工单标题" }, detail: { type: "string" },
         priority: { type: "string", enum: ["low", "high"] } }, required: ["title", "priority"], additionalProperties: false },
       output_schema: { type: "object", properties: { ticket_id: { type: "integer" } }, required: ["ticket_id"] } } },
-    (_context, input) => {
+    async (_context, input) => {
+      await pauseTicket?.();
       if (failNext) { failNext = false; throw new Error("工单系统超时"); }
       tickets.push({ title: input.title, detail: input.detail ?? "", priority: input.priority }); return { ticket_id: tickets.length };
     });
@@ -126,6 +128,26 @@ test("a workflow step runs any registered action — even one the Host never hea
     assert.ok(host.callLog!.list(PROJECT).some(row => row.capability_id === "fixture.tickets.create" && row.actor_id === "client-tickets" && row.audience === "mcp" && row.ok),
       "the call log names the client, not the local user");
 
+    // The nested action has already started. A cancelled outer call must retain the
+    // uncertain attempt exactly as it was, even when the nested provider reports failure.
+    for (const fail of [false, true]) {
+      const instance = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;
+      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+      pauseTicket = async () => { entered.resolve(); await release.promise; };
+      const controller = new AbortController();
+      const pending = host.actionClient(reference).invoke({ ...caller, signal: controller.signal }, w.continue, { id: instance.instance_id });
+      const rejected = assert.rejects(pending);
+      await entered.promise;
+      const read = () => { const store = openWorkflowsStore(home); try { return store.instance(instance.instance_id, PROJECT); } finally { store.close(); } };
+      const before = read();
+      assert.ok(before.steps[0]!.pending?.attempted_at);
+      controller.abort(); failNext = fail; release.resolve();
+      await rejected;
+      assert.deepEqual(read(), before, "cancelled outer calls cannot save completion or failure bookkeeping");
+      pauseTicket = undefined;
+      await assert.rejects(actions.invoke(w.continue, { id: instance.instance_id }), { code: "workflows.uncertain" });
+    }
+
     // The plugin goes away: the step keeps its reference, says why, and does not run.
     const third = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;
     await runtime.stop(installed.install_id);
@@ -134,7 +156,7 @@ test("a workflow step runs any registered action — even one the Host never hea
     assert.equal(described.stations[1]!.action?.ref.capability_id, "fixture.tickets.create");
     await assert.rejects(actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id }), { code: "workflows.unavailable" });
     await assert.rejects(actions.invoke(w.continue, { id: third.instance_id }), { code: "workflows.unavailable" });
-    assert.equal(tickets.length, 4, "three from workflows, one from the MCP client; nothing after the plugin went away");
+    assert.equal(tickets.length, 5, "includes the nested call already dispatched before cancellation; none after the plugin went away");
   } finally {
     await runtime.stop(installed.install_id).catch(() => undefined);
     await host.close();

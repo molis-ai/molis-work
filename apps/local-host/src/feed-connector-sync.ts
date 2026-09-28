@@ -1,3 +1,4 @@
+import { feedSourceSyncLease } from "./feed-source-sync-lease.js";
 import { createHash } from "node:crypto";
 import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
@@ -18,7 +19,7 @@ export function createLocalFeedConnectorSync(
   const integrations = new OfficialIntegrationRegistry(providerFactory);
   const journal = new LocalSqliteJournal(db);
   return new FeedConnectorSync({
-    feed,
+    feed, acquireSync: feedSourceSyncLease(db),
     async createListener(source, afterAccepted) {
       const integration = await integrations.contributionFor(source);
       const connector = new ConnectorHost();
@@ -32,7 +33,7 @@ export function createLocalFeedConnectorSync(
         },
       });
       return {
-        run: (operationId, mode) => listener.run({ project_id: boardId, source_id: source.source_id,
+        run: (operationId, mode, execution) => listener.run({ ...execution, project_id: boardId, source_id: source.source_id,
           connection_id: connectionId, operation_id: operationId, adapter: integration.signal_adapter,
           intent: { sync_mode: mode } }),
         checkpoint: () => listener.checkpoint(boardId, source.source_id),

@@ -175,6 +175,7 @@ export class PluginEventBus implements PluginEventBusApi {
       const contract = this.#lifecycle.contract(subscriberPluginId);
       const generation = this.#lifecycle.generation(subscriberPluginId);
       if (!contract || generation === undefined) continue;
+      const records = new Map<string, PluginEventRecord>();
       for (const subscription of contract.subscribes) {
         for (const sourcePluginId of subscription.from_plugin_ids) {
           const cursor = this.#repository.cursor(this.#boardId, subscriberPluginId, {
@@ -189,10 +190,13 @@ export class PluginEventBus implements PluginEventBusApi {
             since_sequence: cursor?.delivered_sequence ?? 0,
           });
           for (const record of pending) {
-            this.#enqueue({ generation, subscriber_plugin_id: subscriberPluginId, record });
-            queued += 1;
+            records.set(record.event_id, record);
           }
         }
+      }
+      for (const record of [...records.values()].sort((a, b) => a.sequence - b.sequence)) {
+        this.#enqueue({ generation, subscriber_plugin_id: subscriberPluginId, record });
+        queued += 1;
       }
     }
     // Deliberately does not drain: an activation hook may call this from inside a
@@ -265,6 +269,18 @@ export class PluginEventBus implements PluginEventBusApi {
     const { subscriber_plugin_id: pluginId, record } = envelope;
     if (this.#lifecycle.generation(pluginId) !== envelope.generation) return;
     if (this.#alreadyDelivered(pluginId, record)) return;
+    const cursor = this.#repository.cursor(this.#boardId, pluginId, record);
+    if (cursor?.state === "retry_wait") {
+      const [first] = this.#repository.list(this.#boardId, {
+        source_plugin_id: record.source_plugin_id,
+        event_type_id: record.event_type_id,
+        type_version: record.type_version,
+        since_sequence: cursor.delivered_sequence,
+        limit: 1,
+      });
+      // Advancing past an activation failure would acknowledge an event never delivered.
+      if (first?.event_id !== record.event_id) return;
+    }
 
     let subscriber: PluginActiveInstance | undefined;
     let readyError: unknown;

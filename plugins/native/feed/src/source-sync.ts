@@ -2,7 +2,7 @@ import { fingerprintSearchIntentExactV1 } from "@adeptify/intelligence-client";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
-import type { FeedSourcePorts, FeedSourceSyncResult, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
+import type { FeedSourcePorts, FeedSyncExecution, FeedSourceSyncResult, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
 import { buildExactRequest } from "./source-request.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { safeErrorCode, interruptedMessage, rssFailureAction, sourceDedupeScope, cursorForMaterials, safeRssReceipt, terminalErrorCode } from "./source-sync-result.js";
@@ -11,7 +11,7 @@ export class PublicSourceSync {
   constructor(private readonly ports: FeedSourcePorts, private readonly boardId: string) { this.feed = ports.feed; }
   async sync(
     source: FeedSourceRecord,
-    input: { idempotencyKey: string; signal?: AbortSignal },
+    input: FeedSyncExecution & { idempotencyKey: string },
   ): Promise<FeedSourceSyncResult> {
     const sourceId = source.source_id;
     if (source.sync_kind !== "public_source") {
@@ -68,18 +68,16 @@ export class PublicSourceSync {
         request,
         input.signal ? { signal: input.signal } : undefined,
       );
+      await input.beforeEffect?.();
+      input.signal?.throwIfAborted();
       return await this.commitPublicResult(source, running, result, runtime);
     } catch (error) {
       const current = this.feed.getSourceRunByOperationId(this.boardId, operationId);
-      if (current?.phase === "terminal") {
-        return {
-          source: this.feed.getSource(this.boardId, sourceId),
-          run: current,
-          created: 0,
-          deduped: 0,
-          replayed: true,
-        };
-      }
+      // The pull may have committed before a downstream judgment was cancelled.
+      // Preserve the refusal; an explicit retry can replay the durable pull.
+      if (current?.phase === "terminal") throw error;
+      await input.beforeEffect?.();
+      input.signal?.throwIfAborted();
       const updatedAt = new Date().toISOString();
       const errorCode = safeErrorCode(error);
       const interrupted: FeedSourceRunRecord = {

@@ -11,10 +11,21 @@ import { goalEventV35Kinds, materializeGoalEventV35Fixture } from "./goal-event-
 /**
  * Reads echo what is stored. One historical record that an output contract no longer admits makes the whole read
  * fail (a project page that does not open). Every parameterless read in the directory runs here over real historical
- * dumps and the demo seed; business errors are fine, a result that breaks its own contract is not.
+ * dumps and the demo seed. An unexpected error is a broken read, not an acceptable business result.
  */
 const needsNothing = (view: ActionView) => view.operation === "query"
   && view.action.input_schema?.type === "object" && !((view.action.input_schema.required as unknown[] | undefined)?.length);
+
+// These fixtures deliberately contain neither model settings nor a managed workspace.
+// Match the exact capability/version AND code; unknown exceptions still fail the gate.
+const unavailableInFixture: Record<string, string> = {
+  "alchemist.runtime.verify@1": "RUNTIME_NOT_CONFIGURED",
+  "git.operations@1": "actions.dependency_missing",
+  "git.pr-support@1": "actions.dependency_missing",
+  "git.results@1": "actions.dependency_missing",
+  "git.state@1": "actions.dependency_missing",
+  "git.summary@1": "actions.dependency_missing",
+};
 
 async function probe(t: test.TestContext, databasePath: string, boardId: string) {
   const home = mkdtempSync(join(tmpdir(), "action-read-compatibility-"));
@@ -22,21 +33,23 @@ async function probe(t: test.TestContext, databasePath: string, boardId: string)
   const copy = join(home, "project.sqlite"); copyFileSync(databasePath, copy);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const ref = molisWorkHostProjectReference({ databasePath: copy, boardId, projectId: boardId });
-  const broken: string[] = []; let read = 0;
+  const broken: string[] = [], read = new Set<string>();
   try {
     const base = { actor_id: "web-user", project_id: boardId, audience: "user" as const, permissions: [] };
     for (const view of (await host.inspectActions(base, ref)).filter(needsNothing)) {
       const caller = { ...base, permissions: view.action.permissions };
       const client = view.action.scope === "home" ? host.homeActionClient() : host.actionClient(ref);
-      try { await client.invoke(view.action.scope === "home" ? { ...caller, project_id: null } : caller, view, {}); read++; }
+      try { await client.invoke(view.action.scope === "home" ? { ...caller, project_id: null } : caller, view, {}); read.add(view.capability_id); }
       catch (error) {
         const code = (error as { code?: string }).code;
-        if (code === "actions.output_invalid") broken.push(`${view.capability_id}@${view.version}: ${(error as Error).message}`);
+        if (code && unavailableInFixture[`${view.capability_id}@${view.version}`] === code) continue;
+        broken.push(`${view.capability_id}@${view.version}: ${code ?? "unexpected_error"}: ${(error as Error).message}`);
       }
     }
   } finally { await host.close(); }
-  assert.ok(read > 10, "the directory must actually be read");
   assert.deepEqual(broken, []);
+  assert.ok(read.has("goals.snapshot.read"), "the historical project snapshot must actually succeed");
+  assert.ok(read.size > 10, "the directory must actually be read");
 }
 
 for (const kind of goalEventV35Kinds) {

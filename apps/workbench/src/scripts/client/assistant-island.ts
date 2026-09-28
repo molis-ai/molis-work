@@ -126,7 +126,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const result = await feedApi("/api/assistant/plan", "POST", { prompt, selected_item_id: selected });
       pending.remove(); presentPlan(result);
       if (String(input.value || "").trim() === prompt) input.value = "";
-    } catch (error) { pending.remove(); note(error.message); }
+    } catch (error) {
+      pending.remove();
+      const said = note(error.message);
+      if (/尚未配置助手模型|没有可用的文字模型|模型设置/.test(error.message || "")) {
+        const link = document.createElement("a");
+        link.href = "/settings/models";
+        link.textContent = L("打开模型设置");
+        said.append(document.createTextNode(" "), link);
+      }
+    }
     finally { busy = false; syncSend(); place(); }
   });
   island.querySelector("[data-plugin-id]")?.addEventListener("click", hide);

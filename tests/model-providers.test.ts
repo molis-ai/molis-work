@@ -77,7 +77,8 @@ test("模型设置只选择连接，不渲染密钥，并保留失效引用", ()
     selected_connection_ids: { minimax: "saved-model-account" },
     primitives: p,
   });
-  assert.doesNotMatch(withKey, /type="password"/);
+  assert.doesNotMatch(withKey, /type="password"[^>]*value=/);
+  assert.match(withKey, /data-model-key-field hidden/);
   assert.match(withKey, /data-model-connection/);
   assert.match(withKey, /value="saved-model-account" selected>已保存账号/);
   assert.match(withKey, /在 Connectors 管理 API Key/);
@@ -88,7 +89,8 @@ test("模型设置只选择连接，不渲染密钥，并保留失效引用", ()
     selected_provider_id: "minimax",
     primitives: p,
   });
-  assert.match(withoutKey, /请选择一条已保存的连接/);
+  assert.match(withoutKey, /data-model-api-key/);
+  assert.doesNotMatch(withoutKey, /请选择一条已保存的连接/);
   const unavailable = renderModelSettingsDocument({ providers: [provider()], health: [providerHealth(provider(), false)],
     selected_provider_id: "minimax", primitives: p, selected_connection_ids: { minimax: "disconnected-account" },
     connections: [{ connection_id: "disconnected-account", service_id: "model-api", display_name: "原有账号", auth_method: "token", source: "managed", state: "disconnected", account_label: null }] });

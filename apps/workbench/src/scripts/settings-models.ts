@@ -58,6 +58,8 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           if (button.matches('[data-model-delete-cancel]')) { root.querySelector('[data-model-delete-confirm]').hidden = true; return; }
           if (button.matches('[data-model-save]')) {
             begin(); status(L('正在保存…'));
+            const keyField = root.querySelector('[data-model-key-field]');
+            const apiKey = keyField && !keyField.hidden ? root.querySelector('[data-model-api-key]')?.value.trim() : '';
             await mutate(encodeURIComponent(provider), 'POST', {
               display_name: root.querySelector('[data-model-name]').value,
               base_url: root.querySelector('[data-model-base-url]').value,
@@ -70,6 +72,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
                 enabled: row.querySelector('[data-model-enabled]').checked,
               })),
               connection_id: root.querySelector('[data-model-connection]')?.value || '',
+              ...(apiKey ? { api_key: apiKey } : {}),
             });
             dirty = false;
             await refresh(query); status(L('已保存。配置会用于下一轮执行；可以测试模型是否实际响应。'));
@@ -96,7 +99,14 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
           status(error instanceof TypeError ? L('无法连接本地服务，输入已保留，请重试。') : error.message || L('操作失败，输入已保留'));
         } finally { busy = false; root.removeAttribute('aria-busy'); locked.forEach((control) => { if (control.isConnected) control.disabled = false; }); }
       });
+      const syncKeyField = () => {
+        const field = root.querySelector('[data-model-key-field]');
+        const selected = root.querySelector('[data-model-connection]')?.value;
+        if (field) field.hidden = Boolean(selected);
+      };
+      syncKeyField();
       root.addEventListener('change', (event) => {
+        if (event.target.matches('[data-model-connection]')) syncKeyField();
         if (!event.target.matches('[data-model-api-format]')) return;
         const required = root.querySelector('[data-model-prompt-cache] option[value=required]');
         if (required) required.disabled = event.target.value !== 'anthropic-messages';

@@ -229,6 +229,10 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       return;
     }
+    if (openGlobalSettingsFromUrl(link.href)) {
+      event.preventDefault();
+      return;
+    }
     const inSettingsShell = link.closest("[data-work-surface=settings], [data-work-surface=project-settings], [data-directory-panel=settings], [data-directory-panel=project-settings]");
     if (!inSettingsShell) return;
     if (link.hasAttribute("data-settings-return-workbench") && url.pathname === projectPrefix + "/") {
@@ -237,7 +241,11 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       setExclusive?.(null);
       return;
     }
-    if (openGlobalSettingsFromUrl(link.href)) event.preventDefault();
+  });
+  window.addEventListener("message", (event) => {
+    if (event.origin !== location.origin) return;
+    const href = event.data?.type === "molis-work:open-settings" ? event.data.href : "";
+    if (typeof href === "string" && href) openGlobalSettingsFromUrl(href);
   });
   return {
     loadSection: (section) => globalSettings?.loadSection(section),

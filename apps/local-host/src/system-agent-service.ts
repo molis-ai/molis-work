@@ -1,5 +1,6 @@
 import path from "node:path";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
 import { openConfiguredModels } from "./configured-models.js";
@@ -15,7 +16,7 @@ type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Parti
 export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDirectory: string, withCatalog?: LocalWebCatalogRunner, workspaces: WorkspacePorts = {}) {
   const storageHome = path.resolve(homeDirectory);
   const owner = owners.get(localHost) ?? { home: storageHome, withCatalog };
-  if (owner.home !== storageHome) throw new Error("Agent 服务与 Host 必须属于同一个 Home");
+  if (owner.home !== storageHome) throw new ActionError("actions.home_mismatch", "Agent 服务与 Host 必须属于同一个 Home");
   if (withCatalog) owner.withCatalog = withCatalog;
   owners.set(localHost, owner);
   const models = async <T>(operation: (store: ModelProviderStore | undefined) => T | Promise<T>): Promise<T> => {

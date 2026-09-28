@@ -119,7 +119,8 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
         list.scrollTop = scrollTop;
         return true;
       } catch {
-        if (seq === inboxStageRefreshSeq) location.reload();
+        // Same as Feed: keep the page, selection and scroll; say so instead of reloading everything.
+        if (seq === inboxStageRefreshSeq) showToast(L("列表更新失败，当前输入已保留，请重试。"));
         return false;
       }
     };

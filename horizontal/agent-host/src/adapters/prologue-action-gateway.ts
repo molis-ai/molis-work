@@ -1,5 +1,5 @@
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
-import { ActionError, actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action" } as const;
@@ -165,30 +165,19 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   return null;
 }
 
-/** Plain text of a rich-text document (ProseMirror-like `{ type, content, text }`), one block per line. */
-function plainText(value: unknown): string | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const node = value as { type?: unknown; text?: unknown; content?: unknown };
-  if (node.type !== "doc" || !Array.isArray(node.content)) return null;
-  const inline = (item: unknown): string => {
-    if (!item || typeof item !== "object") return "";
-    const one = item as { text?: unknown; content?: unknown };
-    return typeof one.text === "string" ? one.text : Array.isArray(one.content) ? one.content.map(inline).join("") : "";
-  };
-  return node.content.map(block => inline(block)).filter(line => line.trim()).join("\n");
-}
-
 /** The input as a person reads it: each field by its declared title, text as text; the exact JSON stays separate. */
 export function readableInput(schema: Record<string, unknown>, input: unknown): Array<{ label: string; value: string }> {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return [{ label: "内容", value: typeof input === "string" ? input : JSON.stringify(input) }];
-  const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, { title?: string; description?: string }>;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return [{ label: "内容", value: actionFieldValue("", input) }];
+  const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, { title?: string; description?: string; properties?: Record<string, { title?: string; description?: string }> }>;
+  const clip = (text: string) => text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
   return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) => {
     if (value === undefined || value === null || value === "") return [];
-    const declared = properties[key];
-    const label = declared?.title ?? (declared?.description && declared.description.length <= 24 ? declared.description : key);
-    const text = typeof value === "string" ? value : plainText(value) ?? (Array.isArray(value) && value.every(item => typeof item === "string") ? value.join("、")
-      : typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value, null, 2));
-    return [{ label, value: text.length > 4000 ? `${text.slice(0, 4000)}…` : text }];
+    // One level of nesting reads field by field, as the person would name them.
+    if (value && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc") {
+      return Object.entries(value as Record<string, unknown>).flatMap(([child, inner]) => inner === undefined || inner === null || inner === "" ? []
+        : [{ label: actionFieldLabel(child, properties[key]?.properties?.[child]), value: clip(actionFieldValue(child, inner)) }]);
+    }
+    return [{ label: actionFieldLabel(key, properties[key]), value: clip(actionFieldValue(key, value)) }];
   });
 }
 

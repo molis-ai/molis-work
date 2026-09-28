@@ -1,7 +1,7 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
@@ -111,29 +111,44 @@ function chunked(base: Omit<AgentTextMaterial, "text" | "material_id">, id: stri
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
 
-/** A result in a line the person and the next round can read; never the whole payload. */
-function summarizeResult(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  return flat.length > 400 ? `${flat.slice(0, 399)}…` : flat || "已完成";
+/** A result in a line the person can read: what was made or changed, by its name; never the whole payload. */
+function summarizeResult(result: unknown): string {
+  const named = (value: unknown): string | null => {
+    if (!value || typeof value !== "object") return null;
+    const row = value as Record<string, unknown>;
+    for (const key of ["title", "name", "display_name"]) if (typeof row[key] === "string" && row[key]) return row[key] as string;
+    for (const key of ["item", "document", "record", "result", "created", "updated"]) { const inner = named(row[key]); if (inner) return inner; }
+    return null;
+  };
+  if (typeof result === "string") return result.length > 200 ? `${result.slice(0, 199)}…` : result || "已完成";
+  const name = named(result);
+  return name ? `「${name.slice(0, 120)}」` : "";
 }
 
-function readable(value: unknown): string {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object" && (value as { type?: unknown }).type === "doc") {
-    const inline = (node: unknown): string => !node || typeof node !== "object" ? "" : typeof (node as { text?: unknown }).text === "string" ? (node as { text: string }).text
-      : Array.isArray((node as { content?: unknown }).content) ? ((node as { content: unknown[] }).content).map(inline).join("") : "";
-    return ((value as { content?: unknown[] }).content ?? []).map(inline).filter(Boolean).join("\n");
-  }
-  return typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value, null, 2);
-}
+type SchemaProperties = Record<string, { title?: string; description?: string; properties?: SchemaProperties; type?: unknown }>;
+const labelOf = (properties: SchemaProperties | undefined, key: string) => actionFieldLabel(key, properties?.[key]);
+const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
 
 export function cardView(card: StoredCard): AssistantCard {
-  const properties = (card.input_schema.properties ?? {}) as Record<string, { title?: string; description?: string }>;
-  const input = card.input && typeof card.input === "object" && !Array.isArray(card.input) ? card.input as Record<string, unknown> : null;
-  const keys = [...new Set([...(input ? Object.keys(input) : []), ...card.missing.map(item => item.field)])];
-  const fields = input || card.missing.length ? keys.map(key => ({ key, label: properties[key]?.title ?? (properties[key]?.description && properties[key]!.description!.length <= 24 ? properties[key]!.description! : key),
-    value: input && input[key] !== undefined ? readable(input[key]) : "", editable: card.editable.includes(key) || card.missing.some(item => item.field === key) }))
-    : [{ key: "", label: "内容", value: readable(card.input), editable: false }];
+  const properties = (card.input_schema.properties ?? {}) as SchemaProperties;
+  const input = plainObject(card.input) ? card.input : null;
+  const missingField = (key: string) => card.missing.some(item => item.field === key);
+  const fields: AssistantCard["fields"] = [];
+  if (input || card.missing.length) {
+    for (const key of [...new Set([...(input ? Object.keys(input) : []), ...card.missing.map(item => item.field)])]) {
+      const value = input?.[key];
+      const editable = card.editable.includes(key) || missingField(key);
+      // One level of nesting is shown field by field, the way the person reads it; the parent's permission carries down.
+      if (plainObject(value)) {
+        for (const [child, inner] of Object.entries(value)) {
+          if (inner === undefined || inner === null || inner === "") continue;
+          fields.push({ key: `${key}.${child}`, label: labelOf(properties[key]?.properties, child), value: actionFieldValue(child, inner), editable: editable || card.editable.includes(`${key}.${child}`) });
+        }
+        continue;
+      }
+      fields.push({ key, label: labelOf(properties, key), value: value !== undefined ? actionFieldValue(key, value) : "", editable });
+    }
+  } else fields.push({ key: "", label: "内容", value: actionFieldValue("", card.input), editable: false });
   return { card_id: card.card_id, revision: card.revision, run_id: card.run_id, title: card.title, summary: card.summary, provider: card.provider,
     capability_title: card.capability_title, capability_id: card.reference.capability_id, effect: card.effect, fields, missing: card.missing, status: card.status,
     ...(card.outcome ? { outcome: card.outcome } : {}), created_at: card.created_at, updated_at: card.updated_at };
@@ -326,15 +341,22 @@ export class AssistantService {
     if (card.revision !== Number(input.revision)) throw new AssistantError("assistant.conflict", "这个建议已经变化，请查看最新内容后再点");
     const values = input.values && typeof input.values === "object" ? input.values : {};
     const allowed = new Set([...card.editable, ...card.missing.map(item => item.field)]);
+    const permitted = (key: string) => allowed.has(key) || key.includes(".") && allowed.has(key.split(".")[0]!);
     let prepared = structuredClone(card.input);
     if (Object.keys(values).length) {
       if (!prepared || typeof prepared !== "object" || Array.isArray(prepared)) throw new AssistantError("assistant.invalid", "这个建议没有可调整的字段");
       for (const [key, raw] of Object.entries(values)) {
-        if (!allowed.has(key)) throw new AssistantError("assistant.invalid", `字段「${key}」不能在这里修改`);
-        const declared = (card.input_schema.properties as Record<string, { type?: unknown }> | undefined)?.[key]?.type;
+        if (!permitted(key)) throw new AssistantError("assistant.invalid", `字段「${key}」不能在这里修改`);
+        const [head, child] = key.split(".") as [string, string | undefined];
+        const properties = card.input_schema.properties as SchemaProperties | undefined;
+        const declared = child ? properties?.[head]?.properties?.[child]?.type : properties?.[head]?.type;
         let value: unknown = raw;
         if (declared !== "string" && typeof raw === "string") { try { value = JSON.parse(raw); } catch { value = raw; } }
-        (prepared as Record<string, unknown>)[key] = value;
+        if (child) {
+          const parent = (prepared as Record<string, unknown>)[head];
+          if (!plainObject(parent)) throw new AssistantError("assistant.invalid", `字段「${key}」不能在这里修改`);
+          parent[child] = value;
+        } else (prepared as Record<string, unknown>)[key] = value;
       }
     }
     const stillMissing = card.missing.filter(item => { const value = (prepared as Record<string, unknown> | null)?.[item.field]; return value === undefined || value === null || value === ""; });
@@ -350,14 +372,17 @@ export class AssistantService {
     card = this.store.updateCard(card, card.revision, { status: "running", request_id: randomUUID(), input: prepared, missing: [], outcome: undefined });
     try {
       const result = await client.invoke(card.reference, prepared);
-      const text = typeof result === "string" ? result : JSON.stringify(result) ?? "";
-      return cardView(this.store.updateCard(card, card.revision, { status: "done", outcome: summarizeResult(text) }));
+      const outcome = summarizeResult(result);
+      return cardView(this.store.updateCard(card, card.revision, { status: "done", ...(outcome ? { outcome } : {}) }));
     } catch (error) {
       const code = (error as { code?: string }).code ?? "";
       const message = error instanceof Error ? error.message : String(error);
       // An unknown outcome is never offered again as a plain retry: it may already have happened.
       const unknown = /delivery_unknown|host_replaced/.test(code);
-      return cardView(this.store.updateCard(card, card.revision, { status: unknown ? "unknown" : "failed", outcome: unknown ? `结果未确认：${message}。请到原处核对，不会自动重试` : message }));
+      // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
+      const moved = !unknown && (/conflict|stale|revision|version/i.test(code) || /已在其他窗口修改|版本|已变化|已更新|revision|version/i.test(message));
+      return cardView(this.store.updateCard(card, card.revision, unknown ? { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` }
+        : moved ? { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` } : { status: "failed", outcome: message }));
     }
   }
 

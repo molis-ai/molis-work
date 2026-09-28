@@ -161,7 +161,7 @@ test("activity and review read in the person's terms", () => {
     { call_id: "b", verb: "lookup", target: "Notes", state: "completed" },
   ]);
   assert.deepEqual(readableInput({ properties: { title: { title: "标题" } } }, { title: "Q4", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Line one" }] }, { type: "paragraph", content: [{ type: "text", text: "Line two" }] }] } }),
-    [{ label: "标题", value: "Q4" }, { label: "body", value: "Line one\nLine two" }]);
+    [{ label: "标题", value: "Q4" }, { label: "正文", value: "Line one\nLine two" }]);
 });
 
 test("business roles are declared narrowly and the Host keeps directories, MCP and per-action tools out of them", { timeout: 30_000 }, async t => {

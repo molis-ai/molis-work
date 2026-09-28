@@ -291,6 +291,19 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const status = el("p", "assistant-card-status", L(CARD_STATUS[card.status] || "") + (card.outcome ? "：" + card.outcome : ""));
       status.setAttribute("role", "status"); node.append(status);
     }
+    if (card.status === "stale") {
+      // Only an explicit request: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
+      const redo = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("请助理按最新状态重新准备")); redo.type = "button";
+      redo.addEventListener("click", async () => {
+        redo.disabled = true;
+        try {
+          await api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
+            text: L("建议「") + card.title + L("」没有执行：数据在建议之后变化了。请读取最新状态，重新准备这一项的操作卡。") });
+          await refresh(); schedule();
+        } catch (error) { showProblem({ message: error.message }); redo.disabled = false; }
+      });
+      node.append(redo);
+    }
     if (!open) return;
     const row = el("div", "assistant-card-actions");
     const runButton = el("button", "mw-btn mw-btn--primary mw-btn--sm", card.status === "failed" ? L("再试一次") + "：" + card.title : card.title); runButton.type = "button";

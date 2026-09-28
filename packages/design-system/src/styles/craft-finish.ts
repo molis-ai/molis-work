@@ -545,6 +545,31 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-target-clear[hidden] { display: none; }
   ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-target-clear svg { width: 11px; height: 11px; }
+  /* What goes with this Send, and ways to begin: small popovers rising from the composer. */
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) {
+    display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  ${ASSIST} .assistant-materials-button { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} .assistant-materials-button[hidden] { display: none; }
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) svg { width: 14px; height: 14px; }
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-popover {
+    position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 2px; width: min(420px, 100%);
+    max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
+  }
+  ${ASSIST} .assistant-popover[hidden] { display: none; }
+  ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 6px; font-size: 11px; color: var(--faint); }
+  ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
+  ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }
+  ${ASSIST} .assistant-material-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
+  ${ASSIST} .assistant-material-remove { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
+  ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-starter { width: 100%; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
+  ${ASSIST} :is(.assistant-starter, .assistant-material-remove):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */

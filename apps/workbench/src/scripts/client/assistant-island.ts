@@ -326,6 +326,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state);
   };
   const showProblem = (next) => { problem = next; render(); };
+  /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
+  const announced = new Set();
+  let announcing = false;
+  const announceEffects = (work, rounds) => {
+    rounds.forEach((round) => round.activity.forEach((item) => {
+      if (item.verb !== "change" || item.state !== "completed" || !item.capability_id || announced.has(item.call_id)) return;
+      announced.add(item.call_id);
+      if (announcing) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: item.capability_id } }));
+    }));
+  };
   const render = () => {
     const stick = nearBottom();
     const work = view && view.work.work_id === currentId ? view.work : null;
@@ -336,6 +346,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (empty) empty.hidden = Boolean(currentId);
     const rounds = work ? view.rounds : [];
+    if (work) announceEffects(work, rounds);
     [...thread.children].forEach((node) => { if (node.dataset.round && !rounds.some((round) => round.run_id === node.dataset.round)) node.remove(); });
     rounds.forEach((round) => renderRound(work, round));
     const reviews = work ? view.reviews : [];
@@ -446,15 +457,154 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const listTimer = setInterval(() => { if (!document.hidden && panel && !panel.hidden) loadWorks(); }, 15000);
 
   /* ─── Sending ──────────────────────────────────────────────────────────── */
+  /* ─── What the person is looking at, and what goes with this Send ──────── */
+  const materialsButton = island.querySelector("[data-assistant-materials]");
+  const materialsCount = island.querySelector("[data-assistant-materials-count]");
+  const materialsList = island.querySelector("[data-assistant-materials-list]");
+  const startersPop = island.querySelector("[data-assistant-starters]");
+  const attach = island.querySelector("[data-assistant-attach]");
+  const fileInput = island.querySelector("[data-assistant-file]");
+  let lastSurface = null;
+  let selection = null;
+  let files = [];
+  const removed = new Set();
+  const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
+  const noteSurface = (target) => {
+    if (!(target instanceof Element) || island.contains(target)) return;
+    const surface = target.closest("[data-assistant-context]");
+    if (surface) lastSurface = surface;
+  };
+  document.addEventListener("focusin", (event) => noteSurface(event.target), true);
+  document.addEventListener("pointerdown", (event) => noteSurface(event.target), true);
+  document.addEventListener("selectionchange", () => {
+    const current = getSelection();
+    const node = current && current.anchorNode;
+    const element = node && (node.nodeType === 1 ? node : node.parentElement);
+    if (!element || island.contains(element)) return;
+    const text = current.isCollapsed ? "" : current.toString().trim();
+    if (!text) { selection = null; paintMaterials(); return; }
+    selection = { text: text.slice(0, 8000), truncated: text.length > 8000, surface: element.closest("[data-assistant-context]") };
+    removed.delete("selection");
+    paintMaterials();
+  });
+  const surfaceContext = () => {
+    const surface = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find(visible);
+    if (!surface) return null;
+    try { return JSON.parse(surface.getAttribute("data-assistant-context") || "null"); } catch { return null; }
+  };
+  const clip = (text, size) => text.length > size ? text.slice(0, size - 1) + "…" : text;
+  /** The materials this Send would carry, each named and removable; page items are marked as coming from the page. */
+  const materialsNow = () => {
+    const context = surfaceContext();
+    const items = [];
+    if (context && context.object && !removed.has("object")) items.push({ key: "object", label: L("正在看") + "：" + (context.object.title || context.object.id), auto: true });
+    if (context && context.unsaved && context.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
+    if (selection && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(selection.text.replace(/\s+/g, " "), 28), auto: true });
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: file.title, auto: false }));
+    return items;
+  };
+  function paintMaterials() {
+    if (!materialsButton) return;
+    const items = materialsNow();
+    materialsButton.hidden = !items.length;
+    if (materialsCount) materialsCount.textContent = String(items.length);
+    materialsButton.setAttribute("aria-label", L("本次发送带上的材料") + "：" + items.length);
+    if (!materialsList || materialsList.hidden) return;
+    materialsList.replaceChildren(el("p", "assistant-popover-title", L("本次发送带上的材料")));
+    if (!items.length) materialsList.append(el("p", "assistant-muted", L("没有材料。可以在页面上选中内容，或添加文件。")));
+    items.forEach((item) => {
+      const row = el("div", "assistant-material");
+      row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", item.auto ? L("来自当前页面") : L("你添加的")));
+      const drop = el("button", "assistant-material-remove", "×"); drop.type = "button";
+      drop.setAttribute("aria-label", L("不带上") + "：" + item.label);
+      drop.addEventListener("click", () => {
+        if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
+        paintMaterials(); (materialsList.querySelector("button") || materialsButton).focus();
+      });
+      row.append(drop); materialsList.append(row);
+    });
+  }
+  const setMaterials = (open) => {
+    if (!materialsList) return;
+    materialsList.hidden = !open;
+    materialsButton?.setAttribute("aria-expanded", String(open));
+    if (open) { setStarters(false); paintMaterials(); materialsList.querySelector("button")?.focus(); }
+  };
+  materialsButton?.addEventListener("click", () => setMaterials(materialsList.hidden));
+  /* Starting points for the current content: choosing one fills the input and sends nothing. */
+  const startersFor = () => {
+    const context = surfaceContext();
+    const list = [];
+    if (selection && !removed.has("selection")) {
+      list.push({ label: L("改写选中的内容"), prompt: L("改写我选中的这段内容，保持原意，更清楚") });
+      list.push({ label: L("总结选中的内容"), prompt: L("用三句话总结我选中的内容") });
+    }
+    ((context && context.starters) || []).forEach((starter) => { if (starter && starter.label && starter.prompt) list.push(starter); });
+    return list.slice(0, 5);
+  };
+  function setStarters(open) {
+    if (!startersPop) return;
+    const list = open ? startersFor() : [];
+    startersPop.hidden = !list.length;
+    if (!list.length) return;
+    startersPop.replaceChildren(el("p", "assistant-popover-title", L("可以这样开始")));
+    list.forEach((starter) => {
+      const button = el("button", "assistant-starter", starter.label); button.type = "button";
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); setStarters(false); input.focus(); });
+      startersPop.append(button);
+    });
+  }
+  input.addEventListener("focus", () => { paintMaterials(); if (!String(input.value || "").trim() && !busy) setStarters(true); });
+  input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
+  document.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof Element) || island.contains(event.target)) return;
+    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false);
+  });
+  island.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (materialsList && !materialsList.hidden) { event.preventDefault(); event.stopPropagation(); setMaterials(false); materialsButton?.focus(); return; }
+    if (startersPop && !startersPop.hidden) { event.preventDefault(); event.stopPropagation(); setStarters(false); }
+  }, true);
+  /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
+  attach?.addEventListener("click", () => fileInput?.click());
+  fileInput?.addEventListener("change", async () => {
+    const chosen = [...(fileInput.files || [])];
+    fileInput.value = "";
+    for (const file of chosen) {
+      if (files.length >= 5) { host.showToast?.(L("一次最多带 5 个文件")); break; }
+      if (/^image\//.test(file.type)) { host.showToast?.(L("暂时不能读取图片：当前模型与运行方式还没有接通图片")); continue; }
+      if (file.size > 400000) { host.showToast?.(L("文件太大，请只带需要的部分") + "：" + file.name); continue; }
+      try { files.push({ material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }); }
+      catch { host.showToast?.(L("读不了这个文件") + "：" + file.name); }
+    }
+    paintMaterials();
+  });
+  /** The page, what is selected on it and the materials the person kept: all data for this Send, nothing more. */
   const pageContext = () => {
+    const context = surfaceContext();
     const current = document.querySelector("[data-plugin-picker-current]");
     const active = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
-    const surface = (active && active.dataset.pluginId) || "home";
-    const title = current ? current.textContent.trim() : "";
-    return { source: Object.assign({ surface }, title ? { title } : {}), captured_at: new Date().toISOString() };
+    const surface = (context && context.plugin_id) || (active && active.dataset.pluginId) || "home";
+    const title = (context && context.surface_title) || (current ? current.textContent.trim() : "");
+    const result = { source: Object.assign({ surface }, context && context.plugin_id ? { plugin_id: context.plugin_id } : {}, title ? { title } : {}), captured_at: new Date().toISOString() };
+    if (context && context.object && !removed.has("object")) result.object = context.object;
+    if (context && context.unsaved) result.unsaved = true;
+    if (selection && !removed.has("selection")) result.selection = { text: selection.text, truncated: selection.truncated };
+    return result;
   };
+  const sendMaterials = () => {
+    const context = surfaceContext();
+    const list = files.map((file) => Object.assign({}, file));
+    if (context && context.unsaved && context.draft_text && !removed.has("draft")) {
+      list.unshift({ material_id: "draft", kind: "text", title: L("未保存的修改") + "：" + ((context.object && context.object.title) || ""), text: context.draft_text,
+        explicit: false, draft: true, source: { surface: context.plugin_id, plugin_id: context.plugin_id }, object: context.object });
+    }
+    return list;
+  };
+  const consumeMaterials = () => { files = []; selection = null; removed.clear(); paintMaterials(); };
   let typed = false;
-  input.addEventListener("input", () => { typed = true; syncSend(); saveDraft(false); });
+  input.addEventListener("input", () => { typed = true; syncSend(); saveDraft(false); if (String(input.value || "").trim()) setStarters(false); });
   input.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     event.preventDefault();
@@ -467,13 +617,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!text || busy) return;
     busy = true; syncSend(); problem = null; setPanel(true);
     const requestId = unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID();
-    const body = { text, request_id: requestId, context: pageContext() };
+    const materials = sendMaterials();
+    setStarters(false); if (materialsList) setMaterials(false);
+    const body = { text, request_id: requestId, context: pageContext(), materials };
     if (currentId) body.work_id = currentId;
     else body.scope = newScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
     unsettled = { id: requestId, text, work: currentId };
     try {
       const result = await api("/send", "POST", body);
       unsettled = null;
+      consumeMaterials();
       clearTimeout(draftTimer);
       // Sent text is nobody's draft any more, including the new-work draft it may have started as.
       if (!currentId || store.get(NEW_DRAFT_KEY) === text) store.set(NEW_DRAFT_KEY, null);
@@ -525,6 +678,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
 
   loadDraft(); render();
   // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
-  loadWorks().then(() => { if (!typed) loadDraft(); if (currentId) refresh().then(schedule); });
+  // Changes already done before this page loaded are not news; only ones completing from now on are announced.
+  loadWorks().then(() => { if (!typed) loadDraft(); if (currentId) return refresh().then(schedule); }).finally(() => { announcing = true; });
   return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); } };
 }`;

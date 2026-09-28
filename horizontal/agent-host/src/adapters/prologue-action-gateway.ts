@@ -134,7 +134,11 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
   // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
   try { await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, normalizedInput(view, parsed.input)); }
-  catch (error) { return `${error instanceof Error ? error.message : String(error)}. The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`; }
+  catch (error) {
+    const sent = normalizedInput(view, parsed.input);
+    const kind = sent === null ? "null" : Array.isArray(sent) ? "array" : typeof sent;
+    return `${error instanceof Error ? error.message : String(error)} (you sent ${kind}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
+  }
   return null;
 }
 

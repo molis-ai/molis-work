@@ -51,6 +51,26 @@ export interface AssistantSurfaceRef {
   title?: string;
 }
 
+/**
+ * How a surface tells the Assistant what the person is looking at: the root element of a plugin surface carries this
+ * attribute with an `AssistantSurfaceContext` as JSON, and keeps it current. The Assistant reads it when the person
+ * focuses the composer; nothing is sent until they send, and every item stays visible and removable before that.
+ */
+export const ASSISTANT_CONTEXT_ATTRIBUTE = "data-assistant-context";
+
+export interface AssistantSurfaceContext {
+  plugin_id: string;
+  /** What the person calls this surface, e.g. "Pages". */
+  surface_title?: string;
+  object?: AssistantObjectRef;
+  /** The object has edits not saved yet. */
+  unsaved?: boolean;
+  /** The unsaved content itself, bounded, when the surface can give it; it is a draft, never the saved version. */
+  draft_text?: string;
+  /** Starting points that fit this surface; choosing one only fills the input. */
+  starters?: Array<{ label: string; prompt: string }>;
+}
+
 /** An object a surface shows, by its owner's identity and version. */
 export interface AssistantObjectRef {
   kind: string;
@@ -117,6 +137,8 @@ export interface AssistantActivity {
   /** What it acted on: the capability's provider and title, or the words it searched for. */
   target: string;
   state: "started" | "completed" | "failed" | "unknown";
+  /** For a read or change: the capability it used, so the surface that owns that data can refresh. */
+  capability_id?: string;
   /** Why it did not happen, when that is known: not authorized, declined by the person. */
   reason?: "not-authorized" | "declined";
   /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */

@@ -452,7 +452,9 @@ interface AgentFrozenStartFields {
    * Plugin role, or project. Without it the list is a flat set of ids that
    * nobody can attribute, which is the state this used to be in.
    */
-  prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer }>;
+  prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer;
+    /** Present when the run used the person's edit of this prompt (its revision) instead of the default. */
+    user_revision?: number }>;
   skills: AgentSkillDeclaration[];
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];

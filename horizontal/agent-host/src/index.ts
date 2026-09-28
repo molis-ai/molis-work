@@ -248,12 +248,21 @@ export interface AgentStartAuthority {
  * directory must be one the Host authorized. An adapter reports facts and
  * executes approved work; it never widens its own authority.
  */
+/** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
+export interface AgentPromptResolver {
+  effective(ownerId: string, prompt: AgentPromptText): AgentPromptText;
+}
+
 export class AgentHost implements AgentHostApi {
   readonly #adapters = new Map<string, AgentRuntimeAdapter>();
   readonly reviews: AgentReviewQueue;
 
-  constructor(options: { reviews?: AgentReviewQueue } = {}) {
+  /** The person's edits of registered prompts, looked up when a run starts. Absent means every prompt runs as shipped. */
+  readonly #prompts: AgentPromptResolver | undefined;
+
+  constructor(options: { reviews?: AgentReviewQueue; prompts?: AgentPromptResolver } = {}) {
     this.reviews = options.reviews ?? new AgentReviewQueue();
+    this.#prompts = options.prompts;
   }
 
   register(adapter: AgentRuntimeAdapter): void {
@@ -391,6 +400,12 @@ export class AgentHost implements AgentHostApi {
     authority: AgentStartAuthority,
   ): Promise<AgentRunHandle> {
     request = { ...request, budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
+    // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
+    // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
+    if (this.#prompts && authority.prompts?.length) {
+      const resolve = this.#prompts;
+      authority = { ...authority, prompts: authority.prompts.map(prompt => resolve.effective(request.plugin_id, prompt)) };
+    }
     const adapter = this.adapter(runtimeId);
     const role = authority.manifest.roles.find((item) => item.role_id === request.role_id);
     if (!role) {

@@ -113,6 +113,8 @@ export interface AgentPromptText {
   body: string;
   /** Omitted means `role`. The Host orders a composed role by this. */
   layer?: AgentPromptLayer;
+  /** Set by the Host when this text is the person's edit of the default (its revision), not the shipped default. */
+  user_revision?: number;
 }
 
 export function promptLayerOf(prompt: { layer?: AgentPromptLayer }): AgentPromptLayer {

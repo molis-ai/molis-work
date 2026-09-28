@@ -532,6 +532,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         prompt_id: prompt.prompt_id,
         version: prompt.version,
         layer: promptLayerOf(prompt),
+        ...(prompt.user_revision !== undefined ? { user_revision: prompt.user_revision } : {}),
       })),
       skills: (role.skills ?? []).map(({ body: _body, ...definition }) => ({ ...definition, tools: [...definition.tools] })),
       ...(request.action_tools === undefined ? {} : { action_tools: structuredClone(request.action_tools) }),

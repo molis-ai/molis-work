@@ -8,7 +8,7 @@ import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } fr
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { planInformationWork } from "../apps/local-host/src/assistant-http.js";
+import { planInformationWork } from "../apps/local-host/src/information-planner.js";
 import { hostCompleteText } from "../apps/local-host/src/host-complete-text.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";

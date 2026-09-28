@@ -1,4 +1,12 @@
 export const WORKFLOWS_EN: Record<string, string> = {
+  "正文仅显示节选。": "Showing an excerpt.",
+  "动作已返回": "Action returned",
+  "服务已返回": "Service responded",
+  "已接收材料": "Material received",
+  "打开材料": "Open material",
+  "技术详情": "Technical details",
+  "正文仅显示节选，完整返回值见技术详情。": "Showing an excerpt. See technical details for the full response.",
+  "返回内容过长，这次记录只保留了摘要。": "The response was too long. This run keeps only the summary.",
   "先恢复不可用的站点，再开始第一次。": "Restore the unavailable stations before starting the first run.",
   "模板转换": "Template transform",
   "工作流程": "Workflows",

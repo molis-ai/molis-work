@@ -1,7 +1,7 @@
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { CapabilitiesView, CapabilitySection } from "@molis-ai/molis-work-app-workbench";
-import { openFunctionsStore } from "@molis-ai/molis-work-module-functions";
+import { functionContextActions } from "@molis-ai/molis-work-module-functions";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { actionUsageActions, type ActionUsagesResult } from "./action-usage-actions.js";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -45,13 +45,9 @@ export async function capabilitiesView(options: {
   }
   if (section === "history") {
     model.calls = host.callLog?.list(project ? project.project_id : null) ?? [];
-    const store = openFunctionsStore(homeDirectory);
-    try {
-      // Existing scene records use board_id; direct action invocations use canonical project_id.
-      model.history = store.listJudgments().filter(row => project
-        ? row.subject.board_id === project.board_id || row.subject.board_id === project.project_id
-        : !row.subject.board_id);
-    } finally { store.close(); }
+    const caller = await localWebActionContext(host, reference, builtinPermissions);
+    const client = reference ? host.actionClient(reference) : host.homeActionClient();
+    model.history = (await client.invoke(caller, functionContextActions.history, {}) as { judgments: NonNullable<CapabilitiesView["history"]> }).judgments;
   }
   return model;
 }

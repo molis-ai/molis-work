@@ -60,6 +60,12 @@ export class SystemFunctionsActions {
     this.removeManagement = registry.registerProvider({ ...management,
       definitions: [...management.definitions, ...Object.values(functionContextActions)],
       handlers: [...management.handlers,
+        { ...functionContextActions.history, handle: caller => {
+          const { boardId } = context(caller);
+          return { judgments: this.ports.read(service => service.listJudgments()).filter(row => caller.project_id
+            ? row.subject.board_id === caller.project_id || (boardId !== undefined && row.subject.board_id === boardId)
+            : !row.subject.board_id) };
+        } },
         { ...functionContextActions.targets, handle: async (caller, input) => {
           const record = this.ports.read(service => service.get((input as { id: string }).id));
           if (record.status !== "published") return { targets: [] };

@@ -13,11 +13,13 @@ export interface FeedConnectorListener {
 export interface FeedConnectorSyncPorts {
   feed: FeedApplication;
   acquireSync?(boardId: string, sourceId: string): () => void;
+  /** The connection owner pins its original account; Feed owns source configuration. */
+  connectionAuthority?(source: FeedSourceRecord): () => void | Promise<void>;
   createListener(source: FeedSourceRecord, afterAccepted: (
     item: IntegrationProviderItem,
     signal: Pick<SignalRecord, "signal_id" | "revision">,
     occurredAt: string,
-  ) => void): Promise<FeedConnectorListener>;
+  ) => void | Promise<void>): Promise<FeedConnectorListener>;
   reportCrash(sourceId: string, errorCode: string): Promise<void>;
   sourceMetadata(source: FeedSourceRecord, cursor: unknown): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never>;
   transaction<T>(operation: () => T): T;

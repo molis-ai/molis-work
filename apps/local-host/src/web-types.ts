@@ -48,7 +48,7 @@ export interface ResolvedWebBoardOptions {
 }
 
 export interface FeedSchedulerRuntime {
-  scheduler: FeedSourceScheduler;
+  scheduler: Pick<FeedSourceScheduler, "tick">;
   schedule: ScheduleService;
 }
 

@@ -15,7 +15,7 @@ export function createLocalFeedConnectorService(
   db: SqliteDatabase,
   boardId: string,
   providerFactory?: OfficialProviderFactory,
-  _homeDirectory?: string,
+  homeDirectory?: string,
   feedOptions?: LocalFeedApplicationOptions,
 ): FeedConnectorService {
   const feed = createLocalFeedApplication(db, feedOptions);
@@ -49,5 +49,5 @@ export function createLocalFeedConnectorService(
     gmail: { defaultScope: GMAIL_DEFAULT_SCOPE, normalizeScope: normalizeGmailScope,
       installationSecretRefs: gmailInstallationSecretRefs, storeClient: storeGmailOAuthClient,
       startOAuth: startGmailOAuthFlow, completeOAuth: completeGmailOAuthFlow },
-  }, createLocalFeedConnectorSync(db, boardId, providerFactory, feed));
+  }, createLocalFeedConnectorSync(db, boardId, providerFactory, feed, homeDirectory));
 }

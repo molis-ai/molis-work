@@ -62,6 +62,7 @@ export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from ".
 
 export { FeedSourceService } from "./source-service.js";
 export type * from "./source-ports.js";
+export { createFeedSourceSyncGuard, type FeedSourceSyncAuthority } from "./source-sync-guard.js";
 
 export { FeedConnectorSync } from "./connector-sync.js";
 export type { ConnectorSyncMode, FeedConnectorSyncPorts, FeedConnectorListener } from "./connector-sync-ports.js";
@@ -88,3 +89,5 @@ export { feedSubjectAction, feedSourceSubjectAction } from "./content-actions.js
 
 export * from "./scenes.js";
 export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
+
+export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot } from "./query-actions.js";

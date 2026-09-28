@@ -16,6 +16,8 @@ interface WorkPanelHost {
   spawn(panel: DesktopPanelRecord, sessionId: string | null): PanelSpawnSpec;
 }
 
+type PanelGoal = Pick<GoalRecord, "title" | "decomposition_state"> & { event_work?: boolean; event_facts?: string };
+
 export interface WorkPanelHttpContext {
   method: string | undefined;
   url: URL;
@@ -24,8 +26,8 @@ export interface WorkPanelHttpContext {
   readBody(): Promise<Record<string, unknown>>;
   respond(status: number, value: unknown): void;
   withHost<T>(operation: (host: WorkPanelHost) => Promise<T>): Promise<T>;
-  readGoal(goalId: string): Pick<GoalRecord, "title" | "decomposition_state"> & { event_work?: boolean; event_facts?: string };
-  readLinkedFeedContext(goalId: string, itemId?: string): { source_context: string } | null;
+  readGoal(goalId: string): PanelGoal | Promise<PanelGoal>;
+  readLinkedFeedContext(goalId: string, itemId?: string): Promise<{ source_context: string } | null> | { source_context: string } | null;
   projectGuidance(): string | Promise<string>;
   isRuntimeKind(kind: string): boolean;
   launchSpec(input: { runtime_kind: string; command?: string; args?: string[]; resume_session_id?: string | null }): {
@@ -50,7 +52,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
     return await context.withHost(async (host) => {
       if (method === "GET" && promptMatch) {
         const goalId = decodeURIComponent(promptMatch[1]);
-        const contract = context.readGoal(goalId);
+        const contract = await context.readGoal(goalId);
         if (contract.decomposition_state === "closed_compound" && !contract.event_work) {
           respond(409, {
             error: L("这条上层 Goal 由子 Goal 共同完成，不能直接推进。请选择一个具体的子 Goal。"),
@@ -58,7 +60,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           return true;
         }
         const requestedFeedItemId = url.searchParams.get("feed_item_id")?.trim() || null;
-        const linkedFeedItem = context.readLinkedFeedContext(goalId, requestedFeedItemId ?? undefined);
+        const linkedFeedItem = await context.readLinkedFeedContext(goalId, requestedFeedItemId ?? undefined);
         if (requestedFeedItemId && !linkedFeedItem) {
           respond(409, {
             error: L("这条 Item 已不再关联当前 Goal，请返回 Inbox 或 Feed 重新开始处理。"),
@@ -85,7 +87,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
       }
       if (method === "GET" && panelsMatch) {
         const goalId = decodeURIComponent(panelsMatch[1]);
-        const contract = context.readGoal(goalId);
+        const contract = await context.readGoal(goalId);
         const panels = host.panels.list(projectId, goalId);
         const sessionIds = await host.sessionIds(panels.map((panel) => panel.panel_id));
         respond(200, {
@@ -99,7 +101,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
       }
       if (method === "POST" && panelsMatch) {
         const goalId = decodeURIComponent(panelsMatch[1]);
-        const contract = context.readGoal(goalId);
+        const contract = await context.readGoal(goalId);
         if (contract.decomposition_state === "closed_compound" && !contract.event_work) {
           respond(409, {
             error: L("这条上层 Goal 由子 Goal 共同完成，不能直接开终端。请选择一个具体的子 Goal。"),
@@ -174,7 +176,7 @@ export async function handleWorkPanelHttp(context: WorkPanelHttpContext): Promis
           respond(404, { error: "找不到这个终端面板" });
           return true;
         }
-        const contract = context.readGoal(panel.goal_id);
+        const contract = await context.readGoal(panel.goal_id);
         if (contract.decomposition_state === "closed_compound" && !contract.event_work) {
           respond(409, {
             error: L("这是上层 Goal 的历史终端，只能查看。请到具体的子 Goal 继续。"),

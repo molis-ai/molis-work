@@ -5,10 +5,10 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
   const result = { type: "object", properties: { artifact_id: { type: "string" }, version: { type: "integer", minimum: 1 },
     payload: { type: "object", properties: { title: { type: "string" }, sequence: { type: "integer", minimum: 1 } }, required: ["title", "sequence"], additionalProperties: false } },
     required: ["artifact_id", "version", "payload"], additionalProperties: false };
-  const define = (name: string, title: string, description: string, permissions: string[], output_schema: Record<string, unknown>, command = false, external = false): ActionDefinition => ({
+  const define = (name: string, title: string, description: string, permissions: string[], output_schema: Record<string, unknown>, command = false, external = false, result_view?: ActionDefinition["action"]["result_view"]): ActionDefinition => ({
     capability_id: `${pluginId}.${name}`, version: 1, operation: command ? "command" : "query", action: {
       title, description, kind: command ? "operation" : "query", scope: "project", audiences: external ? ["user", "workflow", "mcp"] : ["user"],
-      permissions, subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema,
+      permissions, subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema, ...(result_view ? { result_view } : {}),
     },
   });
   return [
@@ -19,7 +19,7 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
       type: "object", properties: { count: { type: "integer", minimum: 0 }, latest: { anyOf: [result, { type: "null" }] } }, required: ["count", "latest"], additionalProperties: false,
     }),
     define("results.publish", "Save my sample result", "Publish the next personal Artifact version and update the original private counter.",
-      ["storage:private", "artifact:read", "artifact:write"], result, true),
+      ["storage:private", "artifact:read", "artifact:write"], result, true, false, { summary: "Sample result saved", title_pointer: "/payload/title" }),
   ];
 }
 

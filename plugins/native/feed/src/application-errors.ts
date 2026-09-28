@@ -49,7 +49,7 @@ export function toFeedPublicError(error: unknown): FeedPublicError {
   const message = typeof value.message === "string" && value.message
     ? value.message.slice(0, 400)
     : "信息流操作失败";
-  if (code.includes("needs_auth") || code.includes("credential")) {
+  if (code === "feed_source_connection_changed" || code.includes("needs_auth") || code.includes("credential")) {
     return { code, category: "auth", retryable: false, user_action: "reconnect", safe_message: message };
   }
   if (code.includes("stale")) {

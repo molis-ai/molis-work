@@ -238,3 +238,4 @@
   3. 恢复默认后再建一个，运行记录版本回到 `designer/3.2.0+…`（无 user），候选标题不再带「暖·」。
 - 自动化：`tests/prompt-registration.test.ts`（5 项）、`tests/agent-built-plugins-workflow.test.ts` 新增“设计师用用户版、记录版本、恢复默认后回到默认”；受影响的 78 个测试文件 615 项中 9 项是测试替身按字符串读 Prompt，改用 `modelPromptText` 后全部通过；根 `tsc --noEmit` 通过。
 - 未完成：开发者诊断（每个插件登记了什么、哪些没生效）；安装与生成的插件随生命周期登记（AC43）；Alchemist 的 systemPrompt 迁移。
+- 浏览器用例（2026-09-28，搜索会话报告后与 origin/main 21cdfbf8 基线比对）：`global-ui-interaction`、`goals-narrow-navigation`、`goals-tree` 在本分支失败而基线通过——是本分支手机宽度规则把底栏搜索按钮藏掉了；改为只留图标、输入时才隐藏后三者 6/6 通过。`product-experience-polish` 的“产品旅程”（第 97 行，Cognia 打开模型设置得到 404）在基线上同样失败，不是本分支引入。

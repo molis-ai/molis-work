@@ -746,7 +746,8 @@ const CRAFT_BASE_STYLES = `
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 48px; min-width: 48px; }
-    ${SHELL} .bar-composer .bar-composer-search { display: none; }
+    /* Search stays reachable on a phone: the icon alone. */
+    ${SHELL} .bar-composer .bar-composer-search { flex: none; gap: 0; padding: 0 6px; }
     ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 64px; }
     ${SHELL} .bar-composer .plugin-picker-trigger > svg { display: none; }
     ${SHELL} .bar-composer .plugin-picker-trigger { padding: 0 7px; max-width: 64px; }
@@ -755,7 +756,7 @@ const CRAFT_BASE_STYLES = `
     ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .bar-composer-search) { display: none; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }

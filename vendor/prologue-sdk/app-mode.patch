@@ -1,3 +1,59 @@
+diff --git a/packages/sdk/src/agent/core/loop.ts b/packages/sdk/src/agent/core/loop.ts
+index 4be716a3..8d5f885b 100644
+--- a/packages/sdk/src/agent/core/loop.ts
++++ b/packages/sdk/src/agent/core/loop.ts
+@@ -235,6 +235,15 @@ export interface AgentLoopInput {
+      *
+      * 只是一个窄口：循环不认识证据账，也不认识 Session。判在外面做。
+      */
++    /**
++     * 自然收工前问一次 `session-stop` 钩子。**不给就是没装钩子**，照常收工。
++     *
++     * 挡住（`blocked`）时，理由作为运行时提示放回历史，循环接着跑——
++     * 例如这一轮只宣布了「现在去改」却一个工具都没调：收工的话，人看到的
++     * 是一句承诺，什么都没发生。放不放、放几次由 App 的钩子判；循环自己
++     * 另有上限，一个总说「不许停」的钩子不会让它转到轮次预算耗尽。
++     */
++    readonly fireStop?: (answer: { readonly text: string }) => Promise<{ readonly blocked: boolean; readonly why: string | undefined }>;
+     readonly objective?: {
+       check(): Promise<{
+         readonly mayFinish: boolean;
+@@ -380,6 +389,9 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+    */
+   let continuations = 0;
+   const MAX_CONTINUATIONS = 8;
++  // 收工钩子一次 Run 里最多挡这么多次；之后照常收工，不再问。
++  const MAX_STOP_HOLDS = 2;
++  let stopHolds = 0;
+   /** 这一段回答里之前几次续写已经说出的正文。收工时和最后一段拼成完整回答再过护栏。 */
+   let continuedText = "";
+   /**
+@@ -1372,6 +1384,25 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         );
+         continue;
+       }
++      /*
++       * **收工钩子。** 放在目标判断之后：目标管「证据够不够」，钩子管
++       * App 自己的收工条件。挡住就把这段回答留在历史里（模型要看得见
++       * 自己刚说了什么），再放入钩子的理由，接着跑；这一轮不扣轮次预算
++       * 以外的东西，也不提记忆候选——还没收工。
++       */
++      if (input.guards.fireStop !== undefined && stopHolds < MAX_STOP_HOLDS) {
++        const held = await input.guards.fireStop({ text: answerText });
++        if (held.blocked) {
++          stopHolds += 1;
++          history.push({ kind: "text", role: "assistant", text: turnText, source: "assistant" });
++          history.push(runtimePromptRecord(
++            held.why ?? "Not done yet. If the task needs actions, call the tools now; if it is finished or blocked, say so plainly.",
++            "runtime:stop-hook",
++          ));
++          input.run.emit({ type: "model-response-repair", reason: "stop-held" });
++          continue;
++        }
++      }
+       /*
+        * **收工那一刻提一次候选。**
+        *
 diff --git a/packages/sdk/src/agent/core/start-input.ts b/packages/sdk/src/agent/core/start-input.ts
 index bf56f06f..748fc894 100644
 --- a/packages/sdk/src/agent/core/start-input.ts
@@ -45,7 +101,7 @@ index dbba51a5..c0557dd3 100644
    type Runtime,
    type RuntimeState,
 diff --git a/packages/sdk/src/composition/core/runtime.ts b/packages/sdk/src/composition/core/runtime.ts
-index 84722258..cba13e29 100644
+index 84722258..438edb55 100644
 --- a/packages/sdk/src/composition/core/runtime.ts
 +++ b/packages/sdk/src/composition/core/runtime.ts
 @@ -404,6 +404,12 @@ import {
@@ -125,6 +181,15 @@ index 84722258..cba13e29 100644
              path,
              offset,
              length,
+@@ -2162,7 +2179,7 @@ export async function createRuntime(
+    * 钩子仍然只能加严：说 `deny` 就是挡住。
+    */
+   const fireObserved = async (
+-    event: "prompt-submit" | "compaction-before" | "compaction-after" | "subagent-start" | "subagent-end",
++    event: "prompt-submit" | "compaction-before" | "compaction-after" | "subagent-start" | "subagent-end" | "session-stop",
+     payload: unknown,
+     /**
+      * 这一次是谁的。**每个触发点都要给**——给不出来的那几项留空，
 @@ -4077,12 +4094,24 @@ export async function createRuntime(
        assertReady(state);
        assertAssembled(assembled, "agent", "Running an Agent");
@@ -262,6 +327,24 @@ index 84722258..cba13e29 100644
                  const seen = new Set(remindedSkills);
                  const fresh = skillSnapshot
                    .catalog({ capabilities: [] })
+@@ -5544,6 +5593,17 @@ export async function createRuntime(
+             ...(continueWhenCompactionFails ? { continueWhenCompactionFails } : {}),
+             windowTokens,
+             objective: { check: judgeAgainstObjective },
++            fireStop: async ({ text }) => {
++              const held = await fireObserved(
++                "session-stop",
++                { session: session.ref.id, run: currentRunId, text },
++                {
++                  session: session.ref.id,
++                  ...(currentRunId === undefined ? {} : { run: currentRunId }),
++                },
++              );
++              return { blocked: held.blocked, why: held.why };
++            },
+             fireCompaction: async (when) => {
+               const held = await fireObserved(
+                 `compaction-${when}`,
 diff --git a/packages/sdk/src/composition/core/system-tools.ts b/packages/sdk/src/composition/core/system-tools.ts
 index 6e2474b4..0b01cd77 100644
 --- a/packages/sdk/src/composition/core/system-tools.ts
@@ -428,6 +511,23 @@ index 6e2474b4..0b01cd77 100644
          }
          // 已经停了的再停一次**不是错误**。
          started.delete(handle);
+diff --git a/packages/sdk/src/hooks/core/bus.ts b/packages/sdk/src/hooks/core/bus.ts
+index fdab7c5e..07d27553 100644
+--- a/packages/sdk/src/hooks/core/bus.ts
++++ b/packages/sdk/src/hooks/core/bus.ts
+@@ -13,6 +13,12 @@ export type HookEvent =
+   | "tool-failed"
+   | "session-start"
+   | "session-end"
++  /**
++   * 一次 Run **正要自然收工**：模型这一轮只写了回答、没有调用工具，目标判断也放行了。
++   *
++   * `deny` 表示「还不能停」：理由作为运行时提示放回历史，循环接着跑（一次 Run 最多挡两次）。
++   * 载荷是 `{ session, run, text }`，`text` 是这次要收工的整段回答。
++   */
+   | "session-stop"
+   | "session-stop-failed"
+   /**
 diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
 index bec555df..04ca189a 100644
 --- a/packages/sdk/src/index.ts
@@ -440,12 +540,25 @@ index bec555df..04ca189a 100644
    type AgentContextOptions,
    type CreateRuntimeInput,
    type Runtime,
+diff --git a/packages/sdk/src/model/core/types.ts b/packages/sdk/src/model/core/types.ts
+index 72232007..083a2f5a 100644
+--- a/packages/sdk/src/model/core/types.ts
++++ b/packages/sdk/src/model/core/types.ts
+@@ -353,7 +353,7 @@ export type ModelEvent =
+    */
+   | Readonly<{ type: "agent-control"; state: "running" | "pausing" | "paused" }>
+   /** 整批工具未执行，已请求模型纠正；不代表纠正成功，不含原始工具名或参数。 */
+-  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }>
++  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" | "stop-held" }>
+   /** Explicit recovery of an interrupted Run, never a reconstructed tool transcript. */
+   | Readonly<{ type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix";
+       questions?: readonly { ref: ExactRef<"pending">; kind: string; prompt: string }[];
 diff --git a/packages/sdk/test/app-mode.live.test.ts b/packages/sdk/test/app-mode.live.test.ts
 new file mode 100644
-index 00000000..128e1e9b
+index 00000000..f001b458
 --- /dev/null
 +++ b/packages/sdk/test/app-mode.live.test.ts
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,169 @@
 +import { mkdtempSync, rmSync } from "node:fs";
 +import { createServer, type ServerResponse } from "node:http";
 +import { tmpdir } from "node:os";
@@ -573,5 +686,45 @@ index 00000000..128e1e9b
 +    const { pack, executors } = businessPack({ lookup: async () => "", save: async () => "" });
 +    const session = await f.runtime.sessions.create({ pack, executors });
 +    await expect(f.runtime.startAgentRun({ session, workspace: "none", start: f.start(), agent: { idempotencyKey: "n", toolNames: [] } })).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++  } finally { await f.close(); }
++});
++
++it("a session-stop hook can hold a run that only announced what it would do; the loop continues with the hook's reason, at most twice", async () => {
++  const f = await fixture((_body, response, turn) => turn === 0 ? say(response, "现在去保存。") : turn === 1 ? call(response, "lookup", { id: "plan-7" }) : say(response, turn === 2 ? "Now saving." : turn === 3 ? "Saving now." : "all done"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "plan-7", save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const seen: Array<{ text: unknown; run: unknown }> = [];
++    // Holds every stop: the loop's own limit must still end the run.
++    f.runtime.hooks.register({ id: "announce-guard", event: "session-stop", forSession: session.ref.id, handler: async context => {
++      seen.push({ text: (context.input as { text?: unknown }).text, run: context.origin?.run });
++      return { kind: "deny" as const, why: "You only announced the next step; call the tool now or say you are done." };
++    } });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "s1", mode: "build", toolNames: ["lookup", "save"] } });
++    const run = watch(started.run);
++    expect((await run.until("terminal")).type).toBe("completed");
++    const repairs = run.events.filter(event => event.type === "model-response-repair");
++    expect(repairs).toEqual([{ type: "model-response-repair", reason: "stop-held" }, { type: "model-response-repair", reason: "stop-held" }]);
++    expect(seen.map(one => one.text)).toEqual(["现在去保存。", "Now saving."]);
++    expect(seen.every(one => typeof one.run === "string")).toBe(true);
++    // The held answer stays in the model's view, followed by the hook's reason.
++    const second = JSON.stringify(f.requests[1]);
++    expect(second).toContain("现在去保存。");
++    expect(second).toContain("You only announced the next step");
++    // Two holds, then it finishes on the third plain answer without asking again.
++    expect(f.requests).toHaveLength(4);
++  } finally { await f.close(); }
++});
++
++it("without a session-stop hook a plain answer completes the run as before", async () => {
++  const f = await fixture((_body, response) => say(response, "现在去保存。"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "plan-7", save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "s2", mode: "build", toolNames: ["lookup"] } });
++    const run = watch(started.run);
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(run.events.some(event => event.type === "model-response-repair")).toBe(false);
++    expect(f.requests).toHaveLength(1);
 +  } finally { await f.close(); }
 +});

@@ -195,7 +195,9 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
   const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "ask-user": "ask", "update-todo": "todo",
     // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
     "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
-    "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools" };
+    "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
+    // The Host let a round that only announced its next step continue.
+    "自动续做": "auto-continue" };
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining") return [];
     const verb = verbs[item.name] ?? item.name;

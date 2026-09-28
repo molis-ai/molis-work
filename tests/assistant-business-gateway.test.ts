@@ -258,3 +258,17 @@ test("a suggested action becomes a card that runs exactly what it shows, once, a
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
   } finally { await f.close(); }
 });
+
+test("a round that only announces its next step is continued once, and the person sees that it was", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "现在去保存这条笔记。"), () => reply(undefined, "现在就去保存。"), () => reply(undefined, "never asked")]);
+  try {
+    const sent = await f.service.send({ text: "Save a note saying hi", request_id: "req-00000031" }, {});
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    // Held once: the second request carries the first ending and the Host's reason; the second ending is not held again.
+    assert.equal(f.requests.length, 2);
+    const second = JSON.stringify(f.requests[1]);
+    assert.match(second, /现在去保存这条笔记/);
+    assert.match(second, /called no tool, so nothing has happened yet/);
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.state), ["completed"]);
+  } finally { await f.close(); }
+});

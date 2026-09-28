@@ -72,6 +72,8 @@ export const ASSISTANT_EN: Record<string, string> = {
   "让 Coding Agent 做点什么…": "Ask Coding Agent to do something…",
   "由 Coding Agent 执行": "Carried by Coding Agent",
   "打开 Coding": "Open Coding",
+  "自动续做": "continue automatically",
+  "上一段只说了要做什么，没有实际执行": "(it only said what it would do and did nothing)",
   "这一轮停止了，没有执行": "the round stopped; it did not run",
   "查找工具": "look up tools",
   "读取文件": "read",

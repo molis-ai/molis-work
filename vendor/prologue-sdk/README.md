@@ -6,9 +6,11 @@
 
 - 新增导出 `APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"]`。`app` 模式下 `toolNames` 必须显式给出，且只能是本会话包贡献的工具或上述系统工具；文件与命令工具、根、执行器、子任务、技能、MCP、挂载、工作区上下文在起跑时拒绝（`AGENT_START_INVALID`）。写入类包工具照常走副作用链审批。原 `workspace: "none"` 的纯推理语义不变。
 - 系统工具执行器的根与 mutator 变为可选：没有根时文件、命令类工具报 `TOOL_UNAVAILABLE`；子任务派发器在无根时延迟到调用时才报不可用。
-- 源码提交：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `6f530d5a`，父提交 `03c6ba0b`（dispatch-denied）；增量补丁 [app-mode.patch](app-mode.patch)。尚未推送到 molis-ai/prologue。
-- SHA-256：`80745df7c72778d01507bef7936d6234b83ff67122e3c31135d67cbe809ca49a`
-- 验证：新增 `test/app-mode.live.test.ts` 4 项（包工具与提问、写入类包工具需审批、起跑前拒绝文件工具与根等、none 模式仍拒绝包工具）全过；SDK 全量两次：一次 27 项在负载下超时，一次仅 `workstation-wiring.live.test.ts`「Character 完全关掉仍能干活」1 项超时——该项在未改动的 03c6ba0b 上单跑同样超时（5 秒上限），本改动下单跑通过。
+- 同一分支第二个提交（2026-09-28）：**`session-stop` 钩子接入循环**。原先只声明未触发；现在一次 Run 正要自然收工（模型这一轮只写了回答、目标判断放行）时触发，载荷 `{ session, run, text }`。钩子 `deny` 时这段回答留在历史里、放入钩子理由、接着跑，并发 `model-response-repair`（新 reason `stop-held`）；一次 Run 最多挡两次，之后照常收工；没有登记钩子时行为不变。Molis 用它实现用户拍板的“只说不做自动续做一次”（Host `announce-guard.ts`，仅限可写角色）。
+- 源码提交：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `6f530d5a`（app 模式）与 `22a1be08`（session-stop），父提交 `03c6ba0b`（dispatch-denied）；增量补丁 [app-mode.patch](app-mode.patch) 相对 `03c6ba0b`、含两个提交。尚未推送到 molis-ai/prologue。此包只在未合并的 `feature/system-assistant` 分支里用过，所以直接以同名重建，没有再多放一份包。
+- SHA-256：`6aeb819a9c329fc2d562bb83ffc8a138f546e8c99a70e2f83eb924ab72018f38`（只含 app 模式时的旧包为 `80745df7…a49a`）
+- 验证（session-stop）：`test/app-mode.live.test.ts` 新增 2 项（钩子挡两次后照常收工、历史里保留原回答与理由、没有钩子时行为不变），SDK 全量 3345 项：3325 通过、20 跳过、0 失败，类型检查无错。
+- 验证（app 模式）：新增 `test/app-mode.live.test.ts` 4 项（包工具与提问、写入类包工具需审批、起跑前拒绝文件工具与根等、none 模式仍拒绝包工具）全过；SDK 全量两次：一次 27 项在负载下超时，一次仅 `workstation-wiring.live.test.ts`「Character 完全关掉仍能干活」1 项超时——该项在未改动的 03c6ba0b 上单跑同样超时（5 秒上限），本改动下单跑通过。
 - 按本目录约定换包后应删除旧的当前包 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`；删除 vendor 文件由用户执行（自动模式不允许），在此之前它仍留在目录里、不再被引用。
 
 ## 上一依赖：dispatch-denied

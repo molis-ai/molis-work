@@ -285,6 +285,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
     await import("@molis-ai/molis-work-app-workbench");
 
+  // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
   const everything = ["jelly", "goals", "sessions", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
   assert.deepEqual(
     railEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
@@ -295,7 +296,6 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["jelly", "Jelly", "calendar"],
       ["feed", "Feed", "rss"],
       ["shelf", "Shelf", "library"],
-      ["functions", "Functions", "sparkles"],
       ["pages", "Pages", "note"],
       ["form", "Forms", "clipboard"],
       ["dataset", "Dataset", "database"],
@@ -320,7 +320,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 
   assert.deepEqual(
     settingsEntries(everything).map((entry) => entry.plugin_id),
-    ["io.molis.work.shelf", "io.molis.work.functions", "io.molis.work.goals"],
+    ["io.molis.work.shelf", "io.molis.work.goals"],
     "设置目录同样由 Manifest 决定",
   );
 
@@ -330,8 +330,9 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   // purpose: adding a Plugin gives every project a new navigation entry, which
   // should be a decision somebody made, not something that arrives with a merge.
   assert.deepEqual([...PROJECT_SCOPED_PLUGIN_IDS].sort(),
+    // The workspace Plugin was retired: browsing roots come from project settings actions (action-architecture migration).
     ["artifacts", "coding", "diff", "feed", "files", "git", "goals", "inbox", "schedule", "sessions",
-      "text-stats", "workspace"]);
+      "text-stats"]);
   assert.deepEqual(
     railEntries(["coding"]).map((entry) => [entry.id, entry.label, entry.glyph]),
     [["coding", "Coding", "code"]],

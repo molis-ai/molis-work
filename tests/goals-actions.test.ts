@@ -102,7 +102,9 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const name = hostActionToolName(goalsActions.create);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
     const views = (await host.inspectActions(caller, ref)).filter(view => Object.values(goalsActions).some(action => action.capability_id === view.capability_id));
-    assert.equal(views.length, 43);
+    // Exactly the project actions Goals declares for MCP; protected management actions stay out.
+    const declaredForMcp = Object.values(goalsActions).filter(action => action.action.scope === "project" && action.action.audiences.includes("mcp"));
+    assert.deepEqual(views.map(view => view.capability_id).sort(), declaredForMcp.map(action => action.capability_id).sort());
     assert.equal(views.some(view => view.capability_id === goalsActions.decide.capability_id), false);
     for (const view of views) await writeMcpActionGrant(home, createMcpActionGrant(caller.actor_id, project.project_id, view, true));
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), true);

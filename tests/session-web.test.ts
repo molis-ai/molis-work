@@ -78,10 +78,10 @@ test("plugin rail lists enabled plugins; directory sections stay in the second c
   assert.doesNotMatch(html, /data-plugin-section="goals"|data-plugin-section="sessions"/);
   assert.doesNotMatch(html, /data-directory-panel="sessions"|data-directory-open="sessions"/);
   assert.match(html, /data-session-stage-shell[\s\S]*data-session-stage-chrome[\s\S]*data-session-stage-list/);
-  for (const plugin of ["inbox", "feed", "shelf", "artifacts"]) {
-    assert.match(html, new RegExp(`data-plugin-section="${plugin}"[^>]*data-plugin-expanded="true"`));
-    assert.match(html, new RegExp(`data-plugin-id="${plugin}"`));
-  }
+  // Every enabled plugin is an entry; Inbox, Shelf and Artifacts open as stages, Feed keeps its second-column directory.
+  for (const plugin of ["inbox", "feed", "shelf", "artifacts"]) assert.match(html, new RegExp(`data-plugin-id="${plugin}"`));
+  assert.match(html, /data-plugin-section="feed"[^>]*data-plugin-expanded="true"/);
+  for (const plugin of ["inbox", "shelf", "artifacts"]) assert.doesNotMatch(html, new RegExp(`data-plugin-section="${plugin}"`));
   assert.doesNotMatch(html, /data-plugin-expand=/);
   assert.doesNotMatch(html, /desktop-directory-root|data-directory-open="workspaces"/);
 });

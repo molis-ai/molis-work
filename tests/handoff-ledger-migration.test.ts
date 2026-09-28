@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { SESSION_REGISTRY_SCHEMA_VERSION } from "../modules/private-work-context/src/session-schema.js";
 
 const access = { actor_id: "test-reader", scope: { kind: "personal", id: "private-work-context" } as const };
 
@@ -63,7 +64,8 @@ test("v4 Handoff migration preserves every state and encrypted content without g
     }
     const db = new Database(data.databasePath);
     try {
-      assert.equal((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as { value: string }).value, "5");
+      // The v4 sample is upgraded through every later migration, not only the v5 ledger step.
+      assert.equal((db.prepare("SELECT value FROM session_meta WHERE key = 'schema_version'").get() as { value: string }).value, String(SESSION_REGISTRY_SCHEMA_VERSION));
       for (const row of db.prepare("SELECT source_project_id, source_goal_id, target_project_id, target_workspace_id FROM session_handoffs").all()) {
         assert.deepEqual(row, { source_project_id: "", source_goal_id: "", target_project_id: "", target_workspace_id: null });
       }

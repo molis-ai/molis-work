@@ -8,6 +8,19 @@ import { ModelProviderStore } from "../apps/local-host/src/model-provider-store.
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/src/project-catalog-contract.js";
 import { readJellyModelSettings, saveJellyModelSettings, createJellyCompletion } from "../apps/local-host/src/jelly-model.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
+import { bindPrologueInference } from "../apps/local-host/src/prologue-inference-host.js";
+
+type InferenceRequest = { protocol: string; endpoint: string; model: string; credential_ref: string; resolveCredential(ref: string): unknown };
+/** Model calls go through the Home's Prologue inference; stand in at that seam and report what reached it. */
+function inferenceAt(t: test.TestContext, home: string, reply: string) {
+  const seen: Array<{ protocol: string; endpoint: string; model: string; key: unknown }> = [];
+  const release = bindPrologueInference(home, { completeText: async (input: InferenceRequest) => {
+    seen.push({ protocol: input.protocol, endpoint: input.endpoint, model: input.model, key: await input.resolveCredential(input.credential_ref) });
+    return reply;
+  } } as never);
+  t.after(release);
+  return seen;
+}
 
 function modelConnection(home: string, name: string, token: string) {
   return withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: name, token }));
@@ -52,17 +65,21 @@ test("Jelly existing-provider selection changes no shared record or key, and sco
   assert.equal(readJellyModelSettings(home).source, "provider"); let before = ""; providerStore(home, store => { before = JSON.stringify(store.get("shared")); });
   saveJellyModelSettings(home, { provider_id: "shared", model_id: "existing-model" }); providerStore(home, store => assert.equal(JSON.stringify(store.get("shared")), before));
   assert.throws(() => saveJellyModelSettings(home, { provider_id: "shared", model_id: "existing-model", api_key: "replacement" } as never), /Connectors/);
-  let captured: RequestInit | undefined; t.mock.method(globalThis, "fetch", async (_url: unknown, options: RequestInit) => { captured = options; return new Response(JSON.stringify({ choices: [{ message: { content: "完成" } }] }), { status: 200 }); });
-  const complete = createJellyCompletion(home); assert.ok(complete); assert.equal(await complete("用户明确请求的一次摘要"), "完成"); assert.equal((captured?.headers as Record<string, string>).authorization, "Bearer shared-test-key"); assert.equal(JSON.parse(String(captured?.body)).model, "existing-model");
+  const seen = inferenceAt(t, home, "完成");
+  const complete = createJellyCompletion(home); assert.ok(complete); assert.equal(await complete("用户明确请求的一次摘要"), "完成");
+  assert.deepEqual(seen, [{ protocol: "openai-compatible", endpoint: "https://shared.example.com/v1/chat/completions", model: "existing-model", key: "shared-test-key" }]);
 });
 
 test("Jelly uses the selected Connector for local model calls and falls back to host environment", async t => {
   const home = homeFor(t); const connection = modelConnection(home, "本机模型", "local-test-key");
   saveJellyModelSettings(home, { base_url: "http://127.0.0.1:9000/anthropic", api_format: "anthropic-messages", model_id: "anthropic-model", connection_id: connection.connection_id });
-  let lastUrl = "", lastHeaders: Record<string, string> = {}; t.mock.method(globalThis, "fetch", async (url: URL, options: RequestInit) => { lastUrl = String(url); lastHeaders = options.headers as Record<string, string>; return new Response(JSON.stringify({ content: [{ type: "text", text: "Anthropic结果" }] }), { status: 200 }); });
-  assert.equal(await createJellyCompletion(home)!("生成"), "Anthropic结果"); assert.equal(lastUrl, "http://127.0.0.1:9000/anthropic/v1/messages"); assert.equal(lastHeaders["x-api-key"], "local-test-key");
+  const seen = inferenceAt(t, home, "Anthropic结果");
+  assert.equal(await createJellyCompletion(home)!("生成"), "Anthropic结果");
+  assert.deepEqual(seen.at(-1), { protocol: "anthropic-compatible", endpoint: "http://127.0.0.1:9000/anthropic/v1/messages", model: "anthropic-model", key: "local-test-key" });
   const emptyHome = join(home, "another-home"); mkdirSync(emptyHome); process.env.MOLIS_WORK_TEXT_API_KEY = "env-test-key"; process.env.MOLIS_WORK_TEXT_API_FORMAT = "anthropic-messages"; process.env.MOLIS_WORK_TEXT_BASE_URL = "https://env.example.com";
-  assert.equal(readJellyModelSettings(emptyHome).source, "environment"); assert.equal(await createJellyCompletion(emptyHome)!("生成"), "Anthropic结果"); assert.equal(lastHeaders["x-api-key"], "env-test-key");
+  const environment = inferenceAt(t, emptyHome, "Anthropic结果");
+  assert.equal(readJellyModelSettings(emptyHome).source, "environment"); assert.equal(await createJellyCompletion(emptyHome)!("生成"), "Anthropic结果");
+  assert.equal(environment.at(-1)?.key, "env-test-key"); assert.equal(environment.at(-1)?.endpoint, "https://env.example.com/v1/messages");
 });
 
 test("Jelly rejects insecure configuration and unowned catalogs without mutating credentials or preferences", t => {

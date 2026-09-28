@@ -67,9 +67,16 @@ function portPlugin(input: {
     kind: "app",
     publisher: { publisher_id: "molis", signature: `${input.id}-binding` },
     entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: [],
+    // Ports imply these declarations; the Manifest validator refuses a Plugin without them.
+    permissions: [
+      ...(inputs.length > 0 ? [{ permission: "artifact:read", required: true, reason: "读取绑定的上游产出" }] : []),
+      ...(outputs.length > 0 ? [{ permission: "artifact:write", required: true, reason: "发布端口产出" }] : []),
+    ],
     capabilities: { provides: [], consumes: [] },
-    artifacts: { produces: [], consumes: [] },
+    artifacts: {
+      produces: outputs.map((port) => ({ artifact_type_id: port.type, schema_version: port.version ?? 1 })),
+      consumes: inputs.map((port) => ({ artifact_type_id: port.type, schema_version: port.version ?? 1 })),
+    },
     ui: {
       contributions: [`${input.id}.main`],
       views: [{ view_id: "main", slot: "stage", title: "Main" }],

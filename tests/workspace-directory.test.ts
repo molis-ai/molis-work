@@ -16,7 +16,8 @@ import {
 test("Session and workspace row states render one status frame", () => {
   assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /\.project-record-row \.directory-row-state/);
   assert.doesNotMatch(PROJECT_OPERATIONS_STYLES, /\.project-record-state\s*\{/);
-  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-record-directory \.project-record-row\.is-selected \{ color: var\(--ink\); background: var\(--paper\); box-shadow: 0 1px 2px/);
+  // Craft finish: selection is a flat --nav-active fill; only floating layers cast shadows.
+  assert.match(PROJECT_OPERATIONS_STYLES, /\.project-record-directory \.project-record-row\.is-selected \{ color: var\(--ink\); background: var\(--nav-active\); box-shadow: none; \}/);
 });
 
 test("workspace repair and unlink restore Catalog membership when Session Registry update fails", async () => {

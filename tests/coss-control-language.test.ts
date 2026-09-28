@@ -156,7 +156,10 @@ test("onboarding canvas uses the workbench page field", () => {
 });
 
 test("product HTML no longer uses retired control class names", () => {
-  const banned = /\b(document-action|text-button|button-primary|goal-primary-action|planning-primary-action|settings-button|guidance-primary-action)\b/;
+  // Only where a class name can appear: class attributes, classList calls and CSS selectors. A module named
+  // "./document-action.js" is not a control class.
+  const names = "document-action|text-button|button-primary|goal-primary-action|planning-primary-action|settings-button|guidance-primary-action";
+  const banned = new RegExp(`(?:class(?:Name)?\\s*=\\s*["'\`][^"'\`]*?\\b|classList\\.\\w+\\(\\s*["'\`]|(?<![./\\w-])\\.)(?:${names})(?![\\w-])`);
   const roots = ["apps/workbench/src", "plugins/native", "packages/design-system/src"];
   const hits: string[] = [];
   const walk = (dir: string) => {

@@ -93,7 +93,8 @@ test('official Web launcher loads private home configuration in a fresh process'
  const reservation=createServer();reservation.listen(0,'127.0.0.1');await once(reservation,'listening');const address=reservation.address();assert.ok(address&&typeof address!=='string');const port=address.port;await new Promise<void>(r=>reservation.close(()=>r()));
  const child=spawn(process.execPath,[join(process.cwd(),'dist/web/server.js'),'--home',home,'--port',String(port)],{stdio:['ignore','pipe','pipe']});let output='';child.stdout.on('data',chunk=>{output+=String(chunk);});child.stderr.on('data',chunk=>{output+=String(chunk);});
  t.after(async()=>{if(child.exitCode===null){child.kill('SIGTERM');await once(child,'exit');}rmSync(home,{recursive:true,force:true});});
- for(let i=0;i<100&&!output.includes('Molis Work Web:');i++){if(child.exitCode!==null)throw new Error(output);await delay(25);}
+ // A cold launcher start measures ~1.5s alone; the serial full suite runs it under load. Fail at once if it exits.
+ for(const deadline=Date.now()+15_000;Date.now()<deadline&&!output.includes('Molis Work Web:');){if(child.exitCode!==null)throw new Error(output);await delay(25);}
  assert.ok(output.includes('Molis Work Web:'),output);
  const client=new MolisWorkCasebookClient({baseUrl:`http://127.0.0.1:${port}`,token});assert.deepEqual((await client.listProjects()).projects,[{project_ref:project.project_id,project_name:'CLI 项目'}]);
 });

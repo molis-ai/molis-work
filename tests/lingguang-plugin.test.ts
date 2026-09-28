@@ -130,18 +130,15 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
 test("工作台挂上灵光空态、确认框和快记区", () => {
   const html = renderMolisWorkWeb(emptyView());
   assert.match(html, /data-plugin-id="lingguang"/);
-  const stackStart = html.indexOf('class="plugin-stack"');
-  const stackEnd = html.indexOf('id="goal-tree-pane"');
-  const stack = html.slice(stackStart, stackEnd);
-  const projectAt = stack.indexOf("data-project-island");
-  const railAt = stack.indexOf("data-plugin-strip");
-  const dockAt = stack.indexOf("data-dock");
-  assert.ok(projectAt >= 0 && railAt > projectAt && dockAt > railAt, "左栏是项目与插件；灵光、助手、群聊在底部 Dock");
-  assert.match(stack.slice(dockAt), /data-dock-toggle="lingguang"[\s\S]*data-dock-toggle="assistant"[\s\S]*data-dock-toggle="im"/);
-  const items = stack.slice(stack.indexOf("plugin-rail-items"), dockAt);
-  assert.doesNotMatch(items, /data-plugin-id="lingguang"/);
-  assert.match(stack.slice(dockAt), /data-dock-window="lingguang"[\s\S]*data-plugin-id="lingguang"/, "灵光浮窗仍能在工作区打开完整的灵光");
-  assert.match(stack, /data-dock-slot="assistant" data-assistant-island/);
+  // Unified bottom bar (craft-finish, fourth round): the assistant in the middle with the plugin choice before its input,
+  // Shelf and 灵光 as resident buttons right beside the project button. 灵光 itself still opens as a full stage.
+  const stack = html.slice(html.indexOf('class="workbench-bar"'), html.indexOf('id="goal-tree-pane"'));
+  const stripAt = stack.indexOf("data-plugin-strip"), assistantAt = stack.indexOf("data-assistant-island");
+  const residentAt = stack.indexOf('data-bar-resident="lingguang"'), projectAt = stack.indexOf("data-project-island");
+  assert.ok(assistantAt >= 0 && stripAt > assistantAt && residentAt > stripAt && projectAt > residentAt, "底栏：助手居中、插件选择在输入框前、灵光常驻按钮紧贴项目圆钮");
+  assert.match(stack.slice(residentAt - 200, projectAt), /data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*data-dock-toggle="im"/);
+  assert.match(stack.slice(stripAt, residentAt), /data-plugin-id="lingguang"/, "插件选择列表是项目的全部入口，灵光也在其中");
+  assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");
   assert.match(stack, /data-assistant-composer/);
   assert.match(stack, /<input class="assistant-composer-input"/);
@@ -155,7 +152,9 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
   assert.match(html, /还没有灵光/);
   assert.match(html, /data-lingguang-capture/);
   assert.match(html, /data-lingguang-brainstorm/);
-  assert.match(html, /这次不会写入 Inbox 或 Goal/);
+  // The action says what it does: copy the text. No dialog pretends to hand it to Inbox, Goal or Functions.
+  assert.match(html, /data-lingguang-dispatch>复制内容</);
+  assert.doesNotMatch(html, /lingguang-dispatch-candidates/);
   assert.doesNotMatch(html, /window\.confirm/);
   const lingguang = html.slice(html.indexOf('data-lingguang="workbench"'), html.indexOf("data-lingguang-confirm"));
   assert.match(lingguang, /plugin-stage-list feed-stage-list feed-stage-tree/);

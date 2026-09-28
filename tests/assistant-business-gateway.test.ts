@@ -203,3 +203,21 @@ test("the gateway takes a JSON-string input as the value it means, and a contrac
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
   } finally { await f.close(); }
 });
+
+test("stopping a round withdraws its held change: nothing runs and nothing is left to approve", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "never" } } }),
+    () => reply(undefined, "Stopped."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "save never", request_id: "req-00000008" }, { project_ref: f.project });
+    const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    const stopped = await f.service.control(sent.work.work_id, { kind: "stop" });
+    assert.equal(stopped.reviews.length, 0);
+    assert.equal(f.queue.get(view.reviews[0]!.review_id)?.review_id, view.reviews[0]!.review_id);
+    assert.notEqual(f.queue.receipt(view.reviews[0]!.review_id)?.status, "pending");
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "failed"].includes(v.work.state) ? v : undefined; }, "stopped");
+    assert.equal(done.reviews.length, 0);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
+  } finally { await f.close(); }
+});

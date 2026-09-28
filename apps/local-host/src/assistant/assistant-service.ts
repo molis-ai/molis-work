@@ -165,7 +165,9 @@ export class AssistantService {
     const rounds: AssistantRound[] = stored.slice(-30).map(round => this.roundView(round, views.get(round.run_id), titles));
     const latest = rounds.at(-1);
     const state = stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(recovery));
-    return { work: this.publicWork(work, state), rounds, reviews: work.session_id ? this.reviewsFor(host, work) : [],
+    // Only a round that is really waiting on a decision shows one; a review left behind by an ended round is not offered.
+    const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
+    return { work: this.publicWork(work, state), rounds, reviews: work.session_id ? this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [],
       ...(recovery ? { problem: { message: recovery.reason, action: "核对上一轮的实际结果后再继续" } } : {}) };
   }
 
@@ -205,6 +207,8 @@ export class AssistantService {
     const latest = await this.latestRun(host, work);
     if (!latest || isTerminalAgentPhase(latest.phase)) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
     await host.adapter(RUNTIME).control(latest.ref, { kind: control.kind });
+    // A stopped round's held effects will never run: withdraw them so no one approves a change nothing will make.
+    if (control.kind === "stop") host.reviews.cancelPending(latest.ref.run_id, "这一轮已停止");
     return this.read(workId);
   }
 

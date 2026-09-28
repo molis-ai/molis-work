@@ -242,6 +242,8 @@
 - 生成插件随生命周期登记（AC43、AC45，本次）：`apps/local-host/src/plugin-builder/prompts.ts`（读取声明、G4 规则、版本换算、登记/撤下、调用时解析）；`model.generate` 输入改为 `{ prompt, input }`（旧的 `instructions` 仍接受）；发布写 `prompts.json`；设置里标“插件创作台生成”“已停用，暂不会被调用”。Skill `generated-ai.md`、`generated-code.md` 与能力说明改为声明式写法。
 - 开发者诊断（本次）：`GET /api/agent-definitions/diagnostics`，“Prompt 与 Character”页底部“开发者诊断”（设置·诊断页有入口）：每个来源登记了几段角色组成/调用指令/几个 Character/你改过几段，以及未生效原因（插件已停用、你的版本基于旧默认、生成于登记之前、登记后还没被调用过）；另列“还没有登记的模型调用”（现为 Alchemist，与门禁的过渡清单一致）。
 - 未完成：Alchemist 的 systemPrompt 迁移；从外部安装（非创作台生成、带 agent 块）的插件还没有安装入口，出现时沿用同一登记接口。
+- 真实验证（MiniMax-M3，隔离 Home，2026-09-28）：在插件创作台提“会议待办提炼”需求，设计 Agent 选用 `model.generate`，代码 Agent（真实模型）按新写法声明 `export const prompts = [{ id: "extract-todos", … }]` 并按 id 调用，G1–G6 与界面验收全部通过；发布 v1（版本里带声明的 Prompt）并安装后，“Prompt 与 Character”出现“插件 · 会议待办 1.0.0 · 插件创作台生成 / 提炼会议待办”。在安装后的插件页面粘贴同一段会议记录：默认版得到三条普通待办（登记使用记录 user_revision=null）；在设置里追加“每条待办必须以【负责人】开头”后再提炼，得到“【小李】周三前把报价单发给客户 / 【小王】… / 【小张】…”（使用记录 user_revision=1）。开发者诊断列出这个插件“模型调用指令 1 · 你改过 1”，并在“还没有登记的模型调用”里列出炼金术士及原因。
+  - 过程中暴露并修掉的：能力目录为空（见下条）；设计 Agent 把示例写成 `todos: "array"`（类型名）导致冻结后永远过不了检查——现在和其他类型名一样去掉并说明；检查里 Agent 自己的测试失败只报 “same assertion failed”，代码 Agent 修不动——现在带上第几条测试与实际值/期望值。
 - 顺带修掉（main 上同样存在）：插件创作台的能力目录在真实 Web 里是空的——工作台页面先用不带 `inspect` 的动作端口创建了创作台实例并被缓存，之后设计 Agent 看到的能力列表为空，只能用自有存储，要调模型的设计在校验时报“项目能力目录中没有：model.generate”。改为 `web-request.ts` 的项目动作端口本身带 `inspect`，`capabilityCatalog` 在没有 `inspect` 时退回 `discover`（测试 `agent-built-plugins-catalog` 新增一项，旧代码下失败）。
 - 浏览器用例（2026-09-28，搜索会话报告后与 origin/main 21cdfbf8 基线比对）：`global-ui-interaction`、`goals-narrow-navigation`、`goals-tree` 在本分支失败而基线通过——是本分支手机宽度规则把底栏搜索按钮藏掉了；改为只留图标、输入时才隐藏后三者 6/6 通过。`product-experience-polish` 的“产品旅程”（第 97 行，Cognia 打开模型设置得到 404）在基线上同样失败，不是本分支引入。
 

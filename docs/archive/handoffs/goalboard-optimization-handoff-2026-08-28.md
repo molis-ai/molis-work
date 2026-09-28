@@ -1,5 +1,8 @@
 # Molis Work 优化交接（2026-08-28）
 
+> 归档状态：2026-08-28 的交接快照，所述 Goal 已随 140d25e 合入；仅作历史参考。
+
+
 ## 交接结论
 
 本轮不再使用 Molis Work 推进 Molis Work 自身优化。已经满足的 7 个 Goal 已从原脏工作树中拆成 7 个顺序提交，并已随集成提交 `140d25e` 快进到远端 `main`。最后一条“安全并行 Runtime 建议”Candidate 的代码修复位于分支 `codex/proactive-safe-parallel-runtime-choice`，与本文更新放在同一个独立提交中。后续仍以 Git 提交、代码评审和测试结果推进，不再把 Molis Work 账本状态当作执行入口。

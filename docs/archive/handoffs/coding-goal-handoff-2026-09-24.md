@@ -1,5 +1,8 @@
 # Molis Work Coding App 完整 Goal 交接
 
+> 归档状态：2026-09-24 的交接快照；Coding 的持续进度以 `specs/coding-plugin/spec.md` 第 0 节为准，后续需求见 `specs/coding-plugin/next-requirements.md`。
+
+
 核对日期：2026-09-24。代码快照：`e24454b6e5f952ab8c199a5fab630e1a4c4d52b2`。本文是交接快照，不是新的需求书或第二套进度账；持续实现仍更新 `specs/coding-plugin/spec.md`。
 
 ## 1. 先读结论：完整 Goal 没有完成

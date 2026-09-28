@@ -1,5 +1,8 @@
 # Molis Work 代码修复交接给 Grok
 
+> 归档状态（2026-09-27 复核）：C01–C10 已在 32dcefda 修复，B02 门禁已补；B01（Repository 从公开入口导出）仍开着，见 `docs/system/PACKAGE-BOUNDARIES.md` 末段。文中绝对路径来自另一台机器。复核记录：`specs/repository-systematic-review/spec.md` F-20。
+
+
 交接日期：2026-09-22。仓库：`/Users/oreal/adeptify-home/repos/molis-work`。接手对象：Grok。
 
 ## 目标与当前结论

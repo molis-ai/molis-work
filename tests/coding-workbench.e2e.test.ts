@@ -163,7 +163,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await evaluate(`document.querySelector('${coding} [data-coding-send]').scrollIntoView({block:'nearest'})`);
   const sendBottom = await evaluate<number>(`document.querySelector('${coding} [data-coding-send]').getBoundingClientRect().bottom`);
   assert.ok(sendBottom <= 780, "send remains reachable on a narrow screen");
-  assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 5, 'updating context labels preserves shared icons (materials, character, methods, MCP, delegate)');
+  assert.equal(await evaluate(`document.querySelectorAll('${coding} .coding-composer-context .mw-btn svg').length`), 6, 'updating context labels preserves shared icons (materials, character, methods, action capabilities, MCP, delegate)');
   // Session settings and context sources live behind the composer's "+" so the bar stays about the task.
   assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-attach-menu]').hidden`), true);
   await click(`${coding} [data-coding-attach-toggle]`);
@@ -181,7 +181,6 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${coding} [data-coding-directory-back]`);
   await click(`${coding} [data-coding-session]`);
   await waitFor(`document.querySelector('${coding}').dataset.codingDetail === 'true'`);
-  await click('[data-directory-show]');
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
   await click(`${files} [data-files-tree] [title="note.txt"]`);
@@ -196,7 +195,6 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${files} [data-files-close]`);
   assert.equal(await evaluate(`document.querySelector('${files} [data-files-tree]').getBoundingClientRect().width > 100`), true);
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
-  await click('[data-directory-show]');
   await open('git');
   await waitFor("!document.querySelector('[data-companion=git] [data-git-history]').disabled");
   await click('[data-companion=git] [data-git-history]');
@@ -208,7 +206,6 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor("document.querySelector('[data-companion=git] [data-git-diff] [data-phase=ready]')");
   assert.equal(await evaluate("document.activeElement.hasAttribute('data-git-close')"), true);
   await capture('git-mobile-dark');
-  await click('[data-directory-show]');
   await showWorkspaceSettings();
   await capture('workspace-mobile-dark');
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);

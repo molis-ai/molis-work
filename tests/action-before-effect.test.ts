@@ -10,7 +10,6 @@ import { datasetActions, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@m
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { cogniaActions, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
@@ -138,12 +137,9 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia"] as const)
       allowed = true; enabled = true;
       if (kind === "pages") {
         const store = openPagesStore(home);
+        // The refused call wrote nothing; only this process knows its attempt ended, so a new call here takes it over
+        // at once instead of waiting out the lease (other processes' attempts keep it: see pages-generation-lease).
         try { assert.equal(store.generation("a", "request-1")!.status, "running"); assert.equal(store.list("a").length, 0); } finally { store.close(); }
-        await assert.rejects(client.invoke(context, actions[kind], input), /仍在生成/);
-        // Age the original owner's lease to exercise its existing recovery path without a three-minute sleep.
-        const db = openHomeSqliteDatabase(home, "pages");
-        try { const old = new Date(Date.now() - 181_000).toISOString(); db.prepare("UPDATE page_generations SET updated_at = ?, record_json = json_set(record_json, '$.updated_at', ?) WHERE project_id = ? AND request_id = ?").run(old, old, "a", "request-1"); }
-        finally { db.close(); }
       }
       const restored = await client.invoke(context, actions[kind], input);
       assert.notDeepEqual(persisted(home, kind, input), before);

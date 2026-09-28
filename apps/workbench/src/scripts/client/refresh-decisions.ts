@@ -248,7 +248,9 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           else refreshedGraph.dataset.loaded = "false";
         }
         requestAnimationFrame(() => documentPane.classList.remove("is-syncing"));
-      } catch {
+      } catch (error) {
+        // A background refresh stays quiet for the person, but not for whoever has to find out why it stopped.
+        console.warn("Goal refresh failed", error);
       } finally {
         syncing = false;
       }

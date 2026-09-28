@@ -45,6 +45,19 @@ node --import tsx --test --test-concurrency=1 tests/evidence-verification-module
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：旧 Evidence、不可变更正、验收覆盖与项目文件引用的读取。
+- 不负责：Artifact 正文、Goal 约定、Run、Review 结论。
+- 公开入口：`@molis-ai/molis-work-module-evidence-verification`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/evidence-verification`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 历史读取不改写原依据，不把旧自验证标成用户验收。
+  - 可读文件不等于当前要求已经通过；文件引用读取校验路径边界。
+  - 不再经旧 Action Projection 决定 Goal 是否完成。
+- 改动后必跑：`node scripts/run-tests.mjs tests/evidence-verification-module.test.ts tests/artifact-project-reference.test.ts tests/v1.test.ts`
+- 相关手册：[docs/modules/evidence-verification.md](../../docs/modules/evidence-verification.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/evidence-verification.md)

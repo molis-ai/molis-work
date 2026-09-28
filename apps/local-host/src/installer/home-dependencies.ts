@@ -104,8 +104,9 @@ export async function collectRuntimeDependencies(
 
 export async function resolveDependencyPackageJson(name: string, fromPackageJson: string): Promise<string> {
   const resolver = createRequire(fromPackageJson);
+  let metadataPath: string;
   try {
-    return await fs.realpath(resolver.resolve(`${name}/package.json`));
+    metadataPath = await fs.realpath(resolver.resolve(`${name}/package.json`));
   } catch (packageJsonError) {
     // A package may deliberately omit `./package.json` and a CommonJS
     // condition from `exports` while still being a valid ESM runtime
@@ -120,20 +121,29 @@ export async function resolveDependencyPackageJson(name: string, fromPackageJson
     } catch {
       throw packageJsonError;
     }
-    let directory = path.dirname(resolvedEntry);
-    while (true) {
-      const candidate = path.join(directory, "package.json");
-      try {
-        const metadata = JSON.parse(await fs.readFile(candidate, "utf8")) as { name?: unknown };
-        if (metadata.name === name) return await fs.realpath(candidate);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
-      }
-      const parent = path.dirname(directory);
-      if (parent === directory) break;
-      directory = parent;
-    }
+    const owner = await nearestNamedPackageJson(path.dirname(resolvedEntry), name);
+    if (owner) return owner;
     throw packageJsonError;
+  }
+  // A wildcard `exports` entry ("./*": { require: "./dist/cjs/*" }) maps
+  // `<name>/package.json` to a nested file such as `dist/cjs/package.json`
+  // that only declares a module type. Identity comes from the package's own manifest.
+  return await nearestNamedPackageJson(path.dirname(metadataPath), name) ?? metadataPath;
+}
+
+async function nearestNamedPackageJson(start: string, name: string): Promise<string | null> {
+  let directory = start;
+  while (true) {
+    const candidate = path.join(directory, "package.json");
+    try {
+      const metadata = JSON.parse(await fs.readFile(candidate, "utf8")) as { name?: unknown };
+      if (metadata.name === name) return await fs.realpath(candidate);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
   }
 }
 

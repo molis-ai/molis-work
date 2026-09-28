@@ -48,6 +48,20 @@ node --import tsx --test --test-concurrency=1 tests/plugin-runtime-integration.t
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：插件身份、安装、授予、隔离、生命周期与回滚。
+- 不负责：Module 业务事实、提供方协议。
+- 公开入口：`@molis-ai/molis-work-plugin-runtime`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 安装事实存 SQLite repository；私有存储按安装 ID 隔离。
+  - 不保留数据的卸载后 Host 还要调用 `deleteInstallationData`，但不能删除已交换出去的 Artifacts。
+  - 条件写入是单 key CAS（`expected: null` 表示仅在不存在时创建），不是多 key 事务。
+  - Host 不提供原子方法时，需要原子更新的插件必须明确拒绝，不能用先读后写冒充。
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin-private-storage.test.ts tests/plugin-upgrades.test.ts tests/plugin-host-executor.test.ts`
+- 相关手册：[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[skills/molis-plugin-dev/host.md](../../skills/molis-plugin-dev/host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)

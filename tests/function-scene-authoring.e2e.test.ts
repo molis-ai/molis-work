@@ -13,6 +13,7 @@ import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@moli
 import { authorizeMcpActions } from "../apps/local-host/src/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("unknown registered scenes can be authored in the real editor, retain missing references, and report actual plugin-owned usages", { timeout: 120_000 }, async t => {
   const inputs: string[] = [];
@@ -80,7 +81,7 @@ test("unknown registered scenes can be authored in the real editor, retain missi
   const record = () => withFunctionsService(homeDirectory, service => service.get(draft.id), functions);
   const fill = async (selector: string, value: string) => evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.value = ${JSON.stringify(value)}; node.dispatchEvent(new Event('input', { bubbles: true })); node.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   const saved = () => waitFor("document.querySelector('[data-functions-save-status]')?.textContent === '已保存'");
-  const captures = new URL("../.impeccable/review/function-scenes/", import.meta.url);
+  const captures = reviewEvidenceUrl("function-scenes/");
   try {
     await mkdir(captures, { recursive: true });
     await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);

@@ -41,6 +41,19 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：规范化的外部事件、去重身份、修订与来源。
+- 不负责：Provider 连接、监听租约、Feed 决定、Attention、Goal、自动化。
+- 公开入口：`@molis-ai/molis-work-module-signals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/signals`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - Integration Adapter 只产出 Draft，正式校验与去重在本模块。
+  - 不同 Source 的事件身份不能混为同一事件。
+  - 不判断事件是否进入 Feed、Inbox 或 Goal。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-receive-chain.test.ts tests/plugin-runtime-integration.test.ts`
+- 相关手册：[docs/modules/signals.md](../../docs/modules/signals.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/signals.md)

@@ -17,3 +17,16 @@
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
+
+## 开发要求
+
+- 负责：问卷目录、题目、预览填写与结果。
+- 不负责：Goal 与 Artifact 事实、模型提供方、托管收集服务。
+- 公开入口：`@molis-ai/molis-work-plugin-form`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 缺模型时禁用 AI，保留本地操作。
+  - 编辑带读取版本，冲突保留输入；重新读取前确认丢弃。
+  - 新答卷保留提交时的题目快照；同次提交用稳定的 `request_id`，重试不重复保存。
+- 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts`
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -47,7 +47,9 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goal");
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]')?.hidden !== false"), true);
   const split = await evaluate<{ list: number; workspace: number; shell: number }>("(() => { const shell = document.querySelector('[data-goal-canvas-shell]').getBoundingClientRect(); const list = document.querySelector('[data-goal-stage-list]').getBoundingClientRect(); const workspace = document.querySelector('[data-goal-node-workspace]').getBoundingClientRect(); return { list: Math.round(list.width), workspace: Math.round(workspace.width), shell: Math.round(shell.width) }; })()");
-  assert.ok(split.list >= 250 && split.list <= 300, "Expanded list becomes a narrow rail, got " + split.list);
+  // The rail takes the shared sidebar width token (240px in the Linear density), not a width of its own.
+  const railWidth = await evaluate<number>("parseFloat(getComputedStyle(document.querySelector('[data-goal-canvas-shell]')).getPropertyValue('--tree-width') || getComputedStyle(document.body).getPropertyValue('--immersive-sidebar-width'))");
+  assert.ok(railWidth <= 300 && Math.abs(split.list - railWidth) <= 2, "Expanded list becomes a narrow rail at the sidebar width " + railWidth + ", got " + split.list);
   assert.ok(split.workspace > split.list, "Workspace sits beside the list");
   assert.ok(Math.abs(split.list + split.workspace - split.shell) <= 2);
   await browser.openGoalFrame('[data-goal-stage-list] .tree-node[data-select-goal="' + goalId + '"]');

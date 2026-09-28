@@ -31,3 +31,17 @@ pnpm boundary:check
 ```
 
 No cloud sync, background watching, bidirectional sync, proprietary database migration, graph view, Dataview execution, block-reference reconstruction, or PDF/OCR extraction is included.
+
+## 开发要求
+
+- 负责：个人知识的导入、阅读与有出处的综合。
+- 不负责：修改来源库、项目事实、第二个运行时。
+- 公开入口：`@molis-ai/molis-work-plugin-cognia`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 不改原文件；删除源文件不删除已导入的材料，取消预览不添加材料。
+  - 综合输出必须带有效的固定来源引用；取消、模型失败或引用无效时不保存草稿；草稿只有「存入知识库」后才进入知识。
+  - 下载用附件方式，从不执行 HTML 或 SVG；发现能力不发起请求、不解密凭据。
+  - HTTP、旧 MCP 名与导入都经绑定的动作服务，原 Store 是唯一数据 owner。
+- 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts`
+- 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/cognia-plugin/spec.md](../../../specs/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

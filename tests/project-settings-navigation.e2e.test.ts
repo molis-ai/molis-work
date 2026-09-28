@@ -13,9 +13,9 @@ test("onboarding header return receives real pointer clicks in Web, desktop and 
     const path = "/onboarding?mode=new-project" + (desktop ? "&desktop=1" : "");
     await navigate(() => command("Page.navigate", { url: origin + path }, sessionId));
     assert.equal(await evaluate("document.body.dataset.onboardingMode"), "new_project");
-    assert.equal(await evaluate("document.querySelector('.onboarding-topbar-actions a')"), null);
+    assert.equal(await evaluate("document.querySelector('.cx-top-actions a')"), null);
     assert.doesNotMatch(await evaluate("document.body.innerHTML"), /迁移已有数据|data-project-migration|migration=1/);
-    await navigate(() => click('[data-onboarding-dismiss]'));
+    await navigate(() => click('#cx-exit'));
     assert.equal(await evaluate("location.pathname"), "/");
     assert.equal(await evaluate("new URLSearchParams(location.search).get('migration')"), null);
     assert.equal(await evaluate("document.querySelector('[data-project-migration-dialog]')"), null);
@@ -32,7 +32,7 @@ test("first-use skip remains clickable on a narrow desktop page and creates no p
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/onboarding?desktop=1" }, sessionId));
   assert.equal(await evaluate("document.body.dataset.onboardingMode"), "first_run");
-  await navigate(() => click("[data-onboarding-dismiss]"));
+  await navigate(() => click("#cx-exit"));
   assert.equal(await evaluate("location.pathname + location.search"), "/?desktop=1");
   assert.deepEqual(await (await fetch(origin + "/api/settings/projects")).json(), { projects: [] });
   const status = await (await fetch(origin + "/api/onboarding/status")).json() as { state: { first_run: string; completed_project_id: string | null } };
@@ -47,7 +47,7 @@ test("project general settings persist a rename, cancel safely, and retry deleti
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/onboarding?desktop=1" }, sessionId));
-  await navigate(() => click("[data-onboarding-dismiss]"));
+  await navigate(() => click("#cx-exit"));
   const created = await evaluate<{ project: { project_id: string } }>(`fetch('/api/settings/projects', {
     method: 'POST', headers: molisWorkControlHeaders(), body: JSON.stringify({display_name:'项目设置浏览器测试',user_confirmed:true})
   }).then(async response => { if (!response.ok) throw new Error(await response.text()); return response.json(); })`);

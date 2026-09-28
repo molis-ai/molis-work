@@ -65,6 +65,9 @@ body.immersive-workbench .feed-workbench .feed-stage-item-detail .feed-detail-bo
 .feed-setup-panel label { display:flex; flex-direction:column; gap:7px; margin:16px 0; font-size:12px; color:var(--ink-soft); }
 .feed-setup-panel :is(input:not([type=checkbox]),textarea) { box-sizing:border-box; width:100%; min-height:36px; padding:9px 11px; background:var(--paper); border:1px solid var(--line-strong); border-radius:6px; color:var(--ink); font:inherit; font-size:13px; }
 .feed-setup-panel input[readonly] { background:var(--nav-bg); color:var(--muted); }
+/* Same box as the text fields beside it; only background-color, so the trigger keeps its chevron image. */
+.feed-setup-panel .mw-select-picker__trigger { box-sizing:border-box; width:100%; min-height:36px; padding:9px 28px 9px 11px; background-color:var(--paper); background-position:right 10px center; border:1px solid var(--line-strong); border-radius:6px; color:var(--ink); font:inherit; font-size:13px; }
+.feed-setup-hint { color:var(--muted); font-size:12px; line-height:1.6; }
 .feed-setup-panel textarea { resize:vertical; line-height:1.65; }
 .feed-setup-panel :is(label small,p) { color:var(--muted); line-height:1.65; font-size:12px; }
 .feed-setup-panel .check-row { flex-direction:row; align-items:center; }

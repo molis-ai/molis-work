@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { COSS_CONTROL_STYLES, PRIMITIVE_STYLES } from "@molis-ai/molis-work-design-system";
+import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import {
   renderMolisWorkOnboardingStylesheet,
   renderMolisWorkProjectIndexStylesheet,
@@ -29,7 +30,8 @@ test("keyboard focus sits inside the control instead of an outer halo", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: var\(--focus-stroke-inset, -1px\)/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
   assert.match(workbench, /body\.immersive-workbench :focus-visible \{[\s\S]*outline: var\(--focus-stroke\);[\s\S]*outline-offset: var\(--focus-stroke-inset\)/);
-  assert.match(workbench, /dialog\[data-feed-sources-dialog\] :is\(input, select, textarea\):focus-visible \{ outline: var\(--focus-stroke\); outline-offset: var\(--focus-stroke-inset\)/);
+  // The Feed source setup is an inline panel now; its fields take the same inside stroke from the Feed stylesheet.
+  assert.match(FEED_STYLES, /\.feed-workbench :is\(button,input,textarea,select\):focus-visible \{ outline:var\(--focus-stroke\); outline-offset:var\(--focus-stroke-inset\); \}/);
   assert.equal(workbench.includes("inset 0 0 0 1.5px color-mix(in srgb, var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--focus)"), false);
@@ -156,7 +158,10 @@ test("onboarding canvas uses the workbench page field", () => {
 });
 
 test("product HTML no longer uses retired control class names", () => {
-  const banned = /\b(document-action|text-button|button-primary|goal-primary-action|planning-primary-action|settings-button|guidance-primary-action)\b/;
+  // Only where a class name can appear: class attributes, classList calls and CSS selectors. A module named
+  // "./document-action.js" is not a control class.
+  const names = "document-action|text-button|button-primary|goal-primary-action|planning-primary-action|settings-button|guidance-primary-action";
+  const banned = new RegExp(`(?:class(?:Name)?\\s*=\\s*["'\`][^"'\`]*?\\b|classList\\.\\w+\\(\\s*["'\`]|(?<![./\\w-])\\.)(?:${names})(?![\\w-])`);
   const roots = ["apps/workbench/src", "plugins/native", "packages/design-system/src"];
   const hits: string[] = [];
   const walk = (dir: string) => {

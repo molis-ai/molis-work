@@ -675,6 +675,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     finally { historyLock = false; }
   };
+  const KEPT_PANE_FRAMES = 4;
   const paneFrameKey = (pane) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
     if (tab) return tab.id;
@@ -758,11 +759,17 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     panesEl.querySelectorAll("[data-tab-pane]").forEach((node) => {
       if (!state.panes.some((pane) => pane.id === node.dataset.tabPane)) node.remove();
     });
+    // A tab switched away from keeps its frame hidden, like a single pane keeps its DOM, so returning to it does not
+    // reload the page and lose what was open in it. Only the most recently shown hidden frames are kept.
+    const hiddenFrames = [];
     panesEl.querySelectorAll("iframe[data-pane-tab]").forEach((frame) => {
-      const owner = state.panes.find((pane) => paneFrameKey(pane) === frame.dataset.paneTab);
-      if (!owner) frame.remove();
-      else { frame.hidden = true; frame.dataset.paneOwner = owner.id; }
+      const key = frame.dataset.paneTab;
+      const owner = state.panes.find((pane) => paneFrameKey(pane) === key || pane.tabs.some((tab) => tab.id === key));
+      if (!owner) { frame.remove(); return; }
+      frame.hidden = true; frame.dataset.paneOwner = owner.id;
+      if (paneFrameKey(owner) !== key) hiddenFrames.push(frame);
     });
+    hiddenFrames.sort((a, b) => Number(b.dataset.shownAt || 0) - Number(a.dataset.shownAt || 0)).slice(KEPT_PANE_FRAMES).forEach((frame) => frame.remove());
     const orderedPanes = [...state.panes].sort((a, b) => (a.id === state.focusedPaneId ? -1 : b.id === state.focusedPaneId ? 1 : 0));
     orderedPanes.forEach((pane) => {
       let section = panesEl.querySelector('[data-tab-pane="' + pane.id + '"]');
@@ -811,7 +818,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
           if (tab?.goalView === "work") url.searchParams.set("paneGoalView", "work");
           frame.src = url.href; panesEl.append(frame);
         }
-        frame.dataset.paneKey = paneKey;
+        frame.dataset.paneKey = paneKey; frame.dataset.shownAt = String(Date.now());
         frame.dataset.paneOwner = pane.id; frame.hidden = false;
       } else {
         const node = tab ? rootForTab(tab) : (viewPlugin ? topLevelSurface(viewPlugin) : null);
@@ -1493,6 +1500,24 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       const tab = ops.activeTab(state);
       if (tab?.plugin === "goals" && tab.kind === "item") { delete tab.goalView; apply(); persist(); if (embedded) notifyParent("workbench-pane-goal-view", {view:"frame"}); }
     }
+  });
+  // Choosing another Goal inside a Goal tab (its workspace directory, a relation link) takes the tab with it, so its
+  // label and restore target match what it shows; a Goal that already has its own tab is opened there instead.
+  document.addEventListener("molis-work:goal-changed", (event) => {
+    const goalId = event.detail?.goalId;
+    if (embedded || applying || !goalId) return;
+    const pane = ops.focused(state), tab = ops.activeTab(state);
+    if (!pane || tab?.plugin !== "goals" || tab.kind !== "item" || tab.itemId === goalId) return;
+    const existing = pane.tabs.find((item) => item.plugin === "goals" && item.kind === "item" && item.itemId === goalId);
+    if (existing) { if (tab.goalView === "work") existing.goalView = "work"; activate(pane.id, existing.id); return; }
+    tab.itemId = goalId;
+    if (event.detail.goalTitle) tab.title = event.detail.goalTitle;
+    // The selection that fired this is already loading the Goal's document; redraw the tab without a second load,
+    // which would race the one whose late response must not win.
+    const loading = loadingGoalId;
+    loadingGoalId = goalId;
+    apply(); persist();
+    if (loadingGoalId === goalId) loadingGoalId = loading;
   });
   document.addEventListener("workbench-feed-task", (event) => {
     if (embedded) return;

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hostCompleteText, type HostTextOptions } from "../apps/local-host/src/host-complete-text.js";
+import { markDispatchRefusal } from "../horizontal/agent-host/src/inference.js";
 const env = () => ({ MOLIS_WORK_TEXT_API_KEY: "private-fixture-key", MOLIS_WORK_TEXT_BASE_URL: "https://model.example/v1", MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions", MOLIS_WORK_TEXT_MODEL: "chosen-model" });
 type Resolver = NonNullable<HostTextOptions["resolveInference"]>;
 type Client = Awaited<ReturnType<Resolver>>;
@@ -77,4 +78,16 @@ test("cancelling during lazy Runtime startup releases the caller before startup 
   const rejected = assert.rejects(pending, { name: "AbortError" });
   await entered.promise; controller.abort(); await rejected;
   ready.resolve({ completeText: async () => assert.fail("cancelled initialization dispatched a model") } as Client);
+});
+
+test("a dispatch the Host's own check refused says it was not sent, in the check's words", async () => {
+  const complete = hostCompleteText({ env: env(), resolveInference: resolver(async () => { throw markDispatchRefusal(new Error("资料来源的授权已收回")); }) })!;
+  await assert.rejects(complete("material"), (error: Error) =>
+    /^资料来源的授权已收回；没有发给模型，材料已保留$/.test(error.message) && !/超时|模型返回/.test(error.message));
+});
+
+test("a Home execution service held by another process is reported as such, not as a model failure", async () => {
+  const complete = hostCompleteText({ env: env(), resolveInference: async () => { throw Object.assign(new Error("busy"), { code: "agent.storage_busy" }); } })!;
+  await assert.rejects(complete("material"), (error: { code?: string; message?: string }) =>
+    error.code === "actions.service_unavailable" && /另一个 Molis Work 进程/.test(error.message ?? "") && !/模型返回|超时/.test(error.message ?? ""));
 });

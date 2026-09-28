@@ -46,12 +46,22 @@ jobs:
           pnpm exec tsc --noEmit -p tsconfig.json
           pnpm exec tsc --noEmit -p tsconfig.sdk.json
 
+      # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client;
+      # runs on the packages built above.
+      # The full product suite still runs locally (see the PR template).
+      - name: Action and plugin contracts
+        run: pnpm test:contracts
+
+      # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
+      - name: Alchemist plugin tests
+        run: pnpm --filter @molis-ai/molis-work-plugin-alchemist test
+
   verify:
     name: Verify
     needs: architecture-boundaries
     if: ${{ always() }}
     # Keep this job name while `Verify` is required by main branch protection.
-    # The full legacy product suite remains paused; package boundaries are active.
+    # The full product suite runs locally; package boundaries and the contract subset run here.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
@@ -59,4 +69,4 @@ jobs:
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
         run: |
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
-          echo "Package boundary, Contract, typecheck, and build verification passed."
+          echo "Package boundary, Contract, typecheck, build and action contract verification passed."

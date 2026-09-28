@@ -41,6 +41,19 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：需要用户关注的条目、原因、稍后提醒与恢复线索。
+- 不负责：Feed 条目、Action、Goal、Session、通知、Runtime 进程。
+- 公开入口：`@molis-ai/molis-work-module-attention-resumption`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/attention-resumption`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 处置状态不能替代 Goal 的工作状态或完成结论。
+  - 已完成或已取消 Goal 的继续归 Goals 的 `resumeWork`，必须给出原因。
+  - 切换关注对象不改绑终端、不发送消息。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-out-rules.test.ts tests/context-owner-isolation.test.ts tests/goal-decision-attention.test.ts`
+- 相关手册：[docs/modules/attention-resumption.md](../../docs/modules/attention-resumption.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/attention-resumption.md)

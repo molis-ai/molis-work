@@ -129,6 +129,21 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口。
+- 不负责：Host 内部实现、自动发布的市场。
+- 公开入口：`@molis-ai/molis-work-plugin-sdk`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 项目、用户、生产者签名与安装身份由 Host 绑定，参数不能覆盖；停止或崩溃后的旧客户端不能继续操作。
+  - 动作适配只转换参数与结果，执行仍经同一 Kernel 的 schema、项目策略与权限；缺少动作服务时不直调业务兜底。
+  - 处理器在外部等待之后、保存之前调用 `beforeWrite()`。
+  - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
+  - 包是 private，包名不等于已发布到 npm 的承诺。
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts`
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)

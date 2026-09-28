@@ -3,13 +3,16 @@ import { rmSync } from "node:fs";
 import test from "node:test";
 
 import { EvidenceVerificationModule } from "@molis-ai/molis-work-module-evidence-verification";
-import { DEMO_BOARD_ID, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { materializeGoalEventV35Fixture } from "./goal-event-v35-fixture.js";
 import { insertHistoricalEvidence, insertHistoricalEvidenceCorrection } from "./historical-sql-fixture.js";
 
 // Locator/file-path reading replacements (do not duplicate here):
 // tests/v1.test.ts — Markdown anchor preflight, external file URI, registered worktree
 // tests/artifact-clipboard.e2e.test.ts — real Chrome copy of the exact Unicode locator
+
+// The v35 sample predates the Molis Work rename; its demo board keeps the id it was recorded with.
+const DEMO_BOARD_ID = "goalboard-v1-demo";
 
 test("Evidence public query reads historical records, corrections and project references", () => {
   const fixture = materializeGoalEventV35Fixture("legacy");

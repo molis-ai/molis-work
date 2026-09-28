@@ -160,3 +160,21 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
     catalog.close(); await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
+
+test("a reply waiting on the model does not hold the project's other operations in line", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  await fixture(async ({ bound }) => {
+    const { spark } = await bound.invoke(actions.create, { title: "Queue", body: "Waiting on a model" });
+    const { conversation } = await bound.invoke(actions.openConversation, { spark_ids: [spark.id] });
+    const reply = bound.invoke(actions.message, { id: conversation.id, body: "继续" });
+    await entered.promise;
+    try {
+      // While the model has not answered, reads and writes of the same project still complete.
+      const listed = await Promise.race([bound.invoke(actions.list, {}), new Promise<never>((_, reject) => setTimeout(() => reject(new Error("held in line")), 2000))]);
+      assert.equal(listed.sparks.length, 1);
+      await bound.invoke(actions.create, { title: "Meanwhile" });
+    } finally { release.resolve(); }
+    const state = await reply;
+    assert.equal(state.messages.at(-1)?.body, "模型的回应");
+  }, async () => { entered.resolve(); await release.promise; return "模型的回应"; });
+});

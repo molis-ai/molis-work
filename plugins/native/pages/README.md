@@ -29,3 +29,18 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 列表和编辑器从 `publication_pending` 显示“继续保存上次成果”，恢复成功明确说明当前编辑仍保留。客户端传 `expected_version`，过期请求不会再创建一版；旧客户端不传版本时继续保留每次明确调用新增版本的语义。返回 `recovered` 表示恢复上次成果。此迁移只新增可空列，不搬移原数据；降级前应完成未结束的发布，旧版代码无法识别新快照，不能安全地继续这些请求。
 
 标准 MCP 的查询、写入、AI、生成、历史及发布中断恢复有独立 stdio 客户端验证；生产客户端授权管理和系统生命周期仍属于系统服务未完成范围，测试启动授权不能替代它。
+
+## 开发要求
+
+- 负责：文档目录、ProseMirror 编辑器、导入、按材料生成与发布。
+- 不负责：Goal 与 Artifact 事实、模型提供方、托管文档服务。
+- 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - HTTP 的项目由 Host 绑定，query 或 body 声明不同项目会拒绝；`pages.update` 带 `expected_version`，冲突保留草稿。
+  - 生成按请求保存材料快照；缺模型明确拒绝，不生成占位文稿。
+  - 被取消或撤权的生成不写任何记录，本进程可以立即接手重试；其他进程的尝试仍守租约。
+  - 导入预览不写入；批量写入一个事务，同一请求重试不覆盖编辑、不重复创建。
+  - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。
+- 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts`
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

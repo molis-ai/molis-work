@@ -1,5 +1,13 @@
-import { Terminal } from "@xterm/xterm";
-import { FitAddon } from "@xterm/addon-fit";
+import * as xterm from "@xterm/xterm";
+import * as xtermFit from "@xterm/addon-fit";
+
+// The bundler reads these packages' ES modules; Node reads their UMD main, whose named exports sit on `default`.
+// Either way the same classes are used, so the controllers can also be exercised outside a browser.
+type Xterm = typeof import("@xterm/xterm");
+const { Terminal } = ((xterm as { default?: Xterm }).default ?? xterm) as Xterm;
+type Terminal = InstanceType<typeof Terminal>;
+const { FitAddon } = ((xtermFit as { default?: typeof import("@xterm/addon-fit") }).default ?? xtermFit) as typeof import("@xterm/addon-fit");
+type FitAddon = InstanceType<typeof FitAddon>;
 
 export interface TerminalScreensOptions {
   host: HTMLElement;

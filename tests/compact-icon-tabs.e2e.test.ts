@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed dimensions', {timeout:90000}, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -51,7 +52,7 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await navigate(()=>command('Page.reload',{},sessionId));
   await waitFor("document.querySelectorAll('.tab-item[data-pinned]').length===2 && document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE'");
   assert.equal(await evaluate("document.querySelector('.tab-item').dataset.tabId"),homeId);
-  const dir='.impeccable/review/icon-tabs';await mkdir(dir,{recursive:true});
+  const dir=`${REVIEW_EVIDENCE}/icon-tabs`;await mkdir(dir,{recursive:true});
   const shot=async(name:string)=>{ await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))).then(()=>Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))))"); const result=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}.png`,Buffer.from(result.data,'base64')); };
   await shot('desktop-light');
   await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-color-scheme',value:'dark'}]},sessionId);await shot('desktop-dark');

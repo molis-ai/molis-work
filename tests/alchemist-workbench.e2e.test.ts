@@ -4,6 +4,7 @@ import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalRuntime } from "../plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.js";
+import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 // Seed through the production API; only the external model/search are explicit fixtures.
 async function seed(home: string, project: string) {
@@ -89,7 +90,7 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   await click('[data-alc-action="explore"]');await includes('这次炼化未完成');
   await command('Page.reload',{},sessionId);await visible('[data-alc-action="explore"]');await includes('浏览器验收缺模型也保存方向');
   await click('[data-alc-collection="ideas"]');await click(`[data-alchemist-id="${ids.idea}"]`);await visible('[data-alc-action="market"]');await click('[data-alc-action="market"]');await includes('研究摘要');
-  const screenshotDirectory = process.env.MOLIS_WORK_ALCHEMIST_SCREENSHOTS ?? 'specs/alchemist-plugin/verification';
+  const screenshotDirectory = process.env.MOLIS_WORK_ALCHEMIST_SCREENSHOTS ?? specEvidenceDirectory('specs/alchemist-plugin/verification');
   await mkdir(screenshotDirectory,{recursive:true});
   for(const [width,height,label] of [[1440,1000,'desktop'],[390,844,'mobile']] as const){
     await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<500},sessionId);

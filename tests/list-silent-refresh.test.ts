@@ -34,7 +34,6 @@ const csrClients = {
   functions: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
   pages: PAGES_CLIENT_FACTORY_SCRIPT,
   lingguang: LINGGUANG_CLIENT_FACTORY_SCRIPT,
-  alchemist: ALCHEMIST_CLIENT_FACTORY_SCRIPT,
 } as const;
 
 function sliceFn(script: string, startToken: string, endToken: string): string {
@@ -61,7 +60,8 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /data-functions-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /data-lingguang-back[\s\S]{0,400}await loadList\(\)/);
-  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /data-alchemist-back[\s\S]{0,400}await loadList\(\)/);
+  // Alchemist Studio is not a list-and-editor plugin; its content re-render keeps the reader's scroll position.
+  assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /const scroll=content\.scrollTop;render\w+\([^)]*\);content\.scrollTop=scroll;/);
 });
 
 test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保留表单", () => {
@@ -87,8 +87,11 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
   assert.match(CLIENT_EVENTS_PRIMARY_SCRIPT, /await refreshFeedStage\(\)/);
   assert.match(CLIENT_EVENTS_SECONDARY_SCRIPT, /await refreshInboxStage\(\)/);
   assert.match(CLIENT_EVENTS_SECONDARY_SCRIPT, /await refreshFeedStage\(\)/);
-  assert.equal([...CLIENT_NAVIGATION_FEED_SCRIPT.matchAll(/location\.reload\(/g)].length, 1);
-  assert.equal([...CLIENT_NAVIGATION_INBOX_SCRIPT.matchAll(/location\.reload\(/g)].length, 1);
+  // A failed stage refresh keeps the page and says so; it never falls back to a full reload.
+  for (const script of [CLIENT_NAVIGATION_FEED_SCRIPT, CLIENT_NAVIGATION_INBOX_SCRIPT]) {
+    assert.doesNotMatch(script, /location\.reload\(/);
+    assert.match(script, /showToast\(L\("列表更新失败，当前输入已保留，请重试。"\)\)/);
+  }
 });
 
 test("Inbox / Schedule 工作区 fragment 走 HTML 路由", async () => {

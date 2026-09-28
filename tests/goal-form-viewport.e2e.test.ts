@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 for (const [width, height] of [[1024, 400], [390, 500]]) {
   test(`Goal forms ${width}×${height}: scrolling, draft recovery and a single persisted concern`, { timeout: 60000 }, async t => {
@@ -24,7 +25,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     const settle = () => evaluate(`new Promise((resolve,reject)=>{const until=Date.now()+3000;const check=()=>{const running=document.getAnimations().some(a=>a.playState==='running'&&a.effect?.getComputedTiming().iterations!==Infinity);if(!running)return resolve(true);if(Date.now()>until)return reject(new Error('Transitions did not finish'));requestAnimationFrame(check);};requestAnimationFrame(check);})`);
     const capture = async (name: string) => {
       await settle();
-      const dir = process.env.MOLIS_CONTENT_CAPTURE || '.impeccable/review/goal-forms-v10';
+      const dir = process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/goal-forms-v10`;
       await mkdir(dir, { recursive: true });
       const png = await command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, sessionId);
       await writeFile(`${dir}/${name}-${width}.png`, Buffer.from(png.data, 'base64'));

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { DEMO_BOARD_ID } from '@molis-ai/molis-work-app-local-host';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 for (const [width, height] of [[1024, 400], [390, 500]]) {
   test(`Settings ${width}×${height}: fixed actions, cancel, failed retry and pending save`, { timeout: 60000 }, async t => {
@@ -20,7 +21,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     };
     const capture = async (name: string) => {
       await evaluate('Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{})))');
-      const dir = process.env.MOLIS_CONTENT_CAPTURE || '.impeccable/review/settings-viewport-v9';
+      const dir = process.env.MOLIS_CONTENT_CAPTURE || `${REVIEW_EVIDENCE}/settings-viewport-v9`;
       await mkdir(dir, { recursive: true });
       const png = await command<{ data: string }>('Page.captureScreenshot', { format: 'png' }, sessionId);
       await writeFile(`${dir}/${name}-${width}.png`, Buffer.from(png.data, 'base64'));

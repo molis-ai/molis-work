@@ -6,6 +6,7 @@ import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-wo
 import { definePlugin, defineHomeEventsAction, defineSubjectContextAction, subjectContext, defineSubjectOffersAction } from "../packages/plugin-sdk/src/index.js";
 import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 test("an unknown plugin owns its Home event, context and real action; failure and lifecycle refresh stay accurate", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
@@ -44,7 +45,7 @@ test("an unknown plugin owns its Home event, context and real action; failure an
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const install = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   const selector = '[data-home-subject-kind="fixture-note"][data-home-subject-id="own-note"]';
-  const captures = new URL("../.impeccable/review/home-plugin-events/", import.meta.url);
+  const captures = reviewEvidenceUrl("home-plugin-events/");
   const capture = async (name: string) => { await mkdir(captures, { recursive: true }); const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(new URL(name + ".png", captures), Buffer.from(shot.data, "base64")); };
   try {
     await runtime.start(install.install_id);

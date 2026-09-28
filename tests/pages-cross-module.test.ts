@@ -158,7 +158,8 @@ for (const mode of ["failure", "cancel"] as const) {
     if (mode === "cancel") { await entered; controller.abort(); release(); }
     await rejection;
     const record = (await f.bound.invoke(pagesActions.generation, { request_id: input.request_id })).record!;
-    assert.equal(record.status, "failed"); assert.equal((await f.bound.invoke(pagesActions.list, {})).documents.length, 0);
+    // A model failure is recorded; a cancelled call writes nothing (action-architecture F2) and is taken over below.
+    assert.equal(record.status, mode === "cancel" ? "running" : "failed"); assert.equal((await f.bound.invoke(pagesActions.list, {})).documents.length, 0);
     const result = await f.bound.invoke(inboxActions.generatePages, input);
     assert.equal(result.replayed, false);
     const replay = await f.bound.invoke(inboxActions.generatePages, input);

@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { SAMPLE_PDF_TEXT } from "@molis-ai/molis-work-module-shelf";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent tokens", { timeout: 120_000 }, async (t) => {
   const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
@@ -112,7 +113,7 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   assert.equal(await evaluate("document.querySelector('[data-shelf-actor]')?.textContent"), "本机提取，不发送。");
   assert.equal(await evaluate("document.querySelector('[data-shelf-choice]')?.hidden"), true);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.shelf-tty')).height"), "72px");
-  const dir = ".impeccable/review/shelf-plugin";
+  const dir = `${REVIEW_EVIDENCE}/shelf-plugin`;
   await mkdir(dir, { recursive: true });
   const confirmLight = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/confirm-light.png`, Buffer.from(confirmLight.data, "base64"));

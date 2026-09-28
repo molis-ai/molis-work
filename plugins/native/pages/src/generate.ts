@@ -1,5 +1,5 @@
 import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { PagesStore } from "./store.js";
+import { releaseGenerationAttempt, type PagesStore } from "./store.js";
 import { PagesError } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
@@ -10,10 +10,14 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
   signal?.throwIfAborted();
   const request = withStore(store => store.beginGeneration(record));
   if (request.status === "completed" && request.document_id) return { document: withStore(store => store.get(request.document_id!, record.project_id)), replayed: true };
+  const refusedEnds = async () => {
+    try { signal?.throwIfAborted(); await beforeEffect?.(); }
+    catch (refused) { releaseGenerationAttempt(request); throw refused; }
+  };
   const fail = async (error: unknown): Promise<never> => {
-    // Failure bookkeeping is also an effect. If authority is gone, leave the original running
-    // record for the existing owner recovery path rather than letting this stale call alter it.
-    await beforeEffect?.();
+    // Failure bookkeeping is also an effect. If the call was cancelled or lost authority it writes nothing;
+    // it only notes, in this process, that its attempt is over, so a new call here can take the request over.
+    await refusedEnds();
     withStore(store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
     throw error;
   };
@@ -47,7 +51,7 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
       : markdown.split(/\n\n+/).map((text) => ({ type: "paragraph", content: [{ type: "text", text }] })) };
   } catch (error) { return fail(error); }
   // A rejected guard must not be caught as a model/storage failure and retried as another write.
-  await beforeEffect?.();
+  await refusedEnds();
   try {
     const document = withStore(store => store.completeGeneration(request, body));
     return { document, replayed: false };

@@ -3,14 +3,15 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-const captures = new URL("../.impeccable/review/home-start/", import.meta.url);
+const captures = reviewEvidenceUrl("home-start/");
 const homeHasQuotes = "!!document.querySelector('[data-home-quote], [data-home-quotes], .home-reflection, .home-quote-pages, .immersive-home blockquote, .immersive-home figure') || /千里之行|Stephen Hawking|Intelligence is the ability/.test(document.querySelector('.immersive-home')?.textContent || '')";
 
 test("The project button holds settings and the account, and opens settings in the stage", { timeout: 45_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const {command,sessionId,evaluate,navigate,click,origin,projectId,waitFor}=browser;
-  const directory = new URL("../.impeccable/review/home-footer-quotes/", import.meta.url);
+  const directory = reviewEvidenceUrl("home-footer-quotes/");
   await mkdir(directory,{recursive:true});
   await command("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]},sessionId);
   await command("Network.setCookie",{name:"molis_work_locale",value:"en",url:origin},sessionId);
@@ -108,7 +109,9 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   await click('[data-plugin-strip] [data-plugin-id="home"]');
   await waitFor("document.body.dataset.desktopSurface === 'home'");
   const homeStack = await evaluate<{ gap: number; dates: number }>("(()=>{const d=document.querySelector('.home-dates').getBoundingClientRect();const v=document.querySelector('.home-dayview').getBoundingClientRect();const l=document.querySelector('.home-launch').getBoundingClientRect();return {gap:Math.round(v.left-d.right),dates:Math.round(d.width)}})()");
-  assert.ok(homeStack.gap >= 8 && homeStack.gap <= 24, "day column sits beside the date cards: " + homeStack.gap);
+  // craft-finish: the date column is its own half-step desk column, flush against the day view (no gutter, no line).
+  assert.ok(homeStack.gap >= 0 && homeStack.gap <= 1, "day column sits flush beside the date column: " + homeStack.gap);
+  assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.home-dates')).backgroundColor"), "rgba(0, 0, 0, 0)", "the date column carries its own surface");
   assert.ok(homeStack.dates >= 90 && homeStack.dates <= 130, "date cards stay a narrow rail: " + homeStack.dates);
   await mkdir(captures, { recursive: true });
   for (const [name, width, height, dark] of [["desktop", 1440, 1000, false], ["desktop-dark", 1440, 1000, true], ["user-1024", 1024, 768, false], ["user-1024-dark", 1024, 768, true], ["mobile", 390, 844, false], ["mobile-dark", 390, 844, true]] as const) {

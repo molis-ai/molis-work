@@ -10,6 +10,7 @@ import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { createMcpActionGrant } from "../apps/local-host/src/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/src/mcp-settings-store.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test("Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
@@ -38,7 +39,7 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   const choose = (selector: string, title: string) => evaluate(`(()=>{const label=[...document.querySelectorAll(${JSON.stringify(selector)})].find(node=>node.textContent.includes(${JSON.stringify(title)}));if(!label)throw new Error('missing choice');label.querySelector('input').click();})()`);
   const open = async (id: string) => { await click(`[data-plugin-id="${id}"][data-work-surface-open]`); await waitFor(`!document.querySelector('[data-work-surface="${id}"]').hidden`); };
-  const capture = async (name: string) => { const directory = join(process.cwd(), ".impeccable/review/agent-actions"); await mkdir(directory, { recursive: true });
+  const capture = async (name: string) => { const directory = join(process.cwd(), `${REVIEW_EVIDENCE}/agent-actions`); await mkdir(directory, { recursive: true });
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64")); };
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/` }, sessionId));

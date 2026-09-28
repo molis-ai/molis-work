@@ -3,8 +3,9 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { DEMO_BOARD_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-const captures = new URL("../.impeccable/review/", import.meta.url);
+const captures = reviewEvidenceUrl("");
 
 test("Goal workspace keeps details in a sidebar rail; camera and draft survive reopen", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t);
@@ -44,8 +45,9 @@ test("Goal workspace keeps details in a sidebar rail; camera and draft survive r
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden && document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal === " + JSON.stringify(goalId));
   await waitFor("document.querySelector('[data-event-timeline] [data-timeline-item]')");
   await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.detailsOpen === 'true' && document.querySelector('[data-goal-details-aside]')?.getBoundingClientRect().width > 280");
-  const stage = await rect("[data-plugin-stage]"), frame = await rect("[data-goal-node-workspace]"), terminal = await rect("[data-tui-pane]"), info = await rect("[data-goal-details-aside]");
-  assert.ok(Math.abs(frame.x - stage.x) < 2 && Math.abs(stage.width - frame.width) < 2);
+  // The workspace fills the Goals paper; the stage around it keeps craft-finish's 8px of desk on the right.
+  const paper = await rect("[data-goal-canvas-shell]"), frame = await rect("[data-goal-node-workspace]"), terminal = await rect("[data-tui-pane]"), info = await rect("[data-goal-details-aside]");
+  assert.ok(Math.abs(frame.x - paper.x) < 2 && Math.abs(paper.width - frame.width) < 2, JSON.stringify({ paper, frame }));
   assert.equal(await evaluate("document.querySelector('.goal-node-toolbar [data-goal-details-toggle]')"), null);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-goal-details-aside] [data-goal-details-toggle]'))"), true);
   assert.ok(info.width >= 280 && info.width <= 330 && terminal.x + terminal.width <= info.x + 2);
@@ -97,7 +99,8 @@ test("Goal workspace keeps details in a sidebar rail; camera and draft survive r
   await waitFor("!document.querySelector('[data-goal-work-main]').inert");
   await screenshot("goal-800");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
-  await waitFor("document.querySelector('[data-goal-node-workspace]').getBoundingClientRect().width < 390");
+  // On a phone the paper drops the desk margins and spans the width; it must fit, with no horizontal scroll (below).
+  await waitFor("document.querySelector('[data-goal-node-workspace]').getBoundingClientRect().width <= 390");
   await screenshot("goal-mobile");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await click('[data-goal-details-toggle]');

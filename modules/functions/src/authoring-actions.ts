@@ -1,4 +1,4 @@
-import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA, withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
@@ -48,7 +48,8 @@ export const functionAuthoringActions = {
   publish: define<Revision, RecordResult>("publish", "发布判断规则", "通过已有试跑及配置校验后发布不可变版本，进入可调用目录。", input(revision, ["id"]), recordResult, true),
   delete: define<Revision, { ok: true }>("delete", "删除判断草稿", "仅删除草稿；已发布规则和历史不可删除。", input(revision, ["id"]), { type: "object", properties: { ok: { const: true } }, required: ["ok"] }, true),
   addSample: define<Revision & { input: string; label?: string }, RecordResult>("sample.add", "添加试跑样本", "将输入保存到规则的样本列表。", input({ ...revision, input: text, label: text }, ["id", "input"]), recordResult, true),
-  removeSample: define<Revision & { sample_id: string }, RecordResult>("sample.remove", "移除试跑样本", "从当前规则移除指定样本。", input({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true),
+  // Removes one trial sample from the draft rule; another can be added again.
+  removeSample: withActionEffect(define<Revision & { sample_id: string }, RecordResult>("sample.remove", "移除试跑样本", "从当前规则移除指定样本。", input({ ...revision, sample_id: id }, ["id", "sample_id"]), recordResult, true), "write", false),
 } as const;
 
 /** Contextual reads are composed by the Host from the same authorized action and scene clients. */

@@ -94,10 +94,18 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       if (outcome === "disabled") characterActive = false;
       await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
       const run = await until(async () => { const value = await adapter.read(handle.ref); return ["completed", "failed", "cancelled"].includes(value.phase) ? value : undefined; });
-      assert.equal(run.phase, "completed", run.stop_reason);
       assert.deepEqual(run.frozen.action_tools, selected);
-      const wire = JSON.stringify(requests.at(-1).messages);
-      assert.match(wire, outcome === "revoked" ? /no longer accessible|revoked|forbidden/ : outcome === "disabled" ? /Character disabled/ : /from the model/);
+      if (outcome === "disabled") {
+        // The Character is rechecked before every model dispatch: once disabled, the round stops instead of sending again,
+        // and says it was refused rather than blaming the network.
+        assert.equal(run.phase, "failed");
+        assert.match(run.stop_reason ?? "", /EFFECT_NOT_AUTHORIZED[\s\S]*Character disabled/);
+        assert.doesNotMatch(run.stop_reason ?? "", /MODEL_NETWORK_FAILED/);
+      } else {
+        assert.equal(run.phase, "completed", run.stop_reason);
+        const wire = JSON.stringify(requests.at(-1).messages);
+        assert.match(wire, outcome === "revoked" ? /no longer accessible|revoked|forbidden/ : /from the model/);
+      }
       assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "revoked pending action cannot reach original handler");
     }
     assert.deepEqual(JSON.parse(JSON.stringify(db.prepare("SELECT * FROM notes").all())), [{ body: "from the model", project: "project", actor: "agent:prologue" }]);

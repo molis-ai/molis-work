@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440,390]) test(`Form ${width}px: author, preview, historical answers, conflicts and fixed Artifact recovery`, {timeout:100_000}, async t => {
   let modelCalls=0;
@@ -20,7 +21,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
     }
     await waitFor("document.body.dataset.desktopSurface === 'form'");
   };
-  const output=new URL('../.impeccable/review/action-service/',import.meta.url);await mkdir(output,{recursive:true});
+  const output=reviewEvidenceUrl("action-service/");await mkdir(output,{recursive:true});
   const screenshot=async(name:string)=>{
     await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
     await writeFile(new URL(`form-${name}-${width}.png`,output),Buffer.from((await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId)).data,'base64'));

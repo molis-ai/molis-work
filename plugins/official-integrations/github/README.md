@@ -44,6 +44,19 @@ node --import tsx --test --test-concurrency=1 tests/github-device-flow.test.ts t
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。
 
+## 开发要求
+
+- 负责：GitHub 授权、连接器、监听、Signal、设置与动作适配。
+- 不负责：Source/Signal/Feed/Action 事实、宿主业务决定。
+- 公开入口：`@molis-ai/molis-work-integration-github`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 外部更新交给统一的监听与 Signal 链路，不拥有 Feed 状态。
+  - 凭据不写进 Source 或 Signal 正文。
+  - 测试用隔离数据或注入端口，通过不代表真实账号已连通。
+- 改动后必跑：`node scripts/run-tests.mjs tests/github-device-flow.test.ts tests/plugin-runtime-integration.test.ts`
+- 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../../docs/platform/PLUGIN-DEVELOPMENT.md)

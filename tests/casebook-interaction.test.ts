@@ -34,7 +34,8 @@ test('signed dual-purpose authorization replays remain durable across restart an
 test('recorder failures do not replace business success or rejection; partial operation remains visible',async t=>{
  const f=await fixture(t);await f.api.setInteractionAuthorization(f.request('join','join'));
  await f.host.withProject(f.ref,r=>r.store.db.exec("CREATE TRIGGER fail_result BEFORE INSERT ON casebook_interaction_facts WHEN json_extract(NEW.body,'$.kind')='result' BEGIN SELECT RAISE(FAIL,'isolated'); END"));
- await f.create('committed');await assert.rejects(f.create('invalid',''),{code:'goal.title_required'});
+ await f.create('committed');// The action boundary validates input before the Goals owner; the rejection still has to pass through the recorder.
+ await assert.rejects(f.create('invalid',''),{code:'actions.input_invalid'});
  const batch=await f.read();assert.equal(batch.facts.length,2);assert.equal(batch.coverage.incomplete_operations,2);assert.ok(batch.coverage.unpersisted_failures>=2);
  assert.ok(await f.host.withProject(f.ref,r=>r.store.goalsQuery.getGoal('board','committed')));
 });

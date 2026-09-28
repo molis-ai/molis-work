@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { clearShelfRuntimeCache, openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
 test("Shelf DropAgent parity: full copies, reading, comparison, actions and client bridges", { timeout: 180_000 }, async (t) => {
   const bin = await mkdtemp(join(tmpdir(), "shelf-parity-agent-"));
@@ -156,7 +157,7 @@ printf '%s\\n' '# 合稿' '' '两份材料经过受控执行，来源可切换�
     await waitFor("document.querySelector('[data-shelf-compare-pane=source]').textContent.includes('CODE_END_SENTINEL')");
     assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-shelf-compare-pane=source]').textContent"), /MARKDOWN_END_SENTINEL/);
     await click(`[data-shelf-source="${first.item_id}"]`);
-    const evidence = "specs/shelf-dropagent-parity/evidence";
+    const evidence = specEvidenceDirectory("specs/shelf-dropagent-parity/evidence");
     await mkdir(evidence, { recursive: true });
     // No side rail: the stage is wider at the same window, so the narrow capture uses 820px to stay under 640px of stage.
     for (const [name, theme, width] of [["browser-compare-light", "light", 1440], ["browser-compare-dark", "dark", 1440], ["browser-compare-narrow", "light", 820]] as const) {

@@ -41,6 +41,19 @@ node --import tsx --test --test-concurrency=1 tests/feed-receive-chain.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：Provider 连接、凭据引用、调用、健康状态与技术回执。
+- 不负责：Source 期望状态、Signal/Feed/Action 事实、Provider 的业务规则。
+- 公开入口：`@molis-ai/molis-work-service-connector-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/connector-host`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 密钥正文只在安全适配器里出现。
+  - 超时、驱动缺失等调用错误不能转成“同步成功”。
+  - 不把各 Provider 的协议复制进 Host。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-receive-chain.test.ts tests/plugin-runtime-integration.test.ts tests/connector-connections.test.ts`
+- 相关手册：[docs/horizontal/connector-host.md](../../docs/horizontal/connector-host.md)、[skills/molis-plugin-dev/integrations.md](../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/horizontal/connector-host.md)

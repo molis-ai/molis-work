@@ -6,7 +6,9 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
-import { saveJellyModelSettings, readJellyModelSettings, createJellyCompletion } from "../apps/local-host/src/jelly-model.js";
+// The same module the running Host uses: completions go through the Home Runtime that Host has bound.
+import { saveJellyModelSettings, readJellyModelSettings, createJellyCompletion } from "../apps/local-host/dist/jelly-model.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
   test(`configured model ${width}px: Lingguang replies and Jelly repairs a retained disconnected selection`, { timeout: 45_000 }, async t => {
@@ -16,9 +18,19 @@ for (const width of [1440, 390]) {
     const received: string[] = [];
     const model = createServer(async (request, response) => {
       let body = ""; for await (const chunk of request) body += chunk;
-      received.push(JSON.parse(body).model);
+      const payload = JSON.parse(body); received.push(payload.model);
+      const content = "从同一角度再拍一张窗边的照片。", usage = { prompt_tokens: 12, completion_tokens: 9, total_tokens: 21 };
+      // Text now goes through the Home's Prologue Runtime, which asks OpenAI-compatible services to stream.
+      if (payload.stream) {
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        const chunk = (value: unknown) => response.write(`data: ${JSON.stringify(value)}\n\n`);
+        chunk({ id: "fixture", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: null }] });
+        chunk({ id: "fixture", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage });
+        response.end("data: [DONE]\n\n");
+        return;
+      }
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(JSON.stringify({ choices: [{ message: { content: "从同一角度再拍一张窗边的照片。" } }] }));
+      response.end(JSON.stringify({ choices: [{ message: { content } }], usage }));
     });
     t.after(() => new Promise<void>(resolve => { model.close(() => resolve()); model.closeAllConnections(); }));
     await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
@@ -65,7 +77,7 @@ for (const width of [1440, 390]) {
     await waitFor("document.querySelector('[data-jelly-model-status]')?.textContent.includes('选择仍保留')");
     assert.equal(await evaluate("document.querySelector('[data-jelly-provider=a]').getAttribute('aria-pressed')"), "true");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
-    const output = new URL("../.impeccable/review/action-service/", import.meta.url); await mkdir(output, { recursive: true });
+    const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(new URL(`model-disconnected-${width}.png`, output), Buffer.from(shot.data, "base64"));
     await click('[data-jelly-dialog-ok]');

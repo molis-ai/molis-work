@@ -182,6 +182,8 @@ export function createCodingTimeline() {
    * explanation never replaces the fact it explains.
    */
   const FAILURES: Array<[RegExp, string, string]> = [
+    // The Host refused before sending (a Character disabled, a grant withdrawn): nothing reached the model.
+    [/EFFECT_NOT_AUTHORIZED/, "这一轮的授权已失效", "角色被停用或授权被收回，这一轮在发给模型前就停下了，没有发出任何内容。确认设置后再从断点继续。"],
     // The model went silent or the connection dropped mid-answer: not a settings problem, and what was done is kept.
     [/MODEL_NETWORK_FAILED.*(timeout|went quiet)/i, "模型服务长时间没有回应", "可能是网络不稳或服务繁忙；已完成的操作都保留着，从断点继续即可。反复出现时把任务拆小一些。"],
     [/MODEL_NETWORK_FAILED.*(terminated|reset|hang up)/i, "和模型服务的连接中断了", "已完成的操作都保留着；网络恢复后从断点继续即可。"],

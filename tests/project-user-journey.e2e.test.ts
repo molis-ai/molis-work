@@ -4,6 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { createLocalFeedApplication, DEMO_BOARD_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 for (const [width,height] of [[1440,900],[390,640]]) {
   test(`Project journey ${width}: create Goal, record note, create Feed task, read and process Inbox`, {timeout:90000}, async t => {
@@ -18,7 +19,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const directory=async()=>{if(width<760&&await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)"))await click('[data-directory-show]');};
     const plugin=async(id:string)=>{await directory();await click(`[data-plugin-id=${id}]`);};
     const fill=async(selector:string,text:string)=>{await click(selector);await command('Input.insertText',{text},sessionId);};
-    const capture=async(name:string)=>{const dir='.impeccable/review/journeys-v13';await mkdir(dir,{recursive:true});const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(shot.data,'base64'));};
+    const capture=async(name:string)=>{const dir=`${REVIEW_EVIDENCE}/journeys-v13`;await mkdir(dir,{recursive:true});const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/${name}-${width}.png`,Buffer.from(shot.data,'base64'));};
     await plugin('goals');
     await evaluate("document.querySelector('[data-goal-collapse]')?.click()");
     await showGoalStageList();
@@ -36,10 +37,11 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     assert.equal(b.store.snapshot(DEMO_BOARD_ID).goals.find(g=>g.goal_id===goalId)?.title,'完成跨页面工作流验收');
     if (width < 760) {
       assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), false, 'creation opens the new Goal content');
-      await directory();
+      // craft-finish round 4 retired the narrow directory drawer: plugins are reached from the bottom bar's picker,
+      // and a reload returns to the same Goal content.
+      assert.equal(await evaluate("Boolean(document.querySelector('[data-plugin-picker-toggle]')?.getClientRects().length)"), true, 'narrow navigation is the bottom-bar plugin picker');
       await b.reloadPage();
-      assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), true, 'reload preserves an intentionally open directory');
-      await click('[data-directory-toggle]');
+      await waitFor("document.querySelector('[data-goal-frame-surface]')?.hidden===false && document.querySelector('[data-goal-frame-surface]').dataset.frameGoal==="+JSON.stringify(goalId));
     }
     await click('[data-frame-goal-work]');
     if(await evaluate("document.querySelector('[data-goal-details-toggle]').getAttribute('aria-expanded')==='false'"))await click('[data-goal-details-toggle]');
@@ -51,12 +53,12 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const app=new GoalProjectApplication(b.store);
     assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_BOARD_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
     await capture('goal-recorded');
-    await plugin('feed');await click('[data-feed-stage-chrome] [data-feed-add-toggle]');
+    await plugin('feed');await click('[data-feed-source-rail] [data-feed-add-toggle]');
     await click('[data-feed-choose-kind=custom_rss]');
     await fill('[data-feed-add-name]','团队设计资料');
     await fill('[data-feed-source-value=custom_rss]','https://example.com/journey.xml');
     await click('[data-feed-source-register]');
-    await waitFor("!document.querySelector('[data-feed-sources-dialog]').open && [...document.querySelectorAll('[data-feed-task]')].some(e=>e.textContent.includes('团队设计资料'))");
+    await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden && [...document.querySelectorAll('[data-feed-task]')].some(e=>e.textContent.includes('团队设计资料'))");
     await directory();
     const sourceId=await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(e=>e.textContent.includes('团队设计资料')).dataset.feedTask");
     const feed=createLocalFeedApplication(b.store.db),source=feed.getSource(DEMO_BOARD_ID,sourceId);
@@ -66,6 +68,8 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     if(width<760&&await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"))await click('[data-directory-toggle]');
     await evaluate(`document.querySelector('[data-feed-entry-id="${item.item_id}"]')?.click()`);
     await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]')`);
+    // Opening marks the item read with its own request; give it a bounded moment to land.
+    for(let i=0;i<40&&!feed.getItem(DEMO_BOARD_ID,item.item_id).read_at;i++)await new Promise(resolve=>setTimeout(resolve,50));
     assert.ok(feed.getItem(DEMO_BOARD_ID,item.item_id).read_at);
     await click(`[data-feed-detail="${item.item_id}"] [data-feed-action=inbox]`);
     await waitFor("[...document.querySelectorAll('[data-inbox-row]')].some(row=>row.textContent.includes('评审工作区的用户动线'))");

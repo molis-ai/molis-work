@@ -41,6 +41,18 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：来源身份、期望的监听状态、范围、计划意图与 Provider 绑定引用。
+- 不负责：凭据、监听游标、Signal、Feed 处置、Goal。
+- 公开入口：`@molis-ai/molis-work-module-sources`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/sources`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 凭据正文不进 Source 记录，只存引用。
+  - 只表达“想怎样听”；游标与租约归 `horizontal/listener-host`。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-receive-chain.test.ts tests/feed-sources.test.ts tests/feed.test.ts`
+- 相关手册：[docs/modules/sources.md](../../docs/modules/sources.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/sources.md)

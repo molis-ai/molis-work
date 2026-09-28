@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test("actual Artifact import, fixed version, Goal embed and disabled reader survive the shared action path", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
@@ -13,7 +14,7 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
   const visit = (path: string) => navigate(() => command("Page.navigate", { url: b.origin + prefix + path }, sessionId));
   const file = join(b.homeDirectory, "动作导入.md"), content = "# 浏览器原始文档\n通过同一能力保存与读取。";
   await writeFile(file, content);
-  await mkdir(".impeccable/review/action-service/artifacts", { recursive: true });
+  await mkdir(`${REVIEW_EVIDENCE}/action-service/artifacts`, { recursive: true });
   let exact: { artifact_id: string; version: number } | undefined;
   for (const width of [1440, 390]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -36,7 +37,7 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
     const exported = await evaluate<any>(`fetch(${JSON.stringify(prefix + `/api/artifacts/${encodeURIComponent(exact.artifact_id)}/versions/1/export`)}).then(r=>r.json())`);
     assert.equal(exported.payload.content, content); assert.equal(exported.version, 1);
     const screenshot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
-    await writeFile(`.impeccable/review/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
+    await writeFile(`${REVIEW_EVIDENCE}/action-service/artifacts/read-${width}.png`, Buffer.from(screenshot.data, "base64"));
   }
   const board = store.goalsQuery.listBoardIds()[0]!, scope = { kind: "personal" as const, id: board };
   const ledger = createContextLedger(store.db, { authorize: () => true });

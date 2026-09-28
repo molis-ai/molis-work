@@ -43,6 +43,19 @@ node --import tsx --test --test-concurrency=1 tests/cli-protocol.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：终端参数解析、命令分发与 CLI 输出协议。
+- 不负责：业务决定、Module Store、重复的应用规则。
+- 公开入口：`@molis-ai/molis-work-app-cli`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 不是数据库入口：命令复用 Host 能力，不在处理器里直接打开 Store。
+  - JSON 与文件输入的解析、错误呈现留在 CLI；状态变化由实际 owner 完成。
+  - 参数优先级、输出格式与退出码按 `src/protocol.ts`，改动同步更新协议测试。
+- 改动后必跑：`node scripts/run-tests.mjs tests/cli-protocol.test.ts tests/cli-command-receipts.test.ts tests/cli-agent-adapter.test.ts tests/cli-node-process.test.ts`
+- 相关手册：[docs/cli-and-development.md](../../docs/cli-and-development.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/cli-and-development.md)

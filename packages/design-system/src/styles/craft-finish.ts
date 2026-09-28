@@ -269,7 +269,9 @@ const CRAFT_BASE_STYLES = `
   }
   ${SHELL} .workbench-bar {
     grid-column: 1 / -1; grid-row: 3; position: relative; z-index: 30; min-width: 0;
-    display: grid; grid-template-columns: minmax(160px, 1fr) minmax(240px, 600px) minmax(160px, 1fr); align-items: center; gap: 12px;
+    /* The end column is at least as wide as its fixed buttons (Shelf, 灵光, chat, project); otherwise they were squeezed
+       to 18px or overlapped at ~760px. The Assistant keeps 200px down to the 601px desktop minimum. */
+    display: grid; grid-template-columns: minmax(160px, 1fr) minmax(200px, 600px) minmax(max-content, 1fr); align-items: center; gap: 12px;
     padding: 0 8px 8px; background: var(--desk);
   }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
@@ -281,7 +283,7 @@ const CRAFT_BASE_STYLES = `
   /* Shelf and 灵光: the person's own, two icon buttons against the right beside the project. */
   ${SHELL} .bar-residents { display: flex; align-items: center; gap: 6px; min-width: 0; }
   ${SHELL} .bar-resident {
-    display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
+    display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
     color: var(--muted); cursor: pointer;
   }
   ${SHELL} .bar-resident svg { width: 18px; height: 18px; }
@@ -477,7 +479,7 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .bar-end .navigator-project-menu[open] > .navigator-project-selector .project-monogram { box-shadow: 0 0 0 2px var(--desk), 0 0 0 3px var(--line-strong); }
   /* Between phone and desktop the three columns shrink together: residents drop their names, the Dock folds sooner. */
   @media (max-width: 760px) {
-    ${SHELL} .workbench-bar { grid-template-columns: minmax(136px, 1fr) minmax(200px, 520px) minmax(136px, 1fr); }
+    ${SHELL} .workbench-bar { grid-template-columns: minmax(136px, 1fr) minmax(200px, 520px) minmax(max-content, 1fr); }
   }
   /* A phone keeps a plugin's own list in a drawer. Its button stands just left of the project, and only when that
      plugin has a list — navigation itself is the switcher's. The bar stays above the drawer and its scrim. */

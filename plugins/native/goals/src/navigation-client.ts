@@ -11,7 +11,12 @@ const GOALS_SELECT_SCRIPT = `    const selectGoal = async (goalId, updateHistory
         return;
       }
       const fallbackGoalId = currentView?.dataset.goalView || getSelected();
-      if (!applySelection(goalId, true)) return;
+      if (!applySelection(goalId, true)) {
+        // An archived or trashed Goal is listed in its fold but belongs to another collection view: open its own page
+        // there instead of doing nothing.
+        if (document.querySelector('[data-goal-collection-fold] .tree-node[data-select-goal="' + CSS.escape(goalId) + '"]')) navigateToGoal(goalId);
+        return;
+      }
       const loaded = await loadGoalDocument(goalId);
       if (loaded == null) return;
       if (!loaded) {

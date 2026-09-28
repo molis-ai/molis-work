@@ -39,6 +39,19 @@ pnpm --filter @molis-ai/molis-work-service-scheduler build
 node --import tsx --test --test-concurrency=1 tests/scheduler.test.ts tests/schedule-plugin.test.ts
 ```
 
+## 开发要求
+
+- 负责：一次性叫醒、租约、错过后的补叫与投递回执。
+- 不负责：cron 表达式、自动化规则、来源计划意图、动作参数。
+- 公开入口：`@molis-ai/molis-work-service-scheduler`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/scheduler`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 到点只叫一次；once 与 interval 由 Schedule 插件的 job 模型解释。
+  - 插件不能替别人登记：Host 在调用时覆盖 `plugin_id`；没有注册处理器的能力不能挂闹钟。
+  - 不执行业务，只叫醒闹钟主人自己的能力。
+- 改动后必跑：`node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-conversation-tasks.test.ts`
+- 相关手册：[docs/horizontal/scheduler.md](../../docs/horizontal/scheduler.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)

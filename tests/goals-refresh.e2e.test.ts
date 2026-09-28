@@ -42,9 +42,10 @@ test("background refresh follows external archive and restore without changing t
 test("a completed refresh response cannot overwrite a Goal selected while it was in flight", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, openGoalWork } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/goals/V1" }, sessionId));
+  await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
   await evaluate(`(() => {
     const original = fetch.bind(globalThis);
     let held = false;
@@ -81,8 +82,9 @@ test("a completed refresh response cannot overwrite a Goal selected while it was
 test("failed compact refresh falls back to the full Goal page and keeps other work surfaces intact", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, sessionId, command, evaluate, waitFor, navigate } = browser;
+  const { store, origin, sessionId, command, evaluate, waitFor, navigate, openGoalWork } = browser;
   await navigate(() => command("Page.navigate", { url: origin + "/goals/V1?desktop=1" }, sessionId));
+  await openGoalWork(); // A Goal opens on its Frame tab; this test works in its workspace view.
   await evaluate(`(() => {
     const original = fetch.bind(globalThis);
     globalThis.__refreshPaths = [];

@@ -208,9 +208,9 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench dialog:is([data-session-relations-dialog], [data-session-handoff-dialog]) {
     inset: var(--tab-strip-h) 0 0 auto; height: calc(100dvh - var(--tab-strip-h)); max-height: calc(100dvh - var(--tab-strip-h));
   }
-  body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) :is(h2, .feed-task-dialog-shell h2) { font-size: 15px; }
-  body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 28px; height: 28px; }
-  body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) :is(.dialog-body, .feed-task-dialog-body) { padding: 12px 16px; }
+  body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) :is(h2, .feed-task-dialog-shell h2) { font-size: 15px; }
+  body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 28px; height: 28px; }
+  body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) :is(.dialog-body, .feed-task-dialog-body) { padding: 12px 16px; }
   :is(body.project-preferences-page, .settings-stage), body.settings-page { --control-h: 32px; }
   @media (max-width: 1050px) {
     body.immersive-workbench { --immersive-sidebar-width: 220px; }
@@ -259,7 +259,7 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .form-actions > button,
     body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 44px; }
     body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 44px; }
-    body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 44px; height: 44px; }
+    body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 44px; height: 44px; }
   }
   @media (max-width: 600px) {
     body.immersive-workbench .plugin-rail .personal-account { min-height: 44px; height: 44px; }

@@ -173,15 +173,15 @@ test("settings catalog lists registered settings-pages and ignores Feed, Inbox, 
   assert.equal(findPluginSettingsNavItem("coding-settings")?.plugin_id, "io.molis.work.coding");
   assert.equal(findPluginSettingsNavItem("unregistered-settings"), null);
   assert.ok(listPluginSettingsNavItems(["coding"]).some(item => item.section_id === "coding-settings"));
-  assert.deepEqual(live.map((item) => item.section_id), ["shelf", "functions"]);
+  // The judgment service connection lives under Capabilities → Connections, not a plugin settings page.
+  assert.deepEqual(live.map((item) => item.section_id), ["shelf"]);
   assert.equal(live[0]?.plugin_id, "io.molis.work.shelf");
   assert.equal(live[0]?.contribution_id, SHELF_SETTINGS_UI_CONTRIBUTION_ID);
   assert.equal(live[0]?.label, "Shelf");
-  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf", "functions", "planning"]);
+  assert.deepEqual(listPluginSettingsNavItems(["goals"]).map((item) => item.section_id), ["shelf", "planning"]);
   assert.equal(listPluginSettingsNavItems(["goals"]).find((item) => item.section_id === "planning")?.label, "Goals");
   assert.equal(live.some((item) => item.section_id === "mcp"), false);
-  assert.equal(live[1]?.section_id, "functions");
-  assert.equal(live[1]?.label, "Functions");
+  assert.equal(live.some((item) => item.section_id === "functions"), false);
 });
 
 test("Shelf settings page has the drop wheel and Molis appearance does not", () => {
@@ -277,10 +277,10 @@ test("workbench settings directory and standalone settings both show Shelf after
   assert.doesNotMatch(directory, /data-settings-section="planning"/);
   assert.match(directory, /data-settings-section="diagnostics"/);
   assert.match(directory, /data-settings-section="shelf"/);
-  assert.match(directory, /data-settings-section="functions"/);
+  assert.doesNotMatch(directory, /data-settings-section="functions"/);
   const withGoals = renderSettingsDirectorySection(directoryPrimitives, ["goals"]);
   const sectionOrder = [...withGoals.matchAll(/data-settings-section="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(sectionOrder, ["appearance", "models", "runtimes", "diagnostics", "shelf", "functions", "planning"]);
+  assert.deepEqual(sectionOrder, ["appearance", "models", "runtimes", "diagnostics", "shelf", "planning"]);
   assert.match(withGoals, />Goals</);
   assert.doesNotMatch(directory, /Gmail|Inbox/);
   const html = renderMolisWorkSettings({
@@ -335,7 +335,9 @@ test("MCP settings page is a Host global section, not a Functions settings-page"
   assert.match(html, /data-mcp-tool="molis_work_v1_functions_invoke"/);
   assert.match(html, /href="\/capabilities\/library"/);
   assert.doesNotMatch(html, /href="\/settings\/connectors"/);
-  assert.match(html, /href="\/settings\/functions"/);
+  // /settings/functions is only a redirect to Capabilities → Connections now; the page points at Runtime access instead.
+  assert.doesNotMatch(html, /href="\/settings\/functions"/);
+  assert.match(html, /href="\/settings\/runtimes"/);
   assert.doesNotMatch(html, /data-settings-panel="functions"/);
   assert.doesNotMatch(settingsDocument(html), /data-connectors-settings|data-connector-token/);
 });

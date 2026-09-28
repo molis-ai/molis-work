@@ -29,7 +29,10 @@ type Fields = { title?: string; body?: PagesBody; folder_id?: string; starred?: 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
   return { capability_id: `pages.${name}`, version: 1, operation, action: { title, description,
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
-    permissions, subject_kinds: ["pages_document"], input_schema: input, output_schema: output } };
+    permissions, subject_kinds: ["pages_document"], input_schema: input, output_schema: output,
+    // These wait on a model: held in the project's queue they would stall every other operation of the project.
+    // Generation keeps a running-record lock with CAS and ai only drafts after a version check, so they run beside it.
+    ...(name === "ai" || name === "generate" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const pagesActions = {
   list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read),

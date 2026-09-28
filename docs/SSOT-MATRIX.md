@@ -37,7 +37,7 @@
 | `retired` | 旧路径 caller 清零并删除或只留下有时限的兼容入口 |
 | `workspace-root + legacy-release` | Monorepo 根已能管理全部 package，但当前产品构建与发布仍由旧根 package 承担 |
 
-当前 39 个 package 的描述符为 38 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
+当前 69 个 package（6 app、11 foundation、15 module、5 horizontal、25 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-09-27 核对）的描述符为 68 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
 
 ## 3. Apps
 
@@ -45,7 +45,7 @@
 | --- | --- | --- | --- | --- |
 | `apps/desktop` | macOS 外壳、生命周期、Native Bridge | Native Bridge、Panel、Capsule 与发布工具；Tauri 配置在 apps/desktop/src-tauri | `partial` | AP4/DV4/Cutover；实际平台安装证据见验证报告 |
 | `apps/workbench` | 本地产品 UI 与页面组合 | Shell、导航、页面组合与注册 UI contribution；通用呈现边界，不拥有 Goal 完成算法；无数据库实现 | `partial` | AP3/FD4/GW5/EX4/AR3/WK3/Cutover |
-| `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；可信身份、HTTP 与 MCP 装配（目录合成、闸门、native 适配表）；Web/CLI/MCP、凭据与本机 IO 适配 | `partial` | AP2/Cutover；同库事务与跨入口恢复已验证 |
+| `apps/local-host` | 本地唯一业务 composition root 和 single writer | 唯一项目数据库和业务装配；统一动作服务的宿主侧（能力目录合成、系统动作、逐客户端 MCP 授权、调用记录、跨进程动作网关）；可信身份与 Web/CLI/MCP 装配；各 Native 插件的组合适配（注入存储位置、模型、Artifact 发布等端口）；凭据与本机 IO | `partial` | AP2/Cutover；动作服务见 `specs/action-architecture/` |
 | `apps/server` | 轻量交换、Team 控制面、Team Plugin Host | 当前无正式 Server 实现 | `absent` | F2；未来独立功能 Spec |
 | `apps/cli` | 参数、协议和终端展示适配 | 协议参数、命令分发与公开应用 adapter；root bin 仅注入启动环境 | `partial` | DV1/Cutover；CLI 协议和真实进程验证 |
 | `apps/mcp` | MCP schema、audience 和 Capability 适配 | 当前连接、Goal、事件、约定、决定请求、结构与历史；插件贡献由 Host 从 Manifest 合成，不在此写死 Functions 工具；Host 注入普通调用的项目与身份；用户决定仅受保护入口可执行 | `partial` | DV1/DV2/Cutover；事件工作流收敛 |
@@ -55,7 +55,7 @@
 | 目标 package | 唯一职责 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal |
 | --- | --- | --- | --- | --- |
 | `packages/contracts` | Module、Service、Platform 的可发布类型与 Schema | Module/Service/Platform 公开类型和 Schema；无业务或 IO 实现 | `contract-only` | F2/F3；30 个 public subpath 与兼容门禁 |
-| `packages/kernel` | Capability 注册、选择、权限与生命周期骨架 | AP2 已实现 versioned Capability registry；grant/provider policy 待各平台 Goal | `partial` | F2、F3、AP2 |
+| `packages/kernel` | Capability 注册、选择、权限与生命周期骨架 | versioned Capability registry 与统一动作服务核心 `ActionService`（定义/兑现校验、输入输出 schema、可用性、`beforeEffect` 副作用前复查、场景绑定与判断消费）；授权事实由 Local Host 持久保存 | `partial` | F2、F3、AP2；`specs/action-architecture/spec.md` |
 | `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期 | 本地 Runtime、持久开发状态、可撤销授权和签名校验；不是 OS sandbox | `partial` | F2、FD3、DV3；分发收口见 DV4 |
 | `packages/plugin-sdk` | 外部 Plugin 作者使用的稳定 API 与测试入口 | Manifest/definition/polling、公开 Artifact/UI/private client 类型、`mcp_exports` 再导出；fixture 由 Local Host 实现 | `partial` | F2、FD3、DV3 |
 | `packages/storage` | SQLite、Filesystem、Blob、事务和 migration 技术能力 | SQLite/事务/文件/密文/搜索缓存 Adapter；业务 schema 归 Module | `partial` | 各事实迁移/Cutover；Web Home 作用域隔离 |
@@ -102,7 +102,7 @@
 | `horizontal/listener-host` | cursor、lease、重试、Raw Event 到 Signal Draft 投递 | Listener 技术 lease/cursor/去重/接收回执；Host 管 timer 生命周期 | `partial` | FD1/FD3/Cutover |
 | `horizontal/scheduler` | Durable one-shot wakeup | sqlite job/lease/收据；Web timer 与 Feed timer 并行；once/interval 由 Schedule 插件拥有 | `partial` | `specs/archive/schedule-plugin/spec.md` |
 | `horizontal/runtime-host` | Runtime 启动、恢复、中断、stream 与技术 Receipt | Runtime router、Codex app-server 与 PTY server host 已迁；浏览器 transport/reconnect 由 Work 消费 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 |
-| `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | 宿主侧与两个 adapter 的会话/只读执行已实现；Prologue 执行接线待补 | `partial` | Plugin Platform v2；见 `specs/plugin-platform-v2/spec.md` |
+| `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），CLI Runtime 为辅；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `partial` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` |
 
 Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal、Action、Session 或 Run 等业务事实。
 
@@ -115,14 +115,23 @@ Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal�
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料 | `partial` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/feed-inbox-pages-loop/validation.md` |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停 | `partial` | `specs/archive/schedule-conversation-tasks/spec.md` |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；Host 注入 `/api/shelf` 与 Store | `partial` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop |
-| `apps/workbench/src/functions` | 系统能力服务的判断编辑器：写、试跑、发布 | 通过 Host 系统动作调用 modules/functions；连接与凭据复用服务连接；旧 Feed/Home 用途仍在迁移 | `partial` | `specs/action-architecture/spec.md`；`specs/functions-independent-authoring/spec.md` |
-| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、挂 Goal 与 Promote；外部文件预览/批量导入与幂等收据；Host 注入真实写作模型，材料快照与幂等生成收据归 Pages；对外 MCP 默认关 | `partial` | `specs/pages-plugin/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
-| `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；出题为本地 stub；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
-| `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；加列为本地 stub；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
-| `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外 MCP 默认关 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
-| `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、本机头脑风暴 stub；不写 Goal/Artifact；无对外 MCP | `partial` | `specs/archive/lingguang-plugin/spec.md` |
+| `apps/workbench/src/functions` | 系统能力服务的判断编辑器：写、试跑、发布 | 通过 Host 系统动作调用 modules/functions；连接与凭据复用服务连接（TypeSafe）；用途按场景合同派生，Feed 捕捉与首页判断已真实消费；入口在「能力」 | `partial` | `specs/action-architecture/spec.md`；`specs/functions-independent-authoring/spec.md` |
+| `plugins/native/pages` | Pages 一级入口：本机文档 | 库、ProseMirror 内核、块、评论、卡、挂 Goal 与 Promote；外部文件预览/批量导入与幂等收据；Host 注入真实写作模型（经 Prologue），材料快照与幂等生成收据归 Pages；对外只经动作目录与逐客户端授权 | `partial` | `specs/pages-plugin/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
+| `plugins/native/form` | Forms 一级入口：本机问卷 | 建题、预览填写、提交与结果；另有显式「AI 拟题」（经 Prologue 文字模型）；对外只经动作目录与逐客户端授权 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
+| `plugins/native/dataset` | Dataset 一级入口：本机数据表 | 行列编辑、CSV 导入导出、版本回滚；另有显式「AI 拟列」（经 Prologue 文字模型）；对外只经动作目录与逐客户端授权 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
+| `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲、主题色、预览与 JSON 导出；不做 PPTX；对外只经动作目录与逐客户端授权 | `partial` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` |
+| `plugins/native/lingguang` | 灵光一级入口：本机临时灵感池 | 快记、流式列表、丢掉确认、「复制内容」；头脑风暴对话经 Prologue 文字模型，未配置模型时如实显示不可用；不写 Goal/Artifact；动作经逐客户端授权对外 | `partial` | `specs/archive/lingguang-plugin/spec.md` |
 | `plugins/native/alchemist` | 炼金术士：项目隔离的 Founder Lab | Direction / Idea / 双 Lens / 证据决策 / Pulse / Copilot / Memory；AI 经 Prologue，公开证据经 SEL；旧演示库只读；验收见 spec | `partial` | `specs/alchemist-plugin/spec.md` |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention | `partial` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` |
+| `plugins/native/coding` | Coding App（`app`）：会话、轮次、计划、报告、变更集、协同与委派 | Plugin Runtime 托管；执行经 Agent Host/Prologue；产出 Coding 报告与变更集 Artifact；16 项 `coding.*` 动作 | `partial` | `specs/coding-plugin/spec.md` 第 0 节；后续 `next-requirements.md` |
+| `plugins/native/files`、`git`、`diff`、`text-stats` | 工作区文件、Git 变更、对比与文本统计（`app`，Coding 家族） | Runtime 托管；经项目工作区设置能力读取授权目录；端口交换快照与变更集 | `partial` | `specs/coding-workbench-repair/spec.md` |
+| `plugins/native/images` | 个人生图与项目生成记录 | 见下文「图片生成插件」；生成经 Prologue | `partial` | `specs/images-plugin/spec.md` |
+| `plugins/native/jelly` | 个人日历、笔记、灵感与素材 | 见下文「Jelly 私人工作区」 | `partial` | `specs/jelly-plugin/` |
+| `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `partial` | `specs/cognia-plugin/spec.md`；`specs/cognia-plugin/v2/spec.md` |
+| `plugins/native/experiments` | 个人离线实验：多模型对比与复核 | Home 级；判断函数经系统 `functions.authoring.list` 以调用者授权读取 | `partial` | `specs/action-architecture/migration.md` Experiments 行 |
+| `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果 | `partial` | `specs/action-architecture/spec.md` 工作流程节 |
+| `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件 | 见下文「插件创作工作台」 | `partial` | `specs/plugin-builder/work-items/studio-v3/spec.md` |
+| `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `partial` | `specs/connector-method-directory/spec.md` |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
 | `plugins/native/work` | Session、Runtime、resume、handoff 应用和 UI | WK3 已迁应用编排、Session/Terminal contribution、浏览器控制器、HTTP 用例和工作目录恢复。`GET/POST /api/goals/:id/panels`（无子路径，JSON）仍是 Runtime 终端面板，与已删除的 Goal 五 tab fragment 不同 | `partial` | WK3；边界与证据见 `specs/molis-work-architecture-reorganization/wk3-validation.md` |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec |
@@ -149,7 +158,7 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 | Desktop / Tauri | apps/desktop + apps/desktop/src-tauri | App/DMG/zip、bundle、ad-hoc codesign、本地安装/恢复；Developer ID、公证和公开发布不在本期验收承诺内 |
 | Runtime Skill | skills/goal-advance | 仅消费正式公开 Contract 与入口，不读取内部 Store |
 | Plugin 开发 Skill | skills/molis-plugin-dev | 随 npm / Home 发布；不自动挂 Runtime 接入；本仓库 `.cursor/skills` 只是符号链接 |
-| CI / vendor | .github/workflows、vendor；App-owned 发布工具 | 仅手动 CI；来源、版本、许可证、SBOM 与原发布供应链完整性保留 |
+| CI / vendor | .github/workflows、vendor；App-owned 发布工具 | PR 与 main push 触发：包边界与 workspace 校验、Goal 边界/迁移、发布资产、启动器与兼容 SDK 类型检查；全量产品测试尚未进 CI（`specs/repository-systematic-review/spec.md` F-08）。vendor 的来源、版本、许可证、SBOM 保留；发布包排除 `vendor/prologue-sdk/*.tgz` |
 | 文档 | 本索引与对应 owner 文档 | 当前位置以此表和 MIGRATION 为准；阶段性验收保留历史，不代表未来能力落地 |
 
 ## 9. 变更规则
@@ -175,7 +184,7 @@ Goals 与 Artifacts 是官方签名保护的一等 Plugin。Plugin 之间不依�
 
 ### 插件创作工作台
 
-`plugins/native/plugin-builder` 拥有设计草稿、Prologue 构建工作流、受控 UI 与行为、设计发布版本。`apps/local-host/src/plugin-builder-surface.ts` 装配 Manifest v2 插件及独立生成实例；AgentHost 拥有 Prologue 执行、Host 拥有模型凭据、PluginRuntime 拥有安装与私有存储权限。生成应用安装固定解释器，设计版本作为应用数据，不扩张运行权限。需求与验证见 `specs/plugin-builder/work-items/prologue-runtime/spec.md`。
+`plugins/native/plugin-builder` 拥有设计草稿、构建记录与发布版本。生成插件的后端由为此场景新建的 Prologue 代码 Agent 编写，运行在独立的 macOS 沙箱进程（`packages/plugin-sandbox`），只经宿主通道使用平台能力与安装时授权的其他插件动作；界面由平台用 UI 目录渲染。AgentHost 拥有 Prologue 执行，Host 拥有模型凭据与联网代理，PluginRuntime 拥有安装与私有存储权限。需求与验收见 `specs/plugin-builder/work-items/studio-v3/spec.md`（旧解释器路线已被整体替换）。
 
 ## Cognia 个人知识库
 

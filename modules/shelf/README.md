@@ -34,6 +34,20 @@ pnpm --filter @molis-ai/molis-work-module-shelf build
 node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts
 ```
 
+## 开发要求
+
+- 负责：个人置物架：材料副本、副本任务、Hash、本地文本提取与剪贴板历史。
+- 不负责：项目 Goal 事实、Artifact 版本、桌面轮盘与热键。
+- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/shelf`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
+  - 不写项目数据库、不自动发布 Artifact；同项目、同成果、同版本再次接收返回已有副本并保留编辑。
+  - 任务运行时 `input/` 只读，`work/` 是 Agent 的工作目录。
+  - CLI 能力探测只缓存完成的结果，超时或启动失败下次重新探测。
+- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-cli-probe.test.ts tests/shelf-project-results-http.test.ts`
+- 相关手册：[docs/modules/shelf.md](../../docs/modules/shelf.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责说明](../../docs/modules/shelf.md)

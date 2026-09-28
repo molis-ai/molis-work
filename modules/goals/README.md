@@ -49,6 +49,21 @@ node --import tsx --test --test-concurrency=1 tests/goals-command-module.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：Goal 约定、关系图、政策、风险、生命周期、项目指导与规划事实。
+- 不负责：Claim/Run、Evidence、Review/Decision、跨模块来源。
+- 公开入口：`@molis-ai/molis-work-module-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/goals`。
+- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - `events` 是当前工作状态与完成效果的唯一写入者。
+  - 实质承诺变化须引用对具体变化的有效授权，不能靠改类型绑定或自填操作者绕过；版本缺失或过期在副作用前拒绝。
+  - 完成只经显式收尾：普通支持不自动完成，无关笔记不重开已完成的 Goal。
+  - 关系图合法性、授权与事务在正式入口检查，页面和 MCP 只呈现结果。
+  - 历史升级保留原始来源与完成记录；读取已存历史的结果合同接受历史取值。
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goal-events.test.ts tests/goals-query-facts.test.ts tests/goals-storage-migration.test.ts tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs`
+- 相关手册：[docs/modules/goals.md](../../docs/modules/goals.md)、[PRODUCT.md](../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/goals.md)

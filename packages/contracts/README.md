@@ -44,6 +44,20 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：Module、Service、Platform 的公开合同子路径：类型、schema 与解析规则。
+- 不负责：业务实现、数据库、网络客户端、App 或插件实现。
+- 公开入口：`@molis-ai/molis-work-contracts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/package`。
+- 依赖：不依赖任何工作区包，也不依赖 App、业务实现、数据库或网络客户端（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 2 节）；所有包都依赖它。
+- 不变量：
+  - 不依赖任何其他工作区包；按显式子路径导出，不做根 barrel。
+  - 结果合同读取兼容、写入严格：回显已存历史的 schema 接受历史取值。
+  - 动作的 `effect` 按 id 推断会误判时用 `withActionEffect` 显式声明（比如 `delete_preview` 只存确认凭证）。
+  - 改合同同时更新生产方、消费方、Skill 与手册，不留只有一边认识的字段。
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-schema-compiler.test.ts tests/action-plugin-audience.test.ts tests/plugin-manifest-v2.test.ts tests/action-read-compatibility.test.ts`
+- 相关手册：[docs/platform/CONTRACTS-AND-OPERATIONS.md](../../docs/platform/CONTRACTS-AND-OPERATIONS.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/system/PACKAGE-BOUNDARIES.md)

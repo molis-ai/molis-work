@@ -44,6 +44,20 @@ node --import tsx --test --test-concurrency=1 tests/host-entry-consistency.test.
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：MCP 工具 schema、受众划分与能力适配。
+- 不负责：业务规则、直接访问 Store、Runtime Skill 政策。
+- 公开入口：`@molis-ai/molis-work-app-mcp`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-goals`。方向：apps → 组合根 → 公开合同（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。
+  - 插件对外方法由 Manifest `mcp_exports` 登记、Local Host 合成，不进本包的静态目录，也不按公开名写 `if`。
+  - 生产启动器走常驻服务通道，不回退到本地 typed Host。
+  - 说明或恢复目录不可读时返回真实连接并把对应内容置 null、附错误字段；不伪报空项目、不自动重新绑定。
+- 改动后必跑：`node scripts/run-tests.mjs tests/mcp-protocol.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/action-mcp.test.ts tests/mcp-goal-events.test.ts`
+- 相关手册：[docs/mcp.md](../../docs/mcp.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/cli-and-development.md)

@@ -41,6 +41,19 @@ node --import tsx --test --test-concurrency=1 tests/feed-receive-chain.test.ts t
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：持久游标、租约、重试、隔离与原始事件投递。
+- 不负责：Source 配置、正式 Signal、各类业务决定、凭据。
+- 公开入口：`@molis-ai/molis-work-service-listener-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/listener-host`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 收到 Signals 回执之前不推进游标、不确认投递。
+  - 同一来源的有效租约阻止重复消费；多次转换失败进入隔离。
+  - 终态重放不再调用 Provider；旧 Feed 迁移编号不能证明 Listener 表已存在。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-receive-chain.test.ts tests/plugin-runtime-integration.test.ts`
+- 相关手册：[docs/horizontal/listener-host.md](../../docs/horizontal/listener-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/horizontal/listener-host.md)

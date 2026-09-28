@@ -36,3 +36,24 @@ export class PrologueInferenceError extends Error {
     super(message); this.name = "PrologueInferenceError";
   }
 }
+
+// A registry symbol, so a refusal still reads as one when two copies of this module are loaded (source and build).
+const REFUSAL = Symbol.for("molis-work.agent-host.dispatch-refusal");
+/** What the Host's own dispatch check threw (a revoked source, a changed key): it reaches the caller unchanged. */
+export function markDispatchRefusal(error: Error): Error { Object.defineProperty(error, REFUSAL, { value: true }); return error; }
+/**
+ * The Host's own check refused before anything was sent. The SDK reports that as `EFFECT_NOT_AUTHORIZED`; consumers
+ * get the check's own error back and must say it was not sent, not blame the model or the network.
+ */
+export function isDispatchRefusal(error: unknown): error is Error { return error instanceof Error && (error as { [REFUSAL]?: boolean })[REFUSAL] === true; }
+
+/**
+ * When the Home's execution service itself cannot take the request, the person needs that reason, not a
+ * provider or network hint. Returns undefined for model and provider failures, which consumers explain themselves.
+ */
+export function inferenceServiceUnavailableReason(error: unknown): string | undefined {
+  const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code: unknown }).code) : "";
+  if (code === "agent.storage_busy") return "这台电脑上另一个 Molis Work 进程正在使用 AI 执行服务，请在那个窗口操作，或关闭它后重试";
+  if (code === "inference.unbound" || code === "inference.closed" || code === "inference.home_in_use") return "AI 执行服务尚未就绪或已停止，请稍后重试";
+  return undefined;
+}

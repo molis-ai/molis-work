@@ -24,14 +24,14 @@
 | --- | --- | --- |
 | `navigator` | 侧栏一级入口 | Feed、Inbox、Pages、Goals、Sessions |
 | `stage` | 工作区里的工具面，不占侧栏 | Diff、Text stats |
-| `settings` | 全局设置目录 | Functions Key、Shelf、Coding 偏好 |
+| `settings` | 全局设置目录 | Shelf、Coding 偏好 |
 | `island` | 项目卡片上方 | 灵光 |
 
 Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`。不能往未声明 Slot 塞 HTML。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
 
 `settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。
 
-不是所有一等入口都是「列表点开详情」：Goals 是树和画布；Functions 是三栏写判断；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
+不是所有一等入口都是「列表点开详情」：Goals 是树和画布；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
 
 ## 舞台（列表 + 详情）
 

@@ -3,6 +3,7 @@ import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { DEMO_BOARD_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 for (const [width, height, scope] of [[1024,400,"global"],[390,500,"global"],[1024,400,"project"],[390,500,"project"]] as const) {
   test(`Planning editor ${scope} ${width}: fixed actions, failed draft, pending protection and saved version`, {timeout:60000}, async t => {
@@ -25,7 +26,7 @@ for (const [width, height, scope] of [[1024,400,"global"],[390,500,"global"],[10
     await waitFor("!document.querySelector('[data-planning-method-error]').hidden");
     assert.equal(await evaluate("document.querySelector('[name=name]').value"),'持续交付验收');
     assert.match(await evaluate<string>("document.querySelector('[data-planning-method-error]').textContent"),/输入已保留/);
-    const dir='.impeccable/review/closing-v14';await mkdir(dir,{recursive:true});
+    const dir=`${REVIEW_EVIDENCE}/closing-v14`;await mkdir(dir,{recursive:true});
     const shot=await command<{data:string}>('Page.captureScreenshot',{format:'png'},sessionId);await writeFile(`${dir}/planning-error-${scope}-${width}.png`,Buffer.from(shot.data,'base64'));
     await click('[data-planning-edit-form] button[type=submit]');
     assert.equal(await evaluate("document.querySelector('[data-planning-edit-form]').getAttribute('aria-busy')"),'true');

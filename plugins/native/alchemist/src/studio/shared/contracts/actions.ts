@@ -90,7 +90,10 @@ function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title
       subject_kinds: ["alchemist"], permissions: ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : []), ...extraPermissions],
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),
       // Studio results are objects, including card/message unions; MCP can return the same shape without an envelope.
-      output_schema: { ...z.toJSONSchema(output, { target: "draft-7" }), type: "object" } },
+      output_schema: { ...z.toJSONSchema(output, { target: "draft-7" }), type: "object" },
+      // A reply waits on a model; Studio storage keeps each caller's messages consistent, so it need not hold
+      // every other operation of the project in line while the model answers.
+      ...(name === "conversation.send" ? { scheduling: "concurrent" as const } : {}) },
   };
   return { definition, input, output };
 }

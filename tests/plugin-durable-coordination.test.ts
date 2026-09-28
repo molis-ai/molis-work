@@ -116,6 +116,9 @@ function process(file: string, options: {
   const projects: PluginDefinition = {
     manifest: {
       ...baseManifest(PROJECTS),
+      // Ports imply these declarations; the Manifest validator refuses a Plugin without them.
+      permissions: [{ permission: "artifact:write", required: true, reason: "发布当前项目" }],
+      artifacts: { produces: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }], consumes: [] },
       ports: {
         inputs: [],
         outputs: [{ port: "project", artifact_type_id: PROJECT_TYPE, schema_version: 1 }],
@@ -139,6 +142,8 @@ function process(file: string, options: {
   const coding: PluginDefinition = {
     manifest: {
       ...baseManifest(CODING),
+      permissions: [{ permission: "artifact:read", required: true, reason: "读取当前项目" }],
+      artifacts: { produces: [], consumes: [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }] },
       ports: {
         inputs: [{ port: "project", artifact_type_id: PROJECT_TYPE, schema_version: 1 }],
         outputs: [],

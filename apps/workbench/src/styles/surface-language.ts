@@ -4,8 +4,8 @@
  * Two geometries share one set of form internals. Creating or picking an item is a centred modal
  * sized to its content; editing an existing Session's relations stays an edge-attached sheet.
  */
-const EDITOR_PANEL = 'body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker])';
-const CENTERED_EDITOR = 'body.immersive-workbench dialog:is([data-create-dialog], [data-feed-sources-dialog], [data-session-add-dialog], [data-frame-picker])';
+const EDITOR_PANEL = 'body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-session-relations-dialog], [data-frame-picker])';
+const CENTERED_EDITOR = 'body.immersive-workbench dialog:is([data-create-dialog], [data-session-add-dialog], [data-frame-picker])';
 
 export const SURFACE_LANGUAGE_STYLES = `
   .goal-node-toolbar .goal-node-back,
@@ -25,7 +25,6 @@ export const SURFACE_LANGUAGE_STYLES = `
   ${EDITOR_PANEL} > .dialog-shell { border: 0; border-radius: 0; box-shadow: none; }
   ${EDITOR_PANEL} :is(.dialog-body, .feed-task-dialog-body) { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; align-content: start; }
   ${EDITOR_PANEL} .dialog-body { gap: 12px; padding: 16px 20px; }
-  body.immersive-workbench dialog[data-feed-sources-dialog] :is(input, select, textarea):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
   ${EDITOR_PANEL} > form > section { flex: 1; min-height: 0; overflow: auto; align-content: start; gap: 12px; padding: 16px 20px; }
   ${EDITOR_PANEL} > form > header { border-bottom: 1px solid var(--line); }
   ${EDITOR_PANEL} header p { color: var(--muted); font-size: 13px; line-height: 1.6; }

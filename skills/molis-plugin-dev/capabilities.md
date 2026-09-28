@@ -10,7 +10,7 @@
 | `effect` | 调用它对世界做了什么：`read`（只读）、`write`（改了能改回来）、`irreversible`（不能撤销） |
 | `plugin: false` | 即使给了 agent，也不给生成插件 |
 
-未写 `effect` 时按规则推断：query / navigation 是读；能力 id 里有 delete、trash、purge、destroy、erase、wipe、reset、uninstall、remove 这类动词段的是不可撤销；其余是写。名字像删除但其实可撤销（例如移除一个标签）就明写 `effect: "write"`。
+未写 `effect` 时按规则推断：query / navigation 是读；能力 id 里有 delete、trash、purge、destroy、erase、wipe、reset、uninstall、remove 这类动词段的是不可撤销；其余是写。名字像删除但其实可撤销（例如移除一个标签、删除前的预览、移入可恢复的回收站）就明写：`withActionEffect(definition, "write")`；原本靠误判挡在生成插件之外的，同时写 `plugin: false` 保持不开放。
 
 **给生成插件的规则**：带 `agent` 受众的动作自动对 `plugin` 受众开放，除非它不可撤销或写了 `plugin: false`。不可撤销的动作永远不给插件。
 
@@ -20,6 +20,8 @@
 - 会改数据的动作写清 `effect`；不希望被自动化调用的写 `plugin: false`，或不给 `agent`。
 - 输入输出 schema 写完整：生成插件、Agent、MCP 都按它调用和校验，缺字段就等于没法被别人用。
 - 可信身份（actor、项目、安装）从上下文来，不从输入里读。
+- 处理器里等模型或外部服务的，声明 `scheduling: "concurrent"`，并在返回后 `await caller.beforeEffect()`、按读取时的版本提交。
+- 结果回显已存历史的，schema 接受历史上出现过的取值（读取兼容），新写入仍按严格合同校验。结果不合合同时，查询报 `actions.output_invalid`；写动作此时已提交，报 `actions.output_invalid_after_effect`，调用方刷新而不重试。
 
 ## 生成插件用能力时
 

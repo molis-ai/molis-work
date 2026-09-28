@@ -10,7 +10,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 test("Goal document tabs retry lazy loading, restore selection, and keep the current event document", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
-  const { store, origin, before, sessionId, command, evaluate, waitFor, click, reloadPage } = browser;
+  const { store, origin, before, sessionId, command, evaluate, waitFor, click, reloadPage, openGoalWork } = browser;
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -18,6 +18,8 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   await command("Page.bringToFront", {}, sessionId);
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
   await waitFor("document.readyState === 'complete' && " + dom("[data-goal-event-document]"));
+  // A Goal opens on its Frame tab; the event document lives in its workspace view.
+  await openGoalWork();
   assert.equal(await evaluate(dom("[data-goal-event-document]") + ".dataset.goalView"), "V1");
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/V1/event-state*"] }, sessionId);
   await evaluate(`document.querySelector(".goal-more").open = true; document.querySelector('.goal-more [data-event-reader="planning"]').click();`);
@@ -25,7 +27,8 @@ test("Goal document tabs retry lazy loading, restore selection, and keep the cur
   assert.deepEqual(store.snapshot(DEMO_BOARD_ID).goals, before.goals);
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click("[data-event-back]");
-  await waitFor(dom("[data-event-sheet]") + " && !" + dom("[data-event-sheet]") + ".hasAttribute('hidden')");
+  // Back closes the reader layer and returns focus to what opened it (the Goal's 更多 menu), not to a separate sheet.
+  await waitFor("!" + dom("[data-event-reader-root]") + "?.getClientRects().length && document.activeElement?.closest('.goal-more') !== null");
   await reloadPage();
   await waitFor(dom("[data-goal-event-document]") + "?.dataset.goalView === 'V1'");
   await click('.tree-node[data-select-goal="RELEASE"]');
@@ -208,7 +211,9 @@ test("switching Goals while a document is loading still keeps the later selectio
   await click('.tree-node[data-select-goal="RELEASE"]');
   await waitFor("globalThis.__heldDocumentResponse === true");
   await click('.tree-node[data-select-goal="V1"]');
-  await waitFor("document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'V1'");
+  // A single click is applied after the double-click window, and the document still shows V1 meanwhile:
+  // wait until V1 is really the selection before letting the old RELEASE response arrive.
+  await waitFor("document.querySelector('.tree-node[data-select-goal=\"V1\"]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'V1'");
   await evaluate("__releaseDocumentResponse(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]').dataset.goalView"), "V1");
   const after = store.snapshot(DEMO_BOARD_ID);

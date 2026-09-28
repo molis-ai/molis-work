@@ -54,6 +54,20 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 
 成功时退出码为 0，并返回通过校验的 Plugin 身份/版本；它不会启动该 Plugin。开发运行、打包与签名的完整步骤见下方指南。
 
+## 开发要求
+
+- 负责：插件的创建、Manifest 与合同校验、本地调试、打包与签名命令。
+- 不负责：SDK 与插件生命周期的实现。
+- 公开入口：`@molis-ai/molis-work-plugin-cli`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/tooling`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-runtime`。方向：只依赖合同与 plugin-runtime（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - `create` 要求父目录已存在且目标不存在；`pack` 不覆盖输出，拒绝 symlink、越界路径、生命周期脚本与超过 64 MiB 的包。
+  - `validate` 只读校验，不启动插件。
+  - 生成的模板不给未知消费者伪造场景或业务触发。
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-authoring.test.ts tests/plugin-package.test.ts tests/npm-package.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-sample.e2e.test.ts`
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)

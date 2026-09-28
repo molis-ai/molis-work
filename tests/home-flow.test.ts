@@ -33,3 +33,12 @@ test("Home projects arbitrary providers without inferring their business semanti
   assert.deepEqual(summarizeDay(buildHomeDays(now)[3]!, events, labels), { sum: "今天 3 件", lead: "有事项需要处理", me: 2, org: 1 });
   assert.equal(summarizeDay(buildHomeDays(now)[3]!, [], labels).sum, "今天暂无事项");
 });
+test("an event kept on today from an earlier day shows its own date, and today's events show only the time", () => {
+  const yesterdayLate = new Date(2026, 8, 18, 23, 18).toISOString();
+  const events = projectHomeEvents({ now, locale: "zh-CN", events: [row({ id: "pinned", occurred_at: yesterdayLate, placement: "today", needs_attention: true }), row({ id: "recent" })] });
+  assert.equal(events.find(event => event.id === "pinned")?.day, "2026-09-19");
+  assert.equal(events.find(event => event.id === "pinned")?.when, "9/18 23:18");
+  assert.equal(events.find(event => event.id === "recent")?.when, "13:20");
+  // The earlier moment still sorts first; the page draws "now" by time, not by comparing these labels.
+  assert.deepEqual(events.map(event => event.id), ["pinned", "recent"]);
+});

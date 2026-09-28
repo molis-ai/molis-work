@@ -1,5 +1,5 @@
 import type { ExactRef, ModelEvent, Runtime } from "@prologue/sdk";
-import { PrologueInferenceError, type PrologueCredentialInput, type PrologueInferenceClient, type PrologueTextInput, type PrologueTextResult } from "../inference.js";
+import { PrologueInferenceError, isDispatchRefusal, markDispatchRefusal, type PrologueCredentialInput, type PrologueInferenceClient, type PrologueTextInput, type PrologueTextResult } from "../inference.js";
 
 /** Borrows the owning Runtime; never constructs a Host or a second model execution path. */
 export function createPrologueInference(runtime: Runtime,
@@ -20,9 +20,15 @@ export function createPrologueInference(runtime: Runtime,
   };
   const execute = <T>(input: PrologueCredentialInput, signal: AbortSignal, optional: boolean, operation: (ref?: ExactRef<"credential">) => Promise<T>): Promise<T> => (async () => {
     const prepared = await credential(input, signal, optional);
-    const guard = async () => { signal.throwIfAborted(); await prepared.assertCurrent(); signal.throwIfAborted(); await input.beforeDispatch?.(); signal.throwIfAborted(); };
-    await guard();
-    return withDispatchGuard(guard, async () => { const value = await operation(prepared.ref); await guard(); return value; });
+    let refused: Error | undefined;
+    const guard = async () => {
+      try { signal.throwIfAborted(); await prepared.assertCurrent(); signal.throwIfAborted(); await input.beforeDispatch?.(); signal.throwIfAborted(); }
+      catch (error) { if (!signal.aborted && error instanceof Error) refused = markDispatchRefusal(error); throw error; }
+    };
+    try {
+      await guard();
+      return await withDispatchGuard(guard, async () => { const value = await operation(prepared.ref); await guard(); return value; });
+    } catch (error) { throw refused ?? error; }
   })();
   const completeTextResult = (input: PrologueTextInput): Promise<PrologueTextResult> => bounded(input, signal => execute(input, signal, false, async credentialRef => {
     if (!credentialRef) throw new PrologueInferenceError("inference.credential_missing", "模型密钥不可用");
@@ -91,7 +97,7 @@ export function createPrologueInference(runtime: Runtime,
   };
 }
 function safeError(error: unknown): Error {
-  if (error instanceof PrologueInferenceError) return error;
+  if (error instanceof PrologueInferenceError || isDispatchRefusal(error)) return error;
   const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "inference.failed";
   const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" && Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? error.status : undefined;
   return new PrologueInferenceError(code, "模型请求失败，原材料已保留", status);

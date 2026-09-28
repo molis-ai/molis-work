@@ -3,8 +3,9 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { DEMO_BOARD_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-const captures = new URL("../.impeccable/review/home/", import.meta.url);
+const captures = reviewEvidenceUrl("home/");
 
 test("Graph separates lineage selection from opening and starts centered at 100 percent", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t);

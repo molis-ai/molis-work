@@ -39,6 +39,8 @@ test("V3 imported Goal keeps coverage visible and records a current browser note
   await click('[data-goal-event-document]:not([hidden]) [data-event-reader="description"]');
   await waitFor("document.querySelector('[data-event-panel=\"description\"]')?.hidden === false");
   assert.match(await evaluate<string>("document.querySelector('[data-event-panel=\"description\"]').textContent"), /迁移后保留需求覆盖/);
+  // The reader is a layer over the Goal details; close it before recording, as a person would.
+  await click('.detail-toolbar [data-event-back]');
   await click('[data-goal-event-document]:not([hidden]) [data-event-form-open="note"]');
   await waitFor(`document.querySelector('${noteForm}')?.hidden === false`);
   const beforeCursor = await evaluate<number>("Number(document.querySelector('[data-goal-event-document]:not([hidden])')?.dataset.goalEventCursor || 0)");

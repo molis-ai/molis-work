@@ -8,7 +8,8 @@ import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import { withFunctionsService } from "../apps/local-host/src/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-const captures = new URL("../.impeccable/review/home-offer-actions/", import.meta.url);
+import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+const captures = reviewEvidenceUrl("home-offer-actions/");
 
 test("Home renders and executes unknown plugin offers and Inbox status through the common service", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;

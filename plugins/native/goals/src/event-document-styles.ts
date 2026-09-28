@@ -149,6 +149,10 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .event-form-body textarea { max-height: 260px; resize: vertical; }
   .event-form-bottom { flex: none; padding: 10px 24px; border-top: 1px solid var(--line); background: var(--paper); }
   .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 10px; max-height: min(22dvh,120px); overflow: auto; }
+  /* The bottom strip already spaces the actions; the shared form footer's own padding doubled it (70px for a 44px row). */
+  .goal-event-document .event-form-bottom > .event-form-actions { padding: 0; }
+  /* On a very short window the fields come first: the lead under the form title gives way (390×500 left 45px of fields). */
+  @media (max-height: 560px) { .goal-event-document .event-form-heading .form-lead { display: none; } }
   .event-form[aria-busy=true] .event-form-body { opacity: .65; }
   .goal-event-document .event-conflict:not([hidden]) { flex: none; max-height: 25dvh; overflow: auto; }
   .goal-event-document .event-form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; margin: 0; }

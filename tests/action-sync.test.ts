@@ -38,8 +38,9 @@ test("unmarked handlers never start synchronously; declared synchronous output i
   assert.equal(await service.invoke(caller, definition, 1), 1);
   dispose();
   dispose = service.registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, execution: "sync", handle: () => "invalid" }] });
-  assert.throws(() => service.invokeSync(caller, definition, 1), errorCode("actions.output_invalid"));
-  await assert.rejects(service.invoke(caller, definition, 1), errorCode("actions.output_invalid"));
+  // The write already happened: the caller is told so instead of being invited to retry it.
+  assert.throws(() => service.invokeSync(caller, definition, 1), errorCode("actions.output_invalid_after_effect"));
+  await assert.rejects(service.invoke(caller, definition, 1), errorCode("actions.output_invalid_after_effect"));
   dispose();
 });
 

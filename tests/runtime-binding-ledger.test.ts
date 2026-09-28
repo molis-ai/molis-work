@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
 
 
 const context = (id: string) => ({ runtime_id: "codex", stable_work_context_id: id, host_declares_stable: true });
@@ -65,7 +66,8 @@ test("v9 Runtime bindings migrate once with exact identities, projects, actors a
     }
     const db = new Database(data.databasePath);
     try {
-      assert.equal((db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as { value: string }).value, "10");
+      // The v9 sample is upgraded through every later catalog migration, not only the v10 ledger step.
+      assert.equal((db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as { value: string }).value, String(CATALOG_SCHEMA_VERSION));
       const columns = db.prepare("PRAGMA table_info(runtime_context_bindings)").all() as { name: string }[];
       assert.equal(columns.some(({ name }) => name === "project_id"), false);
       const ledger = createContextLedger(db, { authorize: () => true });

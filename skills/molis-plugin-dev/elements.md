@@ -43,7 +43,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 
 ## 个人 vs 项目
 
-Host catalog（`apps/workbench/src/plugin-catalog.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天：Shelf、Lingguang、Functions、Pages、Forms、Dataset、PPT。
+Host catalog（`apps/workbench/src/plugin-catalog.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`）：Cognia、插件创作台、Images、Jelly、Experiments、Shelf、灵光、Characters、Pages、Forms、Dataset、PPT、Alchemist、Workflows。
 
 其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（`PROJECT_PLUGIN_COMPANIONS`）。
 
@@ -86,7 +86,7 @@ Native：构建期装配，Host 注入 HTML primitives。
 方向：人/Agent → 本插件。登记在 `mcp_exports`。
 
 - 每条：`tool_id`、`description`、`input_schema`（object）、`effect`：`read` | `write`。
-- 可选 `audience`（默认 `runtime`）、`scope`：`home`（不绑项目也可用，如 Functions 三项）或默认 `project`。
+- 可选 `audience`（默认 `runtime`）、`scope`：`home`（不绑项目也可用，如判断规则相关动作）或默认 `project`。
 - 禁止 schema 字段：`board_id`、`database_path`、`web_base_url`、`actor_id`、`actor_kind`、`runtime_actor_id`、`submitted_session_id`。
 - 禁止自报对外名和 `enabled`。公开名 `molis_work_v1_<短名>_<tool_id>`。
 - 存量导出只维护已有兼容名称，并须用 `required_actions` 指向真实动作；新能力直接声明 `actions`。
@@ -107,17 +107,18 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 - 输入口默认必选。项目启用时会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。不会永远有生产者就不要声明必选入口。
 - 缺绑定仍然可以 `start`。状态是 `missing`，Host 不会调用 `onUpstreamReady`。整份构建里没有产出者时，解析只记 `port_type_unsatisfiable`，插件不因此进 `blocked`。挡住启动的是必需 Capability、依赖成环，或依赖的插件被挡住。
 - 产品里还没有连线页。`PluginWiringApi.bind` / `selectInputGroup` 在 Runtime 里，测试会调用。Local Host 没有挂 `/api/plugins/:id/ports`。
+- 默认连线只有一张名单：`apps/local-host/src/workspace-plugin-bindings.ts`，只覆盖 Coding、Shelf、Files、Git、Diff、Text stats 之间的端口。新插件的输入口不会自动接上，也不要往名单里加自己的行；需要跨插件取内容时优先走公开动作或 Capability。等有第三方端口插件时再由 Manifest 声明首选来源（specs/repository-systematic-review D-04）。
 - 输出口：`services.outputs.publish`、`invalidate(port, 给人看的原因)`、`retain(引用)`。同一轮输入是否算一组，由 Host 创建 client 时附上 `scope_key`。`publish` 参数里没有这个字段。
 - `input_groups`：组之间换着用；选中的那一组端口生效，其余不绑也不算失败。
 - 完整输入一次送达 `onUpstreamReady`；失效走 `onUpstreamUnavailable`。Host 不投递半套。
 
-## 插件事件总线（不是 Functions「事件去向」）
+## 插件事件总线（不是判断场景）
 
 三件都叫「事件」，别混：
 
 | 叫法 | 是什么 | 给谁 |
 | --- | --- | --- |
-| Functions「事件去向」 | 首页 / Inbox / Feed 上判断亮哪颗按钮 | `function_scenes` |
+| 判断场景 | 首页 / Inbox / Feed 上判断亮哪颗按钮 | `action_scenes` |
 | 插件事件总线 | 插件之间打招呼 | Manifest `events` + `onEvent` |
 | Integration Signal | 外部世界进来的消息 | Connector → Feed Item |
 

@@ -67,6 +67,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
         dropped:card({id:'c3',phase:'failed',stop_reason:'MODEL_NETWORK_FAILED: terminated'},true),
         server:card({id:'c4',phase:'failed',stop_reason:'MODEL_HTTP_ERROR: The model provider rejected the request (500).'},true),
         denied:card({id:'c5',phase:'failed',stop_reason:'MODEL_HTTP_ERROR: The model provider rejected the request (401).'},true),
+        refused:card({id:'c6',phase:'failed',stop_reason:'EFFECT_NOT_AUTHORIZED: The App refused this model dispatch before sending: Character disabled'},true),
         interrupted:card({id:'d',phase:'reconcile-required',stop_reason:'运行中断'},true),
         done:card({id:'e',phase:'completed'},true),
         stalled:card({id:'f',phase:'completed',turns:[{kind:'user',text:'改 README'},{kind:'assistant',text:'我先读 README.md 确认小节位置。'}]},true),
@@ -82,6 +83,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(resume.dropped, /^从断点继续\|这一轮没有完成\|和模型服务的连接中断了：/, "流到一半断开说成连接中断");
     assert.match(resume.server, /^从断点继续\|这一轮没有完成\|模型服务暂时出错：这是服务方的问题，不是你的设置/, "5xx 不让人去查自己的设置");
     assert.match(resume.denied, /^从断点继续\|这一轮没有完成\|模型服务拒绝了凭据：/, "401 指向密钥");
+    assert.match(resume.refused, /^从断点继续\|这一轮没有完成\|这一轮的授权已失效：.*没有发出任何内容.*\s*EFFECT_NOT_AUTHORIZED/, "发出前被拒不说成网络问题");
     const quiet = await page.evaluate<{ early: boolean; late: string; tool: boolean; heard: boolean }>(`(()=>{
       const timeline=(${createCodingTimeline.toString()})();
       const block=document.createElement('section');document.body.append(block);

@@ -20,3 +20,19 @@ test("release collection resolves children of linked ESM packages from their rea
   assert.deepEqual(packages.map(value => value.name), ["inner", "outer"]);
   assert.equal(packages.find(value => value.name === "inner")?.directory, await realpath(join(store, "inner")));
 });
+
+test("a wildcard exports entry cannot replace a dependency's own manifest with a nested module-type file", async t => {
+  // Shape of @modelcontextprotocol/sdk: "./*" maps package.json to dist/cjs/package.json ({ "type": "commonjs" }).
+  const root = await mkdtemp(join(tmpdir(), "wildcard-release-deps-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const sdk = join(root, "node_modules", "@scope", "sdk");
+  await mkdir(join(sdk, "dist", "cjs"), { recursive: true });
+  await mkdir(join(sdk, "dist", "esm"), { recursive: true });
+  await writeFile(join(sdk, "package.json"), JSON.stringify({ name: "@scope/sdk", version: "1.30.1", type: "module",
+    exports: { ".": { import: "./dist/esm/index.js", require: "./dist/cjs/index.js" }, "./*": { import: "./dist/esm/*", require: "./dist/cjs/*" } } }));
+  await writeFile(join(sdk, "dist", "cjs", "package.json"), JSON.stringify({ type: "commonjs" }));
+  await writeFile(join(sdk, "dist", "cjs", "index.js"), "module.exports = {};\n");
+  await writeFile(join(sdk, "dist", "esm", "index.js"), "export {};\n");
+  const packages = await collectRuntimeDependencies(join(root, "package.json"), { dependencies: { "@scope/sdk": "1.30.1" } });
+  assert.deepEqual(packages.map(value => [value.name, value.version, value.directory]), [["@scope/sdk", "1.30.1", await realpath(sdk)]]);
+});

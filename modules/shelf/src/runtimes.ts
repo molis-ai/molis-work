@@ -120,20 +120,22 @@ export function readCliHelp(executable: string): string {
   const cached = HELP_CACHE.get(executable);
   if (cached !== undefined) return cached;
   const help = runCapture(executable, ["--help"]);
-  HELP_CACHE.set(executable, help);
-  return help;
+  // A probe that timed out or could not start says nothing about the CLI: ask again next time
+  // instead of reporting "no headless entry" until the process restarts.
+  if (help.completed) HELP_CACHE.set(executable, help.text);
+  return help.text;
 }
 
 export function supportsWorkspaceSandbox(executable: string): boolean {
   const cached = SANDBOX_CACHE.get(executable);
   if (cached !== undefined) return cached;
-  const text = runCapture(executable, ["exec", "--help"]);
-  const supported = text.includes("--sandbox") && text.includes("workspace-write");
-  SANDBOX_CACHE.set(executable, supported);
+  const probe = runCapture(executable, ["exec", "--help"]);
+  const supported = probe.text.includes("--sandbox") && probe.text.includes("workspace-write");
+  if (probe.completed) SANDBOX_CACHE.set(executable, supported);
   return supported;
 }
 
-function runCapture(executable: string, args: readonly string[]): string {
+function runCapture(executable: string, args: readonly string[]): { text: string; completed: boolean } {
   try {
     const result = spawnSync(executable, [...args], {
       timeout: 3_000,
@@ -141,9 +143,9 @@ function runCapture(executable: string, args: readonly string[]): string {
       maxBuffer: 4 * 1024 * 1024,
       stdio: ["ignore", "pipe", "pipe"],
     });
-    return `${result.stdout ?? ""}${result.stderr ?? ""}`;
+    return { text: `${result.stdout ?? ""}${result.stderr ?? ""}`, completed: !result.error && result.status !== null };
   } catch {
-    return "";
+    return { text: "", completed: false };
   }
 }
 

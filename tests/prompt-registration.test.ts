@@ -3,6 +3,7 @@ import test from "node:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
+import { UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -66,6 +67,8 @@ test("Host modules reach a model only through the register, apart from the trans
   });
   assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
   for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);
+  // Every exception that is not the transport itself is shown to developers too, with the same reason.
+  assert.deepEqual(UNREGISTERED_MODEL_CALLS.map(call => call.owner_id), ["io.molis.work.alchemist"], "过渡清单与开发者诊断里的“还没有登记的模型调用”要一致");
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {

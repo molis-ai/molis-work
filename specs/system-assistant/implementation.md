@@ -41,6 +41,7 @@
 - 按推荐（用户授权）· 直接调用模型的插件：插件在包内声明“指令 Prompt”（标识、版本、用途、正文），调用时交给 Host 登记的引用与数据，由 Host 取有效正文拼接；过渡期尚未迁移的调用列在自动检查的清单里并写明原因，逐个清零，不允许新增。
 - 按推荐（用户授权）· Character 设置：系统与插件的角色列为“系统 Character / 插件 Character”（名称、用途、来源版本、组成它的 Prompt），可改的是文字；角色能做什么（目录、工具、审批）由 Host 在代码里强制，界面写明改文字不改权限。用户自己的 Character 沿用现有管理。
 - 按推荐（用户授权）· 执行记录：Agent 轮次的冻结记录里写明每段 Prompt 用的是默认版还是用户版（含版本号）；直接调用记在登记服务的使用记录里（每段保留最近 200 次）。
+- 按推荐（用户授权）· 插件创作台生成的插件：给模型的要求在操作代码里 `export const prompts = [...]`（字面量）声明、`model.generate` 按 id 调用；检查 G4 拒绝未声明的 id、计算出的 id 与仍传 `instructions` 的调用；发布时把声明随版本存下，安装/升级/回滚/启用登记，停用标“已停用”，卸载撤下登记但保留用户修改（重装后接着用）。登记版本按“这段文字最早出现的发布版本”算，文字没变的升级不提示“默认已更新”。此前生成的版本仍能用 `instructions` 运行，诊断里写明原因、重新发布一次即可登记。
 
 ## 3. 分期
 
@@ -237,5 +238,8 @@
   2. 在设置里给“主线设计师”追加“每个候选的 title 都以「暖·」开头”，保存为我的版本；在插件创作台提需求，运行记录版本为 `designer/3.2.0+user.1+molis-plugin-dev.design@…`，登记里最近使用为“你的版本 #1”；回答澄清问题后三个候选标题都是「暖·…」。
   3. 恢复默认后再建一个，运行记录版本回到 `designer/3.2.0+…`（无 user），候选标题不再带「暖·」。
 - 自动化：`tests/prompt-registration.test.ts`（5 项）、`tests/agent-built-plugins-workflow.test.ts` 新增“设计师用用户版、记录版本、恢复默认后回到默认”；受影响的 78 个测试文件 615 项中 9 项是测试替身按字符串读 Prompt，改用 `modelPromptText` 后全部通过；根 `tsc --noEmit` 通过。
-- 未完成：开发者诊断（每个插件登记了什么、哪些没生效）；安装与生成的插件随生命周期登记（AC43）；Alchemist 的 systemPrompt 迁移。
+- 生成插件随生命周期登记（AC43、AC45，本次）：`apps/local-host/src/plugin-builder/prompts.ts`（读取声明、G4 规则、版本换算、登记/撤下、调用时解析）；`model.generate` 输入改为 `{ prompt, input }`（旧的 `instructions` 仍接受）；发布写 `prompts.json`；设置里标“插件创作台生成”“已停用，暂不会被调用”。Skill `generated-ai.md`、`generated-code.md` 与能力说明改为声明式写法。
+- 开发者诊断（本次）：`GET /api/agent-definitions/diagnostics`，“Prompt 与 Character”页底部“开发者诊断”（设置·诊断页有入口）：每个来源登记了几段角色组成/调用指令/几个 Character/你改过几段，以及未生效原因（插件已停用、你的版本基于旧默认、生成于登记之前、登记后还没被调用过）；另列“还没有登记的模型调用”（现为 Alchemist，与门禁的过渡清单一致）。
+- 未完成：Alchemist 的 systemPrompt 迁移；从外部安装（非创作台生成、带 agent 块）的插件还没有安装入口，出现时沿用同一登记接口。
+- 顺带修掉（main 上同样存在）：插件创作台的能力目录在真实 Web 里是空的——工作台页面先用不带 `inspect` 的动作端口创建了创作台实例并被缓存，之后设计 Agent 看到的能力列表为空，只能用自有存储，要调模型的设计在校验时报“项目能力目录中没有：model.generate”。改为 `web-request.ts` 的项目动作端口本身带 `inspect`，`capabilityCatalog` 在没有 `inspect` 时退回 `discover`（测试 `agent-built-plugins-catalog` 新增一项，旧代码下失败）。
 - 浏览器用例（2026-09-28，搜索会话报告后与 origin/main 21cdfbf8 基线比对）：`global-ui-interaction`、`goals-narrow-navigation`、`goals-tree` 在本分支失败而基线通过——是本分支手机宽度规则把底栏搜索按钮藏掉了；改为只留图标、输入时才隐藏后三者 6/6 通过。`product-experience-polish` 的“产品旅程”（第 97 行，Cognia 打开模型设置得到 404）在基线上同样失败，不是本分支引入。

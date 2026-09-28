@@ -180,7 +180,10 @@ export async function handleMolisWorkWebRequest(
         }
 
         const codingServices: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn"> = {
-          actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id },
+          // Metadata inspection travels with the directory: whichever page opens the Plugin Builder first (the workbench
+          // render, or the studio itself), its capability catalog is the project's whole directory, not an empty list.
+          actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id,
+            inspect: caller => localHost.inspectActions(caller, hostReference) },
           characterSpawn: request => ptyHost.spawn(request),
           characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
           homeDirectory: serverOptions.homeDirectory,
@@ -199,7 +202,7 @@ export async function handleMolisWorkWebRequest(
         if (await handleAgentStudioHttp(request, response, url, { store, boardId: options.boardId, homeDirectory: serverOptions.homeDirectory,
           routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
           models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user",
-          actions: { ...codingServices.actions, inspect: caller => localHost.inspectActions(caller, hostReference) },
+          actions: codingServices.actions,
           // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
           ...(options.project ? { enablePlugin: async (pluginId: string) => {
             const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);

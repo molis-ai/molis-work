@@ -92,11 +92,14 @@ export const tests: SandboxTest[] = [
   },
   'notes.expand': {
     source: `import type { SandboxJson, SandboxSdk } from '@molis/plugin-sdk';
+export const prompts = [
+  { id: 'expand', title: '展开笔记', purpose: '把一条笔记展开成一两句具体的说明', body: '把这条笔记展开成一两句具体的说明，只输出说明本身。' },
+] as const;
 export default async function operation(input: SandboxJson, sdk: SandboxSdk): Promise<SandboxJson> {
   const { id } = input as { id: string };
   const note = await sdk.storage.get('note:' + id) as { id: string; text: string } | null;
   if (!note) throw Object.assign(new Error('笔记不存在'), { code: 'not_found' });
-  const { text } = await sdk.capability.call('model.generate', { instructions: '把这条笔记展开成一两句具体的说明', input: note.text }) as { text: string };
+  const { text } = await sdk.capability.call('model.generate', { prompt: 'expand', input: note.text }) as { text: string };
   await sdk.storage.set('note:' + id, { ...note, expansion: text });
   return { id, expansion: text };
 }
@@ -176,7 +179,7 @@ export function agentStudioFixture(pace = 1) {
   return {
     models: async () => [{ provider_id: 'fixture', model_id: 'fixture-prologue', label: FIXTURE_MODEL }],
     /** Stands in for the person's real model when they try or use the plugin; checks and acceptance use the catalog stand-in. */
-    generate: async (_pluginId: string, input: { instructions: string; input: string }) => { await pause(600); return { text: '（预览替身模型）' + input.input + '：先回忆，再对照。' }; },
+    generate: async (_pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await pause(600); return { text: '（预览替身模型）' + input.input + '：先回忆，再对照。' }; },
     agents: (build: AgentBuild) => fixtureAgent(build),
     choice: { selectionAvailable: () => true, async choose(question: { candidates: readonly { key: string }[] }) {
       await pause(700);

@@ -11,8 +11,11 @@ import { assertMatches, SandboxError, type SandboxLimits, type SandboxServices }
 import { studioCapability, type StudioCapability } from '@molis-ai/molis-work-plugin-builder';
 
 export interface CapabilityImplementations {
-  /** A tool-less model call with the plugin's own instructions, on the model the person configured. */
-  generate(pluginId: string, input: { instructions: string; input: string }, signal: AbortSignal): Promise<{ text: string }>;
+  /**
+   * A tool-less model call on the model the person configured, with one of the plugin's declared prompts (by id, as
+   * the person left it) or, from plugins generated before prompts were declared, inline instructions.
+   */
+  generate(pluginId: string, input: ModelGenerateInput, signal: AbortSignal): Promise<{ text: string }>;
   /** The project's goals, reached through the Goals plugin's own actions as this plugin installation. */
   goals?: {
     list(identity: Readonly<SandboxIdentity>): Promise<Array<{ id: string; title: string; status: string }>>;
@@ -30,6 +33,7 @@ export interface CapabilityImplementations {
   };
 }
 type CapabilityService = NonNullable<SandboxServices['capability']>;
+export interface ModelGenerateInput { prompt?: string; instructions?: string; input: string }
 /** Real model calls one plugin identity may make per minute. */
 export const MODEL_CALLS_PER_MINUTE = 20;
 
@@ -58,8 +62,7 @@ export function hostCapabilities(implementations: CapabilityImplementations, liv
         const recent = (windows.get(key) ?? []).filter(at => now - at < 60_000);
         if (recent.length >= MODEL_CALLS_PER_MINUTE) throw new SandboxError('RATE_LIMITED', '这个插件一分钟内调用模型的次数太多，请稍后再试');
         recent.push(now); windows.set(key, recent);
-        const request = input as { instructions: string; input: string };
-        output = await implementations.generate(context.identity.pluginId, { instructions: request.instructions, input: request.input }, context.signal) as unknown as SandboxJson;
+        output = await implementations.generate(context.identity.pluginId, input as unknown as ModelGenerateInput, context.signal) as unknown as SandboxJson;
       } else if (id.startsWith('reminders.')) {
         const reminders = implementations.reminders;
         if (!reminders) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这个项目还不能设置提醒');

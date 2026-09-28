@@ -38,6 +38,14 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
     execution: "workspace-write", workspace: "required", prompt_ids: ["builder-implement", "builder-revise", "builder-repair", "builder-acceptance"] } },
 ];
 
+/**
+ * Model calls that still send text nobody can see in “Prompt 与 Character”, shown in developer diagnostics. Keep in
+ * step with the transitional list in `tests/prompt-registration.test.ts`.
+ */
+export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [
+  { owner_id: "io.molis.work.alchemist", title: "炼金术士", reason: "工作室按每个任务在插件内拼出 systemPrompt，还没有拆成可登记的固定指令；迁移单列" },
+];
+
 /** Built-in Plugins whose manifest Agent block is not what their runs use; their real prompts are registered above instead. */
 export const UNUSED_MANIFEST_AGENTS: ReadonlySet<string> = new Set([BUILDER_PLUGIN_ID]);
 

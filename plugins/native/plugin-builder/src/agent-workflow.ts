@@ -10,7 +10,7 @@ import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, typ
 import { contractEffects, validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './validation.js';
 import { expandDesign, normalizeProposal } from './agent-authoring.js';
-import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease } from './agent-model.js';
+import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease, PluginPrompt } from './agent-model.js';
 
 export interface AgentBuilderPorts {
   projectId: string;
@@ -47,7 +47,7 @@ export interface AgentBuilderPorts {
   browserAcceptance(build: AgentBuild, signal: AbortSignal): Promise<NonNullable<AgentBuild['browserResult']>>;
   /** Shared source modules already in the build (src/*.ts other than the operation files and the entry). */
   sources?(build: AgentBuild): Promise<string[]>;
-  publish(build: AgentBuild, manifest: BuildManifest, bundlePath: string, version: number): Promise<{ directory: string; bundlePath: string; packagePath: string }>;
+  publish(build: AgentBuild, manifest: BuildManifest, bundlePath: string, version: number): Promise<{ directory: string; bundlePath: string; packagePath: string; prompts?: PluginPrompt[] }>;
   installations(): Promise<unknown[]>;
   lifecycle(action: 'install' | 'upgrade' | 'rollback' | 'disable' | 'enable' | 'uninstall', release: AgentRelease, grants?: unknown): Promise<void>;
 }

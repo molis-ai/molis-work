@@ -6,7 +6,7 @@ import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/
 import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
-  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView,
+  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -70,6 +70,8 @@ export class AgentDefinitions {
   }
 
   unregister(ownerId: string): void { this.owners.delete(ownerId); }
+
+  hasPrompt(ownerId: string, promptId: string): boolean { return Boolean(this.owners.get(ownerId)?.prompts.some(prompt => prompt.prompt_id === promptId)); }
 
   registrations(): AgentDefinitionRegistration[] { return [...this.owners.values()].map(value => structuredClone(value)); }
 
@@ -172,6 +174,24 @@ export class AgentDefinitions {
     const edited = this.override(keyOf(ownerId, promptId));
     this.recordUse({ key: keyOf(ownerId, promptId), version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
     return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };
+  }
+
+  /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */
+  diagnostics(unregistered: readonly AgentUnregisteredCall[] = []): AgentDefinitionsDiagnostics {
+    const used = new Set((this.db.prepare("SELECT DISTINCT key FROM prompt_uses").all() as Array<{ key: string }>).map(row => row.key));
+    const owners = [...this.owners.values()].map(owner => {
+      const views = owner.prompts.map(prompt => this.view(owner, prompt));
+      const issues: AgentDefinitionsDiagnostics["owners"][number]["issues"] = [];
+      if (owner.source.kind === "plugin" && owner.source.state === "disabled") issues.push({ level: "warning", text: "插件已停用：这些 Prompt 暂时不会被调用，你的修改会保留" });
+      for (const note of owner.notes ?? []) issues.push({ level: "warning", text: note });
+      const stale = views.filter(view => view.default_updated);
+      if (stale.length) issues.push({ level: "warning", text: `${stale.length} 段你的版本基于旧默认，默认已更新：${stale.map(view => view.title).join("、")}` });
+      const idle = views.filter(view => !used.has(view.key));
+      if (idle.length) issues.push({ level: "info", text: `${idle.length} 段登记后还没有被调用过（功能可能还没用到）：${idle.map(view => view.title).join("、")}` });
+      return { owner_id: owner.owner_id, source: structuredClone(owner.source), prompts: views.filter(view => view.kind === "agent").length,
+        instructions: views.filter(view => view.kind === "instruction").length, roles: owner.roles.length, edited: views.filter(view => view.effective === "user").length, issues };
+    });
+    return { owners, unregistered: unregistered.map(item => ({ ...item })) };
   }
 
   uses(key: string, limit = 20): AgentPromptUse[] {

@@ -1,4 +1,4 @@
-import { ActionError, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
   ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput,
@@ -23,10 +23,10 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[]): ActionDefinition<I, O> {
+  output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView): ActionDefinition<I, O> {
   // The existing HTTP surface never serialized Shelf: recipes run for minutes while the panel keeps reading and cancelling.
   return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
-    scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output } };
+    scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) } };
 }
 
 export interface ShelfAdmitActionInput {
@@ -51,7 +51,8 @@ export const shelfActions = {
     object({ text: { type: "string", maxLength: 2_000_000, title: "文字" }, title: { type: "string", maxLength: 200, title: "标题" }, capture_pages: { type: "boolean", title: "抓取其中的网页" },
       filename: { type: "string", maxLength: 500, title: "文件名" }, bytes_base64: { type: "string", maxLength: 128 * 1024 * 1024, title: "文件内容（Base64）" }, mime: { type: "string", maxLength: 200, title: "文件类型" },
       origin_realpath: { type: "string", maxLength: 4096, title: "原文件位置", description: "仅本机界面拖入文件时提供，用于任务前核对原件未变" } }, []),
-    object({ item }), write, SHARED),
+    object({ item }), write, SHARED, { summary: "已接收材料", title_pointer: "/item/name",
+      link: { label: "打开材料", href_template: "/projects/{project_id}/?openPlugin=shelf&openItem={/item/item_id}&openTitle={/item/name}" } }),
   admitFolder: define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[]; origin_realpath?: string }, { item: ShelfItemRecord }>("items.admit-folder", "放进文件夹",
     "把本机界面选中的整个文件夹复制进置物架", "command",
     object({ name: { type: "string", minLength: 1, maxLength: 500 }, entries: { type: "array", minItems: 1, items: object({ relative: { type: "string", minLength: 1, maxLength: 1000 },

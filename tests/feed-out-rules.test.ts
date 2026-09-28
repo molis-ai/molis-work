@@ -495,8 +495,8 @@ test("Feed rule preview matches recent source messages without writes or backfil
       definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_BOARD_ID, item => item) });
     const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
       actions: bindActionClient(service, () => ({ actor_id: "preview", project_id: "preview-project", audience: "user", permissions: ["feed:read"] })),
-      boardId: DEMO_BOARD_ID, routePrefix: "", feed: () => data.feed, sources: unused, connectors: unused,
-      changed: unused, hydrateItem: unused, hydrateSnapshot: unused, sourceCatalog: () => [], renderWorkbench: unused, renderDetail: unused, promote: unused,
+      routePrefix: "", inboxEntries: unused, connectors: unused,
+      changed: unused, hydrateItem: unused, hydrateSnapshot: unused, sourceCatalog: () => [], renderWorkbench: unused, renderDetail: unused,
     }));
     const writesBefore = data.store.db.prepare("SELECT total_changes() AS n").get();
     const before = data.feed.snapshot(DEMO_BOARD_ID);

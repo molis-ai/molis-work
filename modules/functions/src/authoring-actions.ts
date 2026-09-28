@@ -1,6 +1,6 @@
 import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA, withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRecord, FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
 import { assertReadyToPublish } from "./store.js";
 
@@ -55,6 +55,7 @@ export const functionAuthoringActions = {
 
 /** Contextual reads are composed by the Host from the same authorized action and scene clients. */
 export const functionContextActions = {
+  history: define<Record<string, never>, { judgments: JudgmentRecord[] }>("history", "判断调用记录", "读取当前项目或个人范围内保存的判断结果；不包含其他项目的历史。", input({}), { type: "object", properties: { judgments: { type: "array", items: { type: "object", required: ["judgment_id", "subject", "outcome"] } } }, required: ["judgments"] }),
   targets: define<{ id: string }, { targets: readonly ActionSceneTarget[] }>("targets", "判断规则可配置位置", "读取消费方提供的真实配置位置、原绑定及修订号；不会创建规则或授予权限。", input({ id }, ["id"]), ACTION_SCENE_TARGETS_SCHEMA),
   configure: define<{ id: string; scene_id: string; scene_version: number; provider_id: string; binding_id: string; expected_revision: string | null; enabled: boolean }, { ok: true }>("configure", "配置判断使用位置", "在消费方提供的位置启用、替换或停用当前规则；按原修订号写入，过期页面不能覆盖新配置。", input({
     id, scene_id: id, scene_version: { type: "integer", minimum: 1 }, provider_id: id, binding_id: id, expected_revision: nullableText, enabled: { type: "boolean" },

@@ -1,4 +1,4 @@
-import type { WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionResultPresentation, WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Workflows: pure data rules. No storage, no network, no plugin internals. */
 
@@ -112,6 +112,8 @@ export interface WorkflowStep {
   /** An action step keeps what it received (the next handoff reads it) and what the action returned. */
   readonly payload?: WorkflowPayload;
   readonly result?: unknown;
+  readonly result_presentation?: ActionResultPresentation;
+  readonly result_truncated?: true;
 }
 
 export function handoffKey(instance: Pick<WorkflowInstance, "instance_id">, from: number): string {
@@ -390,7 +392,7 @@ export function advanceInstance(
   handoff: WorkflowHandoff,
   arrived: WorkflowItemRef,
   at: string,
-  arrival: { readonly payload?: WorkflowPayload; readonly result?: unknown } = {},
+  arrival: { readonly payload?: WorkflowPayload; readonly result?: unknown; readonly result_presentation?: ActionResultPresentation; readonly result_truncated?: true } = {},
 ): WorkflowInstance {
   if (instance.status !== "active") throw new WorkflowError("workflows.invalid", "这一次已经结束");
   if (from !== instance.current) throw new WorkflowError("workflows.conflict", "这一步已经交过了，请刷新后再看");
@@ -399,7 +401,8 @@ export function advanceInstance(
   const steps = instance.steps.map((step, index): WorkflowStep => {
     if (index === from) { const { pending: _pending, ...rest } = step; return { ...rest, status: "done", handoff }; }
     if (index === next) return { ...step, status: next === instance.steps.length - 1 ? "done" : "current", item: arrived, arrived_at: at,
-      ...(arrival.payload ? { payload: arrival.payload } : {}), ...(arrival.result !== undefined ? { result: arrival.result } : {}) };
+      ...(arrival.payload ? { payload: arrival.payload } : {}), ...(arrival.result !== undefined ? { result: arrival.result } : {}),
+      ...(arrival.result_presentation ? { result_presentation: arrival.result_presentation } : {}), ...(arrival.result_truncated ? { result_truncated: true } : {}) };
     return step;
   });
   const finished = next === instance.steps.length - 1;

@@ -2,6 +2,7 @@ import type { IntelligenceIntentClientV1, SearchIntentExactResultV1 } from "@ade
 import type { RssFetchReceipt } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
 import type { FeedApplication } from "./application.js";
+export type FeedSourceSyncInput = { idempotencyKey: string } & FeedSyncExecution;
 export type IntelligenceCollectRequest = Parameters<IntelligenceIntentClientV1["executeExact"]>[0];
 export type IntelligenceCollectResult = Readonly<Pick<SearchIntentExactResultV1, "operationId" | "intentFingerprint" | "outcome" | "requirementMet" | "materials" | "receipts" | "warnings" | "budget">>;
 export interface PublicFeedRuntime {
@@ -29,7 +30,7 @@ export interface FeedSyncExecution {
 export interface FeedSourcePorts {
   /** Host-wide lease shared by every service instance for the same database/source. */
   acquireSync?(boardId: string, sourceId: string): () => void;
-  syncRepository?(source: FeedSourceRecord, input: FeedSyncExecution & { idempotencyKey: string }): Promise<FeedSourceSyncResult>;
+  syncRepository?(source: FeedSourceRecord, input: FeedSourceSyncInput): Promise<FeedSourceSyncResult>;
   feed: FeedApplication;
   providers: FeedSourceProviders;
   createRuntime(source: FeedSourceRecord): PublicFeedRuntime;

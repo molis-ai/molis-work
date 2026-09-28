@@ -4,7 +4,6 @@ import {
   PluginWakeupIndex,
   createScheduleService,
   registerScheduleCapabilities,
-  scheduleFingerprint,
   type ScheduleService,
   type ScheduleSqliteDatabase,
 } from "@molis-ai/molis-work-service-scheduler";
@@ -14,7 +13,6 @@ import {
   handleScheduleTaskWakeup,
   migrateScheduleConversationTasks,
   rescheduleEnabledConversationTasks,
-  scheduleConversationFingerprint,
   type ScheduledTaskRunner,
 } from "@molis-ai/molis-work-plugin-schedule";
 
@@ -78,13 +76,6 @@ export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date)
       });
     },
   };
-}
-
-export function scheduleViewFingerprint(db: ScheduleSqliteDatabase): string {
-  return JSON.stringify({
-    jobs: scheduleFingerprint(db),
-    tasks: scheduleConversationFingerprint(db),
-  });
 }
 
 export function registerHostScheduleCapabilities<Context>(

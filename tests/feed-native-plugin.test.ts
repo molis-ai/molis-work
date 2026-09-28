@@ -626,10 +626,8 @@ test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", as
   };
   const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
     actions: { discover: unused, invoke: unused },
-    boardId: "board",
     routePrefix: "",
-    feed: unused,
-    sources: unused,
+    inboxEntries: unused,
     connectors: unused,
     changed: unused,
     hydrateItem: unused,
@@ -637,7 +635,6 @@ test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", as
     sourceCatalog: () => [],
     renderWorkbench: () => "<div data-feed-workbench></div>",
     renderDetail: unused,
-    promote: unused,
   }));
   const rejected = await routes.handle({
     method: "GET",

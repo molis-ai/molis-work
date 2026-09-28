@@ -34,7 +34,7 @@ for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test
     const source = (await actions.invoke(feedSourceActions.register, { kind: "web_query", query: "fixture" })).source;
     const id = source.source_id;
     const pending = actions.invoke(feedSourceActions.sync, { source_id: id, idempotency_key: "guard-request-1" });
-    const rejected = assert.rejects(pending, change === "paused" || change === "edited" ? { code: "feed_source_changed" } : change === "revoked" ? { code: "fixture.revoked" } : undefined);
+    const rejected = assert.rejects(pending, change === "paused" ? { code: "feed_source_paused" } : change === "edited" ? { code: "feed_source_changed" } : change === "revoked" ? { code: "fixture.revoked" } : undefined);
     await entered.promise;
     // Another factory and another connection to the same file must share the lease.
     const other = new LocalProjectDatabase(path);

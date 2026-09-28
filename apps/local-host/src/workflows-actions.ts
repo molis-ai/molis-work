@@ -1,6 +1,7 @@
 import { bindActionClient, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, workflowsManifest } from "@molis-ai/molis-work-plugin-workflows";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
 
 /** Workflows are stored in the Home but belong to one project; each station is reached through that project's action client. */
@@ -16,6 +17,7 @@ export function workflowsActionProvider(home: string, projectId: string, actions
       withStore: async run => { const store = openWorkflowsStore(home); try { return await run(store); } finally { store.close(); } },
       content: caller => createWorkflowContentPorts(bindActionClient(actions, () => caller)),
       actions: caller => ({ discover: async () => actions.discover(caller), invoke: (reference, input) => actions.invoke(caller, reference, input) }),
+      assertInput: assertActionInput,
       aiAvailable: () => Boolean(model()),
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();

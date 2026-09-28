@@ -1,6 +1,6 @@
 # Prologue SDK 构建来源
 
-**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-network-dispatch.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
 
 ```bash
 git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
@@ -8,7 +8,21 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
+当前依赖为 `prologue-sdk-0.0.0-rc.1-network-dispatch.tgz`（2026-09-28）。沿用 claims 的全部能力，新增可信 App 的 `beforeNetworkDispatch`，覆盖 Node Host 每次真实 fetch（包括 MCP 和重定向）；现有 `beforeModelDispatch` 仍只针对模型，两者同时提供时都执行。回调可拒绝当前请求，不能放宽 Host 网络政策。
+
+- 源仓库：<https://github.com/molis-ai/prologue>。源码基线为已提交的 `af7375c74a2e551184c443e2a5e06e105168fed3`；增量 [network-dispatch.patch](network-dispatch.patch) 包含其后已提交的 `03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2`（拒绝不算网络故障、不重试或切换模型）及本轮未提交的网络回调、MCP 取消收尾和真实 HTTP 回归。没有纳入其他 SDK 工作树的未提交功能。
+- MCP 在尚未真实派发时取消，按 Host inspect 的事实返回 `CANCELLED`，不发送多余取消通知；已派发或事实不可读仍保留需对账状态。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e`。
+- 重建：检出 `af7375c7`，应用 `network-dispatch.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`；在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz`。补丁已在干净 af7375c7 工作树检查可应用。
+- SDK 构建通过；网络授权、拒绝语义、MCP HTTP、有界推理 **32/32** 通过。518 个 dist 文件在构建、包和实际安装中逐文件一致。SDK 全量测试类型检查仍有 `agent-compaction-public.test.ts` 两处旧参数错误；干净 af7375c7 上同样复现，不能称为全量类型通过。
+- 应用侧把同一动作和父运行的持续授权按调用作用域传到该回调；取消信号通过 SDK 公开 ToolAbort 口进入传输。真实授权/撤权、取消、恢复与应用回归记录见 [main 复查报告](../../specs/action-architecture/review-2026-09-28.md)。
+
+源码补丁随本仓库保存，未另行提交到 Prologue 源仓库或发布 npm；旧包可从 Git 历史恢复。
+
+
+## 上一依赖：dispatch-denied
+
+上一依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
 
 - Node Host 的 `beforeModelDispatch` 是 App 的撤权复核（授权被收回、Character 被停用、密钥变了）。它拒绝时一个字节都没出本机，原来却被 agent loop 与 session run 两处 `mapNetworkError` 改成 `MODEL_NETWORK_FAILED`，消费方据此提示"检查网络"；带备选目标时还会换到下一个目标再被拒一次。
 - 现在：复核抛错（不是取消、不是等待超时）时这次调用记为 failed，报 `EFFECT_NOT_AUTHORIZED`，消息保留 App 给的原因（`The App refused this model dispatch before sending: <原因>`）；两处 `mapNetworkError` 原样传出这个码；被拒后不换备选目标。取消和超时保持原来的含义。图片、TypeSafe 那条路本来就原样抛出 Host 的错误，随之拿到新码。

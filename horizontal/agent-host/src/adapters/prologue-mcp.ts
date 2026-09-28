@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { redactMcpError, type ExactRef, type Runtime } from "@prologue/sdk";
+import { createPrologueError, redactMcpError, type ExactRef, type Runtime, type ToolAbort } from "@prologue/sdk";
 import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -27,12 +27,27 @@ function endpoint(value: unknown) {
 let temporaryRoot: Promise<string> | undefined;
 const callRoot = () => temporaryRoot ??= realpath(tmpdir());
 
+/** SDK invoke.signal cancels approval waits; the runner's public abort port cancels transport work. */
+function callAbort(signal: AbortSignal, deadline?: ToolAbort): ToolAbort {
+  return {
+    requested: () => signal.aborted || deadline?.requested() === true,
+    subscribe(listener) {
+      const onAbort = () => { void Promise.resolve().then(listener).catch(() => undefined); };
+      signal.addEventListener("abort", onAbort, { once: true });
+      const stop = deadline?.subscribe(listener);
+      if (signal.aborted) onAbort();
+      return () => { signal.removeEventListener("abort", onAbort); stop?.(); };
+    },
+  };
+}
+
 /** Configuration belongs to the project; connection, tools and effects belong to SDK. */
 export function createPrologueMcpLibrary(runtime: Runtime, options: {
+  withDispatchGuard<T>(guard: () => Promise<void>, operation: () => Promise<T>): Promise<T>;
   resolveConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
   subscribeConnections?: (listener: (connectionId: string) => void) => () => void;
   credentialRefFor?: (ref: string) => Promise<ExactRef<"credential">>;
-} = {}): AgentMcpLibrary & { dispose(): void } {
+}): AgentMcpLibrary & { dispose(): void } {
   const linked = new Map<string, { account: string; credential?: string; revision?: string }>();
   const invalidated = new Set<string>();
   const busy = new Map<string, { action: string; abort: AbortController }>();
@@ -202,28 +217,43 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
       return conn?.health === "connected" && runtime.mcp.snapshotOf(conn.ref).tools.some(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version);
     },
     async call(owner, ref, args, callOptions = {}) {
-      const [checked] = await library.validate(owner, [ref]);
-      const { saved } = await held(owner, checked!.server);
-      const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
-      // Adopted on connect; adopting again after a reconnect keeps the catalog on the live shape.
-      const conn = connection(mcpConnectionId(checked!));
-      if (!conn || !runtime.tools.get(name)) runtime.adoptMcpTools(conn!.ref);
-      const root = await runtime.workspace.authorize({ path: saved.transport === "stdio" ? saved.directory!.canonical_path : await callRoot() });
-      const observation = await runtime.createToolInvoker().invoke({
-        request: { name, version: checked!.version!, args: { ...args } },
-        run: runtime.createSystemToolRunner(root.ref),
-        // The shape, version and live connection were checked just above; the configuration cannot change under this call.
-        recheck: () => library.live!(checked!),
-        now: await runtime.readClock(),
-        ...(callOptions.signal ? { signal: callOptions.signal } : {}),
-        // This call was already authorized by the Molis action directory for its caller (local user, workflow or granted client);
-        // the SDK still records it as an external write and runs it through its own chain.
-        onAwaiting: effect => {
-          if (!effect.pending) return;
-          void runtime.readClock().then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock));
-        },
+      const assertActive = () => {
+        // This guard runs before dispatch. Preserve cancellation through the SDK's
+        // public error contract; an arbitrary DOM AbortError is otherwise an App denial.
+        if (callOptions.signal?.aborted) throw createPrologueError("CANCELLED", "MCP call cancelled before dispatch.");
+      };
+      const beforeDispatch = async () => {
+        assertActive();
+        try { await callOptions.beforeDispatch?.(); }
+        finally { assertActive(); }
+      };
+      return options.withDispatchGuard(beforeDispatch, async () => {
+        const [checked] = await library.validate(owner, [ref]);
+        const { saved } = await held(owner, checked!.server);
+        const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
+        // Adopted on connect; adopting again after a reconnect keeps the catalog on the live shape.
+        const conn = connection(mcpConnectionId(checked!));
+        if (!conn || !runtime.tools.get(name)) runtime.adoptMcpTools(conn!.ref);
+        const root = await runtime.workspace.authorize({ path: saved.transport === "stdio" ? saved.directory!.canonical_path : await callRoot() });
+        const run = runtime.createSystemToolRunner(root.ref);
+        const observation = await runtime.createToolInvoker().invoke({
+          request: { name, version: checked!.version!, args: { ...args } },
+          run: async request => {
+            await beforeDispatch();
+            return run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request);
+          },
+          recheck: async () => { await beforeDispatch(); return library.live!(checked!); },
+          now: await runtime.readClock(),
+          ...(callOptions.signal ? { signal: callOptions.signal } : {}),
+          // This call was already authorized by the Molis action directory for its caller (local user, workflow or granted client);
+          // the SDK still records it as an external write and runs it through its own chain.
+          onAwaiting: effect => {
+            if (!effect.pending) return;
+            void runtime.readClock().then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock));
+          },
+        });
+        return { text: observation.text, truncated: observation.truncated };
       });
-      return { text: observation.text, truncated: observation.truncated };
     },
     async validate(owner, selected) {
       const resolved = [];

@@ -1,4 +1,4 @@
-import { ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
@@ -119,8 +119,10 @@ export interface WorkflowsActionPorts {
   withStore<T>(run: (store: WorkflowsStore) => T | Promise<T>): Promise<T>;
   content(caller: ActionCallContext): WorkflowContentPorts;
   actions(caller: ActionCallContext): WorkflowActionReach;
+  /** The Host's full schema validator, also used by actual action dispatch. */
+  assertInput(schema: ActionSchema, input: unknown): void;
   aiAvailable(): boolean;
-  completeText?(prompt: string, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: string, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<string>;
   changed?(): void;
 }
 
@@ -304,7 +306,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       if (!ports.completeText) throw new WorkflowError("workflows.not_ready", "这一段还没接上：还没有可用的文字模型");
       const prompt = aiHandoffPrompt(link, handed, await labelOf(content, current.chain.stations[from]!.plugin), await labelOf(content, current.chain.stations[from + 1]!.plugin));
       caller.signal?.throwIfAborted();
-      output = parseAiHandoff(await ports.completeText(prompt, { signal: caller.signal }), handed);
+      output = parseAiHandoff(await ports.completeText(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }), handed);
       actor = "ai";
       rule = link.instructions;
     }
@@ -320,30 +322,32 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
    * was never confirmed is not repeated unless the person says so; the attempt is recorded before the call.
    */
   const runActionStep = async (caller: ActionExecutionContext, reach: Reach, current: WorkflowInstance, from: number, pending: Pending, target: WorkflowStation & { action: WorkflowActionStep },
-    retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowItemRef; arrival: { payload: WorkflowPayload; result: unknown } }> => {
+    retry: boolean): Promise<{ instance: WorkflowInstance; arrived: WorkflowItemRef; arrival: { payload: WorkflowPayload; result: unknown; result_presentation?: ActionResultPresentation; result_truncated?: true } }> => {
     if (pending.attempted_at && !retry) {
       throw new WorkflowError("workflows.uncertain", `上次执行「${target.action.title}」${pending.attempt_error ? `时出错（${pending.attempt_error}）` : "没有确认结果"}；请先到${target.action.group ?? "对应插件"}确认是否已经生效，再决定是否重试`);
     }
     const choice = await resolveAction(reach, target);
     const mapped = mapActionInput(target.action, pending.output);
+    const definition = (await reach.find(choice.ref))!.action;
+    ports.assertInput(definition.input_schema, mapped);
     const attempt: Pending = { ...pending, attempted_at: new Date().toISOString() };
     await caller.beforeEffect();
     const instance = await ports.withStore(store => store.saveInstance(current, withPending(current, from, attempt)));
     let result: unknown;
     try { result = await reach.invoke(choice.ref, mapped); }
     catch (error) {
-      // Only a call the directory refused before any handler ran is known to have changed nothing; anything else stays unconfirmed.
-      const { attempted_at: _attempt, attempt_error: _prior, ...clean } = attempt;
-      const code = (error as { code?: unknown }).code;
-      const settled = typeof code === "string" && REFUSED_BEFORE_RUNNING.has(code) ? clean
-        : { ...attempt, attempt_error: (error instanceof Error ? error.message : String(error)).slice(0, 400) };
+      // A provider may write before propagating a downstream authorization/validation error.
+      // Once invoked, no error code proves that nothing happened: only an explicit retry may resend.
+      const settled = { ...attempt, attempt_error: (error instanceof Error ? error.message : String(error)).slice(0, 400) };
       await caller.beforeEffect();
       await ports.withStore(store => store.saveInstance(instance, withPending(instance, from, settled))).catch(() => undefined);
       throw error;
     }
+    const presentation = presentActionResult(definition.result_view, result, projectId);
     const encoded = JSON.stringify(result ?? null);
     return { instance, arrived: { plugin: "action", item_id: `${choice.ref.capability_id}@${choice.ref.version}:${attempt.key}`, title: target.action.title },
-      arrival: { payload: attempt.output, result: encoded.length > 20_000 ? { truncated: true, bytes: encoded.length } : result ?? null } };
+      arrival: { payload: attempt.output, result: encoded.length > 20_000 ? { truncated: true, bytes: encoded.length } : result ?? null,
+        ...(presentation ? { result_presentation: presentation } : {}), ...(encoded.length > 20_000 ? { result_truncated: true } : {}) } };
   };
   return [
     bind(workflowsActions.list, async (_input, content, _caller, reach) => ({
@@ -421,7 +425,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       await caller.beforeEffect();
       const target = current.chain.stations[from + 1]!;
       let arrived: WorkflowItemRef;
-      let arrival: { payload?: WorkflowPayload; result?: unknown } = {};
+      let arrival: { payload?: WorkflowPayload; result?: unknown; result_presentation?: ActionResultPresentation; result_truncated?: true } = {};
       if (isActionStation(target)) ({ instance: current, arrived, arrival } = await runActionStep(caller, reach, current, from, pending, target, input.retry_action === true));
       else arrived = await content.receive(target.plugin, pending.output, { instance_id: current.instance_id, step: from + 1, title: current.title }, target.content);
       await caller.beforeEffect();
@@ -445,10 +449,6 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     bind(workflowsActions.judgments, async (_input, _content, _caller, reach) => ({ judgments: workflowJudgmentChoices(await reach.all()) })),
   ];
 }
-
-/** Refusals the directory makes before handing the call to any provider: the action did not run. */
-const REFUSED_BEFORE_RUNNING = new Set(["actions.missing", "actions.provider_changed", "actions.forbidden", "actions.owner_mismatch", "actions.input_invalid",
-  "actions.scope_mismatch", "actions.async_required", "actions.unredeemed", "kernel.capability_missing"]);
 
 const CONTENT_ROLE: Readonly<Record<string, string>> = { list: "列出内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" };
 const FIELD_NAME: Readonly<Record<string, string>> = { title: "标题", body: "正文", source: "来源", url: "链接", date: "日期" };

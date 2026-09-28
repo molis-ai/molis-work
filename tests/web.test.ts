@@ -600,7 +600,8 @@ test("Web View cache follows canonical Board events instead of SQLite file lifec
   try {
     const coordinator = new GoalProjectApplication(reopenedStore);
     const unchanged = await cachedMolisWorkWebView(cache, reopenedStore, coordinator, options);
-    assert.strictEqual(unchanged, first, "opening the SQLite WAL must not invalidate an unchanged Board");
+    assert.strictEqual(unchanged.goals, first.goals, "opening the SQLite WAL must not invalidate the cached Goals projection");
+    assert.deepEqual(unchanged.feed, first.feed, "plugin views are freshly authorized without changing original data");
 
     coordinator.goals.commands.createGoal(
       DEMO_BOARD_ID,

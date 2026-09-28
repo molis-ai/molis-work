@@ -51,10 +51,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
 
   // No Inbox page has been opened: project activation must already register every action.
   const discovered = (await actions.discover(caller)).filter(action => action.provider.plugin_id === "io.molis.work.inbox");
-  // The Host also derives each declared scene's targets/enable/disable adapters from the same Manifest.
-  const derived = (inboxManifest.action_scenes ?? []).flatMap(scene => Object.values(sceneConfigurationActions(scene)));
-  const declared = [...inboxManifest.actions!, ...derived].filter(definition => definition.action.permissions.every(permission => caller.permissions.includes(permission)));
-  assert.deepEqual(discovered.map(action => action.capability_id).sort(), declared.map(action => action.capability_id).sort());
+  const declared = inboxManifest.actions!.filter(definition => definition.action.permissions.every(permission => caller.permissions.includes(permission)));
+  assert.deepEqual(discovered.map(action => action.capability_id).sort(), [...declared.map(action => action.capability_id), "scenes.targets:inbox.next", "scenes.enable:inbox.next", "scenes.disable:inbox.next"].sort());
   assert.ok(discovered.filter(action => ![inboxActions.generatePages.capability_id, inboxActions.evaluateJudgment.capability_id].includes(action.capability_id))
     .every(action => action.availability.available));
   assert.equal(discovered.find(action => action.capability_id === inboxActions.evaluateJudgment.capability_id)?.availability.available, false);

@@ -151,8 +151,10 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       renderList();
     } catch (error) { listEl.innerHTML = '<p class="wf-error">' + esc(error.message) + '</p>'; }
   }
-  async function openWorkflow(id, { keepInstance = false } = {}) {
+  let navigationRevision = 0;
+  async function openWorkflow(id, { keepInstance = false, revision = ++navigationRevision } = {}) {
     const result = await api('/' + id);
+    if (revision !== navigationRevision) return;
     if (state.workflow?.workflow_id !== id) undoStack.length = 0;
     state.workflow = result.workflow; state.instances = result.instances; state.ai = result.ai_available;
     if (state.returnTo && state.returnTo.workflow !== id) state.returnTo = null;
@@ -160,8 +162,9 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     remember();
     setMode('workflow'); renderList(); renderWorkflow();
   }
-  async function openInstance(id, step) {
+  async function openInstance(id, step, revision = ++navigationRevision) {
     const result = await api('/instances/' + id);
+    if (revision !== navigationRevision) return;
     state.instance = result.instance; state.instanceWorkflowTitle = result.workflow_title; state.ai = result.ai_available;
     state.step = Number.isInteger(step) ? Math.min(step, result.instance.steps.length - 1) : result.instance.current;
     state.handoff = null; state.returnTo = null;
@@ -852,9 +855,16 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const key = 'action:' + (step.item ? step.item.item_id : 'pending') + ':' + (step.result === undefined ? '' : 'done');
       if (slot.dataset.src === key) return;
       slot.dataset.src = key; slot.className = 'wf-stage__frame is-empty';
+      const result = step.result_presentation;
       slot.innerHTML = step.item
-        ? '<div class="wf-stage__result"><p class="wf-record__label">' + tx('交给动作的内容') + '</p>' + payloadBlock(step.payload || { title: '', body: '' })
-          + '<p class="wf-record__label">' + esc(L('「{action}」返回的结果', { action: station.action.title })) + '</p><pre class="wf-rule">' + esc(JSON.stringify(step.result ?? null, null, 2)) + '</pre></div>'
+        ? '<div class="wf-stage__result"><div class="wf-result-summary" data-wf-result-summary><h3>' + tx(result?.summary || '动作已返回') + '</h3>'
+          + (result?.title ? '<p class="wf-result-title">' + esc(result.title) + '</p>' : '')
+          + (result?.text ? '<p class="wf-result-text">' + esc(result.text) + '</p>' : '')
+          + (result?.text_truncated ? '<p class="wf-muted">' + tx(step.result_truncated ? '正文仅显示节选。' : '正文仅显示节选，完整返回值见技术详情。') + '</p>' : '')
+          + (result?.link ? '<a class="mw-btn mw-btn--secondary" data-wf-result-link href="' + esc(result.link.href) + '">' + tx(result.link.label) + '</a>' : '') + '</div>'
+          + '<details class="wf-result-details"><summary>' + tx('技术详情') + '</summary>'
+          + (step.result_truncated ? '<p class="wf-muted">' + tx('返回内容过长，这次记录只保留了摘要。') + '</p>' : '<pre class="wf-rule">' + esc(JSON.stringify(step.result ?? null, null, 2)) + '</pre>') + '</details>'
+          + '<details class="wf-result-details"><summary>' + tx('交给动作的内容') + '</summary>' + payloadBlock(step.payload || { title: '', body: '' }) + '</details></div>'
         : '<div class="mw-empty wf-stage__empty"><span class="mw-empty__mark">' + ico('zap') + '</span><strong>' + tx('还没走到这一步') + '</strong><p>' + esc(L('前一步交过来后，这一步会执行「{action}」。', { action: station.action.title })) + '</p></div>';
       settle(slot.firstElementChild);
       return;
@@ -1018,7 +1028,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         if (!example) view.querySelector('[data-wf-title]')?.select();
         return;
       }
-      if (action === 'back') { state.workflow = null; state.instance = null; state.returnTo = null; remember(); setMode('list'); renderList(); return; }
+      if (action === 'back') { navigationRevision++; state.workflow = null; state.instance = null; state.returnTo = null; remember(); setMode('list'); renderList(); return; }
       if (action === 'back-to-flow') { const id = state.instance?.workflow_id; state.instance = null; if (id) await openWorkflow(id); else setMode('list'); return; }
       if (action === 'return-to-run') { const back = state.returnTo; if (back) await openInstance(back.instance, back.step); return; }
       if (action === 'delete') {
@@ -1354,17 +1364,21 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const start = async () => {
     if (started || root.hidden) return;
     started = true;
+    const revision = ++navigationRevision;
     await loadList();
+    if (revision !== navigationRevision) return;
     let memory = null;
     try { memory = JSON.parse(sessionStorage.getItem(memoryKey()) || 'null'); } catch {}
     try {
-      if (memory?.workflow) await openWorkflow(memory.workflow, { keepInstance: true });
-      if (memory?.instance) await openInstance(memory.instance, memory.step);
-    } catch { setMode('list'); }
+      if (memory?.workflow) await openWorkflow(memory.workflow, { keepInstance: true, revision });
+      if (revision !== navigationRevision) return;
+      if (memory?.instance) await openInstance(memory.instance, memory.step, revision);
+    } catch { if (revision === navigationRevision) setMode('list'); }
   };
   new MutationObserver(start).observe(root, { attributes: true, attributeFilter: ['hidden'] });
   root.addEventListener('molis-work:select-item', (event) => {
     if (event.detail?.itemId || !started) return;
+    navigationRevision++;
     state.workflow = null; state.instance = null; state.returnTo = null; remember(); setMode('list'); renderList();
   });
   start();

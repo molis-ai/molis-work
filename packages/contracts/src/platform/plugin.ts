@@ -409,7 +409,7 @@ export interface PluginRuntimeApi {
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
   start(installId: string): Promise<PluginLifecycleReceipt>;
   /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
-  stop(installId: string): Promise<PluginLifecycleReceipt>;
+  stop(installId: string, options?: { preserve_enabled?: boolean }): Promise<PluginLifecycleReceipt>;
   reportCrash(installId: string, errorCode?: string): Promise<PluginLifecycleReceipt>;
   /** Quarantine release requires an explicit Host action; ordinary recovery never releases it. */
   recover(installId: string, options?: { release_quarantine?: boolean }): Promise<PluginLifecycleReceipt>;

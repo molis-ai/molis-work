@@ -86,7 +86,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
             const scheduled = !!request.execution && typeof body.operation === 'string' && release.design.contract.operations.some(item => item.id === body.operation);
             const node = release.nodes.find(item => item.id === body.componentId);
             if (!scheduled && (!node || (body.binding !== 'read' && body.binding !== 'submit'))) throw new Error('未知的组件操作');
-            const call = scheduled ? { operationId: body.operation as string, input: body.input ?? {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
+            const call = scheduled ? { operationId: body.operation as string, input: Object.hasOwn(body, 'input') ? body.input : {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
             await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
             const lane: Lane = slow.has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
             try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, request.execution) } }; }

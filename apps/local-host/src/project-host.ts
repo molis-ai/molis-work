@@ -36,6 +36,8 @@ import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseBuilderSurface } from "./plugin-builder-surface.js";
+import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
+import { ensureInstalledPlugins, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { InteractionObserver, goalActionObservation } from './casebook/observer.js';
 import path from "node:path";
 import { existsSync } from "node:fs";
@@ -210,6 +212,8 @@ export class MolisWorkLocalHost {
           }
         },
         close: async (runtime, reference) => {
+          await releaseAgentStudio(runtime.store, runtime.board_id);
+          await releaseInstalledPlugins(runtime.store, runtime.board_id);
           await releaseProjectPlugins(runtime.store, runtime.board_id);
           await releaseBuilderSurface(runtime.store, runtime.board_id);
           runtime.store.close();
@@ -320,7 +324,18 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
     await this.ensureProjectPluginActions(reference);
+    await this.host.withRuntime(reference, runtime => this.prepareInstalledPlugins(reference, runtime));
     await this.agents?.service.restoreExternalMcp(reference);
+  }
+
+  private async prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
+    if (!this.options.homeDirectory) return;
+    await ensureInstalledPlugins({ store: runtime.store, boardId: runtime.board_id, homeDirectory: this.options.homeDirectory, actorId: "web-user",
+      routePrefix: this.options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
+      capabilities: this.host.client(reference),
+      actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id,
+        // This internal directory is already in a prepared Host; recursing through the public entry would wait on itself.
+        inspect: caller => this.host.inspectActions(caller, reference) } });
   }
 
   private ensureProjectPluginActions(reference: LocalHostProjectReference): Promise<unknown> {
@@ -371,13 +386,13 @@ export class MolisWorkLocalHost {
     reference: LocalHostProjectReference,
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
   ): Promise<Result> {
-    return this.host.withRuntime(reference, operation);
+    return this.host.withRuntime(reference, async runtime => { await this.prepareInstalledPlugins(reference, runtime); return operation(runtime); });
   }
 
   /** Only the configured owner calls this; never initialize, create or migrate a project. */
   async restoreExistingProject(reference: LocalHostProjectReference): Promise<void> {
     this.existingOnly.add(reference.storage_key);
-    try { await this.withProject(reference, () => undefined); }
+    try { await this.ensureProjectPluginActions(reference); await this.withProject(reference, () => undefined); }
     finally { this.existingOnly.delete(reference.storage_key); }
   }
 

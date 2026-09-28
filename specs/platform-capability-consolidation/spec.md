@@ -90,6 +90,22 @@ Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminde
 
 验证真实沙箱 + 原 SQLite：排队取消不执行、执行中取消无晚写入、异步撤权后能力/网络不派出、解除限制后的新调用可用；旧静态 actor 不能直接调用 operation。更改公共包后整体构建、包要求测试及边界检查，保留不自动重试与原安装数据。
 
+### 安装运行独立于创作台
+
+新增 Host 安装运行装配，读取 Builder 已发布的版本与批准记录，复用现有 Plugin Runtime、沙箱定义和公开 Action 目录；读取已发布工件不初始化 AgentBuilderWorkflow，也不启动草稿恢复、模型或浏览器验收。按同一数据库和 board 缓存唯一实例，项目关闭统一停止并撤回；关闭创作工作台仅停止创作任务与预览进程。生成式页面、项目能力发现、Home 恢复和调度准备均使用这个实例，Studio 的安装/升级/回滚/启停/卸载端口委托给它。
+
+此步骤保持原安装版本、Manifest 指纹、提供方 id、私有数据和历史路径；旧版本必须有可读发布记录及明确批准信息，不能因恢复而升级或扩大授权。恢复失败逐插件显式保留原因，不能吞掉异常再把插件当可用；一个失效安装不阻断其他项目能力。派出使用当前安装与同一 Project Action 服务，安装实例撤销后不得退回试用替身。复用 Catalog 的内部 inspect 端口以避免初始化递归。通用 model.generate 与 schedule 能力的 Host 装配随安装运行存在，不随创作页面注销。后续 05 持久 pending/安装实例迁移及 07 Manifest 归并继续完成，不保留两套安装执行实现。
+
+生命周期复核还发现原 Runtime.stop 同时用于用户停用和 Host 关闭，均记录 disabled，旧启动又无条件恢复，导致停用意图丢失。为现有 stop 增加可信 Host 的 preserve_enabled 选项，正常关闭后保留 installed，用户停用保持 disabled；关闭时先停进程再撤销 Supervisor，避免 revoke 自带的 stop 抢先写成 disabled。恢复不自动开启 disabled/quarantined；旧 disabled 无法证明是停用还是关闭，保留原记录并提供显式「启用」入口。没有批准记录的安装仍拒绝启用，不能退回 release.permissions 自动补权。
+
+调用边界同步修正：公开 operation 显式传入的 JSON null 不得被 route 默认值替换为对象；只有缺失 input 才补默认。Schedule 存储保持历史输入，不扩宽现有 schedules.add 的对象输入契约。卸载的 keepData=false 必须在 Runtime 停止/卸载成功后由持有私有存储的 Host 删除该安装数据，keepData=true 保留；验证卸载后重装的真实读取结果。保留数据不保留旧执行授权。
+
+同进程卸载后，Supervisor 仍记得撤销状态；仅再次 start 会拒绝用户明确确认的重装。安装入口先经 Runtime 形成当前安装事实，再在收到新 consent 的分支显式恢复 Supervisor 启用资格；普通启动/发现不能清除停用事实。验证同一 Host 内保留数据重装及删除数据重装，而非只检查卸载收据。
+
+Runtime 卸载完成后释放该安装的已加载实现，否则同版本的重装因新内存对象而冲突；运行中的重复注册仍拒绝。不曾在当前进程激活的安装无需加载插件代码即可卸载，因此缺批准记录或工件的冷安装仍可移除，再按正常确认流程恢复。
+
+验证用真实 SQLite/Seatbelt 发布工件：只恢复 Host 即可发现并执行安装动作，无 Studio/模型启动；关闭并重开保留安装数据；两个 Home 隔离；关闭 Studio 后安装动作与定时任务仍可用；缺工件/批准记录有可读失败；停用与卸载后不可用。继续跑真实 Chrome 的创作、发布和安装流程，保证消费者迁移完整。
+
 ### 能力执行元数据切片（安装执行迁移的前置）
 
 当前 Builder 目录用 `capability_id === model.generate` 判断费用，sandbox 超时/slow lane 只读旧 Studio 名单；Agent 工具使用统一固定超时。新增提供方声明的 Action `execution`：明确时限、费用类别（未声明保持 unknown）和必要的调用频率上限，随原目录/版本传递。Kernel 对明确声明的时限和频率执行统一检查，沿既有 signal / beforeEffect 契约取消并拒绝迟到写入；入口可以有更严格的限额。现有 concurrent 声明继续负责并发，不新造第二种调度机制，取消仍为合作式而非保证厂商停止计费。
@@ -138,4 +154,6 @@ Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminde
 
 - 安装调用执行控制：Action → trusted route execution → Runner/Broker → 私有存储、嵌套 Action 和网络派出均保留原 signal/beforeEffect；删除静态 actor 授权，外层动作 concurrent，运行中取消不重放。定时入口按数据库/项目隔离，迟到成功/失败均先复查，结果与一次性消费同事务提交。整体构建通过；23 文件 162 项通过、1 项真实公网 HTTPS 测试未启用而跳过，包含真实 Seatbelt/SQLite、撤权/注销/取消后的零写入与合法恢复、队列取消、授权等待超时、DNS/密钥解析后不派出和 Chrome 发布使用路径。日志 `/tmp/platform-installed-control-build.log`、`/tmp/platform-installed-control-regression.log`。首次 boundary 指出新增 Kernel 生命周期依赖未登记到 workspace inventory，已补齐声明并重新整体构建。最终 5 文件 28 项通过、1 项真实公网跳过；队列溢出旧测试假定 Host 服务一定已派出，与新增异步授权门禁冲突，现断言未派出的不执行、所有已派出的信号停止，并保留独立的明确进入服务后取消用例。新增严格 HTTPS proxy 的派出前撤权验证也通过。69 包边界检查 errors 为空，diff whitespace 检查通过。日志 `/tmp/platform-installed-control-final-build.log`、`/tmp/platform-installed-control-recheck.log`、`/tmp/platform-installed-control-final-boundary.log`。
 
-接续位置：06 声明及现有消费链、05 提醒 owner 与启动链、安装调用执行控制已接通。下一步解除定时 operation 和安装 Runtime 对 Studio 的依赖，并迁移持久 pending（不能先删后跑、限长丢弃或吞错），绑定具体安装实例。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。
+- 安装运行独立于 Studio：Host 按项目数据库持有唯一安装运行入口，公开发现、重启恢复、页面和定时调用都不初始化创作 Workflow；关闭 Studio 不停止安装进程。正常关闭保留启用意图，显式停用跨重启保留，缺批准记录不自动补权；卸载实际删除或保留私有数据，冷安装可卸载，同进程确认重装可重新登记并运行。整体构建通过；首轮 25 文件 167/169 通过，两个失败分别是新增用例违反 schedules.add 的对象输入契约、后台标签页按生命周期暂停。修正测试前置条件，进一步验证捕获了 Supervisor 撤销状态和 Runtime 保留旧实现导致无法重装的实际缺陷，修复后最终 8 文件 44/44 通过，无跳过。其余原范围通过证据继续有效；额外网络 4 项通过。真实 Chrome 覆盖关闭并重开 Studio、独立安装页保留数据及完整发布使用流程；真实 SQLite/Seatbelt 覆盖无 Studio 恢复、定时调用、未完成草稿不被恢复、Home 隔离、停用/卸载/重装及缺批准记录的修复路径。69 包边界检查 errors 为空，diff whitespace 检查通过。日志 `/tmp/platform-installed-host-regression.log`、`/tmp/platform-installed-host-recheck.log`、`/tmp/platform-installed-host-uninstall-build.log`、`/tmp/platform-installed-host-uninstall-regression.log`、`/tmp/platform-installed-host-boundary.log`。未运行真实付费模型。
+
+接续位置：05 提醒 owner、安装运行与 Studio 解耦、安装调用执行控制已接通。下一步迁移持久 pending（不能先删后跑、限长丢弃或吞错），绑定具体安装实例；复查安装依赖变更后的能力执行策略。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。

@@ -67,7 +67,7 @@ export function createScheduledRuns(ports: ScheduledRunPorts) {
         title: (plugin.title + '：' + title).slice(0, 120), due_at: new Date(at).toISOString(),
         recurrence: repeat === 'none' ? { kind: 'once' } : { kind: 'interval', interval_ms: repeat === 'daily' ? DAY : 7 * DAY } });
       const run: ScheduledRun = { id, boardId: ports.boardId, pluginId: identity.pluginId, pluginTitle: plugin.title, operationId: operation.id, operationTitle: title,
-        input: input.input ?? {}, inbox: input.inbox === true, link: ports.link(identity.pluginId), jobId: job.job_id, repeat, at: new Date(at).toISOString() };
+        input: input.input === undefined ? {} : input.input, inbox: input.inbox === true, link: ports.link(identity.pluginId), jobId: job.job_id, repeat, at: new Date(at).toISOString() };
       ports.storage.set(RECORD + id, JSON.stringify(run));
       ports.storage.set(INDEX + identity.pluginId, JSON.stringify([...existing, id]));
       return { scheduleId: id };

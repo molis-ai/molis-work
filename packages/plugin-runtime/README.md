@@ -56,7 +56,9 @@ node --import tsx --test --test-concurrency=1 tests/plugin-runtime-integration.t
 - 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 安装事实存 SQLite repository；私有存储按安装 ID 隔离。
+  - `stop()` 默认记录 disabled；Host 正常关闭可传 `preserve_enabled: true`，停止进程与撤销上下文后保留 installed 状态。该选项不能重新启用已经 disabled 的安装，失败仍记录 crashed。是否启动由 Host 的当前启用策略决定。
   - 不保留数据的卸载后 Host 还要调用 `deleteInstallationData`，但不能删除已交换出去的 Artifacts。
+  - 卸载仅对当前进程的活实例执行 stop；冷安装无需加载代码。成功卸载释放已加载实现，后续确认重装可重新登记同版本实现，运行中仍拒绝重复注册。
   - 条件写入是单 key CAS（`expected: null` 表示仅在不存在时创建），不是多 key 事务。
   - Host 不提供原子方法时，需要原子更新的插件必须明确拒绝，不能用先读后写冒充。
   - 内部 route 可携带可信 `execution`（signal/beforeEffect）保留原调用控制；HTTP 适配器不得从参数或 JSON body 构造它，actor 名称不授予内部调用权。

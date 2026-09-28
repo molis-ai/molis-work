@@ -6,7 +6,7 @@
  *
  * A call runs the installed operation in its sandbox, as the plugin, exactly like a click on its page.
  */
-import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { ActionAvailability, ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import type { ProjectActions } from './catalog.js';
@@ -17,7 +17,7 @@ export type InstalledOperationCall = (pluginId: string, operationId: string, inp
 /** A plugin's functions as the directory names them: stable across versions, distinct between plugins. */
 export const exposedActionId = (release: Pick<AgentRelease, 'buildId'>, operationId: string) => 'generated.' + release.buildId.slice(0, 8) + '.' + operationId;
 
-export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall): () => void {
+export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRelease, call: InstalledOperationCall, availability?: () => ActionAvailability): () => void {
   const providerId = 'plugin:' + release.pluginId, title = release.design.title;
   const definitions: ActionDefinition[] = release.design.contract.operations.map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version, provider_id: providerId,
@@ -36,5 +36,5 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
       return body?.value ?? null;
     },
   }));
-  return actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, project_id: actions.project_id }, definitions, handlers });
+  return actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, project_id: actions.project_id }, definitions, handlers, ...(availability ? { availability } : {}) });
 }

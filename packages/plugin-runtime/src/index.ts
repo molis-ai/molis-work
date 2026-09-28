@@ -430,9 +430,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     return attempt;
   }
 
-  /** Deliberate stop. It keeps the install and its grants, and never spends the recovery budget. */
-  stop(installId: string): Promise<PluginLifecycleReceipt> {
-    return this.runLocked(installId, () => this.stopOnce(installId));
+  /** A user stop disables; Host shutdown retains an enabled install in the startable installed state. */
+  stop(installId: string, options: { preserve_enabled?: boolean } = {}): Promise<PluginLifecycleReceipt> {
+    return this.runLocked(installId, () => this.stopOnce(installId, options.preserve_enabled === true));
   }
 
   reportCrash(installId: string, errorCode = "plugin_process_crashed"): Promise<PluginLifecycleReceipt> {
@@ -488,7 +488,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
   }
 
-  private async stopOnce(installId: string): Promise<PluginLifecycleReceipt> {
+  private async stopOnce(installId: string, preserveEnabled = false): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
     if (current.state === "disabled") return this.receipt("stop", current, true);
     if (current.state !== "running") {
@@ -500,7 +500,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.contributions.delete(installId);
       const updated = {
         ...current,
-        state: "disabled" as const,
+        state: preserveEnabled ? "installed" as const : "disabled" as const,
         last_error_code: null,
         updated_at: this.now(),
       };
@@ -527,7 +527,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     this.contributions.delete(installId);
     const updated = {
       ...current,
-      state: "disabled" as const,
+      state: preserveEnabled ? "installed" as const : "disabled" as const,
       last_error_code: null,
       updated_at: this.now(),
     };
@@ -627,8 +627,8 @@ export class PluginRuntime implements PluginRuntimeApi {
   ): Promise<PluginLifecycleReceipt> {
     const current = this.requireInstall(installId);
     if (current.state === "uninstalled") return this.receipt("uninstall", current, true);
-    const definition = this.requireDefinition(current);
     if (current.state === "running" && this.hasLiveInstance(installId)) {
+      const definition = this.requireDefinition(current);
       const live = this.liveContext(installId);
       try {
         if (live) await this.executor.stop(definition, live);
@@ -651,6 +651,10 @@ export class PluginRuntime implements PluginRuntimeApi {
       uninstalled_at: at,
     };
     this.repository.save(updated);
+    // No implementation survives its installation. A later explicit reinstall may supply a new in-memory object.
+    for (const [key, definition] of this.definitions) {
+      if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) this.definitions.delete(key);
+    }
     return this.receipt("uninstall", updated, false);
   }
 

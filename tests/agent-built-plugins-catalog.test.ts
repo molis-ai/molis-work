@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/src/plugin-builder/catalog.js';
 
 const schema = { type: 'object', properties: {}, additionalProperties: false };
@@ -20,6 +21,8 @@ function project() {
     } })) });
   const generated: string[] = [];
   const unregister = registerPlatformCapabilities(actions, { generate: async (pluginId, input) => { generated.push(pluginId + ':' + input.input); return { text: '真实回答' }; } });
+  service.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: 'p' },
+    definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers('p', { add: () => ({ reminderId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
   return { actions, calls, generated, unregister };
 }
 
@@ -36,6 +39,7 @@ test('the capability board is the project\'s action directory: platform, install
   assert.match(catalog.find(entry => entry.id === 'goals.note')!.consent, /^写入：/);
   unregister();
   assert.equal((await capabilityCatalog(actions, 'web-user')).some(entry => entry.id === 'model.generate'), false, 'withdrawn with the studio');
+  assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'reminders.add')?.provider_id, SCHEDULE_REMINDER_PROVIDER_ID, 'Schedule remains available after the Studio withdraws');
 });
 
 test('MCP tools show as MCP on the board whether a plugin or 服务连接 registered them', async () => {

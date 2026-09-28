@@ -1,6 +1,6 @@
 /**
  * The capability catalog generated plugins draw from: the project's unified action service, nothing else. The studio's
- * own capabilities (calling the model, reminders) are registered into that same service as a platform provider; what
+ * model capability is registered into that same service as a platform provider; Schedule owns reminders. What
  * other plugins offer to agents reaches plugins too unless it cannot be undone (see `actionReachesAudience`).
  *
  * This layer adds stand-ins for checks and trials and consent text; execution policy belongs to each provider.
@@ -38,26 +38,18 @@ const object = (value: unknown): value is Record<string, unknown> => !!value && 
 const pluginOf = (context: ActionCallContext) => context.actor_id.startsWith('plugin:') ? context.actor_id.slice('plugin:'.length) : '';
 
 /** The studio's own capabilities, as actions of the platform provider: only plugins may call them. */
-export function registerPlatformCapabilities(actions: ProjectActions, implementations: Pick<CapabilityImplementations, 'generate' | 'reminders' | 'schedules'>): () => void {
-  const define = (id: 'model.generate' | 'reminders.add' | 'reminders.cancel' | 'schedules.add' | 'schedules.cancel', effect: 'read' | 'write', scheduling?: ActionDefinition['scheduling']): ActionDefinition => {
+export function registerPlatformCapabilities(actions: ProjectActions, implementations: Pick<CapabilityImplementations, 'generate' | 'schedules'>): () => void {
+  const define = (id: 'model.generate' | 'schedules.add' | 'schedules.cancel', effect: 'read' | 'write', scheduling?: ActionDefinition['scheduling']): ActionDefinition => {
     const known = studioCapability(id)!;
     return { capability_id: id, version: 1, operation: 'command', provider_id: PLATFORM_PROVIDER_ID,
       action: { ...(scheduling ? { scheduling } : {}), execution: known.execution, title: known.title, description: known.description, kind: 'operation', scope: 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],
         input_schema: known.input as unknown as ActionSchema, output_schema: known.output as unknown as ActionSchema } };
   };
   const identity = (context: ActionCallContext): SandboxIdentity => ({ projectId: context.project_id ?? actions.project_id, installationId: context.plugin_install_id ?? '', pluginId: pluginOf(context), namespace: 'installed' });
-  const definitions = [define('model.generate', 'read', 'concurrent'), define('reminders.add', 'write'), define('reminders.cancel', 'write'), define('schedules.add', 'write'), define('schedules.cancel', 'write')];
+  const definitions = [define('model.generate', 'read', 'concurrent'), define('schedules.add', 'write'), define('schedules.cancel', 'write')];
   const handlers: ActionHandlerBinding[] = [
     { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as { instructions: string; input: string }, context.signal ?? new AbortController().signal,
       () => context.beforeEffect()) },
-    { capability_id: 'reminders.add', version: 1, handle: async (context, input) => {
-      if (!implementations.reminders) throw new Error('这个项目还不能设置提醒');
-      return implementations.reminders.add(identity(context), input as { at: string; text: string; repeat?: 'none' | 'daily' | 'weekly' });
-    } },
-    { capability_id: 'reminders.cancel', version: 1, handle: async (context, input) => {
-      if (!implementations.reminders) throw new Error('这个项目还不能设置提醒');
-      return implementations.reminders.cancel(identity(context), input as { reminderId: string });
-    } },
     { capability_id: 'schedules.add', version: 1, handle: async (context, input) => {
       if (!implementations.schedules) throw new Error('这个项目还不能设置定时执行');
       return implementations.schedules.add(identity(context), input as Parameters<NonNullable<CapabilityImplementations['schedules']>['add']>[1]);

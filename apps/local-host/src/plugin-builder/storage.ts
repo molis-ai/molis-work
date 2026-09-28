@@ -1,0 +1,10 @@
+import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { BUILDER_PLUGIN_ID, builderManifest } from '@molis-ai/molis-work-plugin-builder';
+
+/** Stable authoring namespace, also read by the Host's one-way legacy scheduling migration. */
+export function studioStorage(db: ConstructorParameters<typeof SqlitePluginPrivateStorage>[0], boardId: string): PluginPrivateStorage {
+  const context = { install_id: 'agent-studio:' + boardId, plugin_id: BUILDER_PLUGIN_ID, version: builderManifest.version, deployment: 'local' as const,
+    grants: ['storage:private'], board_id: boardId, requireGrant() {} };
+  return new SqlitePluginPrivateStorage(db).forPlugin(context, builderManifest);
+}

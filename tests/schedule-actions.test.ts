@@ -72,6 +72,9 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     const disabled = (await client.discover(caller)).find(row => row.capability_id === s.list.capability_id)!;
     assert.equal(disabled.availability.available, false);
     await assert.rejects(bound.invoke(s.list, {}), { code: "actions.plugin_disabled" });
+    const reminders = (await client.discover({ ...caller, audience: "plugin" })).filter(row => row.capability_id.startsWith("reminders."));
+    assert.deepEqual(reminders.map(row => row.capability_id).sort(), ["reminders.add", "reminders.cancel"]);
+    assert.ok(reminders.every(row => row.availability.available && row.provider.kind === "system"), "common reminders do not acquire the optional conversation UI's enablement requirement");
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
     await host.closeProject(ref);
     assert.deepEqual((await bound.invoke(s.list, {})).tasks.map(row => row.task_id), [task.task_id], "reopening the Runtime keeps the task");

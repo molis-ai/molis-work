@@ -22,7 +22,7 @@ import { formActionProvider } from "./form-actions.js";
 import { datasetActionProvider } from "./dataset-actions.js";
 import { jellyActionProvider } from "./jelly-actions.js";
 import { lingguangActionProvider } from "./lingguang-actions.js";
-import { scheduleActionProvider } from "./schedule-actions.js";
+import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { experimentsActionProvider } from "./experiments-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
@@ -79,6 +79,8 @@ export interface MolisWorkLocalHostOptions {
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;
   onRuntimeClose?: (reference: LocalHostProjectReference) => void;
+  /** Web composition supplies an empty prefix for its explicit standalone project; catalog projects use /projects/<id>. */
+  projectRoutePrefix?(projectId: string): string;
   /**
    * Resolves the workspace a project is bound to. The catalog lives at the Home
    * level, above a single project's database, so the composition supplies it.
@@ -191,6 +193,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) registry.registerProvider(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             registry.registerProvider(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
             registry.registerProvider(scheduleActionProvider(runtime));
+            registry.registerProvider(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
             if (options.homeDirectory) registry.registerProvider(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) registry.registerProvider(shelfProjectActionProvider(runtime, options.homeDirectory));
             if (options.homeDirectory) registry.registerProvider(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));

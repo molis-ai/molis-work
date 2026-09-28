@@ -11,11 +11,13 @@ import {
 import {
   SCHEDULE_PLUGIN_ID,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
+  SCHEDULE_REMINDER_WAKEUP,
   handleScheduleTaskWakeup,
   migrateScheduleConversationTasks,
   rescheduleEnabledConversationTasks,
   type ScheduledTaskRunner,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { deliverHostReminder, LEGACY_REMINDER_OWNER, LEGACY_REMINDER_WAKEUP, migrateLegacyReminders } from "./schedule-reminders.js";
 
 const wakeupIndex = new PluginWakeupIndex();
 const tickContext = new AsyncLocalStorage<{
@@ -31,7 +33,7 @@ const missingRunner: ScheduledTaskRunner = {
   },
 };
 
-function ensureConversationWakeup(): void {
+function ensureHostWakeups(): void {
   if (wakeupBound) return;
   wakeupBound = true;
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input, control) => {
@@ -39,10 +41,17 @@ function ensureConversationWakeup(): void {
     if (!ctx) throw new Error("闹钟叫醒没有项目现场");
     return handleScheduleTaskWakeup(ctx.db, input.object_ref, ctx.runner, undefined, control);
   });
+  for (const [owner, capability] of [[SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP], [LEGACY_REMINDER_OWNER, LEGACY_REMINDER_WAKEUP]] as const) {
+    wakeupIndex.register(owner, capability, async (input, control) => {
+      const ctx = tickContext.getStore();
+      if (!ctx) throw new Error("提醒没有项目现场");
+      return deliverHostReminder(ctx.db, input, control);
+    });
+  }
 }
 
 /**
- * A host-owned wakeup (e.g. the studio's plugin reminders). The project tick supplies the database the job lives in.
+ * A host-composed wakeup. The project tick supplies the database the job lives in.
  * Registering twice for the same plugin and capability replaces the handler.
  */
 export function registerHostWakeup(pluginId: string, capabilityId: string,
@@ -59,12 +68,13 @@ export function bindScheduledTaskRunner(db: ScheduleSqliteDatabase, runner: Sche
 }
 
 export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date): ScheduleService {
-  ensureConversationWakeup();
+  ensureHostWakeups();
   migrateScheduleConversationTasks(db);
   const inner = createScheduleService(db, {
     wakeupIndex,
     ...(now ? { now } : {}),
   });
+  migrateLegacyReminders(db, inner);
   return {
     ...inner,
     async tick(at) {

@@ -11,7 +11,8 @@ import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime'
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
 import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { configuredModelChoices, openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
@@ -33,7 +34,8 @@ import { exposeInstalledPlugin } from './exposed-actions.js';
 import { bindScheduledRuns, createScheduledRuns, registerInstalledCaller } from './schedules.js';
 import { hostNetwork } from './network.js';
 import { pluginSecrets, type PluginSecrets } from './secrets.js';
-import { bindReminderDelivery, createReminders } from './reminders.js';
+import { studioStorage } from './storage.js';
+import { hostScheduleReminders } from '../schedule-reminders.js';
 import { scheduleServiceFor } from '../schedule-runtime.js';
 import { capabilityLimits, hostCapabilities, latestCapability, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
 import { createPluginModelGeneration } from './model.js';
@@ -132,12 +134,6 @@ function previewServices(storage: PluginPrivateStorage): SandboxServices {
   };
 }
 
-function storageFor(options: AgentStudioOptions): PluginPrivateStorage {
-  const context = { install_id: 'agent-studio:' + options.boardId, plugin_id: BUILDER_PLUGIN_ID, version: builderManifest.version, deployment: 'local' as const,
-    grants: ['storage:private'], board_id: options.boardId, requireGrant() {} };
-  return new SqlitePluginPrivateStorage(options.store.db).forPlugin(context, builderManifest);
-}
-
 async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
   let boards = studios.get(options.store);
   if (!boards) { boards = new Map(); studios.set(options.store, boards); }
@@ -146,7 +142,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
   const created = (async () => {
     const home = options.homeDirectory;
     if (!home) throw new Error('插件创作工作台需要本机数据目录');
-    const storage = storageFor(options), root = join(home, 'plugin-builder', options.boardId);
+    const storage = studioStorage(options.store.db, options.boardId), root = join(home, 'plugin-builder', options.boardId);
     const studio = { storage, root, runners: new Map() } as unknown as Studio;
     const selected = (): { provider_id: string; model_id: string } | null => { const raw = storage.get(MODEL_KEY); return raw ? JSON.parse(raw) : null; };
     const models = <T>(operation: (store: NonNullable<ReturnType<typeof openConfiguredModels>>['store'] | undefined) => T): T => {
@@ -184,11 +180,13 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         return { recorded: result.recorded === true };
       },
     };
-    // Reminders: the studio's own scheduler jobs; a due one becomes an Inbox item that opens the plugin.
-    bindReminderDelivery();
-    const reminders = createReminders({ boardId: options.boardId, schedule: scheduleServiceFor(options.store.db as Parameters<typeof scheduleServiceFor>[0]), storage,
-      title: pluginId => { const buildId = pluginId.replace(/^io\.molis\.work\.generated\./, ''); return studio.workflow.store.versions(buildId)[0]?.design.title ?? studio.workflow.store.get(buildId)?.design?.title; },
-      link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
+    const reminders = hostScheduleReminders({ db: options.store.db, boardId: options.boardId, projectId: actions.project_id,
+      schedule: scheduleServiceFor(options.store.db), routePrefix: options.routePrefix ?? '' });
+    // Isolated embeds supply the same Schedule provider. Production already registers it in the project Host.
+    const withdrawReminders = !options.actions ? actions.registry.registerProvider({
+      provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: actions.project_id },
+      definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers(actions.project_id, reminders),
+    }) : undefined;
     const live = (identity: Readonly<SandboxIdentity>) => identity.namespace === 'installed'
       || identity.installationId.startsWith(STABLE_PREVIEW) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
     // The studio's own capabilities join the project's action directory; the catalog is that directory, nothing else.
@@ -201,7 +199,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         return release ? { title: release.design.title, operations: release.design.contract.operations } : undefined;
       },
       link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
-    studio.unregister = registerPlatformCapabilities(actions, { generate, reminders, schedules: scheduledRuns });
+    const withdrawPlatform = registerPlatformCapabilities(actions, { generate, schedules: scheduledRuns });
+    studio.unregister = () => { withdrawPlatform(); withdrawReminders?.(); };
     studio.catalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
     const titleOf = (pluginId: string) => { const buildId = pluginId.replace(/^io\.molis\.work\.generated\./, ''); return studio.workflow.store.versions(buildId)[0]?.design.title ?? studio.workflow.store.get(buildId)?.design?.title; };
     const current = catalogCapabilities({ actions, catalog: () => studio.catalog(), live, author: titleOf });
@@ -322,7 +321,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       if (action === 'enable') { const state = await studio.platform.supervisor.enable(release.pluginId); if (state.status !== 'running') throw new Error('启用没有完成：' + (state.message ?? '')); expose(release); return; }
       if (action === 'uninstall') {
         withdraw(release.pluginId); studio.platform.supervisor.revoke(release.pluginId);
-        reminders.cancelAll(release.pluginId); scheduledRuns.cancelAll(release.pluginId); secrets.remove(release.pluginId);
+        reminders.cancelInstallation(release.pluginId, record.install_id); scheduledRuns.cancelAll(release.pluginId); secrets.remove(release.pluginId);
         await studio.platform.runtime.uninstall(record.install_id, { retain_private_data: (grants as { keepData?: unknown } | undefined)?.keepData === true });
         storage.delete(APPROVED_KEY + release.pluginId);
       }

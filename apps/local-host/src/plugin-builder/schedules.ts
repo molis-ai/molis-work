@@ -13,7 +13,7 @@ import { BUILDER_PLUGIN_ID } from '@molis-ai/molis-work-plugin-builder';
 import type { ScheduleService, ScheduleSqliteDatabase } from '@molis-ai/molis-work-service-scheduler';
 import { createLocalFeedApplication } from '../feed-application.js';
 import { registerHostWakeup } from '../schedule-runtime.js';
-import { studioStorage } from './reminders.js';
+import { studioStorage } from './storage.js';
 
 export const RUN_CAPABILITY = 'plugin-builder.run.v1';
 const RECORD = 'plugin-builder:run:', INDEX = 'plugin-builder:runs:', PENDING = 'plugin-builder:runs-pending';

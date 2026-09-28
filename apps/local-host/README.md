@@ -41,6 +41,8 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
+Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定新旧唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库、旧数据迁移和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。旧 job 身份和收据保持，归属不明的记录保留并暂停。定时 operation 的已安装运行生命周期仍是后续迁移项。
+
 ## 公共搜索与证据
 
 `createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createFeedSourceRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配和受限的 AnySearch 传输，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。历史存储名称及引用保留，不改写已有数据。

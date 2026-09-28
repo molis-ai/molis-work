@@ -16,11 +16,6 @@ export interface CapabilityImplementations {
     list(identity: Readonly<SandboxIdentity>): Promise<Array<{ id: string; title: string; status: string }>>;
     note(identity: Readonly<SandboxIdentity>, input: { goalId: string; text: string }): Promise<{ recorded: boolean }>;
   };
-  /** Reminders the platform delivers to the person's Inbox; a plugin only sees its own. */
-  reminders?: {
-    add(identity: Readonly<SandboxIdentity>, input: { at: string; text: string; repeat?: 'none' | 'daily' | 'weekly' }): { reminderId: string } | Promise<{ reminderId: string }>;
-    cancel(identity: Readonly<SandboxIdentity>, input: { reminderId: string }): { cancelled: boolean } | Promise<{ cancelled: boolean }>;
-  };
   /** Runs of the plugin's own operations at set times; only designs made against the catalog reach them. */
   schedules?: {
     add(identity: Readonly<SandboxIdentity>, input: { operation: string; at: string; repeat?: 'none' | 'daily' | 'weekly'; input?: SandboxJson; inbox?: boolean }): { scheduleId: string } | Promise<{ scheduleId: string }>;

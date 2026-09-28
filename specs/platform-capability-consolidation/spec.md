@@ -18,7 +18,7 @@
 | 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
-| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | Scheduler 独立续租/提交控制已补齐；提醒与安装执行迁移继续待实现 |
+| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | Scheduler 执行控制与通用提醒归位已实现并验证；定时 operation、持久 pending 与独立安装执行继续待实现 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent 消费及 Native/Host 提供方已实现并验证；安装依赖变更与执行绑定随 05/07 完成 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
@@ -74,6 +74,14 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 
 先修 Scheduler 前置缺口：其现有续租仅由下一次 tick 驱动，handler 等待时没有独立续租；暂停/取消仅挡住 scheduler 回执，领域 handler 仍可提交。复用 Kernel 执行生命周期驱动续租，并通过独立的 `ScheduleWakeupControl` 向处理器提供 signal 与提交前所有权检查（不混入可序列化业务 input）。Schedule 对话任务及 Host runner 消费此端口，失租、暂停和撤销后不写领域成功/失败。保留现有 scheduler 数据表与 lease token；注册覆盖同一任务时撤销旧执行身份。验证无额外 tick 的长等待、两连接竞争、暂停/取消/重排的迟到提交和对话持久化。随后迁移提醒/定时操作及安装运行启动链，不能以此前置修复宣称 05 完成。
 
+### 提醒归位切片
+
+兼容边界：通用提醒原本不要求启用 Schedule 的对话页面。其公共提供方由 Host 装配为 `schedule.reminders`（system），实现和合同归 Schedule；不把既有安装的提醒权限静默改成必须启用可选页面。对话任务保留原 Schedule 插件的启停检查。Web 装配明确传入独立项目/目录项目的路由前缀，提醒链接不能猜测部署入口。
+
+提醒迁移切片：Schedule 拥有提醒数据、时区/固定间隔规则、数量上限、取消与一次性投递；Host 只装配同库 Scheduler、安装身份和 Feed/Inbox 投递端口。保留 `reminders.add/cancel` 的输入输出和能力 id，实际提供方迁到 Schedule，Builder 不再注册或实现提醒。新增提醒记录包含项目、插件和安装实例，跨安装不能取消；创建/取消与 scheduler job 在同一 SQLite 事务中提交，投递与一次性消费也同事务并复查本次 lease。到点不运行插件代码。
+
+Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminder.v1` 的兼容入口，无须打开 Studio。旧记录按现有 job 引用原子搬入 Schedule，保留 reminder/job id、next_due_at、启停、收据、链接和固定 interval；迁移后删除相应旧键，避免一次性任务被再次导入。只有同一插件唯一安装且安装时间不晚于原 job 创建时间时绑定安装；无从证实的历史提醒保留记录并暂停，不能交给重装实例执行。取消错误只忽略明确的 job-not-found，其他错误回滚并上报。旧数据迁移后不能仅 revert 回旧代码：回滚须按保留的 job owner/id 将记录写回旧 namespace，新增 Schedule owner 任务需迁回或先处理；不承诺无条件代码回滚。验证实际 Host 无 Studio 发现/调用、重启到点、旧数据幂等迁移、跨 Home/安装隔离、重复唤醒不重复 Inbox、事务失败和撤销后零写入。本切片不代表定时 operation / 安装 Runtime 解耦完成。
+
 ### 能力执行元数据切片（安装执行迁移的前置）
 
 当前 Builder 目录用 `capability_id === model.generate` 判断费用，sandbox 超时/slow lane 只读旧 Studio 名单；Agent 工具使用统一固定超时。新增提供方声明的 Action `execution`：明确时限、费用类别（未声明保持 unknown）和必要的调用频率上限，随原目录/版本传递。Kernel 对明确声明的时限和频率执行统一检查，沿既有 signal / beforeEffect 契约取消并拒绝迟到写入；入口可以有更严格的限额。现有 concurrent 声明继续负责并发，不新造第二种调度机制，取消仍为合作式而非保证厂商停止计费。
@@ -116,4 +124,8 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 
 - 真实 Native/Host 提供方：在实际定义处补齐已知 AI 消耗声明，修复 Alchemist 复用评估占住项目队列。68 文件首轮 372/373 通过；唯一失败是新增门禁发现 Home 判断缺少声明，同链审查还找到 information.plan，两处补齐后重新整体构建，10 文件 70/70 通过。已通过的其他插件回归保留有效；69 包边界检查与 diff whitespace 检查通过。日志 `/tmp/platform-native-policy-build.log`、`/tmp/platform-native-policy-regression.log`、`/tmp/platform-native-policy-recheck.log`、`/tmp/platform-native-policy-boundary.log`。真实目录进入 Builder 策略及等待期间可编辑均有行为回归；未运行真实付费模型。
 
-接续位置：06 的声明及现有消费链已接通，接下来按 05 的迁移顺序解除提醒、定时 operation 和已安装 Runtime 对 Studio 打开的依赖，并保留旧记录与当前安装授权；07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。
+- 提醒归位：删除 Builder 私有提醒实现，公共动作、持久记录、原子创建/取消与消费归 Schedule；Host 注册唤醒、迁移旧键并装配 Inbox。保留旧 job/固定间隔/链接，无法证明原安装的记录暂停保留；不增加启用对话页面的条件。整体构建通过，20 文件首轮 141/141；复查补上独立项目路由前缀和真实 Catalog 停用策略后的 11 文件 63/63，无跳过，含真实 Chrome 发布安装及两个 Home 的数据库隔离。日志 `/tmp/platform-schedule-reminders-regression.log`、`/tmp/platform-schedule-reminders-final.log`、`/tmp/platform-schedule-reminders-final-build.log`。事务回归模拟真实 SQLite 写入失败及 lease 撤销，验证 job/提醒/Inbox 无部分提交。迁移并非无条件可 revert，回滚要求见上文。
+
+  最终边界检查通过（69 包，errors 为空），diff whitespace 检查通过；日志 `/tmp/platform-schedule-reminders-final-boundary.log`。没有修改真实 Home 数据，本次迁移证据来自隔离的真实 SQLite 与 Host。
+
+接续位置：06 声明及现有消费链、05 提醒 owner 与启动链已接通。接下来先补安装调用的执行控制：`exposed-actions.ts` 丢弃 ActionExecutionContext，`installed.ts` 只靠静态 actor 字符串进入 HTTP route，SandboxRunner.call 没有接收原调用的取消/提交检查。需沿可信 Host 端口传递到 sandbox 服务和实际副作用，不能把回调放到可序列化 input，也不能重放结果未知的调用。然后解除定时 operation 和安装 Runtime 对 Studio 的依赖；按数据库/项目/安装隔离调用者，迁移旧 pending 时不能先删后跑或吞错。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。

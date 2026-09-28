@@ -8,6 +8,10 @@
 
 运行中的唤醒独立续租，不需要另一个 tick 才保持所有权。处理器接收单独的 `ScheduleWakeupControl`，用其 signal 取消外部等待，并在副作用前调用同步 `beforeEffect()`。暂停、取消、重排或被接管后旧控制对象失效。与任务同库的领域写入应在事务中复查并提交，回执不会替业务代码提供提交保护。`isExecuting(jobId)` 读取共享租约，防止对话产品层把还在执行的 once job 提前重新登记。
 
+通用插件提醒由官方 Schedule 拥有，通过公共 `reminders.add/cancel` 调用；Host 从可信调用上下文取得项目、插件和安装身份，插件输入不能指定这些身份。提醒与 job 同事务保存，到点由 Host 将 Inbox 投递和一次性消费同事务提交，无须打开 Studio。旧 Builder job 保留原 id、时间与收据，通过兼容唤醒读取迁入的 Schedule 记录；无法证明原安装归属则保留并暂停。定时运行插件 operation 的安装 Runtime 解耦仍在迁移，不能把提醒迁移当作全部定时执行已完成。
+
 **不拥有：** cron 表达式、Automation rule、Source schedule intent、Action parameters 或 Attention 内容。
+
+公共提醒以 `schedule.reminders` 系统提供方装配，产品实现归 Schedule；它不增加“先启用对话页面”的条件。Schedule 对话任务仍按项目插件启停，提醒自己的启停由对应 job 管理。
 
 **当前来源与 Goal：** `horizontal/scheduler` + `plugins/native/schedule`；Web timer 与 Feed timer 并行。Feed 自有调度仍独立，迁入是 later。日历日对话任务由 Schedule 产品层在叫醒后重新登记 once job。见 `specs/archive/schedule-plugin/spec.md` 与 `specs/archive/schedule-conversation-tasks/spec.md`。

@@ -198,6 +198,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (characterButton) {
       const allowed = characterAllowed(), chosen = chosenCharacter();
       characterButton.hidden = !allowed;
+      characterButton.toggleAttribute("data-chosen", Boolean(allowed && chosen));
       if (allowed && characterLabel) {
         characterLabel.textContent = L("角色") + "：" + (chosen ? chosen.title : L("助理"));
         characterButton.setAttribute("aria-label", L("由哪个角色负责") + " · " + (chosen ? chosen.title + " v" + chosen.version : L("助理自己")));
@@ -207,6 +208,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (executorButton) {
       executorButton.hidden = Boolean(work) || !codingHere();
       if (!codingHere() && newExecutor !== "assistant") newExecutor = "assistant";
+      executorButton.toggleAttribute("data-chosen", newExecutor !== "assistant");
       if (executorLabel) executorLabel.textContent = L((EXECUTORS.find((one) => one.id === newExecutor) || EXECUTORS[0]).label)
         + (newExecutor === "coding" && openCodingSession() ? " · " + L("当前会话") : "");
     }

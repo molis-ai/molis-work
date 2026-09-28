@@ -1,0 +1,4 @@
+interface:
+  display_name: "Molis Work Prologue AI"
+  short_description: "新增或修改 Molis Work 里的 AI 能力：选对用法、经 Prologue 调模型、授权与审查、取消与恢复、测试与验收"
+  default_prompt: "Use $molis-prologue-ai to add or change this AI capability in Molis Work through Prologue."

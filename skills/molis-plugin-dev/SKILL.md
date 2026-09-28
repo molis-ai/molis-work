@@ -23,6 +23,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 画面、槽、客户端 | [ui.md](ui.md) |
 | 接到本仓库产品 | [host.md](host.md) |
 | SDK / CLI / 存储 / 测试 | [authoring.md](authoring.md) |
+| 调模型、跑 Agent、改提示词或模型设置 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md)（纯非 AI 功能不用读） |
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
 | 抄哪个现有插件 | [examples.md](examples.md) |
 
@@ -41,7 +42,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 | kind | 何时 | 现在 |
 | --- | --- | --- |
-| `native` | 一等产品入口，**构建期**装配 | Feed、Inbox、Goals、Pages、Functions、灵光… |
+| `native` | 一等产品入口，**构建期**装配 | Feed、Inbox、Goals、Pages、灵光、Jelly… |
 | `app` | Plugin Runtime **真的** `start()`，兑现 views/routes/mcp/actions | Coding、Files、Git、Diff、Text stats |
 | `integration` | 外部世界 → Connector / Signal | GitHub、Gmail、RSS、YouTube、Catalog、Web Query |
 
@@ -53,7 +54,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | --- | --- | --- |
 | 外来消息的下一步 | 舞台列表+详情 | Feed、Inbox |
 | 正在编的文档/表/问卷 | 本机创作 | Pages、Forms、Dataset、PPT |
-| 判断该亮哪颗按钮 | 写判断 | Functions |
+| 判断该亮哪颗按钮 | 消费判断场景 | Feed 捕捉、Inbox 下一步（判断规则本身是系统能力，编辑器在「能力」） |
 | 还没想清楚的一条 | 岛 | 灵光（`island`） |
 | 到点跑任务 | 定时 | Schedule（native + agent） |
 | 工作区文件/对比 | 端口图 | Text stats（最小）、Diff、Files、Git |
@@ -71,10 +72,10 @@ description: The single standard for building Molis Work plugins, hand-written o
 5. HTTP：第三方走 Manifest `routes`，Host 挂 `/api/plugins/<plugin_id>/`。一等 Native 由 Host 注入短名路径（`/api/feed/`、`/api/pages/`），插件包自管 route table。未声明/未接线的路径到不了插件。
 6. 浏览器客户端：Pages 族在插件包 `CLIENT_FACTORY_SCRIPT`，Workbench pack 注入。Feed/Inbox 的点击在 `apps/workbench/src/scripts/client/navigation-*.ts`。只出静态 HTML 不够。
 7. 注册 `actions` 和实际处理器，让 UI、编排和授权 MCP 共用同一实现；旧 HTTP 路由只转发到这些动作。不要再声明已废弃的 `behaviors`。
-8. 消费判断：注册 `action_scenes`，按 [host.md](host.md#接到统一判断场景) 兑现真实绑定、上下文准备和结果消费。兼容场景来自合同，使用位置来自真实配置；新增场景不再修改 Host 白名单。Functions 业务归系统模块，旧独立编辑器仍在迁移。
-9. 对外调用：新注册动作按 `audiences` 和真实授权进入共同 MCP 目录，不另写业务处理器或工具总表。旧 `mcp_exports` 只用于存量兼容入口。schema 不接收可信身份；声明 mcp 入口不授予权限。外部客户端授权管理仍在迁移。
+8. 消费判断：注册 `action_scenes`，按 [host.md](host.md#接到统一判断场景) 兑现真实绑定、上下文准备和结果消费。兼容场景来自合同，使用位置来自真实配置；新增场景不再修改 Host 白名单。判断规则归系统模块 `modules/functions`，编辑器在「能力」（`apps/workbench/src/functions`），不是插件。
+9. 对外调用：新注册动作按 `audiences` 和真实授权进入共同 MCP 目录，不另写业务处理器或工具总表。旧 `mcp_exports` 只用于存量兼容入口。schema 不接收可信身份；声明 mcp 入口不授予权限，外部客户端在「能力 → 对外接入」逐客户端授权。
 10. Artifacts：可保存、同步、按类型消费的内容。判断记录不是 Artifact。新类型先写合同，再 `produces`。
-11. 插件事件总线：只给 **Runtime 托管的 app**（Coding 族）。Native 今天没有这条总线。id 放合同，发布用 `services.events.publish`，接收写 `onEvent`。不要和 Functions「事件去向」、Integration 的 Signal 混在一起。
+11. 插件事件总线：只给 **Runtime 托管的 app**（Coding 族）。Native 今天没有这条总线。id 放合同，发布用 `services.events.publish`，接收写 `onEvent`。不要和判断场景（`action_scenes`）、Integration 的 Signal 混在一起。
 12. ports：只在已有真实 Artifact 类型可连时声明。可选口用 `optional: true`。Diff 用 `input_groups`。上游到齐走 `onUpstreamReady`。缺绑定不挡启动。产品里还没有连线页。细则 [elements.md](elements.md)。
 13. `agent`：Agent 驱动才加。Schedule 是 native 带 agent；Coding 是 app 带 agent。提示词正文还要进 catalog，见 [host.md](host.md)。`agent.mcp` 不是对外贡献开关。
 14. Integration：外部协议 → Signal / Feed。账号设置挂 `workbench.settings`；来源任务留在 Feed。
@@ -100,7 +101,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 
 ## 接到哪里（写完声明立刻看）
 
-- **一等 Native**：workspace 包 + catalog + Workbench pack + Host HTTP（+ 可选 MCP / Functions / i18n）。清单：[host.md](host.md)。
+- **一等 Native**：workspace 包 + catalog + Workbench pack + Host HTTP 与动作装配（+ i18n）。清单：[host.md](host.md)。
 - **一等 app**（Coding 族）：`createXPlugin` + Host `start()`（`coding-surface.ts` 一类），`start()` 必须兑现 Manifest 每一条 view/route/mcp/behavior。
 - **integration**：`definePollingIntegrationPlugin` + Connector Host；OAuth/secret 见 [integrations.md](integrations.md)。
 - **第三方 / 本地样例**：`molis-work plugin create` → `validate` → `dev` → `pack`。今天脚手架是 integration 样例，不是产品侧栏插件。
@@ -110,7 +111,9 @@ description: The single standard for building Molis Work plugins, hand-written o
 - import 另一个插件的 implementation 或 Module Store。
 - 在 `LocalMcpServer.callTool` 按公开名写 `if`，或在 `apps/mcp` tool-catalog 写死插件工具。
 - 把 Feed 账号、Inbox 列表做成全局设置页。
-- 仅声明 `action_scenes` 而没有绑定、触发和消费处理器，或继续扩充旧 Functions 去向白名单。
+- 仅声明 `action_scenes` 而没有绑定、触发和消费处理器，或给宿主加场景/去向白名单。
+- 等模型或外部服务的动作不声明 `scheduling: "concurrent"`：等待期间它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
+- 读取已存历史的结果合同只按新写入的枚举收紧：一条旧记录不合规，整个读取就失败。结果合同读取兼容、写入严格。
 - 给 Native 插件抄 `events:` 块指望投递。今天只有 Coding 族的 `createPluginPlatform` 在跑总线。
 - 为未发生的失败预埋兼容层；为「以后可能有」声明空 ports / 空 MCP。
 - 用低等级证据宣称可发布。改了可见 UI：浏览器把主路径点一遍。
@@ -126,7 +129,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - 插件 Manifest 升级兼容声明、升级预检或市场升级入口
 - 插件事件、ports、Artifact 交换
 - UI Slot、plugin-stage 壳、Design System 硬规则、客户端装配
-- native / app / integration 的 Host 接线位置（含 Functions 去向表、`createPluginPlatform`）
+- native / app / integration 的 Host 接线位置（含 `createPluginPlatform`）
 - Plugin CLI / SDK `start` 兑现规则
 
 只改实现、合同没变：不必改 Skill。合同变了只改代码：任务没完。

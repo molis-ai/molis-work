@@ -2,7 +2,7 @@
 
 挑最近的同类抄结构，不要混抄。
 
-三件都叫「事件」，对照前先认路：Functions「用在哪」是首页/Inbox/Feed 的判断去向；插件 `events` 是 Coding 族总线；Integration 进来的是 Signal。
+三件都叫「事件」，对照前先认路：判断场景（`action_scenes`）是首页/Inbox/Feed 的判断去向；插件 `events` 是 Coding 族总线；Integration 进来的是 Signal。
 
 ## Feed：外来消息的去向
 
@@ -13,7 +13,7 @@
 - 动作：`feed.*` 与内容协议 `feed.content.*`；处置按钮由事项动作查询准备，旧 HTTP 只转发。
 - 场景：`feed.capture`。`feed.open` 只映射「留在 Feed」，不是 footer 按钮。打开原文常驻。
 - 不进池：标已读、恢复、来源设置、token、计划。
-- MCP：没有与 Functions 同级的独立 store 入口，不包一层 MCP。
+- MCP：动作经统一目录对外，不另包一层 MCP。
 - Integration 是别的插件；Feed 只消费 Signal/Item。
 
 ## Inbox：注意力引用
@@ -31,17 +31,17 @@
 - catalog `personal: true`。plugin-stage 列表 + 编辑面 + `CLIENT_FACTORY_SCRIPT`。
 - MCP：`list/get/create/update/…`，默认项目 scope，Host 注入 `project_id`。新工具默认关。
 - `pages.promote` 走 MCP 和工作台按钮，进 Agent，不进 Feed/Inbox 事件池。
-- 不声明 `function_scenes`。私人库用 `storage:private`。
+- 判断场景用 `action_scenes`（`inbox.next`），不再有 `function_scenes`。私人库用 `storage:private`。
 
-## Functions：写判断本身
+## 判断规则（系统能力，不是插件）
 
-三栏：看什么 / 函数 / 用在哪。去向文案说人会看到什么。Choice 选项可自定义，绑现场用 `scene_map`，不覆盖选项。设置页只配 TypeSafe Key。MCP 三项 `scope: home`。不要抄成 plugin-stage 列表。
+判断规则由 `modules/functions` 拥有，编辑器在「能力」（`apps/workbench/src/functions`）：写、试跑、发布；TypeSafe 连接在「能力 → 服务连接」。不要把它当插件模板抄。
 
 别的插件消费判断，走 [host.md](host.md#接到统一判断场景)，不要复制旧编辑器或添加新的 Host 去向白名单。
 
 ## 灵光：岛
 
-人盯着一条还没想清楚的想法。`slot: "island"`，不是侧栏插件条。丢掉 / 分发是对象上的处置，但今天没有 Functions 事件场景，不要新开 `function_scenes`。catalog `personal: true`。
+人盯着一条还没想清楚的想法。`slot: "island"`，不是侧栏插件条。丢掉 / 复制内容是对象上的处置；今天没有判断场景，不要为它新开 `action_scenes`。catalog `personal: true`。
 
 ## Schedule：到点叫醒
 
@@ -76,4 +76,4 @@ Connector + Signal + 设置页。`whoami`、连接、断开不进 `feed.capture`
 
 ## 新开去向的反例
 
-Goals「采用 / 退回」、灵光「丢掉 / 分发」是对象上的处置，今天没有「到来时判断亮按钮」的场景和接线。先不要新开 `function_scenes`。
+Goals「采用 / 退回」、灵光「丢掉 / 复制内容」是对象上的处置，今天没有「到来时判断亮按钮」的场景和接线。先不要新开 `action_scenes`。

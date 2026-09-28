@@ -135,6 +135,11 @@ test("a work keeps what it used and produced; an edit by hand shows as changed a
     assert.deepEqual(f.notes.get("n1"), { text: "Q4 draft + hand edit, shorter", version: 3 });
     const results = view.objects.filter(object => object.relation === "result").map(object => [object.subject.id, object.recorded_revision, object.state]);
     assert.deepEqual(results, [["n1", "3", "current"]]);
+
+    // The person removes what the work produced, by hand: the work says so, and nothing recreates it.
+    f.notes.delete("n1");
+    view = await f.service.read(sent.work.work_id);
+    assert.deepEqual(view.objects.filter(object => object.relation === "result").map(object => [object.subject.id, object.state, object.current_revision]), [["n1", "missing", null]]);
   } finally { await f.close(); }
 });
 

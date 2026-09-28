@@ -8,3 +8,11 @@ export const REVIEW_EVIDENCE = process.env.MOLIS_WORK_REVIEW_EVIDENCE === "1" ? 
 export function reviewEvidenceUrl(relative = ""): URL {
   return new URL(`../../${REVIEW_EVIDENCE}/${relative}`, import.meta.url);
 }
+
+/**
+ * Screenshots a spec keeps as its own evidence (e.g. `specs/<task>/verification`). Ordinary runs write them under the
+ * ignored review folder; refreshing the committed evidence takes the same explicit MOLIS_WORK_REVIEW_EVIDENCE=1.
+ */
+export function specEvidenceDirectory(specPath: string): string {
+  return process.env.MOLIS_WORK_REVIEW_EVIDENCE === "1" ? specPath : `.impeccable/qa/review/${specPath}`;
+}

@@ -203,38 +203,20 @@ export const COSS_CONTROL_STYLES = `
   }
 
   /* Task configuration has one active path and a stable dialog shell. */
-  body[data-desktop-shell="true"] .feed-task-dialog { width: min(620px, calc(100vw - 32px)); height: fit-content; min-height: 0; max-height: calc(100dvh - 48px); border: 1px solid var(--line); border-radius: 12px; }
   .feed-task-dialog-shell { display: flex; flex-direction: column; max-height: calc(100dvh - 50px); }
   .feed-task-dialog-shell > header { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding: 24px 24px 18px; border-bottom: 1px solid var(--line); }
   .feed-task-dialog-shell h2 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
   .feed-task-dialog-shell header p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
   .feed-task-dialog-body { overflow-y: auto; min-height: 0; padding: 16px 24px 24px; }
   .feed-task-dialog-shell > footer { display: flex; gap: 8px; justify-content: end; border-top: 1px solid var(--line); padding: 12px 24px; }
-  body[data-desktop-shell="true"] .feed-task-dialog .mw-btn { min-height: 36px; font-size: 13px; font-weight: 400; }
-  .feed-task-dialog svg { width: 16px; height: 16px; flex: none; }
   [data-feed-source-choices] { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; border: 0; }
-  body[data-desktop-shell="true"] .feed-task-dialog .feed-source-choice {
-    appearance: none; -webkit-appearance: none;
-    width: 100%; min-height: 32px; height: 32px; margin: 0; padding: 0 8px;
-    display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px;
-    border: 0; border-radius: 6px; background: transparent; color: var(--ink);
-    text-align: left; font: inherit; cursor: pointer;
-  }
-  body[data-desktop-shell="true"] .feed-task-dialog .feed-source-choice:hover,
-  body[data-desktop-shell="true"] .feed-task-dialog .feed-source-choice:focus-visible { background: var(--nav-hover); outline: none; }
   .feed-source-choice__mark { display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
   .feed-source-choice__mark svg { width: 14px; height: 14px; }
   .feed-source-choice strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 400; }
   .feed-source-choice small { color: var(--faint); font-size: 12px; line-height: 1; white-space: nowrap; }
-  .feed-task-dialog label { display: grid; gap: 7px; margin: 18px 0; font-size: 13px; }
-  body[data-desktop-shell="true"] .feed-task-dialog label > span { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
-  body[data-desktop-shell="true"] .feed-task-dialog :is(input:not([type=checkbox]),select,textarea,.mw-select-picker__trigger) { width: 100%; min-width: 0; min-height: 38px; padding: 9px 11px; font: inherit; font-size: 14px; color: var(--ink); background-color: var(--paper); border: 1px solid var(--control-input); border-radius: var(--radius-control); }
-  body[data-desktop-shell="true"] .feed-task-dialog .mw-select-picker__trigger { padding-right: 28px; }
-  .feed-task-dialog label small, .feed-setup-hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
   .feed-task-extra { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 16px; }
   .feed-task-extra summary, .form-disclosure summary { cursor: pointer; color: var(--ink-soft); font-size: 13px; font-weight: 400; padding: 8px 0; }
   .feed-task-extra summary small { margin-left: 8px; color: var(--muted); font-weight: 400; }
-  .feed-task-dialog .check-row { display: flex; align-items: center; gap: 8px; }
   .feed-task-health { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
   .feed-task-health strong { color: var(--ink); font-weight: 400; }
   .feed-config-actions, .feed-task-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
@@ -258,11 +240,8 @@ export const COSS_CONTROL_STYLES = `
   body.immersive-workbench .goal-event-document .event-form button[type=submit] { align-self: flex-start; width: auto; min-height: 36px; background: var(--action); color: var(--action-ink); padding-inline: 16px; border-radius: 7px; }
   body.immersive-workbench .feed-stage-leading strong { font-size: 13px; }
   @media (max-width: 640px) {
-    body[data-desktop-shell="true"] .feed-task-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
     .feed-task-dialog-shell { max-height: calc(100dvh - 18px); }
     .feed-task-dialog-shell > header, .feed-task-dialog-body { padding: 18px; }
-    body[data-desktop-shell="true"] .feed-task-dialog .mw-btn { min-height: 44px; }
-    body[data-desktop-shell="true"] .feed-task-dialog .feed-source-choice { min-height: 44px; height: 44px; }
     .feed-task-health { flex-direction: column; gap: 4px; }
     body.immersive-workbench .goal-event-document .event-form { padding: 0; }
     body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 44px; }
@@ -296,7 +275,6 @@ export const COSS_CONTROL_STYLES = `
   :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog) { --control-h: 36px; }
   @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer, .project-operation-dialog, .project-operation-surface-empty) { --control-h: 44px; } }
   @media (max-width: 760px), (pointer: coarse) {
-    body[data-desktop-shell="true"] .feed-task-dialog :is(input:not([type=checkbox]),select,textarea,.mw-select-picker__trigger) { min-height: 44px; font-size: 16px; }
     :is(.frame-picker, .frame-goal-actions, .frame-empty) { --control-h: 44px; }
     .frame-goal-actions button, .frame-empty button, .frame-picker > header button { min-height: 44px; }
     .frame-picker > header button { min-width: 44px; }

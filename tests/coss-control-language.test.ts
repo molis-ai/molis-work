@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { COSS_CONTROL_STYLES, PRIMITIVE_STYLES } from "@molis-ai/molis-work-design-system";
+import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import {
   renderMolisWorkOnboardingStylesheet,
   renderMolisWorkProjectIndexStylesheet,
@@ -29,7 +30,8 @@ test("keyboard focus sits inside the control instead of an outer halo", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-input:focus-visible, \.mw-textarea:focus-visible, \.mw-select:focus-visible \{[\s\S]*outline-offset: var\(--focus-stroke-inset, -1px\)/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /0 0 0 3\.5px/);
   assert.match(workbench, /body\.immersive-workbench :focus-visible \{[\s\S]*outline: var\(--focus-stroke\);[\s\S]*outline-offset: var\(--focus-stroke-inset\)/);
-  assert.match(workbench, /dialog\[data-feed-sources-dialog\] :is\(input, select, textarea\):focus-visible \{ outline: var\(--focus-stroke\); outline-offset: var\(--focus-stroke-inset\)/);
+  // The Feed source setup is an inline panel now; its fields take the same inside stroke from the Feed stylesheet.
+  assert.match(FEED_STYLES, /\.feed-workbench :is\(button,input,textarea,select\):focus-visible \{ outline:var\(--focus-stroke\); outline-offset:var\(--focus-stroke-inset\); \}/);
   assert.equal(workbench.includes("inset 0 0 0 1.5px color-mix(in srgb, var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--focus)"), false);

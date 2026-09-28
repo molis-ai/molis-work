@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
+import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
 import type { AssistantContextSnapshot, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+
+/** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
+type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 export const ASSISTANT_STORE_NAME = "assistant";
 

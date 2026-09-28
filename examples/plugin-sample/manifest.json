@@ -243,6 +243,10 @@
             "payload"
           ],
           "additionalProperties": false
+        },
+        "result_view": {
+          "summary": "Sample result saved",
+          "title_pointer": "/payload/title"
         }
       }
     }

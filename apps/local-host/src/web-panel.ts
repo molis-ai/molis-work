@@ -1,14 +1,12 @@
+import { optionalPluginQuery } from "./web-view.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleWorkPanelHttp, type WorkPanelHttpContext } from "@molis-ai/molis-work-plugin-work";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { FeedStoreError, feedItemContext, readLinkedFeedContext } from "@molis-ai/molis-work-plugin-feed";
-import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
+import { feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { type MolisWorkProjectCatalog, MolisWorkProjectCatalogError } from "./project-catalog.js";
-import { MolisWorkV1Error, type GoalProjectApplication } from "./goal-project-application.js";
-import { createLocalFeedApplication } from "./feed-application.js";
-import { hydrateFeedItemContent } from "./feed-content.js";
+import { MolisWorkV1Error } from "./goal-project-application.js";
 import { desktopPanelSessionIds } from "./web-session.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
@@ -58,8 +56,6 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
     url: URL,
     serverOptions: { homeDirectory?: string },
     projectId: string,
-    coordinator: GoalProjectApplication,
-    boardId: string,
     ptyHost: MolisWorkPtyHost,
     webUrl: string,
     actions: BoundActionClient,
@@ -74,10 +70,12 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
         sessionIds: (ids) => desktopPanelSessionIds(catalog, ids),
         spawn: (panel, sessionId) => desktopPanelSpawn(catalog, panel, webUrl, sessionId),
       })),
-      readGoal: (goalId) => {
-        const goal = coordinator.goalQueries.getGoal(boardId, goalId);
-        const event_work = coordinator.goalEvents.isEventStateOwner(boardId, goalId);
-        const state = event_work ? coordinator.goalEvents.readState(boardId, goalId) : null;
+      readGoal: async (goalId) => {
+        const collection = await actions.invoke(goalsActions.collection, {});
+        const entry = [...collection.goals, ...collection.archived_goals, ...collection.trashed_goals].find(row => row.goal.goal_id === goalId);
+        if (!entry) throw new ActionError("actions.not_found", "找不到这个 Goal");
+        const { goal, event_work } = entry;
+        const state = event_work ? await actions.invoke(goalsActions.state, { goal_id: goalId }) : null;
         const event_facts = state
           ? [
               `工作状态：${state.work_status}`,
@@ -90,30 +88,18 @@ export function createLocalPanelHttp(ports: PanelHttpPorts) {
           : undefined;
         return { ...goal, event_work, event_facts };
       },
-      readLinkedFeedContext: (goalId, itemId) => {
-        const feed = createLocalFeedApplication(coordinator.store.db);
-        return readLinkedFeedContext({
-          project_id: boardId, goal_id: goalId, item_id: itemId,
-          materializer: createContextMaterializer(createContextLedger(coordinator.store.db, {
-            authorize: (access) => access.scope.kind === "personal" && access.scope.id === boardId,
-          })),
-          readGoal: () => coordinator.goalQueries.getGoal(boardId, goalId),
-          readItem: (id) => {
-            try { return feed.getItem(boardId, id); }
-            catch (error) {
-              if (error instanceof FeedStoreError && error.code === "feed_item_not_found") return null;
-              throw error;
-            }
-          },
-          renderItem: (item) => feedItemContext(hydrateFeedItemContent(item)),
-        });
+      readLinkedFeedContext: async (goalId, itemId) => {
+        const input = { goal_id: goalId, ...(itemId ? { item_id: itemId } : {}) };
+        return itemId ? actions.invoke(feedQueryActions.linkedContext, input)
+          : await optionalPluginQuery(actions, feedQueryActions.linkedContext, input) ?? null;
       },
       projectGuidance: async () => (await actions.invoke(goalsActions.guidanceRead, {})).runtime_prompt_prefix,
       isRuntimeKind: ports.isRuntimeKind,
       launchSpec: ports.launchSpec,
       advancePrompt: ports.advancePrompt,
       kill: (panelId) => ptyHost.kill(panelId),
-      classifyError: (error) => error instanceof MolisWorkV1Error ? 404
+      classifyError: (error) => error instanceof ActionError ? error.code === "actions.not_found" ? 404 : 403
+        : error instanceof MolisWorkV1Error ? 404
         : error instanceof MolisWorkProjectCatalogError ? error.code === "catalog.panel_not_found" ? 404 : 400
         : null,
     });

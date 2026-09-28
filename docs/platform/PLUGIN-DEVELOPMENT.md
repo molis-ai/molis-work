@@ -115,6 +115,8 @@ Plugin Builder 将每次发布保存为独立版本记录。发布新版只产�
 
 ## 统一动作与消费场景
 
+动作可在 `action.result_view` 声明用户可读结果：固定 `summary`、指向原返回值的 `title_pointer` / `text_pointer`（JSON Pointer），以及 `link: { label, href_template }`。链接模板只允许站内路径，支持 `{project_id}` 和 `{/输出字段}` 标量替换，值由平台编码；不执行模板代码，也不修改输入输出合同。工作流保存当次摘要到原步骤历史，默认折叠技术详情；旧记录和未声明的动作仍可查看原结果。长正文显示有界节选并明确提示，不能把摘要当完整业务返回值。提供方负责目标页的通用对象深链处理，不在 Host 或工作流按插件 ID 添加分支。示例见 [Plugin SDK README](../../packages/plugin-sdk/README.md)。
+
 新能力使用 `actions` 与 `action_scenes`，由 Kernel/Plugin Runtime 注册执行。SDK `defineAction` 提供定义与 handler 配对；场景必须兑现 `bindings`、`bind`、`consume`。用 `event_schema`/`prepare` 分离触发事件、函数输入和私有对象快照；可选 `failed` 负责明确的失败消费，同样接受绑定、权限、生命周期和对象检查。`required_scene` 让 Host 依据实际绑定计算触发入口状态。
 
 Host 的动作客户端和场景客户端共享项目运行时与执行队列。兼容场景通过输入输出及语义合同发现，使用位置从原业务配置读取；新增插件不改中央能力或场景 ID 名单。插件有业务权限不代表外部 MCP 客户端有同样权限。细节与示例见 [SDK](../../packages/plugin-sdk/README.md#动作与判断消费场景)、[Inbox 场景](../../plugins/native/inbox/src/scenes.ts)、[实际自动触发验证](../../tests/inbox-automatic-scenes.test.ts)。

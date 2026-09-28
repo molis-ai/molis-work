@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { DEMO_BOARD_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, openWorkflowsStore, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
@@ -32,15 +32,19 @@ test("a workflow step runs any registered action — even one the Host never hea
   const tickets: { title: string; detail: string; priority: string }[] = [];
   let failNext = false;
   let pauseTicket: (() => Promise<void>) | undefined;
-  const create = defineAction<{ title: string; detail?: string; priority: "low" | "high" }, { ticket_id: number }>({ capability_id: "fixture.tickets.create", version: 1, operation: "command",
+  let failAfterWrite: string | undefined;
+  const create = defineAction<{ title: string; detail?: string; priority: "low" | "high" }, { ticket_id: number; note?: string; trace?: string }>({ capability_id: "fixture.tickets.create", version: 1, operation: "command",
     action: { title: "新建工单", description: "在工单插件里建一张工单", kind: "operation", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: ["tickets:write"],
-      subject_kinds: ["ticket"], input_schema: { type: "object", properties: { title: { type: "string", minLength: 1, description: "工单标题" }, detail: { type: "string" },
+      subject_kinds: ["ticket"], result_view: { summary: "工单已创建", title_pointer: "/missing_title", text_pointer: "/note",
+        link: { label: "打开工单", href_template: "/projects/{project_id}/?openPlugin=tickets&openItem={/ticket_id}" } }, input_schema: { type: "object", properties: { title: { type: "string", minLength: 1, description: "工单标题" }, detail: { type: "string" },
         priority: { type: "string", enum: ["low", "high"] } }, required: ["title", "priority"], additionalProperties: false },
-      output_schema: { type: "object", properties: { ticket_id: { type: "integer" } }, required: ["ticket_id"] } } },
+      output_schema: { type: "object", properties: { ticket_id: { type: "integer" }, note: { type: "string" }, trace: { type: "string" } }, required: ["ticket_id"] } } },
     async (_context, input) => {
       await pauseTicket?.();
       if (failNext) { failNext = false; throw new Error("工单系统超时"); }
-      tickets.push({ title: input.title, detail: input.detail ?? "", priority: input.priority }); return { ticket_id: tickets.length };
+      tickets.push({ title: input.title, detail: input.detail ?? "", priority: input.priority });
+      if (failAfterWrite) { const code = failAfterWrite; failAfterWrite = undefined; throw new ActionError(code, "工单已写入，后续步骤失败"); }
+      return { ticket_id: tickets.length, ...(tickets.length === 1 ? { note: "工单正文".repeat(1500), trace: "内部诊断".repeat(6000) } : {}) };
     });
   const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.tickets", version: "1.0.0", name: "工单", kind: "app",
     publisher: { publisher_id: "test", signature: "test" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -77,7 +81,11 @@ test("a workflow step runs any registered action — even one the Host never hea
     const run = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;
     const afterTicket = (await actions.invoke(w.continue, { id: run.instance_id })).instance;
     assert.deepEqual(tickets, [{ title: "工单：导出失败", detail: "客户的周报导出一直失败。", priority: "high" }]);
-    assert.deepEqual(afterTicket.steps[1]!.result, { ticket_id: 1 });
+    assert.equal(afterTicket.steps[1]!.result_truncated, true);
+    assert.equal((afterTicket.steps[1]!.result as { truncated: boolean }).truncated, true);
+    assert.deepEqual(afterTicket.steps[1]!.result_presentation, { summary: "工单已创建", text: "工单正文".repeat(1000), text_truncated: true, link: { label: "打开工单", href: "/projects/project-action-steps/?openPlugin=tickets&openItem=1" } });
+    const reopened = openWorkflowsStore(home);
+    try { assert.deepEqual(reopened.instance(run.instance_id, PROJECT).steps[1]!.result_presentation, afterTicket.steps[1]!.result_presentation); } finally { reopened.close(); }
     const done = (await actions.invoke(w.continue, { id: run.instance_id })).instance;
     assert.equal(done.status, "done");
     const tasks = (await actions.invoke(scheduleActions.list, {})).tasks;
@@ -108,12 +116,13 @@ test("a workflow step runs any registered action — even one the Host never hea
     await actions.invoke(w.continue, { id: failing.instance_id, retry_action: true });
     assert.equal(tickets.length, 3);
 
-    // The directory refused the call before any provider ran: nothing is left unconfirmed, the same step can be sent again.
+    // The complete schema rejects an empty mapped title before dispatch; no attempt is recorded.
     const { workflow: noUrl } = await actions.invoke(w.create, { title: "链接建单", chain: { stations: [{ plugin: "feed" }, station(ticketStep, { title: { from: "url" }, priority: { value: "low" } })], links: [pass] } });
     const refused = (await actions.invoke(w.start, { id: noUrl.workflow_id, item_id: item.item_id })).instance;
     await assert.rejects(actions.invoke(w.continue, { id: refused.instance_id }), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke(w.continue, { id: refused.instance_id }), { code: "actions.input_invalid" });
     assert.equal(tickets.length, 3);
+    assert.equal((await actions.invoke(w.instance, { id: refused.instance_id })).instance.steps[0]!.pending?.attempted_at, undefined);
 
     // The same unknown plugin's action for an external MCP client: nothing without an exact grant, then it runs under the client's own identity.
     const view = (await host.actionClient(reference).discover(caller)).find(row => row.capability_id === "fixture.tickets.create")!;
@@ -148,15 +157,33 @@ test("a workflow step runs any registered action — even one the Host never hea
       await assert.rejects(actions.invoke(w.continue, { id: instance.instance_id }), { code: "workflows.uncertain" });
     }
 
+    // Directory-like errors can come from downstream after the original handler already wrote.
+    // Neither authorization nor validation codes are proof that an ordinary continue is safe.
+    for (const code of ["actions.forbidden", "actions.input_invalid"]) {
+      const before = tickets.length;
+      failAfterWrite = code;
+      const partial = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;
+      await assert.rejects(actions.invoke(w.continue, { id: partial.instance_id }), { code });
+      assert.equal(tickets.length, before + 1);
+      const saved = (await actions.invoke(w.instance, { id: partial.instance_id })).instance;
+      assert.ok(saved.steps[0]!.pending?.attempted_at);
+      assert.equal(saved.steps[0]!.pending?.attempt_error, "工单已写入，后续步骤失败");
+      await assert.rejects(actions.invoke(w.continue, { id: partial.instance_id }), { code: "workflows.uncertain" });
+      assert.equal(tickets.length, before + 1, "ordinary continue must not repeat the write");
+      await actions.invoke(w.continue, { id: partial.instance_id, retry_action: true });
+      assert.equal(tickets.length, before + 2, "only an explicit retry sends another call");
+    }
+
     // The plugin goes away: the step keeps its reference, says why, and does not run.
     const third = (await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id })).instance;
     await runtime.stop(installed.install_id);
+    assert.deepEqual((await actions.invoke(w.instance, { id: run.instance_id })).instance.steps[1]!.result_presentation, afterTicket.steps[1]!.result_presentation, "removing the provider does not rewrite the historical return");
     const described = (await actions.invoke(w.get, { id: workflow.workflow_id })).workflow;
     assert.equal(described.stations[1]!.availability?.available, false);
     assert.equal(described.stations[1]!.action?.ref.capability_id, "fixture.tickets.create");
     await assert.rejects(actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id }), { code: "workflows.unavailable" });
     await assert.rejects(actions.invoke(w.continue, { id: third.instance_id }), { code: "workflows.unavailable" });
-    assert.equal(tickets.length, 5, "includes the nested call already dispatched before cancellation; none after the plugin went away");
+    assert.equal(tickets.length, 9, "includes the successful nested call already dispatched before cancellation; nothing after the plugin went away");
   } finally {
     await runtime.stop(installed.install_id).catch(() => undefined);
     await host.close();

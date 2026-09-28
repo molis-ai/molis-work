@@ -1623,6 +1623,17 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       for (const entry of entries) stage.classList.toggle("is-narrow", entry.contentRect.width < 640);
     }),stage);
   }
+  lifetime.listen(workbench,"molis-work:select-item", async (event) => {
+    const id = event.detail?.itemId;
+    if (!id || selected?.item_id === id) return;
+    try {
+      if (editing) await stopEdit();
+      if (!lifetime.alive || stageBusy()) return;
+      await load(id);
+      if (!lifetime.alive) return;
+      if (!selected) { stickyHint = L("这份材料已不在 Shelf 中，请从列表选择其他材料。"); renderBar(lastBarKind); }
+    } catch (error) { if (!lifetime.alive) return; stickyHint = error.message; renderBar(lastBarKind); }
+  });
   lifetime.listen(window,"molis-shelf-notice", (event) => {
     stickyHint = event.detail && event.detail.message ? String(event.detail.message) : "";
     renderBar(lastBarKind);

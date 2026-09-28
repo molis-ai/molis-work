@@ -1,3 +1,4 @@
+import { informationActionProvider } from "./information-actions.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
 import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { homeActionProvider, createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
@@ -190,6 +191,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) registry.registerProvider(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             registry.registerProvider(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
             registry.registerProvider(scheduleActionProvider(runtime));
+            if (options.homeDirectory) registry.registerProvider(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) registry.registerProvider(shelfProjectActionProvider(runtime, options.homeDirectory));
             if (options.homeDirectory) registry.registerProvider(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) registry.registerProvider(homeActionProvider(options.homeDirectory, reference.project_id, reference.board_id,

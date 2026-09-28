@@ -92,6 +92,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       assert.equal(db.prepare("SELECT COUNT(*) n FROM notes").get()!.n, outcome === "allowed" ? 0 : 1);
       if (outcome === "revoked") await writeMcpActionGrant(home, { ...grant, enabled: false });
       if (outcome === "disabled") characterActive = false;
+      const requestsBeforeApproval = requests.length;
       await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" });
       const run = await until(async () => { const value = await adapter.read(handle.ref); return ["completed", "failed", "cancelled"].includes(value.phase) ? value : undefined; });
       assert.deepEqual(run.frozen.action_tools, selected);
@@ -101,6 +102,7 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
         assert.equal(run.phase, "failed");
         assert.match(run.stop_reason ?? "", /EFFECT_NOT_AUTHORIZED[\s\S]*Character disabled/);
         assert.doesNotMatch(run.stop_reason ?? "", /MODEL_NETWORK_FAILED/);
+        assert.equal(requests.length, requestsBeforeApproval, "a disabled Character must not send a subsequent model request");
       } else {
         assert.equal(run.phase, "completed", run.stop_reason);
         const wire = JSON.stringify(requests.at(-1).messages);

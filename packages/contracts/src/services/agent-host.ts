@@ -973,8 +973,8 @@ export interface AgentMcpLibrary {
   tools?(owner: AgentSkillOwner): Promise<AgentMcpToolDescriptor[]>;
   /** Whether this exact tool version is callable right now (connected, same configuration and shape). Synchronous. */
   live?(ref: AgentMcpToolRef): boolean;
-  /** One call outside an Agent run, through the runtime's own tool gate; the caller's authority is checked before this. */
-  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: { signal?: AbortSignal }): Promise<AgentMcpCallResult>;
+  /** One call outside an Agent run. Recheck Host authority after asynchronous preparation and at the runtime's dispatch gate. */
+  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<AgentMcpCallResult>;
 }
 export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "server" | "tool" | "version" | "configuration_version" | "server_label">> {
   description: string;

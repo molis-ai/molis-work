@@ -78,6 +78,18 @@ test("a connected external MCP tool is one directory action: local user, workflo
     assert.deepEqual(await granted.service.invoke(granted.context, ref, { note: "MCP 客户端" }), { text: "Saved one note: MCP 客户端", truncated: false });
     assert.deepEqual(await notes(), ["直接调用", "工作流交来的标题", "MCP 客户端"], "every call reached the real server once");
 
+    // Revoke while the real SDK is refreshing the selected server, after the directory's initial check.
+    const validate = library.validate;
+    library.validate = async (...args) => {
+      const checked = await validate(...args);
+      await writeMcpActionGrant(home, createMcpActionGrant("client-x", project.project_id, view, false));
+      return checked;
+    };
+    try {
+      await assert.rejects(granted.service.invoke(granted.context, ref, { note: "准备过程中已撤权" }));
+      assert.deepEqual(await notes(), ["直接调用", "工作流交来的标题", "MCP 客户端"], "revocation after SDK discovery must prevent the actual stdio write");
+    } finally { library.validate = validate; }
+
     // Disconnecting keeps the entry and says why; nothing is sent. Reconnecting with the same shape keeps the same version.
     await library.control(owner, saved.id, "disconnect");
     // The product re-syncs after every connection change; the configured server's tool stays, unavailable.

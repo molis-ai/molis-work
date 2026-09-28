@@ -1,4 +1,6 @@
 export * from "./action-scene-configuration.js";
+export * from "./action-result.js";
+import { validActionResultView, type ActionResultView } from "./action-result.js";
 import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA } from "./action-subjects.js";
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_SCHEMA, type SubjectOfferChoice } from "./action-offers.js";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_COLLECTION_SCHEMA } from "./home-events.js";
@@ -96,6 +98,8 @@ export interface ActionMetadata {
   readonly subject_kinds: readonly string[];
   readonly input_schema: ActionSchema;
   readonly output_schema?: ActionSchema;
+  /** Plain-language result and original-object link, declared by the provider for all consumers. */
+  readonly result_view?: ActionResultView;
   /** Semantic contracts supplement JSON shape for references and workflow matching. */
   readonly input_type?: string;
   readonly output_type?: string;
@@ -434,6 +438,9 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
         }
         if (a.result_scene !== undefined && (!object(a.result_scene) || !id(a.result_scene.scene_id) || !version(a.result_scene.version) || !text(a.result_scene.provider_id))) {
           problems.push(`能力 ${key} 的结果场景引用无效`);
+        }
+        if (a.result_view !== undefined && !validActionResultView(a.result_view)) {
+          problems.push(`能力 ${key} 的结果展示定义无效`);
         }
         if (a.required_scene !== undefined && (!object(a.required_scene) || !id(a.required_scene.scene_id) || !version(a.required_scene.version))) {
           problems.push(`能力 ${key} 的消费场景依赖无效`);

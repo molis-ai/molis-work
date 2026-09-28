@@ -635,8 +635,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1545,8 +1545,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz':
-    resolution: {integrity: sha512-Uh4kuVTCgmcMPRfJ5FoHNgu8MzU716e7SdklbkTmiwcB8imlDbUo0m1VLjdICgoVUcQVYXbR/IRX3jPWpvMW2g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz':
+    resolution: {integrity: sha512-kG6hON49HalwTES2TSRC8vFcqNVtEUN+gbc7KhheL0mTq5HL/Uql4yj5Gp/jH1DB5mKreh2arNFFxahLBdHKCA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':
@@ -2970,7 +2970,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-bounded-results-network.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

@@ -1,8 +1,22 @@
 # 全量迁移与验证
 
-目标：内部完整。状态：执行中。当前工作树 main，开始时已有 381 个已跟踪修改和 65 个未跟踪项；不重置这些成果。
+目标：内部完整。状态：本地迁移与本轮复查修复完成，尚未提交/发布；始终保护其他任务成果。
 
-## 当前阶段
+## 当前复查状态（2026-09-28）
+
+Claude 的迁移已合入 `main @ 8b609527`。当前架构与实际路径已重新审查，发现的问题均已在本地修复，完整证据见 [main 复查报告](review-2026-09-28.md)。当前完成项：
+
+- 25 个现存原生插件及 6 个官方集成逐项核对原入口、注册、消费方和业务结果。官方私有 Feed 驱动经 Feed 能力使用，公开账号查询经连接系统动作；未知插件的发现/场景/工作流/MCP 使用共同机制。
+- 工作流部分成功保留尝试状态，普通继续不重复写；MCP 撤权、工具 schema 变化与不支持合同在实际派发前拒绝。Coding MCP 的 SDK 网络检查、取消和需对账状态已贯通真实 HTTP。
+- Feed 公开来源、Git 研究库和账号 Listener 的网络/模型等待后核对授权与来源状态；定时器通过 `feed.sources.tick`，旧直调旁路删除，计划幂等键修复。
+- Feed 列表/详情、首页非 Goals 视图、信息助手、终端关联材料、判断历史、Shelf 设置均经相应动作；停用后热缓存不返还旧数据。
+- 工作流默认展示插件声明的可读摘要与原对象链接，技术详情折叠；长正文与桌面/窄屏真实浏览器通过。异步恢复不再覆盖用户新选择，故障注入证实回归测试有效。
+- 原 Functions 插件包与依赖、被替代名单/分发/读取分支已清理；保留的兼容入口薄转发到同一执行核心，原函数与历史/业务数据保留。SDK、开发文档与生成模板同步。
+
+核心修复 120 项、Feed 67 项、SDK 32 项/应用 38 项、查询消费 79 项，以及最终存量专项 154 个不同用例通过；批次重叠，不相加。最终清理回归 28/28，包含两个真实 Chrome 场景。全 workspace 构建、最后 Host 重建、应用根目录与插件 SDK 类型、69 包边界通过。SDK 全量测试类型有两处基线错误，本次未重跑全仓约 2600 项、未逐一登录商业服务或穷举所有 UI 分支。完成程度为迁移范围本地内部完整的工程与已覆盖实际路径，尚未提交/发布，本轮不替代用户本人验收。
+
+下方保留按日期的迁移过程与原反例；历史“待迁移”和“执行中”不是当前待办。各插件共同能力的证据见“存量插件的共同收尾”，本轮逐插件专项见复查报告末尾。
+## 历史阶段记录
 
 场景配置已由共同 Host 根据原声明自动派生查看、启用、停用三项真实动作，安装与调用方的配置权限独立于运行权限。只提供消费场景的陌生插件通过现有对外授权设置和生产 LocalMcpServer 完成原配置停用、撤权与重启验证；没有新增授权表或绑定副本。具体证据见末尾“场景管理动作与独立授权”。其余插件、作者合同和系统治理仍继续迁移。
 
@@ -92,7 +106,7 @@ Inbox 七项业务 API 和已发布判断已接入共同调用（下述证据）
 | Runtime/SDK | packages/plugin-runtime, packages/plugin-sdk | 自动注册、兑现、停用撤销、场景发现 | 定义与生命周期接线通过；生产 Coding/Builder 注入完成；七个项目 Runtime 插件可由动作入口启动并供 UI 复用。宿主事先不知道 ID 的插件经正式 PluginRuntime 安装启动后：目录发现与流程步骤执行、未授权 MCP 客户端被拒而精确授权后以客户端身份调用并记入调用记录（`tests/workflows-action-steps.test.ts`）、场景绑定与判断消费（`tests/function-scene-authoring.e2e.test.ts`）、能力库展示（`tests/capabilities-page.test.ts`）、停用后引用保留并说明原因，均无需修改宿主代码 |
 | 平台 MCP | apps/mcp/src/tool-catalog.ts, apps/local-host/src/mcp-server.ts | 统一目录及执行适配 | 新动作已接入持久、逐客户端/范围的生产授权、本机管理 API 与「对外接入」授权界面；旧名称（六组原生插件、Goals、判断函数、连接摘要）均按精确客户端授权转发到同一动作（见对应各节）。仅 initialize/import_v3/goal_tree_decide/event_decide 四个受信管理工具仍直接调用 Host 能力，只在本机管理连接出现，对外客户端看不到 |
 | 项目工作区 | packages/contracts/src/modules/projects.ts, apps/local-host/src/project-capabilities.ts | 原消费者及 MCP 使用同一查询能力 | 四项查询已迁移并验证 |
-| 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts、apps/local-host/src/external-mcp-actions.ts | 连接与能力接入共用 | 已接入：已连接服务的工具作为项目动作进入同一目录（每个服务一个提供方，版本随配置与工具形状），经 Prologue 调用器与系统执行器执行；本机用户、工作流动作步骤、获授权的对外 MCP 客户端与插件共用；断开后保留条目并说明原因，移除配置后撤回。重启后连接需重新建立（SDK 连接不持久），期间目录不含该服务 |
+| 外部 MCP | horizontal/agent-host/src/adapters/prologue-mcp.ts、apps/local-host/src/external-mcp-actions.ts | 连接与能力接入共用 | 已接入：已连接服务的工具作为项目动作进入同一目录（每个服务一个提供方，版本随配置与工具形状），经 Prologue 调用器与系统执行器执行；本机用户、工作流动作步骤、获授权的对外 MCP 客户端与插件共用；断开后保留条目并说明原因，移除配置后撤回。重启后连接需重新建立（SDK 连接不持久），保存的工具快照与稳定版本仍在目录中标记为断开不可用，重连后按当前 schema 核对 |
 | 判断模块 | modules/functions, apps/local-host/src/functions-host.ts | 系统能力、动态场景与使用关系 | 已发布规则注册/调用与 Home 接线通过；动态场景与使用关系已由场景合同与各 owner 上报提供（同上三节） |
 | 首页 | apps/workbench/src/scripts/client/project-home.ts、apps/local-host/src/home-actions.ts | 动态动作、实际执行、上下文会话 | 事项按合同类型动态发现；动作按 offers 合同由各插件准备、首页复核后执行（Feed 消息、Inbox 事项、未知插件）；“说一句”按对象上下文选择会话并真实发送（见下文专节）。本地网页调用者的原生权限改由原生清单派生，不再手写 |
 | 工作流程 | plugins/native/workflows, apps/local-host/src/workflows-native-plugin-http.ts | 按能力合同匹配及调用 | 四个内容站与未知 Runtime 插件接通；流程自身动作与 F4 幂等交接/中断恢复已完成；判断规则交接与通用字段映射动作步骤已完成 |
@@ -1553,8 +1567,8 @@ Goal 仍 active。个人助理 Home/HTTP/事件与成果恢复接线、Alchemist
 
 仍直接使用插件存储的 Host 代码，按性质分类（2026-09-27 全量检索 `createLocalFeedApplication(`、`open*Store(`）：
 - 插件自身实现：Feed 的应用、来源、连接器、同步、升级为 Goal、原生路由由 Host 组装（Feed 的实现就在 Host 包里），Alchemist/Functions 提供方打开自己的存储；这是提供方使用自己的数据。
-- 只读页面投影：工作台视图的 Feed 目录计数（`web-view.ts`）、终端面板读取 Goal 关联的 Feed 条目（`web-panel.ts`）、能力页的判断记录（`web-capabilities.ts`）、Shelf 设置页（`web-catalog.ts`）。不执行、不写入。
-- 信息助手（`assistant-http.ts`）：只读取 Feed/Inbox 快照生成方案，确认后的动作经已迁移的插件路由执行；读取仍直连 Feed 存储，未改为动作（现有 Feed 动作不提供来源与 Inbox 状态的组合读取，另写专用查询收益低）。
+- 只读页面投影（原豁免已于 2026-09-28 撤回并迁移）：工作台 Feed/Inbox/Schedule、终端关联材料、能力页判断历史、Shelf 设置均通过 owner 的查询动作，停用及权限即时生效，不因只读绕过服务。
+- 信息助手（2026-09-28 已迁移）：原 HTTP 薄转发到 `information.plan`，分别调用 Feed/Inbox 查询；依赖权限与生命周期贯穿模型派发及响应，仍只提出方案。
 - 种子数据（`demo-plugin-seed.ts`）。
 - 本机设置流程：连接器令牌、OAuth/设备码、原生文件夹选择、终端面板（携带密钥或本机界面）。
 检索未发现 Host 绕过动作写入插件业务数据的路径；写入均经提供方动作或其自身实现。

@@ -41,3 +41,8 @@
 调用 Host Capability 时可传 `{ signal, before_effect }` 收紧本次执行。Plugin SDK 保留取消信号，Host 在 invocation 暴露它并持续核对原身份；这些选项不允许覆盖 plugin_caller。异步结果返回后仍须业务版本与提交检查。过程进度不等于已验证结果，未知用量不等于零。
 
 长任务的进程内取消、时限和周期性所有权检查使用 Plugin SDK `createExecutionLifetime`；同步 `monitor.check()` 抛错会取消该次执行。外部等待传其 signal，返回后 `assertActive()` 再进入业务事务/CAS，并在 finally dispose。它不授予执行权限，不替代 beforeEffect，不拥有持久状态或重试策略。Alchemist 的续租和 Images 的取消监测是实际示例；业务取消、关闭、失租不得写成普通失败，结果未知的收费调用不得自动重放。
+
+
+### 让动作结果可以直接读懂
+
+动作可声明 `action.result_view`，与动作定义放在同一处：`summary` 为准确的业务结果说明，`title_pointer`、`text_pointer` 从原输出的 JSON Pointer 读取标题/正文；`link: { label, href_template }` 指向本站原对象页面。模板仅替换 `{project_id}` 和 `{/输出/字段}`，替换值逐个 URL 编码。完整例子及长结果、历史、缺字段行为见 [公开 SDK](../../packages/plugin-sdk/README.md#展示动作结果)。不要更改业务返回值来迎合 UI，也不要在 Host 按插件 ID 分支生成摘要。

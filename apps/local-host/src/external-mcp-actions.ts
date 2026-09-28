@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { ActionDefinition, ActionHandlerBinding, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpLibrary, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { createMcpVersionBook, EXTERNAL_MCP_CAPABILITY_PREFIX, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputSchema, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
+import { createMcpVersionBook, EXTERNAL_MCP_CAPABILITY_PREFIX, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 
 const OUTPUT: ActionSchema = { type: "object", properties: { text: { type: "string" }, truncated: { type: "boolean" } }, required: ["text", "truncated"], additionalProperties: false };
@@ -45,17 +45,16 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     remember(key, { ...place, plugin_id: pluginId, runtime_id: runtimeId, tools });
     const byServer = new Map<string, AgentMcpToolDescriptor[]>();
     for (const tool of tools) byServer.set(tool.server, [...byServer.get(tool.server) ?? [], tool]);
-    const next: Array<{ server: string; label: string; entries: Array<{ definition: ActionDefinition; tool: AgentMcpToolDescriptor }> }> = [];
+    const next: Array<{ server: string; label: string; entries: Array<{ definition: ActionDefinition; tool: AgentMcpToolDescriptor; contract: ReturnType<typeof mcpInputContract> }> }> = [];
     for (const [server, list] of byServer) {
-      const entries = list.map(tool => ({ tool, definition: {
+      const entries = list.map(tool => { const contract = mcpInputContract(tool.input_schema); return { tool, contract, definition: {
         capability_id: `${EXTERNAL_MCP_CAPABILITY_PREFIX}${mcpIdPart(server)}.${mcpIdPart(tool.tool)}`,
         version: versions.versionOf(JSON.stringify([pluginId, server, tool.tool]), `${tool.configuration_version}:${tool.version}`), operation: "command" as const,
         action: { title: tool.tool, description: mcpToolDescription(tool.server_label, tool.description),
           // Not offered to agents: the built-in Agent reaches these servers through its own MCP connection.
           kind: "operation" as const, scope: "project" as const, audiences: ["user", "workflow", "mcp", "plugin"] as const, permissions: [EXTERNAL_MCP_PERMISSION],
-          // The upstream server owns its state; waiting on it must not hold the project's other operations in line.
           scheduling: "concurrent" as const,
-          subject_kinds: [], input_schema: mcpInputSchema(tool.input_schema), output_schema: OUTPUT } } }));
+          subject_kinds: [], input_schema: contract.schema, output_schema: OUTPUT, result_view: { summary: "服务已返回", text_pointer: "/text" } } } }; });
       next.push({ server, label: list[0]!.server_label, entries });
     }
     for (const dispose of registered.get(key) ?? []) dispose();
@@ -63,12 +62,12 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     registered.set(key, next.map(({ server, label, entries }) => registry.registerProvider({
       provider: { provider_id: `${pluginId}#mcp:${server}`, plugin_id: pluginId, title: label, kind: "plugin", project_id: place.project_id },
       definitions: entries.map(entry => entry.definition),
-      handlers: entries.map(({ definition, tool }): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version,
-        availability: () => library.live!(tool) ? { available: true } : { available: false, code: "actions.connection_unavailable", reason: `外部 MCP「${label}」已断开或工具形状已变化，请重新连接后再用` },
+      handlers: entries.map(({ definition, tool, contract }): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version,
+        availability: () => !contract.availability.available ? contract.availability : library.live!(tool) ? { available: true } : { available: false, code: "actions.connection_unavailable", reason: `外部 MCP「${label}」已断开或工具形状已变化，请重新连接后再用` },
         handle: async (caller, input) => {
           // beforeEffect rechecks the availability above; the library validates the tool against the live server again.
           await caller.beforeEffect();
-          return library.call!(owner, tool, input as Record<string, unknown>, caller.signal ? { signal: caller.signal } : {});
+          return library.call!(owner, tool, input as Record<string, unknown>, { signal: caller.signal, beforeDispatch: caller.beforeEffect });
         } })),
     })));
   }

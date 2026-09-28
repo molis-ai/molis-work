@@ -4,6 +4,8 @@ import { connectorProductAuth } from "./connector-product-auth.js";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { mcpInputFingerprint } from "./mcp-tool-actions.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { auth, UnauthorizedError, type OAuthClientProvider, type OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -86,7 +88,16 @@ export interface StartMcpConnectionInput {
 }
 type Tools = Awaited<ReturnType<Client["listTools"]>>["tools"];
 type Resources = Awaited<ReturnType<Client["listResources"]>>["resources"];
-type McpInspection = { tools: Tools; resources: Resources };
+export type McpInspection = { tools: Tools; resources: Resources };
+/** Host-only authority and contract checks; never serialized into MCP requests. */
+interface McpRequestOptions {
+  signal?: AbortSignal;
+  beforeDispatch?(): void | Promise<void>;
+}
+interface McpToolRequestOptions extends McpRequestOptions {
+  expectedInputFingerprint?: string;
+  onInspection?(inspection: McpInspection): void;
+}
 
 function callbackOrigin(raw: string): string {
   let url: URL;
@@ -96,8 +107,8 @@ function callbackOrigin(raw: string): string {
   }
   return url.origin;
 }
-function safeError(error: unknown): McpConnectionError {
-  if (error instanceof McpConnectionError) return error;
+function safeError(error: unknown): McpConnectionError | ActionError {
+  if (error instanceof McpConnectionError || error instanceof ActionError) return error;
   if (error instanceof UnauthorizedError) return new McpConnectionError("authorization", "MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
   return new McpConnectionError("provider", "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
 }
@@ -134,18 +145,21 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
     endpointFor(config.serviceId, config.endpoint);
     return config;
   }
-  function guardedFetch(config: McpConfiguration, checkActive?: () => void, signal?: AbortSignal): typeof fetch {
+  function guardedFetch(config: McpConfiguration, checkActive?: () => void, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]): typeof fetch {
     return async (input, init) => {
       checkActive?.();
       const url = new URL(input instanceof Request ? input.url : String(input));
       const configured = new URL(config.endpoint);
       const permittedLocal = url.origin === configured.origin && (options.testServers || config.serviceId === "figma");
       if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw new McpConnectionError("configuration", "MCP 授权服务返回了不安全的地址");
+      await beforeDispatch?.();
+      checkActive?.();
+      signal?.throwIfAborted();
       const response = await fetch(input, { ...init, redirect: "error", signal: AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT), ...(init?.signal ? [init.signal] : []), ...(signal ? [signal] : [])]) });
       return response;
     };
   }
-  function provider(home: string, config: McpConfiguration, state?: string, signal?: AbortSignal) {
+  function provider(home: string, config: McpConfiguration, state?: string, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]) {
     const secrets = connectorProtocolSecrets(home, config.sessionId);
     const checkActive = config.sessionId === config.connectionId ? () => { active(home, config.connectionId); } : undefined;
     let authorizationUrl: string | undefined;
@@ -188,10 +202,10 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
         if (scope === "all" || scope === "discovery") { delete config.discovery; saveConfig(); }
       },
     };
-    return { oauth, secrets, checkActive, authorizationUrl: () => authorizationUrl, fetch: guardedFetch(config, checkActive, signal) };
+    return { oauth, secrets, checkActive, authorizationUrl: () => authorizationUrl, fetch: guardedFetch(config, checkActive, signal, beforeDispatch) };
   }
-  async function useClient<T>(home: string, config: McpConfiguration, run: (client: Client) => Promise<T>, state?: string, signal?: AbortSignal): Promise<{ result?: T; authorizationUrl?: string }> {
-    const session = provider(home, config, state, signal);
+  async function useClient<T>(home: string, config: McpConfiguration, run: (client: Client) => Promise<T>, state?: string, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]): Promise<{ result?: T; authorizationUrl?: string }> {
+    const session = provider(home, config, state, signal, beforeDispatch);
     signal?.throwIfAborted();
     if (servers[config.serviceId]?.stdio) {
       const info = session.oauth.clientInformation() as OAuthClientInformationMixed | undefined;
@@ -347,10 +361,10 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
       } finally { session.secrets.clear(); }
     });
   };
-  const runConnection = <T>(home: string, id: string, options: { signal?: AbortSignal }, run: (client: Client, signal: AbortSignal) => Promise<T>) =>
+  const runConnection = <T>(home: string, id: string, options: McpRequestOptions, run: (client: Client, signal: AbortSignal) => Promise<T>) =>
     withConnectorRequest(home, id, options.signal, signal => serialized(home, id, async () => {
       signal.throwIfAborted();
-      const connected = await useClient(home, active(home, id), client => run(client, signal), undefined, signal);
+      const connected = await useClient(home, active(home, id), client => run(client, signal), undefined, signal, options.beforeDispatch);
       if (connected.result === undefined) throw new McpConnectionError("authorization", "MCP 需要重新授权");
       return connected.result;
     }));
@@ -363,14 +377,23 @@ export function createConnectorMcpHost(options: { testServers?: Readonly<Record<
     if (withConnectorConnections(home, store => store.require(id)).updated_at !== row.updated_at) throw new McpConnectionError("configuration", "连接已改变，请重新读取");
     return { kind: "mcp" as const, connection_id: id, service_id: row.service_id, display_name: row.display_name, revision, available: true, ...capabilities };
   };
-  const callMcpConnectionTool = (home: string, id: string, name: string, args: Record<string, unknown>, options: { signal?: AbortSignal } = {}) => runConnection(home, id, options, async (client, signal) => {
+  const callMcpConnectionTool = (home: string, id: string, name: string, args: Record<string, unknown>, options: McpToolRequestOptions = {}) => runConnection(home, id, options, async (client, signal) => {
     if (!name.trim() || name.length > 256) throw new McpConnectionError("configuration", "MCP 工具名称无效");
     const available = await inspect(client, signal);
-    if (!available.tools.some(tool => tool.name === name)) throw new McpConnectionError("configuration", "此连接没有所选工具，请重新发现工具");
+    options.onInspection?.(available);
+    const tool = available.tools.find(tool => tool.name === name);
+    if (!tool) throw new ActionError("actions.provider_changed", "此连接已不再提供所选工具，请重新选择");
+    if (options.expectedInputFingerprint && options.expectedInputFingerprint !== mcpInputFingerprint(tool.inputSchema)) {
+      throw new ActionError("actions.provider_changed", "MCP 工具的参数合同已变化，原引用已保留，请重新选择并授权");
+    }
+    await options.beforeDispatch?.();
+    signal.throwIfAborted();
     return client.callTool({ name, arguments: args }, undefined, { timeout: REQUEST_TIMEOUT, signal });
   });
-  const readMcpConnectionResource = (home: string, id: string, uri: string, options: { signal?: AbortSignal } = {}) => runConnection(home, id, options, (client, signal) => {
+  const readMcpConnectionResource = (home: string, id: string, uri: string, options: McpRequestOptions = {}) => runConnection(home, id, options, async (client, signal) => {
     if (!uri.trim() || uri.length > 4096) throw new McpConnectionError("configuration", "资源 URI 无效");
+    await options.beforeDispatch?.();
+    signal.throwIfAborted();
     return client.readResource({ uri }, { timeout: REQUEST_TIMEOUT, signal });
   });
   const resolveMcpConnectionToken = (home: string, id: string, endpoint: string) => serialized(home, id, async () => {

@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionCallContext } from "./actions.js";
+import { ActionError, type ActionAudience, type ActionDefinition, type ActionHandlerBinding, type ActionCallContext } from "./actions.js";
 import { ACTION_SUBJECT_SCHEMA, type ActionSubject } from "./action-subjects.js";
 
 /**
@@ -70,22 +70,29 @@ export const SEARCH_QUERY_HIT_SCHEMA = { type: "object", properties: { subject: 
   updated_at: nullableText, open }, required: ["subject", "revision", "title", "snippet", "updated_at", "open"], additionalProperties: false };
 export const SEARCH_QUERY_OUTPUT_SCHEMA = { type: "object", properties: { hits: { type: "array", maxItems: 50, items: SEARCH_QUERY_HIT_SCHEMA } }, required: ["hits"], additionalProperties: false };
 
-const metadata = (kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope: "home" | "project") => ({
-  title, kind: "query" as const, scope, scheduling: "concurrent" as const, audiences: ["user", "agent", "workflow", "mcp", "plugin"] as const,
+/**
+ * Who may list a source unless the owner narrows it. A source never reaches further than the owner's own reads:
+ * content the plugin keeps for the local person (Shelf's clipboard history) is a separate source limited to `["user"]`.
+ * The index is always built as the local person, so every source must be open to `user`.
+ */
+export const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp", "plugin"];
+
+const metadata = (kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope: "home" | "project", audiences: readonly ActionAudience[]) => ({
+  title, kind: "query" as const, scope, scheduling: "concurrent" as const, audiences: [...audiences],
   permissions: [...permissions], subject_kinds: kinds.map(entry => entry.kind), search_source: { kinds: kinds.map(entry => ({ ...entry })) },
 });
 
 /** One declaration per source: which kinds it lists and where they open. Discovery confers no authority. */
 export function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
-  scope: "home" | "project" = "project"): ActionDefinition<SearchEntriesInput, SearchEntriesPage> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope),
+  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = SEARCH_SOURCE_AUDIENCES): ActionDefinition<SearchEntriesInput, SearchEntriesPage> {
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences),
     description: `按版本分页列出${title}的全部可搜索条目，供系统搜索建立与更新索引；不修改数据。`,
     input_type: SEARCH_ENTRIES_INPUT_TYPE, output_type: SEARCH_ENTRIES_OUTPUT_TYPE, input_schema: SEARCH_ENTRIES_INPUT_SCHEMA, output_schema: SEARCH_ENTRIES_OUTPUT_SCHEMA } };
 }
 
 export function defineSearchQueryAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[],
-  scope: "home" | "project" = "project"): ActionDefinition<SearchQueryInput, SearchQueryResult> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope),
+  scope: "home" | "project" = "project", audiences: readonly ActionAudience[] = SEARCH_SOURCE_AUDIENCES): ActionDefinition<SearchQueryInput, SearchQueryResult> {
+  return { capability_id: capabilityId, version: 1, operation: "query", action: { ...metadata(kinds, title, permissions, scope, audiences),
     description: `在${title}的原数据中按需搜索；结果不写入系统索引。`,
     input_type: SEARCH_QUERY_INPUT_TYPE, output_type: SEARCH_QUERY_OUTPUT_TYPE, input_schema: SEARCH_QUERY_INPUT_SCHEMA, output_schema: SEARCH_QUERY_OUTPUT_SCHEMA } };
 }
@@ -162,9 +169,11 @@ export function searchSourceDeclarationProblems(key: string, action: Record<stri
     && typeof (entry as SearchSourceKind).surface === "string" && /^[a-zA-Z0-9_-]{1,64}$/u.test((entry as SearchSourceKind).surface))
     && new Set(kinds.map(entry => (entry as SearchSourceKind).kind)).size === kinds.length && kinds.length === subjectKinds.length;
   const schemas = entries ? [SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_SCHEMA] : query ? [SEARCH_QUERY_INPUT_SCHEMA, SEARCH_QUERY_OUTPUT_SCHEMA] : null;
-  if (!schemas || operation !== "query" || action.kind !== "query" || !["home", "project"].includes(String(action.scope)) || !kindsValid
+  // The index is built as the local person; a source closed to `user` could never be indexed.
+  const openToUser = Array.isArray(action.audiences) && (action.audiences as unknown[]).includes("user");
+  if (!schemas || operation !== "query" || action.kind !== "query" || !["home", "project"].includes(String(action.scope)) || !kindsValid || !openToUser
     || canonical(action.input_schema) !== canonical(schemas[0]) || canonical(action.output_schema) !== canonical(schemas[1])) {
-    problems.push(`能力 ${key} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型与对应对象种类的打开位置`);
+    problems.push(`能力 ${key} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`);
   }
   return problems;
 }

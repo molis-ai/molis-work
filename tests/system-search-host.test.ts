@@ -13,6 +13,7 @@ import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
+import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "../packages/plugin-sdk/src/index.js";
@@ -71,6 +72,18 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     const homeOnly = await host.homeActionClient().invoke(personalCaller, searchActions.query, { query: "深海生态" }) as SearchQueryResponse;
     assert.deepEqual(ids(homeOnly), ["io.molis.work.cognia:cognia_material"]);
     assert.ok(homeOnly.sources.every(source => source.scope === "personal"), "a caller without a project sees no project source");
+
+    // Shelf: a material reaches as far as it is readable; clipboard history stays with the local person, as every clipboard action does.
+    await host.homeActionClient().invoke(personalCaller, shelfActions.admit, { text: "置物架里的抹香鲸观察笔记", title: "抹香鲸观察", capture_pages: false });
+    await host.homeActionClient().invoke(personalCaller, shelfActions.clip, { text: "剪贴板里的抹香鲸暗号 7731" });
+    assert.deepEqual(ids(await search(refA, "抹香鲸")), ["io.molis.work.shelf:shelf_clip", "io.molis.work.shelf:shelf_item"]);
+    const agent: ActionCallContext = { ...await owner(refA), actor_id: "agent:reader", audience: "agent" };
+    const agentSees = await host.actionClient(refA).invoke(agent, searchActions.query, { query: "抹香鲸" }) as SearchQueryResponse;
+    assert.deepEqual(ids(agentSees), ["io.molis.work.shelf:shelf_item"], "an Agent never finds clipboard history");
+    assert.ok(!JSON.stringify(agentSees).includes("7731"), "not even in a snippet or a source status");
+    const shelfClient: ActionCallContext = { actor_id: "mcp:shelf-client", project_id: refA.project_id, audience: "mcp", permissions: ["search:read", "shelf:read"],
+      allowed_actions: [searchActions.query, shelfActions.searchEntries, shelfActions.clipboardSearchEntries].map(definition => ({ capability_id: definition.capability_id, version: definition.version })) };
+    assert.deepEqual(ids(await host.actionClient(refA).invoke(shelfClient, searchActions.query, { query: "暗号" }) as SearchQueryResponse), [], "a grant cannot widen a local-only source");
 
     // A change through the owner's command is visible to the next query; the old words are gone.
     await call(refA, pagesActions.update, { id: page.id, expected_version: page.version, body: doc("成本控制在六十万以内。") });

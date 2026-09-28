@@ -113,6 +113,12 @@ test("search source protocol rejects declarations that do not honor the canonica
   assert.match(inspectActionDeclarations([badSurface], undefined).join(), /搜索来源协议/);
   const loose = { ...entries, action: { ...entries.action, output_schema: { type: "object" } } };
   assert.match(inspectActionDeclarations([loose], undefined).join(), /搜索来源协议/);
+  // A source may be narrower than the default, never closed to the local person who builds the index.
+  const localOnly = defineSearchEntriesAction("notes.local.search.entries", [{ kind: "note", title: "笔记", surface: "notes" }], "本机笔记", ["notes:read"], "project", ["user"]);
+  assert.deepEqual(localOnly.action.audiences, ["user"]);
+  assert.deepEqual(inspectActionDeclarations([localOnly], undefined), []);
+  const agentOnly = { ...entries, action: { ...entries.action, audiences: ["agent", "mcp"] } };
+  assert.match(inspectActionDeclarations([agentOnly], undefined).join(), /搜索来源协议/);
   const page = searchEntriesPage([3, 1, 2].map(n => ({ subject: { kind: "note", id: `n${n}` }, revision: "1", title: "", summary: "", updated_at: null, content: "summary" as const, open: null })), { cursor: null, limit: 2 });
   assert.deepEqual(page.entries.map(entry => entry.subject.id), ["n1", "n2"]);
   const rest = searchEntriesPage([3, 1, 2].map(n => ({ subject: { kind: "note", id: `n${n}` }, revision: "1", title: "", summary: "", updated_at: null, content: "summary" as const, open: null })), { cursor: page.next_cursor, limit: 2 });

@@ -39,7 +39,7 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     assert.ok((await bound.invoke(a.admit, upload)).item.item_id);
     await assert.rejects(bound.invoke(a.admit, {}), { code: "shelf.invalid" });
 
-    for (const local of [a.snapshot, a.clip, a.settings, a.saveSettings, a.file, a.admitFolder, a.sample, a.deleteClip, a.clipToMaterial]) {
+    for (const local of [a.snapshot, a.clip, a.settings, a.saveSettings, a.file, a.admitFolder, a.sample, a.deleteClip, a.clipToMaterial, a.clipboardSearchEntries]) {
       await assert.rejects(client.invoke({ ...user, audience: "agent" }, local, {}), (error: { code?: string }) => error.code === "actions.forbidden",
         `${local.capability_id} must not be callable by an Agent`);
     }
@@ -53,7 +53,8 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
       context: () => ({ actor_id: "runtime:reader", project_id: null, audience: "mcp", permissions: ["shelf:read"] }) });
     const tools = await handleMcpMessage({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }, mcp) as { result: { tools: { name: string }[] } };
     const names = tools.result.tools.map(tool => tool.name).filter(name => name.startsWith("shelf."));
-    assert.deepEqual(names.sort(), ["shelf.items.list__v1", "shelf.items.read__v1"]);
+    // Materials are searchable as far as they are readable; the clipboard source is not listed at all.
+    assert.deepEqual(names.sort(), ["shelf.items.list__v1", "shelf.items.read__v1", "shelf.search.entries__v1"]);
     const read = await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "shelf.items.read__v1", arguments: { item_id: item.item_id } } }, mcp) as { result: { structuredContent: { text: string } } };
     assert.equal(read.result.structuredContent.text, "会议纪要：周五前定稿");
 

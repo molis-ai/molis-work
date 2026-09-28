@@ -1,5 +1,6 @@
 import { ScheduleTaskError } from "./task-error.js";
 import type { ScheduleActionPorts } from "./actions.js";
+import type { ScheduleReminderManagement } from "./reminder-management.js";
 import {
   archiveScheduleConversationTask,
   bindScheduleConversationJob,
@@ -25,6 +26,7 @@ import {
 export function createScheduleActionPorts(options: {
   db: ScheduleTaskDatabase;
   schedule: ScheduleJobPort;
+  reminders?: ScheduleReminderManagement;
   now?: () => Date;
 }): ScheduleActionPorts {
   const now = options.now ?? (() => new Date());
@@ -38,13 +40,18 @@ export function createScheduleActionPorts(options: {
     return viewOf(task);
   };
   return {
-    listJobs: () => ownedScheduleJobs(options.schedule.list()),
+    listJobs: () => ownedScheduleJobs(options.schedule.list()).map(job => options.reminders?.view(job) ?? job),
     setEnabled: (jobId, enabled) => {
       const job = options.schedule.get(jobId);
       if (job && isScheduleConversationJob(job)) {
         throw new ScheduleTaskError("schedule_task_invalid", "对话任务请用任务自己的开关");
       }
+      if (job && enabled) options.reminders?.assertCanEnable(job);
       return options.schedule.setEnabled(jobId, enabled);
+    },
+    recoverReminder: input => {
+      if (!options.reminders) throw new ScheduleTaskError("schedule_task_invalid", "当前宿主未提供提醒恢复入口");
+      return options.reminders.recover(input);
     },
     listTasks: () => listScheduleConversationTasks(options.db).map(viewOf),
     createTask(input) {

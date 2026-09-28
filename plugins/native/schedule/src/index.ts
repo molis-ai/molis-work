@@ -13,6 +13,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./reminders.js";
 export * from "./reminder-actions.js";
+export * from "./reminder-management.js";
 
 export * from "./ui.js";
 export * from "./routes.js";

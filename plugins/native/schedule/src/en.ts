@@ -1,5 +1,17 @@
 /** Schedule application copy; Workbench supplies the request locale. */
 export const SCHEDULE_EN: Record<string, string> = {
+  "待确认归属": "Confirm plugin ownership",
+  "确认归属并恢复": "Review and restore",
+  "刷新当前安装": "Refresh current installation",
+  "原安装身份无法确认。请核对提醒内容与当前插件后再恢复。": "The original installation cannot be verified. Review the reminder and the current plugin before restoring it.",
+  "请先安装并启用对应插件，再刷新查看当前安装。": "Install and enable the corresponding plugin, then refresh to review it.",
+  "恢复这条提醒": "Restore this reminder",
+  "交给当前安装：": "Assign to this installation: ",
+  "保留原提醒时间。已过期的提醒会补提醒一次，之后仍按原间隔提醒。此操作不会运行插件代码。": "Keep the original schedule. An overdue reminder is delivered once, then repeats at the original interval. This does not run plugin code.",
+  "确认恢复": "Confirm restoration",
+  "这条提醒已恢复或已不存在，请返回列表查看。": "This reminder has been restored or no longer exists. Return to the list to check.",
+  "无法恢复提醒": "Could not restore the reminder",
+  "无法更新定时任务列表": "Could not refresh scheduled tasks",
   "正在创建…": "Creating…",
   "还没有定时任务": "No scheduled tasks yet",
   "新建一条之后，到点会在它自己的对话里跑一轮只读 Agent。其他插件登记的闹钟也会出现在这里。": "Create one and a read-only agent will run in that task’s own chat when it is due. Alarms registered by other plugins also appear here.",

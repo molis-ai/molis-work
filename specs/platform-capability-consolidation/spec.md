@@ -18,7 +18,7 @@
 | 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
-| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 执行控制、提醒归位、安装运行独立于 Studio、安装世代隔离已验证；定时 operation、持久 pending 与旧任务显式恢复待完成 |
+| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 执行控制、提醒归位、安装运行独立于 Studio、安装世代隔离、旧提醒明确恢复已实现；定时 operation、持久 pending 与其旧任务恢复待完成 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent 消费及 Native/Host 提供方已实现并验证；安装依赖变更与执行绑定随 05/07 完成 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
@@ -114,6 +114,18 @@ Schedule 的持久记录同时绑定稳定 ID 与世代；世代由 Host 从 Run
 
 验证用真实 SQLite/Seatbelt 发布工件：只恢复 Host 即可发现并执行安装动作，无 Studio/模型启动；关闭并重开保留安装数据；两个 Home 隔离；关闭 Studio 后安装动作与定时任务仍可用；缺工件/批准记录有可读失败；停用与卸载后不可用。继续跑真实 Chrome 的创作、发布和安装流程，保证消费者迁移完整。
 
+### 历史提醒显式恢复
+
+旧提醒已保留暂停，但原 Schedule 列表只给普通启用开关，用户不能确认归属并恢复。本切片先补通提醒恢复的完整产品路径，定时 operation 的待执行/结果未知恢复仍按后续独立合同处理，不能借提醒恢复重放插件代码。
+
+Schedule 将提醒正文、原插件及当前可用安装投影到 job 详情；Host 从同一项目数据库的 Runtime 解析唯一正在运行的安装，返回名称、版本、发布方和世代。用户在现有 Schedule 详情确认恢复，HTTP 只适配公开 `schedule.reminders.recover` Action；授权仍由统一 Action 服务及其入口决定。普通 jobs.enabled 不得补权，遇到失效提醒应说明需要确认归属。恢复输入中的预期安装 ID/世代只作乐观并发前置条件，不能选定或授权任意安装；处理时重新读取 Runtime，目标重装或缺失时拒绝，保留原记录和暂停状态。
+
+提醒身份更新与原 Scheduler job 启用必须同库原子提交，保留 job/id、固定间隔、下次时间、收据和旧链接；已过期提醒明确提示恢复后会补提醒一次，间隔任务仍沿原节奏推进。重复确认已经恢复的记录不重新开启或重复投递。恢复后的提醒计入当前安装原有数量限制。界面显示正文、名称/版本/发布方与补提醒语义；使用现有 dialog 组件，失败保留确认内容，提供刷新查看当前安装的路径，不自动提交新身份。
+
+实际调用回归发现 `audiences` 不含 plugin 并不足以拒绝插件：平台默认把 Agent 能力提供给生成插件。恢复是管理者重新指定历史提醒归属的动作，显式声明 `plugin: false`，防止当前插件自己继承旧安装记录；用户、Workflow、Agent 与 MCP 仍遵循各入口权限及具体能力授权。输出 schema 同步声明提醒和当前安装字段，供 UI 与外部管理消费者使用。
+
+验收：真实 SQLite 验证旧数据迁移后保持暂停、普通启用不授予身份、明确恢复后的重启/一次性投递/固定间隔、同 ID 重装导致旧确认拒绝、跨项目/Home 隔离、授权撤销零写入、事务失败回滚与并发重复提交不重开已暂停任务。真实 Chrome 验证发现恢复入口、取消确认、安装变更提示与刷新后重新确认，窄屏可操作。先整体构建，再跑 Schedule 包要求与新增定向回归、边界检查。回滚仍须暂停持久任务；本切片不新增第二数据源。
+
 ### 能力执行元数据切片（安装执行迁移的前置）
 
 当前 Builder 目录用 `capability_id === model.generate` 判断费用，sandbox 超时/slow lane 只读旧 Studio 名单；Agent 工具使用统一固定超时。新增提供方声明的 Action `execution`：明确时限、费用类别（未声明保持 unknown）和必要的调用频率上限，随原目录/版本传递。Kernel 对明确声明的时限和频率执行统一检查，沿既有 signal / beforeEffect 契约取消并拒绝迟到写入；入口可以有更严格的限额。现有 concurrent 声明继续负责并发，不新造第二种调度机制，取消仍为合作式而非保证厂商停止计费。
@@ -168,4 +180,8 @@ Schedule 的持久记录同时绑定稳定 ID 与世代；世代由 Host 从 Run
 
   安装世代的最终 69 包边界检查 errors 为空、diff whitespace 检查通过，日志 `/tmp/platform-installation-generation-boundary.log`。没有改动真实 Home 数据，迁移证据来自隔离 SQLite。
 
-接续位置：05 提醒 owner、安装运行与 Studio 解耦、安装调用执行控制及 Runtime/提醒世代隔离已接通。下一步把定时 operation 的记录与管理迁入 Schedule，复用当前安装世代；迁移旧 pending（不能先删后跑、限长丢弃或吞错），补齐旧任务的显式恢复入口，不能把未知结果自动重试。当前旧 operation 队列仍在 `apps/local-host/src/plugin-builder/schedules.ts`，尚未迁移；新的 Host 调用者注册已不依赖 Studio，但该文件还会在注册时先删 pending 再补跑。Scheduler 在派出前推进 next_due_at/停用 once，因此还需核实未派出可等待与已派出结果未知的恢复边界，不能直接把它们混为自动重试。然后复查安装依赖变更后的能力执行策略。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。
+- 旧提醒明确恢复：Schedule 管理投影、公开恢复 Action、HTTP 与实际确认 UI 已接通，Host 只读取 Runtime 的当前安装与元数据；恢复和启用同事务，不改 job/时间/间隔/收据/链接。首次整体构建后 15 文件 80/81 通过，新增回归发现 Agent 能力默认提供给插件，恢复接口也可被插件继承；按现有协议补 `plugin: false` 后重新整体构建，8 文件 38/38，无跳过。包括限额、目标缺失/歧义、旧确认被重装拒绝、跨 Home/项目、撤权、原子回滚、重复确认不撤销后续暂停、重启后补提醒一次，以及真实 Chrome 窄屏中取消、拒绝旧确认、刷新失败保留内容和重新确认。日志 `/tmp/platform-reminder-recovery-build.log`、`/tmp/platform-reminder-recovery-regression.log`、`/tmp/platform-reminder-recovery-final-build.log`、`/tmp/platform-reminder-recovery-final-regression.log`。
+
+  提醒界面隐藏旧 Builder 内部标识的最后调整再次整体构建通过；9 文件 UI/Workbench 33/33，无跳过，包含真实 Chrome 的新恢复动线和原有工作台标签/分屏。已查看窄屏浅色/深色截图，使用现有组件，没有重做页面；深色截图等待主题过渡结束后核对文字对比。最终 69 包边界检查 errors 为空，diff whitespace 检查通过。日志 `/tmp/platform-reminder-recovery-ui-build.log`、`/tmp/platform-reminder-recovery-ui-regression.log`、`/tmp/platform-reminder-recovery-boundary.log`。所有数据、投递及迁移在隔离 SQLite/Home 中验证，没有修改真实 Home 数据，没有运行付费模型，也不代表用户本人验收。
+
+接续位置：05 提醒 owner、安装运行与 Studio 解耦、安装调用执行控制、Runtime/提醒世代隔离及旧提醒明确恢复已接通。下一步把定时 operation 的记录与管理迁入 Schedule，复用当前安装世代；迁移旧 pending（不能先删后跑、限长丢弃或吞错），补齐定时 operation 旧任务的显式恢复入口，不能把未知结果自动重试。当前旧 operation 队列仍在 `apps/local-host/src/plugin-builder/schedules.ts`，尚未迁移；新的 Host 调用者注册已不依赖 Studio，但该文件还会在注册时先删 pending 再补跑。Scheduler 在派出前推进 next_due_at/停用 once，因此还需核实未派出可等待与已派出结果未知的恢复边界，不能直接把它们混为自动重试。然后复查安装依赖变更后的能力执行策略。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。

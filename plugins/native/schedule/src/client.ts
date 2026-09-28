@@ -55,7 +55,7 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       }).catch(() => undefined);
     }
   };
-  const refreshStage = async (openId, kind = "task") => {
+  const refreshStage = async (openId, kind = "task", preserveConfirmation = false) => {
     try {
       const scrollTop = list.scrollTop;
       const response = await fetch(route("/api/schedule/workbench"), { cache: "no-store" });
@@ -80,7 +80,8 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (openId) select(openId, kind);
       else collapse();
       return true;
-    } catch {
+    } catch (error) {
+      if (preserveConfirmation) throw error;
       location.reload();
       return false;
     }
@@ -90,6 +91,55 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     errorEl.hidden = !message;
     errorEl.textContent = message || "";
   };
+  const recoveryDialog = workbench.querySelector("[data-schedule-recovery-dialog]");
+  const recoveryForm = workbench.querySelector("[data-schedule-recovery-form]");
+  const recoveryError = workbench.querySelector("[data-schedule-recovery-error]");
+  let recovery = null, recovering = false;
+  const recoveryMessage = message => { recoveryError.textContent = message || ""; recoveryError.hidden = !message; };
+  const setRecovering = busy => {
+    recovering = busy;
+    recoveryForm.setAttribute("aria-busy", String(busy));
+    recoveryForm.querySelectorAll("button").forEach(button => { button.disabled = busy; });
+    recoveryForm.querySelector("[type=submit]").disabled = busy || !recovery?.input;
+  };
+  const readRecovery = (jobId) => {
+    const detail = [...workbench.querySelectorAll("[data-schedule-detail]")].find(item => item.dataset.scheduleDetail === jobId);
+    const button = detail?.querySelector("[data-schedule-reminder-recover]");
+    recovery = { jobId, input: button ? { expected_installation_id: button.dataset.installationId, expected_generation: button.dataset.generation } : null };
+    recoveryForm.querySelector("[data-schedule-recovery-text]").textContent = detail?.querySelector("[data-schedule-reminder-text]")?.textContent || "";
+    recoveryForm.querySelector("[data-schedule-recovery-target]").textContent = detail?.querySelector("[data-schedule-reminder-target]")?.textContent || L("这条提醒已恢复或已不存在，请返回列表查看。");
+    setRecovering(false);
+  };
+  recoveryForm?.querySelectorAll("[data-schedule-recovery-close]").forEach(button => button.addEventListener("click", () => {
+    if (!recovering) recoveryDialog.close();
+  }));
+  recoveryDialog?.addEventListener("cancel", event => { if (recovering) event.preventDefault(); });
+  recoveryForm?.querySelector("[data-schedule-recovery-refresh]")?.addEventListener("click", async () => {
+    if (recovering || !recovery) return;
+    const jobId = recovery.jobId;
+    setRecovering(true); recoveryMessage("");
+    try { await refreshStage(jobId, "job", true); readRecovery(jobId); }
+    catch (error) { recoveryMessage(error.message || L("无法更新定时任务列表")); }
+    finally { setRecovering(false); }
+  });
+  recoveryForm?.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (recovering || !recovery?.input) return;
+    const { jobId, input } = recovery;
+    setRecovering(true); recoveryMessage("");
+    try {
+      const response = await fetch(route("/api/schedule/jobs/" + encodeURIComponent(jobId) + "/recover-reminder"), {
+        method: "POST", headers: headers(), body: JSON.stringify(input),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || L("无法恢复提醒"));
+      // If refreshing fails, keep the review visible but never submit the old confirmation again.
+      recovery.input = null;
+      await refreshStage(jobId, "job", true);
+      recoveryDialog.close();
+    } catch (error) { recoveryMessage(error.message || L("无法恢复提醒")); }
+    finally { setRecovering(false); }
+  });
   let creating = false;
   const setCreating = (busy) => {
     creating = busy;
@@ -151,6 +201,21 @@ export const SCHEDULE_CLIENT_FACTORY_SCRIPT = `(host) => {
     select(kind === "task" ? row.dataset.scheduleTaskId : row.dataset.scheduleJobId, kind);
   });
   workbench.addEventListener("click", async (event) => {
+    const recover = event.target.closest("[data-schedule-reminder-recover]");
+    if (recover) {
+      if (recovering) return;
+      readRecovery(recover.dataset.scheduleJobId); recoveryMessage(""); recoveryDialog.showModal();
+      return;
+    }
+    const refreshReminder = event.target.closest("[data-schedule-reminder-refresh]");
+    if (refreshReminder) {
+      const status = refreshReminder.closest("[data-schedule-detail]")?.querySelector("[data-schedule-action-status]");
+      refreshReminder.disabled = true;
+      try { await refreshStage(refreshReminder.dataset.scheduleReminderRefresh, "job", true); }
+      catch (error) { if (status) { status.hidden = false; status.textContent = error.message; } }
+      finally { refreshReminder.disabled = false; }
+      return;
+    }
     if (event.target.closest("[data-schedule-collapse]")) {
       collapse();
       return;

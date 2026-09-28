@@ -18,6 +18,7 @@ Host 把任务和 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/
 | [src/tasks.ts](src/tasks.ts) | 对话任务 sqlite |
 | [src/wakeup.ts](src/wakeup.ts) | 到点执行与次日重排 |
 | [src/reminders.ts](src/reminders.ts)、[src/reminder-actions.ts](src/reminder-actions.ts) | 按安装隔离的提醒、事务投递与公共动作 |
+| [src/reminder-management.ts](src/reminder-management.ts) | 提醒管理投影、旧提醒的归属确认与原子恢复 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
 | [src/route-handlers.ts](src/route-handlers.ts) | 创建、打开、暂停用例 |
 | [src/client.ts](src/client.ts) | 工作台选择、创建与暂停 |
@@ -56,11 +57,12 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - 不变量：
   - 其他插件自有业务闹钟由 Scheduler 叫醒它们自己的能力；通用提醒由本插件拥有，使用 `reminders.add/cancel`，同一插件重装不能接管旧安装的提醒。
   - 提醒同时绑定安装 ID 与 Runtime 安装世代；重装复用存储 ID 也不能取消或投递旧世代提醒。旧 Runtime 重装还会复用 installed_at，时间不能证明旧任务归属；缺少世代的旧提醒保留并暂停，重复迁移不补权。
+  - 旧提醒在详情核对内容、当前安装版本与发布方后，经公开 `schedule.reminders.recover` 明确恢复。预期安装 ID/世代只防止过期确认，实际目标由 Host 重新读取；普通启用不补权。恢复沿用原 job、时间、收据和固定间隔，过期补提醒一次，不运行插件代码；重复确认不能重新开启后来暂停的任务。
   - 提醒的 daily/weekly 是固定 24 小时/7 天间隔；创建、取消与 Scheduler job 同库事务，Inbox 投递与一次性消费也在同一事务内复查 lease。
   - Host 启动时迁移旧 Builder 提醒并保留 job、时间、收据和链接；无法证明原安装归属则保留并暂停，不绑定重装实例。
   - 对话任务到点在自己的对话里跑一轮只读 Agent；提示词正文随目录条目声明。
   - 本地 Web 宿主没运行时闹钟不响。
-- 改动后必跑：`node scripts/run-tests.mjs tests/schedule-plugin.test.ts tests/schedule-actions.test.ts tests/schedule-conversation-tasks.test.ts tests/schedule-task-runner.test.ts tests/agent-built-plugins-reminders.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/schedule-plugin.test.ts tests/schedule-actions.test.ts tests/schedule-conversation-tasks.test.ts tests/schedule-task-runner.test.ts tests/agent-built-plugins-reminders.test.ts tests/schedule-reminder-recovery.test.ts`
 - 相关手册：[docs/horizontal/scheduler.md](../../../docs/horizontal/scheduler.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -160,6 +160,7 @@ test("Schedule HTTP 能列出任务并暂停", async () => {
         return next;
       },
       listTasks: () => [],
+      recoverReminder: unused,
       createTask: unused,
       updateTask: unused,
       archiveTask: unused,

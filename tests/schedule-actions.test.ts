@@ -90,6 +90,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     const tools = (await sdk.listTools()).tools.map(tool => tool.name);
     assert.ok(tools.includes(hostActionToolName(s.createTask)));
     assert.ok(!tools.includes(hostActionToolName(s.archiveTask)), "ungranted actions are not exported");
+    assert.ok(!tools.includes(hostActionToolName(s.recoverReminder)), "ordinary Schedule grants do not implicitly expose installation recovery to MCP");
     const external = await sdk.callTool({ name: hostActionToolName(s.createTask),
       arguments: { title: "周报", instructions: "汇总本周进展", time: "18:00", notify_important: false }, _meta: { project_id: "other" } });
     assert.equal(external.isError, false, JSON.stringify(external));

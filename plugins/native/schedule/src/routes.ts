@@ -43,6 +43,7 @@ export const SCHEDULE_NATIVE_PLUGIN_ROUTES = [
   route("schedule.task.enabled", "POST", /^\/api\/schedule\/tasks\/([^/]+)\/enabled$/u, ["task_id"]),
   route("schedule.task.open", "POST", /^\/api\/schedule\/tasks\/([^/]+)\/open$/u, ["task_id"]),
   route("schedule.job.enabled", "POST", /^\/api\/schedule\/jobs\/([^/]+)\/enabled$/u, ["job_id"]),
+  route("schedule.reminder.recover", "POST", /^\/api\/schedule\/jobs\/([^/]+)\/recover-reminder$/u, ["job_id"]),
 ] as const satisfies readonly SchedulePluginRouteDefinition[];
 
 export class SchedulePluginRouteTable {

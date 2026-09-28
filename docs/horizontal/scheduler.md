@@ -12,6 +12,10 @@
 
 **不拥有：** cron 表达式、Automation rule、Source schedule intent、Action parameters 或 Attention 内容。
 
+旧提醒的归属确认由 Schedule 的 `schedule.reminders.recover` Action 完成，HTTP/页面复用同一实现，MCP 仍需该具体动作的授权。先读取 `schedule.tasks.list` 中提醒内容及当前安装，再携带预期安装 ID/世代提交；这些值只是并发检查，Host 会重新解析目标，不接受输入冒充身份。界面展示内容、版本、发布方和过期补提醒语义，失败保留确认内容，刷新安装后须重新确认。恢复同事务更新提醒身份和启用原 job，保留间隔、收据和链接；普通闹钟启用不替代归属确认。
+
+恢复动作显式声明 `plugin: false`：生成插件不能借默认的 Agent 能力暴露自行接管旧安装提醒，须由具有管理权限的调用方发起。
+
 公共提醒以 `schedule.reminders` 系统提供方装配，产品实现归 Schedule；它不增加“先启用对话页面”的条件。Schedule 对话任务仍按项目插件启停，提醒自己的启停由对应 job 管理。
 
 **当前来源与 Goal：** `horizontal/scheduler` + `plugins/native/schedule`；Web timer 与 Feed timer 并行。Feed 自有调度仍独立，迁入是 later。日历日对话任务由 Schedule 产品层在叫醒后重新登记 once job。见 `specs/archive/schedule-plugin/spec.md` 与 `specs/archive/schedule-conversation-tasks/spec.md`。

@@ -38,6 +38,11 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
       if (!params.job_id) return { status: 404, body: { error: "定时任务不存在", code: "schedule_job_not_found" } };
       return run(scheduleActions.setJobEnabled, { job_id: params.job_id, enabled: value });
     },
+    "schedule.reminder.recover": ({ params, request }) => run(scheduleActions.recoverReminder, {
+      job_id: params.job_id ?? "",
+      expected_installation_id: typeof request.body.expected_installation_id === "string" ? request.body.expected_installation_id : "",
+      expected_generation: typeof request.body.expected_generation === "string" ? request.body.expected_generation : "",
+    }),
     "schedule.task.create": ({ request }) => run(scheduleActions.createTask, task(request.body), 201),
     "schedule.task.update": ({ params, request }) => run(scheduleActions.updateTask, { ...task(request.body), task_id: params.task_id ?? "" }),
     "schedule.task.archive": ({ params }) => run(scheduleActions.archiveTask, { task_id: params.task_id ?? "" }),

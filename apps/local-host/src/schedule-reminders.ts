@@ -1,6 +1,7 @@
 import { AgentBuilderStore, BUILDER_PLUGIN_ID } from "@molis-ai/molis-work-plugin-builder";
 import { pluginInstallationGeneration, SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { createScheduleReminders, deliverScheduleReminder, importScheduleReminder, pauseLegacyScheduleReminders, migrateScheduleReminders, type ScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
+import { createScheduleReminders, createScheduleReminderManagement, deliverScheduleReminder, importScheduleReminder, pauseLegacyScheduleReminders, migrateScheduleReminders, type ScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ScheduleService, ScheduleSqliteDatabase, ScheduleWakeupControl, ScheduleWakeupInput } from "@molis-ai/molis-work-service-scheduler";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { studioStorage } from "./plugin-builder/storage.js";
@@ -36,18 +37,35 @@ export function migrateLegacyReminders(db: ScheduleSqliteDatabase, schedule: Sch
 
 /** Same-db adapters only: Schedule owns the reminder's product rules and storage. */
 export function hostScheduleReminders(options: { db: ScheduleSqliteDatabase; boardId: string; projectId: string; schedule: ScheduleService; routePrefix?: string; now?(): number }) {
-  const installations = new SqlitePluginRuntimeRepository(options.db), releases = new SqlitePluginRuntimeReleaseArtifactRepository(options.db);
+  const { installations, describe } = reminderInstallations(options.db, options.boardId);
   return createScheduleReminders({ ...options, describe(identity) {
     const record = installations.get(identity.installationId);
     if (!record || record.plugin_id !== identity.pluginId || record.state !== "running") throw new Error("提醒的插件安装当前没有运行");
+    return { ...describe(record),
+      link: (options.routePrefix ?? `/projects/${encodeURIComponent(options.projectId)}`) + "/plugins/" + encodeURIComponent(identity.pluginId) };
+  } });
+}
+
+export function hostScheduleReminderManagement(options: { db: ScheduleSqliteDatabase; boardId: string; schedule: ScheduleService }) {
+  const { installations, describe } = reminderInstallations(options.db, options.boardId);
+  return createScheduleReminderManagement({ ...options, currentInstallation(pluginId) {
+    const records = installations.list().filter(record => record.plugin_id === pluginId && record.state === "running");
+    // Do not choose between distinct installations on the person's behalf.
+    return records.length === 1 ? describe(records[0]!) : null;
+  } });
+}
+
+function reminderInstallations(db: ScheduleSqliteDatabase, boardId: string) {
+  const installations = new SqlitePluginRuntimeRepository(db), releases = new SqlitePluginRuntimeReleaseArtifactRepository(db);
+  return { installations, describe(record: PluginInstanceRecord) {
     const artifact = releases.get(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest);
     // Older generated releases live in the authoring repository, not Runtime's native release artifacts.
     const generated = !artifact && record.publisher_signature.startsWith("agent-built:")
-      ? new AgentBuilderStore(studioStorage(options.db, options.boardId)).versions(record.publisher_signature.slice("agent-built:".length))
+      ? new AgentBuilderStore(studioStorage(db, boardId)).versions(record.publisher_signature.slice("agent-built:".length))
         .find(item => `${item.version}.0.0` === record.version) : undefined;
-    return { title: artifact?.manifest.name ?? generated?.design.title ?? identity.pluginId, generation: pluginInstallationGeneration(record),
-      link: (options.routePrefix ?? `/projects/${encodeURIComponent(options.projectId)}`) + "/plugins/" + encodeURIComponent(identity.pluginId) };
-  } });
+    return { installation_id: record.install_id, generation: pluginInstallationGeneration(record), version: record.version, publisher: record.publisher_id,
+      title: artifact?.manifest.name ?? generated?.design.title ?? record.plugin_id };
+  } };
 }
 
 export function deliverHostReminder(db: ScheduleSqliteDatabase, input: ScheduleWakeupInput, control: ScheduleWakeupControl): { detail: string } {

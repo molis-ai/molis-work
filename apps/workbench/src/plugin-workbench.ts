@@ -61,9 +61,9 @@ export interface BuiltinPluginWorkbenchPack {
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
   { project_plugin_id: "cognia", contributions: [cogniaUiContribution], stylesheet: COGNIA_STYLES, clientFactory: COGNIA_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-cognia-id]", idDataset: "cogniaId" } },
   { project_plugin_id: "plugin-builder", contributions: [builderUiContribution], stylesheet: BUILDER_STYLES, clientFactory: BUILDER_CLIENT_FACTORY_SCRIPT },
-  { project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, contributions: [imagesUiContribution], stylesheet: IMAGES_STYLES, clientFactory: IMAGES_CLIENT_FACTORY_SCRIPT },
+  { project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, contributions: [imagesUiContribution], stylesheet: IMAGES_STYLES, clientFactory: IMAGES_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-images-job]", idDataset: "imagesJob" } },
   { project_plugin_id: JELLY_PROJECT_PLUGIN_ID, contributions: [jellyUiContribution], stylesheet: JELLY_STYLES, clientFactory: JELLY_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-jelly-id]", idDataset: "jellyId" } },
-  { project_plugin_id: "experiments", contributions: [experimentsUiContribution], stylesheet: EXPERIMENTS_STYLES, clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT },
+  { project_plugin_id: "experiments", contributions: [experimentsUiContribution], stylesheet: EXPERIMENTS_STYLES, clientFactory: EXPERIMENTS_CLIENT_FACTORY_SCRIPT, searchRow: { selector: "[data-exp-open]", idDataset: "expOpen" } },
   { project_plugin_id: "feed", contributions: [feedUiContribution], stylesheet: FEED_STYLES },
   { project_plugin_id: "inbox", contributions: [inboxUiContribution] },
   {
@@ -71,6 +71,7 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
     contributions: [scheduleUiContribution],
     stylesheet: SCHEDULE_STYLES,
     clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT,
+    searchRow: { selector: "[data-schedule-row][data-schedule-task-id]", idDataset: "scheduleTaskId" },
   },
   {
     project_plugin_id: "shelf",

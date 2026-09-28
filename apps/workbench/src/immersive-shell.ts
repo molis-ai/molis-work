@@ -232,7 +232,12 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
   return `<dialog class="global-search-dialog" data-global-search-dialog aria-label="${L("搜索项目内的内容")}">
     <form class="global-search-shell" data-global-search-form>
       <div class="global-search-field">${icon("search")}<input class="global-search-query" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="global-search-results" data-global-search placeholder="${L("搜索")}" aria-label="${L("搜索项目内的内容")}" autocomplete="off" enterkeyhint="search"><kbd>⌘K</kbd><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-global-search-close aria-label="${L("关闭")}">${icon("x")}</button></div>
-      <p class="global-search-scope">${L("搜索已载入的内容，或按名称切换工具")}</p>
+      <div class="global-search-scopes" data-global-search-scopes role="group" aria-label="${L("搜索范围")}">
+        <button type="button" class="global-search-scope-option" data-global-search-scope-option="all" aria-pressed="true">${L("本项目与个人")}</button>
+        <button type="button" class="global-search-scope-option" data-global-search-scope-option="project" aria-pressed="false">${L("仅本项目")}</button>
+        <button type="button" class="global-search-scope-option" data-global-search-scope-option="personal" aria-pressed="false">${L("仅个人")}</button>
+      </div>
+      <p class="global-search-scope" data-global-search-status role="status" aria-live="polite">${L("搜索本项目与个人的全部内容，或按名称切换工具")}</p>
       <div id="global-search-results" class="global-search-body" data-global-search-results role="listbox" aria-label="${L("搜索结果")}"></div>
     </form>
   </dialog>`;

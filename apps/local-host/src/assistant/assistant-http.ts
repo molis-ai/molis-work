@@ -12,6 +12,7 @@ import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assist
 import { AssistantError, AssistantService } from "./assistant-service.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
+import { assistantContributions } from "./assistant-contributions.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = "web-user";
@@ -108,6 +109,13 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
           description: view.action.description, operation: view.operation, effect: actionEffect(view.action, view.capability_id), scope: view.action.scope,
           enabled: !off.has(actionKey({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
         })) } };
+      }
+      // What each plugin here contributes for the Assistant, and exactly what is missing (developer diagnostics).
+      if (method === "GET" && parts.length === 1 && parts[0] === "contributions") {
+        const reference = ports.projectRef;
+        const caller = { actor_id: WEB_ACTOR, actor_kind: "runtime" as const, project_id: reference?.project_id ?? null, audience: "agent" as const, permissions: [] };
+        const catalog = (await ports.localHost.inspectActions(caller, reference)).filter(view => !view.provider.project_id || view.provider.project_id === caller.project_id);
+        return { status: 200, body: { contributions: assistantContributions(catalog) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "capabilities") {
         if (typeof body.capability_id !== "string" || !Number.isSafeInteger(body.version) || typeof body.provider_id !== "string" || typeof body.enabled !== "boolean") throw new AssistantError("assistant.invalid", "能力标识无效");

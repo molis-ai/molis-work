@@ -185,7 +185,7 @@ export async function handleLocalCatalogWebRequest(
   };
   if (await planningHttp.personal(request, response, url, serverOptions.homeDirectory, projects, controlToken, bindPersonalPlanningWebActions(localHost.homeActionClient()))) return;
   if (await handleModelSettingsHttp(request, response, url, composition.withCatalog, serverOptions.homeDirectory)) return;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|prompts|mcp|connectors|projects|diagnostics)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|models|runtimes|assistant|prompts|mcp|connectors|projects|diagnostics)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (request.method === "GET" && (settingsPageMatch || capabilityPageMatch)) {
     const rules = capabilityPageMatch?.[1] === "rules";

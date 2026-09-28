@@ -54,3 +54,16 @@ test("execution lifetime does not start monitoring for an already aborted caller
   assert.throws(() => cancelled.assertActive(), /already stopped/);
   assert.throws(() => completed.assertActive(), { name: "AbortError" });
 });
+
+test("cancellable waiting observes late rejections and removes listeners for an already stopped owner", async () => {
+  const { getEventListeners } = await import("node:events");
+  const stop = new AbortController(), reason = new Error("cancelled");
+  const execution = createExecutionLifetime({ signal: stop.signal });
+  let rejectWork!: (reason: Error) => void;
+  const work = new Promise<never>((_resolve, reject) => { rejectWork = reject; });
+  const wait = assert.rejects(execution.wait(work), error => error === reason);
+  stop.abort(reason); await wait;
+  rejectWork(new Error("late remote error"));
+  await assert.rejects(execution.wait(new Promise(() => {})), error => error === reason);
+  assert.equal(getEventListeners(execution.signal, "abort").length, 0);
+});

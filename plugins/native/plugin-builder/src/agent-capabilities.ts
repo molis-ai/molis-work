@@ -6,6 +6,7 @@
  * so they are repeatable and cost nothing. The person's own trial in the studio and the installed plugin use the
  * real capability.
  */
+import type { ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export interface StudioCapability {
@@ -20,8 +21,8 @@ export interface StudioCapability {
   output: SandboxSchema;
   /** Deterministic answer used wherever the real capability must not run. */
   standIn(input: SandboxJson): SandboxJson;
-  /** Longest a single call may take; the host raises the plugin's operation limits to fit it. */
-  timeoutMs: number;
+  /** Provider-owned limits, also published in the unified action directory. */
+  execution: ActionExecutionPolicy;
   /** Changes something outside the plugin: the studio trial gets the stand-in, only the installed plugin writes. */
   writes?: boolean;
 }
@@ -44,7 +45,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
       input: { type: 'string', maxLength: 40000, description: '要处理的内容' } } },
     output: { type: 'object', additionalProperties: false, required: ['text'], properties: { text: { type: 'string' } } },
     standIn: input => ({ text: MODEL_STAND_IN_PREFIX + String(field(input, 'input') ?? '').slice(0, 40) }),
-    timeoutMs: 120_000,
+    execution: { timeout_ms: 120_000, cost: 'metered', max_calls_per_minute: 20 },
   },
   {
     id: 'goals.list',
@@ -56,7 +57,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
     output: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['id', 'title', 'status'], properties: {
       id: { type: 'string' }, title: { type: 'string' }, status: { type: 'string' } } } },
     standIn: () => [{ id: 'goal-demo', title: '示例目标', status: 'active' }],
-    timeoutMs: 10_000,
+    execution: { timeout_ms: 10_000, cost: 'none' },
   },
   {
     id: 'goals.note',
@@ -68,7 +69,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
       goalId: { type: 'string', minLength: 1, maxLength: 200 }, text: { type: 'string', minLength: 1, maxLength: 4000 } } },
     output: { type: 'object', additionalProperties: false, required: ['recorded'], properties: { recorded: { type: 'boolean' } } },
     standIn: () => ({ recorded: true }),
-    timeoutMs: 10_000,
+    execution: { timeout_ms: 10_000, cost: 'none' },
     writes: true,
   },
   {
@@ -83,7 +84,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
       repeat: { type: 'string', enum: ['none', 'daily', 'weekly'] } } },
     output: { type: 'object', additionalProperties: false, required: ['reminderId'], properties: { reminderId: { type: 'string' } } },
     standIn: () => ({ reminderId: 'reminder-demo' }),
-    timeoutMs: 10_000,
+    execution: { timeout_ms: 10_000, cost: 'none' },
     writes: true,
   },
   {
@@ -94,7 +95,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
     input: { type: 'object', additionalProperties: false, required: ['reminderId'], properties: { reminderId: { type: 'string', minLength: 1, maxLength: 100 } } },
     output: { type: 'object', additionalProperties: false, required: ['cancelled'], properties: { cancelled: { type: 'boolean' } } },
     standIn: () => ({ cancelled: true }),
-    timeoutMs: 10_000,
+    execution: { timeout_ms: 10_000, cost: 'none' },
     writes: true,
   },
   {
@@ -109,7 +110,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
       repeat: { type: 'string', enum: ['none', 'daily', 'weekly'] }, input: { type: 'object', description: '给那项功能的输入' }, inbox: { type: 'boolean', description: '把结果放进收件箱' } } },
     output: { type: 'object', additionalProperties: false, required: ['scheduleId'], properties: { scheduleId: { type: 'string' } } },
     standIn: () => ({ scheduleId: 'schedule-demo' }),
-    timeoutMs: 10_000,
+    execution: { timeout_ms: 10_000, cost: 'none' },
     writes: true,
   },
   {
@@ -120,7 +121,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
     input: { type: 'object', additionalProperties: false, required: ['scheduleId'], properties: { scheduleId: { type: 'string', minLength: 1, maxLength: 100 } } },
     output: { type: 'object', additionalProperties: false, required: ['cancelled'], properties: { cancelled: { type: 'boolean' } } },
     standIn: () => ({ cancelled: true }),
-    timeoutMs: 10_000,
+    execution: { timeout_ms: 10_000, cost: 'none' },
     writes: true,
   },
 ];

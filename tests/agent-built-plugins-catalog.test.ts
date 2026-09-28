@@ -153,3 +153,26 @@ test('the designer\'s catalog stays within budget: what is in use and the most r
   assert.equal(trimmed[0], entries[0], 'the most relevant fits');
   assert.deepEqual((trimmed[1]!.input as { fields: string[] }).fields.slice(0, 2), ['field0', 'field1']);
 });
+
+test('arbitrarily named providers drive sandbox limits, cost disclosure and rate limits through the same directory', async () => {
+  const { capabilityLimits, slowOperations } = await import('../apps/local-host/src/plugin-builder/capabilities.js');
+  const { actions } = project();
+  const base = goals('research.summarize', 'query');
+  const definition: ActionDefinition = { ...base, version: 2, action: { ...base.action, execution: { timeout_ms: 75_000, cost: 'metered', max_calls_per_minute: 1 } } };
+  let calls = 0;
+  actions.registry.registerProvider({ provider: { provider_id: 'research', title: 'Research', kind: 'plugin', project_id: 'p' }, definitions: [{ ...base, action: { ...base.action, execution: { timeout_ms: 100, cost: 'none' } } }, definition],
+    handlers: [{ ...base, handle: () => { throw new Error('old version must not execute'); } }, { ...definition, handle: () => { calls++; return { recorded: true }; } }] });
+  const catalog = await capabilityCatalog(actions, 'user');
+  assert.equal(catalog.find(item => item.id === 'research.summarize' && item.version === 2)!.execution.cost, 'metered');
+  assert.equal(catalog.find(item => item.id === 'goals.list')!.execution.cost, 'unknown');
+  const effects = { capabilities: ['research.summarize'] };
+  assert.deepEqual(capabilityLimits(effects, catalog), { serviceTimeoutMs: 80_000, operationTimeoutMs: 105_000 });
+  assert.deepEqual([...slowOperations({ operations: [{ id: 'summarize', effects }, { id: 'list', effects: {} }] }, catalog)], ['summarize']);
+  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'plugin', namespace: 'installed' as const }, signal: new AbortController().signal, operationId: 'summarize' };
+  await service.call(context, 'research.summarize', {});
+  // Recreating an adapter cannot reset the provider's budget.
+  const second = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  await assert.rejects(second.call(context, 'research.summarize', {}), /次数太多/);
+  assert.equal(calls, 1);
+});

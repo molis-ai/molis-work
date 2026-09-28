@@ -190,6 +190,11 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 ## 异步动作与原调用授权
 
 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后调用 dispatcher 提供的 `caller.beforeEffect()`，再按原对象或配置版本提交。发起嵌套动作/场景时用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；仅复查权限字符串不能识别同名提供方已被替换。来源同步另持有按数据库、项目和来源隔离的活动租约。失去授权时保留此前的未确认记录用于恢复，不补写失败记录或伪造成功。
+
+提供方在 `action.execution` 声明执行事实：`timeout_ms` 是处理器开始执行后的等待上限，`cost` 为 `none` / `metered` / `unknown`，`max_calls_per_minute` 是同一 actor、项目、安装实例滚动一分钟内的接受次数。未声明费用保持 unknown；未声明时限/频率不自动加限。Kernel 对声明的时限与频率统一执行，切换用户、Agent、Workflow、MCP 或插件入口不能重置同一身份的预算。限额是当前注册实例的本机保护，不是跨进程计费账本；重启或重新注册会重置计数。
+
+例如调用收费文字模型的能力声明 `execution: { timeout_ms: 120000, cost: "metered", max_calls_per_minute: 20 }`。声明不代替 `scheduling: "concurrent"`、权限或模型服务自己的预算。超时停止本机等待并中止传给处理器的 signal，外部副作用可能已经发生，不自动重试；每次异步等待后仍须调用 `beforeEffect()` 才能提交。同步阻塞代码无法靠 JavaScript 定时器抢占。Agent 可以使用更严格的入口时限；生成插件的 sandbox 依据共同目录选择时限和慢操作通道，费用未知不能显示成免费。老生成物只转换历史输入输出，模型和提醒执行仍走当前 ActionService。
+
 ## 单次 AI 能力与 Host 取消
 
 Coding 草稿、Cognia 知识生成等工具为空的调用使用 Home 共享推理入口；插件拥有提示词和领域校验，Host 拥有模型/凭据绑定。需要结构结果、执行引用、进度或 typed usage 时使用 `hostTextGeneration`，标准接线见 [Prologue AI 手册](PROLOGUE-AI.md) 与 [开发 Skill](../../skills/molis-prologue-ai/SKILL.md)。

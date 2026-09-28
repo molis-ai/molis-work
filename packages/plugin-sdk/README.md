@@ -137,6 +137,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 项目、用户、生产者签名与安装身份由 Host 绑定，参数不能覆盖；停止或崩溃后的旧客户端不能继续操作。
+  - `ActionExecutionPolicy` 描述提供方的时限、费用与频率；在 `action.execution` 声明，由 Kernel 执行，插件内不另写同一限额。
   - 动作适配只转换参数与结果，执行仍经同一 Kernel 的 schema、项目策略与权限；缺少动作服务时不直调业务兜底。
   - 处理器在外部等待之后、保存之前调用 `beforeWrite()`。
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。

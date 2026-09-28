@@ -35,7 +35,7 @@ import { hostNetwork } from './network.js';
 import { pluginSecrets, type PluginSecrets } from './secrets.js';
 import { bindReminderDelivery, createReminders } from './reminders.js';
 import { scheduleServiceFor } from '../schedule-runtime.js';
-import { capabilityLimits, hostCapabilities, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
+import { capabilityLimits, hostCapabilities, latestCapability, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
 import { createPluginModelGeneration } from './model.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 
@@ -204,11 +204,12 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     studio.unregister = registerPlatformCapabilities(actions, { generate, reminders, schedules: scheduledRuns });
     studio.catalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
     const titleOf = (pluginId: string) => { const buildId = pluginId.replace(/^io\.molis\.work\.generated\./, ''); return studio.workflow.store.versions(buildId)[0]?.design.title ?? studio.workflow.store.get(buildId)?.design?.title; };
-    const legacy = hostCapabilities({ generate, goals, reminders }, live), current = catalogCapabilities({ actions, catalog: () => studio.catalog(), live, author: titleOf });
+    const current = catalogCapabilities({ actions, catalog: () => studio.catalog(), live, author: titleOf });
+    const legacy = hostCapabilities({ goals, current }, live);
     // Designs made against the catalog call real actions; designs from before keep the studio's own list and shapes.
     const capabilityFor = (design?: AgentDesign | null) => design?.catalog === CATALOG_VERSION ? current : legacy;
     const standInsFor = (design?: AgentDesign | null): NonNullable<SandboxServices['capability']> => design?.catalog === CATALOG_VERSION
-      ? { async call(_context, id, input) { const entry = (await studio.catalog()).find(item => item.offered && item.id === id); if (!entry) throw new Error('平台目录里没有开放给插件的能力：' + id); return standIn(entry, input); } }
+      ? { async call(_context, id, input) { const entry = latestCapability(await studio.catalog(), id); if (!entry) throw new Error('平台目录里没有开放给插件的能力：' + id); return standIn(entry, input); } }
       : standInCapabilities();
     // Gate identities are never stable, so gates always see the stand-ins; the person's trial sees the real capability.
     // The network: the installed plugin fully; before that (trial, checks, acceptance) approved sites are only read, a
@@ -247,15 +248,17 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       await Promise.all(current.map(entry => entry?.runner.then(runner => runner.stop(), () => undefined)));
     };
     /** The newest bundle that passed the gates for the connected operations. */
-    const runnerFor = async (build: AgentBuild, lane: Lane = 'quick'): Promise<SandboxRunner> => {
+    const runnerFor = async (build: AgentBuild, lane: Lane, capabilities: CatalogCapability[]): Promise<SandboxRunner> => {
       const bundle = build.checks.global?.bundlePath ?? [...build.connected].reverse().map(id => build.checks[id]?.bundlePath).find(Boolean);
       if (!bundle || !build.design) throw new Error('还没有接通的功能可以试用');
-      const info = await stat(bundle), key = `${bundle}:${info.mtimeMs}:${info.size}`;
+      const used = new Set(effects(build).capabilities);
+      const policies = capabilities.filter(item => used.has(item.id)).map(item => [item.id, item.version, item.provider_id, item.execution]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+      const info = await stat(bundle), key = `${bundle}:${info.mtimeMs}:${info.size}:${JSON.stringify(policies)}`;
       const slot = build.id + '|' + lane, current = studio.runners.get(slot);
       if (current?.key === key) return current.runner;
       // A newer bundle replaces both lanes, so the trial never mixes versions.
       if (current) await stopRunner(build.id);
-      const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: effects(build), services: previewFor(build.design), limits: capabilityLimits(effects(build)),
+      const runner = createSandboxRunner({ bundlePath: bundle, contract: build.design.contract, grants: effects(build), services: previewFor(build.design), limits: capabilityLimits(effects(build), capabilities),
         identity: { projectId: options.boardId, installationId: STABLE_PREVIEW + build.id, pluginId: build.design.contract.pluginId, namespace: 'preview' } });
       studio.runners.set(slot, { key, runner });
       runner.catch(() => { if (studio.runners.get(slot)?.runner === runner) studio.runners.delete(slot); });
@@ -274,7 +277,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     const installed = () => studio.platform.runtime.list().filter(item => item.publisher_signature.startsWith(SIGNATURE) && item.state !== 'uninstalled');
     const releasesOf = (buildId: string) => studio.workflow.store.versions(buildId);
     const definition = (release: AgentRelease, approved: SandboxEffects) =>
-      sandboxedPluginDefinition(release, approved, releasesOf(release.buildId).map(item => item.version).filter(version => version < release.version), { capability: capabilityFor(release.design), network });
+      sandboxedPluginDefinition(release, approved, releasesOf(release.buildId).map(item => item.version).filter(version => version < release.version), { capability: capabilityFor(release.design), network, capabilities: () => studio.catalog() });
     /** True when `next` asks for nothing the person has not already approved. */
     const covered = (next: SandboxEffects, approved: SandboxEffects) => Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
     // D16: what an installed plugin offers joins the project's action directory while it runs.
@@ -327,8 +330,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     const ports: AgentBuilderPorts = {
       projectId: options.boardId,
       // What a design may use: the project's unified action directory, as offered to generated plugins.
-      catalog: async () => (await studio.catalog()).filter(entry => entry.offered).map(entry => ({ id: entry.id, title: entry.title, source: entry.source.title + (entry.installed ? '' : '（这个项目还没启用；用到时会先问用户要不要启用）'), effect: entry.effect,
-        description: entry.description + (entry.costly ? '（会产生费用：只放在由用户点击触发的 command 里）' : ''), input: entry.input, ...(entry.output ? { output: entry.output } : {}) })),
+      catalog: async () => (await studio.catalog()).filter(entry => entry.offered).map(entry => ({ id: entry.id, title: entry.title, source: entry.source.title + (entry.installed ? '' : '（这个项目还没启用；用到时会先问用户要不要启用）'), effect: entry.effect, execution: entry.execution,
+        description: entry.description + (entry.execution.cost === 'metered' ? '（会产生费用：只放在由用户点击触发的 command 里）' : entry.execution.cost === 'unknown' ? '（提供方未声明费用）' : ''), input: entry.input, ...(entry.output ? { output: entry.output } : {}) })),
       catalogVersion: CATALOG_VERSION,
       // A design that uses a plugin this project has not enabled waits for the person; enabling it continues the build.
       async missingPlugins(design) {
@@ -386,7 +389,10 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       check: (build, operationIds, signal) => runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
         operationIds, services: previewFor(build.design), mockServices: { capability: standInsFor(build.design), network }, grants: effects(build), signal, settled: settledFor(build.directory!),
         identity: { projectId: options.boardId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
-      call: async (build, operationId, input) => (await runnerFor(build, slowOperations(build.design!.contract).has(operationId) ? 'slow' : 'quick')).call(operationId, input),
+      call: async (build, operationId, input) => {
+        const capabilities = await studio.catalog();
+        return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input);
+      },
       async sources(build) {
         if (!build.directory) return [];
         const entries = await readdir(join(build.directory, 'src'), { withFileTypes: true }).catch(() => []);

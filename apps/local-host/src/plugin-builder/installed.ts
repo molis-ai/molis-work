@@ -8,7 +8,7 @@ import type { SandboxEffects, SandboxJson } from '@molis-ai/molis-work-contracts
 import { createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { capabilityLimits, slowOperations, type Lane } from './capabilities.js';
+import { capabilityLimits, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
@@ -45,7 +45,7 @@ export const SCHEDULED_RUN_ACTOR = 'plugin-builder:scheduled-run';
 export const EXPOSED_ACTION_ACTOR = 'plugin-builder:action';
 const DIRECT_CALLERS = new Set([SCHEDULED_RUN_ACTOR, EXPOSED_ACTION_ACTOR]);
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network'] } = {}): PluginDefinition {
+export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {}): PluginDefinition {
   const uiId = release.pluginId + '.ui.v1';
   const manifest: PluginManifest = {
     schema_version: 2, host_api_version: 2, plugin_id: release.pluginId, version: releaseVersion(release.version), name: release.design.title, kind: 'app',
@@ -58,7 +58,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
     ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: release.design.title, contribution_id: uiId }] },
   };
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
-  const lanes = new Map<Lane, Promise<SandboxRunner>>(), slow = slowOperations(release.design.contract);
+  const lanes = new Map<Lane, Promise<SandboxRunner>>();
   return {
     manifest,
     // Host provenance: Plugin Runtime then requires explicit grants and rolls back code without rolling back data.
@@ -67,10 +67,12 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       context.requireGrant('storage:private');
       const storage = context.services?.storage;
       if (!storage) throw new Error('插件存储尚未装配');
+      const capabilities = await host.capabilities?.() ?? [];
+      const slow = slowOperations(release.design.contract, capabilities);
       const services: SandboxServices = { storage: storageTransactions(storage), ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}) };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
-        const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services, limits: capabilityLimits(approved),
+        const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services, limits: capabilityLimits(approved, capabilities),
           identity: { projectId: context.board_id ?? 'local', installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' } });
         lanes.set(lane, created);
         created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });

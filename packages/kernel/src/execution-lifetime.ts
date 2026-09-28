@@ -8,6 +8,8 @@ export interface ExecutionLifetimeOptions {
 export interface ExecutionLifetime {
   readonly signal: AbortSignal;
   assertActive(): void;
+  /** Stops this wait on cancellation; the supplied operation must cooperate with signal for its own cleanup. */
+  wait<T>(work: PromiseLike<T>): Promise<T>;
   dispose(): void;
 }
 
@@ -42,6 +44,15 @@ export function createExecutionLifetime(options: ExecutionLifetimeOptions = {}):
     signal: controller.signal,
     /** Call after an asynchronous wait, before the caller's transactional write fence. */
     assertActive(): void { controller.signal.throwIfAborted(); },
+    wait<T>(work: PromiseLike<T>): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
+        const abort = () => { controller.signal.removeEventListener("abort", abort); reject(controller.signal.reason); };
+        controller.signal.addEventListener("abort", abort, { once: true });
+        // Attach both continuations even when already aborted: a late rejection stays observed.
+        Promise.resolve(work).then(resolve, reject).finally(() => controller.signal.removeEventListener("abort", abort));
+        if (controller.signal.aborted) abort();
+      });
+    },
     dispose(): void { controller.abort(new DOMException("Execution finished", "AbortError")); },
   };
 }

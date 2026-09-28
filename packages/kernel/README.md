@@ -52,6 +52,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 - 不变量：
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
+  - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；调用结束后不能再产生副作用。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 调用记录只写谁调了什么、怎样结束，不写输入与结果；业务校验与事务留在处理器里。

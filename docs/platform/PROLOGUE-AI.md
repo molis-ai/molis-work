@@ -79,6 +79,8 @@ Coding 页面 → plugins/native/coding/src/routes.ts
 
 **动作定义**：写明 `model:invoke` 权限；等模型的动作一律 `scheduling: "concurrent"`，否则它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
 
+提供方还应在 `action.execution` 声明实际时限、费用类别和必要调用频率；这些事实经同一目录到达插件、Agent、Workflow 与 MCP，Kernel 执行明确声明的限额。生成插件的 `model.generate` 声明 120 秒、metered、每身份每分钟 20 次；旧生成物也进入同一 ActionService。Agent 的工具入口可以设置更短的上限。计费未知保持 unknown，Action 超时不等于外部请求未执行，也不授权自动重试。完整字段语义见 [插件开发手册](./PLUGIN-DEVELOPMENT.md)。
+
 ```ts
 message: define("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
   object({ id, body }), conversationState, [...read, ...write, "model:invoke"]),

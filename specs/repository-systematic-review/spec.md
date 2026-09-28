@@ -1,6 +1,6 @@
 # 仓库系统整理（防腐）
 
-状态：执行中（2026-09-27 起）。要求原文是用户放在主检出的 `docs/prompts/repository-systematic-review.md`（未入库，本文第 1–2 节已收录其要点）；2026-09-27 追加：为每个模块写开发手册、规范与要求（W9b）。
+状态：本轮整理完成（2026-09-27 至 09-28），分支在本地、未推送；待用户决定的见第 9 节（D-03 删除旧包、D-02 产品范围改定、推送与开 PR）。要求原文是用户放在主检出的 `docs/prompts/repository-systematic-review.md`（未入库，本文第 1–2 节已收录其要点）；2026-09-27 追加：为每个模块写开发手册、规范与要求（W9b）。
 分支 `chore/repo-systematic-review`（工作树 `~/code/goalboard-review`，基于 main `8b609527`）。本文是这次整理唯一的总 spec；逐项证据写在本文第 8、10 节，不另开进度文件。
 
 ## 1. 目标
@@ -48,14 +48,14 @@
 | W1 | 清单与基线：全部包/插件/入口；非浏览器与浏览器测试基线及分类 | 完成 |
 | W2 | 真实缺陷与权限/状态问题修复 | 完成（F-01、F-02、F-04、F-06） |
 | W3 | 契约、注册、发现与接入遗漏（动作目录、MCP、端口、生命周期） | 完成（F-03、F-21、F-23、F-24；端口按 D-04） |
-| W4 | 模块边界与代码归属（Host 平铺、Coding 路由、越界读取） | 进行中（F-18 完成；F-19 待做） |
+| W4 | 模块边界与代码归属（Host 平铺、Coding 路由、越界读取） | 完成（F-18、F-19） |
 | W5 | AI 能力与 Prologue 专项（入口清单、共享/下沉判断） | 进行中（F-04 完成；F-15 待 SDK 线） |
 | W6 | 前端质感与动线（真实界面） | 完成：基线浏览器失败涉及的动线逐一在隔离预览实操（1440/1024/756/601/390，含深色截图用例）；修 F-26～F-34 |
 | W7 | 清理：死代码、旧入口、旧文档、旧 spec、vendor | 进行中（F-12、F-13、F-20 完成；F-14 部分；F-17 待用户） |
 | W8 | 测试与预期对齐、CI 门禁恢复 | 完成（基线失败逐项对齐；F-08 合同子集进 CI） |
 | W9 | Prologue AI 开发手册、Prologue AI Skill、插件开发 Skill 更新与走查 | 完成 |
 | W9b | 用户 2026-09-27 补充：每个模块都有开发手册、开发规范与要求（落在各包 README 的「开发要求」一节：负责与不负责、公开入口、允许依赖、不变量、改动后必跑测试、相关手册/Skill；事实部分从代码提取，不变量逐包手写），并由门禁守住存在与链接有效 | 完成：69 个 README 都有这一节；写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`；门禁 `scripts/package-dev-requirements.mjs` 挂在 `pnpm boundary:check`（依赖与 package.json 双向一致、测试与链接存在），自身有允许/拒绝用例 |
-| W10 | 整体回归、最终交付 | 进行中 |
+| W10 | 整体回归、最终交付 | 完成（见第 10 节最后几条） |
 
 ## 6. 验收
 
@@ -103,22 +103,22 @@
 | F-07 | S4 | 47 条界面文案没有英文，英文界面露出中文 | `i18n` 用例 | 新页面文案未进词典 | 补入 `gap-en.ts`，沿用既有术语 | 已完成 |
 | F-08 | S2 | CI 只跑边界检查与 3 个定向测试，全量产品测试「暂停」；F-01 这类安装失败长期无人发现 | `.github/workflows/ci.yml` | 早期全量不稳定时暂停，之后没有恢复稳定子集 | 按 D-05：`pnpm test:contracts`（22 个动作目录、Manifest、MCP 授予合同文件）加入 CI 的 ubuntu 任务；干净克隆按 CI 步骤实测两遍 108/108、约 48 秒；PR 模板要求本机全量对比 | 已完成（ubuntu 首跑待推送后确认） |
 | F-09 | S3 | 35 个测试把截图写进仓库跟踪的 `.impeccable/review/`（817 个文件、88MB），每次运行都在各工作树制造二进制改动与合并冲突 | 本工作树、主检出、Codex 工作树都有被改写的 png | 测试直接写评审证据目录 | 新增 `tests/fixtures/review-evidence.ts`：默认写入已忽略的 `.impeccable/qa/review/`，刷新评审截图需显式 `MOLIS_WORK_REVIEW_EVIDENCE=1` | 已完成 |
-| F-10 | S3 | Alchemist 26 个 vitest 测试不在根测试脚本和 CI 中 | `plugins/native/alchemist/package.json` 的 `test` | 插件自带测试框架 | 跑一遍并决定并入 | 待开始 |
+| F-10 | S3 | Alchemist 26 个 vitest 测试不在根测试脚本和 CI 中 | `plugins/native/alchemist/package.json` 的 `test` | 插件自带测试框架 | 跑通（26 文件、78 项，约 1 秒；干净克隆同样通过），加入 CI 的 ubuntu 任务 | 已完成（ubuntu 首跑待推送后确认） |
 | F-11 | S2 | 端口默认连线按插件名写死（`workspace-plugin-bindings.ts` 13 行名单），第三方插件的输入端口不会被接上，产品里也没有连线页 | 代码 | 端口只服务 Coding 家族时的快捷做法 | 按 D-04 短期方案 C：维持名单，限制写进插件开发 Skill（`elements.md`）；有第三方端口插件时做 A | 已完成（短期） |
 | F-12 | S4 | 架构规格目录改名未同步，约 45 处链接失效；README 的 bug 卡台账链接失效 | 断链扫描 | 9824f6e6 改名只改了链接没改目录 | 目录与文件改名，断链清零（仅剩外部机器绝对路径） | 已完成 |
 | F-13 | S4 | `docs/SSOT-MATRIX.md` 严重过时：写 39 个包（实际 69）、多处「stub」「待补」与现状不符 | 对照代码 | 各线迭代未回写矩阵 | 按事实重写相关行（4b9be410） | 已完成 |
-| F-14 | S4 | `specs/` 根目录约 184 份规格，README 只列 15 份在做，其余多已完成未归档 | 状态行扫描 | 归档规则只执行过一次 | 归档开头写明已完成的两份；其余状态不明的逐份确认后再归档 | 在途 |
+| F-14 | S4 | `specs/` 根目录约 184 份规格，README 只列 15 份在做，其余多已完成未归档 | 状态行扫描 | 归档规则只执行过一次 | 归档了开头写明已完成的两份。复核（2026-09-28）：根目录仍有 183 份；15 份在 `specs/README.md` 列为在做；开头写完成的另 2 份 README 注明仍有缺口，按规则保留；其余约 165 份没有状态句，按 README 规则须逐份对照代码才能归档，本轮未做（建议各线负责人按目录认领） | 部分完成，余下待办 |
 | F-15 | S3 | Prologue SDK 把「派发前授权被拒」（如 Character 停用）归为 `MODEL_NETWORK_FAILED` | `agent-action-tools-prologue` 用例 | SDK 错误分类 | 列入 Prologue 下沉/修正清单（W5） | 待决 |
 | F-16 | S3 | Images 并发与 Alchemist 多宿主两个用例模拟「同一 Home 多个执行进程」，而生产中 stdio MCP 转发给常驻 Web 宿主 | 两用例在 main 上失败；9-27 迁移记录已指出 | 9-26 统一走 Prologue 后同 Home 只有一个执行进程 | 按生产转发拓扑重写：单一常驻宿主、项目范围授予、生产 MCP 启动器；第二个宿主断言 `inference.home_in_use` | 已完成 |
 | F-17 | S4 | `vendor/prologue-sdk` 38 个 tgz（34MB）只 1 个在用；不进发布包，只增加仓库体积 | 锁文件与发布资产测试 | 旧包按约定保留以便回退 | 用户同意 D-03 后，删除操作被本机自动模式的安全检查拒绝，已撤回、未删除；需用户亲自执行或放行（进行中的 `feature/personal-work-assistant` 仍依赖 `compaction-growth.tgz`，应保留） | 待用户 |
 | F-18 | S3 | `apps/local-host/src` 约 250 个平铺文件 | 目录 | — | 判断：多为组合适配与 Node IO，按名称前缀已自然分区；整体搬迁只改路径不改职责，且会打断数百处测试引用、与并行工作冲突。不搬，在 `docs/platform/LOCAL-HOST.md` 写清分区与放置规则 | 已完成 |
-| F-19 | S3 | Coding `routes.ts` 是约 1400 行的单个闭包：委派信件视图转换、预算存储、子代理分组、后台唤醒循环与路由表混在一起 | 代码 | 各期功能叠加 | W4 拆出纯视图转换与后台循环，路由只做装配 | 待开始 |
+| F-19 | S3 | Coding `routes.ts` 是约 1400 行的单个闭包：委派信件视图转换、预算存储、子代理分组、后台唤醒循环与路由表混在一起 | 代码 | 各期功能叠加 | 委派信件视图拆到 `delegation-view.ts`，等待/唤醒的判断与文本拆到 `waits.ts`（纯函数、有单测），路由只留注入会话查找与存储的薄包装，−80 行；后台唤醒循环依赖起跑流程，仍留在路由 | 已完成 |
 | F-21 | S2 | 在处理器里等模型或外部服务的动作没有声明并发，等待期间占住整个项目（或 Home）的串行队列：一次 Alchemist 对话、Pages 生成/写作助手、灵光对话、Inbox 整理成文稿、外部 MCP 工具调用都会让同项目其他所有操作排队（可达数分钟）；Form/Dataset/Jelly/Workflows 已声明，同类行为不一致 | 改写后的 Alchemist 多调用者用例两个对话互相等待；宿主为此打「已占用项目操作队列 N 秒」日志 | 串行是默认，只有部分插件记得声明 | 上述动作声明 `scheduling: "concurrent"`（逐个核对：都在返回后按快照/CAS 提交，或本地不写状态）；新增门禁 `tests/action-model-scheduling.test.ts`：目录中所有声明 `model:invoke` 的动作必须并发，例外逐条写理由；灵光用例验证等模型时同项目读写照常完成（修复前失败） | 已完成 |
 | F-22 | S3 | Feed 立即拉取（最长 45–180 秒）、Feed 规则评估、首页/Inbox 判断评估仍在队列内等外部服务 | 目录导出 | 这些写入与用户同时处置同一条目时靠队列排序；Feed 同一来源不同幂等键的两次拉取没有逐来源租约 | 需先改为逐来源租约与按版本提交再放出队列；门禁里列为有理由的例外 | 待开始 |
 | F-20 | S4 | `docs/` 根目录的 2026-09-22 两份审计交接（C01–C10、UI #1–#8）仍像待办 | 逐项核对代码 | — | 全部已修（B01 仍开，规范已注明）；加状态说明后移到 `docs/archive/handoffs` | 已完成 |
 | F-23 | S3 | Workbench 按插件 id 分支把 Agent 提示词正文配给 Coding、创作台、Schedule；新插件声明了提示词却没有正文时不报错，Agent 以空角色启动 | `plugin-catalog.ts` 的三元分支 | 正文与声明分在两处，靠名单连接 | 正文随目录条目的 `agent` 声明；新增 `builtin-plugin-agent-texts` 门禁（提示词、压缩提示词、方法都要有正文；突变验证能抓到缺失） | 已完成 |
 | F-24 | S3 | 动作 `effect` 按 id 推断：`delete_preview`（只存确认凭证）、`goals.trash.set`（可恢复）、`relation.reset`、`sample.remove` 被当成不可撤销 | 目录导出 | 名字推断没有覆盖这些语义 | `withActionEffect` 显式声明为写，并保持原本不进生成插件（`plugin: false`） | 已完成 |
-| F-25 | S4 | 插件创作台 README 仍只写“解释器 v1”模式，没写 Agent 写代码、Local Host 构建检查与沙箱试跑 | README 与 `apps/local-host/src/plugin-builder/build-checks.ts` 对照 | 合入后文档未回写 | 已写进该包「开发要求」；README 正文待创作台负责人补一段 | 在途 |
+| F-25 | S4 | 插件创作台 README 仍只写“解释器 v1”模式，没写 Agent 写代码、Local Host 构建检查与沙箱试跑 | README 与 `apps/local-host/src/plugin-builder/build-checks.ts` 对照 | 合入后文档未回写 | README 开头写明现行路线并把旧解释器描述标为已取代；开发要求里的发布规则按新 spec 更正 | 已完成 |
 | F-26 | S2 | 首页：常驻今天的前一天事项只显示「23:18」；「此刻」线用字符串比时:分而画在昨天那条之前；30 秒刷新遇上在途请求不重绘，跨午夜日期要等请求返回才翻 | 预览实测（凌晨 02:09）；基线失败 project-home-start「跨午夜」 | 标签与时间比较只按时:分；刷新早退 | 跨天带日期、按时间戳画「此刻」、在途时先按当前时间重绘；单测 + 浏览器用例 | 已完成 |
 | F-27 | S1 | Feed 添加来源时计划保存失败：抛 ReferenceError，错误不显示、按钮永久禁用，来源已建却无法重试 | 预览复现；基线失败 product-interaction「recovers a failed schedule」 | b2fc65f3 删掉 `let phase` 却留下引用；客户端脚本是字符串片段，类型检查看不到 | 去掉失效引用；另见 F-35 | 已完成 |
 | F-28 | S3 | Feed 来源面板里「拉取频率」下拉 28px，旁边输入框 40px；设计系统与工作台还留着 22 行只对旧 `<dialog>` 生效的样式 | 预览实测 | 弹窗改为工作面面板后旧样式失效 | 下拉尺寸由 Feed 样式给出（保留箭头）；删除失效样式 | 已完成 |
@@ -128,7 +128,7 @@
 | F-32 | S2 | 在「归档」「回收站」分组里点 Goal 没有任何反应 | 预览实测 | selectGoal 在当前集合找不到就静默返回 | 整页打开它的页面（与直接打开链接一致）；浏览器用例覆盖 | 已完成 |
 | F-33 | S2 | 紧凑刷新失败后的整页回退每次都失败，目录停在旧数据且无任何提示 | 基线失败 goals-refresh「falls back」；捕获到被吞掉的「页面数据不完整」 | 回退要求已退役的 `[data-tree-footer]`；刷新里空 `catch` | 前置检查只要求目录与文档；空 catch 改为控制台警告 | 已完成 |
 | F-34 | S2 | 390×500 下 Goal 记录表单字段区只剩 45px，输入框被截 | 预览实测；基线失败 goal-form-viewport 390×500 | 底部操作条双重留白；矮窗口仍显示说明 | 去掉内层留白；高度 ≤560px 收起说明；字段区 95px | 已完成 |
-| F-35 | S3 | 工作台客户端脚本是拼接的字符串片段，TypeScript 看不到里面，删掉声明漏改引用只在出错分支才炸（F-27） | 代码 | 历史上为避免打包而用字符串 | 候选门禁：对拼接后的 `CLIENT_SCRIPT` 做「未声明标识符」检查，页面全局列白名单；原型在做 | 在途 |
+| F-35 | S3 | 工作台客户端脚本是拼接的字符串片段，TypeScript 看不到里面，删掉声明漏改引用只在出错分支才炸（F-27） | 代码 | 历史上为避免打包而用字符串 | `tests/client-script-undeclared.test.ts`：TypeScript 以 JS 方式检查拼接后的程序，只收「找不到名称」，页面全局 3 个列白名单；约 2 秒；把 `phase` 放回即失败；已进 CI 子集。插件各自的浏览器脚本尚未纳入 | 已完成（主程序） |
 
 ### 基线失败的分类与处理（非浏览器，2834 项中 57 个失败）
 
@@ -201,3 +201,8 @@
 - 2026-09-28 包级「开发要求」所列测试合并跑：211 个文件、1137 项，1134 通过；2 项计时用例（飞书 CLI 状态 3 秒超时、Shelf CLI 探测）只在满载时超时，单独重跑通过，Shelf 用例已改为 `exec` 消除遗留子进程。
 - 2026-09-28 浏览器失败逐组修复后定向（每组修完即跑，均为本工作树构建）：project-settings-navigation 3/3、product-interaction 5/5、global-ui-interaction 3/3、low-viewport 2/2、continuous-surfaces 3/3、project-home-start 4/4、project-user-journey 2/2、cross-plugin-recovery 3/3、coding-workbench 1/1（连续两遍）、configured-text 2/2、long-content-viewport 2/2、workbench-pane-feed 3/3 及标签/分屏相关 10 项、goals-document 4/4、goals-navigation 3/3、goals-refresh 3/3、goals-records 1/1、goal-kanban 2/2、goal-canvas-workspace 1/1、goal-form-viewport 2/2、goals-storage-migration 1/1、immersive-directory 2/2。
 - 2026-09-28 界面实测（隔离预览，示例项目）：底栏 601/756/1024/1440 四档按钮尺寸与重叠；首页凌晨跨天标签与「此刻」位置；Feed 来源面板控件高度；Goal 标签随工作区选择切换（两种分支）；归档 Goal 从分组打开；390×500 记录表单字段区。
+- 2026-09-28 最终非浏览器回归（整体构建后，513 个文件）：2861 项，2857 通过、3 跳过、1 失败。失败为 `secret-store-keychain-retry`（假 `security` 脚本在 3 秒超时内未启动）；单独重跑三遍 1/2/0 项失败，干净基线工作树同样 1/1/0，判定为本机环境（新建未签名脚本首次执行被系统扫描拖慢），与本分支无关。
+- 2026-09-28 F-19 拆分后 Coding 非浏览器 178/178、浏览器 4/4；F-35 门禁 2/2 且突变有效；`pnpm test:contracts` 110/110；Alchemist vitest 78/78。
+- 2026-09-28 最终浏览器回归第一轮（84 个文件）：171 项，165 通过、2 失败、4 跳过（基线 171 项中 36 个失败）。两项失败（chrome-inner-scroll、goal-kanban）单独跑均通过；根因是夹具与「选中插件后下一帧关闭列表」赛跑，夹具改为可重复揭示后两项连跑三遍通过（ee3c92f3）。同一提交让 Alchemist 与 Shelf 对照两个用例的截图默认不再改写 `specs/*` 下受版本控制的文件。
+- 2026-09-28 最终浏览器回归第二轮（夹具修复后）：171 项，166 通过、1 失败、4 跳过。失败为 product-experience-polish「Product journeys」（点空白日后 20 秒内未出现「从这里开始」），它在第一轮全量通过，单独与首页用例一起连跑三遍均通过（负载均值约 6），记为长时间满载下的时序敏感用例。两轮合计：每个浏览器用例至少在一轮全量中通过，且单独运行全部通过。
+- 对比基线：非浏览器 57 个失败 → 1 个（环境性，基线同样）；浏览器 36 个失败 → 0～2 个时序偶发（单独均通过）。

@@ -1,5 +1,18 @@
 # Prologue SDK 构建来源
 
+## 当前依赖：app-mode（2026-09-28，系统级个人助理）
+
+`prologue-sdk-0.0.0-rc.1-app-mode.tgz`。在 dispatch-denied（03c6ba0b）之上只加一件事：**`startAgentRun({ workspace: "app" })`——没有授权根、只用会话包工具和不碰工作区的系统工具**，让 App 的业务权限与代码目录分开（个人助理在没有项目目录时也能使用业务能力）。
+
+- 新增导出 `APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"]`。`app` 模式下 `toolNames` 必须显式给出，且只能是本会话包贡献的工具或上述系统工具；文件与命令工具、根、执行器、子任务、技能、MCP、挂载、工作区上下文在起跑时拒绝（`AGENT_START_INVALID`）。写入类包工具照常走副作用链审批。原 `workspace: "none"` 的纯推理语义不变。
+- 系统工具执行器的根与 mutator 变为可选：没有根时文件、命令类工具报 `TOOL_UNAVAILABLE`；子任务派发器在无根时延迟到调用时才报不可用。
+- 源码提交：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `6f530d5a`，父提交 `03c6ba0b`（dispatch-denied）；增量补丁 [app-mode.patch](app-mode.patch)。尚未推送到 molis-ai/prologue。
+- SHA-256：`80745df7c72778d01507bef7936d6234b83ff67122e3c31135d67cbe809ca49a`
+- 验证：新增 `test/app-mode.live.test.ts` 4 项（包工具与提问、写入类包工具需审批、起跑前拒绝文件工具与根等、none 模式仍拒绝包工具）全过；SDK 全量两次：一次 27 项在负载下超时，一次仅 `workstation-wiring.live.test.ts`「Character 完全关掉仍能干活」1 项超时——该项在未改动的 03c6ba0b 上单跑同样超时（5 秒上限），本改动下单跑通过。
+- 按本目录约定换包后应删除旧的当前包 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`；删除 vendor 文件由用户执行（自动模式不允许），在此之前它仍留在目录里、不再被引用。
+
+## 上一依赖：dispatch-denied
+
 **本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
 
 ```bash

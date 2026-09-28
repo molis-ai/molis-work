@@ -12,15 +12,26 @@ export const platformPluginAgentContract = {
  * How far a role may act. Omitting it means read-only. A role can never widen
  * itself at start time; the Host freezes what the Manifest registered.
  */
-export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write";
+export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" | "operate";
+
+/**
+ * Host tools a business role (`workspace: "business"`) may name. None of them reads or writes a directory: asking the
+ * person, the round's todo list, looking up deferred tool schemas, and the context room left. A business role's real
+ * work is the unified actions it is given at start; `operate` lets it call commands among them, each under the effect
+ * policy, while `read-only` limits it to queries.
+ */
+export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
 
 export interface AgentRoleDeclaration {
   role_id: string;
   version: number;
   name: string;
   execution?: AgentRoleExecution;
-  /** Explicit pure inference role. Omission requires an authorized working directory. */
-  workspace?: "required" | "none";
+  /**
+   * Explicit pure inference role (`none`), or a business role (`business`): no directory, but the unified actions it is
+   * given and the root-free `BUSINESS_HOST_TOOLS`. Omission requires an authorized working directory.
+   */
+  workspace?: "required" | "none" | "business";
   /**
    * Prompt ids this role is composed from, in order.
    *
@@ -230,8 +241,16 @@ export function inspectAgentDeclaration(
       continue;
     }
     roles.add(role.role_id);
-    if (role.workspace !== undefined && role.workspace !== "required" && role.workspace !== "none") {
+    if (role.workspace !== undefined && role.workspace !== "required" && role.workspace !== "none" && role.workspace !== "business") {
       problems.push(`Agent 角色 ${role.role_id} 的工作区声明无效`);
+    }
+    if (role.workspace === "business" && (!["read-only", "operate"].includes(role.execution ?? "read-only")
+      || role.host_tools?.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool))
+      || role.subagent_workspaces || agent.subagents?.parent_role_ids.includes(role.role_id))) {
+      problems.push(`业务角色 ${role.role_id} 只能只读或经审查操作，工具限于 ${BUSINESS_HOST_TOOLS.join("、")}，不能分派子任务`);
+    }
+    if (role.execution === "operate" && role.workspace !== "business") {
+      problems.push(`Agent 角色 ${role.role_id} 的 operate 执行方式只用于业务角色`);
     }
     if (role.workspace === "none" && ((role.execution ?? "read-only") !== "read-only" || role.host_tools?.length
       || role.subagent_workspaces || agent.subagents?.parent_role_ids.includes(role.role_id))) {

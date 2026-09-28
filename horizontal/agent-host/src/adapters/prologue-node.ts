@@ -1,3 +1,5 @@
+import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { GATEWAY_TOOLS, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -158,7 +160,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
       : { sandbox: "read-only", approval: "on-request" },
-    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "session-send" }] }, rules: codingExecutionRules } : {}),
+    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "session-send" }] }, rules: [...codingExecutionRules,
+      // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
+      { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } }] } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 
@@ -170,6 +174,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const registeredMethods = new Map<string, Skill>();
   const sessions = new Map<string, ExactRef<"session">>();
   const actionToolSessions = new Set<string>();
+  /** The gateway a business session's latest round runs with, for describing a held change to the person. */
+  const gatewayRuns = new Map<string, NonNullable<PrologueStartInput["action_gateway"]>>();
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
   const activeRuns = new Map<string, { live(): boolean; steer(text: string): Promise<void> }>();
@@ -283,6 +289,16 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           return { kind: "tool-operation", tool: subject.name, summary: task ? "停止一条后台命令" : "停止一条命令",
             fields: [{ label: "命令", value: task?.summary ?? handle }, ...(task ? [{ label: "现在", value: task.state === "running" ? "还在运行" : task.state }] : []),
               { label: "本次完整参数", value: JSON.stringify(args, null, 2) }] };
+        }
+        if (subject.what === "tool" && subject.name === GATEWAY_TOOLS.change) {
+          if (typeof subject.input !== "string") throw new Error("所请求修改的参数不可读，不能批准");
+          const index = await readIndex(pending.origin!.session!);
+          const attempt = index?.attempts.find(item => item.run_id === pending.origin!.run);
+          const gateway = gatewayRuns.get(pending.origin!.session!);
+          if (!attempt?.frozen.action_gateway || !gateway) throw new Error("这项修改不属于本轮的能力网关，不能批准");
+          reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
+          const readable = await gatewayReview(gateway, subject.input);
+          return { kind: "tool-operation", tool: subject.name, summary: readable.summary, fields: readable.fields };
         }
         if (subject.what === "tool" && subject.name.startsWith("molis-action-")) {
           if (typeof subject.input !== "string") throw new Error("Action arguments are unavailable");
@@ -445,9 +461,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         || ![value.owner?.board_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
         throw new Error("Coding 会话归属索引损坏，不能当作空会话继续");
       }
-      if (value.workspace !== undefined && value.workspace !== "required" && value.workspace !== "none"
+      if (value.workspace !== undefined && value.workspace !== "required" && value.workspace !== "none" && value.workspace !== "business"
         || value.attempts.some(attempt => (attempt.frozen.workspace ?? "required") !== (value.workspace ?? "required")
-          || value.workspace === "none" && (attempt.root_ref !== undefined || attempt.frozen.directory !== undefined))) {
+          || (value.workspace === "none" || value.workspace === "business") && (attempt.root_ref !== undefined || attempt.frozen.directory !== undefined))) {
         throw new Error("会话工作区模式索引不一致，不能猜测执行授权");
       }
       if (value.attempts.some(attempt => attempt.timing !== undefined && !validRunTiming(attempt.timing))) {
@@ -730,6 +746,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         errors: { ...attempt.subagent_errors, ...subagentBridgeErrors.get(run.run_id) } };
     }) } } : {}),
     workspaceNone: true,
+    workspaceBusiness: true,
     inlineMethods: true,
     compaction: true,
     ...(checkpoints ? { checkpoints } : {}),
@@ -800,7 +817,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         if (!index) return undefined;
         const session = await runtime.sessions.open(index.ref);
         if (!session) throw new Error("SDK 会话已不可读，保留原引用，不能创建新会话替代");
-        if (index.workspace !== "none") await checkpoints?.restore(id);
+        if (index.workspace !== "none" && index.workspace !== "business") await checkpoints?.restore(id);
         const terminal = await session.terminalRuns();
         const open = await runtime.listOpenWork();
 
@@ -832,22 +849,31 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     },
     async startAgentRun(input: PrologueStartInput) {
       const none = input.workspace === "none";
+      // Business work: no root; the Host's frozen actions as this session's pack, and root-free tools only.
+      const business = input.workspace === "business";
       const index = await readIndex(input.session_id);
       if (!index || (index.workspace ?? "required") !== (input.workspace ?? "required")) throw new Error("会话工作区模式与原始归属不一致");
       if (none && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined
         || input.character.tools.length || input.actions || input.mcp_tools?.length || input.mcp_sources?.length
         || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
         || actionToolSessions.has(input.session_id))) throw new Error("无目录会话不能获得工具或工作区授权");
-      if (!none && !input.root_path) throw new Error("执行缺少已授权工作区");
+      if (business && (input.root_path !== undefined || input.provenance.frozen.directory !== undefined || input.mcp_tools?.length || input.mcp_sources?.length
+        || input.subagents?.length || input.subagent_workspaces?.length || input.provenance.frozen.execution_plan
+        || input.character.tools.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool)))) throw new Error("业务会话只能使用宿主冻结的动作与不碰目录的工具");
+      if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
       const ref = sessions.get(input.session_id);
       const actionController = new AbortController();
       // None sessions do not construct or adopt any tool pack.
-      const actionTools = none ? undefined : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
-      const bindActions = !none && (!!input.actions || actionToolSessions.has(input.session_id));
+      // Business work with the gateway binds its three tools instead of one per action.
+      const actionTools = none ? undefined : input.action_gateway
+        ? { ...prologueActionGateway(input.action_gateway, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
+        : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+      if (input.action_gateway) gatewayRuns.set(input.session_id, input.action_gateway);
+      const bindActions = !none && (!!input.actions || !!input.action_gateway || actionToolSessions.has(input.session_id));
       const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors } : undefined);
       if (bindActions && session) actionToolSessions.add(input.session_id);
       if (session === undefined) throw new Error("agent.session_unknown");
-      const root = none ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
+      const root = none || business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
       // Long instructions travel as a resource reference, not inline in the profile.
       const methods: string[] = [];
       for (const definition of input.skills ?? []) {
@@ -921,8 +947,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           "用 board-read / board-report（board 写上面的任务图编号）处理这些步骤；做完后在交接信上答复对方。"].join("\n"), "coding-handed-steps"), as: "original" });
       }
       const instructions = await stageInstructions(runtime, [input.character.instructions, childInstructions, ...methods,
-        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
-      if (!none) {
+        ...(plan && stepBoard ? [stepBoards.instructions(stepBoard, plan, { session: session.ref.id, dispatch: childRoles.size > 0 })] : []), (none || business ? "" : await checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
+      if (!none && !business) {
         await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
         await mcpLibrary.validateSources(index.owner,input.mcp_sources ?? []);
       }
@@ -973,14 +999,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       }
       const dispatchGuard = async () => {
         await input.beforeDispatch?.();
-        if (!none) {
+        if (!none && !business) {
           await mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
           await mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
         }
       };
       const started = await dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun({
         session,
-        ...(root ? { rootRef: root.ref } : { workspace: "none" as const }),
+        ...(root ? { rootRef: root.ref } : business ? { workspace: "app" as const } : { workspace: "none" as const }),
         // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
         ...(input.history === "digest" ? {} : { history: "session" as const }),
         ...(childRoles.size ? { subagents: {
@@ -1213,7 +1239,7 @@ function validRunTiming(value: unknown): value is PrologueRunTiming {
 interface SessionIndex {
   schema: 1;
   /** Missing on historical rooted sessions. Never infer none from an absent directory. */
-  workspace?: "required" | "none";
+  workspace?: "required" | "none" | "business";
   parent_run?: AgentRunRef;
   ref: ExactRef<"session">;
   title: string;

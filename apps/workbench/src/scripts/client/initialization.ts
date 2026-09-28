@@ -129,14 +129,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${CHARACTERS_CLIENT_FACTORY_SCRIPT})();
     ${pluginWorkbenchClientBootstrap()}
     ${CODING_SETTINGS_CLIENT_SCRIPT}
-    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, feedApi,
-      openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),
-      refresh: async () => { await refreshFeedStage(); await refreshInboxStage(); },
-      preparePages: draft => {
-        composeDraft = { ...draft, request_id: "" };
-        tabWorkspace?.openPlugin("inbox");
-        showInboxComposer();
-      },
+    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(),
+      project: { id: state.project?.project_id || state.snapshot.board.board_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
     requestAnimationFrame(() => {

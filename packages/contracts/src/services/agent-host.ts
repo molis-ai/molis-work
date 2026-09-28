@@ -59,6 +59,8 @@ export type AgentRuntimeCapabilityMatrix = Record<AgentRuntimeCapability, AgentC
 export interface AgentRuntimeDescriptor {
   supports_action_tools?: boolean;
   supports_workspace_none?: boolean;
+  /** Runs business roles: no directory, the unified actions given at start and the root-free host tools. */
+  supports_workspace_business?: boolean;
   runtime_id: string;
   display_name: string;
   provider_version: string;
@@ -119,7 +121,9 @@ export interface AgentWorkingDirectory {
 /** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
 export type AgentWorkspace =
   | { workspace?: "required"; directory: AgentWorkingDirectory }
-  | { workspace: "none"; directory?: never };
+  | { workspace: "none"; directory?: never }
+  /** Business work: no directory; the Host gives it unified actions (by effect) and root-free tools only. */
+  | { workspace: "business"; directory?: never };
 
 export interface AgentTextMaterial {
   material_id: string;
@@ -415,6 +419,8 @@ export interface AgentFrozenCharacter extends CharacterContent {
 
 interface AgentFrozenStartFields {
   action_tools?: ExactActionReference[];
+  /** The run used the Host's action gateway (see AgentStartRequest.action_gateway). */
+  action_gateway?: true;
   /** Exact imported Skill ids used by this Run; the full Character snapshot remains immutable. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
@@ -466,6 +472,7 @@ interface AgentCreateSessionFields {
 export type AgentCreateSessionInput = AgentCreateSessionFields & (
   | { workspace?: "required"; directory: AgentWorkingDirectory; role_id?: string }
   | { workspace: "none"; directory?: never; role_id: string }
+  | { workspace: "business"; directory?: never; role_id: string }
 );
 
 /**
@@ -491,7 +498,9 @@ export interface AgentActionClient {
 }
 
 export interface AgentFrozenRole {
-  workspace?: "required" | "none";
+  workspace?: "required" | "none" | "business";
+  /** Trusted Host composition only. `operate` lets the gateway request changes; reads are always allowed. */
+  action_gateway?: { client: AgentActionClient; operate: boolean };
   /** Trusted Host composition only. Never serialized into run history. */
   actions?: { tools: ActionView[]; client: AgentActionClient };
   character_skill_ids?: string[];
@@ -513,6 +522,12 @@ export interface AgentFrozenRole {
 
 interface AgentStartRequestFields {
   action_tools?: ExactActionReference[];
+  /**
+   * Business roles only: instead of one tool per action, the Host's gateway — find the actions in scope, run a read,
+   * or request a change (held for review). The directory is read at every call, so installing, upgrading or switching
+   * off an action takes effect at once. Exclusive with `action_tools`.
+   */
+  action_gateway?: boolean;
   /** Explicit subset of the selected Character's imported Skills. Empty uses rules only. */
   character_skill_ids?: string[];
   execution_plan?: AgentExecutionPlan;
@@ -712,7 +727,7 @@ export interface AgentRunView {
 
 export interface AgentSessionView {
   /** Immutable session mode; missing historical values mean required. */
-  workspace?: "required" | "none";
+  workspace?: "required" | "none" | "business";
   /** A manual rewind is in progress or has an unresolved execution outcome. */
   checkpoint_busy?: boolean;
   /** Persisted work exists but is not safe to continue automatically. */

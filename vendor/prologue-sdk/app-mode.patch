@@ -1,0 +1,577 @@
+diff --git a/packages/sdk/src/agent/core/start-input.ts b/packages/sdk/src/agent/core/start-input.ts
+index bf56f06f..748fc894 100644
+--- a/packages/sdk/src/agent/core/start-input.ts
++++ b/packages/sdk/src/agent/core/start-input.ts
+@@ -121,7 +121,7 @@ function narrowNames(
+ 
+ /** 冻住的这一轮配方。转向和续跑都改不了它。 */
+ export interface FrozenStart {
+-  readonly workspace?: "none";
++  readonly workspace?: "none" | "app";
+   readonly idempotencyKey: string;
+   readonly limits: ModeLimits;
+   /** 有效工具名单。`undefined` 表示不额外收窄。 */
+@@ -264,7 +264,7 @@ function intersectNetwork(wanted: NetworkAllowance | undefined, ceiling: Network
+  */
+ export function freezeStart(input: {
+   readonly start: AgentStartInput;
+-  readonly workspace?: "none";
++  readonly workspace?: "none" | "app";
+   readonly posture: Posture;
+   readonly assembled: ModeCapabilities;
+   /** Runtime 的出网上限。 */
+diff --git a/packages/sdk/src/composition/api/index.ts b/packages/sdk/src/composition/api/index.ts
+index da408b14..8de6ab5f 100644
+--- a/packages/sdk/src/composition/api/index.ts
++++ b/packages/sdk/src/composition/api/index.ts
+@@ -5,6 +5,7 @@ export type { AssembleAgentContext } from "../core/index.js";
+ export type { SlotImplementations, SlotInput } from "../core/index.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type CreateRuntimeInput,
+   type Runtime,
+   type RuntimeState,
+diff --git a/packages/sdk/src/composition/core/index.ts b/packages/sdk/src/composition/core/index.ts
+index dbba51a5..c0557dd3 100644
+--- a/packages/sdk/src/composition/core/index.ts
++++ b/packages/sdk/src/composition/core/index.ts
+@@ -3,6 +3,7 @@ export type { AssembleAgentContext } from "./agent-context.js";
+ export type { SlotImplementations, SlotInput } from "./runtime.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type CreateRuntimeInput,
+   type Runtime,
+   type RuntimeState,
+diff --git a/packages/sdk/src/composition/core/runtime.ts b/packages/sdk/src/composition/core/runtime.ts
+index 84722258..cba13e29 100644
+--- a/packages/sdk/src/composition/core/runtime.ts
++++ b/packages/sdk/src/composition/core/runtime.ts
+@@ -404,6 +404,12 @@ import {
+   type PolicySnapshotStore,
+ } from "../../effect-policy/core/index.js";
+ 
++/**
++ * The system tools an App-tools run (`workspace: "app"`) may name: none of them reads or writes a workspace.
++ * Asking the person, the run's todo list, looking up deferred tool schemas and the context room left.
++ */
++export const APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
++
+ export type RuntimeState = "starting" | "ready" | "failed" | "stopped";
+ 
+ export interface Runtime {
+@@ -919,6 +925,14 @@ export interface Runtime {
+     /** Pure inference on this Session: no workspace capability or tools. */
+     readonly workspace: "none";
+     readonly rootRef?: never;
++  } | {
++    /**
++     * No authorized root, but the App's own tools: the Session pack's tools and the system tools that touch no
++     * workspace (`APP_MODE_SYSTEM_TOOLS`). File and command tools are never available. The App's business
++     * authority is separate from a code directory; this is where it runs.
++     */
++    readonly workspace: "app";
++    readonly rootRef?: never;
+   }) & {
+     readonly session: Session;
+     /** Trusted App grants, frozen for this exact Session/Run/root; never global or inherited. */
+@@ -1780,7 +1794,8 @@ export async function createRuntime(
+    * 要冻住的配方和当前 Session，公开入口拿不到。
+    */
+   const sharedSystemToolDeps = (at: {
+-    readonly rootRef: ExactRef<"authorized-root">;
++    /** Absent for an App-tools run: its file and command tools then fail as unavailable. */
++    readonly rootRef?: ExactRef<"authorized-root"> | undefined;
+     readonly ignore: IgnoreRules;
+     /**
+      * 报进展时**这一跑是谁**。不给就是没有人——那时它报不了任何写着
+@@ -1873,7 +1888,7 @@ export async function createRuntime(
+       ...(at.name === undefined ? {} : { name: at.name }),
+       now: async () => (await runtime.readClock()).wallTimeMs,
+     }),
+-    mutator: runtime.createMutator({
++    mutator: at.rootRef === undefined ? undefined : runtime.createMutator({
+       rootRef: at.rootRef,
+       mode: "build" as const,
+     }),
+@@ -1990,8 +2005,10 @@ export async function createRuntime(
+      * 回执里。
+      */
+     readImage: async (path: string) => {
++      const rootRef = at.rootRef;
++      if (rootRef === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "This run has no authorized workspace to read an image from.");
+       const head = await input.host.readBytes({
+-        rootRef: at.rootRef,
++        rootRef,
+         path,
+         offset: 0,
+         length: 1,
+@@ -2014,7 +2031,7 @@ export async function createRuntime(
+       const ref = resources.adoptHostBytes(
+         {
+           // 字节在 Host 里，这里只记它在哪、多大、是什么。
+-          stageId: `image:${at.rootRef.id}:${path}`,
++          stageId: `image:${rootRef.id}:${path}`,
+           byteLength: head.totalBytes,
+           digest: head.digest,
+           label: path,
+@@ -2022,7 +2039,7 @@ export async function createRuntime(
+         },
+         async (offset: number, length: number) => {
+           const part = await input.host.readBytes({
+-            rootRef: at.rootRef,
++            rootRef,
+             path,
+             offset,
+             length,
+@@ -4077,12 +4094,24 @@ export async function createRuntime(
+       assertReady(state);
+       assertAssembled(assembled, "agent", "Running an Agent");
+       const noWorkspace = workspaceMode === "none";
++      // No root, but the App's own tools. Everything that needs a root stays out, exactly as for "none".
++      const appMode = workspaceMode === "app";
++      const rootless = noWorkspace || appMode;
+       const grants = freezeAgentGrants(requestedGrants);
+       if (rootRef !== undefined) rootRef = Object.freeze({ ...rootRef });
+-      if (workspaceMode !== undefined && workspaceMode !== "required" && !noWorkspace) {
++      if (workspaceMode !== undefined && workspaceMode !== "required" && !rootless) {
+         throw createPrologueError("AGENT_START_INVALID", "Unknown Agent workspace mode.");
+       }
+-      if (noWorkspace) {
++      if (appMode) {
++        if (grants !== undefined || rootRef !== undefined || start.rootRef !== undefined || runTool !== undefined ||
++            subagentOptions !== undefined || agent.toolNames === undefined ||
++            agent.workingDirectory !== undefined || (agent.skillNames?.length ?? 0) > 0 ||
++            (agent.mcpConnections?.length ?? 0) > 0 || (agent.mount?.sources?.length ?? 0) > 0 ||
++            (agent.mount?.artifacts?.length ?? 0) > 0 ||
++            Object.keys(input_context ?? {}).some((key) => !["windowTokens", "compactAboveTokens", "continueWhenCompactionFails"].includes(key))) {
++          throw createPrologueError("AGENT_START_INVALID", "An App-tools Agent names its tools explicitly and cannot carry a root, runner, subagents, skills, MCP, mounts, or workspace context.");
++        }
++      } else if (noWorkspace) {
+         if (grants !== undefined || rootRef !== undefined || start.rootRef !== undefined || runTool !== undefined ||
+             subagentOptions !== undefined || agent.toolNames === undefined || agent.toolNames.length !== 0 ||
+             agent.workingDirectory !== undefined || (agent.skillNames?.length ?? 0) > 0 ||
+@@ -4163,6 +4192,15 @@ export async function createRuntime(
+       if (noWorkspace && (installed?.pack.tools.length ?? 0) > 0) {
+         throw createPrologueError("AGENT_START_INVALID", "A workspace-free Agent cannot use a Session pack that contributes tools.");
+       }
++      if (appMode) {
++        // Only this Session's own pack tools and the root-free system tools. A name outside both is refused here,
++        // before anything is frozen, rather than surfacing later as a tool that cannot run.
++        const own = new Set(installed?.pack.tools.map((one) => one.registration.name) ?? []);
++        const outside = (agent.toolNames ?? []).filter((name) => !own.has(name) && !(APP_MODE_SYSTEM_TOOLS as readonly string[]).includes(name));
++        if (outside.length > 0) {
++          throw createPrologueError("AGENT_START_INVALID", `An App-tools Agent cannot use ${outside.sort().join(", ")}: only this Session's pack tools and ${APP_MODE_SYSTEM_TOOLS.join(", ")}.`);
++        }
++      }
+       /*
+        * 包的配置作为**一层**进来，在 App 显式之下、模块默认之上。
+        *
+@@ -4244,6 +4282,13 @@ export async function createRuntime(
+           (profile?.input.skills?.length ?? 0) > 0 || (profile?.input.mcp?.length ?? 0) > 0)) {
+         throw createPrologueError("AGENT_START_INVALID", "A workspace-free Character cannot bind tools, skills, or MCP.");
+       }
++      if (appMode) {
++        const own = new Set(installed?.pack.tools.map((one) => one.registration.name) ?? []);
++        if ((profile?.input.skills?.length ?? 0) > 0 || (profile?.input.mcp?.length ?? 0) > 0 ||
++            (profile?.input.tools ?? []).some((name) => !own.has(name) && !(APP_MODE_SYSTEM_TOOLS as readonly string[]).includes(name))) {
++          throw createPrologueError("AGENT_START_INVALID", "An App-tools Character may bind only this Session's pack tools and the root-free system tools, and no skills or MCP.");
++        }
++      }
+       const skillSnapshot = skills.snapshot();
+       const frozenWorkspaces =
+         subagentOptions === undefined || rootRef === undefined
+@@ -4256,8 +4301,8 @@ export async function createRuntime(
+               lookup: (ref) => workspace.get(ref),
+             });
+       const startSnapshot = freezeStart({
+-        start: noWorkspace ? { ...agent, skillNames: [], mcpConnections: [] } : agent,
+-        ...(noWorkspace ? { workspace: "none" as const } : {}),
++        start: rootless ? { ...agent, skillNames: [], mcpConnections: [] } : agent,
++        ...(noWorkspace ? { workspace: "none" as const } : appMode ? { workspace: "app" as const } : {}),
+         posture,
+         assembled,
+         defaultMaxTurns: config.agent.maxTurns,
+@@ -4574,7 +4619,7 @@ export async function createRuntime(
+        * 还要再过一次本轮名单：开跑时点了 `skillNames`，目录里也只能
+        * 有那几条，否则模型看得见却调不动。
+        */
+-      const visibleSkills = !noWorkspace && config.skill.autoSelect
++      const visibleSkills = !rootless && config.skill.autoSelect
+         ? skillSnapshot
+             .catalog({ capabilities: available, forAutoSelection: true })
+             .entries.filter(
+@@ -4807,8 +4852,9 @@ export async function createRuntime(
+         }
+         return undefined;
+       };
+-      const dispatchChild = () => {
+-        if (rootRef === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent cannot dispatch tools or subagents.");
++      const dispatchChild = (): ReturnType<typeof subagentDispatcher> => {
++        // A rootless run (App tools) builds its tool runner too; a child it cannot have fails when asked for, not before.
++        if (rootRef === undefined) return async () => { throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent cannot dispatch tools or subagents."); };
+         return subagentDispatcher({
+           subagents: runSubagents,
+           registry: subagentRegistry,
+@@ -4892,7 +4938,7 @@ export async function createRuntime(
+        * 没法被引用。
+        */
+       const runSignal: { current: AbortSignal | undefined } = { current: undefined };
+-      const builtinRunner: ToolRunner = rootRef === undefined || mutator === undefined
++      const builtinRunner: ToolRunner = noWorkspace || !appMode && (rootRef === undefined || mutator === undefined)
+         ? async () => { throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent has no tools."); }
+         : createSystemToolRunner({
+           ...sharedSystemToolDeps({
+@@ -5075,7 +5121,8 @@ export async function createRuntime(
+               });
+             },
+           },
+-          dispatchSubagent: dispatchChild(),
++          // No root, no child to dispatch: the tool then reports itself unavailable, as for any unwired system tool.
++          ...(rootRef === undefined ? {} : { dispatchSubagent: dispatchChild() }),
+           /**
+            * 编排入口。**每一个都委托给已有主人**——这一层不另存一份
+            * 消息账。操作别人的 Session 要经策略，所以这些工具的
+@@ -5278,14 +5325,16 @@ export async function createRuntime(
+        * 闭集里那三样有主人的名字轮不到它们答。内置提问者同样：丢掉
+        * `asksUser` 会把普通提问重新变成一笔虚构 Effect。
+        */
+-      const handsOff = noWorkspace ? builtinRunner : runTool ?? runtimeToolRunner ?? builtinRunner;
++      // An App-tools run never reaches the Runtime-wide executor slot: that one may be bound to a workspace. Its pack
++      // tools go to this Session's own executors and everything else to the root-free built-in runner.
++      const handsOff = rootless ? builtinRunner : runTool ?? runtimeToolRunner ?? builtinRunner;
+ 
+       const handOff: ToolRunner = async (callInput) => {
+         if (noWorkspace) return builtinRunner(callInput);
+-        if (runTool !== undefined) {
++        if (!appMode && runTool !== undefined) {
+           return runTool(callInput);
+         }
+-        if (runtimeToolRunner !== undefined) {
++        if (!appMode && runtimeToolRunner !== undefined) {
+           return runtimeToolRunner(callInput);
+         }
+         const contributed = installed?.pack.tools.find(
+@@ -5482,7 +5531,7 @@ export async function createRuntime(
+                 });
+               },
+               skills: () => {
+-                if (noWorkspace) return [];
++                if (rootless) return [];
+                 const seen = new Set(remindedSkills);
+                 const fresh = skillSnapshot
+                   .catalog({ capabilities: [] })
+diff --git a/packages/sdk/src/composition/core/system-tools.ts b/packages/sdk/src/composition/core/system-tools.ts
+index 6e2474b4..0b01cd77 100644
+--- a/packages/sdk/src/composition/core/system-tools.ts
++++ b/packages/sdk/src/composition/core/system-tools.ts
+@@ -365,8 +365,12 @@ function describeNode(
+ 
+ export function createSystemToolRunner(input: {
+   readonly workspace: Workspace;
+-  readonly rootRef: ExactRef<"authorized-root">;
+-  readonly mutator: WorkspaceMutator;
++  /**
++   * The run's authorized root. Absent for an App-tools run (`workspace: "app"`): every file and command tool then
++   * fails as unavailable, and the tools that touch no workspace (asking the person, the todo list, …) still work.
++   */
++  readonly rootRef?: ExactRef<"authorized-root"> | undefined;
++  readonly mutator?: WorkspaceMutator | undefined;
+   readonly pendings: PendingLedger;
+   /**
+    * 普通提问能等多久。开跑冻结。不给沿用现有 10 分钟。
+@@ -677,11 +681,20 @@ export function createSystemToolRunner(input: {
+   const started = new Map<string, "background" | "interactive">();
+ 
+   // 忽略规则跟着这一次的装配走——**读也要拦**，不只是列表过滤。
+-  const reader = input.workspace.reader(input.rootRef, input.ignore);
++  const noRoot = () => createPrologueError("TOOL_UNAVAILABLE", "This run has no authorized workspace; file and command tools are not available here.");
++  const rootReader = input.rootRef === undefined ? undefined : input.workspace.reader(input.rootRef, input.ignore);
++  const ownReader = (): WorkspaceReader => {
++    if (rootReader === undefined) throw noRoot();
++    return rootReader;
++  };
++  const mutatorOf = (): WorkspaceMutator => {
++    if (input.mutator === undefined) throw noRoot();
++    return input.mutator;
++  };
+   const readRoots = new Map((input.readRoots ?? []).map((one) => [one.id, input.workspace.reader(one.rootRef, input.ignore, { observe: false })]));
+   /** The reader a read-only tool call names: this run's own root, or one of the roots it may read. */
+   const readerFor = (args: Record<string, unknown>): WorkspaceReader => {
+-    if (args.workspace === undefined) return reader;
++    if (args.workspace === undefined) return ownReader();
+     const named = typeof args.workspace === "string" ? readRoots.get(args.workspace) : undefined;
+     if (named === undefined) {
+       throw createPrologueError(
+@@ -741,7 +754,7 @@ export function createSystemToolRunner(input: {
+       approvalReceived = args[0].pending?.kind === "effect-approval" && result.state === "authorized";
+       return result;
+     } } : gate;
+-    const receipt = await input.mutator.applyPatch(plan, await input.now(), observedGate);
++    const receipt = await mutatorOf().applyPatch(plan, await input.now(), observedGate);
+     input.evidence?.noteChange(receipt);
+     return `${name === "write" ? "wrote" : "edited"} ${receipt.path} (${name === "write" ? `${receipt.byteLength} bytes, ` : ""}checkpoint ${receipt.checkpointId})\n`
+       + (approvalReceived ? "Authorization: approval was received through the host review while this tool waited.\n"
+@@ -810,7 +823,7 @@ export function createSystemToolRunner(input: {
+          * 门在工作区那边：它送进链的是**这条路径**，而不是「叫 write
+          * 的工具」。工具那一层递下来的加严和「怎么等人」跟着 `gate` 走。
+          */
+-        const plan = await input.mutator.preparePatch({
++        const plan = await mutatorOf().preparePatch({
+           path: text(args.path, "path"),
+           nextText: typeof args.text === "string" ? args.text : text(args.text, "text"),
+         });
+@@ -820,11 +833,11 @@ export function createSystemToolRunner(input: {
+         const path = text(args.path, "path");
+         const find = text(args.find, "find");
+         // The whole file is read to make the change, not to show it: a file over 64 KB can still be edited.
+-        const current = (await reader.read({ path, forEdit: true })).text;
++        const current = (await ownReader().read({ path, forEdit: true })).text;
+         if (!current.includes(find)) {
+           throw createPrologueError("TOOL_ARGUMENTS_INVALID", "That exact text is not in the file.");
+         }
+-        const plan = await input.mutator.preparePatch({
++        const plan = await mutatorOf().preparePatch({
+           path,
+           nextText: current.replace(
+             find,
+@@ -852,7 +865,7 @@ export function createSystemToolRunner(input: {
+           );
+         }
+         commandInvocations += 1;
+-        const plan = input.mutator.prepareCommand({
++        const plan = mutatorOf().prepareCommand({
+           executable,
+           argv,
+           operationKey: `run-command:${commandInvocations}`,
+@@ -877,7 +890,7 @@ export function createSystemToolRunner(input: {
+             if (callId !== undefined && input.onCommandReceipt !== undefined) {
+               try {
+                 await input.onCommandReceipt(callId, { kind: "workspace-command-receipt", version: 1,
+-                  rootRef: input.rootRef, executable, argv, receipt });
++                  rootRef: input.rootRef!, executable, argv, receipt });
+               } catch {
+                 // The process already ran. A storage failure must not invite
+                 // a new command; preserve the existing effect for reconciliation.
+@@ -890,7 +903,7 @@ export function createSystemToolRunner(input: {
+         };
+         const stop = abort?.subscribe(async () => {
+           try {
+-            await input.mutator.cancelCommand(plan.commandId, "timed-out");
++            await mutatorOf().cancelCommand(plan.commandId, "timed-out");
+           } catch {
+             // 取消没送成，仍要等到这次执行有个真实结局。
+           }
+@@ -904,7 +917,7 @@ export function createSystemToolRunner(input: {
+           }
+         });
+         try {
+-          running = input.mutator.runCommand(plan, await input.now(), gate);
++          running = mutatorOf().runCommand(plan, await input.now(), gate);
+           opened();
+           const receipt = await running;
+           await record(receipt);
+@@ -938,7 +951,7 @@ export function createSystemToolRunner(input: {
+           );
+         }
+         commandInvocations += 1;
+-        const plan = input.mutator.prepareCommand({
++        const plan = mutatorOf().prepareCommand({
+           executable,
+           argv,
+           operationKey: `start-command:${String(commandInvocations)}`,
+@@ -946,12 +959,12 @@ export function createSystemToolRunner(input: {
+         const interactive = args["interactive"] === true;
+         const now = await input.now();
+         if (interactive) {
+-          const opened = await input.mutator.openInteractive(plan, now);
++          const opened = await mutatorOf().openInteractive(plan, now);
+           started.set(opened.sessionId, "interactive");
+           return `started interactive session ${opened.sessionId}; send input with command-input, read with command-output`;
+         }
+         input.background?.admit();
+-        const running = await input.mutator.startBackground(plan, now, { outlive: input.background?.outlive === true, ...(gate === undefined ? {} : { gate }) });
++        const running = await mutatorOf().startBackground(plan, now, { outlive: input.background?.outlive === true, ...(gate === undefined ? {} : { gate }) });
+         started.set(running.commandId, "background");
+         await input.background?.started(running.commandId, `${executable} ${argv.join(" ")}`.trim());
+         return `started ${running.commandId} in the background; read it with command-output, or wait for it with await-commands` +
+@@ -963,8 +976,8 @@ export function createSystemToolRunner(input: {
+         const cursor = typeof args["cursor"] === "number" ? args["cursor"] : undefined;
+         const out =
+           kind === "interactive"
+-            ? await input.mutator.readInteractive(handle, cursor)
+-            : await input.mutator.backgroundOutput(handle, cursor);
++            ? await mutatorOf().readInteractive(handle, cursor)
++            : await mutatorOf().backgroundOutput(handle, cursor);
+         return [
+           // 游标先给：模型下一次要用它，而它在长输出末尾就找不着了。
+           `cursor ${String(out.cursor)}`,
+@@ -989,7 +1002,7 @@ export function createSystemToolRunner(input: {
+             `${handle} was not started with interactive: true, so nothing can be sent to it.`,
+           );
+         }
+-        await input.mutator.writeInteractive(
++        await mutatorOf().writeInteractive(
+           { sessionId: handle, text: text(args["text"], "text") },
+           await input.now(),
+         );
+@@ -1013,9 +1026,9 @@ export function createSystemToolRunner(input: {
+          * Runtime 上会越积越多。
+          */
+         if (kind === "interactive") {
+-          await input.mutator.closeInteractive(handle);
++          await mutatorOf().closeInteractive(handle);
+         } else {
+-          await input.mutator.cancelCommand(handle, "cancelled");
++          await mutatorOf().cancelCommand(handle, "cancelled");
+         }
+         // 已经停了的再停一次**不是错误**。
+         started.delete(handle);
+diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
+index bec555df..04ca189a 100644
+--- a/packages/sdk/src/index.ts
++++ b/packages/sdk/src/index.ts
+@@ -106,6 +106,7 @@ export {
+ } from "./runtime/api/index.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type AgentContextOptions,
+   type CreateRuntimeInput,
+   type Runtime,
+diff --git a/packages/sdk/test/app-mode.live.test.ts b/packages/sdk/test/app-mode.live.test.ts
+new file mode 100644
+index 00000000..128e1e9b
+--- /dev/null
++++ b/packages/sdk/test/app-mode.live.test.ts
+@@ -0,0 +1,129 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { createServer, type ServerResponse } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { APP_MODE_SYSTEM_TOOLS, createRuntime, type ModelEvent, type Run, type ScenarioPack, type ToolRunner } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++function watch(run: Run) {
++  const events: ModelEvent[] = [];
++  run.subscribe(event => { events.push(event); });
++  const until = (type: ModelEvent["type"] | "terminal") => new Promise<ModelEvent>((resolve, reject) => {
++    const timer = setInterval(() => {
++      const found = events.find(event => type === "terminal" ? ["completed", "failed", "cancelled"].includes(event.type) : event.type === type);
++      if (found) { clearInterval(timer); clearTimeout(limit); resolve(found); }
++    }, 5);
++    const limit = setTimeout(() => { clearInterval(timer); reject(new Error(`no ${type}: ${events.map(e => e.type + (e.type === "failed" ? JSON.stringify((e as any).error) : e.type === "tool-result" ? JSON.stringify((e as any).text ?? (e as any).error ?? e) : "")).join(",")}`)); }, 4000);
++  });
++  return { events, until };
++}
++function say(response: ServerResponse, text = "done") {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ model: "m", choices: [{ delta: { content: text } }], usage: { prompt_tokens: 7, completion_tokens: 3 } })}\n\ndata: [DONE]\n\n`);
++}
++function call(response: ServerResponse, name: string, args: object) {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ usage: { prompt_tokens: 7, completion_tokens: 3 }, choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", type: "function", function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\ndata: [DONE]\n\n`);
++}
++
++/** A pack like an App's business actions: one read and one write, each with its own executor. */
++function businessPack(executors: { lookup: ToolRunner; save: ToolRunner }): { pack: ScenarioPack; executors: Record<string, ToolRunner> } {
++  const tool = (name: string, effectKind: "safe-read" | "mutate-external") => ({ executor: name, registration: { name, version: "1", description: `${name} a business record`,
++    parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false }, effectKind, gate: "broker" as const, timeoutMs: 5000, idempotency: "none" as const } });
++  return { executors, pack: { id: "business-actions", version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: ["lookup", "save"] },
++    permissions: { tools: ["lookup", "save"], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
++    roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {},
++    tools: [tool("lookup", "safe-read"), tool("save", "mutate-external")] } };
++}
++
++async function fixture(handler: (body: any, response: ServerResponse, turn: number) => void) {
++  const home = mkdtempSync(join(tmpdir(), "prologue-app-mode-"));
++  const workspaceCalls: string[] = [], requests: any[] = [];
++  let turn = 0;
++  const server = createServer(async (request, response) => {
++    let raw = ""; for await (const chunk of request) raw += chunk;
++    const body = JSON.parse(raw); requests.push(body); handler(body, response, turn++);
++  });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address(); if (!address || typeof address === "string") throw new Error("missing endpoint");
++  const actual = createNodeHost({ storageRoot: join(home, "store") });
++  const methods = new Set(["authorizeRoot", "listDirectory", "searchFiles", "readFile", "readBinary", "readBytes", "writeFile", "applyPatch", "prepareCommand", "runCommand"]);
++  const host = new Proxy(actual, { get(target, key, receiver) { const value = Reflect.get(target, key, receiver); return typeof value !== "function" ? value : (...args: unknown[]) => { if (methods.has(String(key))) workspaceCalls.push(String(key)); return value.apply(target, args); }; } });
++  const runtime = await createRuntime({ app: { appId: "prologue.app-mode", appVersion: "1.0.0" }, host, preset: "local-agent",
++    network: { model: true, loopback: true }, posture: { sandbox: "workspace-write", approval: "untrusted" }, permissionMode: { mode: "ask-always" } });
++  const credentialRef = (await runtime.credentials.write({ label: "test", secret: { plaintext: new TextEncoder().encode("synthetic") } })).ref;
++  const start = (text = "task") => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/chat`, credentialRef, model: "m", messages: [{ role: "user" as const, text }] });
++  return { runtime, workspaceCalls, requests, start, async close() { await runtime.shutdown(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(home, { recursive: true, force: true }); } };
++}
++
++it("workspace:app runs the Session pack's own tools and asks the person, with zero workspace calls", async () => {
++  const looked: unknown[] = [];
++  const f = await fixture((_body, response, turn) => turn === 0 ? call(response, "lookup", { id: "plan-7" }) : turn === 1 ? call(response, "ask-user", { why: "Which week?" }) : say(response, "added"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async input => { looked.push(input.args); return "plan-7: three items"; }, save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "a1", mode: "build", toolNames: ["lookup", "save", "ask-user"] } });
++    const run = watch(started.run);
++    const asked = await run.until("awaiting-input") as Extract<ModelEvent, { type: "awaiting-input" }>;
++    await f.runtime.effects.pendings.answer(asked.pendingRef, { kind: "text", text: "week 42" }, await f.runtime.readClock());
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(looked).toEqual([{ id: "plan-7" }]);
++    // The model saw exactly the named tools: the pack's and asking, never a file tool.
++    const offered = f.requests[0].tools.map((one: any) => one.function.name).sort();
++    expect(offered).toEqual(["ask-user", "lookup", "save"]);
++    expect(JSON.stringify(f.requests[2])).toContain("week 42");
++    expect(f.workspaceCalls).toEqual([]);
++  } finally { await f.close(); }
++});
++
++it("workspace:app holds a writing pack tool for approval like any other effect", async () => {
++  const saved: unknown[] = [];
++  const f = await fixture((_body, response, turn) => turn === 0 ? call(response, "save", { id: "plan-7" }) : say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async input => { saved.push(input.args); return "saved"; } });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "a2", mode: "build", toolNames: ["save"] } });
++    const run = watch(started.run);
++    const asked = await run.until("awaiting-approval") as Extract<ModelEvent, { type: "awaiting-approval" }>;
++    expect(saved).toEqual([]);
++    await f.runtime.effects.pendings.answer(asked.pendingRef, { kind: "effect-approval", answer: "allow" }, await f.runtime.readClock());
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(saved).toEqual([{ id: "plan-7" }]);
++    expect(f.workspaceCalls).toEqual([]);
++  } finally { await f.close(); }
++});
++
++it("workspace:app refuses file tools, roots, runners, subagents, skills and workspace context before the network", async () => {
++  const f = await fixture((_body, response) => say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async () => "" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const base = { session, workspace: "app" as const, start: f.start(), agent: { idempotencyKey: "r", mode: "build" as const, toolNames: ["lookup"] } };
++    for (const change of [
++      { agent: { idempotencyKey: "missing" } },
++      ...["read", "write", "run-command", "list", "dispatch-subagent", "session-send"].map(name => ({ agent: { idempotencyKey: name, toolNames: ["lookup", name] } })),
++      { rootRef: { kind: "authorized-root", id: "fake", revision: 1 } }, { runTool: async () => "forbidden" }, { subagents: {} },
++      { grants: { toolNames: ["lookup"], paths: ["."] } }, { context: { projectTrusted: true } },
++      { agent: { idempotencyKey: "skills", toolNames: ["lookup"], skillNames: ["anything"] } },
++      { agent: { idempotencyKey: "directory", toolNames: ["lookup"], workingDirectory: "." } },
++    ]) {
++      await expect(f.runtime.startAgentRun({ ...base, ...change } as never)).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++    }
++    // Another Session's pack tools are not this one's.
++    const bare = await f.runtime.sessions.create();
++    await expect(f.runtime.startAgentRun({ ...base, session: bare })).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++    expect(f.requests).toEqual([]);
++    expect(f.workspaceCalls).toEqual([]);
++    expect(APP_MODE_SYSTEM_TOOLS).toEqual(["ask-user", "update-todo", "find-tools", "context-remaining"]);
++  } finally { await f.close(); }
++});
++
++it("workspace:none keeps refusing every tool, including a pack's", async () => {
++  const f = await fixture((_body, response) => say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async () => "" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    await expect(f.runtime.startAgentRun({ session, workspace: "none", start: f.start(), agent: { idempotencyKey: "n", toolNames: [] } })).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++  } finally { await f.close(); }
++});

@@ -440,16 +440,92 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
   /* Its answers open above the bar and stay until closed. */
   ${SHELL} .assistant-panel {
-    position: absolute; z-index: 50; left: 0; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
-    height: auto; max-height: min(460px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
+    position: absolute; z-index: 50; left: -40px; right: -40px; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
+    height: min(600px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
     border-radius: 12px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise 220ms var(--ease-quint) both;
   }
   ${SHELL} .assistant-panel[hidden] { display: none; }
-  /* The answer sets the height; a short one keeps the panel short. */
-  ${SHELL} .assistant-panel .assistant-plan { flex: 0 1 auto; min-height: 0; overflow: auto; padding: 14px 16px 16px; font-size: 13px; }
-  ${SHELL} .assistant-panel .assistant-plan > p.assistant-ask { margin: 0 0 10px; padding: 0 0 10px; box-shadow: inset 0 -1px 0 var(--line); color: var(--ink); font-weight: 500; }
-  ${SHELL} .assistant-panel .assistant-plan > strong { display: block; margin-bottom: 4px; font-weight: 500; }
-  ${SHELL} .assistant-panel .assistant-plan > p { color: var(--muted); }
+  /* Head: which work, its real state, where it belongs, and what can be done to it now. */
+  ${SHELL} .assistant-head { flex: none; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 6px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${SHELL} .assistant-work-switch {
+    display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 55%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  ${SHELL} .assistant-work-switch:is(:hover, [aria-expanded="true"]) { background: var(--nav-hover); }
+  ${SHELL} .assistant-work-switch:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .assistant-work-switch > svg { flex: none; width: 12px; height: 12px; color: var(--muted); }
+  ${SHELL} .assistant-work-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${SHELL} .assistant-state { flex: none; font-size: 11px; font-weight: 400; color: var(--muted); }
+  ${SHELL} .assistant-state:empty { display: none; }
+  ${SHELL} .assistant-state[data-state="running"]::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--hue-green-fill); vertical-align: 1px; }
+  ${SHELL} .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { color: var(--ink); }
+  ${SHELL} .assistant-state[data-state="failed"] { color: var(--danger); }
+  ${SHELL} .assistant-work-scope { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 6px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; }
+  ${SHELL} .assistant-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+  ${SHELL} .assistant-head-actions .dock-window-action[hidden] { display: none; }
+  /* The person's works, newest first. */
+  ${SHELL} .assistant-works { flex: none; display: flex; flex-direction: column; gap: 1px; max-height: 45%; overflow: auto; padding: 6px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${SHELL} .assistant-works[hidden] { display: none; }
+  ${SHELL} .assistant-works-item {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 6px 10px; border: 0; border-radius: 7px;
+    background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer;
+  }
+  ${SHELL} .assistant-works-item:hover { background: var(--nav-hover); color: var(--ink); }
+  ${SHELL} .assistant-works-item[aria-current] { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} .assistant-works-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .assistant-works-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  ${SHELL} .assistant-works-meta { font-size: 11px; color: var(--muted); }
+  ${SHELL} .assistant-works-new { flex-direction: row; font-size: 13px; color: var(--muted); }
+  /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
+  ${SHELL} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
+  ${SHELL} .assistant-empty { color: var(--muted); }
+  ${SHELL} .assistant-empty strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
+  ${SHELL} .assistant-empty p { margin: 0; }
+  ${SHELL} .assistant-empty[hidden] { display: none; }
+  ${SHELL} .assistant-round { display: flex; flex-direction: column; gap: 8px; }
+  ${SHELL} .assistant-msg { max-width: 100%; overflow-wrap: anywhere; }
+  ${SHELL} .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 7px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
+  ${SHELL} .assistant-msg--assistant { color: var(--ink); }
+  ${SHELL} .assistant-msg--note { font-size: 12px; color: var(--muted); }
+  ${SHELL} .assistant-rich > :last-child { margin-bottom: 0; }
+  ${SHELL} .assistant-rich p { margin: 0 0 8px; }
+  ${SHELL} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 20px; }
+  ${SHELL} .assistant-rich .assistant-rich-heading { font-weight: 600; }
+  ${SHELL} .assistant-rich pre { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); overflow: auto; font-size: 12px; }
+  ${SHELL} .assistant-rich code { padding: 0 3px; border-radius: 4px; background: var(--wash); font-size: 12px; }
+  ${SHELL} .assistant-rich pre code { padding: 0; background: none; }
+  ${SHELL} :is(.assistant-activity, .assistant-round-status, .assistant-materials, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); }
+  ${SHELL} .assistant-activity[data-state="failed"] { color: var(--danger); }
+  ${SHELL} .assistant-round-status[hidden] { display: none; }
+  ${SHELL} .assistant-round-status[data-phase="failed"] { color: var(--danger); }
+  /* What needs the person: a question to answer, or an exact effect to allow. */
+  ${SHELL} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }
+  ${SHELL} .assistant-card-title { margin: 0; font-weight: 500; color: var(--ink); }
+  ${SHELL} .assistant-card p { margin: 0; }
+  ${SHELL} .assistant-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  ${SHELL} .assistant-answer { display: flex; gap: 6px; }
+  ${SHELL} .assistant-answer .mw-input { flex: 1; min-width: 0; }
+  ${SHELL} .assistant-questionnaire { display: flex; flex-direction: column; gap: 8px; }
+  ${SHELL} .assistant-questionnaire fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; border: 0; }
+  ${SHELL} .assistant-questionnaire legend { padding: 0; margin-bottom: 2px; font-weight: 500; }
+  ${SHELL} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
+  ${SHELL} .assistant-fields dt { color: var(--muted); }
+  ${SHELL} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+  ${SHELL} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--wash); }
+  ${SHELL} .assistant-problem p { margin: 0; }
+  /* In front of the input: where the next Send goes — a new work (and whose), or the work it continues. */
+  ${SHELL} .assistant-target {
+    display: inline-flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; max-width: 32%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
+    background: transparent; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
+  }
+  ${SHELL} .assistant-target > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  ${SHELL} .assistant-target:hover { color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
+  ${SHELL} .assistant-target[data-mode="work"] { background: var(--nav-hover); box-shadow: none; color: var(--ink); }
+  ${SHELL} .assistant-target:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 4px; color: var(--muted); }
+  ${SHELL} .assistant-target-clear[hidden] { display: none; }
+  ${SHELL} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} .assistant-target-clear svg { width: 11px; height: 11px; }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */
   @media (min-width: 601px) {
     ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 8px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
@@ -585,6 +661,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .plugin-picker-trigger { max-width: 120px; }
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
     ${SHELL} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .assistant-target { max-width: 28%; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }

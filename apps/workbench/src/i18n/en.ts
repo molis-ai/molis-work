@@ -27,6 +27,7 @@ import { GOALS_DIALOGS_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
+import { ASSISTANT_EN } from "./assistant-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
@@ -120,6 +121,7 @@ export const EN: Record<string, string> = {
   "原成果操作仍在处理，请稍后重新打开": "The previous integration operation is still being processed. Open it again shortly.",
 
   ...INFORMATION_LOOP_EN,
+  ...ASSISTANT_EN,
   ...IMAGES_EN,
   "待解决：{text}": "To resolve: {text}",
   "待你验收：{text}": "Awaiting your review: {text}",

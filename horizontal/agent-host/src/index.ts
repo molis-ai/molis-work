@@ -8,7 +8,7 @@ import type {
   AgentRoleExecution,
   AgentSkillDefinition,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { BUSINESS_HOST_TOOLS, orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentActionClient,
   AgentHostApi,
@@ -141,6 +141,8 @@ const EXECUTION_CAPABILITIES: Readonly<Record<AgentRoleExecution, AgentRuntimeCa
   "read-only": [],
   "text-edit": ["text-edit"],
   "workspace-write": ["text-edit", "command"],
+  // Business commands are unified actions under the effect policy, not files or shell commands.
+  operate: [],
 };
 
 /**
@@ -197,6 +199,15 @@ function assertInferenceRole(role: AgentRoleDeclaration, manifest: AgentManifest
   if (role.workspace !== "none" || roleExecution(role) !== "read-only" || role.host_tools?.length
     || role.subagent_workspaces || manifest.subagents?.parent_role_ids.includes(role.role_id)) {
     throw new AgentHostError("agent.role_execution_exceeded", "此角色没有声明无工作区、无工具的推理方式");
+  }
+}
+
+/** A business role: no directory, root-free host tools only, no children of its own (yet). */
+function assertBusinessRole(role: AgentRoleDeclaration, manifest: AgentManifest): void {
+  if (role.workspace !== "business" || !["read-only", "operate"].includes(roleExecution(role))
+    || role.host_tools?.some(tool => !(BUSINESS_HOST_TOOLS as readonly string[]).includes(tool))
+    || role.subagent_workspaces || manifest.subagents?.parent_role_ids.includes(role.role_id)) {
+    throw new AgentHostError("agent.role_execution_exceeded", "此角色没有声明无目录的业务执行方式");
   }
 }
 
@@ -292,6 +303,10 @@ export class AgentHost implements AgentHostApi {
         try { assertInferenceRole(role, manifest); } catch (error) { return { role_id: role.role_id, available: false, reason: (error as Error).message }; }
         if (!this.adapter(runtimeId).descriptor.supports_workspace_none) return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通无工作区推理" };
       }
+      if (role.workspace === "business") {
+        try { assertBusinessRole(role, manifest); } catch (error) { return { role_id: role.role_id, available: false, reason: (error as Error).message }; }
+        if (!this.adapter(runtimeId).descriptor.supports_workspace_business) return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通无目录的业务执行" };
+      }
       if (role.subagent_workspaces && (!this.adapter(runtimeId).subagents?.workspaces || !manifest.subagents?.parent_role_ids.includes(role.role_id)) || manifest.subagents?.parent_role_ids.includes(role.role_id) && capabilities.subagents === "unsupported") return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通这个协作方式" };
       const missing = EXECUTION_CAPABILITIES[roleExecution(role)]
         .filter((capability) => capabilities[capability] === "unsupported");
@@ -313,6 +328,12 @@ export class AgentHost implements AgentHostApi {
       assertInferenceRole(role, authority.manifest);
       if (!adapter.descriptor.supports_workspace_none) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无工作区推理");
       if (input.directory !== undefined || !input.actor_id?.trim()) throw new AgentHostError("agent.directory_unauthorized", "无工作区会话不能携带目录且必须有明确用户归属");
+    } else if (input.workspace === "business") {
+      const role = authority.manifest.roles.find(row => row.role_id === input.role_id);
+      if (!role) throw new AgentHostError("agent.role_not_declared", "业务会话需要已声明的业务角色");
+      assertBusinessRole(role, authority.manifest);
+      if (!adapter.descriptor.supports_workspace_business) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无目录的业务执行");
+      if (input.directory !== undefined || !input.actor_id?.trim()) throw new AgentHostError("agent.directory_unauthorized", "业务会话不能携带目录且必须有明确用户归属");
     } else if (!input.directory?.realpath_verified || !authority.authorizedDirectories.includes(input.directory.canonical_path)) {
       throw new AgentHostError("agent.directory_unauthorized", "这个目录没有被授权给当前项目");
     }
@@ -396,6 +417,13 @@ export class AgentHost implements AgentHostApi {
         || request.subagent_workspaces?.length || request.execution_plan || request.skills?.length) {
         throw new AgentHostError("agent.role_execution_exceeded", "无工作区推理不能选择目录、工具、工作区方法或子任务");
       }
+    } else if (request.workspace === "business") {
+      assertBusinessRole(role, authority.manifest);
+      if (!adapter.descriptor.supports_workspace_business) throw new AgentHostError("agent.capability_unavailable", "当前运行时尚未接通无目录的业务执行");
+      if (request.directory !== undefined || request.mcp_tools?.length || request.mcp_sources?.length
+        || request.subagent_workspaces?.length || request.execution_plan) {
+        throw new AgentHostError("agent.role_execution_exceeded", "业务执行不能选择目录、MCP、子任务目录或执行计划");
+      }
     } else if (!request.directory?.realpath_verified
       || !authority.authorizedDirectories.includes(request.directory.canonical_path)) {
       throw new AgentHostError(
@@ -406,7 +434,7 @@ export class AgentHost implements AgentHostApi {
     const session = await adapter.readSession(request.session);
     if (request.session.runtime_id !== runtimeId || session.session.runtime_id !== runtimeId || session.session.session_id !== request.session.session_id
       || session.owner.board_id !== request.board_id || session.owner.plugin_id !== request.plugin_id || session.owner.install_id !== request.install_id
-      || (session.owner.actor_id !== undefined || workspace === "none") && session.owner.actor_id !== request.actor_id
+      || (session.owner.actor_id !== undefined || workspace === "none" || workspace === "business") && session.owner.actor_id !== request.actor_id
       || (session.workspace ?? "required") !== workspace) {
       throw new AgentHostError("agent.session_unknown", "执行请求与原会话的身份或工作区方式不一致");
     }
@@ -483,10 +511,22 @@ export class AgentHost implements AgentHostApi {
         const view = directory.find(view => view.capability_id === ref.capability_id && view.version === ref.version && view.provider.provider_id === ref.provider_id);
         if (!view || !view.action.audiences.includes("agent")) throw new AgentHostError("agent.capability_unavailable", "原能力、版本或提供方已不可用，或尚未授权给内置 Agent");
         if (!view.availability.available) throw new AgentHostError("agent.capability_unavailable", view.availability.reason);
-        if (execution !== "workspace-write" && view.operation !== "query") throw new AgentHostError("agent.role_execution_exceeded", "当前执行方式只允许查询能力，请移除操作能力或更换执行方式");
+        if (execution !== "workspace-write" && execution !== "operate" && view.operation !== "query") throw new AgentHostError("agent.role_execution_exceeded", "当前执行方式只允许查询能力，请移除操作能力或更换执行方式");
         return structuredClone(view);
       });
       actions = { tools, client };
+    }
+    // The gateway replaces per-action tools for business roles: the directory is read at each call, never frozen here.
+    let gateway: NonNullable<AgentStartRequest["role"]>["action_gateway"];
+    if (request.action_gateway) {
+      if (workspace !== "business") throw new AgentHostError("agent.capability_unavailable", "能力网关只用于业务角色");
+      if (actionRefs.length) throw new AgentHostError("agent.capability_unavailable", "能力网关与逐项能力不能同时使用");
+      if (!adapter.descriptor.supports_action_tools || !authority.actions) throw new AgentHostError("agent.capability_unavailable", "当前执行引擎尚未接入动作服务");
+      const source = await authority.actions(runtimeId, validateCharacter);
+      gateway = { operate: execution === "operate", client: {
+        discover: async () => { validateCharacter?.(); return source.discover(); },
+        invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
+      } };
     }
     let mcp = request.mcp_tools ?? [];
     if (!Array.isArray(mcp) || mcp.length > 100 || new Set(mcp.map(ref => JSON.stringify([ref.server, ref.tool]))).size !== mcp.length) throw new AgentHostError("agent.capability_unavailable", "MCP 选择重复或超过数量限制");
@@ -555,11 +595,12 @@ export class AgentHost implements AgentHostApi {
       mcp_tools: mcp,
       mcp_sources: sources,
       role: {
-        ...(workspace === "none" ? { workspace: "none" as const } : {}),
+        ...(workspace === "none" ? { workspace: "none" as const } : workspace === "business" ? { workspace: "business" as const } : {}),
         role_id: role.role_id,
         version: role.version,
         execution,
         ...(actions ? { actions } : {}),
+        ...(gateway ? { action_gateway: gateway } : {}),
         ...(subagents ? { subagents } : {}),
         ...(childWorkspaces ? { subagent_workspaces: childWorkspaces } : {}),
         ...(character ? { character } : {}),
@@ -576,6 +617,7 @@ export class AgentHost implements AgentHostApi {
       || JSON.stringify(handle.frozen.directory) !== JSON.stringify(request.directory)
       || workspace === "none" && handle.frozen.host_tools.length !== 0
       || JSON.stringify(handle.frozen.action_tools ?? []) !== JSON.stringify(actionRefs)
+      || Boolean(handle.frozen.action_gateway) !== Boolean(gateway)
       || JSON.stringify(handle.frozen.character) !== JSON.stringify(character)
       || JSON.stringify(handle.frozen.character_skill_ids) !== JSON.stringify(characterSkillIds)
       || JSON.stringify(handle.frozen.subagent_workspaces) !== JSON.stringify(childWorkspaces)

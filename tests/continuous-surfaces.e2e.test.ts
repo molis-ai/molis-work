@@ -117,7 +117,12 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
     await evaluate("localStorage.setItem('molis-work:theme','light');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'light'}))");
     await openPlugin('feed');await capture('feed');
     await click('[data-feed-add-toggle]');
-    await checkEditor('[data-feed-sources-dialog]');await click('[data-feed-choose-kind=custom_rss]');await capture('feed-editor');
+    // Adding a source opens in the Feed work surface beside its source rail (specs/feed-source-workbench), not as a centred modal.
+    await waitFor("!document.querySelector('[data-feed-sources-dialog]').hidden");
+    const setup=await evaluate<any>("(()=>{const p=document.querySelector('[data-feed-sources-dialog]').getBoundingClientRect(),rail=document.querySelector('[data-feed-source-rail]'),r=rail&&rail.getClientRects().length?rail.getBoundingClientRect():null;return {left:p.left,right:p.right,top:p.top,bottom:p.bottom,w:p.width,railRight:r?r.right:null}})()");
+    assert.ok(setup.top>=0&&setup.bottom<=height&&setup.right<=width+1&&setup.w>0,'setup stays inside the viewport: '+JSON.stringify(setup));
+    if(setup.railRight!==null)assert.ok(setup.left>=setup.railRight-1,'setup sits beside the source rail, not under it: '+JSON.stringify(setup));
+    await click('[data-feed-choose-kind=custom_rss]');await capture('feed-editor');
     const focusEvidence=[];
     for(const theme of ['light','dark']){
       await evaluate(`localStorage.setItem('molis-work:theme','${theme}');dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:'${theme}'}))`);
@@ -127,7 +132,7 @@ for (const [width,height] of [[1440,900],[1024,400],[390,640]]) {
           await command('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
           await command('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',windowsVirtualKeyCode:9},sessionId);
         }
-        const focus=await evaluate<any>(`(()=>{const e=document.activeElement,s=getComputedStyle(e),bg=getComputedStyle(e.closest('dialog')).backgroundColor,c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,1,1);const a=[...x.getImageData(0,0,1,1).data];x.fillStyle=s.outlineColor;x.fillRect(0,0,1,1);const b=[...x.getImageData(0,0,1,1).data];const lum=v=>v.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((t,n,i)=>t+n*[.2126,.7152,.0722][i],0),l=lum(a),m=lum(b);return {tag:e.tagName,visible:e.matches(':focus-visible'),outline:s.outline,shadow:s.boxShadow,contrast:(Math.max(l,m)+.05)/(Math.min(l,m)+.05)}})()`);
+        const focus=await evaluate<any>(`(()=>{const e=document.activeElement,s=getComputedStyle(e),bg=getComputedStyle(e.closest('[data-feed-sources-dialog]')).backgroundColor,c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d');x.fillStyle=bg;x.fillRect(0,0,1,1);const a=[...x.getImageData(0,0,1,1).data];x.fillStyle=s.outlineColor;x.fillRect(0,0,1,1);const b=[...x.getImageData(0,0,1,1).data];const lum=v=>v.slice(0,3).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((t,n,i)=>t+n*[.2126,.7152,.0722][i],0),l=lum(a),m=lum(b);return {tag:e.tagName,visible:e.matches(':focus-visible'),outline:s.outline,shadow:s.boxShadow,contrast:(Math.max(l,m)+.05)/(Math.min(l,m)+.05)}})()`);
         assert.equal(focus.tag,kind==='select'?'BUTTON':'INPUT');assert.equal(focus.visible,true);assert.match(focus.outline,/solid 1px/);assert.equal(focus.shadow,'none');assert.ok(focus.contrast>=3,JSON.stringify(focus));
         if(kind==='select') assert.equal(await evaluate("document.activeElement.matches('[data-mw-select-trigger]')"),true);
         focusEvidence.push({theme,kind,...focus});

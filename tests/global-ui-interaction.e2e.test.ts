@@ -51,7 +51,7 @@ test("Feed creates two independent tasks in one page and shared controls keep re
     return response;
   }; }`);
   for (const [index, name] of ['设计观察', '独立的第二个任务'].entries()) {
-    await click('[data-feed-stage-chrome] [data-feed-add-toggle]');
+    await click('[data-feed-source-rail] [data-feed-add-toggle]');
     await waitFor("document.querySelector('[data-feed-source-choices]').hidden === false");
     await click('[data-feed-choose-kind=custom_rss]');
     assert.equal(await evaluate("document.querySelector('[data-feed-add-name]').value"), '');
@@ -71,13 +71,13 @@ test("Feed creates two independent tasks in one page and shared controls keep re
       })()`);
       assert.ok(menu.font >= 13 && menu.height >= 32 && menu.bottom <= 768, JSON.stringify(menu));
       await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
-      assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').open"), true, 'Escape closes only the menu');
+      assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true, 'Escape closes only the menu');
     }
     await evaluate(`{ document.querySelector('[data-feed-add-name]').value = ${JSON.stringify(name)};
       const url = document.querySelector('[data-feed-source-value=custom_rss]'); url.value = 'https://example.com/ui-${index}.xml';
     }`);
     await click('[data-feed-source-register]');
-    await waitFor(`window.createdSources.length === ${index + 1} && !document.querySelector('[data-feed-sources-dialog]').open && document.querySelector('[data-feed-task="' + window.createdSources[${index}] + '"] summary[aria-current=page]')`);
+    await waitFor(`window.createdSources.length === ${index + 1} && document.querySelector('[data-feed-sources-dialog]').hidden && document.querySelector('[data-feed-source-rail] [data-feed-task="' + window.createdSources[${index}] + '"][aria-current=page]')`);
   }
   const ids = await evaluate<string[]>('window.createdSources');
   assert.equal(new Set(ids).size, 2);

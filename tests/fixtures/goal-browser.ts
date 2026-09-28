@@ -186,13 +186,15 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   async function click(selector: string): Promise<void> {
     const point = await evaluate<{ x: number; y: number }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)});
-      // Reach an entry the way a person would: its Dock window, the full plugin list, or the menu it sits in.
+      // Reach an entry the way a person would: its Dock window, the full plugin list, a collapsed source drawer, or the menu it sits in.
       const picker = element.closest('[data-plugin-picker-popover]');
       if (picker && picker.hidden) document.querySelector('[data-plugin-picker-toggle]')?.click();
       const dockWindow = element.closest('[data-dock-window]');
       if (dockWindow && dockWindow.hidden) document.querySelector('[data-dock-toggle="' + dockWindow.dataset.dockWindow + '"]')?.click();
       const rail = element.closest('.plugin-rail-items');
       if (rail && !element.getClientRects().length && !rail.classList.contains('is-tools-open')) rail.querySelector('[data-rail-tools-toggle]')?.click();
+      const sourceRail = element.closest('[data-feed-source-rail]');
+      if (sourceRail && !sourceRail.getClientRects().length) sourceRail.parentElement?.querySelector('[data-feed-rail-toggle]')?.click();
       const menu = element.closest('details:not([open])');
       if (menu && !menu.querySelector(':scope > summary')?.contains(element)) menu.querySelector(':scope > summary')?.click();
       await new Promise(resolve => requestAnimationFrame(resolve));

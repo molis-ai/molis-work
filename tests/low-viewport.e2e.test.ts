@@ -16,7 +16,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     await click('[data-plugin-id="feed"]');
     if (width < 760 && await evaluate("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)")) await click('[data-directory-show]');
     await click('[data-feed-add-toggle]');
-    await waitFor("document.querySelector('[data-feed-sources-dialog]').open");
+    await waitFor("!document.querySelector('[data-feed-sources-dialog]').hidden");
     await click('[data-feed-choose-kind="custom_rss"]');
     const contained = async (selector: string) => {
       const rect = await evaluate<{top:number;bottom:number}>(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {top:r.top,bottom:r.bottom}})()`);
@@ -25,7 +25,7 @@ for (const [width, height] of [[1024, 400], [390, 500]]) {
     };
     await contained('[data-feed-sources-dialog] footer');
     await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
-    await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
+    await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
     if (width < 760 && await evaluate("document.querySelector('[data-workspace]').dataset.mobileView!=='tree' && Boolean(document.querySelector('[data-directory-show]')?.getClientRects().length)")) await click('[data-directory-show]');
     await click('[data-plugin-id="sessions"]');
     await click('[data-work-surface="sessions"] [data-open-session-add]');

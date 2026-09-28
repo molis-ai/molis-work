@@ -117,8 +117,8 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   assert.equal(await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').value"), "https://example.com/retry.xml");
   assert.equal(await evaluate("document.querySelector('[data-feed-setup-back]').hidden"), true);
   await click('[data-feed-source-register]');
-  await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
-  await waitFor(`document.querySelector('[data-feed-task="${sourceId}"] summary[aria-current=page]')`);
+  await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
+  await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${sourceId}"][aria-current=page]')`);
   assert.equal(await evaluate("window.sourceCreationRequests"), 1);
   const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_BOARD_ID, sourceId);
   assert.equal(saved.schedule.mode, "interval");
@@ -137,11 +137,13 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="feed"]');
   const panel = `[data-feed-task-config="${source.source_id}"]`;
-  await click(`[data-feed-task-config-open="${source.source_id}"]`);
+  // Settings open the way a person reaches them now: pick the source in the rail, then its 来源设置 tab.
+  const openSettings = async () => { await click(`[data-feed-source-rail] [data-feed-task="${source.source_id}"]`); await click('[data-feed-view="settings"]'); };
+  await openSettings();
   await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value='丢弃的名称'`);
   await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
   assert.equal(feed.getSource(DEMO_BOARD_ID,source.source_id).name, source.name);
-  await click(`[data-feed-task-config-open="${source.source_id}"]`);
+  await openSettings();
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),source.name);
   await click(`${panel} [data-feed-plan-region] > summary`);
   await evaluate(`{const field=document.querySelector('${panel} [data-source-schedule-mode]');field.value='interval';field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('${panel} [data-source-schedule-interval]').value='360';}`);
@@ -181,12 +183,14 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await click('[data-feed-config-submit]');
-  assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').open"), true);
+  assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').getAttribute('aria-busy')"), 'true');
   assert.equal(await evaluate('window.configRequests'), 1);
   await evaluate('window.releaseConfigResponse()');
-  await waitFor("!document.querySelector('[data-feed-sources-dialog]').open");
-  await waitFor(`document.querySelector('[data-feed-task="${source.source_id}"]')?.textContent.includes('保留中的名称')`);
+  // Settings are edited in place in the work surface: a successful save stays on them instead of closing a modal.
+  await waitFor("!document.querySelector('[data-feed-sources-dialog]').hasAttribute('aria-busy')");
+  assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
+  await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${source.source_id}"]')?.textContent.includes('保留中的名称')`);
   assert.equal(feed.getSource(DEMO_BOARD_ID,source.source_id).name,"保留中的名称");
   const plan=feed.getSource(DEMO_BOARD_ID,source.source_id).schedule;
   assert.equal(plan.mode,"interval"); if(plan.mode==='interval') assert.equal(plan.interval_minutes,360);

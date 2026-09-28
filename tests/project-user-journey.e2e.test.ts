@@ -52,12 +52,12 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const app=new GoalProjectApplication(b.store);
     assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_BOARD_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
     await capture('goal-recorded');
-    await plugin('feed');await click('[data-feed-stage-chrome] [data-feed-add-toggle]');
+    await plugin('feed');await click('[data-feed-source-rail] [data-feed-add-toggle]');
     await click('[data-feed-choose-kind=custom_rss]');
     await fill('[data-feed-add-name]','团队设计资料');
     await fill('[data-feed-source-value=custom_rss]','https://example.com/journey.xml');
     await click('[data-feed-source-register]');
-    await waitFor("!document.querySelector('[data-feed-sources-dialog]').open && [...document.querySelectorAll('[data-feed-task]')].some(e=>e.textContent.includes('团队设计资料'))");
+    await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden && [...document.querySelectorAll('[data-feed-task]')].some(e=>e.textContent.includes('团队设计资料'))");
     await directory();
     const sourceId=await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(e=>e.textContent.includes('团队设计资料')).dataset.feedTask");
     const feed=createLocalFeedApplication(b.store.db),source=feed.getSource(DEMO_BOARD_ID,sourceId);

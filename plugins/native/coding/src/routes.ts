@@ -19,7 +19,9 @@ import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalConte
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
 import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
-import { CodingCooperationStore, DELEGATION_ENDED, DELEGATION_STATE_LABEL, MAX_DELEGATION_HOPS, type CodingDelegation, type DelegationState } from "./cooperation.js";
+import { asAttachment, delegationViewOf, isDelegation } from "./delegation-view.js";
+import { OPEN_WAIT, appData, holdReason, waitViewOf, wakeBodyOf } from "./waits.js";
+import { CodingCooperationStore, DELEGATION_ENDED, DELEGATION_STATE_LABEL, MAX_DELEGATION_HOPS, type CodingDelegation } from "./cooperation.js";
 import { attachMentions, readWorkspaceFileCapability, symbolsIn, workspaceFileIndex } from "./mentions.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint, summaryCache } from "./session-window.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
@@ -229,51 +231,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   /** A delegation from before delegations went by letter: shown as it was, changed no more. */
   const legacyView = (execution: CodingExecutionPorts, delegation: CodingDelegation) =>
     ({ ...delegation, legacy: true as const, state_label: DELEGATION_STATE_LABEL[delegation.state], from: sideOf(execution, delegation.from_session), to: sideOf(execution, delegation.to_session) });
-  /**
-   * A delegation is a letter for people between two sessions (the SDK's envelope, never handed to a model): the
-   * request carries the task and the fixed outputs handed over, each delivery is a reply carrying the fixed output
-   * handed back, and every step — sent, delivered, accepted, started, delivered back, taken or returned with why — is
-   * on the request's history.
-   */
-  const isDelegation = (letter: AgentSessionMessage) => letter.audience === "people" && letter.kind === "request";
-  const letterBody = (letter: AgentSessionMessage): Record<string, unknown> => {
-    try { const value = JSON.parse(letter.body) as unknown; return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; } catch { return {}; }
-  };
-  const artifactOf = (attachment: AgentMessageAttachment | undefined) => attachment?.kind === "artifact" && attachment.version !== undefined ? { artifact_id: attachment.id, version: attachment.version } : undefined;
-  const asAttachment = (reference: { artifact_id: string; version: number }): AgentMessageAttachment => ({ kind: "artifact", id: reference.artifact_id, version: reference.version });
-  const iso = (ms: number) => new Date(ms).toISOString();
-  type LetterHistory = NonNullable<AgentSessionMessage["history"]>;
-  /** The delegation's state from its letter's: accepted and started is under way; how it was cancelled says why. */
-  const delegationStateOf = (state: AgentSessionMessage["state"], history: LetterHistory): DelegationState => {
-    if (state === "queued") return "received";
-    if (state === "accepted") return history.some(entry => entry.event === "started") ? "committing" : "accepted";
-    if (state === "cancelled") { const how = history.find(entry => entry.state === "cancelled")?.event; return how === "failed" ? "failed" : how === "rejected" ? "rejected" : "cancelled"; }
-    if (state === "expired") return "failed";
-    return state;
-  };
-  const RECEIPT_EVENT: Record<string, string> = { sent: "submitted" };
-  const delegationView = (execution: CodingExecutionPorts, letter: AgentSessionMessage, letters: AgentSessionMessage[]) => {
-    const said = letterBody(letter), history = letter.history ?? [];
-    const codingOf = (runtime: string) => execution.sessions.byRuntimeSession(boardId, runtime)?.session_id ?? null;
-    const replies = letters.filter(one => one.audience === "people" && one.kind === "reply" && one.in_reply_to === letter.message_id);
-    const deliveries = replies.map(reply => {
-      const about = letterBody(reply), decided = (reply.history ?? []).find(entry => entry.state === "accepted" || entry.state === "rejected");
-      return { delivery_id: reply.message_id, kind: about.kind === "changeset" ? "changeset" as const : "report" as const, artifact: artifactOf(reply.attachments?.[0]) ?? null,
-        run_id: String(about.run_id ?? ""), title: String(about.title ?? ""), note: String(about.note ?? ""),
-        state: decided?.state === "rejected" ? "rejected" as const : decided ? "accepted" as const : "sent" as const,
-        ...(decided?.state === "rejected" && decided.note ? { reason: decided.note } : {}), sent_at: iso(reply.sent_at_ms),
-        ...(decided ? { decided_at: iso(decided.at_ms), decided_by: decided.by ?? "" } : {}) };
-    });
-    const receipts = history.map((entry, index) => ({ event: RECEIPT_EVENT[entry.event] ?? entry.event, state: delegationStateOf(entry.state, history.slice(0, index + 1)),
-      at: iso(entry.at_ms), actor: entry.by ?? "", ...(entry.note ? { note: entry.note } : {}), ...(artifactOf(entry.attachments?.[0]) ? { artifact: artifactOf(entry.attachments?.[0]) } : {}),
-      ...(entry.late ? { recorded_only: true as const } : {}) }));
-    const state = delegationStateOf(letter.state, history), from = codingOf(letter.from_session), to = codingOf(letter.to_session);
-    return { delegation_id: letter.message_id, from_session: from, to_session: to, title: String(said.title ?? ""), task: String(said.task ?? ""),
-      materials: (letter.attachments ?? []).flatMap(one => artifactOf(one) ?? []), hops: letter.hops ?? 1, state, state_label: DELEGATION_STATE_LABEL[state],
-      // Every step either letter took: an action named against an older count is refused as a change under it.
-      revision: history.length + replies.reduce((sum, reply) => sum + (reply.history?.length ?? 0), 0), deliveries, receipts,
-      created_at: iso(letter.sent_at_ms), from: sideOf(execution, from), to: sideOf(execution, to) };
-  };
+  /** The page's view of one delegation letter; the two ends are named as this project's Coding sessions. */
+  const delegationView = (execution: CodingExecutionPorts, letter: AgentSessionMessage, letters: AgentSessionMessage[]) =>
+    delegationViewOf(letter, letters, { codingOf: runtime => execution.sessions.byRuntimeSession(boardId, runtime)?.session_id ?? null, sideOf: id => sideOf(execution, id) });
   /** Letters for a delegation go between runtime sessions: a session that has not run yet gets its own now. */
   const runtimeSessionOf = async (record: CodingSessionRecord, api: Capabilities, execution: CodingExecutionPorts, actorId: string) => {
     if (record.runtime_session_id) return record.runtime_session_id;
@@ -570,7 +530,6 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
    * for the person when one should not start on its own.
    */
   type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
-  const OPEN_WAIT = ["waiting", "fired"];
   /** Marked the priority by the person (kept with the plugin: a mark on the directory, not an execution state). */
   const priorityOf = (sessionId: string) => Boolean(context.services?.storage?.get(`priority:${sessionId}`));
   const noteKey = (waitId: string) => `wake-note:${waitId}`;
@@ -585,41 +544,11 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   /** The session's open wait; none when the Host keeps no waits (an older runtime). */
   const openWaitOf = async (api: Capabilities, record: CodingSessionRecord) => record.runtime_session_id
     ? (await api.invoke(agent.readWaits, [record.runtime_id, record.runtime_session_id]).catch(() => [] as AgentWait[])).find(wait => OPEN_WAIT.includes(wait.state)) : undefined;
-  /** An "app" wait carries the round the person sent and the project work item it waits as. */
-  const appData = (wait: AgentWait) => {
-    const data = (wait.data ?? {}) as { app?: { body?: Record<string, unknown>; actor_id?: string } | null; work_id?: string };
-    return { body: data.app?.body ?? {}, actor: data.app?.actor_id ?? "web-user", work_id: data.work_id };
-  };
-  const waitingFor = (wait: AgentWait) => wait.by === "app" ? "work" : wait.on.some(one => one.kind === "envelope") ? "reply" : "command";
-  /** What the page shows about a parked session. */
-  const waitView = (wait: AgentWait) => ({ wait_id: wait.wait_id, after_title: wait.waiting_on, waiting_for: waitingFor(wait), reason: wait.reason, at: new Date(wait.created_at_ms).toISOString(),
-    ...(noteOf(wait.wait_id) ? { note: noteOf(wait.wait_id) } : {}) });
-  /** Whether a fired wait starts the next round on its own, or waits for the person (and why). */
-  const holdReason = (wait: AgentWait): string | undefined => {
-    const fired = wait.fired;
-    if (!fired) return undefined;
-    if (wait.by === "app" && fired.outcome === "not-done") return `${wait.waiting_on}没有完成，这一轮还在等你决定：现在开始，或取消等待。`;
-    if (fired.kind === "envelope" && fired.outcome === "withdrawn") return `${wait.waiting_on}：请求已撤回或过期，这一轮还在等你决定：现在开始，或取消等待。`;
-    return undefined;
-  };
-  /** The round a wait wakes to: what it waited for, what happened, and the task it had been doing. */
+  const waitView = (wait: AgentWait) => waitViewOf(wait, noteOf(wait.wait_id));
+  /** The round a wait wakes to, from the body of the round that parked. */
   const wakeBody = (record: CodingSessionRecord, wait: AgentWait, person = false) => {
-    if (wait.by === "app") { const { body, work_id } = appData(wait); return { ...body, ...(work_id ? { queued_work_id: work_id } : {}) }; }
     const saved = context.services?.storage?.get(`last-start:${record.session_id}`);
-    const last = saved ? JSON.parse(saved) as Record<string, unknown> : {};
-    const { actor_id: _actor, origin_task, ...how } = last;
-    const fired = wait.fired;
-    const what = person ? `你决定不再等${wait.waiting_on}，直接接着做。`
-      : !fired ? ""
-      : fired.outcome === "answered" ? `它的答复：${fired.text}`
-      : fired.outcome === "settled" ? `${wait.waiting_on.replace(/的答复$/, "")}那一轮已经结束，没有专门答复；它可能已经做了你请求的事，先读一下相关文件确认。`
-      : fired.outcome === "failed" && fired.kind === "envelope" ? `${wait.waiting_on}不会来了：${fired.text}。先读一下相关文件，确认对方做到了哪里，再决定自己接着做，还是改做别的。`
-      : fired.outcome === "interrupted" ? `你等的${fired.kind === "command" ? "后台命令" : "那件事"}被服务重启打断了，结果未知，不要当成成功；需要的话重新运行。\n${fired.text}`
-      : fired.outcome === "output" ? `你等的后台命令输出了你在等的内容（命令还在运行）。\n${fired.text}`
-      : `${fired.kind === "command" ? "后台命令" : ""}结束了（${({ succeeded: "成功", failed: "失败", stopped: "被停止" } as Record<string, string>)[fired.outcome] ?? fired.outcome}），结束于 ${new Date(fired.at_ms).toISOString()}（宿主记录的时间）。\n${fired.text}`;
-    // The original task travels on, so a round woken again still knows what it was for.
-    return { ...how, ...(typeof origin_task === "string" ? { origin_task } : {}), task: [`（接着之前的任务）你之前挂起等待：${wait.reason.slice(0, 400)}`, what,
-      `请接着完成原来的任务：${typeof origin_task === "string" ? origin_task : ""}`].filter(Boolean).join("\n") };
+    return wakeBodyOf(wait, saved ? JSON.parse(saved) as Record<string, unknown> : {}, person);
   };
   /** Take a fired wait up: start the next round with it, or leave it for the person with a note. */
   const takeUp = async (api: Capabilities, execution: CodingExecutionPorts, runtimeId: string, wait: AgentWait): Promise<"started" | "held" | "later" | "not-ours"> => {

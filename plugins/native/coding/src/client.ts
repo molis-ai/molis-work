@@ -452,7 +452,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     retitle(current,before,current && result.sessions.find(item=>item.session_id===current)?.title);
     const models=q('[data-coding-model]'); const previous=models.value;
     const options=result.models.map((model) => { const option=document.createElement('option'); option.value=JSON.stringify([model.provider_id,model.model_id]); option.textContent=model.label; return option; });
-    if (!options.length) { const option=document.createElement('option'); option.textContent='先配置可用模型'; option.value=''; options.push(option); }
+    if (!options.length) { const option=document.createElement('option'); option.textContent='还没有模型'; option.value=''; options.push(option); }
     q('[data-coding-model-setup]').hidden=result.models.length>0;
     const modelKey=JSON.stringify(result.models);
     if(models.dataset.options!==modelKey) { models.replaceChildren(...options);models.dataset.options=modelKey;if(options.some(option=>option.value===previous)) models.value=previous; }

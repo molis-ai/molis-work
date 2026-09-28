@@ -36,7 +36,7 @@ export async function handleModelSettingsHttp(
         || !["off", "best-effort", "required"].includes(String(body.prompt_cache))
         || (body.thinking !== undefined && !["off", "adaptive"].includes(String(body.thinking)))
         || (body.connection_id !== undefined && typeof body.connection_id !== "string")
-        || body.api_key !== undefined) throw new Error("供应商配置格式无效；密钥请在 Connectors 中管理");
+        || (body.api_key !== undefined && typeof body.api_key !== "string")) throw new Error("供应商配置格式无效");
       const models: ModelRecord[] = body.models.map((entry: unknown) => {
         if (!entry || typeof entry !== "object" || !("model_id" in entry) || typeof entry.model_id !== "string"
           || !("enabled" in entry) || typeof entry.enabled !== "boolean") throw new Error("模型配置格式无效");
@@ -50,16 +50,20 @@ export async function handleModelSettingsHttp(
         };
       });
       const result = await withCatalog({ homeDirectory }, (catalog) => {
+        const apiKey = typeof body.api_key === "string" ? body.api_key.trim() : "";
+        const requestedConnection = typeof body.connection_id === "string" ? body.connection_id.trim() : "";
+        if (apiKey && requestedConnection) throw new Error("请只选择已有连接，或填写新的 API Key");
+        if (apiKey && apiKey.length < 8) throw new Error("API Key 太短");
+        const alreadyStored = Boolean(catalog.models.get(providerId) && catalog.models.hasCredential(providerId));
+        if (!apiKey && !requestedConnection && !alreadyStored) throw new Error("请填写 API Key，或选择一条已保存的连接");
         if (homeDirectory) {
           const known = listConnectorConnectionViews(homeDirectory, "model-api");
-          const selectedId = typeof body.connection_id === "string" && body.connection_id.trim()
-            ? body.connection_id.trim()
-            : known.find((entry) => withConnectorConnections(homeDirectory, (store) =>
+          const selectedId = requestedConnection
+            || known.find((entry) => withConnectorConnections(homeDirectory, (store) =>
               store.require(entry.connection_id).credential_ref === catalog.models.get(providerId)?.credential_ref))?.connection_id;
           if (selectedId) withConnectorConnections(homeDirectory, (store) => {
             const connection = store.require(selectedId, "model-api");
-            if (typeof body.connection_id === "string" && body.connection_id.trim()
-              && store.state(connection) !== "connected") throw new Error("所选连接不可用");
+            if (requestedConnection && store.state(connection) !== "connected") throw new Error("所选连接不可用");
             store.assertTarget(selectedId, "model-api", body.base_url as string);
           });
         }
@@ -69,10 +73,18 @@ export async function handleModelSettingsHttp(
           prompt_cache: body.prompt_cache as ModelPromptCacheMode, models,
           ...(body.thinking === undefined ? {} : { thinking: body.thinking as ModelThinkingMode }),
         });
-        if (typeof body.connection_id === "string" && body.connection_id) {
+        if (requestedConnection) {
           if (!homeDirectory) throw new Error("本机连接库不可用");
-          const connection = withConnectorConnections(homeDirectory, (store) => store.require(body.connection_id as string, "model-api"));
+          const connection = withConnectorConnections(homeDirectory, (store) => store.require(requestedConnection, "model-api"));
           if (!connection.credential_ref || connection.disconnected_at) throw new Error("所选连接不可用");
+          catalog.models.selectConnection(providerId, connection.credential_ref);
+        } else if (apiKey) {
+          if (!homeDirectory) throw new Error("本机连接库不可用");
+          const connection = withConnectorConnections(homeDirectory, (store) => store.createToken({
+            serviceId: "model-api", displayName: (body.display_name as string).trim() || "模型", token: apiKey,
+          }));
+          if (!connection.credential_ref) throw new Error("新连接没有保存密钥");
+          withConnectorConnections(homeDirectory, (store) => store.assertTarget(connection.connection_id, "model-api", body.base_url as string));
           catalog.models.selectConnection(providerId, connection.credential_ref);
         }
         return { provider: catalog.models.get(providerId) ?? provider,

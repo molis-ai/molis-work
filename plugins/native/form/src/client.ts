@@ -416,7 +416,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     button.disabled = !aiAvailable;
     const reason = workbench.querySelector("[data-form-ai-reason]");
     reason.hidden = aiAvailable;
-    reason.textContent = aiUnavailableReason || L("当前没有可用的文字模型，请检查模型设置和服务连接。");
+    reason.replaceChildren(document.createTextNode(aiUnavailableReason || L("当前没有可用的文字模型，请检查模型设置和服务连接。")));
+    if (!aiAvailable) {
+      const link = document.createElement("a");
+      link.href = "/settings/models";
+      link.textContent = L("打开模型设置");
+      reason.append(document.createTextNode(" "), link);
+    }
   };
   const draftFromDom = () => ({ title: titleInput.value, description: descriptionInput.value, questions: questionsFromDom() });
   const save = () => {

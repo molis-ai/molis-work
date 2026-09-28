@@ -32,7 +32,10 @@ test("模型设置经正式 HTTP 保存、验证、重开与隔离，凭据不�
     });
     assert.equal((await mutate(record, "POST", false)).status, 403);
     assert.equal((await mutate({ ...record, base_url: "https://username:password@example.com" })).status, 400);
-    assert.equal((await mutate({ ...record, api_key: secret })).status, 400);
+    const inline = await mutate({ ...record, api_key: secret });
+    assert.equal(inline.status, 200);
+    assert.equal((await inline.text()).includes(secret), false);
+    assert.equal((await (await fetch(origin + "/api/settings/models")).json()).health[0].status, "ready");
     const created = await fetch(origin + "/api/settings/connectors/connections", {
       method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
         "x-molis-work-control-token": controlToken },

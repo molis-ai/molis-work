@@ -8,7 +8,8 @@ export function renderAgentStudio(): string {
     + '<header class="as-top"><a class="as-brand" href="#" aria-label="Molis"><svg aria-hidden="true"><use href="#icon-wand"/></svg><b>Molis</b><span>/</span><span>插件创作工作台</span></a>'
     + '<div class="as-top-actions"><label class="as-select"><span class="as-sr">我的插件</span><select data-as-builds aria-label="我的插件"></select></label>'
     + '<button class="as-icon" type="button" data-as-new aria-label="新建插件" title="新建插件"><svg aria-hidden="true"><use href="#icon-plus"/></svg></button>'
-    + '<label class="as-select as-model"><span>模型</span><select data-as-model aria-label="构建使用的模型"></select></label></div></header>'
+    + '<label class="as-select as-model"><span>模型</span><select data-as-model aria-label="构建使用的模型"></select></label>'
+    + '<a class="as-model-setup" data-as-model-setup href="/settings/models" hidden>打开模型设置</a></div></header>'
     + '<aside class="as-left" aria-label="协作"><div class="as-feed" data-as-feed aria-live="polite"></div>'
     + '<form class="as-composer" data-as-composer><div class="as-target" data-as-target hidden></div><textarea data-as-input rows="2" maxlength="48000" aria-label="描述或修改"></textarea>'
     + '<button class="as-send" type="submit" aria-label="发送" title="发送"><svg aria-hidden="true"><use href="#icon-send"/></svg></button></form>'
@@ -61,6 +62,7 @@ export const AGENT_STUDIO_STYLES = String.raw`
 .as-composer textarea{display:block;width:100%;resize:none;border:0;outline:0;font:inherit;background:transparent;max-height:180px}.as-send{position:absolute;right:9px;bottom:9px;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink,#272c32);color:var(--paper,#fff);display:flex;align-items:center;justify-content:center}.as-send:disabled{background:#b9bdc6}
 .as-target{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:12px;color:#2f5fd0}.as-target button{border:0;background:none;padding:0 2px;color:var(--as-muted)}
 .as-model-note{margin:0 16px 10px;color:var(--as-muted);font-size:11.5px;text-align:center}
+.as-model-setup{align-self:center;color:var(--as-muted);font-size:12px;white-space:nowrap}
 .as-right{display:flex;flex-direction:column;min-width:0;min-height:0;padding:0 24px}
 .as-canvas-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:62px}.as-title{display:flex;align-items:center;gap:8px;min-width:0}.as-title h1{font-size:15px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .as-phase{border-radius:6px;background:var(--as-fill);padding:1px 8px;font-size:11.5px;color:var(--as-muted);white-space:nowrap}.as-phase[data-phase=ready]{background:var(--green-soft,#e4f5ee);color:#1f7a5c}.as-phase[data-phase=failed]{background:var(--red-soft,#fdecea);color:#a3332d}.as-phase[data-phase=clarifying],.as-phase[data-phase=paused]{background:var(--amber-soft,#fff3dc);color:#8a5a12}
@@ -388,9 +390,10 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const s=$('[data-as-status]'),b=current;s.innerHTML='<span>'+(!b?'':active(b)?(b.active.stage==='design'?'主线设计正在工作':'UI Agent 与代码 Agent 正在协作'):b.phase==='ready'?'全部功能已接通，可以试用和发布':b.phase==='clarifying'?'等你回答问题':b.phase==='choosing'?'等你选择方案':b.pendingPart?'等你选择组件':b.pendingPlugins?.length?'等你决定要不要启用插件':PHASE[b.phase]||'')+'</span><span>'+(b?.connected.length?'已接通 '+b.connected.length+'/'+(b.design?.contract.operations.length||0)+' 项功能 · 输入会保留':'')+'</span>';}
  // Animation frames do not run in a hidden page; render there directly so the page never shows a stale build.
  function schedule(){if(frame)return;const paint=()=>{frame=0;renderAll();};frame=document.hidden?setTimeout(paint,0):requestAnimationFrame(paint);}
- document.addEventListener('visibilitychange',()=>{if(!document.hidden)pointers();});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden){pointers();void refreshState();}});
  function renderBuilds(){const select=$('[data-as-builds]');select.innerHTML='<option value="">'+(state.builds.length?'我的插件（'+state.builds.length+'）':'还没有插件')+'</option>'+state.builds.map(b=>'<option value="'+esc(b.id)+'"'+(b.id===current?.id?' selected':'')+'>'+esc(b.design?.title||b.title)+' · '+esc(phaseOf(b))+'</option>').join('');
-  const model=$('[data-as-model]');model.innerHTML=(state.model?'':'<option value="">选择模型</option>')+state.models.map(m=>'<option value="'+esc(m.provider_id+'\n'+m.model_id)+'"'+(m.provider_id===state.model?.provider_id&&m.model_id===state.model?.model_id?' selected':'')+'>'+esc(m.label.endsWith(m.model_id)&&m.label!==m.model_id?m.model_id+' · '+m.label.slice(0,-m.model_id.length).replace(/\s*·\s*$/,''):m.label)+'</option>').join('');}
+  const model=$('[data-as-model]');model.innerHTML=(state.model?'':'<option value="">选择模型</option>')+state.models.map(m=>'<option value="'+esc(m.provider_id+'\n'+m.model_id)+'"'+(m.provider_id===state.model?.provider_id&&m.model_id===state.model?.model_id?' selected':'')+'>'+esc(m.label.endsWith(m.model_id)&&m.label!==m.model_id?m.model_id+' · '+m.label.slice(0,-m.model_id.length).replace(/\s*·\s*$/,''):m.label)+'</option>').join('');
+  const setup=$('[data-as-model-setup]');if(setup)setup.hidden=state.models.length>0;}
  function subscribe(id){source?.close();source=null;if(!id)return;source=new EventSource(host.api('/builds/'+id+'/events'));source.onmessage=e=>{const b=JSON.parse(e.data);if(b.id!==current?.id)return;if(b.design?.contract.revision!==current.design?.contract.revision)seenWired=new Set();current=b;
    const listed=state.builds.find(x=>x.id===b.id);if(listed&&(listed.phase!==b.phase||(listed.design?.title||listed.title)!==(b.design?.title||b.title))){Object.assign(listed,{phase:b.phase,title:b.title,design:b.design});renderBuilds();}
    schedule();};}
@@ -403,6 +406,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  root.addEventListener('click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
   // Framed in the workbench, the plugin opens in place as a workbench stage rather than in a new window.
   if(el.dataset.asOpenPlugin&&parent!==window){e.preventDefault();parent.postMessage({type:'molis-studio-open-plugin',surface:'app-'+el.dataset.asOpenPlugin},location.origin);return;}
+  if(el.matches('[data-as-model-setup]')){if(parent!==window){e.preventDefault();parent.postMessage({type:'molis-work:open-settings',href:'/settings/models'},location.origin);}return;}
   if(el.dataset.asExample){input.value=el.dataset.asExample;input.focus();return;}
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
   if(el.hasAttribute('data-as-catalog')){const which=el.dataset.asCatalog||'components';catalogOpen=catalogOpen===which?'':which;tip.hidden=true;renderBoard();return;}

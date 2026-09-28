@@ -223,6 +223,8 @@ export interface PluginManifest {
 
 export interface PluginInstanceRecord {
   install_id: string;
+  /** Changes on confirmed reinstall, unlike the stable private-data namespace. Missing on legacy records. */
+  installation_generation?: string;
   plugin_id: string;
   version: string;
   publisher_id: string;

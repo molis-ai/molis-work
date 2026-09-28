@@ -136,8 +136,7 @@ export function createLocalGoalsReadHttp(ports: {
           };
           const characterStage = await charactersWorkbenchPanel(surfacePorts);
           view = { ...view, plugin_stages: [characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
-          // Plugins this project installed from the studio: a rail entry and a stage each. A studio that cannot open
-          // (no local data directory) contributes nothing.
+          // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, boardId: options.boardId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => await codingServices.execution?.models() ?? [], actorId: "web-user", actions: codingServices.actions,
             ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(() => []);

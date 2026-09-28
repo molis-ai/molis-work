@@ -82,6 +82,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 14. Integration：外部协议 → Signal / Feed。账号设置挂 `workbench.settings`；来源任务留在 Feed。
 15. 接到运行处：本仓库产品走 [host.md](host.md)；仓库外样例走 [authoring.md](authoring.md)。**Manifest 写完不等于能看见。**
     通用到点提醒使用公共目录的 `reminders.add/cancel`，由 Schedule 持久化和投递 Inbox；不要在 Builder 或插件里另建提醒计时器。安装身份来自调用上下文，重装不能继承旧安装的提醒；daily/weekly 是固定间隔。运行插件 operation 的 `schedules.*` 是另一条调用链，不能把提醒当作代码执行。
+    持久任务不能只记可复用的 `install_id`：同时绑定 Runtime 的安装世代，由 Host 读取并在执行前复查。重装更新世代，升级和重启不更新；旧记录归属不明时保留并暂停，不能用新安装的授权补跑。
 16. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
 
 ## 要素怎么选（别全要）

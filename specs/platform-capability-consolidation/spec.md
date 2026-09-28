@@ -18,7 +18,7 @@
 | 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
-| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | Scheduler 执行控制与通用提醒归位已实现并验证；定时 operation、持久 pending 与独立安装执行继续待实现 |
+| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 执行控制、提醒归位、安装运行独立于 Studio、安装世代隔离已验证；定时 operation、持久 pending 与旧任务显式恢复待完成 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent 消费及 Native/Host 提供方已实现并验证；安装依赖变更与执行绑定随 05/07 完成 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
@@ -80,7 +80,7 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 
 提醒迁移切片：Schedule 拥有提醒数据、时区/固定间隔规则、数量上限、取消与一次性投递；Host 只装配同库 Scheduler、安装身份和 Feed/Inbox 投递端口。保留 `reminders.add/cancel` 的输入输出和能力 id，实际提供方迁到 Schedule，Builder 不再注册或实现提醒。新增提醒记录包含项目、插件和安装实例，跨安装不能取消；创建/取消与 scheduler job 在同一 SQLite 事务中提交，投递与一次性消费也同事务并复查本次 lease。到点不运行插件代码。
 
-Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminder.v1` 的兼容入口，无须打开 Studio。旧记录按现有 job 引用原子搬入 Schedule，保留 reminder/job id、next_due_at、启停、收据、链接和固定 interval；迁移后删除相应旧键，避免一次性任务被再次导入。只有同一插件唯一安装且安装时间不晚于原 job 创建时间时绑定安装；无从证实的历史提醒保留记录并暂停，不能交给重装实例执行。取消错误只忽略明确的 job-not-found，其他错误回滚并上报。旧数据迁移后不能仅 revert 回旧代码：回滚须按保留的 job owner/id 将记录写回旧 namespace，新增 Schedule owner 任务需迁回或先处理；不承诺无条件代码回滚。验证实际 Host 无 Studio 发现/调用、重启到点、旧数据幂等迁移、跨 Home/安装隔离、重复唤醒不重复 Inbox、事务失败和撤销后零写入。本切片不代表定时 operation / 安装 Runtime 解耦完成。
+Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminder.v1` 的兼容入口，无须打开 Studio。旧记录按现有 job 引用原子搬入 Schedule，保留 reminder/job id、next_due_at、收据、链接和固定 interval；迁移后删除相应旧键，避免一次性任务被再次导入。旧安装时间无法证明归属，缺少安装世代的历史提醒保留并暂停，不能交给重装实例执行，详见后文「安装世代与持久任务归属」。取消错误只忽略明确的 job-not-found，其他错误回滚并上报。旧数据迁移后不能仅 revert 回旧代码：回滚须按保留的 job owner/id 将记录写回旧 namespace，新增 Schedule owner 任务需迁回或先处理；不承诺无条件代码回滚。验证实际 Host 无 Studio 发现/调用、重启到点、旧数据幂等迁移、跨 Home/安装隔离、重复唤醒不重复 Inbox、事务失败和撤销后零写入。本切片不代表定时 operation / 安装 Runtime 解耦完成。
 
 ### 安装执行控制的前置切片
 
@@ -103,6 +103,14 @@ Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminde
 同进程卸载后，Supervisor 仍记得撤销状态；仅再次 start 会拒绝用户明确确认的重装。安装入口先经 Runtime 形成当前安装事实，再在收到新 consent 的分支显式恢复 Supervisor 启用资格；普通启动/发现不能清除停用事实。验证同一 Host 内保留数据重装及删除数据重装，而非只检查卸载收据。
 
 Runtime 卸载完成后释放该安装的已加载实现，否则同版本的重装因新内存对象而冲突；运行中的重复注册仍拒绝。不曾在当前进程激活的安装无需加载插件代码即可卸载，因此缺批准记录或工件的冷安装仍可移除，再按正常确认流程恢复。
+
+### 安装世代与持久任务归属
+
+复核发现 Runtime 的 install_id 按插件与签名稳定复用，installed_at 也在重装时沿用；仅保存 install_id 的历史提醒可以误认重装实例。保留稳定 ID 和私有数据命名空间，Runtime 为新安装/确认重装保存独立 installation_generation，正常重启、停用/启用及升级保持不变，重装的 installed_at 记录本次时间。旧活动安装没有世代字段时，以带前缀的原安装时间作为兼容身份，不在发现阶段随机重写身份。
+
+Schedule 的持久记录同时绑定稳定 ID 与世代；世代由 Host 从 Runtime 安装事实读取，不从插件输入采纳。新增、取消和到点投递均复查。进一步核对发现旧 installed_at 在重装时同样复用，且没有完整卸载历史，因此此前用「当前安装时间早于 job」证明归属的方案不成立。所有缺少世代的旧 Schedule 记录和 Builder 提醒保留并暂停，不能自动补成当前身份；保持已有 job、时间、固定间隔、链接和收据。显式恢复旧任务的入口纳入后续 Schedule 定时 operation 迁移，05 在此之前保持未完成；普通启用开关不能暗中补权。验证同 ID、同毫秒重装仍与旧任务隔离，私有数据可保留，重复启动和升级不改变世代，历史迁移重复运行不补权。后续定时 operation 与事件订阅复用该安装事实，不能另造身份源。新增字段为兼容读取；回滚代码会失去世代隔离，须先暂停持久任务，不承诺直接 revert 即安全。
+
+缺少原安装身份的投递尝试保留记录并产生明确失败收据，不能返回成功。Schedule 详情展示 Scheduler 的收据说明，给出需要重新确认归属的原因，消息按普通文本转义。
 
 验证用真实 SQLite/Seatbelt 发布工件：只恢复 Host 即可发现并执行安装动作，无 Studio/模型启动；关闭并重开保留安装数据；两个 Home 隔离；关闭 Studio 后安装动作与定时任务仍可用；缺工件/批准记录有可读失败；停用与卸载后不可用。继续跑真实 Chrome 的创作、发布和安装流程，保证消费者迁移完整。
 
@@ -156,4 +164,8 @@ Runtime 卸载完成后释放该安装的已加载实现，否则同版本的重
 
 - 安装运行独立于 Studio：Host 按项目数据库持有唯一安装运行入口，公开发现、重启恢复、页面和定时调用都不初始化创作 Workflow；关闭 Studio 不停止安装进程。正常关闭保留启用意图，显式停用跨重启保留，缺批准记录不自动补权；卸载实际删除或保留私有数据，冷安装可卸载，同进程确认重装可重新登记并运行。整体构建通过；首轮 25 文件 167/169 通过，两个失败分别是新增用例违反 schedules.add 的对象输入契约、后台标签页按生命周期暂停。修正测试前置条件，进一步验证捕获了 Supervisor 撤销状态和 Runtime 保留旧实现导致无法重装的实际缺陷，修复后最终 8 文件 44/44 通过，无跳过。其余原范围通过证据继续有效；额外网络 4 项通过。真实 Chrome 覆盖关闭并重开 Studio、独立安装页保留数据及完整发布使用流程；真实 SQLite/Seatbelt 覆盖无 Studio 恢复、定时调用、未完成草稿不被恢复、Home 隔离、停用/卸载/重装及缺批准记录的修复路径。69 包边界检查 errors 为空，diff whitespace 检查通过。日志 `/tmp/platform-installed-host-regression.log`、`/tmp/platform-installed-host-recheck.log`、`/tmp/platform-installed-host-uninstall-build.log`、`/tmp/platform-installed-host-uninstall-regression.log`、`/tmp/platform-installed-host-boundary.log`。未运行真实付费模型。
 
-接续位置：05 提醒 owner、安装运行与 Studio 解耦、安装调用执行控制已接通。下一步迁移持久 pending（不能先删后跑、限长丢弃或吞错），绑定具体安装实例；复查安装依赖变更后的能力执行策略。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。
+- 安装世代：Runtime 新安装/重装产生 installation_generation，保留数据 ID，启停、重启和升级不换世代；Schedule 提醒从 Host 取当前身份并绑定，原安装不可用时保留记录并产生失败收据，UI 显示原因。纠正此前时间推断方案：旧 Runtime 同时复用 installed_at，因此缺少世代的历史记录全部保留暂停，既不丢记录也不自动补权。整体构建通过；19 文件 116/116，无跳过，覆盖同毫秒重装、旧安装拒绝跨世代取消/投递、新提醒正常投递、原 job/时间/链接保留、重复迁移/普通启用不补权、SQLite 事务失败与 lease 拒绝、私有数据保留、实际 Chrome 中 Native 升级后的草稿读取。日志 `/tmp/platform-installation-generation-receipt-build.log`、`/tmp/platform-installation-generation-regression.log`。真实模型与用户本人验收未运行；旧任务的明确恢复入口仍是 05 的未完成项。
+
+  安装世代的最终 69 包边界检查 errors 为空、diff whitespace 检查通过，日志 `/tmp/platform-installation-generation-boundary.log`。没有改动真实 Home 数据，迁移证据来自隔离 SQLite。
+
+接续位置：05 提醒 owner、安装运行与 Studio 解耦、安装调用执行控制及 Runtime/提醒世代隔离已接通。下一步把定时 operation 的记录与管理迁入 Schedule，复用当前安装世代；迁移旧 pending（不能先删后跑、限长丢弃或吞错），补齐旧任务的显式恢复入口，不能把未知结果自动重试。当前旧 operation 队列仍在 `apps/local-host/src/plugin-builder/schedules.ts`，尚未迁移；新的 Host 调用者注册已不依赖 Studio，但该文件还会在注册时先删 pending 再补跑。Scheduler 在派出前推进 next_due_at/停用 once，因此还需核实未派出可等待与已派出结果未知的恢复边界，不能直接把它们混为自动重试。然后复查安装依赖变更后的能力执行策略。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。

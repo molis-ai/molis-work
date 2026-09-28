@@ -19,7 +19,7 @@ export type {
   PluginRuntimeReleaseArtifactDatabase,
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
-export { pluginManifestDigest } from "./identity.js";
+export { pluginManifestDigest, pluginInstallationGeneration } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
 export { assertContributionMatchesManifest, PluginContributionError, viewContributionId } from "./contribution.js";
 export { resolvePluginActivation } from "./resolution.js";
@@ -249,6 +249,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const now = this.now();
     const record: PluginInstanceRecord = {
       install_id: installId,
+      installation_generation: randomUUID(),
       plugin_id: manifest.plugin_id,
       version: manifest.version,
       publisher_id: manifest.publisher.publisher_id,
@@ -261,7 +262,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       state: "installed",
       recovery_count: 0,
       last_error_code: null,
-      installed_at: current?.installed_at ?? now,
+      installed_at: now,
       updated_at: now,
       uninstalled_at: null,
       retain_private_data: input.retain_private_data ?? current?.retain_private_data ?? true,

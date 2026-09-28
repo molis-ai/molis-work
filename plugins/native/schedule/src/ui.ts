@@ -165,6 +165,7 @@ function renderScheduleDetail(job: ScheduleJobRecord, p: ScheduleUiPrimitives): 
       <div><dt>${p.text("下次")}</dt><dd data-schedule-detail-next>${p.escape(p.formatDate(job.next_due_at))}</dd></div>
       <div><dt>${p.text("上次")}</dt><dd data-schedule-detail-last>${p.escape(lastAt)}</dd></div>
       <div><dt>${p.text("这次叫醒")}</dt><dd data-schedule-detail-receipt>${p.escape(receipt)}</dd></div>
+      ${job.last_wakeup?.detail ? `<div><dt>${p.text("说明")}</dt><dd>${p.escape(job.last_wakeup.detail)}</dd></div>` : ""}
     </dl></section></div>
   </article>`;
 }

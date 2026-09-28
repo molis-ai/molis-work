@@ -55,6 +55,7 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 其他插件自有业务闹钟由 Scheduler 叫醒它们自己的能力；通用提醒由本插件拥有，使用 `reminders.add/cancel`，同一插件重装不能接管旧安装的提醒。
+  - 提醒同时绑定安装 ID 与 Runtime 安装世代；重装复用存储 ID 也不能取消或投递旧世代提醒。旧 Runtime 重装还会复用 installed_at，时间不能证明旧任务归属；缺少世代的旧提醒保留并暂停，重复迁移不补权。
   - 提醒的 daily/weekly 是固定 24 小时/7 天间隔；创建、取消与 Scheduler job 同库事务，Inbox 投递与一次性消费也在同一事务内复查 lease。
   - Host 启动时迁移旧 Builder 提醒并保留 job、时间、收据和链接；无法证明原安装归属则保留并暂停，不绑定重装实例。
   - 对话任务到点在自己的对话里跑一轮只读 Agent；提示词正文随目录条目声明。

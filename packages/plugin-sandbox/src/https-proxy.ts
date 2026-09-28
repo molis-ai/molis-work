@@ -83,6 +83,7 @@ export function createHttpsProxy(options: HttpsProxyOptions = {}): NonNullable<S
       secrets.push(secret.value);
     }
     if (Buffer.byteLength(JSON.stringify(headers)) + Buffer.byteLength(input.body ?? '') > requestBytes) throw new SandboxError('REQUEST_TOO_LARGE', 'Injected HTTPS request exceeds limit');
+    await bounded(Promise.resolve(context.beforeEffect?.()));
     signal.throwIfAborted();
     return bounded(new Promise<SandboxNetworkResponse>((resolve, reject) => {
       // Fixed IP connection, original hostname for TLS certificate verification and SNI.

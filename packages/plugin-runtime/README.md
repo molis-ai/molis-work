@@ -59,6 +59,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-runtime-integration.t
   - 不保留数据的卸载后 Host 还要调用 `deleteInstallationData`，但不能删除已交换出去的 Artifacts。
   - 条件写入是单 key CAS（`expected: null` 表示仅在不存在时创建），不是多 key 事务。
   - Host 不提供原子方法时，需要原子更新的插件必须明确拒绝，不能用先读后写冒充。
+  - 内部 route 可携带可信 `execution`（signal/beforeEffect）保留原调用控制；HTTP 适配器不得从参数或 JSON body 构造它，actor 名称不授予内部调用权。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin-private-storage.test.ts tests/plugin-upgrades.test.ts tests/plugin-host-executor.test.ts`
 - 相关手册：[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[skills/molis-plugin-dev/host.md](../../skills/molis-plugin-dev/host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

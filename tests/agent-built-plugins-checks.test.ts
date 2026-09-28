@@ -130,8 +130,8 @@ test('with a settled directory, another operation being written at the same time
   } finally { await f.close(); await rm(settled, { recursive: true, force: true }); }
 });
 
-test('an installed plugin runs one of its operations by id only for the platform scheduler; people reach operations through its parts', mac, async () => {
-  const { sandboxedPluginDefinition, SCHEDULED_RUN_ACTOR } = await import('../apps/local-host/src/plugin-builder/installed.js');
+test('an installed operation needs trusted Host execution control; actor names and JSON cannot grant access', mac, async () => {
+  const { sandboxedPluginDefinition } = await import('../apps/local-host/src/plugin-builder/installed.js');
   const f = await fixture();
   try {
     const checked = await runPluginChecks(f.options); assert.equal(checked.passed, true, JSON.stringify(checked.gates));
@@ -142,10 +142,14 @@ test('an installed plugin runs one of its operations by id only for the platform
       manifest: f.options.manifest, directory: f.root, bundlePath: checked.bundlePath!, packagePath: f.root, permissions: {}, publishedAt: '' } as never;
     const definition = sandboxedPluginDefinition(release, {}, []);
     const running = await definition.start({ requireGrant() {}, services: { storage }, board_id: 'p', install_id: 'install-1' } as never) as { routes: Array<{ handle(request: unknown): Promise<{ status: number; body: unknown }> }> };
-    const call = (actor: string) => running.routes[0]!.handle({ method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: actor, body: { operation: 'echo', input: 'hi' } });
-    assert.deepEqual(await call('web-user'), { status: 400, body: { error: '未知的组件操作' } }, 'a page cannot call an operation directly');
-    assert.deepEqual(await call(SCHEDULED_RUN_ACTOR), { status: 200, body: { value: 'HI' } });
-    await definition.stop?.();
+    const execution = { signal: new AbortController().signal, beforeEffect: async () => {} };
+    const request = { method: 'POST', pathname: '/call', params: {}, query: {}, actor_id: 'web-user', body: { operation: 'echo', input: 'hi' } };
+    try {
+      for (const actor_id of ['web-user', 'plugin-builder:scheduled-run', 'plugin-builder:action']) {
+        assert.deepEqual(await running.routes[0]!.handle({ ...request, actor_id, body: { ...request.body, execution } }), { status: 400, body: { error: '未知的组件操作' } });
+      }
+      assert.deepEqual(await running.routes[0]!.handle({ ...request, execution }), { status: 200, body: { value: 'HI' } });
+    } finally { await definition.stop?.(); }
   } finally { await f.close(); }
 });
 

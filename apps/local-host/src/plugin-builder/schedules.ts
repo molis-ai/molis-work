@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { BUILDER_PLUGIN_ID } from '@molis-ai/molis-work-plugin-builder';
-import type { ScheduleService, ScheduleSqliteDatabase } from '@molis-ai/molis-work-service-scheduler';
+import type { ScheduleService, ScheduleSqliteDatabase, ScheduleWakeupControl } from '@molis-ai/molis-work-service-scheduler';
 import { createLocalFeedApplication } from '../feed-application.js';
 import { registerHostWakeup } from '../schedule-runtime.js';
 import { studioStorage } from './storage.js';
@@ -26,7 +26,7 @@ interface ScheduledRun {
   input: SandboxJson; inbox: boolean; link: string; jobId: string; repeat: RunRepeat; at: string;
 }
 /** Runs an installed plugin's operation as the person would; the studio registers one per project it serves. */
-export type InstalledCaller = (pluginId: string, operationId: string, input: SandboxJson) => Promise<{ status: number; body?: unknown }>;
+export type InstalledCaller = (pluginId: string, operationId: string, input: SandboxJson, control: ScheduleWakeupControl) => Promise<{ status: number; body?: unknown }>;
 
 const read = <T>(storage: PluginPrivateStorage, key: string, fallback: T): T => { const raw = storage.get(key); return raw ? JSON.parse(raw) as T : fallback; };
 
@@ -88,13 +88,13 @@ function forget(storage: PluginPrivateStorage, run: ScheduledRun) {
 }
 
 /** The studios serving each project in this process, and what each database has waiting for them. */
-const callers = new Map<string, { db: ScheduleSqliteDatabase; call: InstalledCaller }>();
+const callers = new WeakMap<ScheduleSqliteDatabase, Map<string, { call: InstalledCaller; controller: AbortController }>>();
 let bound = false;
 /** Once per process: a due run executes the installed operation (or waits for its project's studio). */
 export function bindScheduledRuns(): void {
   if (bound) return;
   bound = true;
-  registerHostWakeup(BUILDER_PLUGIN_ID, RUN_CAPABILITY, async (db, input) => runScheduled(db, input.object_ref, input.due_at));
+  registerHostWakeup(BUILDER_PLUGIN_ID, RUN_CAPABILITY, async (db, input, control) => runScheduled(db, input.object_ref, input.due_at, control));
 }
 
 /**
@@ -102,44 +102,56 @@ export function bindScheduledRuns(): void {
  * run now. Returns the function that withdraws it when the studio closes.
  */
 export async function registerInstalledCaller(db: ScheduleSqliteDatabase, boardId: string, call: InstalledCaller): Promise<() => void> {
-  const entry = { db, call };
-  callers.set(boardId, entry);
+  const boards = callers.get(db) ?? new Map(); callers.set(db, boards);
+  boards.get(boardId)?.controller.abort(new Error('Installed caller replaced'));
+  const entry = { call, controller: new AbortController() };
+  boards.set(boardId, entry);
   const storage = studioStorage(db, boardId), waiting = read<Array<{ ref: string; dueAt: string }>>(storage, PENDING, []);
   storage.delete(PENDING);
   for (const item of waiting) await runScheduled(db, item.ref, item.dueAt).catch(() => undefined);
-  return () => { if (callers.get(boardId) === entry) callers.delete(boardId); };
+  return () => { entry.controller.abort(new Error('Installed caller stopped')); if (boards.get(boardId) === entry) boards.delete(boardId); };
 }
 
-export async function runScheduled(db: ScheduleSqliteDatabase, objectRef: string, dueAt: string): Promise<{ detail: string }> {
+export async function runScheduled(db: ScheduleSqliteDatabase, objectRef: string, dueAt: string, wakeup?: ScheduleWakeupControl): Promise<{ detail: string }> {
   const [boardId, id] = objectRef.split('|');
   if (!boardId || !id) return { detail: '定时标识无效' };
   const storage = studioStorage(db, boardId), run = read<ScheduledRun | null>(storage, RECORD + id, null);
   if (!run) return { detail: '定时执行已取消' };
-  const caller = callers.get(boardId);
+  const caller = callers.get(db)?.get(boardId);
   if (!caller) {
     storage.set(PENDING, JSON.stringify([...read<Array<{ ref: string; dueAt: string }>>(storage, PENDING, []), { ref: objectRef, dueAt }].slice(-50)));
     return { detail: '项目还没打开，打开后补跑' };
   }
+  const original = JSON.stringify(run), signal = AbortSignal.any([caller.controller.signal, ...(wakeup ? [wakeup.signal] : [])]);
+  const control: ScheduleWakeupControl = { signal, beforeEffect() {
+    signal.throwIfAborted(); wakeup?.beforeEffect();
+    if (callers.get(db)?.get(boardId) !== caller || JSON.stringify(read<ScheduledRun | null>(storage, RECORD + id, null)) !== original) throw new Error('定时任务已取消或执行入口已变更');
+  } };
   let outcome: { ok: boolean; text: string };
   try {
-    const result = await caller.call(run.pluginId, run.operationId, run.input), body = result.body as { value?: unknown; error?: unknown } | undefined;
+    control.beforeEffect();
+    const result = await caller.call(run.pluginId, run.operationId, run.input, control), body = result.body as { value?: unknown; error?: unknown } | undefined;
+    control.beforeEffect();
     outcome = result.status === 200 ? { ok: true, text: resultText(body?.value) } : { ok: false, text: String(body?.error ?? '运行失败（' + result.status + '）') };
-  } catch (error) { outcome = { ok: false, text: error instanceof Error ? error.message : String(error) }; }
-  // A failure always reaches the person; a success only when the plugin asked for it.
-  if (!outcome.ok || run.inbox) {
-    const feed = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]), stamp = new Date().toISOString();
-    const source = feed.snapshot(boardId).sources.find(item => item.source_id === 'plugin-runs') ?? feed.upsertSource({
-      board_id: boardId, source_id: 'plugin-runs', kind: 'plugin', definition_id: null, sync_kind: 'manual',
-      name: '插件定时执行', description: '你安装的插件按时自动运行的结果', status: 'active', enabled: true, origin: 'molis_work',
-      config: {}, schedule: { mode: 'manual' }, credential_ref: null, account_label: null, last_sync_at: null,
-      last_outcome: null, last_error_code: null, imported_at: stamp, updated_at: stamp, item_count: 0, cursor: null,
-    });
-    // The result is what the person came for; a failure says which function did not finish.
-    const title = run.pluginTitle + '：' + (outcome.ok ? (outcome.text.replace(/\s+/g, ' ').trim().slice(0, 80) || run.operationTitle) : run.operationTitle.slice(0, 40) + '没有完成');
-    feed.ingestItem({ source, externalId: id + ':' + dueAt, title, summary: outcome.text.slice(0, 280), body: outcome.text, url: run.link, occurredAt: stamp,
-      attention: { reason: 'source_rule', detail: { plugin: run.pluginId, operation: run.operationId } } });
-  }
-  if (run.repeat === 'none') forget(storage, run);
+  } catch (error) { control.beforeEffect(); outcome = { ok: false, text: error instanceof Error ? error.message : String(error) }; }
+  db.transaction(() => {
+    control.beforeEffect();
+    // A failure always reaches the person; a success only when the plugin asked for it.
+    if (!outcome.ok || run.inbox) {
+      const feed = createLocalFeedApplication(db as Parameters<typeof createLocalFeedApplication>[0]), stamp = new Date().toISOString();
+      const source = feed.snapshot(boardId).sources.find(item => item.source_id === 'plugin-runs') ?? feed.upsertSource({
+        board_id: boardId, source_id: 'plugin-runs', kind: 'plugin', definition_id: null, sync_kind: 'manual',
+        name: '插件定时执行', description: '你安装的插件按时自动运行的结果', status: 'active', enabled: true, origin: 'molis_work',
+        config: {}, schedule: { mode: 'manual' }, credential_ref: null, account_label: null, last_sync_at: null,
+        last_outcome: null, last_error_code: null, imported_at: stamp, updated_at: stamp, item_count: 0, cursor: null,
+      });
+      // The result is what the person came for; a failure says which function did not finish.
+      const title = run.pluginTitle + '：' + (outcome.ok ? (outcome.text.replace(/\s+/g, ' ').trim().slice(0, 80) || run.operationTitle) : run.operationTitle.slice(0, 40) + '没有完成');
+      feed.ingestItem({ source, externalId: id + ':' + dueAt, title, summary: outcome.text.slice(0, 280), body: outcome.text, url: run.link, occurredAt: stamp,
+        attention: { reason: 'source_rule', detail: { plugin: run.pluginId, operation: run.operationId } } });
+    }
+    if (run.repeat === 'none') forget(storage, run);
+  }).immediate();
   return { detail: outcome.ok ? (run.inbox ? '已运行，结果放进收件箱' : '已运行') : '运行失败：' + outcome.text.slice(0, 200) };
 }
 
@@ -152,5 +164,5 @@ function resultText(value: unknown): string {
     const first = Object.values(record).find(item => typeof item === 'string' && item);
     if (typeof first === 'string') return first;
   }
-  return JSON.stringify(value).slice(0, 2000);
+  return (JSON.stringify(value) ?? '').slice(0, 2000);
 }

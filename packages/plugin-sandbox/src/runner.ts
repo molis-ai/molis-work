@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { createExecutionLifetime } from '@molis-ai/molis-work-kernel';
 import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxWorkerMessage } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxBroker, type SandboxServices } from './broker.js';
 import { BoundedQueue, RateBudget } from './queue.js';
@@ -26,9 +27,11 @@ export interface SandboxRunnerOptions {
 }
 export interface SandboxRunner {
   readonly pid: number;
-  call(operationId: string, input: SandboxJson): Promise<SandboxJson>;
+  call(operationId: string, input: SandboxJson, control?: SandboxCallControl): Promise<SandboxJson>;
   stop(): Promise<void>;
 }
+/** Host-only controls; the worker receives only the operation id and JSON input. */
+export interface SandboxCallControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
 
 export async function createSandboxRunner(options: SandboxRunnerOptions): Promise<SandboxRunner> {
   if (process.platform !== 'darwin') throw new SandboxError('UNSUPPORTED_PLATFORM', 'Generated plugins require macOS Seatbelt');
@@ -68,8 +71,9 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   } catch (error) { await fs.rm(directory, { recursive: true, force: true }); throw error; }
   const queue = new BoundedQueue(limits.operationQueue), calls = new RateBudget(limits.operationsPerMinute), wire = new RateBudget(limits.sdkPerMinute + limits.operationsPerMinute * 2);
   const broker = new SandboxBroker(identity, grants, options.services, limits);
+  const shutdownControl = new AbortController();
   let stopped: SandboxError | undefined, ready = false, buffer = Buffer.alloc(0), stderrBytes = 0;
-  let active: { id: string; operation: SandboxOperationContract; controller: AbortController; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; timer: NodeJS.Timeout; pendingSdk: Set<string> } | undefined;
+  let active: { id: string; operation: SandboxOperationContract; controller: AbortController; beforeEffect(): Promise<void>; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
   let readyResolve: () => void, readyReject: (e: unknown) => void;
   const started = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   let exitResolve: () => void;
@@ -78,8 +82,9 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   const shutdown = (error: SandboxError) => {
     if (stopped) return;
     stopped = error; clearInterval(watchdog); clearTimeout(startup);
+    shutdownControl.abort(error);
     queue.close(error); broker.stop(error); readyReject(error);
-    if (active) { clearTimeout(active.timer); active.controller.abort(error); active.reject(error); active = undefined; }
+    if (active) { active.controller.abort(error); active.reject(error); active = undefined; }
     if (child.pid) { try { process.kill(-child.pid, 'SIGKILL'); } catch { child.kill('SIGKILL'); } }
     child.stdin.destroy();
   };
@@ -107,7 +112,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       if (message.callId !== current.id || current.pendingSdk.has(message.id) || !Array.isArray(message.args) || typeof message.method !== 'string') throw new SandboxError('PROTOCOL_ERROR', 'Invalid SDK request');
       if (current.pendingSdk.size >= limits.sdkQueue) throw new SandboxError('QUEUE_FULL', 'Too many outstanding SDK requests');
       current.pendingSdk.add(message.id);
-      broker.invoke(current.operation, current.controller.signal, message.method, message.args).then(
+      broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect).then(
         result => { if (active === current && !stopped) send({ type: 'sdk-result', id: message.id, value: result }); },
         error => { if (active === current && !stopped) send({ type: 'sdk-error', id: message.id, code: error instanceof SandboxError ? error.code : 'HOST_SERVICE_ERROR', message: error instanceof SandboxError ? error.message : 'Host service failed' }); },
       ).catch(error => shutdown(error instanceof SandboxError ? error : new SandboxError('CHANNEL_ERROR', 'Failed to send SDK response'))).finally(() => current.pendingSdk.delete(message.id));
@@ -119,7 +124,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       exact(['type', 'id', 'code', 'message']);
       if (typeof message.code !== 'string' || typeof message.message !== 'string' || message.message.length > 2048) throw new SandboxError('PROTOCOL_ERROR', 'Invalid operation error');
     } else throw new SandboxError('PROTOCOL_ERROR', 'Unknown message type');
-    clearTimeout(current.timer); current.controller.abort(); active = undefined;
+    current.controller.abort(); active = undefined;
     if (message.type === 'result') current.resolve(message.value);
     else current.reject(new SandboxError(current.operation.errors.some(e => e.code === message.code) ? message.code : 'PLUGIN_ERROR', message.message));
   };
@@ -153,20 +158,35 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   try { await started; } catch (error) { await cleanup(); throw error; }
   return {
     pid: child.pid!,
-    call(operationId, input) {
+    call(operationId, input, control) {
       try {
         const operation = contract.operations.find(o => o.id === operationId);
         if (!operation) throw new SandboxError('UNKNOWN_OPERATION', 'Operation is outside this contract');
         assertMatches(operation.input, input);
         if (Buffer.byteLength(JSON.stringify(input)) > limits.messageBytes / 2) throw new SandboxError('REQUEST_TOO_LARGE', 'Operation input exceeds channel limit');
         calls.consume(); const snapshot = structuredClone(input);
-        return queue.submit(() => new Promise((resolve, reject) => {
-          if (stopped) { reject(stopped); return; }
-          const id = randomUUID(), controller = new AbortController();
-          const timer = setTimeout(() => shutdown(new SandboxError('OPERATION_TIMEOUT', `Operation ${operationId} timed out`)), limits.operationTimeoutMs);
-          active = { id, operation, controller, resolve, reject, timer, pendingSdk: new Set() };
-          try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('CHANNEL_ERROR', 'Failed to start operation')); }
-        }));
+        const lifetime = createExecutionLifetime({ signal: control?.signal ? AbortSignal.any([control.signal, shutdownControl.signal]) : shutdownControl.signal });
+        const queued = queue.submit(async () => {
+          lifetime.assertActive();
+          // The operation budget begins at the head of its queue and includes Host admission and result checks.
+          const execution = createExecutionLifetime({ signal: lifetime.signal, timeout: { milliseconds: limits.operationTimeoutMs, reason: new SandboxError('OPERATION_TIMEOUT', `Operation ${operationId} timed out`) } });
+          const beforeEffect = async () => { execution.assertActive(); await control?.beforeEffect?.(); execution.assertActive(); };
+          const abort = () => shutdown(execution.signal.reason instanceof SandboxError ? execution.signal.reason : new SandboxError('CANCELLED', 'Sandbox invocation cancelled'));
+          execution.signal.addEventListener('abort', abort, { once: true });
+          try {
+            await execution.wait(beforeEffect());
+            const result = await execution.wait(new Promise<SandboxJson>((resolve, reject) => {
+              if (stopped) { reject(stopped); return; }
+              const id = randomUUID(), controller = new AbortController();
+              active = { id, operation, controller, beforeEffect, resolve, reject, pendingSdk: new Set() };
+              try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('CHANNEL_ERROR', 'Failed to start operation')); }
+            }));
+            await execution.wait(beforeEffect());
+            return result;
+          } finally { execution.signal.removeEventListener('abort', abort); execution.dispose(); }
+        });
+        // Cancelling queued work stops its caller immediately without terminating the active operation.
+        return lifetime.wait(queued).catch(error => { throw stopped ?? error; }).finally(() => lifetime.dispose());
       } catch (error) { return Promise.reject(error); }
     },
     async stop() { shutdown(new SandboxError('STOPPED', 'Sandbox stopped')); await cleanup(); },

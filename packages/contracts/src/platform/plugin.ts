@@ -267,7 +267,11 @@ export interface PluginRouteRequest {
   query: Readonly<Record<string, string>>;
   body: unknown;
   actor_id: string;
+  /** Trusted Host invocation control, never decoded from route parameters or JSON body. */
+  execution?: PluginExecutionControl;
 }
+
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect">;
 
 export interface PluginRouteResponse {
   status: number;

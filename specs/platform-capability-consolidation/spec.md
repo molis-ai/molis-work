@@ -82,6 +82,14 @@ UI Host 提供浏览器挂载 scope，由 Workbench 和独立 Builder 页面注�
 
 Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminder.v1` 的兼容入口，无须打开 Studio。旧记录按现有 job 引用原子搬入 Schedule，保留 reminder/job id、next_due_at、启停、收据、链接和固定 interval；迁移后删除相应旧键，避免一次性任务被再次导入。只有同一插件唯一安装且安装时间不晚于原 job 创建时间时绑定安装；无从证实的历史提醒保留记录并暂停，不能交给重装实例执行。取消错误只忽略明确的 job-not-found，其他错误回滚并上报。旧数据迁移后不能仅 revert 回旧代码：回滚须按保留的 job owner/id 将记录写回旧 namespace，新增 Schedule owner 任务需迁回或先处理；不承诺无条件代码回滚。验证实际 Host 无 Studio 发现/调用、重启到点、旧数据幂等迁移、跨 Home/安装隔离、重复唤醒不重复 Inbox、事务失败和撤销后零写入。本切片不代表定时 operation / 安装 Runtime 解耦完成。
 
+### 安装执行控制的前置切片
+
+复核时发现公开生成式动作丢弃 ActionExecutionContext，以静态 actor 字符串穿过 route；SandboxRunner 只产生本地 signal。先沿可信 Host route execution 端口（独立于 JSON body）传入当前调用 signal/beforeEffect，再经 Runner/Broker 到实际存储提交、能力派出与网络解析后的派出。队列里取消的调用不运行，不停止别人的当前操作；已经运行的调用取消时终止该沙箱通道，不能自动重放。所有异步服务返回后、存储 CAS 前复查原授权。执行时限从队列头开始，包含执行前和结果后的授权等待；Host stop 也能终止这些等待。外层生成式动作声明 concurrent，插件自己的 sandbox queue/CAS 保持序列化，避免等跨模块调用时占住项目队列。
+
+不靠 payload 或 actor 名字授予直接 operation 权限；UI 仍按声明组件解析。定时调用以当前 Scheduler control 及任务/调用者存续检查传入，同一 control 不保存进 pending。旧 pending 的持久执行与安装 Runtime 独立启动随后迁移。注册归回 Runtime 会改变其合成 Manifest 指纹和提供方身份，必须为已有相同版本的安装证明等价迁移，并处理旧授权引用失效，不能直接改 Manifest 导致重启失败。此切片保留原提供方/版本，仅先接通控制；随后仍须完成 05/07。
+
+验证真实沙箱 + 原 SQLite：排队取消不执行、执行中取消无晚写入、异步撤权后能力/网络不派出、解除限制后的新调用可用；旧静态 actor 不能直接调用 operation。更改公共包后整体构建、包要求测试及边界检查，保留不自动重试与原安装数据。
+
 ### 能力执行元数据切片（安装执行迁移的前置）
 
 当前 Builder 目录用 `capability_id === model.generate` 判断费用，sandbox 超时/slow lane 只读旧 Studio 名单；Agent 工具使用统一固定超时。新增提供方声明的 Action `execution`：明确时限、费用类别（未声明保持 unknown）和必要的调用频率上限，随原目录/版本传递。Kernel 对明确声明的时限和频率执行统一检查，沿既有 signal / beforeEffect 契约取消并拒绝迟到写入；入口可以有更严格的限额。现有 concurrent 声明继续负责并发，不新造第二种调度机制，取消仍为合作式而非保证厂商停止计费。
@@ -128,4 +136,6 @@ Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminde
 
   最终边界检查通过（69 包，errors 为空），diff whitespace 检查通过；日志 `/tmp/platform-schedule-reminders-final-boundary.log`。没有修改真实 Home 数据，本次迁移证据来自隔离的真实 SQLite 与 Host。
 
-接续位置：06 声明及现有消费链、05 提醒 owner 与启动链已接通。接下来先补安装调用的执行控制：`exposed-actions.ts` 丢弃 ActionExecutionContext，`installed.ts` 只靠静态 actor 字符串进入 HTTP route，SandboxRunner.call 没有接收原调用的取消/提交检查。需沿可信 Host 端口传递到 sandbox 服务和实际副作用，不能把回调放到可序列化 input，也不能重放结果未知的调用。然后解除定时 operation 和安装 Runtime 对 Studio 的依赖；按数据库/项目/安装隔离调用者，迁移旧 pending 时不能先删后跑或吞错。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。
+- 安装调用执行控制：Action → trusted route execution → Runner/Broker → 私有存储、嵌套 Action 和网络派出均保留原 signal/beforeEffect；删除静态 actor 授权，外层动作 concurrent，运行中取消不重放。定时入口按数据库/项目隔离，迟到成功/失败均先复查，结果与一次性消费同事务提交。整体构建通过；23 文件 162 项通过、1 项真实公网 HTTPS 测试未启用而跳过，包含真实 Seatbelt/SQLite、撤权/注销/取消后的零写入与合法恢复、队列取消、授权等待超时、DNS/密钥解析后不派出和 Chrome 发布使用路径。日志 `/tmp/platform-installed-control-build.log`、`/tmp/platform-installed-control-regression.log`。首次 boundary 指出新增 Kernel 生命周期依赖未登记到 workspace inventory，已补齐声明并重新整体构建。最终 5 文件 28 项通过、1 项真实公网跳过；队列溢出旧测试假定 Host 服务一定已派出，与新增异步授权门禁冲突，现断言未派出的不执行、所有已派出的信号停止，并保留独立的明确进入服务后取消用例。新增严格 HTTPS proxy 的派出前撤权验证也通过。69 包边界检查 errors 为空，diff whitespace 检查通过。日志 `/tmp/platform-installed-control-final-build.log`、`/tmp/platform-installed-control-recheck.log`、`/tmp/platform-installed-control-final-boundary.log`。
+
+接续位置：06 声明及现有消费链、05 提醒 owner 与启动链、安装调用执行控制已接通。下一步解除定时 operation 和安装 Runtime 对 Studio 的依赖，并迁移持久 pending（不能先删后跑、限长丢弃或吞错），绑定具体安装实例。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。

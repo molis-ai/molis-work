@@ -6,13 +6,13 @@
  *
  * A call runs the installed operation in its sandbox, as the plugin, exactly like a click on its page.
  */
-import type { ActionDefinition, ActionHandlerBinding, ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import type { ProjectActions } from './catalog.js';
 
 /** Runs one installed operation; `status` 200 carries `{ value }`, anything else `{ error }`. */
-export type InstalledOperationCall = (pluginId: string, operationId: string, input: SandboxJson) => Promise<{ status: number; body?: unknown }>;
+export type InstalledOperationCall = (pluginId: string, operationId: string, input: SandboxJson, context: ActionExecutionContext) => Promise<{ status: number; body?: unknown }>;
 
 /** A plugin's functions as the directory names them: stable across versions, distinct between plugins. */
 export const exposedActionId = (release: Pick<AgentRelease, 'buildId'>, operationId: string) => 'generated.' + release.buildId.slice(0, 8) + '.' + operationId;
@@ -23,13 +23,15 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     capability_id: exposedActionId(release, operation.id), version: release.version, provider_id: providerId,
     operation: operation.kind === 'query' ? 'query' : 'command',
     action: { title: title + ' · ' + (operation.description || operation.id), description: '插件「' + title + '」的功能：' + (operation.description || operation.id),
-      kind: operation.kind === 'query' ? 'query' : 'operation', scope: 'project', audiences: ['user', 'agent', 'mcp', 'plugin'], permissions: [], subject_kinds: [],
+      kind: operation.kind === 'query' ? 'query' : 'operation', scope: 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: [], subject_kinds: [],
       input_schema: operation.input as unknown as ActionSchema, output_schema: operation.output as unknown as ActionSchema },
   }));
   const handlers: ActionHandlerBinding[] = release.design.contract.operations.map(operation => ({
     capability_id: exposedActionId(release, operation.id), version: release.version,
-    handle: async (_context, input) => {
-      const result = await call(release.pluginId, operation.id, input as SandboxJson), body = result.body as { value?: unknown; error?: unknown } | undefined;
+    handle: async (context, input) => {
+      await context.beforeEffect();
+      const result = await call(release.pluginId, operation.id, input as SandboxJson, context), body = result.body as { value?: unknown; error?: unknown } | undefined;
+      await context.beforeEffect();
       if (result.status !== 200) throw new Error(String(body?.error ?? '插件「' + title + '」没有完成这项功能'));
       return body?.value ?? null;
     },

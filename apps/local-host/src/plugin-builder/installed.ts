@@ -14,7 +14,7 @@ import { capabilityLimits, slowOperations, type Lane, type CapabilityExecution }
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
 export const releaseVersion = (version: number) => `${version}.0.0`;
 const ENTRIES = 'sandbox:entries';
-const GONE = new Set(['PROCESS_EXIT', 'STOPPED', 'START_FAILED', 'START_TIMEOUT', 'OPERATION_TIMEOUT', 'MEMORY_LIMIT', 'CPU_LIMIT', 'CHANNEL_LIMIT', 'CHANNEL_ERROR', 'PROTOCOL_ERROR']);
+const GONE = new Set(['PROCESS_EXIT', 'STOPPED', 'CANCELLED', 'START_FAILED', 'START_TIMEOUT', 'OPERATION_TIMEOUT', 'MEMORY_LIMIT', 'CPU_LIMIT', 'CHANNEL_LIMIT', 'CHANNEL_ERROR', 'PROTOCOL_ERROR']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
@@ -24,10 +24,12 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
   return {
     transaction(context, mutate) {
       const run = async () => {
+        await context.beforeEffect?.();
         context.signal.throwIfAborted();
         const raw = storage.get(ENTRIES);
         const working = new Map<string, SandboxJson>(raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []);
         const result = mutate(working);
+        await context.beforeEffect?.();
         context.signal.throwIfAborted();
         if (!storage.compareAndSet!(ENTRIES, raw, JSON.stringify([...working]))) throw new Error('数据被同时修改，请重试');
         return result;
@@ -39,11 +41,6 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
   };
 }
 
-/** The actor the platform's scheduler calls installed plugins as; web requests are always stamped with the person's. */
-export const SCHEDULED_RUN_ACTOR = 'plugin-builder:scheduled-run';
-/** The actor the unified action directory calls installed plugins as, when someone calls one of their functions. */
-export const EXPOSED_ACTION_ACTOR = 'plugin-builder:action';
-const DIRECT_CALLERS = new Set([SCHEDULED_RUN_ACTOR, EXPOSED_ACTION_ACTOR]);
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
 export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {}): PluginDefinition {
   const uiId = release.pluginId + '.ui.v1';
@@ -86,15 +83,16 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
           try {
             const body = (request.body ?? {}) as { componentId?: unknown; binding?: unknown; payload?: unknown; operation?: unknown; input?: unknown };
             // The platform (its scheduler, or the action directory) runs an operation by id; people reach operations through parts.
-            const scheduled = DIRECT_CALLERS.has(request.actor_id) && typeof body.operation === 'string' && release.design.contract.operations.some(item => item.id === body.operation);
+            const scheduled = !!request.execution && typeof body.operation === 'string' && release.design.contract.operations.some(item => item.id === body.operation);
             const node = release.nodes.find(item => item.id === body.componentId);
             if (!scheduled && (!node || (body.binding !== 'read' && body.binding !== 'submit'))) throw new Error('未知的组件操作');
             const call = scheduled ? { operationId: body.operation as string, input: body.input ?? {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
-            const lane: Lane = slow.has(call.operationId) ? 'slow' : 'quick', active = await open(lane);
-            try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson) } }; }
+            await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+            const lane: Lane = slow.has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
+            try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, request.execution) } }; }
             catch (error) {
               // A dead process restarts on the next call; the failed call itself is not replayed, so nothing is written twice.
-              if (GONE.has((error as { code?: string }).code ?? '')) { lanes.delete(lane); throw new Error('插件刚才出错已重新启动，请再试一次'); }
+              if (GONE.has((error as { code?: string }).code ?? '')) { if (lanes.get(lane) === pending) lanes.delete(lane); throw new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
               throw error;
             }
           } catch (error) { return { status: 400, body: { error: message(error) } }; }

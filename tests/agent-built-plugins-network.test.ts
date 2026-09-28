@@ -66,6 +66,18 @@ test('an approved https request goes out with the saved secret, comes back bound
       const strict = hostNetwork({ reach: () => 'all', lookup: lookupTo('127.0.0.1'), agent });
       await assert.rejects(strict.request(context(), { url: 'https://api.weather.example/today' }, approved), /不能访问本机或内网地址/);
       assert.equal(seen.length, 3, 'nothing reached the server for the refused request');
+      for (const phase of ['secret', 'dns'] as const) {
+        const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let allowed = true;
+        const guarded = hostNetwork({ reach: () => 'all', allowAddress: () => true, agent,
+          secret: async () => { if (phase === 'secret') { entered.resolve(); await release.promise; } return { header: 'Authorization', value: 'Bearer s3cret' }; },
+          lookup: (_host, callback) => { entered.resolve(); void release.promise.then(() => callback(null, [{ address: '127.0.0.1', family: 4 }])); } });
+        const pending = guarded.request({ identity: { projectId: 'p', installationId: 'i', pluginId: 'plugin', namespace: 'installed' }, operationId: 'request',
+          signal: new AbortController().signal, beforeEffect: async () => { if (!allowed) throw new Error('Original authority revoked'); } },
+          { url: 'https://api.weather.example/today', secretRefs: ['weather'] }, { ...approved, secretRefs: ['weather'] });
+        const rejected = assert.rejects(pending, phase === 'secret' ? /Original authority revoked/ : /原调用已取消或授权已失效/);
+        await entered.promise; allowed = false; release.resolve(); await rejected;
+        assert.equal(seen.length, 3, `revocation during ${phase} resolution prevents the outgoing request`);
+      }
       agent.destroy();
     } finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
   } finally { await rm(dir, { recursive: true, force: true }); }

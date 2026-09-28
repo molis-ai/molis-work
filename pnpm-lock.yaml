@@ -820,6 +820,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-kernel':
+        specifier: workspace:*
+        version: link:../kernel
 
   packages/plugin-sdk:
     dependencies:

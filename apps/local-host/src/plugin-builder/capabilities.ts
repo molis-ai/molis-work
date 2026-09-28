@@ -5,7 +5,7 @@
  */
 import type { ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { assertMatches, SandboxError, type SandboxLimits, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { assertMatches, SandboxError, type SandboxLimits, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { studioCapability, type StudioCapability } from '@molis-ai/molis-work-plugin-builder';
 
 export interface CapabilityImplementations {
@@ -13,8 +13,8 @@ export interface CapabilityImplementations {
   generate(pluginId: string, input: { instructions: string; input: string }, signal: AbortSignal, beforeDispatch?: () => void | Promise<void>): Promise<{ text: string }>;
   /** The project's goals, reached through the Goals plugin's own actions as this plugin installation. */
   goals?: {
-    list(identity: Readonly<SandboxIdentity>): Promise<Array<{ id: string; title: string; status: string }>>;
-    note(identity: Readonly<SandboxIdentity>, input: { goalId: string; text: string }): Promise<{ recorded: boolean }>;
+    list(identity: Readonly<SandboxIdentity>, control?: SandboxServiceContext): Promise<Array<{ id: string; title: string; status: string }>>;
+    note(identity: Readonly<SandboxIdentity>, input: { goalId: string; text: string }, control?: SandboxServiceContext): Promise<{ recorded: boolean }>;
   };
   /** Runs of the plugin's own operations at set times; only designs made against the catalog reach them. */
   schedules?: {
@@ -45,7 +45,7 @@ export function hostCapabilities(options: { goals?: CapabilityImplementations['g
       if (id === 'goals.list' || id === 'goals.note') {
         const goals = options.goals;
         if (!goals) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这个项目还不能提供目标能力');
-        output = (id === 'goals.list' ? await goals.list(context.identity) : await goals.note(context.identity, input as { goalId: string; text: string })) as unknown as SandboxJson;
+        output = (id === 'goals.list' ? await goals.list(context.identity, context) : await goals.note(context.identity, input as { goalId: string; text: string }, context)) as unknown as SandboxJson;
       } else output = await options.current.call(context, id, input);
       assertMatches(capability.output, output);
       return output;

@@ -29,7 +29,7 @@ import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-buil
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformOptions } from '../plugin-platform.js';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 const isolatedActions = (projectId: string): PluginPlatformOptions['actions'] => { const service = new ActionService(); return { registry: service, client: service, project_id: projectId }; };
-import { EXPOSED_ACTION_ACTOR, installedSignature, releaseVersion, sandboxedPluginDefinition, SCHEDULED_RUN_ACTOR } from './installed.js';
+import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './installed.js';
 import { exposeInstalledPlugin } from './exposed-actions.js';
 import { bindScheduledRuns, createScheduledRuns, registerInstalledCaller } from './schedules.js';
 import { hostNetwork } from './network.js';
@@ -110,11 +110,13 @@ function previewServices(storage: PluginPrivateStorage): SandboxServices {
         const id = identityKey(context.identity), stable = context.identity.installationId.startsWith(STABLE_PREVIEW);
         const key = PREVIEW_KEY + context.identity.installationId;
         const run = async () => {
+          await context.beforeEffect?.();
           context.signal.throwIfAborted();
           const raw = stable ? storage.get(key) : null;
           const current: Array<[string, SandboxJson]> = stable ? (raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []) : [...(memory.get(id) ?? new Map())];
           const working = new Map(current.map(([name, value]) => [name, structuredClone(value)]));
           const result = mutate(working);
+          await context.beforeEffect?.();
           context.signal.throwIfAborted();
           if (stable) { if (!storage.compareAndSet!(key, raw, JSON.stringify([...working]))) throw new Error('试用数据被同时修改，请重试'); }
           else {
@@ -168,14 +170,14 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       actor_id: 'plugin:' + identity.pluginId, actor_kind: 'runtime', project_id: actions.project_id, audience: 'plugin',
       plugin_install_id: identity.installationId, permissions: [permission], allowed_actions: [{ capability_id: definition.capability_id, version: definition.version }] });
     const goals: CapabilityImplementations['goals'] = {
-      async list(identity) {
-        const page = await actions.client.invoke(caller(identity, goalsActions.list, 'goals:read'), goalsActions.list, { limit: 100 }) as { goals: Array<{ goal_id: string; title: string; work_status: string }> };
+      async list(identity, control) {
+        const page = await actions.client.invoke({ ...caller(identity, goalsActions.list, 'goals:read'), signal: control?.signal, validate_authority: () => control?.beforeEffect?.() }, goalsActions.list, { limit: 100 }) as { goals: Array<{ goal_id: string; title: string; work_status: string }> };
         return page.goals.map(goal => ({ id: goal.goal_id, title: goal.title, status: goal.work_status }));
       },
-      async note(identity, input) {
+      async note(identity, input, control) {
         // The goal's history names the plugin as people know it; grants stay with its stable identity.
         const buildId = identity.pluginId.replace(/^io\.molis\.work\.generated\./, ''), title = studio.workflow.store.versions(buildId)[0]?.design.title ?? studio.workflow.store.get(buildId)?.design?.title;
-        const author = { ...caller(identity, goalsActions.note, 'goals:write'), ...(title ? { audit_actor_id: '插件「' + title + '」' } : {}) };
+        const author = { ...caller(identity, goalsActions.note, 'goals:write'), signal: control?.signal, validate_authority: () => control?.beforeEffect?.(), ...(title ? { audit_actor_id: '插件「' + title + '」' } : {}) };
         const result = await actions.client.invoke(author, goalsActions.note, { goal_id: input.goalId, body: input.text, idempotency_key: randomUUID() }) as { recorded?: unknown };
         return { recorded: result.recorded === true };
       },
@@ -284,8 +286,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     const withdraw = (pluginId: string) => { exposed.get(pluginId)?.(); exposed.delete(pluginId); };
     const expose = (release: AgentRelease) => {
       withdraw(release.pluginId);
-      try { exposed.set(release.pluginId, exposeInstalledPlugin(actions, release, async (pluginId, operation, input) =>
-        await studio.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: EXPOSED_ACTION_ACTOR, query: {}, body: { operation, input } })
+      try { exposed.set(release.pluginId, exposeInstalledPlugin(actions, release, async (pluginId, operation, input, context) =>
+        await studio.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id, execution: context, query: {}, body: { operation, input } })
           ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } })); }
       catch (error) { console.warn('[plugin-builder] 插件功能没能登记到动作目录', release.pluginId, error); }
     };
@@ -429,8 +431,9 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         if (report?.running.includes(release.pluginId)) studio.expose?.(release); }
     }
     // From here on, due runs of this project's installed plugins run through this studio (and ones that waited run now).
-    studio.stopScheduledRuns = await registerInstalledCaller(options.store.db as Parameters<typeof registerInstalledCaller>[0], options.boardId, async (pluginId, operation, input) =>
-      await studio.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: SCHEDULED_RUN_ACTOR, query: {}, body: { operation, input } })
+    studio.stopScheduledRuns = await registerInstalledCaller(options.store.db as Parameters<typeof registerInstalledCaller>[0], options.boardId, async (pluginId, operation, input, control) =>
+      await studio.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: 'scheduled-plugin:' + pluginId,
+        execution: { signal: control.signal, beforeEffect: async () => control.beforeEffect() }, query: {}, body: { operation, input } })
         ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } });
     return studio;
   })();

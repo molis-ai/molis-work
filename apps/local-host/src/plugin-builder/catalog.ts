@@ -136,7 +136,8 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
       const caller: ActionCallContext = { actor_id: 'plugin:' + context.identity.pluginId, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin',
         plugin_install_id: context.identity.installationId, permissions: [...entry.permissions], ...(author ? { audit_actor_id: '插件「' + author + '」' } : {}),
         allowed_actions: [{ capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }], signal: context.signal,
-        validate_authority: () => {
+        validate_authority: async () => {
+          await context.beforeEffect?.();
           context.signal.throwIfAborted();
           if (!options.live(context.identity)) throw new SandboxError('CAPABILITY_DENIED', '这个插件的能力调用已停止');
         } };

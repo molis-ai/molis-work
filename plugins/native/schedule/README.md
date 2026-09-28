@@ -44,6 +44,19 @@ pnpm --filter @molis-ai/molis-work-plugin-schedule build
 node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversation-tasks.test.ts
 ```
 
+## 开发要求
+
+- 负责：对话式定时任务、其他插件登记的闹钟列表、收据与暂停。
+- 不负责：Feed 与 Goal 事实、cron 表达式、闹钟主人的执行实现。
+- 公开入口：`@molis-ai/molis-work-plugin-schedule`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 其他插件的闹钟由 Scheduler 叫醒它们自己的能力，本插件只列出与暂停。
+  - 对话任务到点在自己的对话里跑一轮只读 Agent；提示词正文随目录条目声明。
+  - 本地 Web 宿主没运行时闹钟不响。
+- 改动后必跑：`node scripts/run-tests.mjs tests/schedule-plugin.test.ts tests/schedule-actions.test.ts tests/schedule-conversation-tasks.test.ts tests/schedule-task-runner.test.ts`
+- 相关手册：[docs/horizontal/scheduler.md](../../../docs/horizontal/scheduler.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)

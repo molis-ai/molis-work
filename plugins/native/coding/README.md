@@ -61,3 +61,17 @@ Git 的 git-changeset / git-result，以及 Shelf 的 materials。Shelf 明确�
 Coding 每次发送明确冻结 60 轮执行预算；固定计划按步骤计算若需更多轮次，保留较大值。达到上限会停止，可在原会话开始下一轮继续；这不替代逐笔操作审查。
 
 Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.
+
+## 开发要求
+
+- 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图。
+- 不负责：模型选择、凭据、批准决定、命令执行本身。
+- 公开入口：`@molis-ai/molis-work-plugin-coding`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
+  - 按精确引用消费材料与报告；生产者发布新版本不改写在跑的任务与历史报告；归档、删除或超限显式拒绝，不截断或偷换版本。
+  - 目标变化拒绝旧确认，同一确认的重试读取原回执；不替换下一轮关联、不自动发起任务或验收目标。
+  - 提示词与方法正文随目录条目声明，Manifest 只写声明。
+- 改动后必跑：`node scripts/run-tests.mjs tests/coding-actions.test.ts tests/coding-artifacts.test.ts tests/coding-capabilities.test.ts tests/coding-commands.test.ts tests/coding-companion-inputs.test.ts tests/builtin-plugin-agent-texts.test.ts`
+- 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/coding-plugin/spec.md](../../../specs/coding-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

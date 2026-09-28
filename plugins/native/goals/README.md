@@ -73,3 +73,17 @@ Coding 的进展回执查询也转入统一动作，保留原保存回执和重�
 关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的历史组合也通过集合动作读取。
 
 个人方法读取已改为原 Catalog 的实时端口：默认 Host 使用自己的 Home，每次查询/采用读取当前版本；Web 与 MCP 不再各自装配一份默认读取规则。全局保存不再关闭项目 Runtime 或清空 Feed scheduler；项目 URL 另存为个人方法也立即影响所有打开项目的后续选择。所选正文与规划页实时读取当前方法，页面缓存不保存个人方法选择。项目覆盖副本及已保存 Goal config 保持原版本，模板编辑不会重写历史。Home 目录/保存已使用 `personalPlanningActions` 的两项共同动作（`goals.planning.personal.list/save`），Manifest 声明，Host 在启动时作为 Home 系统服务注册，无需项目或页面。全局和项目 URL 的个人保存共用原 Catalog owner；普通 MCP 经明确 Home 授权查询，保存为 user 专用，要求可信 web/management 操作出处。未配置原 Catalog 写入端口时明确不可用，不另建数据库。合计 52 项动作：50 项 project、2 项 Home，其中 44 项可按授权供普通 MCP 使用。
+
+## 开发要求
+
+- 负责：Goals 的导航、界面、命令与组合（受保护的一方插件）。
+- 不负责：Goal 事实与 Store、其他插件的实现。
+- 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-module-evidence-verification`、`@molis-ai/molis-work-module-execution`、`@molis-ai/molis-work-module-goals`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 状态变化只经 `modules/goals` 的公开入口，页面不另算完成。
+  - CLI、管理 MCP 与 typed 入口薄转发同一动作；有幂等合同的写入沿用原事务与幂等键。
+  - 回收站操作要用户明确确认；`goals.trash.set` 可恢复，因此声明为写而不是不可撤销，并且不进生成插件。
+  - 旧 MCP 的兼容名称共用逐客户端授权与常驻 Host，不再指定数据库或自填作者；历史提案可读，退役类型不能重新批准。
+- 改动后必跑：`node scripts/run-tests.mjs tests/goals-actions.test.ts tests/goals-command-actions.test.ts tests/goals-board-actions.test.ts tests/goal-event-create-flow.test.ts tests/goals-tree-actions.test.ts`
+- 相关手册：[docs/modules/goals.md](../../../docs/modules/goals.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[PRODUCT.md](../../../PRODUCT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

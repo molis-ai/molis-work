@@ -19,3 +19,17 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 官方协议依据：[OpenAI](https://developers.openai.com/api/reference/resources/images/methods/generate)、[Gemini](https://ai.google.dev/api/generate-content)、[阿里兼容 API](https://www.alibabacloud.com/help/zh/model-studio/qwen-image-generation-and-editing-api-reference)。模型示例可编辑，账号可用性以实际厂商响应为准。
 
 原验证见 `specs/images-plugin/verification.md`，本次统一服务迁移见 `specs/action-architecture/migration.md`。受控 HTTP 厂商、标准 MCP 和浏览器测试验证真实传输、状态和图片字节；它们不等于付费厂商账号验收或用户本人验收。
+
+## 开发要求
+
+- 负责：个人图片生成、项目历史与已保存图片的预览。
+- 不负责：文字模型提供方、自动重试、其他插件的实现。
+- 公开入口：`@molis-ai/molis-work-plugin-images`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - API Key 由宿主 SecretStore 加密保存；列表、任务与下载不返回 Key。
+  - 失败、超时或重启不自动再次调用；「停止等待」只停本机请求，不保证厂商停止计费。
+  - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权改变不保存过期结果。
+  - 同一 Home 只有一个执行进程；另一个进程报 `images.runtime_unavailable` 并说明原因。
+- 改动后必跑：`node scripts/run-tests.mjs tests/images-actions.test.ts tests/images-service.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts`
+- 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

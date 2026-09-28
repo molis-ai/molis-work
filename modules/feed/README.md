@@ -44,6 +44,20 @@ node --import tsx --test --test-concurrency=1 tests/feed-module-repositories.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：Feed 条目的可见性、已读/归档、处置与升格来源。
+- 不负责：来源监听、Signal、直接创建 Goal、Artifact 或 Action。
+- 公开入口：`@molis-ai/molis-work-module-feed`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/feed`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者。
+  - 不直接创建 Goal，升格经 Goals 的公开入口。
+  - `linked_goal_id` 等兼容输出由 Ledger 推导，不恢复旧字段双写。
+  - 外部标题、正文与链接是不可信输入，不成为指令。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-module-repositories.test.ts tests/feed-item-actions.test.ts tests/feed-security.test.ts`
+- 相关手册：[docs/modules/feed.md](../../docs/modules/feed.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/feed.md)

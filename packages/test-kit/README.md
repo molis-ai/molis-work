@@ -42,6 +42,19 @@ pnpm boundary:test
 
 边界检查会扫描实际工作区源码；规则测试覆盖允许导入、拒绝导入和循环依赖。
 
+## 开发要求
+
+- 负责：确定性时钟、假能力、临时存储、合同检查与导入边界规则。
+- 不负责：属于某个 Module 的业务夹具、规则或断言。
+- 公开入口：`@molis-ai/molis-work-test-kit`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/testing`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 规则与业务无关，不替代模块测试、浏览器验收或迁移验证。
+  - 新增边界规则同时提供允许与拒绝案例，不靠检查固定文件数量。
+  - 本包自己的测试用 `pnpm --filter @molis-ai/molis-work-test-kit test`。
+- 改动后必跑：`node scripts/run-tests.mjs tests/import-boundary-template.test.ts tests/workbench-registration-boundaries.test.mjs`
+- 相关手册：[docs/platform/CONTRACTS-AND-OPERATIONS.md](../../docs/platform/CONTRACTS-AND-OPERATIONS.md)、[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/system/PACKAGE-BOUNDARIES.md)

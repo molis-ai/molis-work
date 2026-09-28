@@ -50,6 +50,19 @@ node --import tsx --test --test-concurrency=1 tests/desktop-tui.test.ts
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。
 
+## 开发要求
+
+- 负责：macOS 产品外壳与原生桥的组合根，以及 CLI、MCP、Web 的启动器（`launchers/`）。
+- 不负责：业务事实、Module 规则、Runtime 状态。
+- 公开入口：`@molis-ai/molis-work-app-desktop`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
+- 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
+- 不变量：
+  - 启动器只准备环境并转发：MCP stdio 经动作网关转给常驻 Web 宿主，不另起执行器。
+  - 不直接写业务数据库；面板、Capsule、热键等原生适配不承载业务判断。
+  - 构建、安装与签名/公证是不同步骤，构建通过不等于已公证或已发布。
+- 改动后必跑：`node scripts/run-tests.mjs tests/desktop-shell-bootstrap.test.ts tests/desktop-tui.test.ts tests/action-mcp-stdio.test.ts`
+- 相关手册：[docs/platform/DESKTOP.md](../../docs/platform/DESKTOP.md)、[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/DESKTOP.md)

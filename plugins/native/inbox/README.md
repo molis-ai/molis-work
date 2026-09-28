@@ -54,6 +54,20 @@ pnpm --filter @molis-ai/molis-work-plugin-inbox build
 node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.test.ts tests/inbox-action-scenes.test.ts tests/inbox-automatic-scenes.test.ts
 ```
 
+## 开发要求
+
+- 负责：需要介入的事项列表、详情与处置（完成、忽略）。
+- 不负责：Feed 与 Goal 的事实和 Store、其他插件的实现。
+- 公开入口：`@molis-ai/molis-work-plugin-inbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 不直接读 Feed 或 Goals 表，不依赖 Feed、Goals、Functions 插件的实现。
+  - 建议不会自动完成或忽略事项；停用、撤权或原文变化撤回当前建议，历史保留。
+  - 工作流交接透传原调用者；等待期间撤权后不保存结果。
+  - 文稿由 Pages 保存，生成不自动完成 Inbox 事项；相关对象不可读时保留记录与提示，不伪造正文。
+- 改动后必跑：`node scripts/run-tests.mjs tests/inbox-plugin.test.ts tests/inbox-action-scenes.test.ts tests/inbox-automatic-scenes.test.ts tests/inbox-prepared-pages.test.ts tests/inbox-native-plugin.test.ts`
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/feed-inbox-pages-loop/spec.md](../../../specs/feed-inbox-pages-loop/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)

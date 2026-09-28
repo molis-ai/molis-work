@@ -9,6 +9,7 @@ Molis Work：本地优先的工作台，Goals 是权威真相源，插件经统�
 | 产品承诺 | `PRODUCT.md` |
 | 包清单、事实 owner、成熟度 | `docs/SSOT-MATRIX.md` |
 | 分层与依赖规则 | `docs/system/ARCHITECTURE.md`、`docs/system/PACKAGE-BOUNDARIES.md` |
+| 改某个包 | 该包 README 的「开发要求」：负责与不负责、依赖、不变量、改完必跑的测试（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`，门禁在 `pnpm boundary:check`） |
 | 能力怎样注册、发现、调用、授权 | `specs/action-architecture/spec.md` §3「基本合同」 |
 | 写或改插件 | `skills/molis-plugin-dev/SKILL.md` |
 | 调模型、跑 Agent、提示词、模型设置 | `skills/molis-prologue-ai/SKILL.md`（手册 `docs/platform/PROLOGUE-AI.md`） |

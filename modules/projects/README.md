@@ -44,6 +44,19 @@ node --import tsx --test --test-concurrency=1 tests/projects-module.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：项目身份、目录（Catalog）、工作目录关联、生命周期与 `board_id` 迁移事实。
+- 不负责：Session、桌面面板、Goal、Artifact、Runtime 进程状态。
+- 公开入口：`@molis-ai/molis-work-module-projects`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/projects`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 正式身份是 `project_id`；`board_id` 只作为旧 V1 数据库身份保留。
+  - 目录关联只由本模块管理，不建第二份目录库；按项读取当前项目，不返回其他项目的关联。
+  - 卸载检查只提供目录事实，不删除用户文件。
+- 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts`
+- 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/projects.md)

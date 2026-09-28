@@ -67,6 +67,20 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home "$HOME
 
 然后打开 `http://127.0.0.1:4182/__ui/catalog`。
 
+## 开发要求
+
+- 负责：设计令牌、控件、图标、主题与无障碍基础。
+- 不负责：产品页业务决定、插件状态、路由。
+- 公开入口：`@molis-ai/molis-work-design-system`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/ui`。
+- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 生产只从包名导入，不深入 `src/`；改源码后编进 `dist`，预览和测试读的是包导出。
+  - 改共享控件先看规格板 `/__ui/catalog`。
+  - 禁止系统色盘、系统日期/时间弹出、`alert`/`confirm`/`prompt` 与未换肤的 `range`。
+  - 键盘焦点只用 `--focus-stroke`；动效只用 `--dur-*`、`--motion-*`、`--ease-*`。
+- 改动后必跑：`node scripts/run-tests.mjs tests/coss-control-language.test.ts tests/visual-foundation.test.ts`
+- 相关手册：[DESIGN.md](../../DESIGN.md)、[specs/craft-finish/spec.md](../../specs/craft-finish/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [DESIGN.md](../../DESIGN.md)：色、字、密度、外壳几何

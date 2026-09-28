@@ -43,6 +43,19 @@ node --import tsx --test --test-concurrency=1 tests/goal-event-migration.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：旧 Claim、Run、尝试与租约记录的只读读取。
+- 不负责：Goal 约定、Evidence、Review、Session、Runtime 进程。
+- 公开入口：`@molis-ai/molis-work-module-execution`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/execution`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 当前 Goal 工作走事件入口，不再创建 Claim 或 Run；只读保护不代表旧执行协议可以继续运行。
+  - 历史记录保留原 ID、作者、时间、状态与关联。
+  - 历史夹具只验证可读，不为造数据恢复生产写接口。
+- 改动后必跑：`node scripts/run-tests.mjs tests/goal-event-migration.test.ts tests/host-entry-consistency.test.ts tests/v1.test.ts`
+- 相关手册：[docs/modules/execution.md](../../docs/modules/execution.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/execution.md)

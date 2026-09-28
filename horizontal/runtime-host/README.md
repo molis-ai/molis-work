@@ -46,6 +46,20 @@ node --import tsx --test --test-concurrency=1 tests/runtime-host.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：Runtime 提供方的发现、启动、恢复、内容流、中断、停止与技术回执。
+- 不负责：Claim、Run、Goal、Session、工作目录、对话谱系、Artifact。
+- 公开入口：`@molis-ai/molis-work-service-runtime-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/runtime-host`。
+- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 能力矩阵的每一项由 Adapter 明确声明 native 或 unsupported。
+  - 没有回执或连接故障时不能推定可以安全重发；崩溃恢复不自动重放写操作。
+  - 不创建 thread 或 Handoff 包，不负责消息持久化与幂等去重。
+  - 外部不导入本包 `src/**`；本包也不导入 Session Registry、Execution Store 或 Web Server。
+- 改动后必跑：`node scripts/run-tests.mjs tests/runtime-host.test.ts tests/session-adapters.test.ts tests/desktop-tui.test.ts tests/codex-transport.test.ts`
+- 相关手册：[docs/horizontal/runtime-host.md](../../docs/horizontal/runtime-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/horizontal/runtime-host.md)

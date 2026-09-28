@@ -15,3 +15,15 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
+
+## 开发要求
+
+- 负责：幻灯片目录、大纲、预览与 JSON 导出。
+- 不负责：Goal 与 Artifact 事实、SVG 生成、PPTX 导出。
+- 公开入口：`@molis-ai/molis-work-plugin-ppt`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 冲突保留当前输入，并阻止发布、导出和离开。
+  - 发布保存固定快照；中断后恢复原版本并保留后来的编辑。
+- 改动后必跑：`node scripts/run-tests.mjs tests/ppt-actions.test.ts tests/ppt-mcp.test.ts tests/creative-artifact-promote.test.ts`
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

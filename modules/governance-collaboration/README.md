@@ -46,6 +46,20 @@ node --import tsx --test --test-concurrency=1 tests/goal-tree-event-flow.test.ts
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：结构提案、决定与确认来源，以及旧澄清、提案、Review 的历史。
+- 不负责：直接修改 Goal、Artifact、Project 事实。
+- 公开入口：`@molis-ai/molis-work-module-governance-collaboration`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/governance-collaboration`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 记录谁在什么来源下批准了哪一项变化，不替 Goals 计算完成。
+  - Runtime 不能用自填的 `actor_kind=user`、`user_confirmed` 或对话摘要作为授权；不同范围的授权不能互相复用。
+  - 跨 owner 写入走实际的决定事务，UI 与 MCP 不另写批准或完成规则。
+  - 历史 self-verifier 不能展示为用户验收，旧决定不能变成当前任意变更的授权。
+- 改动后必跑：`node scripts/run-tests.mjs tests/governance-collaboration-module.test.ts tests/governance-provenance.test.ts tests/draft-dialogue-application.test.ts`
+- 相关手册：[docs/modules/governance-collaboration.md](../../docs/modules/governance-collaboration.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/governance-collaboration.md)

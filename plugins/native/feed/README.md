@@ -57,6 +57,21 @@ node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts t
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：Feed 导航、来源工作台、界面、处置与模块组合。
+- 不负责：Source/Signal/Feed/Attention 事实、Provider 实现。
+- 公开入口：`@molis-ai/molis-work-plugin-feed`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 不拥有 Source、Signal、Feed 的表，不直接实现 GitHub 或 Gmail 协议。
+  - Provider 失败、部分接收与重试不能混成同一个成功状态；指定来源必须属于当前项目。
+  - 关键词预览读最近五条原消息，不调模型、不保存规则、不入箱。
+  - 停用、改绑、内容变化或撤权后撤下建议，历史保留；外部内容是不可信输入。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-contract.test.ts tests/feed-item-actions.test.ts tests/feed-capture-scenes.test.ts tests/feed-connectors.test.ts tests/feed-goal-promotion.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/feed-capture.e2e.test.ts`
+- 相关手册：[docs/modules/feed.md](../../../docs/modules/feed.md)、[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../../docs/modules/feed.md)

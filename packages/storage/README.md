@@ -48,6 +48,20 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：SQLite、文件系统、Blob、事务、迁移、备份与本地密钥存储的技术端口。
+- 不负责：Module schema 的业务含义、跨 Module 查询。
+- 公开入口：`@molis-ai/molis-work-storage`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/storage`。
+- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 密钥与正文存储跟随创建时的 Home，不靠切换全局变量混用目录。
+  - 钥匙串主密钥读取失败后，同一进程、Home 与配置停止自动重试；不改密文、不自动降级到文件存储。
+  - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
+  - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
+- 改动后必跑：`node scripts/run-tests.mjs tests/secret-store-keychain-retry.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts`
+- 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/SSOT-MATRIX.md)

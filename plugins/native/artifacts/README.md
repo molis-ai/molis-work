@@ -91,6 +91,19 @@ node --import tsx --test --test-concurrency=1 tests/artifact-document-import.tes
 
 全仓 `boundary:check` 仍被基线的 `plugins/native/pages` 依赖清单不一致阻挡：其 `package.json` 已包含 highlight.js、lowlight、prosemirror-dropcursor 与 prosemirror-gapcursor，但 `scripts/workspace-packages.mjs` 的既有清单未同步；本次没有修改这两个文件，也没有新增依赖或边界豁免。
 
+## 开发要求
+
+- 负责：Artifact 浏览、嵌入、文档导入与组合。
+- 不负责：Artifact 事实与 Store、生产方与消费方的实现。
+- 公开入口：`@molis-ai/molis-work-plugin-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。
+  - 在线文档内容变化时新增版本，旧版本与精确引用保留；空正文、超限、权限错误和截断结果不产生成功的 Artifact。
+  - 同步 publish/read 接口只给 `plugin` 受众，不能当用户或 MCP 工具冒充生产者；只有声明 sync 的处理器可以同步调用。
+- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-actions.test.ts tests/artifact-browser.test.ts tests/artifact-document-import.test.ts tests/plugin-artifact-client.test.ts`
+- 相关手册：[docs/modules/artifacts.md](../../../docs/modules/artifacts.md)、[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../../docs/modules/artifacts.md)

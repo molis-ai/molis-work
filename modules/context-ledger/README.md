@@ -44,6 +44,19 @@ node --import tsx --test --test-concurrency=1 tests/context-ledger.test.ts tests
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：对象引用、跨 owner 关系、发布与物化记录。
+- 不负责：被引用对象（Goal、Artifact、Feed、Session）的内容。
+- 公开入口：`@molis-ai/molis-work-module-context-ledger`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/context-ledger`。
+- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 只存引用边，不复制正文、不跨 Store Join。
+  - 存在一条边不等于授予内容权限；物化经目标 owner 的查询，owner 可以拒绝。
+  - 新 Artifact 引用必须带精确版本；旧引用指向缺失的 Goal 时保留引用，不制造、不猜测。
+- 改动后必跑：`node scripts/run-tests.mjs tests/context-ledger.test.ts tests/context-materialization.test.ts tests/context-owner-isolation.test.ts tests/handoff-ledger-migration.test.ts`
+- 相关手册：[docs/modules/context-ledger.md](../../docs/modules/context-ledger.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/modules/context-ledger.md)

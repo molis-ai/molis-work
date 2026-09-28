@@ -44,6 +44,18 @@ node --import tsx --test --test-concurrency=1 tests/feed-sources.test.ts
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。
 
+## 开发要求
+
+- 负责：YouTube 频道来源的地址与频道解析、轮询 Integration 接线。
+- 不负责：Source/Signal/Feed 事实、通用媒体客户端。
+- 公开入口：`@molis-ai/molis-work-integration-youtube`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 频道更新交给统一信息流，本包不拥有其状态。
+  - 工厂存在不等于已经通过 Plugin Runtime 接入。
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts`（暂无专门测试；上面是 SDK 轮询链路的公共回归。）
+- 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../../docs/modules/sources.md)

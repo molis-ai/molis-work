@@ -28,3 +28,15 @@ Status: `partial`。Contract：`@molis-ai/molis-work-contracts/platform/plugin`�
 pnpm --filter @molis-ai/molis-work-integration-catalog typecheck
 pnpm --filter @molis-ai/molis-work-integration-catalog build
 ```
+
+## 开发要求
+
+- 负责：其余官方账号连接的只读协议：令牌解析、身份与列表 API、whoami。
+- 不负责：Source/Signal/Feed 事实、密钥持久化、宿主业务决定。
+- 公开入口：`@molis-ai/molis-work-integration-catalog`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 只读；`catalogWhoami` 只在设置页或显式动作时调用。
+  - Host 按 connector id 装配，不按服务建空包。
+- 改动后必跑：`node scripts/run-tests.mjs tests/catalog-connectors.test.ts tests/connector-method-directory.test.ts tests/connector-oauth-choice.test.ts`
+- 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -46,3 +46,17 @@ node --import tsx --test --test-concurrency=1 tests/im-browser-state.test.ts tes
 文件上传、持久化表情/提及通知、消息修改/删除、结论流程、工作资源引用和 AI 总结尚未实现。插入成员名字只写入正文。实体设备软键盘、中文输入法组合事件、跨设备完整流程与超长历史性能未验收，不能据此宣称完整通信产品或可发布。
 
 正常工作台由 local-host 挂载 `/im`。旧群服务的隔离调试入口仍可使用 `node --import tsx scripts/preview-im.mts`；它不替代真实项目工作台的分屏验收。生产空项目不预置示例成员、消息或话题。
+
+## 开发要求
+
+- 负责：项目群聊与内联话题界面。
+- 不负责：服务端身份、消息持久化与同步实现（在 `server/src/im`）。
+- 公开入口：`@molis-ai/molis-work-im-ui`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/im`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 每个项目只有一个主群，权限来自 `mw_access`；浏览器不能自行取得项目权限。
+  - 具名成员不按名字匹配、不替换另一名成员，不开放远端自动授权。
+  - 正式话题与首条消息由服务端一次事务创建；未发送的表单只是本地草稿，成功回执只清除同一 `client_id` 的版本。
+  - 只有对话可见、宿主展开、文档在前台且消息进入视口时才推进读游标。
+- 改动后必跑：`node scripts/run-tests.mjs tests/im-browser-state.test.ts tests/im-local-project.test.ts tests/im-domain.test.ts`
+- 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

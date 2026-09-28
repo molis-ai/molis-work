@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { checkDevRequirements } from "./package-dev-requirements.mjs";
 
 const entry = (
   packagePath,
@@ -211,6 +212,7 @@ export function checkWorkspacePackages(repositoryRoot) {
       for (const goalId of item.migrationGoals) {
         if (!readme.includes(goalId)) errors.push(`${item.path}: README missing migration Goal ${goalId}`);
       }
+      errors.push(...checkDevRequirements(repositoryRoot, item, readme, manifest));
     }
   }
 

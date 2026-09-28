@@ -37,6 +37,20 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
 - `src/capability-registration.ts`：对外暴露的 Capability 与它们的授权边界。
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
 
+## 开发要求
+
+- 负责：Agent Runtime 注册、能力矩阵、冻结的启动授权、宿主审查队列与 Prologue 推理接线。
+- 不负责：编码业务含义、角色与提示词正文、模型选择与凭据、批准决定本身。
+- 公开入口：`@molis-ai/molis-work-service-agent-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/agent-host`。
+- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 仓库里唯一依赖 `@prologue/sdk` 的包。
+  - 一个 Home 一个执行 owner；另一个进程得到 `inference.home_in_use` 或 `agent.storage_busy`，经 `inferenceServiceUnavailableReason` 转成给人看的原因。
+  - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。
+  - Runtime 不能自己扩权：批准一次性，拒绝与过期不能换个入口变成许可。
+- 改动后必跑：`node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-action-tools-prologue.test.ts tests/host-inference-completion.test.ts`
+- 相关手册：[docs/horizontal/agent-host.md](../../docs/horizontal/agent-host.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [Plugin Platform v2 需求书](../../specs/plugin-platform-v2/spec.md) 的 D5

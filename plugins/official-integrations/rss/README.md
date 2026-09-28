@@ -47,6 +47,18 @@ node --import tsx --test --test-concurrency=1 tests/feed-sources.test.ts
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。
 
+## 开发要求
+
+- 负责：目录来源与自定义 RSS 的 Provider 适配、条件请求状态与正文处理。
+- 不负责：Source/Signal/Feed 事实、通用 HTTP 平台。
+- 公开入口：`@molis-ai/molis-work-integration-rss`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 状态变化归 Signals 与 Feed；外部正文是不可信输入。
+  - 工厂存在不等于已经通过 Plugin Runtime 接入。
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-sources.test.ts`
+- 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../../docs/modules/sources.md)

@@ -15,3 +15,16 @@
 - Migration Goals: `goal-reorg-f2`, `coding-c12`
 - SSOT: `specs/coding-plugin/spec.md` §0 C12；`docs/SSOT-MATRIX.md`
 - 管理与发布已通过正式插件入口在隔离预览实操：草稿恢复、并发冲突保留、固定版本与重复发布。Coding 精确版本选择、停用阻止新执行、在跑任务冻结与固定报告已实操；真实 MiniMax 同条件对照尚未证明减少人工负担，行为质量和完整验收继续推进。
+
+## 开发要求
+
+- 负责：个人 Character 的编辑界面、发布前预览与项目发布。
+- 不负责：草稿存储、Artifact 事实、Agent 执行、权限。
+- 公开入口：`@molis-ai/molis-work-plugin-characters`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 调用方只得到精确版本引用；浏览器请求不能注入正文或扩大权限。
+  - 检查来源更新要明确确认，保留名称、补充指令与已有发布；刷新或相同请求不重跑任务。
+  - 未安装的原生 CLI 显示不可用，不假称已验证。
+- 改动后必跑：`node scripts/run-tests.mjs tests/characters-actions.test.ts tests/characters-action-client.test.ts tests/characters-publication-http.test.ts tests/characters-import-http.test.ts`
+- 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -57,6 +57,20 @@ node --import tsx --test --test-concurrency=1 tests/session-handoff.test.ts test
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+## 开发要求
+
+- 负责：会话、Runtime、恢复、交接与终端界面。
+- 不负责：Session/Run/Goal 事实、Runtime 适配器实现。
+- 公开入口：`@molis-ai/molis-work-plugin-work`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 发送必须给出 Session、预期的当前 Goal、文本与稳定幂等键。
+  - `uncertain` 表示送达未确认：查询、重复发送或重试都不自动重发。
+  - 等待期间撤权或关联改变时不返回失效内容；交接包保持私人，不自动发布。
+  - 终端用 xterm 的命名空间导入并兼容 default 导出，两种打包形态都能加载。
+- 改动后必跑：`node scripts/run-tests.mjs tests/work-session-actions.test.ts tests/work-session-ui.test.ts tests/work-terminal-client.test.ts tests/session-handoff.test.ts tests/session-messages.test.ts`
+- 相关手册：[docs/modules/private-work-context.md](../../../docs/modules/private-work-context.md)、[docs/horizontal/runtime-host.md](../../../docs/horizontal/runtime-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../../docs/modules/private-work-context.md)

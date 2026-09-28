@@ -83,3 +83,18 @@ node --import tsx server/tooling/continuity-demo.mts /tmp/molis-continuity-isola
 ```
 
 QA 工具只创建显式隔离目录和实际业务对象；`lose-next-response` 文件只由该工具读取，用于在真实进展已提交后丢弃响应。该故障入口不存在于产品 HTTP。验证状态与交接见 `specs/bp-delivery-parallel/work-items/cross-device-team/verification.md`。
+
+## 开发要求
+
+- 负责：共享的身份、设备、项目访问、HTTP/SSE 与接续回执。
+- 不负责：Goal 或 Artifact 事实、模型执行、独立的 App 启动器。
+- 公开入口：`@molis-ai/molis-work-server`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 不变量：
+  - 项目访问在每次读取、操作前和返回前重查；已经发生的事实不会因撤权被伪装成未发生。
+  - 控制令牌不发到手机，也不把本机 Host 暴露到公网；令牌文件权限 0600，不写日志。
+  - 页面按字段投影选中的目标，不返回完整约定、私人历史或 Home。
+  - 手机只能记录进展、下一步和接手人，不提交用户决定、不启动 Agent、不自动完成 Goal；最终幂等归 Goal 业务事务。
+  - 私人版本不原地改成共享；邀请前被选中的 Artifact 必须已是 `team_project` 版本。
+- 改动后必跑：`node scripts/run-tests.mjs tests/cross-device-http.test.ts tests/cross-device-launcher.test.ts tests/cross-device-gateway.test.ts tests/im-domain.test.ts`
+- 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

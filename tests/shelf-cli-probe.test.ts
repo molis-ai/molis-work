@@ -9,8 +9,9 @@ test("a CLI help probe that times out is asked again instead of being remembered
   const bin = mkdtempSync(join(tmpdir(), "shelf-cli-probe-"));
   t.after(() => rmSync(bin, { recursive: true, force: true }));
   const cli = join(bin, "claude");
-  // First start is slower than the 3 s probe budget, as a cold CLI can be.
-  writeFileSync(cli, "#!/bin/sh\nsleep 5\necho '  --print Print response and exit'\n"); chmodSync(cli, 0o755);
+  // First start is slower than the 3 s probe budget, as a cold CLI can be. `exec` so the timeout ends the only
+  // process holding the output pipe, instead of leaving an orphaned sleep that decides when the probe returns.
+  writeFileSync(cli, "#!/bin/sh\nexec sleep 5\n"); chmodSync(cli, 0o755);
   assert.equal(readCliHelp(cli).includes("--print"), false);
   writeFileSync(cli, "#!/bin/sh\necho '  --print Print response and exit'\n"); chmodSync(cli, 0o755);
   assert.match(readCliHelp(cli), /--print/);

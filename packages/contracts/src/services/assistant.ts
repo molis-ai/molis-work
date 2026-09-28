@@ -1,5 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import type { AgentPendingQuestion, AgentRunPhase, AgentRunUsage, AgentToolActivity, AgentTurnView } from "./agent-host.js";
+import type { AgentPendingQuestion, AgentRunPhase, AgentRunUsage, AgentTurnView } from "./agent-host.js";
 
 /**
  * The system Assistant: one personal assistant, many independent pieces of work.
@@ -107,6 +107,19 @@ export interface AssistantWork {
   archived: boolean;
 }
 
+/** One thing the round did, in the person's terms: looked something up, read, changed, asked. Never the raw tool log. */
+export interface AssistantActivity {
+  call_id: string;
+  /** `lookup` | `read` | `change` | `ask` | `todo`, or another tool's own name. */
+  verb: string;
+  /** What it acted on: the capability's provider and title, or the words it searched for. */
+  target: string;
+  state: "started" | "completed" | "failed" | "unknown";
+  /** Why it did not happen, when that is known: not authorized, declined by the person. */
+  reason?: "not-authorized" | "declined";
+  sequence?: number;
+}
+
 /** One round the person started, with the run's own facts. */
 export interface AssistantRound {
   run_id: string;
@@ -117,7 +130,7 @@ export interface AssistantRound {
   started_at: string;
   phase: AgentRunPhase | "unknown";
   turns: AgentTurnView[];
-  activity: AgentToolActivity[];
+  activity: AssistantActivity[];
   awaiting_input: readonly AgentPendingQuestion[];
   usage?: AgentRunUsage;
   stop_reason?: string;

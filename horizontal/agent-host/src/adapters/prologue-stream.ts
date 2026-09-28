@@ -141,7 +141,8 @@ function target(input: Record<string, unknown> | undefined): string {
     const line = words.join(" ");
     return line.length <= 200 ? line : `${line.slice(0, 200)}…`;
   }
-  for (const key of ["path", "file_path", "command", "pattern", "query"]) {
+  // A business gateway call names its capability; the surface turns that into the capability's title.
+  for (const key of ["path", "file_path", "command", "pattern", "query", "capability_id"]) {
     const value = input[key];
     if (typeof value !== "string" || value === "") continue;
     return value.length <= 200 ? value : `${value.slice(0, 200)}…`;

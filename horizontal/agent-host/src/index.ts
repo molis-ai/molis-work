@@ -494,6 +494,7 @@ export class AgentHost implements AgentHostApi {
       throw new AgentHostError("agent.role_execution_exceeded", `方法“${skill.name}”需要当前执行方式未开放的工具，请更换方式或取消选择`);
     }
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
+    if (request.action_gateway && actionRefs.length) throw new AgentHostError("agent.capability_unavailable", "能力网关与逐项能力不能同时使用");
     let actions: NonNullable<AgentStartRequest["role"]>["actions"];
     if (actionRefs.length) {
       if (!adapter.descriptor.supports_action_tools || !authority.actions) throw new AgentHostError("agent.capability_unavailable", "当前执行引擎尚未接入动作服务");
@@ -520,7 +521,6 @@ export class AgentHost implements AgentHostApi {
     let gateway: NonNullable<AgentStartRequest["role"]>["action_gateway"];
     if (request.action_gateway) {
       if (workspace !== "business") throw new AgentHostError("agent.capability_unavailable", "能力网关只用于业务角色");
-      if (actionRefs.length) throw new AgentHostError("agent.capability_unavailable", "能力网关与逐项能力不能同时使用");
       if (!adapter.descriptor.supports_action_tools || !authority.actions) throw new AgentHostError("agent.capability_unavailable", "当前执行引擎尚未接入动作服务");
       const source = await authority.actions(runtimeId, validateCharacter);
       gateway = { operate: execution === "operate", client: {

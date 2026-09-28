@@ -514,18 +514,22 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--wash); }
   ${SHELL} .assistant-problem p { margin: 0; }
   /* In front of the input: where the next Send goes — a new work (and whose), or the work it continues. */
-  ${SHELL} .assistant-target {
-    display: inline-flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; max-width: 32%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
-    background: transparent; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer;
+  ${SHELL} .assistant-target { display: inline-flex; flex: 0 1 auto; align-items: center; min-width: 0; max-width: 26%; height: 28px; border-radius: 7px; box-shadow: 0 0 0 1px var(--line); }
+  ${SHELL} .assistant-target[data-mode="work"] { background: var(--nav-hover); box-shadow: none; }
+  ${SHELL} .assistant-target-main {
+    min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
+    font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   }
-  ${SHELL} .assistant-target > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  ${SHELL} .assistant-target:hover { color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
-  ${SHELL} .assistant-target[data-mode="work"] { background: var(--nav-hover); box-shadow: none; color: var(--ink); }
-  ${SHELL} .assistant-target:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${SHELL} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; border-radius: 4px; color: var(--muted); }
+  ${SHELL} .assistant-target-main > span { display: block; overflow: hidden; text-overflow: ellipsis; }
+  ${SHELL} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 2px; }
+  ${SHELL} .assistant-target-main:hover { color: var(--ink); }
+  ${SHELL} :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 3px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
   ${SHELL} .assistant-target-clear[hidden] { display: none; }
   ${SHELL} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
   ${SHELL} .assistant-target-clear svg { width: 11px; height: 11px; }
+  ${SHELL} .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  ${SHELL} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */
   @media (min-width: 601px) {
     ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 8px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
@@ -661,7 +665,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .plugin-picker-trigger { max-width: 120px; }
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
     ${SHELL} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
-    ${SHELL} .assistant-target { max-width: 28%; }
+    ${SHELL} .assistant-target { max-width: 30%; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }

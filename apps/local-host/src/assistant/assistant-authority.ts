@@ -18,7 +18,7 @@ export const actionKey = (ref: Pick<ActionReference, "capability_id" | "version"
  * default on 2026-09-28; each write still stops at a review of its exact parameters, and the grants are the Assistant's
  * own — separate from Coding's and external agents'.
  */
-export function assistantAuthority(localHost: MolisWorkLocalHost, work: StoredWork, disabled: () => ReadonlySet<string>): AgentStartAuthority {
+export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "actionClient" | "homeActionClient">, work: StoredWork, disabled: () => ReadonlySet<string>): AgentStartAuthority {
   const reference = work.project_ref;
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [], ...(signal ? { signal } : {}) });
@@ -55,7 +55,7 @@ export function assistantAuthority(localHost: MolisWorkLocalHost, work: StoredWo
 }
 
 /** The project's confirmed guidance as the project layer; personal work and unreadable guidance contribute nothing. */
-export async function assistantProjectPrompts(localHost: MolisWorkLocalHost, work: StoredWork): Promise<AgentPromptText[]> {
+export async function assistantProjectPrompts(localHost: Pick<MolisWorkLocalHost, "client">, work: StoredWork): Promise<AgentPromptText[]> {
   const reference = work.project_ref;
   if (!reference) return [];
   let view: ProjectGuidanceView;

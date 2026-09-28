@@ -97,6 +97,51 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   return { pack, executors, names };
 }
 
+/**
+ * Why a gateway call cannot go ahead, checked before any review: the capability is gone, switched off, unavailable,
+ * or asked for through the wrong tool. Null when it may proceed (a change then still waits for the person).
+ */
+export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown): Promise<string | null> {
+  if (toolName !== GATEWAY_TOOLS.read && toolName !== GATEWAY_TOOLS.change) return null;
+  if (toolName === GATEWAY_TOOLS.change && !gateway.operate) return "This role may only read.";
+  let parsed: CapabilityArgs;
+  try { parsed = parseCapability((input ?? {}) as Record<string, unknown>); } catch (error) { return (error as Error).message; }
+  const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
+  if (!view || !view.action.audiences.includes("agent")) return "That capability is not offered here (it may have been switched off, removed or changed); nothing was done. Search again with find-capabilities.";
+  if (!view.availability.available) return `${view.availability.reason}; nothing was done.`;
+  const reads = actionEffect(view.action, view.capability_id) === "read";
+  if (toolName === GATEWAY_TOOLS.change && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
+  if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
+  return null;
+}
+
+/** Plain text of a rich-text document (ProseMirror-like `{ type, content, text }`), one block per line. */
+function plainText(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const node = value as { type?: unknown; text?: unknown; content?: unknown };
+  if (node.type !== "doc" || !Array.isArray(node.content)) return null;
+  const inline = (item: unknown): string => {
+    if (!item || typeof item !== "object") return "";
+    const one = item as { text?: unknown; content?: unknown };
+    return typeof one.text === "string" ? one.text : Array.isArray(one.content) ? one.content.map(inline).join("") : "";
+  };
+  return node.content.map(block => inline(block)).filter(line => line.trim()).join("\n");
+}
+
+/** The input as a person reads it: each field by its declared title, text as text; the exact JSON stays separate. */
+export function readableInput(schema: Record<string, unknown>, input: unknown): Array<{ label: string; value: string }> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return [{ label: "内容", value: typeof input === "string" ? input : JSON.stringify(input) }];
+  const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, { title?: string; description?: string }>;
+  return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) => {
+    if (value === undefined || value === null || value === "") return [];
+    const declared = properties[key];
+    const label = declared?.title ?? (declared?.description && declared.description.length <= 24 ? declared.description : key);
+    const text = typeof value === "string" ? value : plainText(value) ?? (Array.isArray(value) && value.every(item => typeof item === "string") ? value.join("、")
+      : typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value, null, 2));
+    return [{ label, value: text.length > 4000 ? `${text.slice(0, 4000)}…` : text }];
+  });
+}
+
 /** The readable review for a requested change: which capability, from whom, what it does, with the exact input. */
 export async function gatewayReview(gateway: Gateway, input: string): Promise<{ summary: string; fields: Array<{ label: string; value: string }> }> {
   const args = JSON.parse(input) as Record<string, unknown>;
@@ -105,10 +150,10 @@ export async function gatewayReview(gateway: Gateway, input: string): Promise<{ 
   if (!view) throw new Error("所请求的能力已不可用，不能批准");
   const effect = actionEffect(view.action, view.capability_id);
   return { summary: `${view.provider.title} · ${view.action.title}`, fields: [
-    { label: "效果", value: effect === "irreversible" ? "修改数据，不可撤回" : "修改数据" },
-    { label: "说明", value: view.action.description },
-    { label: "参数", value: JSON.stringify(parsed.input ?? {}, null, 2) },
-    { label: "能力标识", value: `${view.capability_id}@${view.version}（${view.provider.provider_id}）` },
+    { label: "效果", value: effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回" },
+    ...readableInput(view.action.input_schema, parsed.input ?? {}),
+    { label: "完整参数", value: JSON.stringify(parsed.input ?? {}, null, 2) },
+    { label: "能力", value: `${view.action.description}（${view.capability_id}@${view.version}，${view.provider.provider_id}）` },
   ] };
 }
 

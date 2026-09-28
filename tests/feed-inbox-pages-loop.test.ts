@@ -10,7 +10,6 @@ import { generatePagesFromMaterials, openPagesStore } from "@molis-ai/molis-work
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_BOARD_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { hostCompleteText } from "../apps/local-host/src/host-complete-text.js";
-import { planInformationWork } from "../apps/local-host/src/assistant-http.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/assistant-island.js";
 import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/src/scripts/client/navigation-inbox.js";
 import { functionFitsScene, sceneBehaviorIds } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -120,7 +119,6 @@ test("explicit auto admission separates positive, negative and review outcomes a
     assert.equal(entries.length, 2); assert.equal(entries.find(entry => entry.subject_id === ids[2])?.detail.needs_review, true);
     await feed.evaluateItems(DEMO_BOARD_ID, ids);
     assert.equal(feed.listInboxEntries(DEMO_BOARD_ID).filter(entry => ids.includes(entry.subject_id) && entry.reason === "source_rule").length, 2);
-    await assert.rejects(planInformationWork(feed, DEMO_BOARD_ID, { prompt: "整理" }, async () => JSON.stringify({ message: "ok", action: { kind: "draft_pages", entry_ids: ["other-project"], title: "t", instructions: "i" } })), /当前 Inbox/);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 

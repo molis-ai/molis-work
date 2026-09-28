@@ -1,11 +1,11 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentPendingQuestion, AgentRunView, AgentSessionRef, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantContextSnapshot, type AssistantControl, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantContextSnapshot, type AssistantControl, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
@@ -108,7 +108,25 @@ function chunked(base: Omit<AgentTextMaterial, "text" | "material_id">, id: stri
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
 
+/** Titles of the capabilities a scope offered at its latest round start, to name them in the activity. */
+type CapabilityTitles = Map<string, { title: string; provider: string }>;
+
+/** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
+export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined): AssistantActivity[] {
+  const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "ask-user": "ask", "update-todo": "todo" };
+  return activity.flatMap(item => {
+    if (item.name === "reasoning" || item.name === "context-remaining") return [];
+    const verb = verbs[item.name] ?? item.name;
+    const named = titles?.get(item.target);
+    const target = (verb === "read" || verb === "change") && named ? `${named.provider} · ${named.title}` : item.target;
+    const reason = item.state !== "failed" ? undefined : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
+      : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;
+    return [{ call_id: item.call_id, verb, target, state: item.state, ...(reason ? { reason } : {}), ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
+  });
+}
+
 export class AssistantService {
+  private readonly titles = new Map<string, CapabilityTitles>();
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {}
 
@@ -135,7 +153,8 @@ export class AssistantService {
         if (view) views.set(round.run_id, view);
       }));
     }
-    const rounds: AssistantRound[] = stored.slice(-30).map(round => this.roundView(round, views.get(round.run_id)));
+    const titles = this.titles.get(ownerOf(work));
+    const rounds: AssistantRound[] = stored.slice(-30).map(round => this.roundView(round, views.get(round.run_id), titles));
     const latest = rounds.at(-1);
     const state = stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(recovery));
     return { work: this.publicWork(work, state), rounds, reviews: work.session_id ? this.reviewsFor(host, work) : [],
@@ -255,6 +274,7 @@ export class AssistantService {
       return this.result(work, "steered", latest.ref.run_id);
     }
     const offered = await this.actionTools(authority);
+    this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     const handle = await host.start(RUNTIME, {
       board_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
       session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,
@@ -365,10 +385,10 @@ export class AssistantService {
     });
   }
 
-  private roundView(round: StoredRound, view: AgentRunView | undefined): AssistantRound {
+  private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at,
       materials: round.materials.map(({ text: _text, ...rest }) => rest),
-      phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: view?.activity ?? [], awaiting_input: view?.awaiting_input ?? [],
+      phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: presentActivity(view?.activity ?? [], titles), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: view.stop_reason } : {}), ended_at: view?.ended_at ?? null };
   }
 

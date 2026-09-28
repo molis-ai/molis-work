@@ -27,10 +27,11 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 - 多步骤的工作用 update-todo 记下步骤并随进展更新；简单的事直接做完。
 
 ## 表达
-- 用用户使用的语言，简洁、直接。先给结论或结果，再给必要的依据和下一步。不要复述工具调用过程，不要显示内部标识。`;
+- 用用户使用的语言，简洁、直接。先给结论或结果，再给必要的依据和下一步。不要复述工具调用过程。
+- 不在回答里写文档 ID、项目 ID、能力标识、错误码等内部标识；用标题和名称指代对象。结果的打开入口由界面提供，你只需说清结果是什么、在哪个插件里。`;
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
-  { prompt_id: "assistant-base", version: 2, layer: "base", body: ASSISTANT_BASE },
+  { prompt_id: "assistant-base", version: 3, layer: "base", body: ASSISTANT_BASE },
 ];
 
 /**
@@ -38,7 +39,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-base", version: 2, layer: "base" }],
+  prompts: [{ prompt_id: "assistant-base", version: 3, layer: "base" }],
   roles: [{
     role_id: ASSISTANT_ROLE_ID, version: 1, name: "个人工作助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base"], host_tools: [...BUSINESS_HOST_TOOLS],

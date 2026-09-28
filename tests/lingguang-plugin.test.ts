@@ -144,7 +144,8 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
   assert.match(stack, /<input class="assistant-composer-input"/);
   assert.doesNotMatch(stack, /assistant-composer-toolbar/);
   assert.doesNotMatch(stack, /<textarea class="assistant-composer-input"/);
-  assert.match(stack, /data-assistant-plan/);
+  assert.match(stack, /data-assistant-thread/);
+  assert.match(stack, /data-assistant-target/, "输入框前说明下一次发送去哪项工作");
   assert.match(stack, /data-assistant-send/);
   assert.match(html, /data-lingguang="workbench"/);
   assert.match(html, /data-lingguang-confirm/);
@@ -168,8 +169,6 @@ test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编�
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
   assert.match(script, /data-assistant-composer/);
-  assert.match(script, /offsetHeight \|\| 32/);
-  assert.match(script, /rect\.height - height/);
   assert.doesNotMatch(saveFunctionSource(LINGGUANG_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.doesNotMatch(LINGGUANG_CLIENT_FACTORY_SCRIPT, /window\.confirm/);

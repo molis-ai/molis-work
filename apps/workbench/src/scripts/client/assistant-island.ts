@@ -21,6 +21,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const stateEl = island.querySelector("[data-assistant-work-state]");
   const scopeEl = island.querySelector("[data-assistant-work-scope]");
   const target = island.querySelector("[data-assistant-target]");
+  const targetWrap = island.querySelector("[data-assistant-target-wrap]");
   const targetLabel = island.querySelector("[data-assistant-target-label]");
   const targetClear = island.querySelector("[data-assistant-target-clear]");
   const newButton = island.querySelector("[data-assistant-new]");
@@ -86,12 +87,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       targetLabel.textContent = (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
       target.title = L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
-      target.dataset.mode = "work";
+      if (targetWrap) targetWrap.dataset.mode = "work";
     } else {
       targetLabel.textContent = L("新工作") + " · " + (newScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
       target.title = project ? L("点击切换：新工作属于本项目，或属于你个人（不需要项目）") : L("新工作属于你个人");
       if (targetClear) targetClear.hidden = true;
-      target.dataset.mode = "new";
+      if (targetWrap) targetWrap.dataset.mode = "new";
     }
     input.placeholder = work ? L("补充要求、回答或纠正…") : L("让助理做点什么…");
   };
@@ -173,9 +174,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新待办" };
+  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行" };
   const activityLine = (item) => {
-    const words = { started: "正在：", completed: "已完成：", failed: "失败：", unknown: "结果未确认：" };
-    return L(words[item.state] || "") + (item.summary || item.name) + (item.target ? " · " + item.target : "");
+    const verb = L(VERBS[item.verb] || item.verb);
+    const what = item.target ? " " + item.target : "";
+    if (item.state === "started") return L("正在") + verb + what;
+    if (item.state === "completed") return L("已") + verb + what;
+    if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
+    return verb + what + " — " + L("结果未确认");
   };
   const renderQuestion = (card, work, round, question) => {
     card.replaceChildren();
@@ -232,10 +239,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const renderReview = (card, work, review) => {
     card.replaceChildren();
     card.append(el("p", "assistant-card-title", L("执行前需要你确认")), el("p", "", review.summary));
-    if (review.fields.length) {
+    const plain = review.fields.filter((field) => field.label !== "完整参数" && field.label !== "能力");
+    if (plain.length) {
       const list = el("dl", "assistant-fields");
-      review.fields.forEach((field) => { list.append(el("dt", "", field.label)); list.append(el("dd", "", field.value)); });
+      plain.forEach((field) => { list.append(el("dt", "", L(field.label))); list.append(el("dd", "", field.value)); });
       card.append(list);
+    }
+    const exact = review.fields.filter((field) => field.label === "完整参数" || field.label === "能力");
+    if (exact.length) {
+      const more = el("details", "assistant-exact"); more.append(el("summary", "", L("准确参数与能力")));
+      exact.forEach((field) => { more.append(el("p", "assistant-muted", L(field.label))); more.append(el("pre", "", field.value)); });
+      card.append(more);
     }
     const row = el("div", "assistant-card-actions");
     const decide = async (decision) => {
@@ -466,8 +480,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   }));
   newButton?.addEventListener("click", () => { switchTo(null); input.focus(); });
   worksToggle?.addEventListener("click", () => setWorks(worksNav.hidden));
-  target.addEventListener("click", (event) => {
-    if (event.target instanceof Element && event.target.closest("[data-assistant-target-clear]")) { switchTo(null); input.focus(); return; }
+  targetClear?.addEventListener("click", () => { switchTo(null); input.focus(); });
+  target.addEventListener("click", () => {
     if (currentWork()) { setPanel(true); refresh().then(schedule); return; }
     if (project) { newScope = newScope === "project" ? "personal" : "project"; paintTarget(); paintHead(); }
   });

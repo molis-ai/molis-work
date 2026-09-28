@@ -1,5 +1,5 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { GATEWAY_TOOLS, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
+import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -176,6 +176,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const actionToolSessions = new Set<string>();
   /** The gateway a business session's latest round runs with, for describing a held change to the person. */
   const gatewayRuns = new Map<string, NonNullable<PrologueStartInput["action_gateway"]>>();
+  const gatewayHooks = new Set<string>();
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
   const activeRuns = new Map<string, { live(): boolean; steer(text: string): Promise<void> }>();
@@ -868,7 +869,20 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const actionTools = none ? undefined : input.action_gateway
         ? { ...prologueActionGateway(input.action_gateway, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
         : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
-      if (input.action_gateway) gatewayRuns.set(input.session_id, input.action_gateway);
+      if (input.action_gateway) {
+        gatewayRuns.set(input.session_id, input.action_gateway);
+        // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
+        if (!gatewayHooks.has(input.session_id)) {
+          gatewayHooks.add(input.session_id);
+          const sessionId = input.session_id;
+          runtime.hooks.register({ id: `molis-action-gateway-${sessionId}`, event: "tool-before", forSession: sessionId, handler: async context => {
+            const gateway = gatewayRuns.get(sessionId);
+            if (!gateway || !context.toolName) return { kind: "allow" as const };
+            const problem = await gatewayProblem(gateway, context.toolName, context.input);
+            return problem ? { kind: "deny" as const, why: problem } : { kind: "allow" as const };
+          } });
+        }
+      }
       const bindActions = !none && (!!input.actions || !!input.action_gateway || actionToolSessions.has(input.session_id));
       const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors } : undefined);
       if (bindActions && session) actionToolSessions.add(input.session_id);

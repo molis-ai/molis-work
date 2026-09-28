@@ -176,7 +176,7 @@ export function renderWorkbenchBar(
           <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("切换插件")}" title="${L("切换插件")}"><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>
           <div class="plugin-picker-popover" data-plugin-picker-popover hidden>${parts.rail}</div>
         </div>
-        <button class="assistant-target" type="button" data-assistant-target aria-live="polite" title="${L("下一次发送给哪项工作")}"><span data-assistant-target-label>${L("新工作")}</span><span class="assistant-target-clear" data-assistant-target-clear aria-hidden="true" hidden>${icon("x")}</span></button>
+        <span class="assistant-target" data-assistant-target-wrap><button class="assistant-target-main" type="button" data-assistant-target title="${L("下一次发送给哪项工作")}"><span data-assistant-target-label>${L("新工作")}</span></button><button class="assistant-target-clear" type="button" data-assistant-target-clear aria-label="${L("改为开始新工作")}" title="${L("改为开始新工作")}" hidden>${icon("x")}</button></span>
         <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("让助理做点什么…")}" aria-label="${L("发给助理")}">
         <button class="bar-composer-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<kbd>⌘K</kbd></button>
         <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>

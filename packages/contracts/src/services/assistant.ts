@@ -317,6 +317,8 @@ export interface AssistantSendInput {
   executor?: "assistant" | "coding";
   /** For a new work carried by Coding: the mode of its first round. Later rounds use the session's own setting. */
   mode?: string;
+  /** For a new work carried by Coding: continue this existing session (the one open on the Coding page) instead of a new one. */
+  coding_session_id?: string;
   /** Required for a new work; ignored for an existing one, whose scope never changes. */
   scope?: AssistantScope;
   text: string;

@@ -103,3 +103,16 @@ test("a professional Agent's own steps read as file and command work, never as b
     { call_id: "e", verb: "file-change", target: "README.md", state: "failed", reason: "interrupted", detail: "TOOL_INTERRUPTED: this run was cancelled before the tool ran." },
   ]);
 });
+
+test("a new Coding work can continue the session the person started on the Coding page, and one session belongs to one work", async () => {
+  const { coding, service, caller } = fixture();
+  const started = await coding.actions.invoke({ capability_id: "coding.sessions.create", version: 1, provider_id: "io.molis.coding" }, { title: "在 Coding 里开始的" }) as { session: { session_id: string } };
+  const before = coding.calls.filter(call => call.name === "sessions.create").length;
+  const sent = await service.send({ executor: "coding", coding_session_id: started.session.session_id, scope: { kind: "project", project_id: "project" }, text: "接着做", request_id: randomUUID() }, caller);
+  assert.equal((sent.work.executor as { session_id: string }).session_id, started.session.session_id);
+  assert.equal(coding.calls.filter(call => call.name === "sessions.create").length, before, "no second session");
+  assert.deepEqual((await service.related("project", { kind: "coding_session", id: started.session.session_id })).map(row => [row.work_id, row.relation]), [[sent.work.work_id, "session"]]);
+  await assert.rejects(service.send({ executor: "coding", coding_session_id: started.session.session_id, scope: { kind: "project", project_id: "project" }, text: "再开一个", request_id: randomUUID() }, caller),
+    /已属于工作/);
+  await assert.rejects(service.send({ work_id: sent.work.work_id, coding_session_id: "other", text: "换会话", request_id: randomUUID() }, caller), /只有新的 Coding 工作/);
+});

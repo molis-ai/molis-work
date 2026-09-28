@@ -304,12 +304,21 @@ export class AssistantService {
     const materials = checkMaterials(input.materials);
     const context = checkContext(input.context);
     if (input.mode !== undefined && (input.work_id || input.executor !== "coding" || !CODING_MODES.includes(input.mode))) throw new AssistantError("assistant.invalid", "只有新的 Coding 工作可以在这里选择第一轮的方式");
+    if (input.coding_session_id !== undefined && (input.work_id || input.executor !== "coding" || typeof input.coding_session_id !== "string" || !input.coding_session_id)) {
+      throw new AssistantError("assistant.invalid", "只有新的 Coding 工作可以接着一个已有的 Coding 会话");
+    }
+    // A session another work already carries stays with it: say which, before anything is created.
+    if (input.coding_session_id && !input.work_id) {
+      const holder = this.sessionHolder(caller.project_ref?.project_id ?? null, input.coding_session_id);
+      if (holder) throw new AssistantError("assistant.conflict", `这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
+    }
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined;
     try {
       const created = !input.work_id;
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
+      if (created && input.coding_session_id) work = await this.adoptCodingSession(work, input.coding_session_id);
       this.linkSent(work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode);
       this.store.finishRequest(this.actorId, input.request_id, result);
@@ -386,6 +395,10 @@ export class AssistantService {
   /** A Coding work, read from Coding's session: the same rounds, questions and confirmations its page shows. */
   private async codingRead(work: StoredWork): Promise<AssistantWorkView> {
     const executor = work.executor as Extract<StoredWork["executor"], { kind: "coding" }>;
+    // Works from before relations were kept: record the session they carry, once.
+    if (executor.session_id && !this.store.relations.forWork(identity(work)).some(row => row.relation === "session" && row.object.id === executor.session_id)) {
+      try { this.store.relations.link(identity(work), "session", { kind: CODING_SESSION_KIND, id: executor.session_id, revision: null }, "Coding 会话承接这项工作"); } catch { /* shown without it */ }
+    }
     if (!executor.session_id) return { work: this.publicWork(work, "idle"), rounds: [], reviews: [], cards: [], objects: await this.workObjects(work) };
     let read: CodingSessionRead;
     try { read = await (await this.coding(work)).read(executor.session_id, 6); }
@@ -450,7 +463,9 @@ export class AssistantService {
    * and the work compares that with the revision it recorded — which is how an edit the person made by hand shows up.
    */
   async workObjects(work: StoredWork): Promise<AssistantWorkObject[]> {
-    const relations = this.store.relations.forWork(identity(work));
+    const all = this.store.relations.forWork(identity(work));
+    // The session that carries the work is shown once, as the session, even when the work also started from it.
+    const relations = all.filter(row => !(row.relation === "origin" && all.some(other => other.relation === "session" && other.object.kind === row.object.kind && other.object.id === row.object.id)));
     if (!relations.length) return [];
     let actions: PersonActions | null = null;
     let readers: readonly ActionView[] = [];
@@ -472,6 +487,30 @@ export class AssistantService {
     }));
   }
 
+  /** One object as its owner has it now, with the Goals and other works it belongs to; null when it cannot be read. */
+  private async objectBackground(work: StoredWork, object: { kind: string; id: string; version?: string | number }): Promise<string | null> {
+    let actions: PersonActions | null = null;
+    try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { return null; }
+    if (!actions) return null;
+    const readers = (await actions.discover().catch(() => [] as ActionView[])).filter(view => isSubjectReader(view.action) && view.availability.available);
+    const read = async (kind: string, id: string): Promise<ActionSubjectContext | null> => {
+      const reader = readers.find(view => view.action.subject_kinds.includes(kind));
+      if (!reader) return null;
+      try { return await actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: id }) as ActionSubjectContext; }
+      catch { return null; }
+    };
+    const context = await read(object.kind, object.id);
+    if (!context) return null;
+    const goals = (await Promise.all(context.goal_ids.slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
+    const others = (await this.related(identity(work).project_id, { kind: object.kind, id: object.id })).filter(row => row.work_id !== work.work_id).slice(0, 5);
+    const claimed = object.version === undefined ? null : String(object.version);
+    return [`${context.title}（${object.kind}，标识 ${object.id}），当前版本 ${context.revision}${claimed && claimed !== context.revision ? `（页面显示的是版本 ${claimed}）` : ""}。`,
+      goals.length ? `关联目标：${goals.join("、")}` : "",
+      context.session_id && object.kind !== "coding_session" ? `所在会话：${context.session_id}` : "",
+      others.length ? `与它相关的其他工作：${others.map(row => `「${row.title}」（${RELATION_WORDS[row.relation]}，${row.state}）`).join("；")}` : "",
+      `正文${context.truncated ? "（节选，完整内容可用读取能力获取）" : ""}：\n${context.content.slice(0, 6000)}`].filter(Boolean).join("\n");
+  }
+
   /** The works that relate to an object in a project (or in the person's own scope), for that object's page. */
   async related(projectId: string | null, subject: { kind: string; id: string }): Promise<AssistantRelatedWork[]> {
     const rows = this.store.relations.forObject(projectId, subject);
@@ -483,6 +522,29 @@ export class AssistantService {
       out.push({ work_id: work.work_id, title: work.title, state: await this.stateSafely(work), relation: row.relation, recorded_revision: row.object.revision, updated_at: work.updated_at });
     }
     return out.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  }
+
+  /**
+   * A new work that continues a session the person started on the Coding page: the same session, so both entries show
+   * one conversation. The session must exist in this project; a session another work already carries stays with it.
+   */
+  private async adoptCodingSession(work: StoredWork, sessionId: string): Promise<StoredWork> {
+    const coding = await this.coding(work);
+    await coding.read(sessionId, 1);
+    const holder = this.sessionHolder(identity(work).project_id, sessionId, work.work_id);
+    if (holder) throw new AssistantError("assistant.conflict", `这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
+    const adopted = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
+    this.store.relations.link(identity(adopted), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "接着用户在 Coding 里开始的会话");
+    return adopted;
+  }
+
+  /** The work (not archived) that already carries a Coding session, if any. */
+  private sessionHolder(projectId: string | null, sessionId: string, except?: string): StoredWork | null {
+    for (const row of this.store.relations.forObject(projectId, { kind: CODING_SESSION_KIND, id: sessionId })) {
+      if (row.relation !== "session" || row.work_id === except) continue;
+      try { const work = this.store.get(this.actorId, row.work_id); if (!work.archived) return work; } catch { /* gone */ }
+    }
+    return null;
   }
 
   /** A Coding work's next-round mode, kept on Coding's session so both entries agree. */
@@ -756,6 +818,12 @@ export class AssistantService {
     const objects = await this.workObjects(work);
     if (objects.length) out.push(...chunked({ ...base, title: "这项工作的对象" }, "objects", describeObjects(objects)));
     out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", offered.length ? this.directory(offered) : "本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"));
+    // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
+    // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
+    if (context?.object) {
+      const background = await this.objectBackground(work, context.object);
+      if (background) out.push(...chunked({ ...base, title: "当前对象（所有者提供）" }, "object", background));
+    }
     if (context) {
       const lines = [`页面：${context.source.title ?? context.source.surface}${context.source.plugin_id ? `（${context.source.plugin_id}）` : ""}`,
         context.object ? `正在看的对象：${context.object.title ?? context.object.id}（${context.object.kind}${context.object.version !== undefined ? `，版本 ${context.object.version}` : ""}）` : "",

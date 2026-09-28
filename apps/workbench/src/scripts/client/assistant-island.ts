@@ -146,7 +146,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     input.placeholder = work ? L("补充要求、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…") : L("让助理做点什么…");
     // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
-      const coding = work ? work.executor && work.executor.kind === "coding" : newExecutor === "coding" && codingHere();
+      // A new work that continues an open Coding session runs in that session's own mode, shown once it is the work's.
+      const coding = work ? work.executor && work.executor.kind === "coding" : newExecutor === "coding" && codingHere() && !openCodingSession();
       modeButton.hidden = !coding;
       if (coding && modeLabel) {
         const label = L("方式") + "：" + L((MODES.find((one) => one.id === (work ? work.executor.mode : newMode)) || { label: "执行" }).label);
@@ -158,7 +159,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (executorButton) {
       executorButton.hidden = Boolean(work) || !codingHere();
       if (!codingHere() && newExecutor !== "assistant") newExecutor = "assistant";
-      if (executorLabel) executorLabel.textContent = L((EXECUTORS.find((one) => one.id === newExecutor) || EXECUTORS[0]).label);
+      if (executorLabel) executorLabel.textContent = L((EXECUTORS.find((one) => one.id === newExecutor) || EXECUTORS[0]).label)
+        + (newExecutor === "coding" && openCodingSession() ? " · " + L("当前会话") : "");
     }
   };
   const setExecutors = (open) => {
@@ -720,6 +722,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const joined = new Set();
   const objectKey = (object) => object.kind + ":" + object.id;
   const belongsToWork = (object) => Boolean(view && view.work.work_id === currentId && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id));
+  /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
+  const openCodingSession = () => { const context = surfaceContext(); return context && context.object && context.object.kind === "coding_session" ? context.object.id : null; };
+  const relatedCache = new Map();
+  const relatedWorks = (object) => {
+    const key = objectKey(object), held = relatedCache.get(key);
+    if (held && Date.now() - held.at < 10000) return held.works;
+    relatedCache.set(key, { at: Date.now(), works: held ? held.works : [] });
+    api("/related?kind=" + encodeURIComponent(object.kind) + "&id=" + encodeURIComponent(object.id))
+      .then((result) => { relatedCache.set(key, { at: Date.now(), works: result.works || [] }); paintMaterials(); }).catch(() => {});
+    return held ? held.works : [];
+  };
   const pageObject = () => {
     const context = surfaceContext();
     if (!context || !context.object || removed.has("object")) return null;
@@ -739,6 +752,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       else items.push({ key: "object", label, optional: true });
     }
     if (page && page.included && context.unsaved && context.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
+    if (page) relatedWorks(page.object).filter((row) => row.work_id !== currentId).slice(0, 2)
+      .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
     if (selection && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(selection.text.replace(/\s+/g, " "), 28), auto: true });
     files.forEach((file) => items.push({ key: "file:" + file.material_id, label: file.title, auto: false }));
     return items;
@@ -755,6 +770,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!items.length) materialsList.append(el("p", "assistant-muted", L("没有材料。可以在页面上选中内容，或添加文件。")));
     items.forEach((item) => {
       const row = el("div", "assistant-material" + (item.optional ? " assistant-material--optional" : ""));
+      if (item.work) {
+        // Another work already holds this object: continuing it there is one click, never automatic.
+        row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", stateLabel(item.work.state)));
+        const go = el("button", "assistant-material-add", L("切换过去")); go.type = "button";
+        go.addEventListener("click", () => { setMaterials(false); switchTo(item.work.work_id); input.focus(); });
+        row.append(go); materialsList.append(row); return;
+      }
       if (item.optional) {
         // Browsing is not working on it: the person decides whether this round takes it.
         row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", L("与这项工作无关，不会带上")));
@@ -883,7 +905,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     await draftWrite;
     const body = { text, request_id: requestId, context: pageContext(), materials };
     if (currentId) body.work_id = currentId;
-    else if (newExecutor !== "assistant") { body.executor = newExecutor; if (newExecutor === "coding") body.mode = newMode; }
+    else if (newExecutor !== "assistant") {
+      body.executor = newExecutor;
+      if (newExecutor === "coding") { const session = openCodingSession(); if (session) body.coding_session_id = session; else body.mode = newMode; }
+    }
     else body.scope = newScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
     unsettled = { id: requestId, text, work: currentId };
     try {

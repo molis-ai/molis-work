@@ -1007,7 +1007,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
         const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
         const snapshot = await api!.invoke(agent.readSession, [session]);
         const runs = await Promise.all(snapshot.runs.slice(-3).map(ref => api!.invoke(agent.readRun, [session, ref])));
-        revision = `${snapshot.runs.length}:${runs.at(-1)?.phase ?? "idle"}`;
+        revision = String(snapshot.runs.length);
         for (const run of runs) {
           const task = run.turns.find(turn => turn.kind === "user")?.text ?? "";
           const reply = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "";

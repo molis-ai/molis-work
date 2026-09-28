@@ -1819,6 +1819,13 @@ Horizontal Service 是可重建运行机制。它可以保存 queue、cursor、l
 - 旧 `src/sessions/adapters.ts`、`src/sessions/codex-transport.ts` 与 `src/web/pty-host.ts` 只保留薄兼容出口；生产 Web composition、PTY socket 和 Session 内容服务改用新包公开 API。
 - 验收：fake Provider 的注册、能力矩阵、调用与 unsupported；Codex 请求/事件/失败恢复；PTY spawn/attach/write/resize/kill/crash/resource cleanup；无 owner 深层导入、无跨 owner Store、旧实现入口不再保留 provider/process 细节。
 
+### 21.5 `horizontal/search`（2026-09-28 增补，`specs/system-search/spec.md`）
+
+- 负责：经共同动作目录发现插件声明的搜索来源（`molis.search.entries.v1`、按需的 `molis.search.query.v1`），维护可重建的本地索引（集合版本与条目版本增量比对、删除清理、失败保留与重试、停用与卸载清理），按调用者当前授权过滤并聚合结果，打开前经原插件读取器核对。
+- 技术状态：`{home}/search/search.db`（来源版本、同步时间与错误；条目版本、允许持久化的文字、打开位置），由 `packages/storage` 的 `openTextSearchIndex` 实现；整份可删除重建。
+- 不负责：插件的存储与业务规则、对象正文的解释、权限授予与可信身份、会话与助理交互；不读任何插件私有库。
+- 入口：Host 在 Home 注册一次系统动作 `search.query/open/status/rebuild`（`system.search`），页面、助理、工作流、MCP 经同一目录调用。
+
 ## 22. Plugin 与 Adapter Contract
 
 ### 22.1 Integration Plugin 内聚 Provider Adapter（已确认）

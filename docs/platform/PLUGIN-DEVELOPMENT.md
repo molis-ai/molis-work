@@ -140,6 +140,16 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 Pages 与 Coding 是完整样例；需求与验收见 `specs/system-assistant/spec.md` 第 10.4 节与 AC46—AC51。
 
+## 系统搜索
+
+插件的内容经共同动作目录进入系统搜索（`search.query`，工作台 ⌘K、助理、工作流与 MCP 共用），插件不写索引、不调用搜索服务：
+
+- 可搜索的每种对象提供对象读取器（`defineSubjectContextAction`，不存在时抛 `<plugin>.not_found`）；
+- 声明一个搜索来源 `defineSearchEntriesAction(id, [{ kind, title, surface }], title, permissions, scope?)`，用 `bindSearchEntriesHandler` 返回当前全部条目：`subject`、`revision`（内容一变就变）、`title`、`summary`、`updated_at`、`content`（`context` 正文经读取器进索引，`summary` 只索引标题与摘要）、`open: { surface, id }`；
+- 不能持久化的内容用 `defineSearchQueryAction` 按需查询。
+
+系统负责首次建立、按集合版本与条目版本增量更新、删除清理、失败保留与重试、停用/卸载清理、按调用者授权过滤和打开前核对。清单里声明的来源经 `inspectActionDeclarations` 校验规范合同。细则与判例见 [搜索接入](../../skills/molis-plugin-dev/search.md)，需求见 `specs/system-search/spec.md`。
+
 ## 对外 MCP
 
 Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件不要自己开 MCP 端口，也不要新开 MCP 包。新能力使用上文 SDK 的动作合同。下面仅说明存量 `mcp_exports` 的维护；动作的逐客户端、逐项目授权已接入「能力 → 对外接入」，选项从同一注册表发现，不需前端白名单。旧插件与判断工具名称也受相同动作授权约束，该页「旧版工具（全局开关）」只控制这些兼容名称是否启用。

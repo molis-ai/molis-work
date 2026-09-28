@@ -32,4 +32,6 @@ Runtime 工作入口到 Project 的当前绑定已迁为 `work.binding_project`�
 
 资源 Impact 的声明与历史归 Goals，占用冲突归 Execution；它们不是可解析对象关系。事实/假设、Contract/native 提案的来源规则与旧提案展示归 Governance。Coordinator 已退出这些规则，通过公开接口组合；来源 locator 和待确认历史不伪造为已确认 ContextEdge。
 
+系统助理的工作关系（2026-09-28，`feature/system-assistant`）：助理作为语义所有者，在自己的 Home 级数据库事务资源里用 `createContextLedger` 写关系边，分区 `personal/assistant`。`ObjectRef` 新增命名空间 `assistant`（工作，`object_type: "work"`）与 `plugins`（插件拥有的对象，`object_type` 为对象种类，`project_id` 为所在项目），以及可选的不透明 `revision`（所有者版本不是计数时使用，按原样比较）。关系类型 `assistant.work.origin` / `material` / `result` / `session`；再次产出同一对象的新版本是同一条边的新 revision。对象内容与当前版本始终经所有者的对象上下文读取取得，边只保存引用与当时版本；用户手动修改由版本比较得知，不另记流水。约定见 [molis-plugin-dev · continuity.md](../../skills/molis-plugin-dev/continuity.md)。
+
 AR2 的现有职责迁移、caller 与基线审计已通过，Molis Work 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 partial；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/molis-work-architecture-reorganization/ar2-validation.md)。

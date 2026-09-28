@@ -1,6 +1,6 @@
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { feedCaptureContent } from "./scenes.js";
-import { retainActionAuthority, ActionError, type ActionCallContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { retainActionAuthority, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedItemRecord, FeedOutRuleRecord } from "./projection.js";
 import { FeedStoreError } from "./application-errors.js";
@@ -20,6 +20,7 @@ function define<I, O>(suffix: string, title: string, description: string, input_
   return { capability_id: `feed.rules.${suffix}`, version: 1, operation: write ? "command" : "query", action: {
     title, description, kind: write ? "operation" : "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: permissions ?? (write ? ["feed:read", "feed:write"] : ["feed:read"]), subject_kinds: ["feed_item", "source"], input_schema, output_schema,
+    ...(["evaluate", "preview-judgment"].includes(suffix) ? { scheduling: "concurrent" as const } : {}),
   } };
 }
 export interface FeedJudgmentChoice { reference: ActionReference; title: string; available: boolean; reason?: string }
@@ -51,7 +52,7 @@ export interface FeedRuleJudgmentSelection {
   preview(reference: ActionReference, content: string, caller: ActionCallContext): Promise<{ status: "ok" | "needs_review"; suggested_behavior_ids: string[] }>;
 }
 export function createFeedRuleHandlers(feed: FeedApplication, boardId: string, hydrate: (item: FeedItemRecord) => FeedItemRecord, judgments?: FeedRuleJudgmentSelection): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (args: I, caller: ActionCallContext) => O | Promise<O>): ActionHandlerBinding => ({ ...definition, handle: (caller, input) => handle(input as I, caller) });
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (args: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({ ...definition, handle: (caller, input) => handle(input as I, caller) });
   const select = async (next: FeedOutRuleRecord, patch: Partial<FeedOutRuleWrite>, caller: ActionCallContext, current?: FeedOutRuleRecord) => {
     const changed = "judgment" in patch || "function_key" in patch;
     if (next.enabled && next.admission === "inbox" && (!current || changed || "match" in patch || "admission" in patch || patch.enabled === true)
@@ -87,18 +88,18 @@ export function createFeedRuleHandlers(feed: FeedApplication, boardId: string, h
     bind(feedRuleActions.create, async (args, caller) => {
       checkSource(args.match.source_id);
       const next = await select(feed.prepareOutRuleCreate(boardId, args), args, caller);
-      await caller.validate_authority?.({ ...feedRuleActions.create, provider_id: FEED_PLUGIN_ID });
+      await caller.beforeEffect();
       return { rule: feed.saveOutRuleCreate(next) };
     }),
     bind(feedRuleActions.update, async (args, caller) => {
       checkSource(args.patch.match?.source_id);
       const current = feed.listOutRules(boardId).find(rule => rule.rule_id === args.rule_id);
       const next = await select(feed.prepareOutRuleUpdate(boardId, args.rule_id, args.patch), args.patch, caller, current);
-      await caller.validate_authority?.({ ...feedRuleActions.update, provider_id: FEED_PLUGIN_ID });
+      await caller.beforeEffect();
       return { rule: feed.saveOutRuleUpdate(next, current!.revision) };
     }),
     bind(feedRuleActions.delete, args => ({ rule: feed.deleteOutRule(boardId, args.rule_id) })),
-    bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(boardId, args.item_ids, retainActionAuthority(caller, { ...feedRuleActions.evaluate, provider_id: FEED_PLUGIN_ID }))),
+    bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(boardId, args.item_ids, retainActionAuthority(caller, { ...feedRuleActions.evaluate, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect))),
     bind(feedRuleActions.preview, args => {
       const snapshot = feed.snapshot(boardId);
       if (!snapshot.sources.some(source => source.source_id === args.source_id)) throw new FeedStoreError("feed_invalid_transition", "请选择当前项目的来源");

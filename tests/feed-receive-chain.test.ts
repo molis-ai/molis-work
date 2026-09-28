@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
 import { SourcesModule } from "@molis-ai/molis-work-module-sources";
@@ -83,6 +84,38 @@ function connectorWith(driver: ConnectorDriver): ConnectorHost {
   connector.connect({ connection_id: "fixture-connection", driver_id: driver.driver_id });
   return connector;
 }
+
+test("Listener refusal after accepting a Signal preserves that receipt but cannot mark delivery, advance cursor or write a failure; restart dedupes it", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "listener-effect-authority-")), databasePath = join(directory, "project.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  try {
+    const sourceId = createSource(store), signals = new SignalsModule(store.db);
+    const event = rawEvent("accepted-before-revocation", { page: 1 });
+    let allowed = true;
+    const driver: ConnectorDriver = { driver_id: "authority-driver", async health() { return { ok: true, status: "connected", message: "ready" }; },
+      async poll() { return { ok: true, mode: "live", events: [event], cursor_after: { page: 1 } }; } };
+    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands, {
+      afterSignalAccepted: async () => { entered.resolve(); await release.promise; },
+    });
+    const input = { project_id: DEMO_BOARD_ID, source_id: sourceId, connection_id: "fixture-connection", operation_id: "listener-authority-1", adapter: adapter(),
+      beforeEffect: async () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };
+    const pending = listener.run(input), rejected = assert.rejects(pending, { code: "actions.revoked" });
+    await entered.promise;
+    const state = () => ({ signals: signals.query.list(DEMO_BOARD_ID, sourceId), run: listener.getRunByOperationId(DEMO_BOARD_ID, input.operation_id),
+      deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE source_id = ?").all(sourceId),
+      checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE source_id = ?").get(sourceId) });
+    const before = state(); assert.equal(before.signals.length, 1);
+    allowed = false; release.resolve(); await rejected;
+    assert.deepEqual(state(), before);
+    allowed = true;
+    const restarted = new ListenerHost(store.db, connectorWith(driver), new SignalsModule(store.db).commands);
+    assert.equal((await restarted.run(input)).outcome, "completed");
+    assert.equal(signals.query.list(DEMO_BOARD_ID, sourceId).length, 1);
+    assert.deepEqual(restarted.checkpoint(DEMO_BOARD_ID, sourceId).cursor, { page: 1 });
+    assert.equal((await restarted.run(input)).replayed, true);
+  } finally { release.resolve(); store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
 
 test("Raw Event becomes one durable Signal and resumes after adapter failure without advancing cursor", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-fd1-recovery-"));
@@ -312,4 +345,35 @@ test("repeated Adapter failure quarantines the Raw Event without polling past it
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+for (const fail of [false, true]) test(`Listener revocation during a provider ${fail ? "failure" : "response"} prevents durable delivery and failure bookkeeping`, async () => {
+  const directory = mkdtempSync(join(tmpdir(), "listener-revocation-"));
+  const databasePath = join(directory, "project.sqlite"); seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let allowed = true, pause = true;
+  try {
+    const source = createSource(store), signals = new SignalsModule(store.db);
+    const driver: ConnectorDriver = { driver_id: "guarded", async health() { return { ok: true, status: "connected", message: "ready" }; },
+      async poll() {
+        if (pause) { entered.resolve(); await release.promise; }
+        if (fail && pause) throw new Error("provider failed");
+        return { ok: true, mode: "live", events: [rawEvent("guarded", { page: 1 })], cursor_after: { page: 1 } };
+      } };
+    const listener = new ListenerHost(store.db, connectorWith(driver), signals.commands);
+    const input = { project_id: DEMO_BOARD_ID, source_id: source, connection_id: "fixture-connection", operation_id: "guarded-operation", adapter: adapter(),
+      beforeEffect: async () => { if (!allowed) throw Object.assign(new Error("Revoked"), { code: "fixture.revoked" }); } };
+    const pending = listener.run(input), rejected = assert.rejects(pending, { code: "fixture.revoked" });
+    await entered.promise;
+    const before = listener.getRunByOperationId(DEMO_BOARD_ID, input.operation_id);
+    allowed = false; release.resolve(); await rejected;
+    assert.deepEqual(listener.getRunByOperationId(DEMO_BOARD_ID, input.operation_id), before);
+    assert.equal(store.db.prepare("SELECT count(*) AS n FROM listener_deliveries WHERE source_id = ?").get(source)!.n, 0);
+    assert.deepEqual(listener.checkpoint(DEMO_BOARD_ID, source).cursor, {});
+    allowed = true; pause = false;
+    const recovery = await listener.run(input);
+    assert.equal(recovery.outcome, "completed");
+    assert.equal(recovery.created_count, 1);
+  } finally { release.resolve(); store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

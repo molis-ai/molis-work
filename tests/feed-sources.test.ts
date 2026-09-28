@@ -429,7 +429,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       release();
       const completed = await firstTick;
       assert.equal(completed.completed, 1);
-      assert.match(keys[0]!, /scheduled:.*2026-08-30T09:15:00\.000Z/);
+      assert.match(keys[0]!, /^scheduled-[a-f0-9]{32}$/);
       const afterFirst = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
       assert.equal(afterFirst.schedule.mode === "interval" ? afterFirst.schedule.next_pull_at : null, "2026-08-30T09:30:00.000Z");
 
@@ -437,6 +437,7 @@ test("source scheduler persists the next run, collapses missed slots, and preven
       const catchup = await scheduler.tick(now);
       assert.equal(catchup.due, 1);
       assert.equal(dispatches, 2, "sleep recovery performs one catch-up pull, not every missed slot");
+      assert.notEqual(keys[0], keys[1], "different planned slots keep different idempotency identities");
       const afterCatchup = service.feed.getSource(DEMO_BOARD_ID, source.source_id);
       assert.equal(afterCatchup.schedule.mode === "interval" ? afterCatchup.schedule.next_pull_at : null, "2026-08-30T10:30:00.000Z");
     } finally {

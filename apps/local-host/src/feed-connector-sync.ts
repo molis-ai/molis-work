@@ -1,5 +1,7 @@
+import { feedSourceSyncLease } from "./feed-source-sync-lease.js";
 import { createHash } from "node:crypto";
-import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
@@ -10,15 +12,29 @@ import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/pla
 import { FeedConnectorSync, type FeedApplication, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
 import { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./official-integrations.js";
+import { withConnectorConnections } from "./connector-connection-store.js";
 
 export function createLocalFeedConnectorSync(
   db: SqliteDatabase, boardId: string, providerFactory?: OfficialProviderFactory,
   feed: FeedApplication = createLocalFeedApplication(db),
+  homeDirectory = resolveMolisWorkHome(),
 ): FeedConnectorSync {
   const integrations = new OfficialIntegrationRegistry(providerFactory);
   const journal = new LocalSqliteJournal(db);
   return new FeedConnectorSync({
-    feed,
+    feed, acquireSync: feedSourceSyncLease(db),
+    connectionAuthority(source) {
+      const id = source.config.connection_id;
+      if (typeof id !== "string") return () => {};
+      const original = withConnectorConnections(homeDirectory, store => store.get(id));
+      return () => withConnectorConnections(homeDirectory, store => {
+        const current = store.get(id);
+        if (!original || !current || current.disconnected_at || current.updated_at !== original.updated_at
+          || current.credential_ref !== source.credential_ref) {
+          throw new FeedDomainError("账号连接已断开或改变，请重新确认来源账号后拉取", "feed_source_connection_changed");
+        }
+      });
+    },
     async createListener(source, afterAccepted) {
       const integration = await integrations.contributionFor(source);
       const connector = new ConnectorHost();
@@ -28,11 +44,11 @@ export function createLocalFeedConnectorSync(
       const signals = new SignalsModule(db);
       const listener = new ListenerHost(db, connector, signals.commands, {
         afterSignalAccepted(event, receipt) {
-          afterAccepted(event.payload as unknown as IntegrationProviderItem, receipt.signal, event.occurred_at);
+          return afterAccepted(event.payload as unknown as IntegrationProviderItem, receipt.signal, event.occurred_at);
         },
       });
       return {
-        run: (operationId, mode) => listener.run({ project_id: boardId, source_id: source.source_id,
+        run: (operationId, mode, execution) => listener.run({ ...execution, project_id: boardId, source_id: source.source_id,
           connection_id: connectionId, operation_id: operationId, adapter: integration.signal_adapter,
           intent: { sync_mode: mode } }),
         checkpoint: () => listener.checkpoint(boardId, source.source_id),

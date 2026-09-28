@@ -1,3 +1,4 @@
+import { feedSourceSyncLease } from "./feed-source-sync-lease.js";
 import { createHash } from "node:crypto";
 import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { FeedSourceService, type FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
@@ -37,7 +38,7 @@ export function createLocalFeedSourceService(
   const journal = new LocalSqliteJournal(db);
   const feed = createLocalFeedApplication(db, feedOptions);
   return new FeedSourceService({
-    feed,
+    feed, acquireSync: feedSourceSyncLease(db),
     syncRepository: (source, input) => syncResearchLibrarySource(homeDirectory ?? resolveMolisWorkHome(), feed, source, input),
     providers: {
       listCatalog: listRegisterableFeeds,

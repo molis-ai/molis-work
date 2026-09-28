@@ -1,6 +1,6 @@
 import { ACTION_REFERENCE_SCHEMA, ACTION_SCENE_TARGETS_SCHEMA, withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, ActionSceneTarget, ActionSceneUsage } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { JudgmentRecord, FunctionDraftPatch, FunctionRecord, FunctionSceneBinding, FunctionsPrimitive, FunctionAuthoringCatalog } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsActionPorts } from "./actions.js";
 import { assertReadyToPublish } from "./store.js";
 
@@ -36,6 +36,7 @@ function define<I, O>(suffix: string, title: string, description: string, input_
   return { capability_id: `functions.authoring.${suffix}`, version: 1, operation: write ? "command" : "query", action: {
     title, description, kind: write ? "operation" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: preview ? ["functions:manage", "functions:invoke"] : ["functions:manage"], subject_kinds: [], input_schema, output_schema,
+    ...(preview ? { scheduling: "concurrent" as const } : {}),
   } };
 }
 
@@ -54,6 +55,7 @@ export const functionAuthoringActions = {
 
 /** Contextual reads are composed by the Host from the same authorized action and scene clients. */
 export const functionContextActions = {
+  history: define<Record<string, never>, { judgments: JudgmentRecord[] }>("history", "判断调用记录", "读取当前项目或个人范围内保存的判断结果；不包含其他项目的历史。", input({}), { type: "object", properties: { judgments: { type: "array", items: { type: "object", required: ["judgment_id", "subject", "outcome"] } } }, required: ["judgments"] }),
   targets: define<{ id: string }, { targets: readonly ActionSceneTarget[] }>("targets", "判断规则可配置位置", "读取消费方提供的真实配置位置、原绑定及修订号；不会创建规则或授予权限。", input({ id }, ["id"]), ACTION_SCENE_TARGETS_SCHEMA),
   configure: define<{ id: string; scene_id: string; scene_version: number; provider_id: string; binding_id: string; expected_revision: string | null; enabled: boolean }, { ok: true }>("configure", "配置判断使用位置", "在消费方提供的位置启用、替换或停用当前规则；按原修订号写入，过期页面不能覆盖新配置。", input({
     id, scene_id: id, scene_version: { type: "integer", minimum: 1 }, provider_id: id, binding_id: id, expected_revision: nullableText, enabled: { type: "boolean" },
@@ -69,7 +71,7 @@ export const functionContextActions = {
 } as const;
 
 export function functionAuthoringHandlers(ports: FunctionsActionPorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
+  const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
     ...definition, handle: (caller, value) => run(value as I, caller), ...(availability ? { availability } : {}),
   });
   return [
@@ -77,15 +79,14 @@ export function functionAuthoringHandlers(ports: FunctionsActionPorts): ActionHa
     bind(functionAuthoringActions.get, args => ports.read(service => ({ function: service.get(args.id) }))),
     bind(functionAuthoringActions.create, args => ports.read(service => ({ function: service.create(args) }))),
     bind(functionAuthoringActions.update, args => ports.read(service => ({ function: service.updateDraft(args.id, args.patch, args.updated_at ?? undefined) }))),
-    bind(functionAuthoringActions.preview, (args, caller) => ports.run(async service => ({ function: await service.preview(args.id, args.input, args.updated_at ?? undefined, caller.signal) })),
+    bind(functionAuthoringActions.preview, (args, caller) => ports.run(async service => ({ function: await service.preview(args.id, args.input, args.updated_at ?? undefined, caller.signal, caller.beforeEffect) })),
       () => ports.credentialAvailable() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先连接判断服务" }),
     bind(functionAuthoringActions.publish, async (args, caller) => {
       const record = ports.read(service => service.get(args.id));
       if (record.status === "published") return { function: record };
       assertReadyToPublish(record);
       const scene = await ports.validatePublication?.(record, caller);
-      await caller.validate_authority?.({ ...functionAuthoringActions.publish, provider_id: "system.functions" });
-      caller.signal?.throwIfAborted();
+      await caller.beforeEffect();
       return ports.read(service => ({ function: service.publish(args.id, args.updated_at ?? record.updated_at, scene ?? undefined) }));
     }),
     bind(functionAuthoringActions.delete, args => ports.read(service => { service.deleteDraft(args.id, args.updated_at ?? undefined); return { ok: true }; })),

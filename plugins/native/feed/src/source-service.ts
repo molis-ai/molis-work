@@ -2,7 +2,7 @@ import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceSchedule, SourceHistoryDecision } from "./projection.js";
-import type { FeedSourcePorts, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult } from "./source-ports.js";
+import type { FeedSourcePorts, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceSyncInput } from "./source-ports.js";
 import { normalizeRegistration } from "./source-request.js";
 import { stableId, sha256, bounded, sameHttpsUrl } from "./source-input.js";
 import { PublicSourceSync } from "./source-sync.js";
@@ -13,14 +13,18 @@ export class FeedSourceService {
     this.feed = ports.feed;
     this.publicSync = new PublicSourceSync(ports, boardId);
   }
-  sync(sourceId: string, input: { idempotencyKey: string; signal?: AbortSignal }): Promise<FeedSourceSyncResult> {
-    const source = this.activeSource(sourceId);
-    if (source.kind === "research_library") {
-      if (!this.ports.syncRepository) throw new FeedDomainError("研究库适配器不可用", "feed_source_invalid_configuration");
-      return this.ports.syncRepository(source, input);
-    }
-    return this.publicSync.sync(source, input);
+  async sync(sourceId: string, input: FeedSourceSyncInput): Promise<FeedSourceSyncResult> {
+    const release = this.ports.acquireSync?.(this.boardId, sourceId);
+    try {
+      const source = this.activeSource(sourceId);
+      if (source.kind === "research_library") {
+        if (!this.ports.syncRepository) throw new FeedDomainError("研究库适配器不可用", "feed_source_invalid_configuration");
+        return await this.ports.syncRepository(source, input);
+      }
+      return await this.publicSync.sync(source, input);
+    } finally { release?.(); }
   }
+
   register(input: RegisterFeedSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const normalized = normalizeRegistration(input, this.ports.providers);
     const syncKind = "public_source";

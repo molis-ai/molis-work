@@ -1,9 +1,9 @@
-import { inspectActionDeclarations, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectActionDeclarations, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** One author definition generates both manifest data and the runtime binding. */
 export function defineAction<Input, Output>(
   definition: ActionDefinition<Input, Output>,
-  handle: (context: ActionCallContext, input: Input) => Output | Promise<Output>,
+  handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>,
 ): { readonly definition: ActionDefinition<Input, Output>; readonly handler: ActionHandlerBinding } {
   const problems = inspectActionDeclarations([definition], undefined);
   if (problems.length) throw new Error(problems.join("；"));

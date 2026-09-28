@@ -1,5 +1,5 @@
 import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import { releaseGenerationAttempt, type PagesStore } from "./store.js";
+import type { PagesStore } from "./store.js";
 import { PagesError } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
@@ -12,7 +12,7 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
   if (request.status === "completed" && request.document_id) return { document: withStore(store => store.get(request.document_id!, record.project_id)), replayed: true };
   const refusedEnds = async () => {
     try { signal?.throwIfAborted(); await beforeEffect?.(); }
-    catch (refused) { releaseGenerationAttempt(request); throw refused; }
+    catch (refused) { withStore(store => store.releaseGenerationAttempt(request)); throw refused; }
   };
   const fail = async (error: unknown): Promise<never> => {
     // Failure bookkeeping is also an effect. If the call was cancelled or lost authority it writes nothing;

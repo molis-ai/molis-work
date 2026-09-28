@@ -44,7 +44,7 @@ function action<Input, Output>(id: string, title: string, description: string, o
     permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), ...(requiredActions ? { required_actions: requiredActions } : {}),
     subject_kinds: ["inbox_entry"], input_schema: input, output_schema: output,
     // Writing a document waits on a model through Pages and writes nothing of its own here.
-    ...(id === "inbox.pages.generate" ? { scheduling: "concurrent" as const } : {}) } };
+    ...(["inbox.pages.generate", "inbox.judgment.evaluate"].includes(id) ? { scheduling: "concurrent" as const } : {}) } };
 }
 
 export interface InboxStatusInput { entry_id: string; status: AttentionStatus; expected_revision: number }
@@ -138,6 +138,6 @@ export function createInboxActionHandlers(ports: InboxActionPorts): ActionHandle
     bind(inboxActions.readJudgment, (_input, caller) => ports.readJudgment!(caller), !!ports.readJudgment),
     bind(inboxActions.recommendations, (_input, caller) => ports.recommendations!(caller), !!ports.recommendations),
     bind(inboxActions.writeJudgment, (input, caller) => ports.writeJudgment!(input.function_key?.trim() || null, caller), !!ports.writeJudgment),
-    bind(inboxActions.evaluateJudgment, (input, caller) => ports.evaluateJudgment!(input.entry_ids, retainActionAuthority(caller, { ...inboxActions.evaluateJudgment, provider_id: INBOX_PLUGIN_ID })), !!ports.evaluateJudgment),
+    bind(inboxActions.evaluateJudgment, (input, caller) => ports.evaluateJudgment!(input.entry_ids, retainActionAuthority(caller, { ...inboxActions.evaluateJudgment, provider_id: INBOX_PLUGIN_ID }, caller.beforeEffect)), !!ports.evaluateJudgment),
   ];
 }

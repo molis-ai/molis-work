@@ -34,3 +34,7 @@
 ## 调用身份与限额
 
 生成插件调用时，身份是它自己（`plugin:<插件 id>`），历史里显示为"插件「名称」"；每次调用前宿主都会重查安装是否仍有效、授权是否被撤回。调用有次数和时长上限，调用模型另有每分钟上限。
+
+### 让动作结果可以直接读懂
+
+动作可声明 `action.result_view`，与动作定义放在同一处：`summary` 为准确的业务结果说明，`title_pointer`、`text_pointer` 从原输出的 JSON Pointer 读取标题/正文；`link: { label, href_template }` 指向本站原对象页面。模板仅替换 `{project_id}` 和 `{/输出/字段}`，替换值逐个 URL 编码。完整例子及长结果、历史、缺字段行为见 [公开 SDK](../../packages/plugin-sdk/README.md#展示动作结果)。不要更改业务返回值来迎合 UI，也不要在 Host 按插件 ID 分支生成摘要。

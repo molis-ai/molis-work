@@ -20,7 +20,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 
 ## 一套标准：官方插件与生成插件
 
-`skills/molis-plugin-dev` 是做插件的唯一标准：官方插件（人或编码 Agent 手写）按它写，插件创作台生成插件时，主线设计与代码 Agent 在运行时经 Prologue 挂载它（设计阶段挂 `process.md`、`generated-design.md`、`ui.md` 的质量线与 `capabilities.md`；代码阶段挂 `generated-code.md` 与 `capabilities.md`；版本取正文摘要，写进每次运行的 promptVersion）。
+`skills/molis-plugin-dev` 是做插件的唯一标准：官方插件（人或编码 Agent 手写）按它写，插件创作台生成插件时，主线设计与代码 Agent 在运行时经 Prologue 挂载它（设计阶段挂 `process.md`、`generated-design.md`、`generated-ai.md`、`ui.md` 的质量线与 `capabilities.md`；代码阶段挂 `generated-code.md`、`generated-ai.md` 与 `capabilities.md`；版本取正文摘要，写进每次运行的 promptVersion）。
 
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
 - 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。
@@ -115,6 +115,8 @@ Plugin Builder 将每次发布保存为独立版本记录。发布新版只产�
 
 ## 统一动作与消费场景
 
+动作可在 `action.result_view` 声明用户可读结果：固定 `summary`、指向原返回值的 `title_pointer` / `text_pointer`（JSON Pointer），以及 `link: { label, href_template }`。链接模板只允许站内路径，支持 `{project_id}` 和 `{/输出字段}` 标量替换，值由平台编码；不执行模板代码，也不修改输入输出合同。工作流保存当次摘要到原步骤历史，默认折叠技术详情；旧记录和未声明的动作仍可查看原结果。长正文显示有界节选并明确提示，不能把摘要当完整业务返回值。提供方负责目标页的通用对象深链处理，不在 Host 或工作流按插件 ID 添加分支。示例见 [Plugin SDK README](../../packages/plugin-sdk/README.md)。
+
 新能力使用 `actions` 与 `action_scenes`，由 Kernel/Plugin Runtime 注册执行。SDK `defineAction` 提供定义与 handler 配对；场景必须兑现 `bindings`、`bind`、`consume`。用 `event_schema`/`prepare` 分离触发事件、函数输入和私有对象快照；可选 `failed` 负责明确的失败消费，同样接受绑定、权限、生命周期和对象检查。`required_scene` 让 Host 依据实际绑定计算触发入口状态。
 
 Host 的动作客户端和场景客户端共享项目运行时与执行队列。兼容场景通过输入输出及语义合同发现，使用位置从原业务配置读取；新增插件不改中央能力或场景 ID 名单。插件有业务权限不代表外部 MCP 客户端有同样权限。细节与示例见 [SDK](../../packages/plugin-sdk/README.md#动作与判断消费场景)、[Inbox 场景](../../plugins/native/inbox/src/scenes.ts)、[实际自动触发验证](../../tests/inbox-automatic-scenes.test.ts)。
@@ -197,3 +199,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 ## 可复现验证
 
 构建后运行 `node --import tsx --test tests/plugin-sample.e2e.test.ts tests/plugin-package.test.ts`。前者从干净目录实际调用 CLI、安装本地 SDK tarball、运行两个独立进程并核对结果/历史版本/权限/目录边界；后者验证签名与篡改拒绝。其他 Host/Runtime 定向测试覆盖崩溃恢复、卸载失败撤权和不同签名数据隔离。整体前后端用户 E2E 仍在所有重组开发完成后单独执行。
+
+## 异步动作与原调用授权
+
+等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后调用 dispatcher 提供的 `caller.beforeEffect()`，再按原对象或配置版本提交。发起嵌套动作/场景时用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；仅复查权限字符串不能识别同名提供方已被替换。来源同步另持有按数据库、项目和来源隔离的活动租约。失去授权时保留此前的未确认记录用于恢复，不补写失败记录或伪造成功。

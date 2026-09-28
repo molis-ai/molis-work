@@ -1616,6 +1616,16 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     }).observe(stage);
   }
   const boot = () => { if (document.body.dataset.desktopSurface === "shelf") load().catch(() => {}); };
+  workbench.addEventListener("molis-work:select-item", async (event) => {
+    const id = event.detail?.itemId;
+    if (!id || selected?.item_id === id) return;
+    try {
+      if (editing) await stopEdit();
+      if (stageBusy()) return;
+      await load(id);
+      if (!selected) { stickyHint = L("这份材料已不在 Shelf 中，请从列表选择其他材料。"); renderBar(lastBarKind); }
+    } catch (error) { stickyHint = error.message; renderBar(lastBarKind); }
+  });
   document.addEventListener("molis-work:surface", boot);
   window.addEventListener("molis-shelf-notice", (event) => {
     stickyHint = event.detail && event.detail.message ? String(event.detail.message) : "";

@@ -128,7 +128,7 @@ export class FunctionsService {
     return this.settingsStatus();
   }
 
-  async preview(id: string, input: string, expectedUpdatedAt?: string, signal?: AbortSignal): Promise<FunctionRecord> {
+  async preview(id: string, input: string, expectedUpdatedAt?: string, signal?: AbortSignal, beforeSave?: () => Promise<void>): Promise<FunctionRecord> {
     const current = this.store.require(id);
     const result = await this.evaluate(current, input, signal);
     const preview: FunctionsPreviewRecord = {
@@ -145,7 +145,9 @@ export class FunctionsService {
       config_hash: current.config_hash,
       at: new Date().toISOString(),
     };
-    return this.store.savePreview(id, preview, expectedUpdatedAt);
+    await beforeSave?.();
+    signal?.throwIfAborted();
+    return this.store.savePreview(id, preview, expectedUpdatedAt ?? current.updated_at);
   }
 
   async invokePublished(functionKey: string, input: string, context: { version?: number; config_hash?: string; project_id?: string; signal?: AbortSignal; record_history?: boolean;

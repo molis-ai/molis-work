@@ -3,6 +3,7 @@ import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedConnectorSync } from "./connector-sync.js";
 import type { ConnectorSyncMode } from "./connector-sync-ports.js";
+import type { FeedSourceSyncInput } from "./source-ports.js";
 import type { ConnectorAuthStatus, FeedConnectorAccountPorts, FeedConnectorKind, FeedGmailAuthorization } from "./connector-account-ports.js";
 import { stableId } from "./source-input.js";
 import { ensureConnectorSources } from "./connector-source-registration.js";
@@ -159,7 +160,7 @@ export class FeedConnectorService {
     return result;
   }
 
-  sync(sourceId: string, input: { idempotencyKey: string; mode?: ConnectorSyncMode }) {
+  sync(sourceId: string, input: FeedSourceSyncInput & { mode?: ConnectorSyncMode }) {
     return this.syncHandler.sync(sourceId, input);
   }
 

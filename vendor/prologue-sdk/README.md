@@ -1,21 +1,18 @@
 # Prologue SDK 构建来源
 
-## 当前依赖：app-mode（2026-09-28，系统级个人助理）
+## 当前依赖：assistant（2026-09-28，系统级个人助理 + network-dispatch）
 
-`prologue-sdk-0.0.0-rc.1-app-mode.tgz`。在 dispatch-denied（03c6ba0b）之上只加一件事：**`startAgentRun({ workspace: "app" })`——没有授权根、只用会话包工具和不碰工作区的系统工具**，让 App 的业务权限与代码目录分开（个人助理在没有项目目录时也能使用业务能力）。
+`prologue-sdk-0.0.0-rc.1-assistant.tgz`。把 main 的 network-dispatch 与系统级个人助理需要的两项 SDK 改动放进同一个包，取代 `network-dispatch.tgz` 与只在助理分支用过的 `app-mode.tgz`。
 
-- 新增导出 `APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"]`。`app` 模式下 `toolNames` 必须显式给出，且只能是本会话包贡献的工具或上述系统工具；文件与命令工具、根、执行器、子任务、技能、MCP、挂载、工作区上下文在起跑时拒绝（`AGENT_START_INVALID`）。写入类包工具照常走副作用链审批。原 `workspace: "none"` 的纯推理语义不变。
-- 系统工具执行器的根与 mutator 变为可选：没有根时文件、命令类工具报 `TOOL_UNAVAILABLE`；子任务派发器在无根时延迟到调用时才报不可用。
-- 同一分支第二个提交（2026-09-28）：**`session-stop` 钩子接入循环**。原先只声明未触发；现在一次 Run 正要自然收工（模型这一轮只写了回答、目标判断放行）时触发，载荷 `{ session, run, text }`。钩子 `deny` 时这段回答留在历史里、放入钩子理由、接着跑，并发 `model-response-repair`（新 reason `stop-held`）；一次 Run 最多挡两次，之后照常收工；没有登记钩子时行为不变。Molis 用它实现用户拍板的“只说不做自动续做一次”（Host `announce-guard.ts`，仅限可写角色）。
-- 源码提交：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `6f530d5a`（app 模式）与 `22a1be08`（session-stop），父提交 `03c6ba0b`（dispatch-denied）；增量补丁 [app-mode.patch](app-mode.patch) 相对 `03c6ba0b`、含两个提交。尚未推送到 molis-ai/prologue。此包只在未合并的 `feature/system-assistant` 分支里用过，所以直接以同名重建，没有再多放一份包。
-- SHA-256：`6aeb819a9c329fc2d562bb83ffc8a138f546e8c99a70e2f83eb924ab72018f38`（只含 app 模式时的旧包为 `80745df7…a49a`）
-- 验证（session-stop）：`test/app-mode.live.test.ts` 新增 2 项（钩子挡两次后照常收工、历史里保留原回答与理由、没有钩子时行为不变），SDK 全量 3345 项：3325 通过、20 跳过、0 失败，类型检查无错。
-- 验证（app 模式）：新增 `test/app-mode.live.test.ts` 4 项（包工具与提问、写入类包工具需审批、起跑前拒绝文件工具与根等、none 模式仍拒绝包工具）全过；SDK 全量两次：一次 27 项在负载下超时，一次仅 `workstation-wiring.live.test.ts`「Character 完全关掉仍能干活」1 项超时——该项在未改动的 03c6ba0b 上单跑同样超时（5 秒上限），本改动下单跑通过。
-- 按本目录约定换包后应删除旧的当前包 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`；删除 vendor 文件由用户执行（自动模式不允许），在此之前它仍留在目录里、不再被引用。
+- **network-dispatch**（来自 main 21cdfbf8，见下节）：`beforeNetworkDispatch` 覆盖 Node Host 每次真实 fetch；MCP 未派发时取消按 `CANCELLED` 收尾。
+- **workspace "app"**：`startAgentRun({ workspace: "app" })` 没有授权根，只用会话包工具和不碰工作区的系统工具（`APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"]`），`toolNames` 必须显式给出；文件与命令工具、根、执行器、子任务、技能、MCP、挂载、工作区上下文在起跑时拒绝（`AGENT_START_INVALID`）；写入类包工具照常走副作用链审批。系统工具执行器的根与 mutator 变为可选。个人助理在没有项目目录时也能使用业务能力。
+- **session-stop 钩子**：一次 Run 正要自然收工时触发，载荷 `{ session, run, text }`；钩子 `deny` 时保留原回答、放入理由、接着跑，发 `model-response-repair`（reason `stop-held`）；一次 Run 最多挡两次；没有登记钩子时行为不变。Molis 用它实现“只说不做自动续做一次”（Host `announce-guard.ts`，仅限可写角色）。
+- 源码：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`：`03c6ba0b`（dispatch-denied）→ `6f530d5a`（app 模式）→ `22a1be08`（session-stop）→ `4702abe3`（并入 network-dispatch 在 03c6ba0b 之后的增量）。完整补丁 [assistant.patch](assistant.patch) 相对 `af7375c7`。尚未推送到 molis-ai/prologue。
+- 重建：检出 `af7375c7`，应用 `assistant.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`；在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-assistant.tgz`。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`22265b9165486a265cacbed3b080f8b172a0e161b7e718da3220e7d01a9301a5`。
+- 验证：`app-mode.live`、`dispatch-denied.live`、`network-dispatch-authority.live` 12/12 通过；SDK 全量 3348 项：3328 通过、20 跳过，`host-storage-full.live` 一个文件在全量负载下失败、单跑 2/2 通过；类型检查无错。
 
-## 上一依赖：dispatch-denied
-
-**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-assistant.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
 
 ```bash
 git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
@@ -23,7 +20,23 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
+## 上一依赖：network-dispatch
+
+上一依赖为 `prologue-sdk-0.0.0-rc.1-network-dispatch.tgz`（2026-09-28，已并入上面的 assistant 包）。沿用 claims 的全部能力，新增可信 App 的 `beforeNetworkDispatch`，覆盖 Node Host 每次真实 fetch（包括 MCP 和重定向）；现有 `beforeModelDispatch` 仍只针对模型，两者同时提供时都执行。回调可拒绝当前请求，不能放宽 Host 网络政策。
+
+- 源仓库：<https://github.com/molis-ai/prologue>。源码基线为已提交的 `af7375c74a2e551184c443e2a5e06e105168fed3`；增量 [network-dispatch.patch](network-dispatch.patch) 包含其后已提交的 `03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2`（拒绝不算网络故障、不重试或切换模型）及本轮未提交的网络回调、MCP 取消收尾和真实 HTTP 回归。没有纳入其他 SDK 工作树的未提交功能。
+- MCP 在尚未真实派发时取消，按 Host inspect 的事实返回 `CANCELLED`，不发送多余取消通知；已派发或事实不可读仍保留需对账状态。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e`。
+- 重建：检出 `af7375c7`，应用 `network-dispatch.patch`，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`；在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz`。补丁已在干净 af7375c7 工作树检查可应用。
+- SDK 构建通过；网络授权、拒绝语义、MCP HTTP、有界推理 **32/32** 通过。518 个 dist 文件在构建、包和实际安装中逐文件一致。SDK 全量测试类型检查仍有 `agent-compaction-public.test.ts` 两处旧参数错误；干净 af7375c7 上同样复现，不能称为全量类型通过。
+- 应用侧把同一动作和父运行的持续授权按调用作用域传到该回调；取消信号通过 SDK 公开 ToolAbort 口进入传输。真实授权/撤权、取消、恢复与应用回归记录见 [main 复查报告](../../specs/action-architecture/review-2026-09-28.md)。
+
+源码补丁随本仓库保存，未另行提交到 Prologue 源仓库或发布 npm；旧包可从 Git 历史恢复。
+
+
+## 上一依赖：dispatch-denied
+
+上一依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
 
 - Node Host 的 `beforeModelDispatch` 是 App 的撤权复核（授权被收回、Character 被停用、密钥变了）。它拒绝时一个字节都没出本机，原来却被 agent loop 与 session run 两处 `mapNetworkError` 改成 `MODEL_NETWORK_FAILED`，消费方据此提示"检查网络"；带备选目标时还会换到下一个目标再被拒一次。
 - 现在：复核抛错（不是取消、不是等待超时）时这次调用记为 failed，报 `EFFECT_NOT_AUTHORIZED`，消息保留 App 给的原因（`The App refused this model dispatch before sending: <原因>`）；两处 `mapNetworkError` 原样传出这个码；被拒后不换备选目标。取消和超时保持原来的含义。图片、TypeSafe 那条路本来就原样抛出 Host 的错误，随之拿到新码。

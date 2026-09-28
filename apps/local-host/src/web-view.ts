@@ -1,14 +1,12 @@
 import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FeedApplication, FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
+import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import type { MolisWorkWebView, WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentLocale } from "./web-locale.js";
-import { createLocalFeedApplication } from "./feed-application.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
-import { createLocalFeedConnectorService } from "./feed-connector-service.js";
-import { scheduleServiceFor, scheduleViewFingerprint } from "./schedule-runtime.js";
-import { createScheduleActionPorts } from "@molis-ai/molis-work-plugin-schedule";
+import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
+import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 
 export interface WebViewOptions {
   databasePath: string; boardId: string; demo?: boolean; projectRoot?: string;
@@ -24,29 +22,19 @@ interface MolisWorkWebViewCacheEntry {
 
 export type MolisWorkWebViewCache = Map<string, MolisWorkWebViewCacheEntry>;
 
-function feedDirectorySnapshot(feed: FeedApplication, boardId: string): FeedSnapshot {
-  const snapshot = feed.snapshot(boardId);
-  const hideBodies = (item: FeedSnapshot["feed_items"][number]) => ({
-    ...item,
-    body: null,
-    materials: item.materials.map((material) => ({ ...material, content: undefined })),
-  });
-  // Current judgments are decorated through the authorized Inbox/Feed actions after the cached base is read.
-  return { ...snapshot,
-    inbox_entries: snapshot.inbox_entries.map(entry => ({ ...entry, next_judgment: null, suggested_behavior_ids: [] })),
-    feed_items: snapshot.feed_items.map(item => ({ ...hideBodies(item), suggested_behavior_ids: [] })),
-  };
+type PluginProjection = Pick<MolisWorkWebView, "feed" | "feed_source_catalog" | "feed_connector_auth" | "schedule_jobs" | "schedule_tasks">;
+const emptyFeed = (): FeedSnapshot => ({ sources: [], feed_items: [], inbox_entries: [], runs: [], contract_migrations: [], out_rules: [] });
+
+/** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
+export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {
+  try { return await actions.invoke(definition, input); }
+  catch (error) {
+    if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found", "actions.missing"].includes(error.code)) return undefined;
+    throw error;
+  }
 }
 
-function scheduleProjection(db: LocalProjectDatabase["db"]): Pick<MolisWorkWebView, "schedule_jobs" | "schedule_tasks"> {
-  const ports = createScheduleActionPorts({ db, schedule: scheduleServiceFor(db) });
-  return {
-    schedule_jobs: ports.listJobs(),
-    schedule_tasks: ports.listTasks(),
-  };
-}
-
-export function buildMolisWorkWebView(store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions): MolisWorkWebView {
+export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: GoalsDocumentCollectionView, options: WebViewOptions, projection: PluginProjection = { feed: emptyFeed() }): MolisWorkWebView {
   return {
     snapshot: options.project
       ? { ...collection.snapshot, board: { ...collection.snapshot.board, board_id: "" } }
@@ -57,10 +45,7 @@ export function buildMolisWorkWebView(store: LocalProjectDatabase, collection: G
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
     counts: collection.counts, coverage: collection.coverage, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
-    feed: feedDirectorySnapshot(createLocalFeedApplication(store.db), options.boardId),
-    feed_source_catalog: listFeedSourceCatalog(),
-    feed_connector_auth: createLocalFeedConnectorService(store.db, options.boardId).authStatus(),
-    ...scheduleProjection(store.db),
+    ...projection,
   };
 }
 
@@ -81,21 +66,23 @@ export async function cachedMolisWorkWebView(
     project: options.project ?? null,
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
-    schedule: scheduleViewFingerprint(store.db),
     home_directory: options.homeDirectory ?? "",
   });
   const cached = cache.get(options.databasePath);
-  if (
-    cached?.cursor === cursor &&
-    cached.optionsFingerprint === optionsFingerprint
-  ) return cached.view;
-  const view = buildMolisWorkWebView(store, collection, options);
-  cache.set(options.databasePath, {
-    cursor,
-    optionsFingerprint,
-    view,
-  });
-  return view;
+  const base = cached?.cursor === cursor && cached.optionsFingerprint === optionsFingerprint
+    ? cached.view : buildMolisWorkWebView(store, collection, options);
+  cache.set(options.databasePath, { cursor, optionsFingerprint, view: base });
+  // Plugin state does not share the Goals journal cursor. Never cache it behind that cursor,
+  // and always use each owner's current authority, even when the base page is a cache hit.
+  const [feed, inbox, schedule, connections] = await Promise.all([
+    optionalPluginQuery(actions, feedQueryActions.snapshot, {}),
+    optionalPluginQuery(actions, inboxActions.list, {}),
+    optionalPluginQuery(actions, scheduleActions.list, {}),
+    optionalPluginQuery(actions, feedQueryActions.connections, {}),
+  ]);
+  return { ...base, feed: { ...(feed ?? emptyFeed()), inbox_entries: [...(inbox?.entries ?? [])] },
+    feed_source_catalog: feed ? listFeedSourceCatalog() : [], feed_connector_auth: connections,
+    schedule_jobs: schedule?.jobs ?? [], schedule_tasks: schedule?.tasks ?? [] };
 }
 
 export async function withSelectedEventDocument(

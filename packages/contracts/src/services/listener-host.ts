@@ -65,6 +65,9 @@ export interface ListenerHostApi {
     operation_id: string;
     adapter: RawEventAdapter;
     intent?: Record<string, unknown>;
+    signal?: AbortSignal;
+    /** Recheck caller authority before persisting each asynchronous result. */
+    beforeEffect?(): Promise<void>;
   }): Promise<ListenerRunReceipt>;
 }
 

@@ -1,4 +1,4 @@
-import { feedRuleActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinAgents } from "./agent-definitions/builtin-agents.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
@@ -51,7 +51,6 @@ import type { SessionRuntimeResources } from "./web-session.js";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache } from "./web-view.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { createLocalFeedApplication } from "./feed-application.js";
-import { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
 import { createLocalFeedConnectorService } from "./feed-connector-service.js";
 import { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
 import { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
@@ -233,7 +232,7 @@ export async function handleMolisWorkWebRequest(
         const feed = createLocalFeedApplication(store.db, feedOptions);
         feed.recoverInterruptedSourceRuns(options.boardId);
         createLocalFeedConnectorService(store.db, options.boardId, undefined, serverOptions.homeDirectory, feedOptions).ensureSources();
-        const scheduler = createLocalFeedSourceScheduler(store.db, options.boardId, undefined, undefined, serverOptions.homeDirectory, feedOptions);
+        const scheduler = { tick: () => homeActions.invoke(feedSourceActions.tick, {}) };
         const schedule = scheduleServiceFor(store.db);
         bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
           agentHost,
@@ -252,7 +251,7 @@ export async function handleMolisWorkWebRequest(
       }
       const readWebView = async (): Promise<MolisWorkWebView> => {
         coordinator.goalDecisionAttention.reconcile(options.boardId);
-        let view = await cachedMolisWorkWebView(webViewCache, store, options, goalActions);
+        let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
         const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
         try {
           const [{ rules }, { recommendations }] = await Promise.all([feedActions.invoke(feedRuleActions.list, {}), feedActions.invoke(feedRuleActions.recommendations, {})]);
@@ -419,9 +418,7 @@ export async function handleMolisWorkWebRequest(
           renderer: workbenchRenderer,
           boardId: options.boardId,
           routePrefix: options.routePrefix,
-          databasePath: options.databasePath,
           store,
-          coordinator,
           readWebView,
           invalidateWebView: () => webViewCache.delete(options.databasePath),
           homeDirectory: serverOptions.homeDirectory,
@@ -442,11 +439,9 @@ export async function handleMolisWorkWebRequest(
             url,
             serverOptions,
             options.project.project_id,
-            coordinator,
-            options.boardId,
             ptyHost,
             webUrl,
-            goalActions,
+            homeActions,
           );
           if (handled) return;
         }

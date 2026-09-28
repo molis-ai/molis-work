@@ -14,8 +14,8 @@ export const PLUGIN_SKILL_ID = 'molis-plugin-dev';
 const MAX_BODY = 20_000;
 /** What each stage reads, in order. The UI quality bar is the section of ui.md every plugin shares. */
 const CHAPTERS: Record<'design' | 'code', Array<string | { file: string; section: string }>> = {
-  design: ['process.md', 'generated-design.md', { file: 'ui.md', section: '## 质量线（所有插件）' }, 'capabilities.md'],
-  code: ['generated-code.md', 'capabilities.md'],
+  design: ['process.md', 'generated-design.md', 'generated-ai.md', { file: 'ui.md', section: '## 质量线（所有插件）' }, 'capabilities.md'],
+  code: ['generated-code.md', 'generated-ai.md', 'capabilities.md'],
 };
 
 /** The Skill directory: in the repository and in an installed release, `skills/` sits beside the code. */

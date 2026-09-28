@@ -77,8 +77,8 @@ export function createLocalFeedScene(home: string, projectId: string, boardId: s
         scene_provenance: { binding_id: binding.binding_id, binding_revision: binding.revision!, function: binding.function, subject_revision: feedCaptureSubjectRevision(item) },
         outcome: result.status, suggested_behavior_ids: result.suggested_behavior_ids, error_code: result.error_code ?? null,
       }));
-      feed.recordCaptureJudgment(item, rule, judgment);
-      await feed.flushPendingInboxJudgments(caller);
+      const entryId = feed.recordCaptureJudgment(item, rule, judgment);
+      if (entryId) await feed.flushPendingInboxJudgments(caller, [entryId]);
       return judgment;
     },
   });

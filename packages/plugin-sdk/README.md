@@ -193,3 +193,22 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 验证：[home-action-scenes.test.ts](../../tests/home-action-scenes.test.ts) 使用正式安装插件的独立 SQLite 记录，检查实际判断历史、首页建议、读取权限、版本变化、来源替换及旧绑定迁移。
 
 判断编辑器的 Agent 用途直接读取当前授权目录中带 `agent` 或 `mcp` audience 的能力，无须声明旧 MCP 名称或增加作者白名单。能力引用同时包含 ID、版本和提供方；Choice/Noul 的可选结果映射保存该引用，调用返回 `recommended_actions`。调用者仍须根据业务输入合同构造参数，再通过共同服务单独调用。推荐不执行、不授权；发布和判断前后检查来源与授权，失效引用保留。旧连接凭据本身不代表可调用能力，只有正式注册动作才进入目录。
+
+`defineAction` 的处理器接收 `ActionExecutionContext`。等待模型、网络或其他异步工作后，写入前调用 `await context.beforeEffect()`，再验证原对象版本。该检查由 dispatcher 创建，不能由业务输入提供；它覆盖取消、注册替换、生命周期与实时授权。嵌套调用保留外层检查时使用合同层 `retainActionAuthority(context, originReference, context.beforeEffect)`。
+### 展示动作结果
+
+`action.result_view` 是可选的提供方声明；不改变原业务返回值或授权。`summary` 说明实际返回的业务事实，`title_pointer` / `text_pointer` 用 JSON Pointer 从该次原输出选取标量，不运行代码。可选 `link` 的 `href_template` 必须是站内绝对路径，`{project_id}` 来自原调用上下文，`{/item/id}` 等值来自原输出并逐个 URL 编码。不要把密钥、内部路径或大段调试数据选成默认摘要。
+
+```ts
+result_view: {
+  summary: "已保存笔记",
+  title_pointer: "/note/title",
+  text_pointer: "/note/excerpt",
+  link: {
+    label: "打开笔记",
+    href_template: "/projects/{project_id}/?openPlugin=notes&openItem={/note/id}&openTitle={/note/title}",
+  },
+}
+```
+
+工作流在成功返回后保存有界呈现和原结果；重开记录不会套用新版插件的声明。缺字段时省略对应正文或链接，无声明的旧记录只确认动作已返回，原数据可展开查看。声明不能将失败或仍在运行的工作声称为业务完成；例如启动任务的摘要应写“任务已启动”。对象页面仍负责当前读取权限、已删除对象和恢复。原生工作台插件可处理已有的 `molis-work:select-item` 事件打开准确对象，无需为每个结果增加 Host 分支。

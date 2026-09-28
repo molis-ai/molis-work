@@ -1,9 +1,11 @@
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
 import { createLocalFeedScene } from "./feed-scene.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedManifest, createFeedCaptureTrigger, createFeedContentHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import { ActionError, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { feedManifest, feedQueryActions, readLinkedFeedContext, feedItemContext, FeedStoreError, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
@@ -33,6 +35,26 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
   const scene = home && client && scenes ? createLocalFeedScene(home, runtime.project_id, runtime.board_id, feed, { actions: client, scenes, functions }) : undefined;
   const providers = [provider(feedManifest, [...createFeedContentHandlers(feed, runtime.board_id,
     hydrate, client ? async (subject, caller) => (await resolveActionSubject(client, caller, subject)).context : undefined),
+    ...createFeedQueryHandlers(feed, runtime.board_id, { hydrate,
+      authStatus: () => createLocalFeedConnectorService(runtime.store.db, runtime.board_id, undefined, home).authStatus(),
+      linkedContext: async (input, caller) => {
+        if (!client) throw new ActionError("actions.connection_required", "尚未接通 Goal 服务");
+        const nested = retainActionAuthority(caller, { ...feedQueryActions.linkedContext, provider_id: feedManifest.plugin_id });
+        const { goal } = await client.invoke(nested, goalsActions.contract, { goal_id: input.goal_id }) as import("@molis-ai/molis-work-plugin-goals").GoalContractView;
+        await caller.beforeEffect();
+        return readLinkedFeedContext({ project_id: runtime.board_id, goal_id: input.goal_id, item_id: input.item_id,
+          materializer: createContextMaterializer(createContextLedger(runtime.store.db, {
+            authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.board_id,
+          })),
+          readGoal: () => goal,
+          readItem: id => {
+            try { return feed.getItem(runtime.board_id, id); }
+            catch (error) { if (error instanceof FeedStoreError && error.code === "feed_item_not_found") return null; throw error; }
+          },
+          renderItem: item => feedItemContext(hydrate(item)),
+        });
+      },
+    }),
     ...createFeedRuleHandlers(feed, runtime.board_id, hydrate, scene?.selection),
     ...createFeedItemHandlers(feed, runtime.board_id, {
       inboxActive: itemId => feed.listInboxEntries(runtime.board_id).some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId

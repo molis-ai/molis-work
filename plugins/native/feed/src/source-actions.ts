@@ -1,5 +1,5 @@
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
-import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import type { FeedApplication } from "./application.js";
@@ -9,6 +9,7 @@ import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { sourceRegistrationInput } from "./route-input.js";
 import type { ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, UpdateFeedSourceInput } from "./source-ports.js";
 import type { FeedSourceService } from "./source-service.js";
+import { FeedSourceScheduler, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const text = { type: "string", maxLength: 2000 };
@@ -19,9 +20,9 @@ const SHARED: readonly ActionAudience[] = ["user", "agent", "mcp"];
 /** Disconnecting removes an account's credentials: only the person at this computer does that. */
 const LOCAL: readonly ActionAudience[] = ["user"];
 function define<Input, Output>(suffix: string, title: string, description: string, input: ActionSchema, output: ActionSchema,
-  audiences: readonly ActionAudience[] = SHARED, permissions: readonly string[] = ["feed:read", "feed:write"]): ActionDefinition<Input, Output> {
+  audiences: readonly ActionAudience[] = SHARED, permissions: readonly string[] = ["feed:read", "feed:write"], scheduling?: "concurrent"): ActionDefinition<Input, Output> {
   return { capability_id: `feed.sources.${suffix}`, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project",
-    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output } };
+    audiences, permissions, subject_kinds: ["source"], input_schema: input, output_schema: output, ...((scheduling ?? (suffix === "sync" ? "concurrent" : undefined)) ? { scheduling: scheduling ?? "concurrent" } : {}) } };
 }
 
 export type FeedSourceRegistration = Record<string, unknown> & { kind: string };
@@ -47,6 +48,8 @@ export const feedSourceActions = {
     closed({ source_id: id }, ["source_id"]), sourceResult, LOCAL),
   sync: define<{ source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, FeedSourceSyncResult>("sync", "立即拉取", "立即从来源拉取新消息，并按当前捕捉规则处理；同一幂等键重试不会重复拉取",
     closed({ source_id: id, idempotency_key: { type: "string", maxLength: 200 }, mode: { enum: ["normal", "rebuild_cursor"] } }, ["source_id"]), { type: "object" }),
+  tick: define<Record<string, never>, FeedSourceSchedulerResult>("tick", "执行到期拉取", "执行已启用来源的到期拉取计划，并更新下次拉取时间",
+    closed({}, []), closed({ due: { type: "integer" }, completed: { type: "integer" }, failed: { type: "integer" }, skipped: { type: "integer" } }, ["due", "completed", "failed", "skipped"]), LOCAL, ["feed:read", "feed:write"], "concurrent"),
 } as const;
 export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(feedSourceActions);
 
@@ -59,12 +62,30 @@ export interface FeedSourceActionPorts {
 
 const asActionError = (error: unknown) => error instanceof FeedStoreError || error instanceof FeedDomainError ? new ActionError(error.code, error.message) : error;
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
-  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionCallContext) => Output | Promise<Output>): ActionHandlerBinding => ({
+  // Retain the scheduler's existing overlap guard across tick invocations, without holding the project's command queue during network waits.
+  const scheduledSources = new Set<string>();
+  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     // Judgments a sync starts keep this call's authority, pinned to the Feed action that started them.
-    handle: async (caller, input) => { try { return await handle(input as Input, retainActionAuthority(caller, { ...definition, provider_id: FEED_PLUGIN_ID })); } catch (error) { throw asActionError(error); } },
+    handle: async (caller, input) => { try {
+      await caller.beforeEffect();
+      return await handle(input as Input, retainActionAuthority(caller, { ...definition, provider_id: FEED_PLUGIN_ID }, caller.beforeEffect));
+    } catch (error) { throw asActionError(error); } },
   });
   const a = feedSourceActions;
+  const sync = async (input: { source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, caller: ActionExecutionContext) => {
+    const current = ports.feed().getSource(board, input.source_id);
+    const idempotencyKey = input.idempotency_key ?? "";
+    if (current.sync_kind === "public_source") {
+      return await ports.sources(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect,
+        signal: AbortSignal.any([AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000), ...(caller.signal ? [caller.signal] : [])]) });
+    }
+    if (isAccountConnectorSyncKind(current.sync_kind)) {
+      return await ports.connectors(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect, signal: caller.signal,
+        mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" });
+    }
+    throw new FeedDomainError("这个来源没有同步能力", "feed_source_not_syncable");
+  };
   return [
     bind(a.register, (input, caller) => {
       const registration = sourceRegistrationInput(input);
@@ -90,16 +111,9 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       }
       return { source: ports.sources(caller).disconnect(input.source_id) };
     }),
-    bind(a.sync, async (input, caller) => {
-      const current = ports.feed().getSource(board, input.source_id);
-      const idempotencyKey = input.idempotency_key ?? "";
-      if (current.sync_kind === "public_source") {
-        return await ports.sources(caller).sync(input.source_id, { idempotencyKey, signal: AbortSignal.any([AbortSignal.timeout(current.kind === "research_library" ? 180_000 : 45_000), ...(caller.signal ? [caller.signal] : [])]) });
-      }
-      if (isAccountConnectorSyncKind(current.sync_kind)) {
-        return await ports.connectors(caller).sync(input.source_id, { idempotencyKey, mode: input.mode === "rebuild_cursor" ? "rebuild_cursor" : "normal" });
-      }
-      throw new FeedDomainError("这个来源没有同步能力", "feed_source_not_syncable");
-    }),
+    bind(a.sync, sync),
+    bind(a.tick, (_, caller) => new FeedSourceScheduler(board, () => ports.sources(caller),
+      (source, key, authority) => sync({ source_id: source.source_id, idempotency_key: key }, { ...caller, beforeEffect: authority.beforeEffect }), undefined, scheduledSources)
+      .tick(new Date(), caller)),
   ];
 }

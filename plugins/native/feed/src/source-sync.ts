@@ -2,7 +2,8 @@ import { fingerprintSearchIntentExactV1 } from "@adeptify/intelligence-client";
 import { FeedDomainError } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord, FeedSourceRunRecord } from "./projection.js";
-import type { FeedSourcePorts, FeedSourceSyncResult, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
+import type { FeedSourcePorts, FeedSourceSyncResult, FeedSourceSyncInput, PublicFeedRuntime, IntelligenceCollectResult } from "./source-ports.js";
+import { createFeedSourceSyncGuard } from "./source-sync-guard.js";
 import { buildExactRequest } from "./source-request.js";
 import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { safeErrorCode, interruptedMessage, rssFailureAction, sourceDedupeScope, cursorForMaterials, safeRssReceipt, terminalErrorCode } from "./source-sync-result.js";
@@ -11,7 +12,7 @@ export class PublicSourceSync {
   constructor(private readonly ports: FeedSourcePorts, private readonly boardId: string) { this.feed = ports.feed; }
   async sync(
     source: FeedSourceRecord,
-    input: { idempotencyKey: string; signal?: AbortSignal },
+    input: FeedSourceSyncInput,
   ): Promise<FeedSourceSyncResult> {
     const sourceId = source.source_id;
     if (source.sync_kind !== "public_source") {
@@ -21,6 +22,8 @@ export class PublicSourceSync {
       throw new FeedDomainError("来源已暂停，请先恢复", "feed_source_paused");
     }
     const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
+    const beforeEffect = createFeedSourceSyncGuard(this.feed, source, input);
+    await beforeEffect();
     const operationId = stableId("feed-operation", `${source.source_id}\u0000${idempotencyKey}`);
     const request = buildExactRequest(source, operationId, this.ports.providers);
     const planFingerprint = fingerprintSearchIntentExactV1(request);
@@ -68,18 +71,16 @@ export class PublicSourceSync {
         request,
         input.signal ? { signal: input.signal } : undefined,
       );
+      await beforeEffect();
       return await this.commitPublicResult(source, running, result, runtime);
     } catch (error) {
+      await beforeEffect();
       const current = this.feed.getSourceRunByOperationId(this.boardId, operationId);
-      if (current?.phase === "terminal") {
-        return {
-          source: this.feed.getSource(this.boardId, sourceId),
-          run: current,
-          created: 0,
-          deduped: 0,
-          replayed: true,
-        };
-      }
+      // The pull may have committed before a downstream judgment was cancelled.
+      // Preserve the refusal; an explicit retry can replay the durable pull.
+      if (current?.phase === "terminal") throw error;
+      await input.beforeEffect?.();
+      input.signal?.throwIfAborted();
       const updatedAt = new Date().toISOString();
       const errorCode = safeErrorCode(error);
       const interrupted: FeedSourceRunRecord = {

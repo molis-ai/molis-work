@@ -1,3 +1,4 @@
+import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
 import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
@@ -42,8 +43,6 @@ import { EXPERIMENTS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-expe
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleLocalMcpSettingsHttp } from "./web-mcp-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
@@ -262,7 +261,7 @@ export async function handleLocalCatalogWebRequest(
   const pluginSettingsSlug = url.pathname.match(/^\/settings\/([^/]+)$/)?.[1];
   const pluginSettings = pluginSettingsSlug ? findPluginSettingsNavItem(pluginSettingsSlug) : null;
   if (request.method === "GET" && pluginSettings && serverOptions.homeDirectory) {
-    let plugin_settings_html = renderCatalogPluginSettings(pluginSettings.contribution_id, serverOptions.homeDirectory);
+    let plugin_settings_html = await renderCatalogPluginSettings(pluginSettings.contribution_id, localHost);
     if (!plugin_settings_html && pluginSettings.contribution_id !== CODING_SETTINGS_UI_CONTRIBUTION_ID) {
       sendJson(response, 404, { error: L("页面不存在") });
       return;
@@ -380,14 +379,14 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll('"', "&quot;");
 }
 
-function renderCatalogPluginSettings(contributionId: string, homeDirectory: string): string | null {
+async function renderCatalogPluginSettings(contributionId: string, host: MolisWorkLocalHost): Promise<string | null> {
   const primitives = { escape: escapeSettingsHtml, text: L };
   if (contributionId === SHELF_SETTINGS_UI_CONTRIBUTION_ID) {
-    const shelfStore = openShelfStore(homeDirectory, shelfRuntimeProbe());
+    const snapshot = await bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })).invoke(shelfActions.snapshot, {});
     return renderPluginSettingsContribution(contributionId, {
-      settings: shelfStore.settings(),
-      runtime: shelfStore.runtime(),
-      storage_path: shelfStore.root,
+      settings: snapshot.settings,
+      runtime: snapshot.runtime,
+      storage_path: snapshot.root,
       primitives,
     });
   }

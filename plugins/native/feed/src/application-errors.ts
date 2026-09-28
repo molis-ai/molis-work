@@ -49,7 +49,7 @@ export function toFeedPublicError(error: unknown): FeedPublicError {
   const message = typeof value.message === "string" && value.message
     ? value.message.slice(0, 400)
     : "信息流操作失败";
-  if (code.includes("needs_auth") || code.includes("credential")) {
+  if (code === "feed_source_connection_changed" || code.includes("needs_auth") || code.includes("credential")) {
     return { code, category: "auth", retryable: false, user_action: "reconnect", safe_message: message };
   }
   if (code.includes("stale")) {
@@ -67,7 +67,7 @@ export function toFeedPublicError(error: unknown): FeedPublicError {
   if (code.includes("interrupted")) {
     return { code, category: "interrupted", retryable: true, user_action: "retry", safe_message: message };
   }
-  if (code.includes("conflict")) {
+  if (code.includes("conflict") || code === "feed_source_changed") {
     return { code, category: "conflict", retryable: false, user_action: "refresh", safe_message: message };
   }
   if (code.includes("not_found")) {

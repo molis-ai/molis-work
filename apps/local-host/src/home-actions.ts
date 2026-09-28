@@ -4,7 +4,7 @@ import { homeEventActions, createHomeEventHandlers } from "./home-event-actions.
 import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
-import { ActionError, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
+import { ActionError, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
   type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOME_DOCK_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
@@ -42,7 +42,8 @@ export const homeDockScene: ActionSceneDefinition = {
 };
 const define = <I, O>(id: string, title: string, operation: "query" | "command", input: Record<string, unknown>, output: Record<string, unknown>, permissions: string[], requiredScene?: { scene_id: string; version: number }): ActionDefinition<I, O> => ({
   capability_id: id, version: 1, operation, action: { title, description: title, kind: operation === "query" ? "query" : "operation",
-    scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), subject_kinds: [], input_schema: input, output_schema: output },
+    scope: "project", audiences: ["user", "agent", "workflow", "mcp"], permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), subject_kinds: [], input_schema: input, output_schema: output,
+    ...(id === "home.judgment.evaluate" ? { scheduling: "concurrent" as const } : {}) },
 });
 export const homeActions = {
   ...homeEventActions,
@@ -176,7 +177,7 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
     failed: (caller, _input, error, execution) => record(caller, execution.state as HomeSubjectState, execution.binding,
       { status: "needs_review", suggested_behavior_ids: [], error_code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "actions.judgment_failed" }),
   };
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>): ActionHandlerBinding => ({
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     ...definition, handle: (caller, input) => handle(input as I, caller),
   });
   return { provider: { provider_id: "system.home", title: "首页", kind: "system", project_id: projectId },
@@ -208,7 +209,8 @@ export function homeActionProvider(home: string, projectId: string, boardId: str
         const subjects = [...new Map(input.subjects.map(subject => [JSON.stringify([subject.kind, subject.id]), subject])).values()];
         for (const subject of subjects) { await assertSubjectFits(subject, caller); await resolve(subject, caller); }
         const judgments: JudgmentRecord[] = [];
-        for (const subject of subjects) judgments.push(await services.scenes.runScene(caller, homeDockScene, homeDockBindingId(projectId), subject) as JudgmentRecord);
+        const authority = retainActionAuthority(caller, { ...homeActions.evaluate, provider_id: "system.home" }, caller.beforeEffect);
+        for (const subject of subjects) judgments.push(await services.scenes.runScene(authority, homeDockScene, homeDockBindingId(projectId), subject) as JudgmentRecord);
         return { judgments };
       }),
       bind(homeActions.recommendations, async (_input, caller) => {

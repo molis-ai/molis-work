@@ -1,17 +1,16 @@
+import { feedQueryActions } from "./query-actions.js";
 import { integerRevision, requireParam } from "./route-input.js";
 import type { FeedPluginRouteHandler } from "./routes.js";
 import type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 import { feedItemActions } from "./item-actions.js";
 
 export function createFeedItemRouteHandlers(options: FeedRouteHandlerPorts): Record<string, FeedPluginRouteHandler> {
-  const feed = () => options.feed();
   const changed = () => options.changed();
   return {
     "feed.item.detail": async ({ params, request }) => {
       const itemId = requireParam(params.item_id, "Feed Item 不存在");
-      const store = feed();
-      const item = await options.hydrateItem(store.getFeedItem(options.boardId, itemId));
-      const inboxActive = store.listInboxEntries(options.boardId).some((entry) =>
+      const item = await options.hydrateItem((await options.actions.invoke(feedQueryActions.item, { item_id: itemId })).item);
+      const inboxActive = (await options.inboxEntries()).some((entry) =>
         entry.subject_type === "feed_item"
         && entry.subject_id === itemId
         && (entry.status === "open" || entry.status === "in_progress"),

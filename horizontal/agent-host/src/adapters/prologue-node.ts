@@ -143,7 +143,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const host = createNodeHost({
     ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot }),
     resolveHost: resolveModelHostname,
-    beforeModelDispatch: async () => { await dispatchGuards.getStore()?.(); },
+    beforeNetworkDispatch: async () => { await dispatchGuards.getStore()?.(); },
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
@@ -168,6 +168,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
 
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
+    withDispatchGuard: (guard, operation) => {
+      const inherited = dispatchGuards.getStore();
+      return dispatchGuards.run(async () => { await inherited?.(); await guard(); }, operation);
+    },
     resolveConnection: options.resolveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),

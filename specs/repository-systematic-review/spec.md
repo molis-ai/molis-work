@@ -51,7 +51,7 @@
 | W4 | 模块边界与代码归属（Host 平铺、Coding 路由、越界读取） | 完成（F-18、F-19） |
 | W5 | AI 能力与 Prologue 专项（入口清单、共享/下沉判断） | 完成（F-04；F-15 在 SDK 补丁线修复，新包 `dispatch-denied`） |
 | W6 | 前端质感与动线（真实界面） | 完成：基线浏览器失败涉及的动线逐一在隔离预览实操（1440/1024/756/601/390，含深色截图用例）；修 F-26～F-34 |
-| W7 | 清理：死代码、旧入口、旧文档、旧 spec、vendor | 进行中（F-12、F-13、F-20 完成；F-14 部分；F-17 待用户） |
+| W7 | 清理：死代码、旧入口、旧文档、旧 spec、vendor | 进行中（F-12、F-13、F-20、F-17 完成；F-14 部分） |
 | W8 | 测试与预期对齐、CI 门禁恢复 | 完成（基线失败逐项对齐；F-08 合同子集进 CI） |
 | W9 | Prologue AI 开发手册、Prologue AI Skill、插件开发 Skill 更新与走查 | 完成 |
 | W9b | 用户 2026-09-27 补充：每个模块都有开发手册、开发规范与要求（落在各包 README 的「开发要求」一节：负责与不负责、公开入口、允许依赖、不变量、改动后必跑测试、相关手册/Skill；事实部分从代码提取，不变量逐包手写），并由门禁守住存在与链接有效 | 完成：69 个 README 都有这一节；写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`；门禁 `scripts/package-dev-requirements.mjs` 挂在 `pnpm boundary:check`（依赖与 package.json 双向一致、测试与链接存在），自身有允许/拒绝用例 |
@@ -110,11 +110,11 @@
 | F-14 | S4 | `specs/` 根目录约 184 份规格，README 只列 15 份在做，其余多已完成未归档 | 状态行扫描 | 归档规则只执行过一次 | 归档了开头写明已完成的两份。复核（2026-09-28）：根目录仍有 183 份；15 份在 `specs/README.md` 列为在做；开头写完成的另 2 份 README 注明仍有缺口，按规则保留；其余约 165 份没有状态句，按 README 规则须逐份对照代码才能归档，本轮未做（建议各线负责人按目录认领） | 部分完成，余下待办 |
 | F-15 | S3 | Prologue SDK 把「派发前授权被拒」（Character 停用、授权收回、密钥变了）归为 `MODEL_NETWORK_FAILED`：Coding 失败卡片说「连不上模型服务，检查网络或代理」，文字生成说「模型请求失败或超时」，图片说「无法连接厂商…请检查网络」；带备选模型时还会换目标再被拒一次 | `agent-action-tools-prologue` 用例；SDK 新用例修复前拿到 `MODEL_NETWORK_FAILED` | SDK 的 `beforeModelDispatch` 抛错没有专门的码，agent loop 与 session run 的 `mapNetworkError` 把一切未知错误改成网络失败；推理适配层再把它换成通用文案 | 用户 2026-09-28 要求修。SDK（molis-ai/prologue `fix/molis-dispatch-denied` 03c6ba0b，基于 claims 源码 af7375c7）：复核拒绝报 `EFFECT_NOT_AUTHORIZED` 并保留原因、不换备选，取消与超时不变；新包 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`。消费方：推理适配层把复核自己抛的错误原样交回（`isDispatchRefusal`），文字生成说「…；没有发给模型，材料已保留」，图片报 `images.not_sent`，Coding 失败卡片新增「这一轮的授权已失效」；手册、Skill、agent-host 开发要求同步 | 已完成 |
 | F-16 | S3 | Images 并发与 Alchemist 多宿主两个用例模拟「同一 Home 多个执行进程」，而生产中 stdio MCP 转发给常驻 Web 宿主 | 两用例在 main 上失败；9-27 迁移记录已指出 | 9-26 统一走 Prologue 后同 Home 只有一个执行进程 | 按生产转发拓扑重写：单一常驻宿主、项目范围授予、生产 MCP 启动器；第二个宿主断言 `inference.home_in_use` | 已完成 |
-| F-17 | S4 | `vendor/prologue-sdk` 39 个 tgz（35MB，含 F-15 新包）只 1 个在用；不进发布包，只增加仓库体积 | 锁文件与发布资产测试 | 旧包按约定保留以便回退 | 用户同意 D-03 并在 09-28 再次委托后，删除操作两次被本机自动模式的安全检查拒绝，未删除；需用户亲自执行或放行。已核对全部本地与远端分支：未合入的分支里只有 `feature/personal-work-assistant` 自己改过引用（`compaction-growth.tgz`），另 3 个 09-20～22 的旧分支引用 `prologue-sdk-0.0.0-rc.1.tgz` 但与合并基点相同，合并 main 时直接取新包；可删的是除 `dispatch-denied` 与 `compaction-growth` 外的 37 个（进行中的 `feature/personal-work-assistant` 仍依赖 `compaction-growth.tgz`，应保留） | 待用户 |
+| F-17 | S4 | `vendor/prologue-sdk` 历史 tgz 增加仓库体积 | 锁文件与发布资产测试 | 旧包曾按约定保留 | 用户授权后已由 PR #93 合并清理；目录保留当前 `dispatch-denied` 与在途分支使用的 `compaction-growth` 两份，旧包从 Git 历史恢复 | 已完成（2026-09-28 复核 main c2028d20） |
 | F-18 | S3 | `apps/local-host/src` 约 250 个平铺文件 | 目录 | — | 判断：多为组合适配与 Node IO，按名称前缀已自然分区；整体搬迁只改路径不改职责，且会打断数百处测试引用、与并行工作冲突。不搬，在 `docs/platform/LOCAL-HOST.md` 写清分区与放置规则 | 已完成 |
 | F-19 | S3 | Coding `routes.ts` 是约 1400 行的单个闭包：委派信件视图转换、预算存储、子代理分组、后台唤醒循环与路由表混在一起 | 代码 | 各期功能叠加 | 委派信件视图拆到 `delegation-view.ts`，等待/唤醒的判断与文本拆到 `waits.ts`（纯函数、有单测），路由只留注入会话查找与存储的薄包装，−80 行；后台唤醒循环依赖起跑流程，仍留在路由 | 已完成 |
 | F-21 | S2 | 在处理器里等模型或外部服务的动作没有声明并发，等待期间占住整个项目（或 Home）的串行队列：一次 Alchemist 对话、Pages 生成/写作助手、灵光对话、Inbox 整理成文稿、外部 MCP 工具调用都会让同项目其他所有操作排队（可达数分钟）；Form/Dataset/Jelly/Workflows 已声明，同类行为不一致 | 改写后的 Alchemist 多调用者用例两个对话互相等待；宿主为此打「已占用项目操作队列 N 秒」日志 | 串行是默认，只有部分插件记得声明 | 上述动作声明 `scheduling: "concurrent"`（逐个核对：都在返回后按快照/CAS 提交，或本地不写状态）；新增门禁 `tests/action-model-scheduling.test.ts`：目录中所有声明 `model:invoke` 的动作必须并发，例外逐条写理由；灵光用例验证等模型时同项目读写照常完成（修复前失败） | 已完成 |
-| F-22 | S3 | Feed 立即拉取（最长 45–180 秒）、Feed 规则评估、首页/Inbox 判断评估仍在队列内等外部服务 | 目录导出 | 这些写入与用户同时处置同一条目时靠队列排序；Feed 同一来源不同幂等键的两次拉取没有逐来源租约 | 需先改为逐来源租约与按版本提交再放出队列；门禁里列为有理由的例外 | 待开始 |
+| F-22 | S3 | Feed 拉取、规则评估、首页/Inbox 判断等待外部服务时占住项目队列 | 动作与提交调用链 | 缺少逐来源独占及完整异步提交检查 | 后续修复加入按数据库/项目/来源隔离的租约、来源配置复查、Listener 提交检查和外层执行授权传播；判断沿用绑定/对象版本检查，隔离并发入箱事件归属，再声明并发；见 [C12](../archive/architecture-followup/spec.md) | 已修复并验证（2026-09-28，独立分支待合入） |
 | F-20 | S4 | `docs/` 根目录的 2026-09-22 两份审计交接（C01–C10、UI #1–#8）仍像待办 | 逐项核对代码 | — | 全部已修（B01 仍开，规范已注明）；加状态说明后移到 `docs/archive/handoffs` | 已完成 |
 | F-23 | S3 | Workbench 按插件 id 分支把 Agent 提示词正文配给 Coding、创作台、Schedule；新插件声明了提示词却没有正文时不报错，Agent 以空角色启动 | `plugin-catalog.ts` 的三元分支 | 正文与声明分在两处，靠名单连接 | 正文随目录条目的 `agent` 声明；新增 `builtin-plugin-agent-texts` 门禁（提示词、压缩提示词、方法都要有正文；突变验证能抓到缺失） | 已完成 |
 | F-24 | S3 | 动作 `effect` 按 id 推断：`delete_preview`（只存确认凭证）、`goals.trash.set`（可恢复）、`relation.reset`、`sample.remove` 被当成不可撤销 | 目录导出 | 名字推断没有覆盖这些语义 | `withActionEffect` 显式声明为写，并保持原本不进生成插件（`plugin: false`） | 已完成 |
@@ -186,11 +186,11 @@
 | --- | --- | --- | --- | --- |
 | D-01 | 动作结果校验失败时内核怎么处理（F-03） | A. 保持致命：合同必须按「已存历史」写，靠 `tests/action-read-compatibility.test.ts` 用历史样本守住。B. 读动作结果不合规时降级为返回原值并记录诊断：页面不再整页打不开，但调用方拿到不合合同的数据。C. 只对写动作放宽（副作用已提交，报错会诱发重试）。 | A + 探测门禁；写动作结果不合规时报「已执行，但结果不符合合同」专用错误码，避免调用方以为失败而重试 | 用户决定；本线实现 |
 | D-02 | `PRODUCT.md` 仍只描述 V1 Goal 真相源，未覆盖插件平台、动作服务、Coding 等（F-13 相关） | A. 用户按现在的产品重写产品承诺。B. 本线起草「当前产品范围」一节供审阅。 | B：起草后由用户改定。09-28 用户委托定稿：去掉草案标记；原文 5 处出入按代码现状改写（Web 对插件是必经界面、无左侧栏、「不是 Agent 调度器」写明 Schedule 与 Coding 委派的边界、品牌方向补 craft-finish、证据补平台层来源） | 已完成 |
-| D-03 | `vendor/prologue-sdk` 38 个不再使用的 tgz（约 34MB，F-17；F-15 换包后 claims 也不再使用） | A. 删除，回退时从 git 历史取。B. 保留（现约定）。C. 移到 git LFS 或独立仓库。 | A：发布包本就排除，删除只减仓库体积，回退路径仍在 | 用户 |
+| D-03 | 删除不再使用的 SDK tgz（F-17） | 保留当前主线与在途分支仍使用的两份；回退从 Git 历史取 | 已由 PR #93 合并执行 | 已完成 |
 | D-04 | 端口默认连线按插件名写死（F-11） | A. Manifest 输入端口声明 `default_source`（首选的来源端口角色）。B. 按类型唯一匹配自动连线，歧义时要求用户在连线页选择（需要先做连线页）。C. 维持名单，只服务 Coding 家族。 | 短期 C 并写进插件开发 Skill 的限制；有第三方端口插件时做 A | 用户 |
 | D-05 | CI 恢复哪些测试（F-08） | A. macOS runner 跑全量非浏览器（约 22 分钟，费用高）。B. ubuntu 跑一组稳定的契约与动作测试（本线挑选并在本机验证）。C. 维持现状。 | B，并在 PR 模板要求本机全量对比记录 | 用户（需推送验证） |
 
-2026-09-28 用户确认全部按建议执行。结果：D-01 已实现（内核 + 读取探测门禁）；D-02 已起草 `PRODUCT.md`「当前产品范围」，待用户改定；D-03 的删除被本机自动模式安全检查拒绝，已撤回，需用户亲自执行或放行；D-04 按 C 写进 Skill；D-05 已加 CI 子集与 PR 模板，ubuntu 首跑要推送后才能确认。另：用户提到的“ultracode 模式”不存在；可选的是用户自己触发的 `/code-review ultra`（云端多 Agent 审查，计费），本线按建议在本会话内继续。
+2026-09-28 用户确认全部按建议执行。最新复核：D-01 已实现；D-02 已由 PR #92 定稿合并；D-03 已由 PR #93 清理合并，此前本机拒绝删除不再是当前阻塞；D-04 按 C 保留短期限制；D-05 已加 CI 子集与 PR 模板，远端 Ubuntu 结果仍须单独核对。
 
 ## 10. 验证记录
 

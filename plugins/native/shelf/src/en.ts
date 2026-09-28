@@ -1,5 +1,6 @@
 /** Shelf application copy; Workbench supplies the request locale. */
 export const SHELF_EN: Record<string, string> = {
+  "这份材料已不在 Shelf 中，请从列表选择其他材料。": "This material is no longer in Shelf. Choose another from the list.",
   "下载文件": "Download file",
   "新建动作": "New action",
   "无法添加材料": "Could not add material",

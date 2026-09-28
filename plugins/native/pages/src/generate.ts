@@ -11,10 +11,13 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
   const request = withStore(store => store.beginGeneration(record));
   if (request.status === "completed" && request.document_id) return { document: withStore(store => store.get(request.document_id!, record.project_id)), replayed: true };
   const fail = async (error: unknown): Promise<never> => {
-    // Failure bookkeeping is also an effect. If authority is gone, leave the original running
-    // record for the existing owner recovery path rather than letting this stale call alter it.
-    await beforeEffect?.();
-    withStore(store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
+    // A cancelled call releases its own running attempt so the person can retry at once instead of
+    // being told for minutes that it is still generating; failGeneration only matches this attempt's
+    // updated_at, so a record another call has taken over is untouched. Any other failure bookkeeping
+    // is an effect: if authority is gone, leave the running record for the owner recovery path.
+    const cancelled = signal?.aborted === true;
+    if (!cancelled) await beforeEffect?.();
+    withStore(store => store.failGeneration(request, cancelled ? "已取消生成，材料已保留，可重试" : error instanceof Error ? error.message : "生成失败"));
     throw error;
   };
   let body: PagesBody;

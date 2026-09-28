@@ -518,6 +518,9 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 2px; font-weight: 500; }
   ${ASSIST} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
   ${ASSIST} .assistant-fields dt { color: var(--muted); }
+  ${ASSIST} .assistant-diff { margin: 0; max-height: 280px; overflow: auto; padding: 6px 8px; border-radius: 6px; background: var(--wash); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-diff .is-added { color: var(--hue-green-fill); }
+  ${ASSIST} .assistant-diff .is-removed { color: var(--danger); }
   ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
   ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--wash); }
   ${ASSIST} .assistant-problem p { margin: 0; }
@@ -552,6 +555,15 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-target-clear svg { width: 11px; height: 11px; }
   /* What goes with this Send, and ways to begin: small popovers rising from the composer. */
+  ${ASSIST} .assistant-executor { display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  ${ASSIST} .assistant-executor[hidden] { display: none; }
+  ${ASSIST} .assistant-executor svg { width: 11px; height: 11px; color: var(--muted); }
+  ${ASSIST} .assistant-executor:hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  ${ASSIST} .assistant-executor:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-work-executor { flex: none; height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--nav-hover); color: var(--ink-soft); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
+  ${ASSIST} .assistant-work-executor[hidden] { display: none; }
+  ${ASSIST} .assistant-work-executor:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .assistant-starter[aria-current] { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) {
     display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;

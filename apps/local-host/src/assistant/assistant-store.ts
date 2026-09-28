@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import type { AssistantContextSnapshot, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantContextSnapshot, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 export const ASSISTANT_STORE_NAME = "assistant";
@@ -82,10 +82,11 @@ export class AssistantStore {
     db.exec(SCHEMA);
   }
 
-  create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference }): StoredWork {
+  create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor }): StoredWork {
     const at = this.now().toISOString();
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
+      executor: input.executor ?? { kind: "assistant" },
       session_id: null, draft: "", created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
       ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}) };
     this.db.prepare("INSERT INTO assistant_works(work_id,actor_id,revision,updated_at,archived,body) VALUES (?,?,?,?,0,?)")
@@ -96,16 +97,18 @@ export class AssistantStore {
   get(actorId: string, workId: string): StoredWork {
     const row = this.db.prepare("SELECT body FROM assistant_works WHERE work_id=? AND actor_id=?").get(workId, actorId);
     if (!row) throw new AssistantStoreError("assistant.not_found", "找不到这项工作，可能已被删除");
-    return JSON.parse(String(row.body)) as StoredWork;
+    const work = JSON.parse(String(row.body)) as StoredWork;
+    return work.executor ? work : { ...work, executor: { kind: "assistant" } };
   }
 
   list(actorId: string, options: { archived?: boolean; limit?: number } = {}): StoredWork[] {
     return this.db.prepare("SELECT body FROM assistant_works WHERE actor_id=? AND archived=? ORDER BY updated_at DESC LIMIT ?")
-      .all(actorId, options.archived ? 1 : 0, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork);
+      .all(actorId, options.archived ? 1 : 0, options.limit ?? 50).map(row => JSON.parse(String(row.body)) as StoredWork)
+      .map(work => work.executor ? work : { ...work, executor: { kind: "assistant" as const } });
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };

@@ -71,6 +71,30 @@ export interface AssistantSurfaceContext {
   starters?: Array<{ label: string; prompt: string }>;
 }
 
+/**
+ * Both directions of "the other entry changed this", as window events on the same page:
+ * - the Assistant raises `ASSISTANT_EFFECT_EVENT` after it changed something through a plugin's capability, so the
+ *   plugin's surface re-reads that object (keeping the person's unsaved edits);
+ * - a surface raises `ASSISTANT_SURFACE_CHANGED_EVENT` after the person changed an object the Assistant may be showing,
+ *   e.g. a Coding session's mode or a new round from Coding's own input, so the Assistant re-reads its work.
+ * Neither carries the change itself; each side reads its owner again.
+ */
+export const ASSISTANT_EFFECT_EVENT = "molis:assistant-effect";
+export const ASSISTANT_SURFACE_CHANGED_EVENT = "molis:assistant-surface-changed";
+
+export interface AssistantEffectDetail {
+  work_id: string;
+  /** The capability it ran, e.g. `pages.docs.update`; surfaces match on their own prefix. */
+  capability_id: string;
+  /** For work carried by a plugin's own session. */
+  session_id?: string | null;
+}
+
+export interface AssistantSurfaceChangedDetail {
+  plugin_id: string;
+  object: AssistantObjectRef;
+}
+
 /** An object a surface shows, by its owner's identity and version. */
 export interface AssistantObjectRef {
   kind: string;
@@ -110,8 +134,19 @@ export interface AssistantMaterial {
   draft?: boolean;
 }
 
+/**
+ * Who carries a work. The Assistant itself, or a plugin's own Agent: then the work is that plugin's session, driven
+ * through the plugin's own actions, and its professional page shows the same session.
+ */
+export type AssistantExecutor =
+  | { kind: "assistant" }
+  | { kind: "coding"; title: string; session_id: string | null;
+      /** The session's own next-round mode, shared with the Coding page: discuss, plan, edit, execute, review… */
+      mode?: string };
+
 export interface AssistantWork {
   work_id: string;
+  executor: AssistantExecutor;
   revision: number;
   title: string;
   scope: AssistantScope;
@@ -132,7 +167,10 @@ export interface AssistantWork {
 /** One thing the round did, in the person's terms: looked something up, read, changed, asked. Never the raw tool log. */
 export interface AssistantActivity {
   call_id: string;
-  /** `lookup` | `read` | `change` | `ask` | `todo`, or another tool's own name. */
+  /**
+   * `lookup` | `read` | `change` (business capabilities) | `ask` | `todo`; for a professional Agent's own tools
+   * `file-read` | `file-list` | `file-search` | `file-change` | `command` | `command-output`; otherwise the tool's own name.
+   */
   verb: string;
   /** What it acted on: the capability's provider and title, or the words it searched for. */
   target: string;
@@ -140,7 +178,7 @@ export interface AssistantActivity {
   /** For a read or change: the capability it used, so the surface that owns that data can refresh. */
   capability_id?: string;
   /** Why it did not happen, when that is known: not authorized, declined by the person. */
-  reason?: "not-authorized" | "declined";
+  reason?: "not-authorized" | "declined" | "interrupted";
   /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */
   detail?: string;
   sequence?: number;
@@ -192,6 +230,8 @@ export interface AssistantCard {
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
 export interface AssistantPendingReview {
   review_id: string;
+  /** What is held: a business change, a file edit, a command, an MCP call… The fields read accordingly. */
+  kind: string;
   run_id: string | null;
   summary: string;
   fields: Array<{ label: string; value: string }>;
@@ -223,6 +263,10 @@ export interface AssistantRecovery {
 export interface AssistantSendInput {
   /** Omitted starts a new work. */
   work_id?: string;
+  /** For a new work: who carries it. An existing work keeps its executor. */
+  executor?: "assistant" | "coding";
+  /** For a new work carried by Coding: the mode of its first round. Later rounds use the session's own setting. */
+  mode?: string;
   /** Required for a new work; ignored for an existing one, whose scope never changes. */
   scope?: AssistantScope;
   text: string;

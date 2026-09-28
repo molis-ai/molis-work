@@ -1,5 +1,5 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentPendingQuestion, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -13,6 +13,7 @@ import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredR
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { randomUUID } from "node:crypto";
+import { CodingExecutor, CodingUnavailable, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -38,6 +39,8 @@ export interface AssistantServicePorts {
   projectTitle?(projectId: string): Promise<string | null>;
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */
   timeZone?: string;
+  /** The person's own actions in a work's project, for driving a plugin's Agent (Coding) as its page would. */
+  personActions?(work: StoredWork): Promise<PersonActions>;
 }
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
@@ -154,22 +157,58 @@ export function cardView(card: StoredCard): AssistantCard {
     ...(card.outcome ? { outcome: card.outcome } : {}), created_at: card.created_at, updated_at: card.updated_at };
 }
 
+/** The changed middle of a text, as - and + lines: what an approval of this edit actually lets happen. */
+function changedLines(before: string | null, after: string): string {
+  const a = (before ?? "").split("\n"), b = after.split("\n");
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) head++;
+  let tail = 0;
+  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++;
+  const removed = a.slice(head, a.length - tail).map(line => `- ${line}`), added = b.slice(head, b.length - tail).map(line => `+ ${line}`);
+  const lines = [...(head ? [`@@ 第 ${head + 1} 行起`] : []), ...removed, ...added];
+  const text = lines.join("\n");
+  return text.length > 6000 ? `${text.slice(0, 6000)}\n…（其余改动见 Coding 页面）` : text || "（内容没有变化）";
+}
+
+/** A held effect in the person's words, by what it is: a business change, a file edit, a command, an MCP call, a rewind. */
+function describeReview(document: AgentReviewRequest["document"]): { summary: string; fields: Array<{ label: string; value: string }> } {
+  switch (document.kind) {
+    case "tool-operation": return { summary: document.summary, fields: document.fields.map(field => ({ label: field.label, value: field.value })) };
+    case "text-edit": return { summary: `${document.exists ? "修改文件" : "新建文件"} ${document.target_path}`,
+      fields: [{ label: "改动", value: changedLines(document.before_text, document.after_text) }, ...(document.concurrent?.length ? [{ label: "注意", value: `另有会话正在改这个文件：${document.concurrent.join("、")}` }] : [])] };
+    case "command": return { summary: document.background ? "在后台运行命令" : "运行命令",
+      fields: [{ label: "命令", value: [document.command, ...document.args].join(" ") }, { label: "目录", value: document.cwd || "." }, ...(document.escalate ? [{ label: "注意", value: "需要更高权限" }] : [])] };
+    case "mcp": return { summary: `MCP · ${document.server} · ${document.tool}`, fields: [{ label: "参数", value: document.arguments_json }] };
+    case "rewind": return { summary: "回退到检查点", fields: document.files.map(file => ({ label: { restore: "恢复", delete: "删除", create: "新建" }[file.change], value: file.path })) };
+    default: return { summary: "需要你确认的操作", fields: [{ label: "内容", value: JSON.stringify(document, null, 2).slice(0, 4000) }] };
+  }
+}
+
 /** Titles of the capabilities a scope offered at its latest round start, to name them in the activity. */
 type CapabilityTitles = Map<string, { title: string; provider: string }>;
 
 /** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
-export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined): AssistantActivity[] {
-  const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "ask-user": "ask", "update-todo": "todo" };
+/** The modes a Coding round can run in, as Coding's own page offers them. */
+const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"];
+
+export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined, ended = false): AssistantActivity[] {
+  const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "ask-user": "ask", "update-todo": "todo",
+    // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
+    "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
+    "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools" };
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining") return [];
     const verb = verbs[item.name] ?? item.name;
     const named = titles?.get(item.target);
     const target = (verb === "read" || verb === "change") && named ? `${named.provider} · ${named.title}` : item.target;
     const reason = item.state !== "failed" ? undefined : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
+      : /TOOL_INTERRUPTED/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
       : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;
+    // A round that is over has nothing still going on: a step it never closed is one whose outcome nobody recorded.
+    const state = ended && item.state === "started" ? "unknown" as const : item.state;
     const detail = item.state === "failed" && item.output ? item.output.replace(/\s+/g, " ").trim().slice(0, 300) : "";
     const capability = (verb === "read" || verb === "change") && item.target ? { capability_id: item.target } : {};
-    return [{ call_id: item.call_id, verb, target, state: item.state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
+    return [{ call_id: item.call_id, verb, target, state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
   });
 }
 
@@ -194,6 +233,7 @@ export class AssistantService {
 
   async read(workId: string): Promise<AssistantWorkView> {
     const work = await this.named(this.store.get(this.actorId, workId));
+    if (work.executor.kind === "coding") return this.codingRead(work);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const stored = this.store.rounds(work.work_id);
@@ -228,12 +268,13 @@ export class AssistantService {
     const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
     const materials = checkMaterials(input.materials);
     const context = checkContext(input.context);
+    if (input.mode !== undefined && (input.work_id || input.executor !== "coding" || !CODING_MODES.includes(input.mode))) throw new AssistantError("assistant.invalid", "只有新的 Coding 工作可以在这里选择第一轮的方式");
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
     let work: StoredWork | undefined;
     try {
-      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller);
-      const result = await this.dispatch(work, text, materials, context);
+      work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
@@ -251,6 +292,13 @@ export class AssistantService {
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (!["pause", "resume", "stop"].includes(control?.kind)) throw new AssistantError("assistant.invalid", "不支持的操作");
+    if (work.executor.kind === "coding") {
+      const coding = await this.coding(work);
+      const latest = work.executor.session_id ? (await coding.read(work.executor.session_id, 1)).runs.at(-1) : undefined;
+      if (!latest || isTerminalAgentPhase(latest.phase)) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
+      await coding.control(work.executor.session_id!, latest.ref.run_id, { kind: control.kind });
+      return this.read(workId);
+    }
     const host = await this.ports.host();
     const latest = await this.latestRun(host, work);
     if (!latest || isTerminalAgentPhase(latest.phase)) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
@@ -263,6 +311,15 @@ export class AssistantService {
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
     answers?: ReadonlyArray<{ question: number; indexes: readonly number[]; other?: string }> }): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
+    if (work.executor.kind === "coding") {
+      const coding = await this.coding(work);
+      const run = work.executor.session_id ? (await coding.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
+      const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
+      if (!run || !question || run.phase !== "awaiting-input") throw new AssistantError("assistant.stale", "这个问题已经结束或被替换，回答没有发送");
+      await coding.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: input.pending_revision ?? question.pending_revision ?? 1,
+        ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
+      return this.read(workId);
+    }
     if (!this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw new AssistantError("assistant.scope", "这个问题不属于这项工作");
     const host = await this.ports.host();
     const run = await host.adapter(RUNTIME).read({ session_id: work.session_id!, run_id: input.run_id });
@@ -280,9 +337,51 @@ export class AssistantService {
     const work = this.store.get(this.actorId, workId);
     const host = await this.ports.host();
     const review = host.reviews.get(String(input.review_id));
-    if (!review || review.run?.session_id !== work.session_id || review.board_id !== ownerOf(work)) throw new AssistantError("assistant.scope", "这项确认不属于这项工作");
+    // A Coding work's confirmations are Coding's own, in the same queue its page decides from.
+    const session = work.executor.kind === "coding" && work.executor.session_id
+      ? (await (await this.coding(work)).read(work.executor.session_id, 1)).session.runtime_session_id ?? null : work.session_id;
+    if (!review || review.run?.session_id !== session || review.board_id !== ownerOf(work)) throw new AssistantError("assistant.scope", "这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw new AssistantError("assistant.invalid", "请选择允许或拒绝");
     await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) });
+    return this.read(workId);
+  }
+
+  /** A Coding work, read from Coding's session: the same rounds, questions and confirmations its page shows. */
+  private async codingRead(work: StoredWork): Promise<AssistantWorkView> {
+    const executor = work.executor as Extract<StoredWork["executor"], { kind: "coding" }>;
+    if (!executor.session_id) return { work: this.publicWork(work, "idle"), rounds: [], reviews: [], cards: [] };
+    let read: CodingSessionRead;
+    try { read = await (await this.coding(work)).read(executor.session_id, 6); }
+    catch (error) { return { work: this.publicWork(work, "needs-check"), rounds: [], reviews: [], cards: [], problem: { message: `Coding 会话暂时读不到：${error instanceof Error ? error.message : String(error)}` } }; }
+    const stored = new Map(this.store.rounds(work.work_id).map(round => [round.run_id, round]));
+    const rounds: AssistantRound[] = read.runs.map(run => {
+      const own = stored.get(run.ref.run_id);
+      const first = run.turns.find(turn => turn.kind === "user")?.text ?? "";
+      return this.roundView(own ?? { run_id: run.ref.run_id, text: first, materials: [], context: null, started_at: run.started_at }, run, undefined);
+    });
+    const latest = read.runs.at(-1);
+    const state = stateOf(latest?.phase, Boolean(read.recovery_required));
+    const host = await this.ports.host();
+    const runtimeSession = read.session.runtime_session_id ?? null;
+    const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
+    const reviews = runtimeSession ? this.reviewsFor(host, { ...work, session_id: runtimeSession }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
+    const shown: StoredWork = { ...work, executor: { ...executor, ...(read.configuration?.intent ? { mode: read.configuration.intent } : {}) } };
+    return { work: this.publicWork(shown, state), rounds, reviews, cards: [],
+      ...(read.recovery_required ? { problem: { message: read.error ?? "Coding 会话有需要核对的中断操作", action: "打开 Coding 核对" } } : {}) };
+  }
+
+  /** A Coding work's next-round mode, kept on Coding's session so both entries agree. */
+  async setExecutorMode(workId: string, mode: string): Promise<AssistantWorkView> {
+    const work = this.store.get(this.actorId, workId);
+    if (work.executor.kind !== "coding") throw new AssistantError("assistant.invalid", "这项工作不由专业 Agent 执行");
+    if (!CODING_MODES.includes(mode)) throw new AssistantError("assistant.invalid", "不认识的方式");
+    const coding = await this.coding(work);
+    let sessionId = work.executor.session_id;
+    if (!sessionId) {
+      sessionId = await coding.createSession(work.title);
+      this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
+    }
+    await coding.setMode(sessionId, mode);
     return this.read(workId);
   }
 
@@ -409,17 +508,56 @@ export class AssistantService {
     return this.publicWork(work, await this.stateSafely(work));
   }
 
-  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller): Promise<StoredWork> {
+  private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,
+    executor: AssistantSendInput["executor"]): Promise<StoredWork> {
     const wanted: AssistantScope = scope ?? (caller.project_ref ? { kind: "project", project_id: caller.project_ref.project_id } : { kind: "personal" });
+    if (executor === "coding" && wanted.kind !== "project") throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作；个人工作请交给助理");
+    if (executor !== undefined && executor !== "assistant" && executor !== "coding") throw new AssistantError("assistant.invalid", "不认识的执行者");
     if (wanted.kind === "project" && wanted.project_id !== caller.project_ref?.project_id) {
       throw new AssistantError("assistant.scope", "只能在当前打开的项目里为它新建工作；个人工作不需要项目");
     }
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
     return this.store.create({ actor_id: this.actorId, title: titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}),
+      ...(executor === "coding" ? { executor: { kind: "coding" as const, title: "Coding Agent", session_id: null } } : {}),
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
-  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): Promise<AssistantSendResult> {
+  private async coding(work: StoredWork): Promise<CodingExecutor> {
+    if (!this.ports.personActions) throw new AssistantError("assistant.unsupported", "当前环境不能从这里使用 Coding Agent");
+    return new CodingExecutor(await this.ports.personActions(work));
+  }
+
+  /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
+  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string): Promise<AssistantSendResult> {
+    const coding = await this.coding(work);
+    let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
+    if (!sessionId) {
+      sessionId = await coding.createSession(work.title);
+      work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
+      // The mode chosen before the first Send is saved on the session, where the Coding page reads it too.
+      if (mode) await coding.setMode(sessionId, mode);
+    }
+    const read = await coding.read(sessionId, 2);
+    if (read.recovery_required) throw new AssistantError("assistant.needs_check", read.error ?? "Coding 会话有需要核对的中断操作", undefined, "打开 Coding 核对");
+    const latest = read.runs.at(-1);
+    if (latest && !isTerminalAgentPhase(latest.phase)) {
+      const question = this.freeTextQuestion(latest.awaiting_input);
+      if (latest.phase === "awaiting-input" && question && !materials.length) {
+        await coding.control(sessionId, latest.ref.run_id, { kind: "answer", pending_id: question.pending_id, pending_revision: question.pending_revision ?? 1, text });
+        return this.result(work, "answered", latest.ref.run_id);
+      }
+      await coding.control(sessionId, latest.ref.run_id, { kind: "steer", text: this.steerText(text, materials, context) });
+      return this.result(work, "steered", latest.ref.run_id);
+    }
+    await coding.start(sessionId, this.steerText(text, materials, context), read);
+    const after = await coding.read(sessionId, 1);
+    const run = after.runs.at(-1);
+    if (run) this.store.addRound(work.work_id, { run_id: run.ref.run_id, text, materials, context, started_at: this.now().toISOString() });
+    return this.result(work, "started", run?.ref.run_id ?? "");
+  }
+
+  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string): Promise<AssistantSendResult> {
+    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const authority = await this.ports.authority(work);
@@ -533,6 +671,11 @@ export class AssistantService {
   }
 
   private async stateFor(host: AgentHost, work: StoredWork): Promise<AssistantWorkState> {
+    if (work.executor.kind === "coding") {
+      if (!work.executor.session_id) return "idle";
+      try { const read = await (await this.coding(work)).read(work.executor.session_id, 1); return stateOf(read.runs.at(-1)?.phase, Boolean(read.recovery_required)); }
+      catch { return "needs-check"; }
+    }
     if (!work.session_id) return "idle";
     const adapter = host.adapter(RUNTIME);
     try {
@@ -551,16 +694,16 @@ export class AssistantService {
 
   private reviewsFor(host: AgentHost, work: StoredWork): AssistantPendingReview[] {
     return host.reviews.list(ownerOf(work), "pending").filter(review => review.run?.session_id === work.session_id).map(review => {
-      const document = review.document as { summary?: string; fields?: Array<{ label: string; value: string }> };
-      return { review_id: review.review_id, run_id: review.run?.run_id ?? null, summary: document.summary ?? "需要你确认的操作",
-        fields: (document.fields ?? []).map(field => ({ label: field.label, value: field.value })), requested_at: review.requested_at, expires_at: review.expires_at };
+      const readable = describeReview(review.document);
+      return { review_id: review.review_id, kind: review.document.kind, run_id: review.run?.run_id ?? null, summary: readable.summary, fields: readable.fields,
+        requested_at: review.requested_at, expires_at: review.expires_at };
     });
   }
 
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at,
       materials: round.materials.map(({ text: _text, ...rest }) => rest),
-      phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: presentActivity(view?.activity ?? [], titles), awaiting_input: view?.awaiting_input ?? [],
+      phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: view.stop_reason } : {}), ended_at: view?.ended_at ?? null };
   }
 
@@ -572,6 +715,7 @@ export class AssistantService {
   /** A runtime failure in words the person can act on; codes stay for the surface. */
   private explain(error: unknown): AssistantError {
     if (error instanceof AssistantStoreError) return new AssistantError(error.code, error.message);
+    if (error instanceof CodingUnavailable) return new AssistantError("assistant.coding_unavailable", error.message, undefined, error.action);
     const code = (error as { code?: string })?.code ?? "";
     const message = error instanceof Error ? error.message : String(error);
     if (code === "agent.model_not_configured" || /没有配置可用的模型/.test(message)) return new AssistantError("assistant.model_missing", "还没有配置可用的模型，助理无法开始工作", undefined, "打开模型设置");

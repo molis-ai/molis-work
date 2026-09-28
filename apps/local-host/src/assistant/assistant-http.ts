@@ -4,6 +4,8 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
+import { localWebActionContext } from "../local-web-actions.js";
+import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
@@ -33,6 +35,16 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work) }),
     projectTitle: ports.projectTitle,
+    // The person's own actions in the work's project, as the page there would use them.
+    personActions: async work => {
+      const reference = work.project_ref;
+      if (!reference) throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作");
+      const client = ports.localHost.actionClient(reference);
+      return {
+        discover: async () => client.discover(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS)),
+        invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS), action, input),
+      };
+    },
   }, WEB_ACTOR);
   const entry = { home: ports.homeDirectory, service, store };
   services.set(ports.localHost, entry);
@@ -81,6 +93,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 3 && parts[2] === "rename") return { status: 200, body: { work: await service.rename(workId, Number(body.revision), String(body.title ?? "")) } };
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values as Record<string, string> | undefined }) };
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.dismissCard(workId, parts[3]!) };
+      if (parts.length === 3 && parts[2] === "mode") return { status: 200, body: await service.setExecutorMode(workId, String(body.mode ?? "")) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
       if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };

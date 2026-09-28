@@ -1,6 +1,6 @@
 import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
-import { builtinAgents } from "./agent-definitions/builtin-agents.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
@@ -110,7 +110,7 @@ export async function handleMolisWorkWebRequest(
   }
   // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
   if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
-    && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinAgents))) return;
+    && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
   if (resolved.kind === "catalog_index") {
     // Personal work needs no project: the Assistant answers on the project list too, in the person's own scope.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {

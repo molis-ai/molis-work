@@ -767,7 +767,11 @@ const CRAFT_BASE_STYLES = `
   .prompt-group-title { margin: 0 0 8px; font-size: 14px; }
   .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
   .prompt-roles { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-  .prompt-role { display: inline-flex; flex-direction: column; padding: 5px 9px; border-radius: 7px; box-shadow: 0 0 0 1px var(--line); font-size: 12px; }
+  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 5px 9px; border: 0; border-radius: 7px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  .prompt-role:hover { background: var(--hover); }
+  .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
+  .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
+  .prompt-role-focus p { margin: 2px 0 0; color: var(--muted); }
   .prompt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .prompt-row { padding: 8px 10px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
   .prompt-row-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }

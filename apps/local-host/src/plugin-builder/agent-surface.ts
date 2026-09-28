@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -11,7 +13,7 @@ import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime'
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
 import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, builderManifest, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
@@ -135,6 +137,17 @@ function storageFor(options: AgentStudioOptions): PluginPrivateStorage {
   const context = { install_id: 'agent-studio:' + options.boardId, plugin_id: BUILDER_PLUGIN_ID, version: builderManifest.version, deployment: 'local' as const,
     grants: ['storage:private'], board_id: options.boardId, requireGrant() {} };
   return new SqlitePluginPrivateStorage(options.store.db).forPlugin(context, builderManifest);
+}
+
+/**
+ * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
+ * (`designer/3.2.0+user.2` for their second edit), so every run's record says so.
+ */
+export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
+  return (name, shipped) => {
+    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
+    return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
+  };
 }
 
 async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
@@ -366,6 +379,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       }),
       validateContract: contract => assertContract(contract),
       skill: stage => builderSkill(stage),
+      prompt: builderPrompts(home),
       async prepareBuild(previous, design, manifest) {
         const directory = join(studio.root, 'builds', previous.id, design.contract.revision);
         await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });

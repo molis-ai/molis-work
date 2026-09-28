@@ -9,7 +9,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
-import { builtinAgents } from "./agent-definitions/builtin-agents.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 
 const owners = new WeakMap<MolisWorkLocalHost, { withCatalog?: LocalWebCatalogRunner; home: string; release?: () => void }>();
 type WorkspacePorts = Pick<AgentHostCompositionOptions, "workspacesFor"> & Partial<Pick<AgentHostCompositionOptions, "workspaceFor">>;
@@ -30,7 +30,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     const connectors = createAgentConnectorPorts(storageHome);
     const service = composeAgentHost({
       localHost, homeDirectory: storageHome,
-      prompts: agentDefinitionsFor(storageHome, builtinAgents),
+      prompts: agentDefinitionsFor(storageHome, builtinRegistrations),
       authorizeWriterDirectory: async (projectId, canonicalPath) => {
         if (!owner.withCatalog) throw new Error("项目目录授权服务尚未装配");
         await owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.addWorkspaceProject({ canonical_path: canonicalPath, project_id: projectId, actor_id: "web-user", user_confirmed: true }));

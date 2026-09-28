@@ -1,3 +1,5 @@
+import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { PAGES_WRITING_ASSISTANT } from "./prompts.js";
 export const PAGES_AI_COMMANDS = [
   { id: "translate", label: "翻译" },
   { id: "rewrite", label: "改写", styles: ["concise", "expand", "formal", "casual"] as const },
@@ -54,7 +56,7 @@ export function isPagesAiStyle(value: string | undefined): value is PagesAiStyle
 
 export async function runPagesAi(
   request: PagesAiRequest,
-  completeText?: (prompt: string) => Promise<string>,
+  completeText?: (prompt: InstructedPrompt) => Promise<string>,
 ): Promise<PagesAiResult> {
   if (!isPagesAiCommand(request.command)) {
     throw Object.assign(new Error("不认识这个写作命令"), { code: "pages.invalid" });
@@ -63,13 +65,7 @@ export async function runPagesAi(
   if (!text) throw Object.assign(new Error("没有可处理的文字"), { code: "pages.invalid" });
   const label = pagesAiCommandLabel(request.command, request.style);
   if (completeText) {
-    const prompt = [
-      `你是文档写作助手。命令：${label}。`,
-      "只输出写回正文，不要前言。行动项输出每行一项，不要编号。",
-      "",
-      text,
-    ].join("\n");
-    const output = (await completeText(prompt)).trim();
+    const output = (await completeText(instructed(PAGES_WRITING_ASSISTANT, `命令：${label}\n\n${text}`))).trim();
     if (!output) throw Object.assign(new Error("模型没有返回文字"), { code: "pages.invalid" });
     return { text: output, stub: false, command: request.command, style: request.style };
   }

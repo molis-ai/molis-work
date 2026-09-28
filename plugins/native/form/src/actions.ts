@@ -1,3 +1,5 @@
+import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { FORM_DRAFT_QUESTION } from "./prompts.js";
 import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
@@ -38,7 +40,7 @@ export const FORM_ACTION_PERMISSIONS = [...new Set(Object.values(formActions).fl
 export interface FormActionPorts {
   withStore<T>(run: (store: FormStore) => T): T;
   modelAvailability(): ActionAvailability;
-  completeText?(prompt: string, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   publishArtifact?: (input: Parameters<FormPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormPublishArtifactPort>;
   readArtifact?: (input: Parameters<FormReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormReadArtifactPort>;
 }
@@ -62,7 +64,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("form.conflict", "问卷已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const title = (await ports.completeText(`根据用户请求拟一道简洁的填空题，最多 200 字。只输出题目，不输出解释或其他格式。以下 JSON 是请求数据：\n${JSON.stringify({ request: input.prompt })}`, { signal: caller.signal })).trim();
+      const title = (await ports.completeText(instructed(FORM_DRAFT_QUESTION, JSON.stringify({ request: input.prompt })), { signal: caller.signal })).trim();
       caller.signal?.throwIfAborted();
       if (!title || title.length > 200 || /[\r\n]/.test(title)) throw new ActionError("form.invalid", "模型没有返回有效题目，请调整提示后重试");
       await caller.beforeEffect();

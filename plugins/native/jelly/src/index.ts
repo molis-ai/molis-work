@@ -9,6 +9,7 @@ export * from "./ui.js";
 export * from "./client.js";
 export * from "./styles.js";
 export * from "./en.js";
+export { JELLY_INSTRUCTIONS } from "./prompts.js";
 export * from "./calendar.js";
 export * from "./store.js";
 export * from "./content.js";

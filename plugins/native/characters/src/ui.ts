@@ -14,6 +14,11 @@ export function renderCharacters(model: CharactersUiModel): string {
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="characters" data-work-surface-label="Characters" hidden data-characters data-expanded="false" data-character-api="${model.primitives.escape(model.route_prefix)}/api/plugins/io.molis.work.characters">
     <div class="plugin-stage-list"><header class="plugin-stage-chrome"><button class="mw-btn mw-btn--ghost tree-create" type="button" data-character-new>${icon("plus")}<span>新建角色</span></button><button class="mw-btn mw-btn--ghost" type="button" data-character-import-open>${icon("upload")}<span>从本机导入</span></button></header>
       <p class="characters-hint">个人角色库 · 编辑后可发布到当前项目</p><div data-character-list></div><div class="mw-empty" data-character-empty hidden><span class="mw-empty__mark">${icon("user")}</span><strong>还没有角色</strong><p>添加一种做事方式，Coding 会按任务挑选合适的角色。</p></div>
+      <section class="characters-builtin" aria-labelledby="characters-builtin-title" data-character-builtin data-character-builtin-api="/api/agent-definitions/roles" data-character-builtin-settings="/settings/prompts">
+        <h2 id="characters-builtin-title">系统与插件带来的角色</h2>
+        <p class="characters-hint">打开后可修改组成它的文字，从它的下一轮执行开始生效，可恢复默认；能做什么仍由系统决定。</p>
+        <div data-character-builtin-list><p class="characters-hint">正在读取…</p></div>
+      </section>
     </div>
     <div class="plugin-stage-workspace" data-character-workspace hidden>
       <header class="plugin-stage-detail-bar"><button class="mw-btn mw-btn--ghost mw-btn--icon-only plugin-stage-back" type="button" data-character-back aria-label="返回角色列表">${icon("chevron-right")}</button><h1 data-character-heading>角色</h1><span data-character-status></span></header>

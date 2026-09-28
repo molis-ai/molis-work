@@ -60,7 +60,7 @@
 | P10 | 撤权、超时、重启、升级、后台与定时、预算 | AC21、AC22、AC24–AC26 | 未开始 |
 | P11 | 体验完整性：首次使用、缺配置、键盘/输入法/读屏、窄窗口、明暗主题 | AC27 | 未开始 |
 | P12 | Prologue 能力矩阵：实际版本全部公开能力逐项归类、接入状态与证据 | AC28 | 未开始 |
-| P13 | Host 统一 Agent 定义登记（系统/插件/用户的 Prompt、角色/Character、Skill；插件生命周期；用户覆盖层；开跑冻结版本）＋开发流程检查（未登记即失败、诊断）＋ Character 与 Prompt 设置：系统/用户/插件 Character 全部可见可改；新增 Prompt 设置模块（系统与插件 Prompt 可见可改）；用户覆盖层、恢复默认、升级差异、执行记录可查实际版本（用户 2026-09-28 补充） | AC42–AC45 | 未开始 |
+| P13 | Host 统一 Agent 定义登记（系统/插件/用户的 Prompt、角色/Character、Skill；插件生命周期；用户覆盖层；开跑冻结版本）＋开发流程检查（未登记即失败、诊断）＋ Character 与 Prompt 设置：系统/用户/插件 Character 全部可见可改；新增 Prompt 设置模块（系统与插件 Prompt 可见可改）；用户覆盖层、恢复默认、升级差异、执行记录可查实际版本（用户 2026-09-28 补充） | AC42–AC45 | 进行中（登记、设置、直接调用迁移与系统/插件 Character 已完成并实测；差开发者诊断与插件生命周期登记，见第 7 节） |
 | P14 | 连续工作（U18）：工作与对象的关系记入 Context Ledger；对象上下文读取覆盖官方插件；用户手动修改经版本比较被感知；“正在看”与“当前工作”分开；助手工作交给 Coding 再回来；从归属方恢复；插件开发手册 | AC46–AC51 | 进行中（AC46、AC47、AC49、AC50、AC51 已真实走通；其余官方插件接入与多窗口等见 6.4） |
 
 ## 4. 已知缺口与待用户决定
@@ -214,4 +214,27 @@
 3. 直接调用迁移：插件声明指令 Prompt，调用改为“登记引用 + 数据”，逐个迁移上面列出的调用。
 4. 开发流程：自动检查（未登记的 Prompt、绕开登记的模型调用即失败，过渡清单写明原因）、开发者诊断（每个插件登记了什么、哪些未生效）、手册与 Skill。
 
-**进度**：见下方随实现更新。
+**进度**（随实现更新）
+
+- 分片 1（9884a60b）：登记服务 `apps/local-host/src/agent-definitions/`，Home 级 SQLite 覆盖层、历史与使用记录；Agent Host 开跑时经 `AgentPromptResolver` 取有效正文，冻结记录带 `user_revision`。真实验证：在设置里改个人助理 Prompt 后 MiniMax 按新正文回答，使用记录显示用户版，恢复默认后回到默认版。
+- 分片 2（74794668）：设置“Prompt 与 Character”（`/settings/prompts`），按来源分组，可编辑、恢复默认、看历史与最近使用的版本。
+- 分片 3（本次）：直接调用模型的地方改为“登记的指令 + 数据”。
+  - 契约 `platform/model-prompts`：`defineInstructionPrompt` 声明指令，`instructed(指令, 数据)` 组成一次调用；插件的模型端口类型改为 `InstructedPrompt`／`ModelPromptInput`，不再收裸字符串。
+  - 已迁移：Pages（写作助手、材料生成）、Jelly（分段摘要、合并、拆解）、Form（拟题）、Dataset（拟列名）、灵光（对话）、Workflows（AI 交接）、Cognia（回答；知识助手角色 Prompt 也登记为可改）、项目上手（笔记、提案）、信息助手的规划。Host 适配器统一经 `resolveModelPrompt(home, prompt, caller)` 取登记正文（用户改过就用用户版）并记使用。
+  - 插件创作台：真正运行的是 `BUILDER_PROMPTS`（主线设计师、实现、修改、修复、验收），现在按 `builder-<名>` 登记，工作流经新端口 `AgentBuilderPorts.prompt` 取有效正文；用户改过时版本写成 `<默认版本>+user.<修订号>`，每次运行的记录能看出用的是哪一版。清单里原本那套 manifest Prompt（`builder-base/design/behavior`）没有任何地方启动，已从登记里去掉，免得设置里出现改了也不生效的条目。
+  - 自动检查 `tests/prompt-registration.test.ts`：凡是 `defineInstructionPrompt` 定义的指令都必须已登记；插件的 `completeText` 端口不得接收裸字符串；Host 模块调用模型必须经登记（过渡清单写明原因，清单里的文件不再直接调用模型时测试也会失败，逼着清单只减不增）；插件创作台登记的是实际运行的五段 Prompt。
+  - 过渡清单（仍直接发送文字）：`host-complete-text.ts`（传输层本身）、`alchemist-prologue.ts`（Alchemist 的 systemPrompt 由插件内工作室按任务拼出，单列迁移）。
+  - 不需要迁移的：首页建议的 `PERSONAL_ASSISTANT_AGENT` 定义了但产品里没有任何地方启动它（`createPersonalAssistantPrologue` 无调用方），不产生模型调用；TypeSafe 走原生评估接口，没有 Prompt；图片的描述正文来自用户；插件创作台的零件选择经 Functions 的 choice 原语，指令是工作流当次给出的数据。
+  - 手册与 Skill：`docs/platform/PLUGIN-DEVELOPMENT.md` 新增“调用模型：登记的指令”，`skills/molis-prologue-ai/SKILL.md` 第 4 步与验证清单写明 `defineInstructionPrompt`／`instructed`／`resolveModelPrompt` 与门禁。
+  - 契约另加 `modelPromptText(prompt)`：未经登记时一段 Prompt 实际发出的文字，供模型替身和没有 Home 的调用方使用（测试里的替身都改用它读 Prompt）。
+- 分片 2 的 Character 部分（本次）：
+  - 插件创作台的两个 Agent 也登记为角色：主线设计师（只读，`builder-designer`）、代码 Agent（可改文件，按任务用实现/修改/修复/验收其中一段）。登记版本按 `designer/3.2.0` → 30200 换算，默认升级时会标“默认已更新”。
+  - Characters 页（用户角色库）下方列出“系统与插件带来的角色”：名称、来源（系统或插件名与版本）、能做什么、是否含你的修改；点开进入“Prompt 与 Character”的该角色视图（`?role=`），只显示组成它的 Prompt，并展开它自己的角色层 Prompt。编辑、恢复默认、历史与最近使用都在同一处，不另存一份。
+  - 设置页每个插件下的角色可点，切到该角色视图；“显示全部”回到全部。
+  - 坑：宿主给插件页面补项目前缀的正则会匹配任何以 `href="` 结尾的属性（包括 `data-…-href`），系统级链接的 data 属性不要以 href 结尾。
+- 真实验证（MiniMax-M3，隔离 Home，2026-09-28）：
+  1. Characters 页列出 14 个系统与插件角色（个人助理、Schedule、Coding 10 个、插件创作台 2 个），点“代码 Agent”进入只含其 4 段 Prompt 的视图。
+  2. 在设置里给“主线设计师”追加“每个候选的 title 都以「暖·」开头”，保存为我的版本；在插件创作台提需求，运行记录版本为 `designer/3.2.0+user.1+molis-plugin-dev.design@…`，登记里最近使用为“你的版本 #1”；回答澄清问题后三个候选标题都是「暖·…」。
+  3. 恢复默认后再建一个，运行记录版本回到 `designer/3.2.0+…`（无 user），候选标题不再带「暖·」。
+- 自动化：`tests/prompt-registration.test.ts`（5 项）、`tests/agent-built-plugins-workflow.test.ts` 新增“设计师用用户版、记录版本、恢复默认后回到默认”；受影响的 78 个测试文件 615 项中 9 项是测试替身按字符串读 Prompt，改用 `modelPromptText` 后全部通过；根 `tsc --noEmit` 通过。
+- 未完成：开发者诊断（每个插件登记了什么、哪些没生效）；安装与生成的插件随生命周期登记（AC43）；Alchemist 的 systemPrompt 迁移。

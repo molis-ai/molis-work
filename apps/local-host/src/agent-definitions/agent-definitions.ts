@@ -1,13 +1,16 @@
 import path from "node:path";
-import type { DatabaseSync } from "node:sqlite";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
   type AgentPromptView, type AgentRoleRegistration, type AgentRoleView,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+
+/** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
+type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 export const AGENT_DEFINITIONS_STORE = "agent-definitions";
 const USES_KEPT = 200;
@@ -231,13 +234,26 @@ export interface BuiltinAgent { owner_id: string; source: AgentDefinitionSource;
 const registries = new Map<string, AgentDefinitions>();
 
 /** One register per Home, opened once, with the system's and built-in Plugins' definitions registered. */
-export function agentDefinitionsFor(homeDirectory: string, builtins: () => readonly BuiltinAgent[]): AgentDefinitions {
+export function agentDefinitionsFor(homeDirectory: string, registrations: () => readonly AgentDefinitionRegistration[]): AgentDefinitions {
   const home = path.resolve(homeDirectory);
   let registry = registries.get(home);
   if (!registry) {
     registry = new AgentDefinitions(openHomeSqliteDatabase(home, AGENT_DEFINITIONS_STORE));
     registries.set(home, registry);
+    for (const registration of registrations()) registry.register(registration);
   }
-  for (const agent of builtins()) registry.register(agentRegistration(agent.owner_id, agent.source, agent.manifest, agent.prompts));
   return registry;
+}
+
+/** Instruction prompts as registrations, grouped under their owners and merged into any Agent registration of the same owner. */
+export function withInstructions(registrations: readonly AgentDefinitionRegistration[], instructions: readonly InstructionPrompt[],
+  sourceOf: (ownerId: string) => AgentDefinitionSource): AgentDefinitionRegistration[] {
+  const merged = new Map(registrations.map(registration => [registration.owner_id, structuredClone(registration)]));
+  for (const instruction of instructions) {
+    const owner = merged.get(instruction.owner_id) ?? { owner_id: instruction.owner_id, source: sourceOf(instruction.owner_id), prompts: [], roles: [] };
+    owner.prompts.push({ prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
+      used_by: [...instruction.used_by], body: instruction.body });
+    merged.set(instruction.owner_id, owner);
+  }
+  return [...merged.values()];
 }

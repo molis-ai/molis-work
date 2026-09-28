@@ -12,6 +12,7 @@ export { PAGES_UI_CONTRIBUTION_ID, pagesUiContribution, pagesUiDescriptor, rende
 export type { PagesUiModel, PagesUiPrimitives, PagesUiSurface } from "./ui.js";
 export { PAGES_STYLES } from "./styles.js";
 export { PAGES_EN } from "./en.js";
+export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PAGES_NATIVE_PLUGIN_ROUTES, PagesPluginRouteTable } from "./routes.js";
 export type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRouteResponse } from "./routes.js";

@@ -28,6 +28,9 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
   const body = root.querySelector("[data-prompt-body]");
   const search = root.querySelector("[data-prompt-search]");
   let prompts = [], roles = [], filter = "all", open = null;
+  // A Character is made of its prompts: “?role=” (from the Characters page) shows just the ones that make it up.
+  let focusRole = new URLSearchParams(location.search).get("role");
+  const focusedRole = () => focusRole ? roles.find((role) => role.key === focusRole) : undefined;
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
   const api = async (path, method, payload) => {
     const response = await fetch("/api/agent-definitions" + path, method === "POST" ? { method, headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload || {}) } : undefined);
@@ -41,6 +44,8 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
   const EXECUTION = { "read-only": "只读", "text-edit": "可改文字", "workspace-write": "可改文件、运行命令", operate: "可调用业务能力" };
   const sourceTitle = (source) => source.kind === "system" ? L("系统") + " · " + L(source.title) : L("插件") + " · " + L(source.title) + (source.plugin_version ? " " + source.plugin_version : "");
   const matches = (prompt) => {
+    const role = focusedRole();
+    if (role && !role.prompt_keys.includes(prompt.key)) return false;
     if (filter === "edited" && prompt.effective !== "user") return false;
     if (filter === "updated" && !prompt.default_updated) return false;
     const query = String(search.value || "").trim().toLowerCase();
@@ -124,6 +129,17 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
     prompts.filter(matches).forEach((prompt) => { if (!owners.has(prompt.owner_id)) owners.set(prompt.owner_id, { source: prompt.source, prompts: [] }); owners.get(prompt.owner_id).prompts.push(prompt); });
     const focused = document.activeElement && root.contains(document.activeElement) ? document.activeElement.closest("[data-key]")?.dataset.key : null;
     body.replaceChildren();
+    const role = focusedRole();
+    if (role) {
+      const banner = el("div", "prompt-role-focus");
+      const copy = el("div", "prompt-role-focus-copy");
+      copy.append(el("strong", "", L(role.name)), el("p", "", L("这个 Character 由下面这些 Prompt 组成，按顺序交给模型；改动从它的下一轮开始生效，可随时恢复默认。")));
+      banner.append(copy);
+      const all = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("显示全部")); all.type = "button";
+      all.addEventListener("click", () => { focusRole = null; const next = new URL(location.href); next.searchParams.delete("role"); history.replaceState(history.state, "", next); paint(); });
+      banner.append(all);
+      body.append(banner);
+    }
     if (!owners.size) { body.append(el("p", "settings-muted", filter === "all" ? L("没有找到匹配的 Prompt") : L("没有符合条件的 Prompt"))); return; }
     owners.forEach((group, ownerId) => {
       const section = el("section", "settings-section prompt-group");
@@ -132,8 +148,13 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (ownRoles.length) {
         const list = el("ul", "prompt-roles");
         ownRoles.forEach((role) => {
-          const item = el("li", "prompt-role");
-          item.append(el("strong", "", L(role.name) + (role.subagent ? " · " + L("子任务") : "")), el("span", "settings-muted", L(EXECUTION[role.execution] || role.execution) + (role.edited ? " · " + L("含你的修改") : "")));
+          const item = el("li");
+          const button = el("button", "prompt-role"); button.type = "button";
+          button.setAttribute("aria-pressed", String(focusRole === role.key));
+          button.title = L("只看组成这个 Character 的 Prompt");
+          button.append(el("strong", "", L(role.name) + (role.subagent ? " · " + L("子任务") : "")), el("span", "settings-muted", L(EXECUTION[role.execution] || role.execution) + (role.edited ? " · " + L("含你的修改") : "")));
+          button.addEventListener("click", () => { focusRole = focusRole === role.key ? null : role.key; paint(); });
+          item.append(button);
           list.append(item);
         });
         section.append(el("p", "prompt-roles-label", L("Character（角色）")), list);
@@ -151,7 +172,13 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
     paint();
   }));
   search.addEventListener("input", paint);
-  Promise.all([api("/prompts"), api("/roles")]).then(([p, r]) => { prompts = p.prompts; roles = r.roles; paint(); })
+  Promise.all([api("/prompts"), api("/roles")]).then(([p, r]) => {
+    prompts = p.prompts; roles = r.roles;
+    // Arriving for one Character opens the prompt that is its own (the role layer), the one people mean to change.
+    const role = focusedRole();
+    if (role) open = prompts.find((prompt) => role.prompt_keys.includes(prompt.key) && prompt.layer === "role")?.key ?? role.prompt_keys[0] ?? null;
+    paint();
+  })
     .catch((failure) => { body.replaceChildren(el("p", "settings-form-error", failure.message)); });
 })();
 `;

@@ -46,9 +46,10 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
 - 不变量：
   - 仓库里唯一依赖 `@prologue/sdk` 的包。
   - 一个 Home 一个执行 owner；另一个进程得到 `inference.home_in_use` 或 `agent.storage_busy`，经 `inferenceServiceUnavailableReason` 转成给人看的原因。
+  - 派出前复核（`beforeDispatch`、凭据核对）拒绝时，调用方拿到复核自己抛的错误（`isDispatchRefusal` 为真），不得改写成模型或网络失败；SDK 侧对应 `EFFECT_NOT_AUTHORIZED`。
   - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。
   - Runtime 不能自己扩权：批准一次性，拒绝与过期不能换个入口变成许可。
-- 改动后必跑：`node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-action-tools-prologue.test.ts tests/host-inference-completion.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/agent-host.test.ts tests/agent-host-composition.test.ts tests/agent-host-wiring.test.ts tests/agent-action-tools-prologue.test.ts tests/host-inference-completion.test.ts tests/prologue-inference-native.test.ts`
 - 相关手册：[docs/horizontal/agent-host.md](../../docs/horizontal/agent-host.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

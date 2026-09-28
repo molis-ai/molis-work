@@ -37,7 +37,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 3. **处理器**：读快照 → 把 `caller.signal` 传给模型 → 返回后 `await caller.beforeEffect()` → 按快照/版本提交；空结果、超时、错误都不制造成功结果，输入保留。
 4. **Host 装配**：只注入函数端口（`completeText`、`modelAvailability`），未配置时 `actions.connection_required`。插件不拿密钥、不依赖 `@prologue/sdk`。
 5. **Agent 角色**（如需要）：Manifest `agent` 块声明 `execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`；提示词正文随插件包导出并在 `apps/workbench/src/plugin-catalog.ts` 的 `BUILTIN_PLUGIN_AGENTS` 可见；在 Prologue 上登记钩子一律 `forSession`。
-6. **错误**：执行服务不可用用 `inferenceServiceUnavailableReason` 如实说明；供应商 HTTP 错误按状态给可操作提示；不要把 SDK 细节透给用户。
+6. **错误**：执行服务不可用用 `inferenceServiceUnavailableReason` 如实说明；派出前被宿主复核拒绝用 `isDispatchRefusal` 识别，说明「没有发出」而不是网络问题；供应商 HTTP 错误按状态给可操作提示；不要把 SDK 细节透给用户。
 7. **取消与恢复**：被取消/撤权/停用的调用不再写任何记录；长任务用持久记录 + `request_id` 幂等，重试不重复调模型。
 8. **文档**：新能力写进对应插件 spec；改了本清单涉及的契约，同一任务更新手册与本 Skill。
 

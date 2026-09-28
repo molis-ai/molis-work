@@ -114,7 +114,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 
 - **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理在适配器内部收流，对调用方是一个结果。
 - **结构化输出**：需要严格结构时由宿主端口校验并允许一次格式修正（Alchemist `studio/server/runtime/host-port.ts`）；判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
-- **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；HTTP 4xx/5xx 按状态给可操作提示。
+- **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
 - **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
 - **超时**：文字 120 秒、`max_output_tokens` 5000（`host-complete-text.ts`）；Agent 用预算里的 `max_duration_ms`。
 - **恢复**：Agent 会话用 `agent.session.recovery.v1` / `agent.session.recover.v1`；长任务靠持久记录与幂等键（`request_id`），重试不重复调用模型、不重复写入。
@@ -128,6 +128,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 | 在 Prologue 上登记全局钩子并对别人的会话回 `later` | 并发构建互相挂起 | 钩子一律 `forSession` |
 | 被拒绝后仍写失败记录 | 违反 F2，撤权后仍改数据 | 被拒绝就不写；可重试性另行设计 |
 | 把执行服务不可用报成网络问题 | 用户去查网络 | `inferenceServiceUnavailableReason` |
+| 把派出前被拒（Character 停用、授权收回、密钥变了）报成网络或模型失败 | 用户去查网络；带备选模型时还会换目标再被拒一次 | SDK 报 `EFFECT_NOT_AUTHORIZED`、不换备选；消费方用 `isDispatchRefusal` 说明没有发出 |
 | 协议名直传给 Prologue | 所有运行在到达模型前失败 | 用 `prologueProtocolFor`（`model-configuration.ts`）映射 |
 | MiniMax OpenAI 兼容通道把 `<think>` 当正文 | 结果里混入推理 | 用 anthropic-messages 通道，或剥离后再解析 |
 | 测试里 mock 全局 `fetch` 拦模型 | 模型已走 Prologue，测试失效 | 在 `bindPrologueInference(home, client)` 接缝替身，或给 Host 传 `completeText` |

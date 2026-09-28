@@ -96,9 +96,11 @@ test("real SDK actions use original Host grants, write original SQLite, reject r
       const run = await until(async () => { const value = await adapter.read(handle.ref); return ["completed", "failed", "cancelled"].includes(value.phase) ? value : undefined; });
       assert.deepEqual(run.frozen.action_tools, selected);
       if (outcome === "disabled") {
-        // The Character is rechecked before every model dispatch: once disabled, the round stops instead of sending again.
+        // The Character is rechecked before every model dispatch: once disabled, the round stops instead of sending again,
+        // and says it was refused rather than blaming the network.
         assert.equal(run.phase, "failed");
-        assert.match(run.stop_reason ?? "", /Character disabled/);
+        assert.match(run.stop_reason ?? "", /EFFECT_NOT_AUTHORIZED[\s\S]*Character disabled/);
+        assert.doesNotMatch(run.stop_reason ?? "", /MODEL_NETWORK_FAILED/);
       } else {
         assert.equal(run.phase, "completed", run.stop_reason);
         const wire = JSON.stringify(requests.at(-1).messages);

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createPrologueInference } from "../horizontal/agent-host/src/adapters/prologue-inference.js";
 import { PrologueCredentialBridge } from "../horizontal/agent-host/src/adapters/prologue-node.js";
+import { isDispatchRefusal } from "../horizontal/agent-host/src/inference.js";
 
 const require = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createRuntime } = await import(require.resolve("@prologue/sdk"));
@@ -44,7 +45,8 @@ test("native final dispatch rechecks source after an awaited credential check", 
     const pending = inference.completeText({ protocol: "openai-compatible", endpoint: "https://1.1.1.1/v1/chat/completions",
       model: "fixture", prompt: "public fixture", credential_ref: "fixture", resolveCredential,
       beforeDispatch: () => { if (!allowed) throw new Error("source revoked"); }, max_output_tokens: 50, timeout_ms: 10_000 });
-    const rejected = assert.rejects(pending);
+    // The caller gets its own check's reason back, not a generic model failure.
+    const rejected = assert.rejects(pending, (error: unknown) => error instanceof Error && error.message === "source revoked" && isDispatchRefusal(error));
     await Promise.race([entered.promise, pending]);
     allowed = false;
     release.resolve();

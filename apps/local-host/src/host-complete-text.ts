@@ -1,7 +1,7 @@
 import { createFileSecretStore, peekSealedEntry, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { prologueProtocolFor, inferenceServiceUnavailableReason } from "@molis-ai/molis-work-service-agent-host";
+import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openConfiguredModels, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
@@ -121,6 +121,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
     signal?.throwIfAborted();
     if (dispatched && changed?.()) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     if (error instanceof ActionError) throw error;
+    if (isDispatchRefusal(error)) throw new Error(`${error.message}；没有发给模型，材料已保留`);
     const unavailable = inferenceServiceUnavailableReason(error);
     if (unavailable) throw new ActionError("actions.service_unavailable", `${unavailable}；材料已保留`);
     const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;

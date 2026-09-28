@@ -1,6 +1,20 @@
 # Prologue SDK 构建来源
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-claims.tgz`（2026-09-26 起，协同第一期"认领与任务图摘要"；2026-09-27 并入 Prologue 线的增量后，是 main 唯一的一条 SDK 补丁线）。在 coding-inference 合成包之上：
+当前依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
+
+- Node Host 的 `beforeModelDispatch` 是 App 的撤权复核（授权被收回、Character 被停用、密钥变了）。它拒绝时一个字节都没出本机，原来却被 agent loop 与 session run 两处 `mapNetworkError` 改成 `MODEL_NETWORK_FAILED`，消费方据此提示"检查网络"；带备选目标时还会换到下一个目标再被拒一次。
+- 现在：复核抛错（不是取消、不是等待超时）时这次调用记为 failed，报 `EFFECT_NOT_AUTHORIZED`，消息保留 App 给的原因（`The App refused this model dispatch before sending: <原因>`）；两处 `mapNetworkError` 原样传出这个码；被拒后不换备选目标。取消和超时保持原来的含义。图片、TypeSafe 那条路本来就原样抛出 Host 的错误，随之拿到新码。
+- 源码提交：molis-ai/prologue 分支 `fix/molis-dispatch-denied`，提交 `03c6ba0b`，父提交是 claims 的源码 `af7375c7`；增量补丁 [dispatch-denied.patch](dispatch-denied.patch)（相对 `af7375c7`，4 个文件）。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`
+- SHA-256：`3b8dcca04121e458e3c5f6d4fed77617f2e68178dccaad5cfcdb602601bc7c6f`
+
+重建：检出 `03c6ba0b`（或在 `af7375c7` 上 `git apply dispatch-denied.patch`），执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 内执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`。
+
+核对：与 claims 包逐文件比对，520 个文件中只有 `dist/agent/core/loop.js`、`dist/host/plugin/node.js`、`dist/session/core/run.js` 三个不同，证明底子就是 claims。新增 `test/dispatch-denied.live.test.ts` 3 项（Agent 轮次与一次性调用被拒时报 `EFFECT_NOT_AUTHORIZED`、零请求、不换备选；复核中途取消仍是取消），修复前前两项失败（拿到 `MODEL_NETWORK_FAILED`）。SDK 构建通过；SDK 全量 3339 项：3319 通过、20 跳过、0 失败；`tsconfig.typecheck.json` 仍是 claims 源码就有的 2 处测试文件类型错误（`test/agent-compaction-public.test.ts` 的 `continueWhenCompactionFails`、`windowTokens`），与本改动无关、数量不变。消费方改动与验证见 [仓库防腐整理 spec](../../specs/repository-systematic-review/spec.md) F-15。未发布 npm。
+
+## 上一依赖：claims（协同第一期，已并入上面的 dispatch-denied）
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-claims.tgz`（2026-09-26 起，协同第一期"认领与任务图摘要"；2026-09-27 并入 Prologue 线的增量后，是 main 唯一的一条 SDK 补丁线）。在 coding-inference 合成包之上：
 
 - 任务图负责人可以是角色、会话（包括子任务的会话）或人；只有负责人能报告，报告记下是哪个会话、哪个人。
 - 新增 `handOver`：把没结束的一步从一个负责人交给另一个，状态与进展不动，留下交接记录；由人交接时记下是谁。

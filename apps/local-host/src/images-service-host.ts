@@ -1,5 +1,5 @@
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { inferenceServiceUnavailableReason } from "@molis-ai/molis-work-service-agent-host";
+import { inferenceServiceUnavailableReason, isDispatchRefusal } from "@molis-ai/molis-work-service-agent-host";
 import { resolve } from "node:path";
 import { createFileSecretStore, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ImagesService, ImagesError, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
@@ -48,6 +48,8 @@ export class ImagesHostService {
             }
             const unavailable = inferenceServiceUnavailableReason(error);
             if (unavailable) throw new ImagesError("images.runtime_unavailable", `${unavailable}。`, 503);
+            // A key or service changed while waiting: nothing reached the provider, so no network or billing hint.
+            if (isDispatchRefusal(error)) throw new ImagesError("images.not_sent", `${error.message}，请求没有发给厂商。请重新生成。`, 409);
             throw error; // ImagesService publishes only its own typed errors; unknown SDK details stay private.
           }
         },

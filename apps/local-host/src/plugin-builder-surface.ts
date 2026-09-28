@@ -3,7 +3,7 @@ import {createPrologueTypeSafeProvider} from './typesafe-prologue.js';
 import {FUNCTIONS_DEFAULT_MODEL,type FunctionRecord} from '@molis-ai/molis-work-contracts/modules/functions';
 import {typeSafeCredential,typeSafeConfiguration} from './typesafe-connection.js';
 import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
-import {UiHost} from '@molis-ai/molis-work-ui-host';
+import {UiHost, UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {ArtifactsModule} from '@molis-ai/molis-work-module-artifacts';
 import {escapeHtml,renderIconSprite} from '@molis-ai/molis-work-design-system';
 import {createBuilderPlugin,createGeneratedPlugin,compatibleReleaseVersions,migratableReleaseVersions,BUILDER_PLUGIN_ID,BUILDER_STYLES,BUILDER_CLIENT_FACTORY_SCRIPT,RECORD_CLIENT_FACTORY_SCRIPT,renderBuilder,type BuilderWorkflow,type ChoiceQuestion,type Release,type GeneratedPluginControl} from '@molis-ai/molis-work-plugin-builder';
@@ -82,7 +82,7 @@ export async function handleBuilderHttp(request:IncomingMessage,response:ServerR
   const surface=await ensureBuilder(ports);const prefix=ports.routePrefix??'';
   if(builderPage&&request.method==='GET'){
    const body=renderBuilder().replace(' hidden>','>');
-   response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});response.end(documentHtml('插件创作工作台',body,'('+BUILDER_CLIENT_FACTORY_SCRIPT+')({route:p=>'+literal(prefix)+'+p});',controlToken));return true;
+   response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});response.end(documentHtml('插件创作工作台',body,'('+BUILDER_CLIENT_FACTORY_SCRIPT+')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),route:p=>'+literal(prefix)+'+p});',controlToken));return true;
   }
   let platform=surface.platform;
   if(generatedApi||generatedPage){
@@ -93,7 +93,7 @@ export async function handleBuilderHttp(request:IncomingMessage,response:ServerR
     const view=platform.supervisor.contribution(id);const contribution=view?.kind==='app'?view.views?.[0]:null;
     if(!contribution)throw new Error('插件界面尚未启动');
     const body='<header class="pb-standalone-bar"><a href="'+escapeHtml(prefix+'/plugin-builder?build='+release.buildId)+'">编辑新草稿</a><span>'+escapeHtml(release.design.title)+' · v'+release.version+' · 数据保存在本机</span></header>'+contribution.render({contribution_id:contribution.descriptor.contribution_id,surface:'app',model:{}});
-    const script='(async()=>{const base='+literal(prefix+'/api/plugins/'+id)+';let release;const request=async(method,body,query)=>{const u=new URL(base+"/records",location.origin);if(query)Object.entries(query).forEach(([k,v])=>{if(v)u.searchParams.set(k,v)});const response=await fetch(u,{method,headers:method==="GET"?{}:globalThis.molisWorkControlHeaders(),...(method==="GET"?{}:{body:JSON.stringify({...body,releaseVersion:release.version})})});const result=await response.json();if(!response.ok)throw new Error(result.error||"操作失败");return result;};const root=document.querySelector("[data-generated-app]");root.style.setProperty("--pb-atlas",'+literal('url("'+prefix+'/api/plugins/'+BUILDER_PLUGIN_ID+'/assets/inspiration-atlas.png")')+');try{const response=await fetch(base+"/state");const result=await response.json();if(!response.ok)throw new Error(result.error);release=result.release;const app=('+RECORD_CLIENT_FACTORY_SCRIPT+')({root,request});app.update(release.design,release.nodes,release.behavior);}catch(error){root.textContent=error.message;}})();';
+    const script='(async()=>{const root=document.querySelector("[data-generated-app]"),lifetime=('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')()(root);if(!lifetime)return;const base='+literal(prefix+'/api/plugins/'+id)+';let release;const request=async(method,body,query)=>{const u=new URL(base+"/records",location.origin);if(query)Object.entries(query).forEach(([k,v])=>{if(v)u.searchParams.set(k,v)});const response=await lifetime.fetch(u,{method,headers:method==="GET"?{}:globalThis.molisWorkControlHeaders(),...(method==="GET"?{}:{body:JSON.stringify({...body,releaseVersion:release.version})})});const result=await response.json();lifetime.assertCurrent();if(!response.ok)throw new Error(result.error||"操作失败");return result;};root.style.setProperty("--pb-atlas",'+literal('url("'+prefix+'/api/plugins/'+BUILDER_PLUGIN_ID+'/assets/inspiration-atlas.png")')+');try{const response=await lifetime.fetch(base+"/state");const result=await response.json();lifetime.assertCurrent();if(!response.ok)throw new Error(result.error);release=result.release;const app=('+RECORD_CLIENT_FACTORY_SCRIPT+')({root,lifetime,request});app.update(release.design,release.nodes,release.behavior);}catch(error){if(lifetime.alive)root.textContent=error.message;}})();';
     response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});response.end(documentHtml(release.design.title,body,script,controlToken));return true;
    }
   }

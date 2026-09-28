@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, realpath, readFile, writeFile, rename, readdir } from 'node:fs/promises';
 import { join, relative, isAbsolute } from 'node:path';
-import { fillSkillBody, prepareSkillIntent, type ExactRef, type Runtime, type ScenarioPack, type Skill, type ToolRunner } from '@prologue/sdk';
+import { collectRun, fillSkillBody, prepareSkillIntent, type ExactRef, type Runtime, type ScenarioPack, type Skill, type ToolRunner } from '@prologue/sdk';
 import type { PrologueModelConfiguration } from './prologue.js';
 
 import type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
@@ -102,7 +102,6 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
         const activeChecks = new Set<Promise<unknown>>();
         let sealed = false;
         let session: Awaited<ReturnType<Runtime['sessions']['create']>> | undefined, hooked: string | undefined;
-        let unsubscribe: (() => void) | undefined;
         let stop: (() => void) | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
         const cancel = () => { abort.abort(request.signal?.reason ?? new Error('Build stopped')); stop?.(); };
@@ -157,20 +156,20 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           stage.write(bytes); const instructions = await stage.publishDurable();
           const tools = request.role === 'coder' ? [...TOOLS] : [];
           const character = sdk.characters.publish(sdk.characters.create({ id: 'builder-' + record.id, version: 1,
-            name: request.role === 'coder' ? 'Plugin Code Agent' : request.role === 'model' ? 'Plugin Model Call' : 'Plugin Designer', role: 'builder-' + request.role,
+            name: request.role === 'coder' ? 'Plugin Code Agent' : 'Plugin Designer', role: 'builder-' + request.role,
             instructionsRef: instructions.ref, tools }).ref);
           abort.signal.throwIfAborted();
           const started = await sdk.startAgentRun({ session, rootRef: authorized.ref, grants: { toolNames: tools, paths: request.role === 'coder' ? ['.'] : [] },
-            start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: request.role === 'designer' ? 32768 : request.role === 'model' ? 8192 : 16384 },
+            start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: request.role === 'designer' ? 32768 : 16384 },
               ...(model.prompt_cache && model.prompt_cache !== 'off' ? { promptCache: model.prompt_cache } : {}),
               messages: [{ role: 'user', text: request.task }] },
             agent: { idempotencyKey: record.id, mode: request.role === 'coder' ? 'build' : 'plan',
               characterRef: character.ref, toolNames: tools, budget: { maxTurns: request.role === 'coder' ? 30 : 1, maxWallClockMs: options.timeoutMs ?? 600_000 } } });
           record.runId = started.run.ref.id;
           stop = () => started.control.stop('cancelled'); current!.stop = stop;
-          const terminal = new Promise<void>(resolve => {
-            const calls = new Map<string, { name: string; path?: string }>();
-            unsubscribe = started.run.subscribe(event => {
+          const calls = new Map<string, { name: string; path?: string }>();
+          const terminal = collectRun(started.run, { signal: abort.signal, maxTextChars: 180_000, maxEvents: 100_000,
+            onEvent: event => {
               if (event.type === 'text-delta') record.output += event.text;
               if (event.type === 'tool-call') { const value = event.call as unknown as { id: string; name: string; input?: { path?: unknown } };
                 calls.set(value.id, { name: value.name, ...(typeof value.input?.path === 'string' ? { path: value.input.path } : {}) }); }
@@ -182,15 +181,17 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
               if (event.type === 'awaiting-approval' || event.type === 'awaiting-input') {
                 record.error = 'This build requested an unavailable tool or decision; the host must revise the task'; stop?.();
               }
-              if (event.type === 'completed') { record.phase = 'completed'; resolve(); }
-              if (event.type === 'failed') { record.phase = 'failed'; record.error = event.error.safeMessage; resolve(); }
-              if (event.type === 'cancelled') { record.phase = 'cancelled'; resolve(); }
-            });
+            },
           });
+          // Persistence can await while the collector terminates; keep its rejection handled until the join below.
+          void terminal.catch(() => {});
           timer = setTimeout(() => { record.error = '代码 Agent 超时，已保留文件，可以修正后继续'; abort.abort(new Error(record.error)); stop?.(); }, options.timeoutMs ?? 600_000);
           if (abort.signal.aborted) stop();
           await save(record);
-          await terminal;
+          const result = await terminal;
+          record.phase = result.state === 'completed' ? 'completed' : result.state === 'cancelled' ? 'cancelled' : 'failed';
+          if (result.terminal.type === 'failed') record.error = result.terminal.error.safeMessage;
+          else if (record.phase === 'failed') record.error = '构建达到执行限制，已保留文件，请检查后继续';
           if (abort.signal.aborted) record.phase = 'cancelled';
           if (record.phase !== 'completed') throw new Error(record.error ?? 'Agent run did not complete');
           await guard();
@@ -204,7 +205,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           checkLifetime.abort(new Error('Agent run ended'));
           await Promise.allSettled([...activeChecks]);
           if (timer) clearTimeout(timer);
-          unsubscribe?.(); request.signal?.removeEventListener('abort', cancel);
+          request.signal?.removeEventListener('abort', cancel);
           record.finishedAt = new Date().toISOString();
           try { await save(record); } finally { try { await session?.archive(); } finally { if (hooked) sdk.hooks.unregister('builder-frozen-authority-' + hooked); current = undefined; } }
         }
@@ -232,4 +233,3 @@ function checkPack(): ScenarioPack {
       parameters: { type: 'object', properties: { operations: { type: 'array', items: { type: 'string' } } }, additionalProperties: false },
       effectKind: 'mutate-local', gate: 'broker', timeoutMs: 300_000, idempotency: 'none' } }] };
 }
-

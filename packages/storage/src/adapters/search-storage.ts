@@ -22,7 +22,7 @@ const utf8Fatal = new TextDecoder("utf-8", { fatal: true });
 
 type SecretBackend = Pick<SecretStore, "get" | "createIfAbsent" | "deleteIfPresent">;
 
-export function createFeedSearchOpaqueBlobStore(
+export function createSearchOpaqueBlobStore(
   db: SqliteDatabase,
 ): SearchDeadlineAwareOpaqueBlobStorePort {
   const readNowMs = db.prepare(`SELECT ${SQLITE_NOW_MS} AS now_ms`);
@@ -187,7 +187,7 @@ export function createFeedSearchOpaqueBlobStore(
   };
 }
 
-export function createFeedSearchAead(): SearchAeadPort {
+export function createSearchAead(): SearchAeadPort {
   return {
     async seal(input) {
       assertAeadParts(input);
@@ -228,7 +228,7 @@ export function createFeedSearchAead(): SearchAeadPort {
   };
 }
 
-export function createFeedSearchSecretStore(
+export function createSearchSecretStore(
   backend: SecretBackend,
 ): SearchSecretStorePort {
   return {
@@ -323,3 +323,6 @@ function decodeB64Url(value: string | undefined): Buffer {
   }
   return decoded;
 }
+
+// Deployed API aliases; ciphertext, cursor and database names remain unchanged.
+export { createSearchOpaqueBlobStore as createFeedSearchOpaqueBlobStore, createSearchAead as createFeedSearchAead, createSearchSecretStore as createFeedSearchSecretStore };

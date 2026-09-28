@@ -598,4 +598,5 @@ export class AgentHost implements AgentHostApi {
 }
 
 export { PrologueInferenceError, inferenceServiceUnavailableReason, isDispatchRefusal } from "./inference.js";
-export type { PrologueCredentialInput, PrologueTextInput, PrologueTextResult, PrologueImageInput, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";
+export { reportedTokenTotal, decodePrologueJsonOutput } from "./inference.js";
+export type { PrologueCredentialInput, PrologueTextInput, PrologueTextResult, PrologueExecutionReceipt, PrologueRunRef, PrologueStructuredRequest, PrologueTextProgress, PrologueImageInput, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";

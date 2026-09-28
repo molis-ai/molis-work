@@ -41,16 +41,18 @@ const pluginOf = (context: ActionCallContext) => context.actor_id.startsWith('pl
 
 /** The studio's own capabilities, as actions of the platform provider: only plugins may call them. */
 export function registerPlatformCapabilities(actions: ProjectActions, implementations: Pick<CapabilityImplementations, 'generate' | 'reminders' | 'schedules'>): () => void {
-  const define = (id: 'model.generate' | 'reminders.add' | 'reminders.cancel' | 'schedules.add' | 'schedules.cancel', effect: 'read' | 'write'): ActionDefinition => {
+  const define = (id: 'model.generate' | 'reminders.add' | 'reminders.cancel' | 'schedules.add' | 'schedules.cancel', effect: 'read' | 'write', scheduling?: ActionDefinition['scheduling']): ActionDefinition => {
     const known = studioCapability(id)!;
     return { capability_id: id, version: 1, operation: 'command', provider_id: PLATFORM_PROVIDER_ID,
+      ...(scheduling ? { scheduling } : {}),
       action: { title: known.title, description: known.description, kind: 'operation', scope: 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],
         input_schema: known.input as unknown as ActionSchema, output_schema: known.output as unknown as ActionSchema } };
   };
   const identity = (context: ActionCallContext): SandboxIdentity => ({ projectId: context.project_id ?? actions.project_id, installationId: context.plugin_install_id ?? '', pluginId: pluginOf(context), namespace: 'installed' });
-  const definitions = [define('model.generate', 'read'), define('reminders.add', 'write'), define('reminders.cancel', 'write'), define('schedules.add', 'write'), define('schedules.cancel', 'write')];
+  const definitions = [define('model.generate', 'read', 'concurrent'), define('reminders.add', 'write'), define('reminders.cancel', 'write'), define('schedules.add', 'write'), define('schedules.cancel', 'write')];
   const handlers: ActionHandlerBinding[] = [
-    { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as { instructions: string; input: string }, context.signal ?? new AbortController().signal) },
+    { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as { instructions: string; input: string }, context.signal ?? new AbortController().signal,
+      () => context.beforeEffect()) },
     { capability_id: 'reminders.add', version: 1, handle: async (context, input) => {
       if (!implementations.reminders) throw new Error('这个项目还不能设置提醒');
       return implementations.reminders.add(identity(context), input as { at: string; text: string; repeat?: 'none' | 'daily' | 'weekly' });

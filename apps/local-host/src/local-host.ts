@@ -124,7 +124,7 @@ export class LocalHost<Runtime> {
     const invoke = (caller: ActionCallContext, input: Input) => {
       if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
       const token = this.capabilities.registrationToken(definition);
-      return handler(this.invocationRuntimes.get(caller)!, input, { ...(caller.host_plugin ? { plugin: caller.host_plugin } : {}),
+      return handler(this.invocationRuntimes.get(caller)!, input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin } : {}),
         ...(this.pluginCapabilityCallers.has(caller) ? { consumer: "plugin" as const } : {}), beforeEffect: async () => {
         caller.signal?.throwIfAborted();
         if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
@@ -145,7 +145,7 @@ export class LocalHost<Runtime> {
         // bound to this Host's active project scope, rather than the caller object's identity.
         const scope = this.executionScope.getStore();
         if (!scope?.active || scope.entry.reference.project_id !== caller.project_id) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
-        return handler(scope.runtime, input as Input, { ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), beforeEffect: caller.beforeEffect });
+        return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), beforeEffect: caller.beforeEffect });
       } }],
     });
     const hostOnly = definition.host_only === true;
@@ -415,6 +415,7 @@ export class LocalHost<Runtime> {
     if (plugin && (plugin.project_id !== reference.project_id || plugin.board_id !== reference.board_id)) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
     plugin?.assertActive();
     const caller: ActionCallContext = { actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: "user", permissions: [],
+      ...(options?.signal ? { signal: options.signal } : {}),
       ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
       ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}) };
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);

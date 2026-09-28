@@ -16,7 +16,7 @@ FeedModule.commands.ingest 接收条目，query 提供读取，setDisposition �
 | --- | --- |
 | [src/index.ts](src/index.ts) | FeedModule 与迁移 |
 | [src/goal-links.ts](src/goal-links.ts) | Feed/Goal 关联端口 |
-| [src/content-store.ts](src/content-store.ts) | 正文引用存储 |
+| [Storage evidence-content](../../packages/storage/src/adapters/evidence-content.ts) | 公共密文保存实现；本模块仅保留旧 API 导出别名 |
 | [src/contract-receipts.ts](src/contract-receipts.ts) | schema 迁移收据 |
 
 可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。

@@ -188,7 +188,7 @@ test("protocol, cache preference, cancellation and scoped Home are preserved on 
   assert.equal(f.requests.length, 1);
   // Simulate a transport that ignores cancellation: the completion must still reject the late reply.
   const late = new AbortController();
-  const ignored = hostCompleteText({ homeDirectory: f.home, resolveInference: async () => ({ completeText: async () => { late.abort(); return "late"; } }) as never })!;
+  const ignored = hostCompleteText({ homeDirectory: f.home, resolveInference: async () => ({ completeTextResult: async () => { late.abort(); throw new Error("cancelled"); } }) as never })!;
   await assert.rejects(ignored("cancel during send", { signal: late.signal }), { name: "AbortError" });
 }));
 

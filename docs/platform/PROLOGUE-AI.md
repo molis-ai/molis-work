@@ -19,7 +19,7 @@
 
 | 场景 | 用什么 | 例子 |
 | --- | --- | --- |
-| 一次有界的文字/结构化/图片/判断调用，没有工具 | Host 注入的端口：文字用 `hostCompleteText`（`apps/local-host/src/host-complete-text.ts`）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
+| 一次有界的文字/结构化/图片/判断调用，没有工具 | Host 注入的端口：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
 | 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create.v1` / `agent.run.start.v1` / `agent.run.wait.v1` / `agent.run.control.v1` | Coding、Schedule 到点任务、Characters |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
@@ -35,10 +35,30 @@
   → Host 组合适配 apps/local-host/src/pages-actions.ts：注入 completeText，未配置模型时报 actions.connection_required
   → hostCompleteText（apps/local-host/src/host-complete-text.ts）：固定这次的供应商与模型、读凭据快照、每次派发前复查配置与凭据、120 秒上限
   → resolvePrologueInference(home)（apps/local-host/src/prologue-inference-host.ts）：取该 Home 唯一的推理绑定，由 system-agent-service.ts 装配
-  → createPrologueInference（horizontal/agent-host/src/adapters/prologue-inference.ts）：临时会话、流式收集文字与用量、取消与超时
+  → createPrologueInference（horizontal/agent-host/src/adapters/prologue-inference.ts）：临时会话、借助 SDK collectRun 收集结果、取消与超时
   → Prologue Runtime → 供应商
   ← 处理器核对文档版本未变，再把候选正文交回页面
 ```
+
+### Coding 草稿与 Cognia 的单次调用
+
+Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。调用的 signal 与 beforeEffect 经 Host Capability 合同传入，调用方可以取消自身操作而不能改变身份。
+
+Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
+
+Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密、比对配置或管理取消等待；固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
+
+Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实证据块 ID、逐字引用、章节顺序与计划内容。每次分段摘要或合并都在派出前复查原 Action 的 `beforeEffect`，返回后和持久化前再复查；不把取消或撤权写成成功摘要。
+
+生成插件的 `model.generate` 经公共 Action → `plugin-builder/model.ts` → `hostTextGeneration`，返回既有 `{ text }`。模型派出和结果复查继续调用原 Action 的 `beforeEffect`；取消信号来自当前沙箱调用。无需 Builder Agent、工作目录或另一份运行 JSON，旧私有记录保持原位。只有设计和编码继续使用 Builder Agent，其 Run 也通过 SDK `collectRun` 有界收集全部终态，原检查、活动和业务记录仍由构建模块拥有。
+
+`hostTextGeneration` 与 `hostCompleteText` 共用配置/凭据校验。前者返回 `value`、`run_ref`、`state: completed`、configuredModel、reportedModels 与 typed usage；`structured` 仅在请求的结构已通过 SDK 校验时出现。调用选项可提供 `system`、`structured: { mode: local | native, schema }`、`onProgress`、timeoutMs 和 maxOutputTokens。进度只用于展示，不代表结果已通过领域验证。失败的 `PrologueInferenceError.execution` 可带原运行与已发生的用量；取消和撤权仍由原错误说明，不能据此提交业务失败记录。
+
+调用时限与取消同时覆盖 Runtime 准备、异步授权检查、模型执行和结果后的复查；检查等待结束后再次核对信号。调用方撤权的原因保持原有语义，不能被统一改写成供应商失败。
+
+SDK 的 schema 支持明确的类型、nullable/anyOf、必填、enum、对象字段、数组项、字符串/数组长度及数值上下限。未知关键字发出前拒绝；native 不支持不会暗降级 local。领域校验和是否允许付费格式纠正由业务 owner 决定，默认没有格式自动重试。
+
+可执行示例：`tests/coding-commit-draft.test.ts`、`tests/cognia-prologue.test.ts`、`tests/alchemist-host.test.ts`、`tests/prologue-inference-native.test.ts`，均有真实 SDK 路径；本地模型服务不代表商业供应商质量验收。
 
 ### Agent 轮次（以 Coding 为例）
 
@@ -108,7 +128,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 - 模型来自设置里的 `catalog.models` 与服务连接；`hostCompleteText` 发现阶段只读元数据，执行前才解密，派发前与返回后都核对「这次固定的供应商/模型/凭据」没变，变了报 `actions.configuration_changed` 且不提交结果。
 - 已有目录记录或明确选择时，旧的环境变量密钥（`MOLIS_WORK_TEXT_API_KEY`、`MINIMAX_API_KEY`）不能绕过停用；它只是没有配置过目录时的兼容来源。
-- 插件永远只拿 `credential_ref` + `resolveCredential`，不拿明文；日志、事件、错误和产物里不出现密钥。
+- 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。
 
 ## 6. 工具、权限、审批、预算、用量
@@ -128,8 +148,8 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 ## 8. 流式、结构化输出、错误、取消、超时、恢复
 
-- **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理在适配器内部收流，对调用方是一个结果。
-- **结构化输出**：需要严格结构时由宿主端口校验并允许一次格式修正（Alchemist `studio/server/runtime/host-port.ts`）；判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
+- **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
+- **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Alchemist 默认不纠正，仅在原业务预算明确允许时增加一次；Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
 - **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
 - **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
 - **超时**：文字 120 秒、`max_output_tokens` 5000（`host-complete-text.ts`）；Agent 用预算里的 `max_duration_ms`。

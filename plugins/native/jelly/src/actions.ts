@@ -1,4 +1,4 @@
-import { withActionEffect, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withActionEffect, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyItem, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { runJellyAi, type JellyAiInput, type JellyAiPorts } from "./ai.js";
 import { jellyOccurrences, jellyProgress } from "./calendar.js";
@@ -44,16 +44,16 @@ export const JELLY_ACTION_PERMISSIONS = [...new Set(JELLY_ACTIONS.flatMap(defini
 export interface JellyActionPorts {
   withStore<T>(run: (store: JellyStore) => T): T;
   modelAvailability(): ActionAvailability;
-  ai(caller: ActionCallContext): JellyAiPorts;
+  ai(caller: ActionExecutionContext): JellyAiPorts;
 }
 export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandlerBinding[] {
   const read = <T>(run: (state: JellyWorkspace) => T) => ports.withStore(store => run(store.read()));
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
-  const ai = async (input: AiInput, kind: JellyAiInput["kind"], manual: boolean, caller: ActionCallContext): Promise<AiResult> => {
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const ai = async (input: AiInput, kind: JellyAiInput["kind"], manual: boolean, caller: ActionExecutionContext): Promise<AiResult> => {
     caller.signal?.throwIfAborted();
     const before = read(state => state);
     const result = await runJellyAi(before, { ...input, kind, manual }, { ...(manual ? {} : ports.ai(caller)), signal: caller.signal });
-    caller.signal?.throwIfAborted();
+    await caller.beforeEffect();
     if ("digest" in result && input.source_type === "inspiration" && input.source_id) {
       return ports.withStore(store => {
         const latest = store.read();

@@ -172,10 +172,11 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   const beforeMaterials = await evaluate<number>("document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]').length");
   await evaluate(`(async () => {
     await fetch("/api/shelf/clipboard", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(clipBody)} }) });
-    const current = document.body.dataset.desktopSurface;
-    document.body.dataset.desktopSurface = current === "shelf" ? "home" : "shelf";
-    document.body.dataset.desktopSurface = "shelf";
   })()`);
+  // Re-enter through the real Workbench visibility lifecycle, not a private data-attribute observer.
+  await click('[data-plugin-strip] [data-plugin-id="inbox"]');
+  await waitFor("document.body.dataset.desktopSurface === 'inbox'");
+  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
   await waitFor(`[...document.querySelectorAll('[data-shelf-clip]')].some(row => row.dataset.shelfName === ${JSON.stringify("本周待办：完善文件预览与结果对照。")})`, 8_000);
   assert.equal(await evaluate("document.querySelector('[data-shelf-current]')?.textContent"), "当前");
   await click('[data-shelf-list="clipboard"] [data-shelf-clip]');

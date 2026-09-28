@@ -15,6 +15,7 @@ import { ModelProviderStore } from "../apps/local-host/src/model-provider-store.
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/src/project-catalog-contract.js";
 import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import { createCogniaProloguePort } from "../apps/local-host/src/cognia-prologue.js";
+import { ensureSystemAgentService } from "../apps/local-host/src/system-agent-service.js";
 import { MolisWorkLocalHost } from "../apps/local-host/src/project-host.js";
 
 function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
@@ -32,6 +33,7 @@ function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
   models(store => { store.upsert({ provider_id: "cognia-test", display_name: "Cognia model", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] }); store.selectConnection("cognia-test", connection.credential_ref!); });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
+  ensureSystemAgentService(host, home);
   const bound = bindActionClient(host.homeActionClient(), () => ({ actor_id: "trusted-cognia-user", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS }));
   t.after(async () => { await host.close(); if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); rmSync(home, { recursive: true, force: true }); });
   return { home, host, bound, models, secrets, connection };
@@ -56,6 +58,7 @@ test("Cognia discovery never decrypts or starts Prologue; actual packed SDK rece
   const { draft } = await f.bound.invoke(actions.synthesize, { material_ids: [material.id] });
   assert.equal(draft.title, "SDK 知识草稿"); assert.equal(draft.references[0]!.material_id, material.id);
   assert.equal(requests, 1); assert.ok(reads > 0);
+  assert.equal(existsSync(join(f.home, "cognia", "runtime")), false, "Cognia must never create a second runtime");
   const saved = await f.bound.invoke(actions.saveDraft, { id: draft.id }); assert.equal(saved.material.body, "已读取固定证据 [S1]");
 });
 

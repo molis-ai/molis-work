@@ -16,7 +16,7 @@ export interface AlchemistAiPort {
     signal?: AbortSignal;
     /** Preserve and compose with Host guards after prepare/credentials/queue, immediately before dispatch. */
     beforeModelDispatch?: () => Promise<void>;
-  }): Promise<{ text: string; runtimeLabel: string; usage?: { inputTokens?: number; outputTokens?: number } }>;
+  }): Promise<{ text: string; json: { ok: true; value: unknown } | { ok: false }; runtimeLabel: string; usage?: { inputTokens?: number; outputTokens?: number } }>;
   search(input: { query: string; lens?: "market_space" | "build_cost"; signal?: AbortSignal }): Promise<readonly { url: string; title: string; excerpt: string }[]>;
 }
 
@@ -28,17 +28,12 @@ export async function generateWithHost<Result>(ai: AlchemistAiPort, input: Struc
   const result = await ai.generate({ ...request, ...(modelId === undefined ? {} : { modelId }) });
   input.signal?.throwIfAborted();
   await input.beforeModelDispatch?.();
-  const parseResult = (body: string): Result => {
-    let value: unknown;
-    try {
-      const text = body.trim();
-      const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(text);
-      value = JSON.parse(fenced?.[1] ?? text);
-    } catch { throw new Error("AI_OUTPUT_INVALID"); }
-    return parse(value);
+  const parseResult = (result: Awaited<ReturnType<AlchemistAiPort["generate"]>>): Result => {
+    if (!result.json.ok) throw new Error("AI_OUTPUT_INVALID");
+    return parse(result.json.value);
   };
   try {
-    return { operationId: input.operationId, runtimeLabel: result.runtimeLabel, value: parseResult(result.text), ...(result.usage ? { usage: result.usage } : {}) };
+    return { operationId: input.operationId, runtimeLabel: result.runtimeLabel, value: parseResult(result), ...(result.usage ? { usage: result.usage } : {}) };
   } catch (error) {
     if (!beforeCorrection || !(error instanceof ZodError || error instanceof Error && error.message === "AI_OUTPUT_INVALID")) throw error;
     // The worker reserves and persists this extra call before it can reach Prologue.
@@ -56,7 +51,7 @@ export async function generateWithHost<Result>(ai: AlchemistAiPort, input: Struc
       ...(typeof result.usage.inputTokens === "number" && typeof corrected.usage.inputTokens === "number" ? { inputTokens: result.usage.inputTokens + corrected.usage.inputTokens } : {}),
       ...(typeof result.usage.outputTokens === "number" && typeof corrected.usage.outputTokens === "number" ? { outputTokens: result.usage.outputTokens + corrected.usage.outputTokens } : {}),
     } : undefined;
-    return { operationId: input.operationId, runtimeLabel: corrected.runtimeLabel, value: parseResult(corrected.text), ...(usage ? { usage } : {}) };
+    return { operationId: input.operationId, runtimeLabel: corrected.runtimeLabel, value: parseResult(corrected), ...(usage ? { usage } : {}) };
   }
 }
 

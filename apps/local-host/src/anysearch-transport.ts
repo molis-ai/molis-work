@@ -27,7 +27,7 @@ function tooLarge(): SearchError {
 }
 
 /** Public SEL Host port, restricted to one anonymous AnySearch HTTPS endpoint. */
-export function createAlchemistSearchTransport(): SearchHostTransportPort {
+export function createAnySearchTransport(): SearchHostTransportPort {
   const shutdown = new AbortController();
   const active = new Set<Promise<unknown>>();
   const sockets = new Set<Promise<void>>();

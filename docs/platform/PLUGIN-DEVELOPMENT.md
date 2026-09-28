@@ -188,3 +188,8 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 ## 异步动作与原调用授权
 
 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后调用 dispatcher 提供的 `caller.beforeEffect()`，再按原对象或配置版本提交。发起嵌套动作/场景时用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；仅复查权限字符串不能识别同名提供方已被替换。来源同步另持有按数据库、项目和来源隔离的活动租约。失去授权时保留此前的未确认记录用于恢复，不补写失败记录或伪造成功。
+## 单次 AI 能力与 Host 取消
+
+Coding 草稿、Cognia 知识生成等工具为空的调用使用 Home 共享推理入口；插件拥有提示词和领域校验，Host 拥有模型/凭据绑定。需要结构结果、执行引用、进度或 typed usage 时使用 `hostTextGeneration`，标准接线见 [Prologue AI 手册](PROLOGUE-AI.md) 与 [开发 Skill](../../skills/molis-prologue-ai/SKILL.md)。
+
+Host Capability 可选调用参数 `signal` 由 Plugin SDK 传递给 Host invocation；取消只收紧本次操作，不授予任何身份/权限。`before_effect` 与原调用持续授权检查仍保留，不能用成功收到模型文字代替提交前检查。

@@ -4,15 +4,13 @@
  * output against the catalog schemas, answers with the fixed stand-in where the real capability must not run, and
  * bounds how often one plugin may use a costly capability.
  */
-import { readdir, rm, stat } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertMatches, SandboxError, type SandboxLimits, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { studioCapability, type StudioCapability } from '@molis-ai/molis-work-plugin-builder';
 
 export interface CapabilityImplementations {
   /** A tool-less model call with the plugin's own instructions, on the model the person configured. */
-  generate(pluginId: string, input: { instructions: string; input: string }, signal: AbortSignal): Promise<{ text: string }>;
+  generate(pluginId: string, input: { instructions: string; input: string }, signal: AbortSignal, beforeDispatch?: () => void | Promise<void>): Promise<{ text: string }>;
   /** The project's goals, reached through the Goals plugin's own actions as this plugin installation. */
   goals?: {
     list(identity: Readonly<SandboxIdentity>): Promise<Array<{ id: string; title: string; status: string }>>;
@@ -59,7 +57,10 @@ export function hostCapabilities(implementations: CapabilityImplementations, liv
         if (recent.length >= MODEL_CALLS_PER_MINUTE) throw new SandboxError('RATE_LIMITED', '这个插件一分钟内调用模型的次数太多，请稍后再试');
         recent.push(now); windows.set(key, recent);
         const request = input as { instructions: string; input: string };
-        output = await implementations.generate(context.identity.pluginId, { instructions: request.instructions, input: request.input }, context.signal) as unknown as SandboxJson;
+        output = await implementations.generate(context.identity.pluginId, { instructions: request.instructions, input: request.input }, context.signal, () => {
+          context.signal.throwIfAborted();
+          if (!live(context.identity)) throw new SandboxError('CAPABILITY_DENIED', '这个插件的模型调用已停止');
+        }) as unknown as SandboxJson;
       } else if (id.startsWith('reminders.')) {
         const reminders = implementations.reminders;
         if (!reminders) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这个项目还不能设置提醒');
@@ -83,17 +84,6 @@ export function slowOperations(contract: { operations: ReadonlyArray<{ id: strin
   return new Set(contract.operations.filter(operation => (operation.effects.capabilities ?? []).some(id => (studioCapability(id)?.timeoutMs ?? 0) > 30_000)).map(operation => operation.id));
 }
 export type Lane = 'quick' | 'slow';
-
-/** Model-call records a plugin keeps; each holds what the person sent and what the model answered. */
-export const MODEL_RECORDS_KEPT = 50;
-/** Keeps the newest `keep` record files in a directory; older ones are removed. A missing directory is fine. */
-export async function keepNewestRecords(directory: string, keep = MODEL_RECORDS_KEPT): Promise<number> {
-  const names = await readdir(directory).catch(() => [] as string[]);
-  const files = await Promise.all(names.filter(name => name.endsWith('.json')).map(async name => ({ name, at: (await stat(join(directory, name)).catch(() => null))?.mtimeMs ?? 0 })));
-  const old = files.sort((a, b) => b.at - a.at).slice(keep);
-  await Promise.all(old.map(file => rm(join(directory, file.name), { force: true })));
-  return old.length;
-}
 
 /** A plugin that may wait on a slow capability gets operation and service limits that fit one such call. */
 export function capabilityLimits(effects: SandboxEffects): Partial<SandboxLimits> {

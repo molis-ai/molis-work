@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import { ImagesError } from "./error.js";
 import { generateProviderImages, isLocalImageEndpoint, normalizeImageBaseUrl, type ImageGeneration, type ImageProviderRequest } from "./providers.js";
@@ -218,21 +219,22 @@ export class ImagesService {
 
   private async run(job: ImageJob, request: ImageProviderRequest, controller: AbortController, assertCurrent: () => void): Promise<void> {
     const files: string[] = [];
-    const timeout = setTimeout(() => controller.abort(new ImagesError("images.timeout", "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。", 504)), REQUEST_TIMEOUT_MS);
-    timeout.unref();
-    // Another Host may cancel through the same persistent job. Stop our local
-    // provider wait promptly, even when this process has no open Web page.
-    const observeCancellation = setInterval(() => {
-      try { if (this.store.getJob(job.project_id, job.id).status !== "running") controller.abort(); }
-      catch (error) { if (error instanceof ImagesError && error.code === "images.not_found") controller.abort(); }
-    }, 200);
-    observeCancellation.unref();
+    const timeout = new ImagesError("images.timeout", "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。", 504);
+    const lifetime = createExecutionLifetime({ signal: controller.signal,
+      timeout: { milliseconds: REQUEST_TIMEOUT_MS, reason: timeout },
+      monitor: { intervalMs: 200, check: () => {
+        if (this.store.getJob(job.project_id, job.id).status !== "running") {
+          throw new DOMException("Image job no longer running", "AbortError");
+        }
+      } },
+    });
     try {
-      if (controller.signal.aborted) return;
+      lifetime.assertActive();
       assertCurrent();
       if (!this.options.generate) throw new ImagesError("images.runtime_unavailable", "Prologue 图片执行服务尚未接通，请稍后重试。", 503);
-      const results = await generateProviderImages(request, controller.signal, this.options.generate);
-      if (controller.signal.aborted || this.store.getJob(job.project_id, job.id).status !== "running") return;
+      const results = await generateProviderImages(request, lifetime.signal, this.options.generate);
+      lifetime.assertActive();
+      if (this.store.getJob(job.project_id, job.id).status !== "running") return;
       assertCurrent();
       const images = results.map((result): GeneratedImage => {
         const id = randomUUID();
@@ -246,13 +248,16 @@ export class ImagesService {
       if (this.store.finish(job.project_id, job.id, "succeeded", images, "")) files.length = 0;
     } catch (error) {
       // A native dispatch/result guard may reject first; preserve the current business reason.
-      if (!controller.signal.aborted) {
+      // Cancellation/shutdown/ownership loss cannot create a new business failure.
+      // A deadline remains an explicit failure even if the provider ignored abort.
+      if (controller.signal.aborted || (lifetime.signal.aborted && lifetime.signal.reason !== timeout)) return;
+      if (lifetime.signal.aborted) error = lifetime.signal.reason;
+      else {
         try { assertCurrent(); } catch (changed) { error = changed; }
       }
       this.store.finish(job.project_id, job.id, "failed", [], error instanceof ImagesError ? error.message : "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。");
     } finally {
-      clearTimeout(timeout);
-      clearInterval(observeCancellation);
+      lifetime.dispose();
       for (const path of files) {
         try { rmSync(path, { force: true }); } catch { /* Only this failed generation's newly-created files are eligible for cleanup. */ }
       }

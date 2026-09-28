@@ -25,7 +25,9 @@ test('studio: a request becomes a working, published plugin that the person can 
   const fixture = agentStudioFixture(0); let modelDelay = 0;
   const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...fixture,
     generate: async (pluginId: string, input: { instructions: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
+  let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
+    if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
@@ -160,6 +162,20 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.viewport(390, 844, true);
     const overflow = await page.evaluate<string[]>(`[...document.querySelectorAll('body *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>391&&r.width>0&&getComputedStyle(e).position!=='fixed'}).slice(0,8).map(e=>e.tagName+'.'+e.className+' '+Math.round(e.getBoundingClientRect().right))`);
     assert.equal(await page.evaluate('document.documentElement.scrollWidth<=390'), true, overflow.join(' | '));
+    const observed = async (predicate: () => boolean) => {
+      for (let n = 0; n < 100 && !predicate(); n++) await new Promise(resolve => setTimeout(resolve, 20));
+      assert.ok(predicate(), 'expected studio SSE lifecycle on the real HTTP server');
+    };
+    await observed(() => liveSubscriptions === 1);
+    const beforeResume = subscriptions;
+    await page.evaluate("document.querySelector('[data-agent-studio]').hidden=true");
+    await observed(() => liveSubscriptions === 0);
+    await page.evaluate("document.querySelector('[data-agent-studio]').hidden=false");
+    await observed(() => liveSubscriptions === 1 && subscriptions === beforeResume + 1);
+    await page.wait("document.querySelector('[data-as-install]')");
+    await page.evaluate("document.querySelector('[data-agent-studio]').remove()");
+    await observed(() => liveSubscriptions === 0);
+
   } finally {
     await browser.close();
     await new Promise<void>(resolve => server.close(() => resolve()));

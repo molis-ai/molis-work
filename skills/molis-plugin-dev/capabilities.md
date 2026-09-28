@@ -34,3 +34,10 @@
 ## 调用身份与限额
 
 生成插件调用时，身份是它自己（`plugin:<插件 id>`），历史里显示为"插件「名称」"；每次调用前宿主都会重查安装是否仍有效、授权是否被撤回。调用有次数和时长上限，调用模型另有每分钟上限。
+# 有界模型调用与取消
+
+插件模型能力按 [Prologue AI Skill](../molis-prologue-ai/SKILL.md) 接入。业务只拿 Host 注入的函数端口；需结构、进度与回执时由 Host 使用 `hostTextGeneration`。Coding 的短草稿与 Cognia 的知识生成都复用 Home Runtime，不能复制测试中创建 adapter 的做法到按钮处理器。
+
+调用 Host Capability 时可传 `{ signal, before_effect }` 收紧本次执行。Plugin SDK 保留取消信号，Host 在 invocation 暴露它并持续核对原身份；这些选项不允许覆盖 plugin_caller。异步结果返回后仍须业务版本与提交检查。过程进度不等于已验证结果，未知用量不等于零。
+
+长任务的进程内取消、时限和周期性所有权检查使用 Plugin SDK `createExecutionLifetime`；同步 `monitor.check()` 抛错会取消该次执行。外部等待传其 signal，返回后 `assertActive()` 再进入业务事务/CAS，并在 finally dispose。它不授予执行权限，不替代 beforeEffect，不拥有持久状态或重试策略。Alchemist 的续租和 Images 的取消监测是实际示例；业务取消、关闭、失租不得写成普通失败，结果未知的收费调用不得自动重放。

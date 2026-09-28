@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { handleJellyNativePluginHttp } from '../apps/local-host/src/jelly-native-plugin-http.js';
 import { openJellyStore } from '../plugins/native/jelly/src/store.js';
-import type { JellyAiPorts } from '../plugins/native/jelly/src/ai.js';
-async function fixture(t: {after(fn:()=>void|Promise<void>):void}, ports: JellyAiPorts = {}) {
+import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
+async function fixture(t: {after(fn:()=>void|Promise<void>):void}, ports: { completeText?: HostCompleteText } = {}) {
   const home=mkdtempSync(join(tmpdir(),'jelly-http-'));
   const host=new MolisWorkLocalHost({homeDirectory:home,completeText:ports.completeText??null});
   const actions=(transport:object)=>bindActionClient(host.homeActionClient(),()=>({actor_id:'user',project_id:null,audience:'user',permissions:JELLY_ACTION_PERMISSIONS,...transport}));

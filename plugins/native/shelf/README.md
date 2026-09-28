@@ -64,3 +64,5 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
 - Migration Goals: `goal-reorg-f2`
 
 Agent 列表与页面刷新不启动本机 CLI。已找到程序但尚未检查能力时显示“执行时检查”；动作确认保留登录与隔离未知的提示。用户真正执行动作时由原 Shelf Module 检查所选 Agent，不遍历启动其他程序。
+
+Shelf 和结果面板使用 Host 注入的 UI 生命周期。卸载释放全局事件、请求、观察器及计时器；隐藏停止运行进度查询，返回时保留编辑/确认/运行中的交互，其余状态读取最新快照。迟到的旧快照不能覆盖较新的读取或命令结果。

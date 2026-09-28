@@ -4,6 +4,8 @@
 
 自然语言设计 → 候选 → UI 装配与功能连接 → 真实试用 → 独立插件。执行仅通过 Host 的 Prologue capabilities；安装通过 PluginPlatform，草稿与数据经 SQLite private storage CAS 持久化。
 
+生成插件的单次 `model.generate` 复用 Host 公共推理绑定和同一 Home Runtime，保留固定模型、安装调用限额、取消及持续授权，不创建额外工作目录或 Builder 运行记录。设计与编码使用 Builder Agent；它们的 Run 由 SDK 有界收集，保留活动、检查和历史记录。旧 model-role 历史记录读取兼容，但不再接受新的该类 Builder 请求。
+
 项目内入口为插件创作工作台；独立创作页面 `/projects/<project>/plugin-builder`；发布后为 `/projects/<project>/plugins/io.molis.work.generated.<id>`。先配置模型并关联工作区。Jev 可读取 Functions 中已有的 TypeSafe 凭据；缺少时明确采用人工候选，不伪造选择。
 
 生成应用安装固定的解释器 v1，发布的是不可变设计数据版本；发布序号 `N` 对应生成插件 Manifest `N.0.0`。每个应用有独立安装身份和数据。修改草稿不改变已发布定义；预览和正式记录隔离。第二次及以后的发布要求作者明确选择“直接兼容上一发布”或“升级时校验已有数据”。发布只登记候选；创作台库显示 Runtime 当前安装版本与最新发布，用户点「升级」后才调用 Plugin Runtime 的预检和切换。兼容声明沿连续的发布链映射为精确来源版本，其余历史版本列为可迁移来源并逐条预检现有记录。创作台不提供自动数据迁移；数据校验或运行时切换失败时旧版本继续使用，候选保留以便重试。安装版本以 Plugin Runtime 持久记录为准；Host 重启后从 Builder 的已发布版本记录恢复精确版本。支持本地数据、CSV 与受控派生计算；不执行模型 HTML/JavaScript、不自动连接外部账号。
@@ -41,3 +43,5 @@
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-builder-domain.test.ts tests/plugin-builder-runtime.test.ts tests/plugin-builder-workflow.test.ts tests/plugin-builder-publication.test.ts tests/agent-built-plugins-agent.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-builder-browser.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。

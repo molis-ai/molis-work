@@ -1,3 +1,4 @@
+import { decodePrologueJsonOutput } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createJellyActionHandlers, createJellyServiceHandlers, jellyManifest, openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { createJellyCompletion, readJellyModelSettings, saveJellyModelSettings } from "./jelly-model.js";
@@ -16,7 +17,17 @@ export function jellyActionProvider(home: string, completion?: HostCompleteText 
         catch { return { available: false, code: "actions.connection_required", reason: "Jelly 模型配置不可用，请检查服务连接" }; }
       },
       ai: caller => ({ signal: caller.signal, onProgress: caller.on_progress,
-        completeText: (prompt, options) => { const complete = model(); if (!complete) throw new ActionError("actions.connection_required", "请先配置 Jelly 文字模型"); return complete(prompt, options); },
+        completeJson: async (prompt, options) => {
+          const complete = model();
+          if (!complete) throw new ActionError("actions.connection_required", "请先配置 Jelly 文字模型");
+          await caller.beforeEffect();
+          const text = await complete(prompt, { ...options, beforeDispatch: caller.beforeEffect });
+          await caller.beforeEffect();
+          options?.signal?.throwIfAborted();
+          const decoded = decodePrologueJsonOutput(text, { allowCodeFence: true });
+          if (!decoded.ok) throw new ActionError("jelly.ai_invalid", "模型没有返回有效计划，原文未修改，请重试或手工拆解");
+          return decoded.value;
+        },
         readSource: url => readJellyMaterialSource(home, url, { signal: caller.signal, onProgress: caller.on_progress }),
       }),
     }), ...createJellyServiceHandlers({

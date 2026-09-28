@@ -38,6 +38,8 @@ description: How to add or change an AI capability in Molis Work — anything th
 2. **定义动作**：权限写 `model:invoke`；等模型的动作写 `scheduling: "concurrent"`；`effect` 与真实效果一致（名字里有 delete/remove/trash 会被推断为不可撤销，不对就用 `withActionEffect` 显式声明）。
 3. **处理器**：读快照 → 把 `caller.signal` 传给模型 → 返回后 `await caller.beforeEffect()` → 按快照/版本提交；嵌套动作/场景用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；空结果、超时、错误都不制造成功结果，输入保留。
 4. **Host 装配**：只注入函数端口（`completeText`、`modelAvailability`），未配置时 `actions.connection_required`。插件不拿密钥、不依赖 `@prologue/sdk`。
+   需要执行引用、结构化结果、进度或用量时使用同一绑定的 `hostTextGeneration`，不要再组模型/凭据或轮询 Run。`structured` 显式指定 local/native 与可支持 schema，未知约束拒绝而不忽略；领域 parse 留在插件。仅需要 JSON 格式解码时 Host 使用 Agent Host 公开的 `decodePrologueJsonOutput`（SDK 所有），围栏容忍显式启用；插件消费 JSON 值并验证业务含义，不能各自复制 JSON/围栏解析。`onProgress` 只表示过程，不授权业务提交。完整用量保留 reported/estimated/unknown，未知不当零；未报实际模型不填请求模型。默认不自动纠正格式，允许额外调用必须有界且重新预算/授权。
+   Coding 的短草稿走 `agent.draft-text.v1` → `model-draft.ts` → 共享 inference，无临时 Runtime/目录；Cognia 复用 `hostCompleteText`，Alchemist 复用 `hostTextGeneration`。模型目录使用 `configuredModelChoices` 的元数据检查，不能为发现而调用会解密的 health。Host Capability 的可选 signal 经 Plugin SDK 传到 invocation，只能取消自身调用；`beforeEffect` 仍需在派出与业务提交前复查，异步检查结束后也要检查取消和时限。
 5. **Agent 角色**（如需要）：Manifest `agent` 块声明 `execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`；提示词正文随插件包导出并在 `apps/workbench/src/plugin-catalog.ts` 的 `BUILTIN_PLUGIN_AGENTS` 可见；在 Prologue 上登记钩子一律 `forSession`。
 6. **错误**：执行服务不可用用 `inferenceServiceUnavailableReason` 如实说明；派出前被宿主复核拒绝用 `isDispatchRefusal` 识别，说明「没有发出」而不是网络问题；供应商 HTTP 错误按状态给可操作提示；不要把 SDK 细节透给用户。
 7. **取消与恢复**：被取消/撤权/停用的调用不再写任何记录；长任务用持久记录 + `request_id` 幂等，重试不重复调模型。

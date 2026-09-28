@@ -125,9 +125,9 @@ test("explicit auto admission separates positive, negative and review outcomes a
 });
 
 test("Host uses configured model transport and never fabricates text on failure", async () => {
-  const complete = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, resolveInference: async () => ({ completeText: async (input: {model:string}) => { assert.equal(input.model, "MiniMax-M3"); return "真实接口形状"; } }) as never });
+  const complete = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, resolveInference: async () => ({ completeTextResult: async (input: {model:string}) => { assert.equal(input.model, "MiniMax-M3"); return { value: "真实接口形状", configuredModel: input.model, state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, reportedModels: [], usage: [] }; } }) as never });
   assert.equal(await complete!("input"), "真实接口形状");
-  const failed = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, resolveInference: async () => ({ completeText: async () => { throw Object.assign(new Error("private error"), { status: 500 }); } }) as never });
+  const failed = hostCompleteText({ env: { MINIMAX_API_KEY: "test-key" }, resolveInference: async () => ({ completeTextResult: async () => { throw Object.assign(new Error("private error"), { status: 500 }); } }) as never });
   await assert.rejects(failed!("input"), /模型返回 500/);
   assert.equal(hostCompleteText({ env: {} }), undefined);
   new Function("return " + ASSISTANT_ISLAND_FACTORY_SCRIPT);

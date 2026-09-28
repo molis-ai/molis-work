@@ -41,6 +41,10 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
+## 公共搜索与证据
+
+`createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createFeedSourceRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配和受限的 AnySearch 传输，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。历史存储名称及引用保留，不改写已有数据。
+
 ## SDK 兼容发布面
 
 `sdk/` 保留 0.1.x 的根 SDK 名称与类型别名；它独立于本包 `src/index.ts`，由根 `tsconfig.sdk.json` 编译到 `dist/index.js` 及对应声明。消费者仍使用 `@molis-ai/molis-work`，内部代码继续使用明确的 Module/Host 入口。

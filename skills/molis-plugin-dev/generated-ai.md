@@ -24,6 +24,8 @@ if (!summary) throw Object.assign(new Error('没有生成正文，请重试'), {
 
 调用链是 `sdk.capability.call` → 沙箱 Broker 的授权能力 → Local Host → 同一 Home 的 Prologue Runtime → 模型。身份、授权、凭据、取消、调用预算由宿主负责；沙箱没有 `caller.beforeEffect()`，不要编造该 SDK 方法。Native 动作的并发和版本提交规则由平台实现，不能在生成代码中绕过 Broker 直连网络。
 
+Host 内的单次生成复用 `hostTextGeneration`；设计和编码才使用 Builder Agent。`model.generate` 的返回合同仍是 `{ text }`，不能假定它已提供流式消息、结构化校验或运行记录目录。宿主在模型派出与结果返回前复核当前 Action/安装授权及取消，插件自身仍需验证领域结果再保存。
+
 一次请求要重试时复用保存的请求身份；每次用时间或随机数生成新幂等键会造成重复副作用。若平台能力没有声明幂等支持，不声称重试不会重复收费。
 
 ## 验证时

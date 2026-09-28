@@ -1,6 +1,6 @@
 # Prologue SDK 构建来源
 
-**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
 
 ```bash
 git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz
@@ -8,7 +8,18 @@ git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendo
 
 下文写着"保留以便回退""保留用于回溯"的地方，都按上面这条从 git 历史取。换新包时把旧的当前包一并删掉，不再在这里累积。
 
-当前依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
+## 当前依赖：有界 Run 结果与结构校验
+
+当前包 `prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz` 从已使用的 `03c6ba0b` 增量构建，保留全部既有修复。新增公开 `collectRun`，从原 Run 事件收集引用、终态、文字、模型和 typed usage；取消/超限清理原订阅并取消原 Run。普通 Run 在完成前执行声明的结构校验，失败仍保留用量，不自动重试。schema 增加 nullable/anyOf、字符串/数组长度和数值范围；不支持的约束继续派出前拒绝。新增纯语法 `decodeJsonOutput`，Model schema、Function 和 Molis 的 Alchemist/Jelly 复用；围栏容忍需显式启用，不能代替领域校验，不自动纠正。
+
+- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，基线 `03c6ba0b`；未提交增量完整保存在 [bounded-results.patch](bounded-results.patch)，包括源码、合同和测试。
+- SHA-256：`838a67ed45cbaac1f07f6c134a7b16b61b39f1eab88cc59fe627a2710e7871e0`。
+- 重建：检出 `03c6ba0b`，应用上述补丁，执行 `pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-bounded-results-json.tgz`。
+- SDK build 与结果收集/结构化/参数 38 项定向验证通过，含真实 Node Host + 本地 HTTP 模型成功、结构失败、取消和用量。全仓 `tsconfig.typecheck.json` 仍有原先两处 `agent-compaction-public.test.ts` 类型错误，未虚称通过。JSON 解码补充后 SDK build 与四文件 40 项验证通过，1 项真实 MiniMax 因无凭据跳过。消费端进度与其他验证见 [本次 spec](../../specs/platform-capability-consolidation/spec.md)。未发布 npm、未修改用户安装。
+
+## 上一依赖：dispatch-denied
+
+该历史依赖为 `prologue-sdk-0.0.0-rc.1-dispatch-denied.tgz`（2026-09-28，仓库防腐整理 F-15）。在下面的 claims 包之上只改一件事：**App 的派出前复核拒绝时，报 `EFFECT_NOT_AUTHORIZED`，不再算作网络失败**。
 
 - Node Host 的 `beforeModelDispatch` 是 App 的撤权复核（授权被收回、Character 被停用、密钥变了）。它拒绝时一个字节都没出本机，原来却被 agent loop 与 session run 两处 `mapNetworkError` 改成 `MODEL_NETWORK_FAILED`，消费方据此提示"检查网络"；带备选目标时还会换到下一个目标再被拒一次。
 - 现在：复核抛错（不是取消、不是等待超时）时这次调用记为 failed，报 `EFFECT_NOT_AUTHORIZED`，消息保留 App 给的原因（`The App refused this model dispatch before sending: <原因>`）；两处 `mapNetworkError` 原样传出这个码；被拒后不换备选目标。取消和超时保持原来的含义。图片、TypeSafe 那条路本来就原样抛出 Host 的错误，随之拿到新码。

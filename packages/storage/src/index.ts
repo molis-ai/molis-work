@@ -40,3 +40,5 @@ export {
 export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, type SecretStoreMigrationResult, KeychainUnavailableError, holdSecretsLockForTest, isLegacyEnvelope, sealLegacyForTest, assertNotReversibleBase64Only, safeEqualString, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
+
+export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";

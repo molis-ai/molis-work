@@ -1,3 +1,4 @@
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "./coding-companions.js";
 import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
 import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
@@ -17,6 +18,7 @@ import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
 import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
+    const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
 
     immersiveNavigation = (${IMMERSIVE_NAVIGATION_FACTORY_SCRIPT})({
       workspace, treePane, documentPane, getSelected: () => selected, getState: () => state,
@@ -107,7 +109,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openResult: () => openCompanionResult('files'),
       closeResult: closeCompanionResult,
     }) : null;
-    (${CODING_CLIENT_FACTORY_SCRIPT})({
+    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient,
       revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
       showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders()}),

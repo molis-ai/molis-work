@@ -1,0 +1,602 @@
+diff --git a/packages/sdk/src/function/core/execute.ts b/packages/sdk/src/function/core/execute.ts
+index d948480f..e2407835 100644
+--- a/packages/sdk/src/function/core/execute.ts
++++ b/packages/sdk/src/function/core/execute.ts
+@@ -3,7 +3,7 @@ import {
+   stableStringify,
+   type ExactRef,
+ } from "../../kernel/core/index.js";
+-import type { ModelEvent, ModelParams, ModelProtocol } from "../../model/core/index.js";
++import { decodeJsonOutput, type ModelEvent, type ModelParams, type ModelProtocol } from "../../model/core/index.js";
+ import type { FunctionRegistry } from "./contract.js";
+ 
+ /** 一次函数执行的终态回执。**大正文只留引用**，不塞整篇进来。 */
+@@ -119,18 +119,12 @@ function defaultPrompt(input: unknown): string {
+  * 那正是这块要挡住的事。
+  */
+ function parseOutput(text: string): unknown {
+-  const trimmed = text.trim();
+-  // 模型常把 JSON 包在代码围栏里。剥掉围栏是格式问题，不是内容让步。
+-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(trimmed);
+-  const body = fenced?.[1] ?? trimmed;
+-  try {
+-    return JSON.parse(body);
+-  } catch {
+-    throw createPrologueError(
+-      "FUNCTION_OUTPUT_INVALID",
+-      "The model's reply was not a JSON object; it was not turned into a typed result.",
+-    );
+-  }
++  const decoded = decodeJsonOutput(text, { allowCodeFence: true });
++  if (decoded.ok) return decoded.value;
++  throw createPrologueError(
++    "FUNCTION_OUTPUT_INVALID",
++    "The model's reply was not a JSON object; it was not turned into a typed result.",
++  );
+ }
+ 
+ export function createFunctionEngine(deps: {
+diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
+index bec555df..e58e0278 100644
+--- a/packages/sdk/src/index.ts
++++ b/packages/sdk/src/index.ts
+@@ -150,7 +150,7 @@ export type {
+   PrologueHost,
+   WorkspaceGrant,
+ } from "./host/api/index.js";
+-export { isTerminalEventType, isTerminalRunState } from "./session/api/index.js";
++export { collectRun, isTerminalEventType, isTerminalRunState, type RunCompletion } from "./session/api/index.js";
+ export type {
+   Injection,
+   InjectionReceipt,
+@@ -808,6 +808,8 @@ export {
+   assertSchemaSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
++  type JsonOutput,
+   validateAgainst,
+   type JsonSchema,
+   type SchemaViolation,
+diff --git a/packages/sdk/src/model/README.md b/packages/sdk/src/model/README.md
+index c2fd8099..94b06e07 100644
+--- a/packages/sdk/src/model/README.md
++++ b/packages/sdk/src/model/README.md
+@@ -18,6 +18,10 @@
+ 
+ ## 可配与可换
+ 
++`decodeJsonOutput` 只解码 JSON 语法；围栏容忍由调用方显式选择。它返回可区分的成功/失败，不能代替 schema 或领域校验。Function 和 Model 使用同一格式解码入口，外部领域校验继续由 Function validators 或消费 App 执行。
++
++普通 Session Run 在发布 completed 前执行所声明的结构校验；失败保持本次已发生的用量，终态为 failed，不自动纠正或重试。schema 档位与约束由 App 按次传入，领域有效性不属于 Model。详见 [有界结果合同](../../../../docs/slices/bounded-run-results.md)。
++
+ - **槽（可换执行逻辑）：** `model-protocol`——协议翻译：请求体与流解析。内置实现在 `plugin/`。
+   - **可用性：** `model-protocol` ✅ 已建（`slots["model-protocol"].impl`，自带的盖掉同名内置）。**别读成「今天就能换」**——判据和整张表见 [AGENTS.md §3.7.1](../../../../AGENTS.md)。
+ - **可配（`config.<模块>`）：** `defaults.retry`、超时三档、`config.model.tokenBudget`、备选链。
+diff --git a/packages/sdk/src/model/api/index.ts b/packages/sdk/src/model/api/index.ts
+index a94a6353..60303a05 100644
+--- a/packages/sdk/src/model/api/index.ts
++++ b/packages/sdk/src/model/api/index.ts
+@@ -63,6 +63,8 @@ export {
+   assertSchemaSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
++  type JsonOutput,
+   validateAgainst,
+   type JsonSchema,
+   type SchemaViolation,
+diff --git a/packages/sdk/src/model/core/index.ts b/packages/sdk/src/model/core/index.ts
+index efb1f2c7..3622c5cb 100644
+--- a/packages/sdk/src/model/core/index.ts
++++ b/packages/sdk/src/model/core/index.ts
+@@ -74,6 +74,8 @@ export {
+   assertSchemaSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
++  type JsonOutput,
+   validateAgainst,
+   type JsonSchema,
+   type SchemaViolation,
+diff --git a/packages/sdk/src/model/core/structured.ts b/packages/sdk/src/model/core/structured.ts
+index 50ce92c9..4aa7144e 100644
+--- a/packages/sdk/src/model/core/structured.ts
++++ b/packages/sdk/src/model/core/structured.ts
+@@ -30,13 +30,24 @@ export interface StructuredRequest {
+  * 「拿回来的东西对不对得上」。用不了的关键字**明确拒**，不是当它不存在
+  * ——静默忽略一条 `pattern`，调用方会以为验过了。
+  */
++type SchemaType = "object" | "array" | "string" | "number" | "integer" | "boolean" | "null";
+ export interface JsonSchema {
+-  readonly type: "object" | "array" | "string" | "number" | "integer" | "boolean";
++  readonly type?: SchemaType | readonly SchemaType[];
++  readonly anyOf?: readonly JsonSchema[];
+   readonly properties?: Readonly<Record<string, JsonSchema>>;
+   readonly required?: readonly string[];
+   readonly items?: JsonSchema;
+-  readonly enum?: readonly (string | number | boolean)[];
++  readonly enum?: readonly (string | number | boolean | null)[];
+   readonly additionalProperties?: boolean;
++  readonly minLength?: number;
++  readonly maxLength?: number;
++  readonly minItems?: number;
++  readonly maxItems?: number;
++  readonly minimum?: number;
++  readonly maximum?: number;
++  readonly description?: string;
++  readonly title?: string;
++  readonly $schema?: string;
+ }
+ 
+ const KNOWN_KEYWORDS = [
+@@ -46,6 +57,7 @@ const KNOWN_KEYWORDS = [
+   "items",
+   "enum",
+   "additionalProperties",
++  "anyOf", "minLength", "maxLength", "minItems", "maxItems", "minimum", "maximum", "$schema",
+   // 说明性的，带着不影响判定。
+   "description",
+   "title",
+@@ -57,7 +69,9 @@ const KNOWN_KEYWORDS = [
+  * 在**发出之前**问一次：验不了的 schema 要在这里说清楚，而不是等
+  * 结果回来才发现「其实那条约束一直没生效」。
+  */
+-export function assertSchemaSupported(schema: JsonSchema, at = "$"): void {
++export function assertSchemaSupported(schema: JsonSchema, at = "$", depth = 0): void {
++  const invalid = () => { throw createPrologueError("MODEL_STRUCTURED_UNSUPPORTED", `The schema at ${at} is malformed or exceeds supported nesting.`); };
++  if (!schema || typeof schema !== "object" || Array.isArray(schema) || depth > 64) invalid();
+   const seen = Object.keys(schema as unknown as Record<string, unknown>);
+   const unknown = seen.filter((key) => !(KNOWN_KEYWORDS as readonly string[]).includes(key));
+   if (unknown.length > 0) {
+@@ -66,11 +80,30 @@ export function assertSchemaSupported(schema: JsonSchema, at = "$"): void {
+       `The schema at ${at} uses keywords this build cannot check: ${unknown.sort().join(", ")}.`,
+     );
+   }
++  const types = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
++  if ((!types.length && !schema.anyOf) || types.some(type => !["object", "array", "string", "number", "integer", "boolean", "null"].includes(type))) invalid();
++  if (schema.type !== undefined && !types.length) invalid();
++  for (const name of ["minLength", "maxLength", "minItems", "maxItems"] as const) {
++    const value = schema[name];
++    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) invalid();
++  }
++  for (const name of ["minimum", "maximum"] as const) if (schema[name] !== undefined && !Number.isFinite(schema[name])) invalid();
++  for (const [min, max] of [[schema.minLength, schema.maxLength], [schema.minItems, schema.maxItems], [schema.minimum, schema.maximum]]) {
++    if (min !== undefined && max !== undefined && min > max) invalid();
++  }
++  if (schema.required !== undefined && (!Array.isArray(schema.required) || schema.required.some(key => typeof key !== "string"))) invalid();
++  if (schema.enum !== undefined && (!Array.isArray(schema.enum) || !schema.enum.length || schema.enum.some(value => value !== null && !["string", "number", "boolean"].includes(typeof value)))) invalid();
++  if (schema.additionalProperties !== undefined && typeof schema.additionalProperties !== "boolean") invalid();
++  if (schema.properties !== undefined && (!schema.properties || typeof schema.properties !== "object" || Array.isArray(schema.properties))) invalid();
++  if (schema.anyOf !== undefined) {
++    if (!Array.isArray(schema.anyOf) || !schema.anyOf.length) invalid();
++    schema.anyOf.forEach((child, index) => assertSchemaSupported(child, `${at}.anyOf[${index}]`, depth + 1));
++  }
+   for (const [name, child] of Object.entries(schema.properties ?? {})) {
+-    assertSchemaSupported(child, `${at}.${name}`);
++    assertSchemaSupported(child, `${at}.${name}`, depth + 1);
+   }
+   if (schema.items !== undefined) {
+-    assertSchemaSupported(schema.items, `${at}[]`);
++    assertSchemaSupported(schema.items, `${at}[]`, depth + 1);
+   }
+ }
+ 
+@@ -94,17 +127,21 @@ export function validateAgainst(value: unknown, schema: JsonSchema, at = "$"): r
+     if (!schema.enum.includes(value as string | number | boolean)) {
+       bad.push({ path: at, why: `must be one of ${schema.enum.map(String).join(", ")}` });
+     }
+-    return Object.freeze(bad);
++  }
++
++  if (schema.anyOf && !schema.anyOf.some(child => validateAgainst(value, child, at).length === 0)) {
++    bad.push({ path: at, why: "must match one of the declared alternatives" });
+   }
+ 
+   const actual = kindOf(value);
+-  if (!matchesType(actual, schema.type, value)) {
++  const types = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
++  if (types.length && !types.some(type => matchesType(actual, type, value))) {
+     // **只说类型，不抄正文。** 正文可能带着密钥或者一整页网页。
+     bad.push({ path: at, why: `must be ${schema.type}, got ${actual}` });
+     return Object.freeze(bad);
+   }
+ 
+-  if (schema.type === "object") {
++  if (actual === "object") {
+     const object = value as Record<string, unknown>;
+     for (const name of schema.required ?? []) {
+       if (object[name] === undefined) {
+@@ -126,10 +163,20 @@ export function validateAgainst(value: unknown, schema: JsonSchema, at = "$"): r
+     }
+   }
+ 
+-  if (schema.type === "array" && schema.items !== undefined) {
+-    (value as readonly unknown[]).forEach((one, index) => {
+-      bad.push(...validateAgainst(one, schema.items as JsonSchema, `${at}[${index}]`));
+-    });
++  if (typeof value === "string") {
++    const length = Array.from(value).length;
++    if (schema.minLength !== undefined && length < schema.minLength) bad.push({ path: at, why: `must have at least ${schema.minLength} characters` });
++    if (schema.maxLength !== undefined && length > schema.maxLength) bad.push({ path: at, why: `must have at most ${schema.maxLength} characters` });
++  }
++  if (typeof value === "number") {
++    if (!Number.isFinite(value)) bad.push({ path: at, why: "must be a finite number" });
++    if (schema.minimum !== undefined && value < schema.minimum) bad.push({ path: at, why: `must be at least ${schema.minimum}` });
++    if (schema.maximum !== undefined && value > schema.maximum) bad.push({ path: at, why: `must be at most ${schema.maximum}` });
++  }
++  if (Array.isArray(value)) {
++    if (schema.minItems !== undefined && value.length < schema.minItems) bad.push({ path: at, why: `must have at least ${schema.minItems} items` });
++    if (schema.maxItems !== undefined && value.length > schema.maxItems) bad.push({ path: at, why: `must have at most ${schema.maxItems} items` });
++    if (schema.items !== undefined) value.forEach((one, index) => bad.push(...validateAgainst(one, schema.items!, `${at}[${index}]`)));
+   }
+ 
+   return Object.freeze(bad);
+@@ -145,7 +192,7 @@ function kindOf(value: unknown): string {
+   return typeof value;
+ }
+ 
+-function matchesType(actual: string, wanted: JsonSchema["type"], value: unknown): boolean {
++function matchesType(actual: string, wanted: SchemaType, value: unknown): boolean {
+   // `integer` 是 `number` 的一种，但反过来不成立——一个 `1.5` 不该
+   // 悄悄通过一条要整数的约束。**只比 JS 类型是不够的**：`typeof 1.5`
+   // 就是 `"number"`。
+@@ -155,6 +202,16 @@ function matchesType(actual: string, wanted: JsonSchema["type"], value: unknown)
+   return actual === wanted;
+ }
+ 
++export type JsonOutput = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
++
++/** Syntax only. Whole-response code fences require explicit opt-in; domain validation stays with the caller. */
++export function decodeJsonOutput(text: string, options: { readonly allowCodeFence?: boolean } = {}): JsonOutput {
++  const trimmed = text.trim();
++  const fenced = options.allowCodeFence ? /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(trimmed) : null;
++  try { return { ok: true, value: JSON.parse(fenced?.[1] ?? trimmed) as unknown }; }
++  catch { return { ok: false }; }
++}
++
+ /**
+  * 拿回文本，按 `local` 那一档验。
+  *
+@@ -165,15 +222,14 @@ export function checkLocalStructure(
+   text: string,
+   schema: JsonSchema,
+ ): { readonly value: unknown } {
+-  let parsed: unknown;
+-  try {
+-    parsed = JSON.parse(text) as unknown;
+-  } catch {
++  const decoded = decodeJsonOutput(text);
++  if (!decoded.ok) {
+     throw createPrologueError(
+       "MODEL_STRUCTURED_INVALID",
+       "The model's answer is not JSON, so it cannot be checked against the schema.",
+     );
+   }
++  const parsed = decoded.value;
+   const violations = validateAgainst(parsed, schema);
+   if (violations.length > 0) {
+     throw createPrologueError(
+diff --git a/packages/sdk/src/session/README.md b/packages/sdk/src/session/README.md
+index 30b5f085..016da40c 100644
+--- a/packages/sdk/src/session/README.md
++++ b/packages/sdk/src/session/README.md
+@@ -18,6 +18,8 @@ Run 启动将端点形状交给 Model 的同一预检窄口，避免与目录登
+ 
+ ## 可配与可换
+ 
++`collectRun` 从原 Run 的已提交事件收集有界文本、模型与用量回执，保留原终态与引用；调用方提供取消/截止 signal、正文与事件数量上限及可选观察器。取消或超限只取消原 Run，不产生第二执行或自动重试。同步回放与实时订阅使用同样清理语义。详见 [有界结果合同](../../../../docs/slices/bounded-run-results.md)。
++
+ - **槽（可换执行逻辑）：** 无。这个模块没有第二家 App 一定要换的执行逻辑。
+ - **可配（`config.<模块>`）：** `config.session.branchSummaryChars`（默认 2000）、列表分页。
+ - **不可配（硬边界）：** 导出脱敏正则；事件顺序与游标。
+diff --git a/packages/sdk/src/session/api/index.ts b/packages/sdk/src/session/api/index.ts
+index a69e34ed..1559a471 100644
+--- a/packages/sdk/src/session/api/index.ts
++++ b/packages/sdk/src/session/api/index.ts
+@@ -78,3 +78,4 @@ export {
+ } from "../core/index.js";
+ 
+ export type { InterruptedRun, RunRecoveryOperation, RunRecoveryView, SessionRecoveryReport } from "../core/recovery.js";
++export { collectRun, type RunCompletion } from "../core/collect-run.js";
+diff --git a/packages/sdk/src/session/core/index.ts b/packages/sdk/src/session/core/index.ts
+index 9b82d48e..5645b8c3 100644
+--- a/packages/sdk/src/session/core/index.ts
++++ b/packages/sdk/src/session/core/index.ts
+@@ -106,3 +106,4 @@ export {
+ } from "./intervene.js";
+ 
+ export { interruptedRuns, closeInterruptedRun, type InterruptedRun, type RunRecoveryOperation, type RunRecoveryView, type SessionRecoveryReport } from "./recovery.js";
++export { collectRun, type RunCompletion } from "./collect-run.js";
+diff --git a/packages/sdk/src/session/core/run.ts b/packages/sdk/src/session/core/run.ts
+index a944f70a..7dfffa00 100644
+--- a/packages/sdk/src/session/core/run.ts
++++ b/packages/sdk/src/session/core/run.ts
+@@ -10,6 +10,7 @@ import { visibleUnderPrivacy } from "./metadata.js";
+ import type { BoundAttachments } from "../../resource/core/index.js";
+ import {
+   assertParamsSupported,
++  checkLocalStructure,
+   assertModelEndpoint,
+   decidePromptCache,
+   estimateTokens,
+@@ -376,7 +377,9 @@ export function startRun(input: {
+     // 订阅者等一辈子。
+     let reportedUsage: UsageReceipt | undefined;
+     let terminalEvent: ModelEvent | undefined;
++    let structuredText = "";
+     const parserEmit = (event: ModelEvent): void => {
++      if (event.type === "text-delta" && input.start.params?.structured?.schema) structuredText += event.text;
+       if (event.type === "usage") reportedUsage = mergeUsageSnapshot(reportedUsage, event.receipt);
+       // 只暂存终态，正文和原 usage 更新仍即时发布。
+       if (isTerminalEventType(event.type)) terminalEvent = event;
+@@ -471,6 +474,10 @@ export function startRun(input: {
+       else wired.parser.fail(mapNetworkError(error));
+     } finally {
+       handleId = undefined;
++      if (terminalEvent?.type === "completed" && input.start.params?.structured?.schema) {
++        try { checkLocalStructure(structuredText, input.start.params.structured.schema); }
++        catch (error) { terminalEvent = { type: "failed", error: errorFromUnknown(error) }; }
++      }
+       if (terminalEvent !== undefined) emit(terminalEvent);
+     }
+   })();
+diff --git a/packages/sdk/test/structured-output.test.ts b/packages/sdk/test/structured-output.test.ts
+index cfb95065..5bdb54ea 100644
+--- a/packages/sdk/test/structured-output.test.ts
++++ b/packages/sdk/test/structured-output.test.ts
+@@ -4,6 +4,7 @@ import {
+   assertParamsSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
+   prepareWire,
+   BUILT_IN_ADAPTERS,
+   validateAgainst,
+@@ -216,3 +217,22 @@ describe("类型判定", () => {
+     expect(validateAgainst(["ok", 2], schema)[0]?.path).toBe("$[1]");
+   });
+ });
++
++
++describe("shared JSON syntax decoder", () => {
++  it("keeps strict schema parsing and makes whole-response fence tolerance explicit", () => {
++    const fenced = '```json\n{"title":"source"}\n```';
++    expect(decodeJsonOutput(fenced)).toEqual({ ok: false });
++    expect(decodeJsonOutput(fenced, { allowCodeFence: true })).toEqual({ ok: true, value: { title: "source" } });
++    expect(decodeJsonOutput('```\n[1,2]\n```', { allowCodeFence: true })).toEqual({ ok: true, value: [1, 2] });
++    expect(failure(() => checkLocalStructure(fenced, { type: "object" })).code).toBe("MODEL_STRUCTURED_INVALID");
++    expect(decodeJsonOutput('before ' + fenced, { allowCodeFence: true })).toEqual({ ok: false });
++    expect(decodeJsonOutput(fenced + ' after', { allowCodeFence: true })).toEqual({ ok: false });
++    expect(decodeJsonOutput('{"secret":"invalid', { allowCodeFence: true })).toEqual({ ok: false });
++  });
++  it("does not mistake JSON syntax for domain validation", () => {
++    expect(decodeJsonOutput('null')).toEqual({ ok: true, value: null });
++    expect(decodeJsonOutput('{"title":3}')).toEqual({ ok: true, value: { title: 3 } });
++    expect(failure(() => checkLocalStructure('{"title":3}', { type: "object", properties: { title: { type: "string" } } })).code).toBe("MODEL_STRUCTURED_INVALID");
++  });
++});
+diff --git a/docs/slices/bounded-run-results.md b/docs/slices/bounded-run-results.md
+new file mode 100644
+index 00000000..0d8431e9
+--- /dev/null
++++ b/docs/slices/bounded-run-results.md
+@@ -0,0 +1,13 @@
++# Bounded Run results for embedding applications
++
++Status: implementing. Consumer: Molis Work shared inference (Cognia, Coding drafts, Alchemist and Jelly). This slice implements the user's explicit cross-repository consolidation request against `03c6ba0b`; it does not upgrade unrelated SDK features.
++
++Session owns Run state and the committed event stream. Add a public `collectRun` consumer of that stream, returning the exact Run reference, terminal event/state, text, reported models and typed usage receipts. It creates no Runtime, execution loop, billing ledger or durable state. The caller supplies an abort signal (including its deadline), text/event bounds and optional progress observer. Abort, exceeded bounds or a throwing observer detach and cancel the original Run; a terminal failure remains a failure with its collected receipts. Synchronous replay must clean up just like live delivery. Collection never infers a reported model or reported usage.
++
++Model already declares local structure validation but ordinary Session Run completion does not invoke it. Wire the existing model validation port before publishing successful completion, preserving already-recorded usage. Unsupported schemas still fail before dispatch, native never silently falls back, and none does not validate. Expand only constraints used by current callers (nullable alternatives, string/array length and numeric bounds); unsupported keywords remain explicit failures. Domain validation and correction policy stay with callers; no automatic paid retry is introduced.
++
++Module contracts: `packages/sdk/src/session/README.md`, `packages/sdk/src/model/README.md`; requirements: `kernel/model/structured-output.md` and `kernel/session.md`. Modifiable paths: these contracts, Session/Model public/core exports, the Function output-decoding call site and their tests. Host authorization, credentials, state machine ownership, publication ordering and existing dispatch checks are immutable boundaries. Limits are per collection, supplied by App; underlying protocol is replaceable through the existing model slot. Product prompts, model selection and user controls remain the App's.
++
++Validation: SDK build; structured-output and bounded-results behavior tests; real Node Host + local HTTP model verifies success/invalid structure/reported usage/cancellation and original Run terminal state. Consumer installation/build and production inference integration follow. No live commercial provider claim without an actual run. Rollback restores prior dependency and consumer code; no data migration or SDK commit/push is required.
++
++The same consumer consolidation exposes Model `decodeJsonOutput(text, { allowCodeFence? })`, a pure syntax decoder with a tagged success/failure result. The default is strict JSON; Function explicitly retains its historical whole-response code-fence tolerance. Local schema checks and Function reuse this decoder, while Function's attached external validators and App domain parsers remain their owners. No second execution engine, automatic retry or schema fallback is introduced. Molis Host uses the decoder for Alchemist/Jelly and deletes their private JSON/fence parsing. Raw invalid text stays only in the caller's bounded result for its explicit correction, never in SDK error messages.
+diff --git a/packages/sdk/src/session/core/collect-run.ts b/packages/sdk/src/session/core/collect-run.ts
+new file mode 100644
+index 00000000..7cc53be1
+--- /dev/null
++++ b/packages/sdk/src/session/core/collect-run.ts
+@@ -0,0 +1,64 @@
++import { createPrologueError, type ExactRef } from "../../kernel/core/index.js";
++import type { ModelEvent, UsageReceipt } from "../../model/core/index.js";
++import { isTerminalEventType, type Run, type TerminalRunState } from "./run.js";
++
++export interface RunCompletion {
++  readonly ref: ExactRef<"run">;
++  readonly state: TerminalRunState;
++  readonly terminal: Extract<ModelEvent, { type: TerminalRunState }>;
++  readonly text: string;
++  readonly reportedModels: readonly string[];
++  readonly usage: readonly UsageReceipt[];
++}
++
++/** Observe one original Run, including committed replay. Does not start, retry or bill a model call. */
++export function collectRun(run: Run, options: {
++  readonly signal: AbortSignal;
++  readonly maxTextChars: number;
++  readonly maxEvents: number;
++  readonly onEvent?: (event: ModelEvent) => void;
++}): Promise<RunCompletion> {
++  for (const limit of [options.maxTextChars, options.maxEvents]) {
++    if (!Number.isSafeInteger(limit) || limit < 1) {
++      throw createPrologueError("RUNTIME_OPTIONS_INVALID", "Run collection bounds must be positive safe integers.");
++    }
++  }
++  return new Promise((resolve, reject) => {
++    let settled = false, detach: (() => void) | undefined, text = "", count = 0;
++    const models = new Set<string>(), usage: UsageReceipt[] = [];
++    const cleanup = () => { settled = true; options.signal.removeEventListener("abort", abort); detach?.(); };
++    const stop = (error: unknown) => {
++      if (settled) return;
++      cleanup();
++      void run.cancel().catch(() => undefined);
++      reject(error);
++    };
++    const abort = () => stop(options.signal.reason);
++    options.signal.addEventListener("abort", abort, { once: true });
++    if (options.signal.aborted) { abort(); return; }
++    try {
++      detach = run.subscribe(event => {
++        if (settled) return;
++        try {
++          if (++count > options.maxEvents || event.type === "text-delta" && text.length + event.text.length > options.maxTextChars) {
++            stop(createPrologueError("MODEL_RESPONSE_INVALID", "Run result exceeds the caller's collection bounds."));
++            return;
++          }
++          if (event.type === "text-delta") text += event.text;
++          if (event.type === "model-reported") models.add(event.model);
++          if (event.type === "usage-recorded") usage.push(event.receipt);
++          options.onEvent?.(event);
++          // The observer may synchronously abort; never turn that cancellation into completion.
++          if (settled) return;
++          if (isTerminalEventType(event.type)) {
++            cleanup();
++            resolve({ ref: run.ref, state: event.type, terminal: event as RunCompletion["terminal"], text,
++              reportedModels: [...models], usage });
++          }
++        } catch (error) { stop(error); }
++      });
++      // subscribe may synchronously replay a terminal event before returning its disposer.
++      if (settled) detach();
++    } catch (error) { stop(error); }
++  });
++}
+diff --git a/packages/sdk/test/bounded-run-results.live.test.ts b/packages/sdk/test/bounded-run-results.live.test.ts
+new file mode 100644
+index 00000000..23ae4465
+--- /dev/null
++++ b/packages/sdk/test/bounded-run-results.live.test.ts
+@@ -0,0 +1,58 @@
++import { mkdtemp, rm } from "node:fs/promises";
++import { createServer } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { collectRun, createRuntime, type JsonSchema } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++it("real Node Host validates local structured output before terminal publication, keeps receipts and cancels the original request", async () => {
++  const home = await mkdtemp(join(tmpdir(), "prologue-collected-"));
++  let text = '{"title":"ok"}', requests = 0, hold = false;
++  const entered = Promise.withResolvers<void>();
++  const server = createServer(async (request, response) => {
++    for await (const _ of request) { /* consume request */ }
++    requests++;
++    if (hold) { entered.resolve(); return; }
++    response.writeHead(200, { "content-type": "text/event-stream" });
++    response.end(`data: ${JSON.stringify({ model: "reported-model", choices: [{ index: 0, delta: { content: text }, finish_reason: null }] })}\n\n` +
++      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 12, completion_tokens: 3 } })}\n\ndata: [DONE]\n\n`);
++  });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address(); if (!address || typeof address === "string") throw new Error("no endpoint");
++  const runtime = await createRuntime({ app: { appId: "prologue.collected", appVersion: "1.0.0" },
++    host: createNodeHost({ storageRoot: home }), network: { model: true, loopback: true } });
++  try {
++    const credentialRef = (await runtime.credentials.write({ label: "fixture", secret: { plaintext: new TextEncoder().encode("synthetic-key") } })).ref;
++    const session = await runtime.sessions.create({ ephemeral: true });
++    const schema: JsonSchema = { type: "object", required: ["title"], properties: { title: { type: "string", minLength: 1 } }, additionalProperties: false };
++    const start = (shape = schema) => session.startRun({ protocol: "openai-compatible", model: "configured-model",
++      endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, credentialRef,
++      messages: [{ role: "user", text: "return JSON" }], params: { structured: { mode: "local", schema: shape } } });
++    const options = () => ({ signal: AbortSignal.timeout(10_000), maxTextChars: 1000, maxEvents: 100 });
++    const successful = await start();
++    const result = await collectRun(successful, options());
++    expect(result).toMatchObject({ ref: successful.ref, state: "completed", text, reportedModels: ["reported-model"], usage: [{ input: { source: "reported", tokens: 12 }, output: { source: "reported", tokens: 3 } }] });
++    expect(await collectRun(successful, options())).toEqual(result);
++    expect(requests).toBe(1);
++    text = '{"title":""}';
++    const invalid = await start(), failed = await collectRun(invalid, options());
++    expect(invalid.state).toBe("failed");
++    expect(failed.terminal).toMatchObject({ type: "failed", error: { code: "MODEL_STRUCTURED_INVALID" } });
++    expect(failed.usage).toHaveLength(1);
++    expect(requests).toBe(2);
++    await expect(start({ type: "string", pattern: "secret" } as unknown as JsonSchema)).rejects.toMatchObject({ code: "MODEL_STRUCTURED_UNSUPPORTED" });
++    expect(requests).toBe(2);
++    hold = true;
++    const cancelled = await start(), controller = new AbortController();
++    const pending = collectRun(cancelled, { ...options(), signal: controller.signal });
++    const rejection = expect(pending).rejects.toMatchObject({ name: "AbortError" });
++    await entered.promise; controller.abort(); await rejection;
++    await cancelled.cancel();
++    expect(cancelled.state).toBe("cancelled");
++    expect(requests).toBe(3);
++  } finally {
++    await runtime.shutdown(); server.closeAllConnections();
++    await new Promise<void>(resolve => server.close(() => resolve())); await rm(home, { recursive: true, force: true });
++  }
++});
+diff --git a/packages/sdk/test/bounded-run-results.test.ts b/packages/sdk/test/bounded-run-results.test.ts
+new file mode 100644
+index 00000000..011ebde1
+--- /dev/null
++++ b/packages/sdk/test/bounded-run-results.test.ts
+@@ -0,0 +1,65 @@
++import { expect, it } from "vitest";
++import { collectRun, validateAgainst, assertSchemaSupported, unknownUsage, type ModelEvent, type Run, type JsonSchema } from "../src/index.js";
++
++function replay(events: ModelEvent[]) {
++  let detached = 0, cancelled = 0;
++  const run: Run = { ref: { kind: "run", id: "test-run", revision: 1 }, state: "completed",
++    subscribe(listener) { for (const event of events) listener(event); return () => { detached++; }; },
++    async cancel() { cancelled++; } };
++  return { run, get detached() { return detached; }, get cancelled() { return cancelled; } };
++}
++const options = () => ({ signal: AbortSignal.timeout(5_000), maxTextChars: 100, maxEvents: 20 });
++
++it("collects committed synchronous replay once, preserving unknown usage and the original terminal", async () => {
++  const receipt = unknownUsage();
++  const f = replay([{ type: "text-delta", text: "answer" }, { type: "model-reported", model: "actual" },
++    { type: "usage-recorded", callId: "c", receipt }, { type: "completed" }]);
++  const seen: string[] = [];
++  const result = await collectRun(f.run, { ...options(), onEvent: event => seen.push(event.type) });
++  expect(result).toMatchObject({ ref: f.run.ref, state: "completed", text: "answer", reportedModels: ["actual"], usage: [receipt] });
++  expect(result.usage[0]!.input.tokens).toBeUndefined();
++  expect(seen).toHaveLength(4);
++  expect(f.detached).toBe(1); expect(f.cancelled).toBe(0);
++});
++
++it.each(["cancelled", "tripped", "circuit-tripped", "failed"] as const)("retains %s instead of returning apparent success", async state => {
++  const terminal = { type: state } as ModelEvent;
++  const f = replay([terminal]);
++  expect((await collectRun(f.run, options())).state).toBe(state);
++  expect(f.detached).toBe(1);
++});
++
++it("bounds both content and events, cancels and detaches without accepting late completion", async () => {
++  for (const limits of [{ maxTextChars: 2, maxEvents: 20 }, { maxTextChars: 100, maxEvents: 1 }]) {
++    const f = replay([{ type: "text-delta", text: "long" }, { type: "completed" }]);
++    await expect(collectRun(f.run, { ...options(), ...limits })).rejects.toMatchObject({ code: "MODEL_RESPONSE_INVALID" });
++    expect(f.cancelled).toBe(1); expect(f.detached).toBe(1);
++  }
++});
++
++it("an observer failure or synchronous cancellation releases the subscription and original Run", async () => {
++  for (const kind of ["throw", "abort"] as const) {
++    const controller = new AbortController(), error = new Error("stop");
++    const f = replay([{ type: "completed" }]);
++    await expect(collectRun(f.run, { ...options(), signal: controller.signal, onEvent() {
++      if (kind === "throw") throw error;
++      controller.abort(error);
++    } })).rejects.toBe(error);
++    expect(f.cancelled).toBe(1); expect(f.detached).toBe(1);
++  }
++});
++
++it("validates nullable alternatives, length/number bounds and enum together with type", () => {
++  const schema: JsonSchema = { type: "object", properties: {
++    title: { type: ["string", "null"], minLength: 1, maxLength: 2 },
++    values: { type: "array", minItems: 1, maxItems: 2, items: { type: "number", minimum: 0, maximum: 1 } },
++    extra: { anyOf: [{ type: "null" }, { type: "integer", minimum: 1 }] },
++  }, required: ["title", "values", "extra"], additionalProperties: false };
++  assertSchemaSupported(schema);
++  expect(validateAgainst({ title: "😀", values: [0, 1], extra: null }, schema)).toEqual([]);
++  expect(validateAgainst({ title: "", values: [2], extra: 0.5 }, schema).map(v => v.path)).toEqual(["$.title", "$.values[0]", "$.extra"]);
++  expect(validateAgainst(1, { type: "string", enum: [1] })).not.toEqual([]);
++  for (const malformed of [{ type: "string", minLength: -1 }, { type: "number", minimum: "0" }, { anyOf: [] }, { type: "mystery" }]) {
++    expect(() => assertSchemaSupported(malformed as JsonSchema)).toThrow(expect.objectContaining({ code: "MODEL_STRUCTURED_UNSUPPORTED" }));
++  }
++});

@@ -1372,8 +1372,7 @@ export interface BuilderAgentActivity {
 /** A Skill a builder run mounts through Prologue: an exact version, inlined once for the run. */
 export interface BuilderSkill { id: string; version: number; name: string; body: string }
 export interface BuilderAgentRequest {
-  /** `model` is a generated plugin's own model call: one turn, no tools, the plugin's instructions. */
-  role: 'designer' | 'coder' | 'model';
+  role: 'designer' | 'coder';
   instruction: string;
   promptVersion: string;
   /** The standard this stage works to (the plugin development Skill), mounted through Prologue's Skill registry. */
@@ -1389,7 +1388,8 @@ export interface BuilderAgentRequest {
 }
 export interface BuilderAgentRecord {
   id: string;
-  role: BuilderAgentRequest['role'];
+  /** Older tool-free model-call records remain readable; new calls use the shared inference port. */
+  role: BuilderAgentRequest['role'] | 'model';
   promptVersion: string;
   contractRevision: string;
   instruction: string;

@@ -45,7 +45,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 
 ## 开发要求
 
-- 负责：能力注册、发现、授予与动作服务调度（`ActionService`）。
+- 负责：能力注册、发现、授予、动作服务调度（`ActionService`）与进程内执行生命周期。
 - 不负责：业务状态机、提供方实现、界面。
 - 公开入口：`@molis-ai/molis-work-kernel`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/kernel`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -55,7 +55,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；调用结束后不能再产生副作用。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 调用记录只写谁调了什么、怎样结束，不写输入与结果；业务校验与事务留在处理器里。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts`
 - 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -68,3 +68,5 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`, `goal-reorg-ap2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+`createExecutionLifetime` 统一进程内取消、时限和同步周期监测，经 Plugin SDK 提供给插件。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { capabilityLimits, hostCapabilities, keepNewestRecords, MODEL_CALLS_PER_MINUTE, slowOperations, standInCapabilities } from '../apps/local-host/src/plugin-builder/capabilities.js';
+import { capabilityLimits, hostCapabilities, MODEL_CALLS_PER_MINUTE, slowOperations, standInCapabilities } from '../apps/local-host/src/plugin-builder/capabilities.js';
 import { expandDesign } from '../plugins/native/plugin-builder/src/index.js';
 
 const identity = (namespace: 'preview' | 'installed', installationId = 'install-1') => ({ projectId: 'p', installationId, pluginId: 'io.molis.work.generated.x', namespace });
@@ -33,19 +33,6 @@ test('a query may not call the model: reads run whenever the page opens', () => 
   const design = { operations: [{ id: 'notes.explain', kind: 'query', input: {}, output: 'string', effects: { storage: ['read'], capabilities: ['model.generate'] }, examples: [{ input: {}, output: '' }] }],
     pages: [{ id: 'home', parts: [{ id: 'explain', intent: 'description', purpose: 'p', read: 'notes.explain' }] }], acceptance: [{ id: 'a', steps: ['expect explain x'] }] };
   assert.throws(() => expandDesign(design, { id: 'q', title: 't', description: 'd', rationale: 'r', journey: ['j'] }, 'io.molis.work.generated.x', 'r', []), /查询（query）不能调用模型/);
-});
-
-test('a plugin keeps only its newest model-call records', async () => {
-  const { mkdtemp, writeFile, utimes, readdir, rm } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
-  const directory = await mkdtemp(join(tmpdir(), 'model-records-'));
-  try {
-    for (let index = 0; index < 5; index++) { const file = join(directory, 'r' + index + '.json'); await writeFile(file, '{}'); await utimes(file, 1000 + index, 1000 + index); }
-    await writeFile(join(directory, 'note.txt'), 'kept');
-    assert.equal(await keepNewestRecords(directory, 2), 3);
-    assert.deepEqual((await readdir(directory)).sort(), ['note.txt', 'r3.json', 'r4.json']);
-    assert.equal(await keepNewestRecords(join(directory, 'missing')), 0, 'no records yet is fine');
-  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test('operations that wait on the model get their own lane; everything else stays quick', () => {

@@ -14,9 +14,9 @@ type InferenceRequest = { protocol: string; endpoint: string; model: string; cre
 /** Model calls go through the Home's Prologue inference; stand in at that seam and report what reached it. */
 function inferenceAt(t: test.TestContext, home: string, reply: string) {
   const seen: Array<{ protocol: string; endpoint: string; model: string; key: unknown }> = [];
-  const release = bindPrologueInference(home, { completeText: async (input: InferenceRequest) => {
+  const release = bindPrologueInference(home, { completeTextResult: async (input: InferenceRequest) => {
     seen.push({ protocol: input.protocol, endpoint: input.endpoint, model: input.model, key: await input.resolveCredential(input.credential_ref) });
-    return reply;
+    return { value: reply, configuredModel: input.model, reportedModels: [], usage: [], state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 } };
   } } as never);
   t.after(release);
   return seen;

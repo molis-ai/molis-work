@@ -7,10 +7,11 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 
-import { atomicWriteFileSync } from "@molis-ai/molis-work-storage";
-import { resolveFeedSecurityDirectory } from "@molis-ai/molis-work-storage";
-import { createFileSecretStore, type SecretStore } from "@molis-ai/molis-work-storage";
+import { atomicWriteFileSync } from "./atomic-write.js";
+import { resolveFeedSecurityDirectory } from "./local-security-paths.js";
+import { createFileSecretStore, type SecretStore } from "./file-secret-store.js";
 
+// Persisted names are deliberately unchanged so existing references and ciphertext remain readable.
 const CONTENT_KEY_REF = "system:feed:evidence-content-key:v1";
 const RECOVERY_CONTENT_KEY_REF = "system:feed:evidence-content-key:v2";
 const CONTENT_REF = /^molis-work-feed\/sha256\/([0-9a-f]{64})$/u;
@@ -25,7 +26,7 @@ interface SealedEvidenceBlob {
   ct: string;
 }
 
-export interface FeedEvidenceContentStore {
+export interface EvidenceContentStore {
   write(markdown: string): { contentRef: string };
   read(contentRef: string): string;
   has(contentRef: string): boolean;
@@ -37,10 +38,10 @@ export interface FeedEvidenceContentStore {
   };
 }
 
-export function createFeedEvidenceContentStore(options: {
+export function createEvidenceContentStore(options: {
   secretStore?: SecretStore;
   rootDirectory?: string;
-} = {}): FeedEvidenceContentStore {
+} = {}): EvidenceContentStore {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const root = options.rootDirectory ?? path.join(resolveFeedSecurityDirectory(), "evidence");
   const recoveryRoot = `${root}-recovered-v2`;

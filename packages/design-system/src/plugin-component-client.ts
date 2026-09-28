@@ -692,7 +692,7 @@ export function createPluginComponentClient(options: PluginComponentClientOption
       selectPage(pageIds.has(currentPage) ? currentPage : next.contract.pages[0]!.id); await refresh();
     },
     refresh,
-    destroy() { disposed = true; epoch++; parts.clear(); pages.clear(); regions.clear(); root.replaceChildren(); },
+    destroy() { disposed = true; epoch++; for (const part of parts.values()) clearTimeout(part.waiting); parts.clear(); pages.clear(); regions.clear(); root.replaceChildren(); },
   };
 }
 export const PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT = createPluginComponentClient.toString();

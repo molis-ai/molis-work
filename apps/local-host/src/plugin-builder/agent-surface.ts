@@ -13,7 +13,7 @@ import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-h
 import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
-import { openConfiguredModels } from '../configured-models.js';
+import { configuredModelChoices, openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { builderSkill } from './skill.js';
@@ -22,7 +22,7 @@ import { buildManifest, canonical, createBuildProject, readBuildFile } from './b
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance } from './browser.js';
 import { ArtifactsModule } from '@molis-ai/molis-work-module-artifacts';
-import { UiHost } from '@molis-ai/molis-work-ui-host';
+import { UiHost, UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformOptions } from '../plugin-platform.js';
@@ -35,7 +35,8 @@ import { hostNetwork } from './network.js';
 import { pluginSecrets, type PluginSecrets } from './secrets.js';
 import { bindReminderDelivery, createReminders } from './reminders.js';
 import { scheduleServiceFor } from '../schedule-runtime.js';
-import { capabilityLimits, hostCapabilities, keepNewestRecords, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
+import { capabilityLimits, hostCapabilities, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
+import { createPluginModelGeneration } from './model.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
@@ -160,20 +161,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         return provider ? store!.resolveConfiguration({ provider_id: provider.provider_id })?.api_key ?? null : null;
       }),
     });
-    // A generated plugin calls the model the person chose in the studio, or else the first configured one: one turn,
-    // no tools, its own instructions, in a directory of its own.
-    const generate: CapabilityImplementations['generate'] = options.generate ?? (async (pluginId, input, signal) => {
-      const first = (await options.models())[0];
-      const selection = selected() ?? (first ? { provider_id: first.provider_id, model_id: first.model_id } : null);
-      if (!selection) throw new Error('插件要调用模型，但还没有配置可用的文字模型');
-      const base = join(root, 'model', pluginId), work = join(base, 'work');
-      await mkdir(work, { recursive: true, mode: 0o700 });
-      const agent = await (await resolvePrologueBuilder(home))({ buildRoot: work, storageRoot: join(base, 'runs'), timeoutMs: 110_000, ...access(selection) });
-      try {
-        const record = await agent.run({ role: 'model', instruction: input.instructions, promptVersion: 'plugin-model/1', contractRevision: pluginId, task: input.input || '（没有输入内容）', signal });
-        return { text: record.output.trim() };
-      } finally { await agent.close(); await keepNewestRecords(join(base, 'runs', 'builder-runs')); }
-    });
+    const generate: CapabilityImplementations['generate'] = options.generate ?? createPluginModelGeneration({ homeDirectory: home,
+      selection: () => selected() ?? configuredModelChoices(home)[0] ?? null });
     /** Builds whose interface acceptance is running: their trial identity answers with stand-ins meanwhile. */
     const accepting = new Set<string>();
     // The project's goals, through the Goals plugin's own actions, as this plugin installation (never as the person),
@@ -500,7 +489,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     const served = request.headers.host;
     if (served && /^(127\.0\.0\.1|localhost|\[::1\]):\d{1,5}$/.test(served)) studio.origin = 'http://' + served;
     else if (url.port) studio.origin = url.origin;
-    const factories = '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({api:p=>' + literal(prefix + '/api/plugin-builder/studio') + '+p,preview:id=>' + literal(prefix + '/plugin-builder/studio/preview/') + '+id,plugin:id=>' + literal(prefix + '/plugins/') + '+id,components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT;
+    const factories = '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),api:p=>' + literal(prefix + '/api/plugin-builder/studio') + '+p,preview:id=>' + literal(prefix + '/plugin-builder/studio/preview/') + '+id,plugin:id=>' + literal(prefix + '/plugins/') + '+id,components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT;
     if (installedPage || installedCall) {
       const pluginId = (installedPage ?? installedCall)![1]!;
       const record = studio.platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature.startsWith(SIGNATURE) && item.state !== 'uninstalled');
@@ -517,7 +506,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
         const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), connected: release.design.contract.operations.map(item => item.id) };
         const body = '<header class="as-installed-bar"><b>' + escapeHtml(release.design.title) + '</b><span>v' + release.version + ' · 数据保存在本机</span><a href="' + escapeHtml(prefix + '/plugin-builder/studio?build=' + buildId) + '">在创作台中修改</a></header>'
           + '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
-        html(response, page(release.design.title, body, '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mode:"installed",call:' + literal(prefix + '/api/plugin-builder/installed/' + pluginId + '/call') + ',view:' + literal(view) + ',components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + '});', controlToken));
+        html(response, page(release.design.title, body, '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),mode:"installed",call:' + literal(prefix + '/api/plugin-builder/installed/' + pluginId + '/call') + ',view:' + literal(view) + ',components:' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + '});', controlToken));
         return true;
       }
     }

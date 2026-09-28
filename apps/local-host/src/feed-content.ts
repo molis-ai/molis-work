@@ -1,4 +1,4 @@
-import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
+import { createEvidenceContentStore } from "@molis-ai/molis-work-storage";
 import type { FeedItemRecord, FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 
 /**
@@ -7,7 +7,7 @@ import type { FeedItemRecord, FeedSnapshot } from "@molis-ai/molis-work-plugin-f
  */
 export function hydrateFeedItemContent(item: FeedItemRecord): FeedItemRecord {
   if (!item.materials.some((material) => material.content_ref)) return item;
-  const content = createFeedEvidenceContentStore();
+  const content = createEvidenceContentStore();
   return {
     ...item,
     materials: item.materials.map((material) => {

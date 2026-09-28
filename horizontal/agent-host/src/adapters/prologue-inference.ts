@@ -1,4 +1,4 @@
-import type { ExactRef, ModelEvent, Runtime } from "@prologue/sdk";
+import { collectRun, type ExactRef, type Runtime } from "@prologue/sdk";
 import { PrologueInferenceError, isDispatchRefusal, markDispatchRefusal, type PrologueCredentialInput, type PrologueInferenceClient, type PrologueTextInput, type PrologueTextResult } from "../inference.js";
 
 /** Borrows the owning Runtime; never constructs a Host or a second model execution path. */
@@ -36,30 +36,25 @@ export function createPrologueInference(runtime: Runtime,
     try {
       signal.throwIfAborted();
       const run = await session.startRun({ protocol: input.protocol, endpoint: input.endpoint, model: input.model,
-        credentialRef, messages: [{ role: "user", text: input.prompt }], timeoutMs: input.timeout_ms,
-        params: { maxOutputTokens: input.max_output_tokens }, ...(input.prompt_cache && input.prompt_cache !== "off" ? { promptCache: input.prompt_cache } : {}) });
-      let value = "";
-      const reportedModels = new Set<string>(), usage: unknown[] = [];
-      await new Promise<void>((resolve, reject) => {
-        let settled = false, detach: (() => void) | undefined;
-        const finish = (error?: unknown) => { if (settled) return; settled = true; signal.removeEventListener("abort", abort); detach?.(); error ? reject(error) : resolve(); };
-        const abort = () => { void run.cancel().catch(() => {}); finish(signal.reason); };
-        signal.addEventListener("abort", abort, { once: true });
-        detach = run.subscribe((event: ModelEvent) => {
-          if (settled) return;
-          if (event.type === "text-delta") value += event.text;
-          if (event.type === "model-reported") reportedModels.add(event.model);
-          if (event.type === "usage-recorded") usage.push(event.receipt);
-          if (event.type === "completed") finish();
-          else if (event.type === "failed") finish(event.error);
-          else if (event.type === "cancelled") finish(signal.reason ?? new DOMException("Inference cancelled", "AbortError"));
-        });
-        if (settled) detach();
-        if (signal.aborted) abort();
-      });
+        credentialRef, messages: [...(input.system ? [{ role: "system" as const, text: input.system }] : []), { role: "user", text: input.prompt }], timeoutMs: input.timeout_ms,
+        params: { maxOutputTokens: input.max_output_tokens, ...(input.structured ? { structured: input.structured } : {}) },
+        ...(input.prompt_cache && input.prompt_cache !== "off" ? { promptCache: input.prompt_cache } : {}) });
+      try { input.onProgress?.({ type: "started", run_ref: run.ref }); }
+      catch (error) { void run.cancel().catch(() => {}); throw error; }
+      const result = await collectRun(run, { signal, maxTextChars: 180_000, maxEvents: 100_000, onEvent: event => {
+        if (event.type === "text-delta" || event.type === "model-reported" || event.type === "usage-recorded") input.onProgress?.(event);
+      } });
+      const execution = { run_ref: result.ref, state: result.state, configuredModel: input.model, reportedModels: result.reportedModels, usage: result.usage };
+      if (result.state !== "completed") {
+        const error = result.terminal.type === "failed" ? safeError(result.terminal.error) : undefined;
+        throw new PrologueInferenceError(error instanceof PrologueInferenceError ? error.code : `inference.${result.state}`, "模型未完成，原材料已保留",
+          error instanceof PrologueInferenceError ? error.status : undefined, execution);
+      }
       signal.throwIfAborted();
-      if (!value.trim()) throw new PrologueInferenceError("inference.empty", "模型没有返回文字");
-      return { value, configuredModel: input.model, reportedModels: [...reportedModels], usage };
+      if (!result.text.trim()) throw new PrologueInferenceError("inference.empty", "模型没有返回文字", undefined, execution);
+      return { ...execution, state: "completed", value: result.text,
+        ...(input.structured && input.structured.mode !== "none" ? { structured: JSON.parse(result.text) as unknown } : {}),
+      };
     } finally { await session.archive(); }
   }));
   return {

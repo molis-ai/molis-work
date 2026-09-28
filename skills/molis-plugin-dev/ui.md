@@ -111,3 +111,9 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 ## 验收
 
 改了可见 UI：用浏览器把「打开插件 → 点一行 → 主按钮 → 返回」走完。只截一张静态图不算验过。相关列表/详情共享状态的，两边都看一眼。空态、错误、窄屏返回一起做。
+
+## 客户端挂载与异步资源
+
+原生插件 factory 使用 Host 注入的 `mountPluginClient(root)`，返回 null 就退出，避免同一 DOM 重复绑定。用 scope 的 listen、timeout、frame、observe、own 管理资源；不要留下全局监听、SSE 或观察器。Workbench 和独立页面都由 UI Host 提供同一实现。
+
+进度查询放在 `whenVisible(signal => cleanup)` / `poll` 中：隐藏停止轮询与订阅，再次显示读取权威状态。请求用 `scope.fetch`，读取 body 后 `scope.assertCurrent(signal)` 才消费结果。普通写入只绑定挂载取消，不因隐藏页面重放命令；UI 卸载不等于服务端业务任务已取消。保留业务幂等和结果未知的提示。参考 Images、Coding、Builder 与 Shelf 当前客户端、`packages/ui-host/README.md`；用真实浏览器验证隐藏祖先、重复挂载、卸载、延迟返回与恢复。

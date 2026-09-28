@@ -46,7 +46,8 @@ jobs:
           pnpm exec tsc --noEmit -p tsconfig.json
           pnpm exec tsc --noEmit -p tsconfig.sdk.json
 
-      # Action directory, Manifest and MCP grant contracts; runs on the packages built above.
+      # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client;
+      # runs on the packages built above.
       # The full product suite still runs locally (see the PR template).
       - name: Action and plugin contracts
         run: pnpm test:contracts

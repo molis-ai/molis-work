@@ -5,11 +5,14 @@ import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/pl
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
-import { AssistantStoreError, type AssistantStore, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
+import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { randomUUID } from "node:crypto";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -108,6 +111,34 @@ function chunked(base: Omit<AgentTextMaterial, "text" | "material_id">, id: stri
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
 
+/** A result in a line the person and the next round can read; never the whole payload. */
+function summarizeResult(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length > 400 ? `${flat.slice(0, 399)}…` : flat || "已完成";
+}
+
+function readable(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && (value as { type?: unknown }).type === "doc") {
+    const inline = (node: unknown): string => !node || typeof node !== "object" ? "" : typeof (node as { text?: unknown }).text === "string" ? (node as { text: string }).text
+      : Array.isArray((node as { content?: unknown }).content) ? ((node as { content: unknown[] }).content).map(inline).join("") : "";
+    return ((value as { content?: unknown[] }).content ?? []).map(inline).filter(Boolean).join("\n");
+  }
+  return typeof value === "number" || typeof value === "boolean" ? String(value) : JSON.stringify(value, null, 2);
+}
+
+export function cardView(card: StoredCard): AssistantCard {
+  const properties = (card.input_schema.properties ?? {}) as Record<string, { title?: string; description?: string }>;
+  const input = card.input && typeof card.input === "object" && !Array.isArray(card.input) ? card.input as Record<string, unknown> : null;
+  const keys = [...new Set([...(input ? Object.keys(input) : []), ...card.missing.map(item => item.field)])];
+  const fields = input || card.missing.length ? keys.map(key => ({ key, label: properties[key]?.title ?? (properties[key]?.description && properties[key]!.description!.length <= 24 ? properties[key]!.description! : key),
+    value: input && input[key] !== undefined ? readable(input[key]) : "", editable: card.editable.includes(key) || card.missing.some(item => item.field === key) }))
+    : [{ key: "", label: "内容", value: readable(card.input), editable: false }];
+  return { card_id: card.card_id, revision: card.revision, run_id: card.run_id, title: card.title, summary: card.summary, provider: card.provider,
+    capability_title: card.capability_title, capability_id: card.reference.capability_id, effect: card.effect, fields, missing: card.missing, status: card.status,
+    ...(card.outcome ? { outcome: card.outcome } : {}), created_at: card.created_at, updated_at: card.updated_at };
+}
+
 /** Titles of the capabilities a scope offered at its latest round start, to name them in the activity. */
 type CapabilityTitles = Map<string, { title: string; provider: string }>;
 
@@ -169,6 +200,7 @@ export class AssistantService {
     // Only a round that is really waiting on a decision shows one; a review left behind by an ended round is not offered.
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     return { work: this.publicWork(work, state), rounds, reviews: work.session_id ? this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [],
+      cards: this.store.cards(work.work_id).map(card => cardView(card)),
       ...(recovery ? { problem: { message: recovery.reason, action: "核对上一轮的实际结果后再继续" } } : {}) };
   }
 
@@ -261,6 +293,79 @@ export class AssistantService {
   private recoveryView(report: AgentRecoveryReport): AssistantRecovery {
     return { blockers: [...report.blockers], rounds: report.runs.filter(run => !run.subagent).map(run => ({ run_id: run.run_id, version: run.version, can_close: run.can_close,
       blockers: [...run.blockers], operations: run.operations.map(operation => ({ summary: operation.summary, outcome: operation.outcome })) })) };
+  }
+
+  /**
+   * Record a suggestion the round made, checked against the capability as it is now. A complete input must already
+   * satisfy the capability's contract; one with declared missing fields waits for the person to supply them.
+   */
+  async recordOffer(work: StoredWork, offer: AgentActionOffer, views: readonly ActionView[]): Promise<{ offer_id: string }> {
+    const ref = offer.reference;
+    const view = views.find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
+    if (!view || !view.availability.available) throw new AssistantError("assistant.action_revoked", "That capability is not available here; nothing was suggested.");
+    const missing = (offer.missing ?? []).filter(item => item.field && item.question);
+    if (!missing.length) assertActionInput(view.action.input_schema, offer.input);
+    const at = this.now().toISOString();
+    const card: StoredCard = { card_id: `card-${randomUUID()}`, work_id: work.work_id, revision: 1, run_id: this.store.rounds(work.work_id).at(-1)?.run_id ?? null,
+      title: offer.title, summary: offer.summary, provider: view.provider.title, capability_title: view.action.title, effect: actionEffect(view.action, view.capability_id),
+      reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: structuredClone(offer.input),
+      input_schema: view.action.input_schema as Record<string, unknown>, editable: [...new Set(offer.editable ?? [])], missing,
+      status: missing.length ? "needs-input" : "ready", created_at: at, updated_at: at };
+    this.store.addCard(card);
+    return { offer_id: card.card_id };
+  }
+
+  /**
+   * The person clicked the card: run exactly what it shows, with their adjustments to its editable or missing fields.
+   * The card is claimed first, so a second click, another tab or a retry after a restart cannot run it again.
+   */
+  async runCard(workId: string, cardId: string, input: { revision: number; values?: Record<string, string> }): Promise<AssistantCard> {
+    const work = this.store.get(this.actorId, workId);
+    let card = this.store.card(work.work_id, cardId);
+    if (!["ready", "needs-input", "failed"].includes(card.status)) return cardView(card);
+    if (card.revision !== Number(input.revision)) throw new AssistantError("assistant.conflict", "这个建议已经变化，请查看最新内容后再点");
+    const values = input.values && typeof input.values === "object" ? input.values : {};
+    const allowed = new Set([...card.editable, ...card.missing.map(item => item.field)]);
+    let prepared = structuredClone(card.input);
+    if (Object.keys(values).length) {
+      if (!prepared || typeof prepared !== "object" || Array.isArray(prepared)) throw new AssistantError("assistant.invalid", "这个建议没有可调整的字段");
+      for (const [key, raw] of Object.entries(values)) {
+        if (!allowed.has(key)) throw new AssistantError("assistant.invalid", `字段「${key}」不能在这里修改`);
+        const declared = (card.input_schema.properties as Record<string, { type?: unknown }> | undefined)?.[key]?.type;
+        let value: unknown = raw;
+        if (declared !== "string" && typeof raw === "string") { try { value = JSON.parse(raw); } catch { value = raw; } }
+        (prepared as Record<string, unknown>)[key] = value;
+      }
+    }
+    const stillMissing = card.missing.filter(item => { const value = (prepared as Record<string, unknown> | null)?.[item.field]; return value === undefined || value === null || value === ""; });
+    if (stillMissing.length) throw new AssistantError("assistant.invalid", `还需要填写：${stillMissing.map(item => item.question).join("；")}`);
+    const authority = await this.ports.authority(work);
+    if (!authority.actions) throw new AssistantError("assistant.unsupported", "当前没有可用的业务能力");
+    const client = await authority.actions(RUNTIME);
+    const view = (await client.discover()).find(row => row.capability_id === card.reference.capability_id && row.version === card.reference.version && row.provider.provider_id === card.reference.provider_id);
+    // The card runs what it shows or not at all: never another capability, version or provider.
+    if (!view || !view.availability.available) return cardView(this.store.updateCard(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? view.availability.reason : "这项能力已不可用或已对助理关闭" }));
+    try { assertActionInput(view.action.input_schema, prepared); }
+    catch (error) { throw new AssistantError("assistant.invalid", `填写的内容不符合要求：${error instanceof Error ? error.message : String(error)}`); }
+    card = this.store.updateCard(card, card.revision, { status: "running", request_id: randomUUID(), input: prepared, missing: [], outcome: undefined });
+    try {
+      const result = await client.invoke(card.reference, prepared);
+      const text = typeof result === "string" ? result : JSON.stringify(result) ?? "";
+      return cardView(this.store.updateCard(card, card.revision, { status: "done", outcome: summarizeResult(text) }));
+    } catch (error) {
+      const code = (error as { code?: string }).code ?? "";
+      const message = error instanceof Error ? error.message : String(error);
+      // An unknown outcome is never offered again as a plain retry: it may already have happened.
+      const unknown = /delivery_unknown|host_replaced/.test(code);
+      return cardView(this.store.updateCard(card, card.revision, { status: unknown ? "unknown" : "failed", outcome: unknown ? `结果未确认：${message}。请到原处核对，不会自动重试` : message }));
+    }
+  }
+
+  dismissCard(workId: string, cardId: string): AssistantCard {
+    const work = this.store.get(this.actorId, workId);
+    const card = this.store.card(work.work_id, cardId);
+    if (!["ready", "needs-input", "failed", "stale"].includes(card.status)) return cardView(card);
+    return cardView(this.store.updateCard(card, card.revision, { status: "dismissed" }));
   }
 
   saveDraft(workId: string, draft: string): AssistantWork {
@@ -364,6 +469,10 @@ export class AssistantService {
       work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : ""].filter(Boolean).join("\n");
     const base = { source_artifact_id: work.work_id, source_version: 1 };
     const out: AgentTextMaterial[] = [{ ...base, material_id: "situation", title: "本轮情况", text: situation }];
+    // What the person did with earlier suggestions since the last round: the next round goes on from there.
+    const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
+    const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
+    if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
     out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", offered.length ? this.directory(offered) : "本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"));
     if (context) {
       const lines = [`页面：${context.source.title ?? context.source.surface}${context.source.plugin_id ? `（${context.source.plugin_id}）` : ""}`,

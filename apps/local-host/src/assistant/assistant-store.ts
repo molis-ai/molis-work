@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS assistant_rounds (
   work_id TEXT NOT NULL, run_id TEXT NOT NULL, position INTEGER NOT NULL, body TEXT NOT NULL,
   PRIMARY KEY(work_id, run_id)
 );
+CREATE TABLE IF NOT EXISTS assistant_cards (
+  card_id TEXT PRIMARY KEY, work_id TEXT NOT NULL, revision INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS assistant_cards_by_work ON assistant_cards(work_id, created_at);
 CREATE TABLE IF NOT EXISTS assistant_settings (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, revision INTEGER NOT NULL, value TEXT NOT NULL, PRIMARY KEY(actor_id, key)
 );
@@ -40,6 +44,30 @@ export interface StoredRound {
   materials: AssistantMaterial[];
   context: AssistantContextSnapshot | null;
   started_at: string;
+}
+
+/** A card as stored: the public view's facts plus the exact reference and input it runs. */
+export interface StoredCard {
+  card_id: string;
+  work_id: string;
+  revision: number;
+  run_id: string | null;
+  title: string;
+  summary: string;
+  provider: string;
+  capability_title: string;
+  effect: "read" | "write" | "irreversible";
+  reference: { capability_id: string; version: number; provider_id: string };
+  input: unknown;
+  input_schema: Record<string, unknown>;
+  editable: string[];
+  missing: Array<{ field: string; question: string }>;
+  status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
+  outcome?: string;
+  /** Set when the person clicked; the one execution this card may have. */
+  request_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export class AssistantStoreError extends Error {
@@ -113,6 +141,31 @@ export class AssistantStore {
   finishRequest(actorId: string, requestId: string, result: AssistantSendResult): void {
     this.db.prepare("UPDATE assistant_requests SET state='done', work_id=?, result=? WHERE actor_id=? AND request_id=?")
       .run(result.work.work_id, JSON.stringify(result), actorId, requestId);
+  }
+
+  addCard(card: StoredCard): StoredCard {
+    this.db.prepare("INSERT INTO assistant_cards(card_id,work_id,revision,status,created_at,body) VALUES (?,?,?,?,?,?)")
+      .run(card.card_id, card.work_id, card.revision, card.status, card.created_at, JSON.stringify(card));
+    return card;
+  }
+
+  cards(workId: string): StoredCard[] {
+    return this.db.prepare("SELECT body FROM assistant_cards WHERE work_id=? ORDER BY created_at").all(workId).map(row => JSON.parse(String(row.body)) as StoredCard);
+  }
+
+  card(workId: string, cardId: string): StoredCard {
+    const row = this.db.prepare("SELECT body FROM assistant_cards WHERE work_id=? AND card_id=?").get(workId, cardId);
+    if (!row) throw new AssistantStoreError("assistant.not_found", "找不到这个建议，可能已被移除");
+    return JSON.parse(String(row.body)) as StoredCard;
+  }
+
+  /** Compare-and-set on the card's revision: two clicks, two tabs or a retry after a restart claim it once. */
+  updateCard(card: StoredCard, expected: number, patch: Partial<StoredCard>): StoredCard {
+    const next: StoredCard = { ...card, ...patch, revision: expected + 1, updated_at: this.now().toISOString() };
+    const changed = this.db.prepare("UPDATE assistant_cards SET revision=?, status=?, body=? WHERE card_id=? AND revision=?")
+      .run(next.revision, next.status, JSON.stringify(next), card.card_id, expected).changes;
+    if (!changed) throw new AssistantStoreError("assistant.conflict", "这个建议已在别处处理，已刷新为最新状态");
+    return next;
   }
 
   /** Actions the person switched off for the Assistant, by exact capability, version and provider. */

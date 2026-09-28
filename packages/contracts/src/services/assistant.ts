@@ -163,6 +163,32 @@ export interface AssistantRound {
   ended_at: string | null;
 }
 
+/**
+ * A suggestion the person can run with one click. It carries the exact capability and prepared input; the click is
+ * their choice of exactly what the card shows, and it runs at most once.
+ */
+export interface AssistantCard {
+  card_id: string;
+  revision: number;
+  /** Which round proposed it. */
+  run_id: string | null;
+  title: string;
+  summary: string;
+  provider: string;
+  capability_title: string;
+  /** So the surface that owns the data can refresh once it has run. */
+  capability_id: string;
+  effect: "read" | "write" | "irreversible";
+  /** The prepared input, field by field as the person reads it; `editable` ones can be changed before running. */
+  fields: Array<{ key: string; label: string; value: string; editable: boolean }>;
+  missing: Array<{ field: string; question: string }>;
+  status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
+  /** What happened, or why not, in the owner's words. */
+  outcome?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
 export interface AssistantPendingReview {
   review_id: string;
@@ -177,6 +203,7 @@ export interface AssistantWorkView {
   work: AssistantWork;
   rounds: AssistantRound[];
   reviews: AssistantPendingReview[];
+  cards: AssistantCard[];
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }

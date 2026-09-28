@@ -60,7 +60,8 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   return { service, store, host, adapter, queue, notes, requests, project, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -79,7 +80,7 @@ test("a project work finds, reads and — after the person approves the exact in
     await until(() => f.requests[0], "first model request");
     // The model saw only the gateway and root-free tools: no file, command or per-action tools.
     const offered = f.requests[0].tools.map((tool: any) => tool.name).sort();
-    assert.deepEqual(offered, ["ask-user", "change-capability", "context-remaining", "find-capabilities", "read-capability", "update-todo"]);
+    assert.deepEqual(offered, ["ask-user", "change-capability", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
     assert.ok(JSON.stringify(f.requests[0]).includes("可用能力目录"), "the round carries the capability directory");
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     assert.equal(view.work.state, "waiting-review");
@@ -156,7 +157,7 @@ test("activity and review read in the person's terms", () => {
     { call_id: "a", name: "change-capability", target: "fixture.notes.write", state: "failed", summary: "change-capability · EFFECT_NOT_AUTHORIZED", at: null },
     { call_id: "b", name: "find-capabilities", target: "Notes", state: "completed", summary: "find-capabilities", at: null },
   ], titles), [
-    { call_id: "a", verb: "change", target: "Notes · Save a note", state: "failed", reason: "not-authorized" },
+    { call_id: "a", verb: "change", target: "Notes · Save a note", state: "failed", capability_id: "fixture.notes.write", reason: "not-authorized" },
     { call_id: "b", verb: "lookup", target: "Notes", state: "completed" },
   ]);
   assert.deepEqual(readableInput({ properties: { title: { title: "标题" } } }, { title: "Q4", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Line one" }] }, { type: "paragraph", content: [{ type: "text", text: "Line two" }] }] } }),
@@ -219,5 +220,41 @@ test("stopping a round withdraws its held change: nothing runs and nothing is le
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "failed"].includes(v.work.state) ? v : undefined; }, "stopped");
     assert.equal(done.reviews.length, 0);
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
+  } finally { await f.close(); }
+});
+
+test("a suggested action becomes a card that runs exactly what it shows, once, and only when clicked", { timeout: 60_000 }, async t => {
+  const suggest = (input: unknown, extra: object = {}) => () => reply({ name: "suggest-action", input: { title: "保存这条笔记", summary: "把“会后发纪要”存进项目笔记", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input, ...extra } });
+  const f = await fixture(t, [
+    suggest({ text: "会后发纪要" }, { editable: ["text"] }),
+    suggest({ text: 42 }),
+    suggest({}, { missing: [{ field: "text", question: "笔记写什么？" }] }),
+    () => reply(undefined, "Here are the options."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "what should I note?", request_id: "req-00000009" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "suggesting runs nothing");
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest-action:completed", "suggest-action:failed", "suggest-action:completed"], "an input that breaks the contract is not offered");
+    assert.equal(done.cards.length, 2);
+    const [ready, asking] = done.cards as [typeof done.cards[0], typeof done.cards[0]];
+    assert.equal(ready.status, "ready");
+    assert.equal(ready.run_id, sent.run_id);
+    assert.deepEqual(ready.fields, [{ key: "text", label: "内容", value: "会后发纪要", editable: true }]);
+    assert.equal(asking.status, "needs-input");
+    // The person adjusts the editable field and clicks: exactly that runs, once.
+    const ran = await f.service.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "会后 24 小时内发纪要" } });
+    assert.equal(ran.status, "done");
+    const again = await f.service.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "twice" } });
+    assert.equal(again.status, "done", "a second click reports the first outcome");
+    assert.deepEqual(JSON.parse(JSON.stringify(f.notes.prepare("SELECT body FROM notes").all())), [{ body: "会后 24 小时内发纪要" }]);
+    // Only the declared fields can change, and a missing one must be given.
+    await assert.rejects(f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision }), /笔记写什么/);
+    await assert.rejects(f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { other: "x" } }), /不能在这里修改/);
+    // Switched off after it was suggested: the card says so and runs nothing else in its place.
+    f.store.setActionEnabled("web-user", actionKey({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }), false);
+    const stale = await f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { text: "late" } });
+    assert.equal(stale.status, "stale");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
   } finally { await f.close(); }
 });

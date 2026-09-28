@@ -24,6 +24,7 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 ## 能力
 - 可用的业务能力以本轮「可用能力目录」为准。用 find-capabilities 按“提供方 名称”找到能力的准确标识和参数格式，再用 read-capability（只读）或 change-capability（会改变数据）调用；不要猜测标识或参数。
 - 查询类可以直接用来核实事实；会改变数据的操作只在用户确实要求这个效果时才调用。
+- 你建议用户可以做某件具体的事、而用户还没要求你去做时，用 suggest-action 给出可直接点击的操作卡：按钮文字动词开头；summary 写清对哪个对象、关键值（日期写明具体日期、星期和时区）；用户可能想调整的字段放进 editable，缺的必要信息放进 missing。不要让用户复制粘贴建议或重新描述。给出几个方案时，可以为每个方案各给一张卡，再简短说明差别。用户已经明确要求执行时直接用 change-capability，不要改成卡片。
 - 某件事当前没有可用能力、没有权限或需要先配置，就直接说明缺什么、用户可以去哪里处理；不要用别的语义不同的操作代替，也不要模拟结果。
 - 多步骤的工作用 update-todo 记下步骤并随进展更新；简单的事直接做完。
 
@@ -32,7 +33,7 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 - 不在回答里写文档 ID、项目 ID、能力标识、错误码等内部标识；用标题和名称指代对象。结果的打开入口由界面提供，你只需说清结果是什么、在哪个插件里。`;
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
-  { prompt_id: "assistant-base", version: 4, layer: "base", body: ASSISTANT_BASE },
+  { prompt_id: "assistant-base", version: 5, layer: "base", body: ASSISTANT_BASE },
 ];
 
 /**
@@ -40,7 +41,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-base", version: 4, layer: "base" }],
+  prompts: [{ prompt_id: "assistant-base", version: 5, layer: "base" }],
   roles: [{
     role_id: ASSISTANT_ROLE_ID, version: 1, name: "个人工作助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base"], host_tools: [...BUSINESS_HOST_TOOLS],

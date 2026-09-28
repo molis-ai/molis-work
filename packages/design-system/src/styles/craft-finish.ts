@@ -503,6 +503,12 @@ const CRAFT_BASE_STYLES = `
   /* What needs the person: a question to answer, or an exact effect to allow. */
   ${ASSIST} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }
   ${ASSIST} .assistant-card-title { margin: 0; font-weight: 500; color: var(--ink); }
+  ${ASSIST} .assistant-card--action { box-shadow: 0 0 0 1px var(--line-strong); }
+  ${ASSIST} .assistant-card--action[data-status="done"] { box-shadow: 0 0 0 1px var(--line); }
+  ${ASSIST} .assistant-card--action :is(input.mw-input, textarea.mw-input) { width: 100%; font: inherit; font-size: 12px; }
+  ${ASSIST} .assistant-card-status { margin: 0; font-size: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-card--action[data-status="failed"] .assistant-card-status { color: var(--danger); }
+  ${ASSIST} .assistant-card--action[data-status="unknown"] .assistant-card-status { color: var(--ink); }
   ${ASSIST} .assistant-card p { margin: 0; }
   ${ASSIST} .assistant-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
   ${ASSIST} .assistant-answer { display: flex; gap: 6px; }

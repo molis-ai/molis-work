@@ -28,9 +28,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
   const store = new AssistantStore(openHomeSqliteDatabase(ports.homeDirectory, ASSISTANT_STORE_NAME));
-  const service = new AssistantService(store, {
+  const service: AssistantService = new AssistantService(store, {
     host: async () => { await ports.agentReady(); return ports.agentHost; },
-    authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR)),
+    authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work) }),
     projectTitle: ports.projectTitle,
   }, WEB_ACTOR);
@@ -79,6 +79,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 3 && parts[2] === "answer") return { status: 200, body: await service.answer(workId, body as never) };
       if (parts.length === 3 && parts[2] === "draft") return { status: 200, body: { work: service.saveDraft(workId, body.draft as string) } };
       if (parts.length === 3 && parts[2] === "rename") return { status: 200, body: { work: await service.rename(workId, Number(body.revision), String(body.title ?? "")) } };
+      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values as Record<string, string> | undefined }) };
+      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.dismissCard(workId, parts[3]!) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
       if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };

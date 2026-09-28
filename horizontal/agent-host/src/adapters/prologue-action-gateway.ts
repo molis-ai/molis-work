@@ -2,7 +2,7 @@ import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prolog
 import { ActionError, actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability" } as const;
+export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action" } as const;
 const PACK_ID = "molis-action-gateway";
 const FIND_LIMIT = 8;
 
@@ -80,6 +80,20 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view)) });
     }),
     [GATEWAY_TOOLS.read]: guarded(async (args, signal) => { const parsed = parseCapability(args); return invoke(parsed, await current(parsed, false), signal); }),
+    // A proposal for the person: recorded by the caller, checked against the capability as it is now; runs nothing.
+    ...(gateway.client.offer ? { [GATEWAY_TOOLS.suggest]: guarded(async args => {
+      const parsed = parseCapability(args);
+      const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
+      if (!view || !view.action.audiences.includes("agent") || !view.availability.available) throw new ActionError("actions.missing", "That capability is not available here; nothing was suggested. Search again with find-capabilities.");
+      const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
+      const editable = Array.isArray(args.editable) ? args.editable.filter((item): item is string => typeof item === "string").slice(0, 20) : undefined;
+      const missing = Array.isArray(args.missing) ? args.missing.flatMap(item => item && typeof item === "object" && typeof (item as { field?: unknown }).field === "string" && typeof (item as { question?: unknown }).question === "string"
+        ? [{ field: (item as { field: string }).field, question: (item as { question: string }).question.slice(0, 300) }] : []).slice(0, 10) : undefined;
+      const recorded = await gateway.client.offer!({ title: text(args.title, "title", 40), summary: text(args.summary, "summary", 600),
+        reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input),
+        ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) });
+      return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
+    }) } : {}),
     [GATEWAY_TOOLS.change]: guarded(async (args, signal) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
@@ -93,14 +107,23 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   }, required: ["capability_id", "version", "provider_id", "input"], additionalProperties: false };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
     registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const } });
+  const suggest = { type: "object", properties: {
+    title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
+    summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
+    capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
+    input: { description: "The prepared input as a JSON value matching the capability's input_schema." },
+    editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
+    missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
+  }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"], additionalProperties: false };
   const tools = [
     tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema.",
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
     tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", capability, "safe-read"),
     tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", capability, "mutate-external"),
+    ...(gateway.client.offer ? [tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", suggest, "safe-read")] : []),
   ];
   const names = tools.map(one => one.registration.name);
-  const pack: ScenarioPack = { id: PACK_ID, version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
+  const pack: ScenarioPack = { id: gateway.client.offer ? `${PACK_ID}-offers` : PACK_ID, version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
     permissions: { tools: names, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names };

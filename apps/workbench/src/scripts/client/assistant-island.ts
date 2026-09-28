@@ -262,6 +262,66 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     allow.addEventListener("click", () => decide("approve")); reject.addEventListener("click", () => decide("reject"));
     row.append(allow, reject); card.append(row);
   };
+  const EFFECTS = { read: "只读取，不改数据", write: "会修改数据，可在原处修改或撤回", irreversible: "会修改数据，不可撤回" };
+  const CARD_STATUS = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试", stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
+  const renderCard = (node, work, card) => {
+    node.replaceChildren();
+    node.dataset.status = card.status;
+    node.append(el("p", "assistant-card-title", card.title), el("p", "", card.summary),
+      el("p", "assistant-muted", card.provider + " · " + card.capability_title + " · " + L(EFFECTS[card.effect] || "")));
+    const open = card.status === "ready" || card.status === "needs-input" || card.status === "failed";
+    const inputs = {};
+    if (card.fields.length) {
+      const list = el("dl", "assistant-fields");
+      card.fields.forEach((field) => {
+        const asked = card.missing.find((item) => item.field === field.key);
+        list.append(el("dt", "", asked ? asked.question : L(field.label)));
+        const cell = el("dd");
+        if (field.editable && open) {
+          const control = el(field.value.includes("\n") || field.value.length > 60 ? "textarea" : "input", "mw-input");
+          control.value = field.value; control.setAttribute("aria-label", asked ? asked.question : field.label);
+          if (control.tagName === "TEXTAREA") control.rows = Math.min(8, field.value.split("\n").length + 1);
+          inputs[field.key] = control; cell.append(control);
+        } else cell.textContent = field.value;
+        list.append(cell);
+      });
+      node.append(list);
+    }
+    if (card.outcome || CARD_STATUS[card.status]) {
+      const status = el("p", "assistant-card-status", L(CARD_STATUS[card.status] || "") + (card.outcome ? "：" + card.outcome : ""));
+      status.setAttribute("role", "status"); node.append(status);
+    }
+    if (!open) return;
+    const row = el("div", "assistant-card-actions");
+    const runButton = el("button", "mw-btn mw-btn--primary mw-btn--sm", card.status === "failed" ? L("再试一次") + "：" + card.title : card.title); runButton.type = "button";
+    const dismiss = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("忽略")); dismiss.type = "button";
+    runButton.addEventListener("click", async () => {
+      row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
+      const values = {};
+      Object.entries(inputs).forEach(([key, control]) => { values[key] = control.value; });
+      try {
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/run", "POST", { revision: card.revision, values });
+        if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
+        if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
+        render();
+      } catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
+    });
+    dismiss.addEventListener("click", async () => {
+      try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/dismiss", "POST", {});
+        if (view) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one); render(); }
+      catch (error) { showProblem({ message: error.message }); }
+    });
+    row.append(runButton, dismiss); node.append(row);
+  };
+  const renderCards = (parent, work, cards) => {
+    [...parent.children].forEach((child) => { if (child.dataset.card && !cards.some((card) => card.card_id === child.dataset.card)) child.remove(); });
+    cards.filter((card) => card.status !== "dismissed").forEach((card) => {
+      const node = keyed(parent, "data-card", card.card_id, () => el("div", "assistant-card assistant-card--action"));
+      const signature = card.revision + ":" + card.status;
+      if (node.dataset.signature !== signature) { node.dataset.signature = signature; renderCard(node, work, card); }
+      parent.append(node);
+    });
+  };
   const renderRound = (work, round) => {
     const node = keyed(thread, "data-round", round.run_id, () => el("section", "assistant-round"));
     const entries = [];
@@ -313,6 +373,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (card.dataset.signature !== signature) { card.dataset.signature = signature; renderQuestion(card, work, round, question); }
       node.append(card);
     });
+    renderCards(node, work, ((view && view.cards) || []).filter((card) => card.run_id === round.run_id));
   };
   const paintHead = () => {
     const work = view && view.work.work_id === currentId ? view.work : currentWork();

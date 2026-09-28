@@ -492,8 +492,27 @@ export interface AgentSubagentWorkspace {
   directory: AgentWorkingDirectory;
 }
 
+/**
+ * An action the model proposes for the person to run with one click: the exact capability and prepared input, what
+ * it does in plain words, and which fields the person may adjust or must still supply. A proposal runs nothing.
+ */
+export interface AgentActionOffer {
+  /** The button's words, verb first ("加入计划（3 项）"). */
+  title: string;
+  /** What clicking does: to which object, with which key values, in the person's words. */
+  summary: string;
+  reference: ExactActionReference;
+  input: unknown;
+  /** Top-level input fields the person may change before running it. */
+  editable?: string[];
+  /** Fields still needed, each with the question to ask; the card cannot run until they are given. */
+  missing?: Array<{ field: string; question: string }>;
+}
+
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
+  /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */
+  offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
   check?(reference: ExactActionReference, input: unknown): Promise<void>;
   invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;

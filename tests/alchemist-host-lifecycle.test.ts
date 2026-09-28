@@ -18,16 +18,23 @@ async function setup(t: test.TestContext) {
   const open = async (actor: string) => {
     const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" } }); hosts.push(host);
     await host.withProject(ref, r => r.coordinator.initializeBoard({ board_id: ref.board_id, title: "Host lifecycle", actor_id: "setup", idempotency_key: "init" }));
+    return as(host, actor);
+  };
+  /** Another caller on the same Host, as separate MCP clients forwarded to the resident service are. */
+  const as = (host: MolisWorkLocalHost, actor: string) => {
     const caller: ActionCallContext = { actor_id: actor, project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
     const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
     return { host, caller, client, bound };
   };
   t.after(async () => { beforeClose.forEach(release => release()); await Promise.all(hosts.map(host => host.close())); await rm(home, { recursive: true, force: true }); });
-  return { home, ai, requests, ref, open, beforeClose, path: join(home, "alchemist/projects/project-a/studio.sqlite") };
+  return { home, ai, requests, ref, open, as, beforeClose, path: join(home, "alchemist/projects/project-a/studio.sqlite") };
 }
 
-test("Alchemist Host discovery is inert; one owner closing cannot cancel another owner's job, and concurrent actors stay separate", { timeout: 30_000 }, async t => {
-  const f = await setup(t), first = await f.open("alice"), second = await f.open("bob");
+// One Home has one execution owner: AI goes through the Home's Prologue Runtime, so a second Host for the same Home is
+// refused and MCP clients are forwarded to the resident one. Separate callers therefore share one Host.
+test("Alchemist discovery is inert; on the Home's one Host a job keeps its caller, others' activity cannot stop it, and concurrent callers stay separate", { timeout: 30_000 }, async t => {
+  const f = await setup(t), first = await f.open("alice"), second = f.as(first.host, "bob");
+  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: f.home }), { code: "inference.home_in_use" });
   const catalog = await first.bound.discover();
   assert.ok(catalog.some(item => item.capability_id === a.directionCreate.capability_id && item.availability.available));
   await assert.rejects(access(f.path), { code: "ENOENT" }); assert.equal(f.requests.length, 0);
@@ -41,7 +48,8 @@ test("Alchemist Host discovery is inert; one owner closing cannot cancel another
   const receipt = await second.bound.invoke(a.explorationStart, { id: direction.id });
   await entered.promise;
   assert.equal(jobActor, "bob");
-  await first.host.close();
+  // Another caller keeps working on the same Host; bob's running job is untouched.
+  assert.ok((await first.bound.invoke(a.bootstrap, {})).directions.some((item: { id: string }) => item.id === direction.id));
   assert.equal((await second.bound.invoke(a.runEvents, { id: receipt.jobId! })).status, "running");
   release.resolve();
   let exploration;
@@ -52,7 +60,7 @@ test("Alchemist Host discovery is inert; one owner closing cannot cancel another
   }
   assert.equal(exploration!.status, "completed"); assert.equal(f.requests.length, 1);
   const kept = await second.bound.invoke(a.cardKeep, { id: exploration!.cards[0]!.id }); assert.equal(kept.version.revision.actorId, "bob");
-  const third = await f.open("carol"), both = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
+  const third = f.as(first.host, "carol"), both = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
   const actors: string[] = [];
   f.ai.generate = async input => { actors.push(input.actorId!); if (actors.length === 2) both.resolve(); await finish.promise; return generate(input); };
   f.beforeClose.push(() => finish.resolve());
@@ -62,7 +70,7 @@ test("Alchemist Host discovery is inert; one owner closing cannot cancel another
   const replies = await Promise.all([left, right]);
   assert.deepEqual(replies.map(reply => reply.message.actorId), ["bob", "carol"]);
   assert.deepEqual(replies.map(reply => "assistantMessage" in reply ? reply.assistantMessage.actorId : null), ["bob", "carol"]);
-  await Promise.all([second.host.close(), third.host.close()]);
+  await first.host.close();
   const reopened = await f.open("dave");
   assert.equal((await reopened.bound.invoke(a.ideaGet, { id: kept.idea.id, version: 1 })).version.revision.actorId, "bob");
   assert.equal((await reopened.bound.invoke(a.conversationList, {})).messages.length, 4);

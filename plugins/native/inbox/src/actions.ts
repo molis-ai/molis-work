@@ -42,7 +42,9 @@ function action<Input, Output>(id: string, title: string, description: string, o
   return { capability_id: id, version: 1, operation, action: { title, description,
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
     permissions, ...(requiredScene ? { required_scene: requiredScene } : {}), ...(requiredActions ? { required_actions: requiredActions } : {}),
-    subject_kinds: ["inbox_entry"], input_schema: input, output_schema: output } };
+    subject_kinds: ["inbox_entry"], input_schema: input, output_schema: output,
+    // Writing a document waits on a model through Pages and writes nothing of its own here.
+    ...(id === "inbox.pages.generate" ? { scheduling: "concurrent" as const } : {}) } };
 }
 
 export interface InboxStatusInput { entry_id: string; status: AttentionStatus; expected_revision: number }

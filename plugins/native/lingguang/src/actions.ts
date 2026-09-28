@@ -16,7 +16,9 @@ function define<I, O>(name: string, title: string, description: string, operatio
   output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
   return { capability_id: `lingguang.${name}`, version: 1, operation, action: { title, description,
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
-    permissions, subject_kinds: ["lingguang_spark"], input_schema: input, output_schema: output } };
+    permissions, subject_kinds: ["lingguang_spark"], input_schema: input, output_schema: output,
+    // A reply waits on a model; the store commits it only against the conversation snapshot it was asked about.
+    ...(name === "conversation.message" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const lingguangActions = {
   list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),

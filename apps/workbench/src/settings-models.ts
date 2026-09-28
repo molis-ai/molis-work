@@ -135,12 +135,19 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
       <select class="mw-select" id="model-api-format" data-model-api-format="${p.escape(provider.provider_id)}">${formats}</select>
     </div>
 
-    ${renderPromptCacheField(provider, p)}
-    ${renderThinkingField(provider, p)}
-
-    ${renderCredentialField(hasCredential, p, model.connections ?? [], model.selected_connection_ids?.[provider.provider_id])}
+    <section class="model-section" aria-label="${p.L("连接")}">
+      <h3>${p.L("连接")}</h3>
+      ${renderCredentialField(hasCredential, p, model.connections ?? [], model.selected_connection_ids?.[provider.provider_id])}
+    </section>
     ${health?.status === "credential-unavailable" ? `<p role="alert">${p.escape(p.L(health.detail))}</p>` : ""}
-    ${renderModelList(provider, p)}
+    <section class="model-section" aria-label="${p.L("模型")}">
+      ${renderModelList(provider, p)}
+    </section>
+    <details class="model-advanced">
+      <summary>${p.L("高级")}</summary>
+      ${renderPromptCacheField(provider, p)}
+      ${renderThinkingField(provider, p)}
+    </details>
     <div data-model-delete-confirm hidden><p>${p.L("移除这个供应商及其密钥？后续任务将无法再选择它，历史记录会保留。")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${p.L("取消")}</button><button class="mw-btn" type="button" data-model-delete>${p.L("确认移除")}</button></div>
     <footer class="model-settings-actions"><button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button><button class="mw-btn mw-btn--primary" type="button" data-model-save>${p.L("保存配置")}</button><span>${p.L("保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。")}</span></footer>
   </div>`;
@@ -193,19 +200,25 @@ function renderThinkingField(provider: ModelProviderRecord, p: ModelSettingsPrim
     </div>`;
 }
 
-/** Provider settings select an existing Home connection; the key stays in Connectors. */
+/** A saved connection, or a key written into that same store from this page. The key is never rendered back. */
 function renderCredentialField(hasCredential: boolean, p: ModelSettingsPrimitives,
   connections: readonly ConnectorConnectionView[], selectedId?: string): string {
-  return `<div class="model-field"><label for="model-connection">${p.L("使用的账号连接")}</label>
+  const usable = connections.filter((row) => row.service_id === "model-api" && (row.state === "connected" || row.connection_id === selectedId));
+  const missing = selectedId && !connections.some(row => row.service_id === "model-api" && row.connection_id === selectedId);
+  const keyField = `<div class="model-field" data-model-key-field${selectedId ? " hidden" : ""}>
+      <label for="model-api-key">${p.L(usable.length ? "或填写新的 API Key" : "API Key")}</label>
+      <input class="mw-input" id="model-api-key" type="password" autocomplete="off" spellcheck="false" data-model-api-key>
+      <p class="model-field-note">${p.L("只保存在本机，保存后不再显示。")}</p>
+    </div>`;
+  return `${usable.length || missing ? `<div class="model-field"><label for="model-connection">${p.L("使用的账号连接")}</label>
     <select class="mw-select" id="model-connection" data-model-connection>
-      <option value="">${p.L("选择连接")}</option>
-      ${connections.filter((row) => row.service_id === "model-api" && (row.state === "connected" || row.connection_id === selectedId))
-        .map((row) => `<option value="${p.escape(row.connection_id)}"${row.connection_id === selectedId ? " selected" : ""}${row.state !== "connected" ? " disabled" : ""}>${p.escape(row.display_name)}${row.state !== "connected" ? ` · ${p.L("连接不可用")}` : ""}</option>`).join("")}
-      ${selectedId && !connections.some(row => row.service_id === "model-api" && row.connection_id === selectedId)
-        ? `<option value="${p.escape(selectedId)}" selected disabled>${p.L("原连接已不可用，请重新选择")}</option>` : ""}
+      <option value="">${p.L("填写新的 API Key")}</option>
+      ${usable.map((row) => `<option value="${p.escape(row.connection_id)}"${row.connection_id === selectedId ? " selected" : ""}${row.state !== "connected" ? " disabled" : ""}>${p.escape(row.display_name)}${row.state !== "connected" ? ` · ${p.L("连接不可用")}` : ""}</option>`).join("")}
+      ${missing ? `<option value="${p.escape(selectedId)}" selected disabled>${p.L("原连接已不可用，请重新选择")}</option>` : ""}
     </select><a class="mw-btn mw-btn--link" href="/settings/connectors?connector=model-api">${p.L("在 Connectors 管理 API Key")}</a>
-    ${hasCredential ? "" : `<p class="model-field-hint mw-status" data-tone="attention">${p.icon("circle-alert")}${p.L("请选择一条已保存的连接")}</p>`}
-  </div>`;
+    ${hasCredential || selectedId ? "" : `<p class="model-field-hint">${p.L("也可以选择一条已经保存的连接。")}</p>`}
+  </div>` : ""}
+    ${keyField}`;
 }
 
 function renderModelList(provider: ModelProviderRecord, p: ModelSettingsPrimitives): string {

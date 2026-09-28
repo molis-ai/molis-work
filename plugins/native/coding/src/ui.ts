@@ -308,7 +308,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
               <button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
             </div>
           </div>
-          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="${p.escape(settingsHref.replace("coding-settings", "models"))}" hidden>配置模型后即可发送任务</a><div class="coding-composer-footnote"><small data-coding-draft-status>模型与方式的选择用于下一轮。</small><span class="coding-composer-keys"><kbd class="mw-kbd" title="在空的输入框里输入 / 查看命令">/ 命令</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Shift + P 打开命令面板">⇧⌘P 面板</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Enter 发送">⌘ / Ctrl ↵</kbd></span></div>
+          <a class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup href="/settings/models" hidden>打开模型设置</a><div class="coding-composer-footnote"><small data-coding-draft-status>模型与方式的选择用于下一轮。</small><span class="coding-composer-keys"><kbd class="mw-kbd" title="在空的输入框里输入 / 查看命令">/ 命令</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Shift + P 打开命令面板">⇧⌘P 面板</kbd><kbd class="mw-kbd" title="Command 或 Ctrl + Enter 发送">⌘ / Ctrl ↵</kbd></span></div>
         </form>
       </div>
       <aside class="coding-tools" data-coding-tools>

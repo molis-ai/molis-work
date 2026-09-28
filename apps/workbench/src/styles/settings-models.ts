@@ -13,6 +13,10 @@ export const MODEL_SETTINGS_STYLES = `
 .model-provider-detail-head { flex-wrap:wrap; margin-bottom:24px; }
 .model-provider-detail-head .mw-check-row { white-space:nowrap; }
 .model-provider-detail-head h2 { margin:0; flex:1; font-size:16px; font-weight:400; }
+.model-section { margin: 8px 0 4px; }
+.model-section h3 { margin: 20px 0 0; font-size: 13px; font-weight: 500; }
+.model-advanced { margin: 8px 0 20px; }
+.model-advanced summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .model-field { display:grid; gap:8px; margin:20px 0; }
 .model-field label { color:var(--ink-soft); font-size:12px; }
 .model-field .mw-input,.model-field .mw-select { width:100%; min-width:0; }

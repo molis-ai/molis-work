@@ -21,7 +21,7 @@
 - 输入输出 schema 写完整：生成插件、Agent、MCP 都按它调用和校验，缺字段就等于没法被别人用。
 - 可信身份（actor、项目、安装）从上下文来，不从输入里读。
 - 处理器里等模型或外部服务的，声明 `scheduling: "concurrent"`，并在返回后 `await caller.beforeEffect()`、按读取时的版本提交。
-- 结果回显已存历史的，schema 接受历史上出现过的取值（读取兼容），新写入仍按严格合同校验。
+- 结果回显已存历史的，schema 接受历史上出现过的取值（读取兼容），新写入仍按严格合同校验。结果不合合同时，查询报 `actions.output_invalid`；写动作此时已提交，报 `actions.output_invalid_after_effect`，调用方刷新而不重试。
 
 ## 生成插件用能力时
 

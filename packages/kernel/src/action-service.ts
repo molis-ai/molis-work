@@ -103,7 +103,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             assertCurrent();
           } };
           const checked = (value: unknown) => {
-            if (validateOutput) validateActionValue(validateOutput, value, "output");
+            if (!validateOutput) return value;
+            try { validateActionValue(validateOutput, value, "output"); }
+            catch (error) {
+              // An operation that returned has already committed; reporting a plain failure would invite a retry that repeats it.
+              if (definition.operation === "command" && definition.action.kind === "operation" && error instanceof ActionError) throw new ActionError("actions.output_invalid_after_effect", `操作已执行，但${error.message}；请刷新后查看，不要重复操作`);
+              throw error;
+            }
             return value;
           };
           // Only what was called, by whom and how it ended is reported; input and result never leave the call.

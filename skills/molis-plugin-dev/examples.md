@@ -15,6 +15,7 @@
 - 不进池：标已读、恢复、来源设置、token、计划。
 - MCP：动作经统一目录对外，不另包一层 MCP。
 - Integration 是别的插件；Feed 只消费 Signal/Item。
+- 搜索：`feed.search.entries` 只给摘要（`content: "summary"`）：标题、摘要、来源、标签；保留正文加密存放，不进索引。来源也是一种条目，打开到 Feed。
 
 ## Inbox：注意力引用
 
@@ -23,6 +24,7 @@
 - 不读 Feed / Goals 表，标题由 Host 注入。
 - 场景：`action_scenes` 中的 `inbox.next`，兑现 prepare/bind/consume/failed。显式调用和 Feed 自动事件共用绑定及执行，不再依赖旧 `functions.evaluate`。
 - 完成/忽略只改 Attention 状态，不删原对象。
+- 搜索：`inbox.search.entries` 只列未处理的事项（仅摘要）；做完或忽略后不在列表里，就从索引里删掉。
 
 ## Pages / Forms / Dataset / PPT：本机创作
 
@@ -32,6 +34,7 @@
 - MCP：`list/get/create/update/…`，默认项目 scope，Host 注入 `project_id`。新工具默认关。
 - `pages.promote` 走 MCP 和工作台按钮，进 Agent，不进 Feed/Inbox 事件池。
 - 判断场景用 `action_scenes`（`inbox.next`），不再有 `function_scenes`。私人库用 `storage:private`。
+- 搜索：每种对象一个读取器（`<plugin>.subject.read`）加一个 `<plugin>.search.entries`（`content: "context"`），正文从读取器来。照抄 `plugins/native/form/src/search.ts`；Dataset、PPT 同形，Pages 的读取器在 `pages` 自己的动作里。问卷的填写结果不进索引。见 [search.md](search.md)。
 
 ## 判断规则（系统能力，不是插件）
 
@@ -41,7 +44,7 @@
 
 ## 灵光：岛
 
-人盯着一条还没想清楚的想法。`slot: "island"`，不是侧栏插件条。丢掉 / 复制内容是对象上的处置；今天没有判断场景，不要为它新开 `action_scenes`。catalog `personal: true`。
+人盯着一条还没想清楚的想法。`slot: "island"`，不是侧栏插件条。丢掉 / 复制内容是对象上的处置；今天没有判断场景，不要为它新开 `action_scenes`。catalog `personal: true`。搜索来源只列未丢弃的灵光。
 
 ## Schedule：到点叫醒
 
@@ -53,22 +56,24 @@
 - Shelf：置物架文件与摘录，`personal`，有设置页。
 - Artifacts：打开已保存成果和版本。
 - Goals：树、画布、提案、决定。采用/退回是对象处置，同样先不要塞进 Feed/Inbox 池。
+- 搜索：Sessions 只给摘要（终端正文不进索引）；Artifacts 列每个成果的最新版本；Goals 的条目版本与读取器版本一致。Shelf 的材料照常对外；剪贴板历史原本只给本机的人，所以单独一个受众为 `["user"]` 的来源（`shelf.clipboard.search.entries`）——来源的受众不能比你原有的读取更宽。
 
 要做就单独立场景、判断时机、已接线按钮。
 
 ## Text stats：最小完整 app
 
-人盯着绑来的一份文本快照。`kind: "app"`，`slot: "stage"`，一个必选输入口，无存储、无事件、无输出口。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。产品里还没有连线页，这个口在跑着的产品里不会自己接上。
+人盯着绑来的一份文本快照。`kind: "app"`，`slot: "stage"`，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。产品里还没有连线页，这个口在跑着的产品里不会自己接上。
 
 ## Diff / Files / Git
 
 - Diff：三组可选输入（两份快照 / Run 变更 / Git 变更），`input_groups`，没绑也能激活并说明自己。
 - Files：浏览工作区；`onEvent` 在 Coding/Git 发 file-changed 之后重读目录。事件 id 来自合同，不 import Coding 包。这是插件事件总线，不是 Functions 去向。
 - Git：工作区改动；目录通过当前项目设置读取。抄事件订阅时点名 `from_plugin_ids`，不要通配。
+- 三者都不声明搜索来源：文件与改动归工作区和 Git，快照已经是 Artifact，经 Artifacts 可搜。
 
 ## Coding：Runtime 托管的 app
 
-`kind: "app"`。Artifact 输出口、事件、`agent` 角色、commands（写清 `input_kinds`）。`start()` 必须兑现 views。还没有可绑定的上游 Artifact 类型，所以 `ports.inputs` 为空；Goal 上下文走 Goals Capability。不要抄它的 agent 块到普通内容插件。生产 `tools/call` 未接 Runtime，不要填 `mcp_exports`。
+`kind: "app"`。Artifact 输出口、事件、`agent` 角色、commands（写清 `input_kinds`）。`start()` 必须兑现 views。还没有可绑定的上游 Artifact 类型，所以 `ports.inputs` 为空；Goal 上下文走 Goals Capability。不要抄它的 agent 块到普通内容插件。生产 `tools/call` 未接 Runtime，不要填 `mcp_exports`。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 插件加动作要升版本并写 `upgrade_compatibility`（Characters 用 `bindOwnerPluginAction`，同理）。
 
 ## GitHub / Gmail 等接入
 

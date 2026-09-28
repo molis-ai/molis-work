@@ -58,7 +58,7 @@
 | Images | 插件，`{home}/images/images.db`（生图服务在 Home，生成记录按项目分区） | `openHomeSqliteDatabase` | `images.*` | 生成描述（提示词）与模型 | 目录行 `images` | 已接入（项目）：`images.subject.read`、`images.search.entries` |
 | Jelly | 插件，`{home}/jelly/jelly.db`（单一工作区 JSON + 修订号，Home） | 同上 | `jelly.*`（读 workspace、命令） | 日程标题与备注、笔记、灵感 | 目录行 `jelly` | 已接入（个人范围）：日程、笔记、灵感三种对象与读取器 |
 | Experiments | 插件，Home | Home 文件 | `experiments.*` | 实验名称与状态 | 目录行 `experiments` | 已接入（仅摘要）：材料与答案是可能敏感的测试数据，不入索引 |
-| Shelf | `modules/shelf`，`{home}/shelf/` | 文件 + SQLite | `shelf.snapshot` 等 | 材料名称、抽出的文字 | 条目标签 `shelf` | 已接入（个人范围，仅摘要）：材料名称与抽出的文字、剪贴板 |
+| Shelf | `modules/shelf`，`{home}/shelf/` | 文件 + SQLite | `shelf.snapshot` 等 | 材料名称、抽出的文字 | 条目标签 `shelf` | 已接入（个人范围，仅摘要）：材料名称与抽出的文字（`shelf.search.entries`，与 `shelf.items.read` 同样对外）；剪贴板历史单独一个只对本机的人开放的来源（`shelf.clipboard.search.entries`，受众 `user`） |
 | 灵光 | 插件，`{home}/lingguang/lingguang.db`（按项目分区） | `openHomeSqliteDatabase` | `lingguang.list/get` 等 | 灵光标题与正文 | 条目标签 `lingguang` | 已接入：只含未丢弃的灵光 |
 | Characters | `modules/characters` 草稿 | SQLite | `characters.list/state` 等 | 角色名称、做事方式说明 | 目录行 `characters` | 已接入：Runtime 插件以本人绑定动作提供（升到 1.5.0） |
 | Pages | 插件，`{home}/pages/pages.db`（按项目分区） | `openHomeSqliteDatabase` | `pages.subject.read`（助理分支）、`pages.list/get/update` | 标题与正文 | 条目标签 `pages` | 已接入：`pages.search.entries`，正文经助理分支的 `pages.subject.read` |
@@ -101,7 +101,9 @@ Form 填写结果：属于填写人的回答，数量不受控；首期只索引
 
 可选的**按需查询**（协议 `molis.search.query.v1`）：内容不能持久化（如需要解密、外部服务）时，插件实现 `{ query, limit } → { hits }`，搜索服务在查询时带调用者权限调用、合并结果，不写索引。首期协议与服务端合并实现并用测试插件验证；是否有官方插件使用见第 12 节。
 
-SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, kinds, title, permissions, scope)`、`searchEntriesPage()`（按 id 排序分页、计算集合版本的辅助）、`defineSearchQueryAction`；`inspectActionDeclarations` 校验规范 schema，声明不合合同的动作不能进入目录。
+SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, kinds, title, permissions, scope, audiences)`、`searchEntriesPage()`（按 id 排序分页、计算集合版本的辅助）、`defineSearchQueryAction`；`inspectActionDeclarations` 校验规范 schema，声明不合合同的动作不能进入目录。
+
+**来源的受众不能比插件原有的读取更宽。** 默认受众是 `user`、`agent`、`workflow`、`mcp`、`plugin`；插件只让本机的人看的内容（例如 Shelf 的剪贴板历史，原有动作只对 `user`）单独声明一个来源并把受众限为 `["user"]`。索引照常建立（建索引用本机用户上下文），但助理、工作流、MCP 客户端发现不到这个来源，它的条目就不会出现在它们的结果里。来源必须对 `user` 开放，否则无法建立索引，声明检查会拒绝。
 
 ### 5.2 搜索消费合同（系统动作）：`services/search.ts`
 
@@ -204,7 +206,7 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 | --- | --- | --- |
 | P1 | 合同（提供与消费）、storage 索引适配、`horizontal/search` 服务 | 工程通过（bda1333c） |
 | P2 | Host 装配：`system.search`、建索引上下文、成功命令与提供方注册/撤下即标记、项目删除与卸载清理、Web 路由 | 工程通过（50ab6c6c、90495cc9） |
-| P3 | 21 个插件接入（第 3 节）；插件创作台为真实缺口 | 工程通过（7ae69d7e、37c75970、1cf17d7b、90495cc9） |
+| P3 | 20 个插件接入（第 3 节）；插件创作台为真实缺口 | 工程通过（7ae69d7e、37c75970、1cf17d7b、90495cc9） |
 | P4 | Workbench 搜索界面 | 工程通过、真实界面实操通过（5c24af3c、90495cc9） |
 | P5 | SDK、Skill、手册、包说明、SSOT、架构需求书、产品范围 | 完成（3715bdfc 及之前） |
 | P6 | 真实场景：隔离 Home 预览与浏览器实操、真实 MCP 进程、助理授权 | 见下 |
@@ -216,7 +218,7 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 - `tests/system-search.test.ts` 13 项：协议校验与分页辅助；未打开内容的中文 1–2 字、`Q4`/`q4`、全角 `ＯＫＲ`、前缀 `sea`、混排 `search方案`、`50万`、“算控”不误中；命令成功后的新建/修改/删除，无人通知的后台写入在新鲜期后被发现；项目、个人、MCP 授权与“只有列出没有读取器”的隔离；仅摘要内容不入索引也不读正文；打开核对与已删除移出；失败保留、状态为 stale/failed 与恢复；停用/启用/卸载/重装；重启不重读、删除与写坏索引文件后重建；翻页游标；按需查询来源不落盘。
 - `tests/system-search-host.test.ts`：真实 Home/目录/Host/Web 服务/Plugin Runtime——Pages、Form、灵光、Goals 的真实内容可搜；修改、删除、丢弃即时反映；两个项目互不可见；Cognia 个人内容在两个项目与项目外都可搜、限定本项目不出现；MCP 调用上下文逐项授权；未知 Runtime 插件只声明协议即被搜到、停用后消失；`/api/search/*` 需要控制令牌、项目外只有个人范围。
 - `tests/system-search-lifecycle.test.ts`：项目里停用 Goals 后结果消失且状态为已停用、重新启用后重建；重启后 `indexed_at` 不变（未重建）；索引文件丢失后重建；真实 stdio MCP 进程只授予 `search.query` 看不到内容、授予来源与读取器后可搜到正文、撤销来源立即消失；助理经 `assistantAuthority` 调用 `search.query` 并用命中对象的读取器读到正文与打开位置，对助理关闭来源只影响助理。
-- 21 个插件清单经 `inspectActionDeclarations` 校验无问题；`pnpm workspace:typecheck` 通过；`pnpm boundary:check` 仅剩助理分支 3 条既有错误（已由其在 1a98afed、bdf417c3 修复，待再次合入）。
+- 20 个插件的搜索来源在真实宿主注册时经 `inspectActionDeclarations` 校验无问题；`pnpm workspace:typecheck` 通过；`pnpm boundary:check` 仅剩助理分支 3 条既有错误（已由其在 1a98afed、bdf417c3 修复，待再次合入）。
 
 ### 真实场景实操（隔离 Home，`search-dev` 4270，本分支构建）
 

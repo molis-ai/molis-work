@@ -41,6 +41,7 @@
 
 ## 权限与范围
 
+- **来源的受众不能比你原有的读取更宽。** 原来只给本机界面看的内容（例如 Shelf 的剪贴板历史，所有剪贴板动作都只对 `user`）单独声明一个来源，第六个参数传 `["user"]`：索引照常建立，助理、工作流与 MCP 客户端发现不到它，授予也不能放宽。来源必须对 `user` 开放（索引以本机用户建立），否则声明检查拒绝。
 - 调用者看不到你的来源，就看不到你的结果；正文由读取器提供的条目，还要求调用者能用读取器。这些都由动作目录的现有授权决定（Web 用户、每个 MCP 客户端的授予、助理的单独开关、生成插件的安装授权），不要自己再判断一遍。
 - 项目作用域的来源只在该项目里被搜到；`"home"` 作用域的来源在任何项目和项目外都能在“个人”范围搜到。
 - 插件在项目里被停用或卸载，系统删掉它的索引内容；重新启用后从你的数据重建。
@@ -57,5 +58,6 @@
 - 项目内容：Form（`plugins/native/form/src/search.ts`）、Pages（`pages.search.entries`）、Goals（版本与读取器一致）。
 - 只给摘要：Feed（`feed.search.entries`，保留正文加密）、Inbox、Sessions。
 - 个人范围：Cognia、Jelly（三种对象、三个读取器）。
+- 只给本机的人：Shelf 剪贴板（`shelf.clipboard.search.entries`，受众 `user`）。
 - Runtime 插件：Characters（`bindOwnerPluginAction`）、Coding（路由兑现）。
 - 测试：`tests/system-search.test.ts`（协议、中文与短词、增量、失败、停用、重建）、`tests/system-search-host.test.ts`（真实宿主、项目隔离、MCP 授权、未知插件仅凭声明接入）、`tests/system-search-lifecycle.test.ts`（停用/启用、重启、MCP 进程、助理消费）。

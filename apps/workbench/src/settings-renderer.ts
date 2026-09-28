@@ -9,6 +9,7 @@ import { renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./set
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
+import { renderAssistantSettings } from "./settings-assistant.js";
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
 import { renderFunctionsWorkbench } from "./functions/ui.js";
@@ -217,6 +218,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
     : view.section === "models" ? L("模型设置")
     : view.section === "runtimes"
       ? L("AI 与执行工具")
+    : view.section === "assistant"
+      ? L("助理")
     : view.section === "prompts"
       ? L("Prompt 与 Character")
     : view.section === "mcp"
@@ -240,6 +243,8 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
       ? renderAppearanceSettings(settingsPath)
       : view.section === "runtimes"
         ? renderRuntimeSettings(view)
+        : view.section === "assistant"
+          ? renderAssistantSettings({ L, projectId: contextProject?.project_id ?? null })
         : view.section === "prompts"
           ? renderPromptSettings({ L })
         : view.section === "mcp"

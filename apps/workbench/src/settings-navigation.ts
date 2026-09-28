@@ -10,7 +10,7 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "prompts" | "mcp" | "connectors" | "projects" | "diagnostics";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "prompts" | "mcp" | "connectors" | "projects" | "diagnostics";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "rules" | "planning";
 
@@ -94,6 +94,7 @@ function renderSettingsNavigation(
       <div class="settings-nav-group-label">${L("工具")}</div>
       <a href="${href("/settings/models")}"${current("models")}>${icon("key")}${L("模型设置")}</a>
       <a href="${href("/settings/runtimes")}"${current("runtimes")}>${icon("terminal")}${L("AI 与执行工具")}</a>
+      <a href="${href("/settings/assistant")}"${current("assistant")}>${icon("user")}${L("助理")}</a>
       <a href="${href("/settings/prompts")}"${current("prompts")}>${icon("book")}${L("Prompt 与 Character")}</a>
       <a href="${href(`/capabilities/library${project ? `?project=${encodeURIComponent(project.project_id)}` : ""}`)}">${icon("sparkles")}${L("能力")}</a>
       <div class="settings-nav-group-label">${L("系统")}</div>

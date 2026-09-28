@@ -367,3 +367,21 @@ export type AssistantControl =
   | { kind: "pause" }
   | { kind: "resume" }
   | { kind: "stop" };
+
+/** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
+export interface AssistantContribution {
+  provider_id: string;
+  title: string;
+  plugin_id?: string;
+  /** Actions offered to agents; how many only read; how many change something. */
+  actions: number;
+  reads: number;
+  changes: number;
+  /** Object kinds the Assistant can read back from their owner (a subject reader). */
+  readable_kinds: string[];
+  /** Changes that say which object they produced, so a work can keep a relation to it. */
+  linked_changes: number;
+  /** Takes part in global search. */
+  searchable: boolean;
+  gaps: Array<{ area: "context" | "results" | "capabilities"; text: string }>;
+}

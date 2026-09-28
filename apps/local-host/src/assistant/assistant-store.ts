@@ -35,12 +35,16 @@ CREATE TABLE IF NOT EXISTS assistant_requests (
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
 export interface StoredWork extends Omit<AssistantWork, "state"> {
   actor_id: string;
+  /** What the next Coding round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
+  handover_brief?: string;
   /** Present for project work: the project it was started in, never the page it is later viewed from. */
   project_ref?: LocalHostProjectReference;
 }
 
 export interface StoredRound {
   run_id: string;
+  /** Set for a round run in the work's Coding session; the others ran in the Assistant's own session. */
+  executor?: "coding";
   text: string;
   materials: AssistantMaterial[];
   context: AssistantContextSnapshot | null;
@@ -113,7 +117,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };

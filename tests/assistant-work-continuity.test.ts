@@ -137,3 +137,14 @@ test("a work keeps what it used and produced; an edit by hand shows as changed a
     assert.deepEqual(results, [["n1", "3", "current"]]);
   } finally { await f.close(); }
 });
+
+test("a subject reader may live in the Home, and one declared with the schema before `open` is still accepted", async () => {
+  const { inspectActionDeclarations, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const home = defineSubjectContextAction("fixture.calendar.subject.read", "calendar_item", "日历事项", ["calendar:read"], "home");
+  assert.equal(home.action.scope, "home");
+  assert.deepEqual(inspectActionDeclarations([home], undefined), []);
+  const older = { ...subject, action: { ...subject.action, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } };
+  assert.deepEqual(inspectActionDeclarations([older], undefined), []);
+  const wrong = { ...subject, action: { ...subject.action, output_schema: { type: "object" } } };
+  assert.equal(inspectActionDeclarations([wrong], undefined).length, 1);
+});

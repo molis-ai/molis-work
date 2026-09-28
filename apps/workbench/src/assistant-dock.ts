@@ -15,6 +15,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
           </button>
           <span class="assistant-work-scope" data-assistant-work-scope></span>
           <button class="assistant-work-executor" type="button" data-assistant-open-executor hidden></button>
+          <button class="assistant-work-executor" type="button" data-assistant-handover hidden></button>
           <span class="assistant-head-actions">
             <button class="dock-window-action" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
             <button class="dock-window-action" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>

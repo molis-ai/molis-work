@@ -494,6 +494,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} :is(.assistant-object-open, .assistant-material-add):hover { background: var(--nav-hover); }
   ${ASSIST} :is(.assistant-object-open, .assistant-material-add):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-material--optional .assistant-material-label { color: var(--muted); }
+  ${ASSIST} .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
   /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
   ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
   ${ASSIST} .assistant-empty { color: var(--muted); }
@@ -742,6 +743,18 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
     ${ASSIST} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
     ${ASSIST} .assistant-target { max-width: 30%; }
+    /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
+    ${SHELL} .bar-composer { gap: 4px; }
+    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 48px; min-width: 48px; }
+    ${SHELL} .bar-composer .bar-composer-search { display: none; }
+    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 64px; }
+    ${SHELL} .bar-composer .plugin-picker-trigger > svg { display: none; }
+    ${SHELL} .bar-composer .plugin-picker-trigger { padding: 0 7px; max-width: 64px; }
+    ${SHELL} .bar-composer .plugin-picker-current { min-width: 0; overflow: hidden; }
+    ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
+    ${ASSIST} .assistant-executor > svg { display: none; }
+    ${SHELL} .bar-composer:focus-within :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button) { display: none; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
   }

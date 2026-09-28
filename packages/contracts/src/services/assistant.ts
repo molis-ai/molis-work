@@ -187,6 +187,8 @@ export interface AssistantActivity {
 /** One round the person started, with the run's own facts. */
 export interface AssistantRound {
   run_id: string;
+  /** Who ran it: the Assistant, or the professional Agent the work was handed to. */
+  executor?: "assistant" | "coding";
   /** What the person sent this round. */
   text: string;
   materials: Array<Pick<AssistantMaterial, "material_id" | "kind" | "title" | "explicit" | "draft" | "source" | "object">>;
@@ -333,6 +335,16 @@ export interface AssistantSendResult {
   work: AssistantWork;
   outcome: "started" | "steered" | "answered" | "repeated";
   run_id?: string;
+}
+
+/**
+ * Hand a work to another agent and keep it one work: to Coding (in its project, with a note of what was agreed and
+ * produced so far), or back to the Assistant (whose next round reads what Coding did). Only between rounds.
+ */
+export interface AssistantHandover {
+  to: "coding" | "assistant";
+  /** For Coding: the mode its first round runs in. */
+  mode?: string;
 }
 
 export type AssistantControl =

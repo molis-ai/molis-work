@@ -110,6 +110,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values as Record<string, string> | undefined }) };
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.dismissCard(workId, parts[3]!) };
       if (parts.length === 3 && parts[2] === "mode") return { status: 200, body: await service.setExecutorMode(workId, String(body.mode ?? "")) };
+      if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as "coding" | "assistant", ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };
       if (parts.length === 3 && parts[2] === "archive") return { status: 200, body: { work: await service.archive(workId, body.archived !== false) } };

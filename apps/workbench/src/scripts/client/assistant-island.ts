@@ -50,6 +50,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const executorLabel = island.querySelector("[data-assistant-executor-label]");
   const executorsPop = island.querySelector("[data-assistant-executors]");
   const openExecutor = island.querySelector("[data-assistant-open-executor]");
+  const handoverButton = island.querySelector("[data-assistant-handover]");
   const EXECUTORS = [{ id: "assistant", label: "助理", hint: "个人工作助理，使用你已授权的能力" }, { id: "coding", label: "Coding Agent", hint: "在项目的工作目录里写代码、运行命令，改动逐项请你确认" }];
   const modeButton = island.querySelector("[data-assistant-mode]");
   const modeLabel = island.querySelector("[data-assistant-mode-label]");
@@ -435,6 +436,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     round.turns.forEach((turn, index) => entries.push({ key: "t:" + turn.turn_id, order: turn.sequence ?? index, turn }));
     round.activity.forEach((item, index) => entries.push({ key: "a:" + item.call_id, order: item.sequence ?? (1000 + index), item }));
     entries.sort((a, b) => a.order - b.order);
+    // Which Agent ran this round, when the work changed hands.
+    if (round.executor === "coding") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由 Coding Agent 执行")); }
     if (!round.turns.some((turn) => turn.kind === "user")) {
       const own = keyed(node, "data-entry", "task", () => el("div", "assistant-msg assistant-msg--user"));
       setText(own, round.text);
@@ -496,6 +499,22 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         openExecutor.textContent = L("由 Coding Agent 执行") + (work.executor.session_id ? " · " + L("打开 Coding") : "");
         openExecutor.disabled = !work.executor.session_id || !host.openItem;
         openExecutor.onclick = () => { if (work.executor.session_id) host.openItem?.("coding", work.executor.session_id, work.title); };
+      }
+    }
+    // The same work can change hands between rounds: to Coding in its project, and back to the Assistant.
+    if (handoverButton) {
+      const between = work && !isLive(work.state);
+      const toCoding = work && work.executor && work.executor.kind === "assistant" && work.scope.kind === "project" && codingHere();
+      const toAssistant = work && work.executor && work.executor.kind === "coding";
+      handoverButton.hidden = !between || !(toCoding || toAssistant);
+      if (!handoverButton.hidden) {
+        handoverButton.textContent = toCoding ? L("交给 Coding 继续") : L("回到助理");
+        handoverButton.onclick = async () => {
+          handoverButton.disabled = true;
+          try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to: toCoding ? "coding" : "assistant" }); render(); input.focus(); }
+          catch (error) { showProblem({ message: error.message }); }
+          finally { handoverButton.disabled = false; }
+        };
       }
     }
     const state = work ? work.state : "idle";

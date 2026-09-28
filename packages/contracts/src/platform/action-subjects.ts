@@ -21,9 +21,15 @@ const properties = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type
   truncated: { type: "boolean" }, goal_ids: { type: "array", items: id, uniqueItems: true }, session_id: { type: ["string", "null"] } };
 const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
 export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open }, required: Object.keys(properties), additionalProperties: false };
-export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[]): ActionDefinition<{ subject_id: string }, ActionSubjectContext> {
+/** The v1 output before `open` was added: readers declared with it keep working. */
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", properties, required: Object.keys(properties), additionalProperties: false };
+/**
+ * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
+ * person's own Home (a calendar, personal notes), so personal work can read them back too.
+ */
+export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<{ subject_id: string }, ActionSubjectContext> {
   return { capability_id: capabilityId, version: 1, operation: "query", action: { title, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
-    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
+    kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }
 export function subjectContext(input: Omit<ActionSubjectContext, "truncated"> & { truncated?: boolean }): ActionSubjectContext {

@@ -40,7 +40,8 @@ function fakeCoding() {
 function fixture() {
   const coding = fakeCoding();
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => ({}) as AgentHost, authority: async () => { throw new Error("not used"); },
+  const host = { adapter: () => ({ readSession: async () => ({}), read: async () => null }), reviews: { list: () => [] } };
+  const service = new AssistantService(store, { host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
     personActions: async () => coding.actions }, "web-user");
   const caller = { project_ref: { project_id: "project", board_id: "board", storage_key: "memory:project" } as any };
   return { coding, store, service, caller };
@@ -115,4 +116,40 @@ test("a new Coding work can continue the session the person started on the Codin
   await assert.rejects(service.send({ executor: "coding", coding_session_id: started.session.session_id, scope: { kind: "project", project_id: "project" }, text: "再开一个", request_id: randomUUID() }, caller),
     /已属于工作/);
   await assert.rejects(service.send({ work_id: sent.work.work_id, coding_session_id: "other", text: "换会话", request_id: randomUUID() }, caller), /只有新的 Coding 工作/);
+});
+
+test("an Assistant work handed to Coding stays one work: the first Coding round is told the work so far, and handing back keeps Coding's rounds", async () => {
+  const { coding, store, service } = fixture();
+  const project_ref = { project_id: "project", board_id: "board", storage_key: "memory:project" } as any;
+  const work = store.create({ actor_id: "web-user", title: "加法函数", scope: { kind: "project", project_id: "project" }, origin: null, project_ref });
+  store.addRound(work.work_id, { run_id: "assistant-1", text: "写一个加法函数，放在 calc.js", materials: [], context: null, started_at: "2026-09-28T00:00:00.000Z" });
+
+  const handed = await service.handover(work.work_id, { to: "coding", mode: "execute" });
+  const sessionId = (handed.work.executor as { session_id: string }).session_id;
+  assert.equal(handed.work.executor.kind, "coding");
+  assert.ok(!("handover_brief" in handed.work), "the note is not part of the work as shown");
+  assert.deepEqual(handed.objects.map(object => [object.relation, object.subject.kind, object.subject.id]), [["session", "coding_session", sessionId]]);
+  assert.equal(coding.sessions.get(sessionId)!.configuration!.intent, "execute");
+
+  await service.send({ work_id: work.work_id, text: "开始吧", request_id: randomUUID() }, { project_ref });
+  const first = coding.calls.filter(call => call.name === "runs.start").at(-1)!.input.task as string;
+  assert.match(first, /从个人助理转交给你继续/);
+  assert.match(first, /写一个加法函数，放在 calc\.js/);
+  assert.match(first, /用户现在的要求：开始吧/);
+  await service.send({ work_id: work.work_id, text: "再补测试", request_id: randomUUID() }, { project_ref });
+  assert.doesNotMatch(coding.calls.filter(call => call.name === "runs.start").at(-1)!.input.task as string, /转交/, "told once");
+
+  let view = await service.read(work.work_id);
+  assert.deepEqual(view.rounds.map(round => round.executor), ["coding", "coding"]);
+  await assert.rejects(service.handover(work.work_id, { to: "coding" }), /已经由 Coding Agent 执行/);
+
+  // Back to the Assistant: Coding's rounds still belong to the work.
+  view = await service.handover(work.work_id, { to: "assistant" });
+  assert.equal(view.work.executor.kind, "assistant");
+  assert.deepEqual(view.rounds.map(round => round.executor), ["coding", "coding"]);
+  // And to Coding again: the same session, not a new one.
+  const creates = coding.calls.filter(call => call.name === "sessions.create").length;
+  view = await service.handover(work.work_id, { to: "coding" });
+  assert.equal((view.work.executor as { session_id: string }).session_id, sessionId);
+  assert.equal(coding.calls.filter(call => call.name === "sessions.create").length, creates);
 });

@@ -72,6 +72,8 @@ export const ASSISTANT_EN: Record<string, string> = {
   "让 Coding Agent 做点什么…": "Ask Coding Agent to do something…",
   "由 Coding Agent 执行": "Carried by Coding Agent",
   "打开 Coding": "Open Coding",
+  "交给 Coding 继续": "Hand to Coding",
+  "回到助理": "Back to the Assistant",
   "当前会话": "this session",
   "这个对象属于工作": "This belongs to the work",
   "切换过去": "Switch to it",

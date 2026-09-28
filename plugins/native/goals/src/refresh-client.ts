@@ -14,7 +14,9 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
       const nextFilter = parsed.querySelector("[data-tree-filter]");
       const nextCount = parsed.querySelector("[data-tree-count]");
       const nextDialog = parsed.querySelector("[data-create-dialog]");
-      if (!nextTree || !nextDocument || !nextFooter) throw new Error("页面数据不完整");
+      // The tree footer and count are optional: the current layout has neither, and requiring them made every
+      // full-page fallback fail silently.
+      if (!nextTree || !nextDocument) throw new Error("页面数据不完整");
 
       let move = null;
       if (goalId && !goalStillExists) {

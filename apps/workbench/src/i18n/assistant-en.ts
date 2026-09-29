@@ -342,6 +342,8 @@ export const ASSISTANT_EN: Record<string, string> = {
   "用": "Use",
   "没有匹配的能力；换个词，或直接说要做什么": "No matching capability; try other words, or just say what to do",
   "用量": "Usage",
+  "已移到": "Moved to ",
+  "项已移走": "moved elsewhere",
   "每次执行前都请我确认（它可以撤销，默认在你明确要求时直接执行）": "Ask me before each run (it can be undone; by default it runs directly when you ask for it)",
   "撤销": "Undo",
   "没能撤销": "Could not undo",

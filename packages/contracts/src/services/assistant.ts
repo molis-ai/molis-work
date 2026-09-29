@@ -327,9 +327,12 @@ export interface AssistantWorkObject {
   current_revision: string | null;
   /**
    * `current` — as recorded; `changed` — the owner has a newer revision (for a result: someone changed what the work
-   * produced); `missing` — the owner no longer has it; `unavailable` — it cannot be read now (plugin off, no access).
+   * produced); `missing` — the owner no longer has it; `unavailable` — it cannot be read now (plugin off, no access);
+   * `moved` — the person moved it elsewhere (another project or their personal space): named, not read across.
    */
-  state: "current" | "changed" | "missing" | "unavailable";
+  state: "current" | "changed" | "missing" | "unavailable" | "moved";
+  /** For `moved`: where it is now, in words the person reads. */
+  moved_to?: { title: string; kind: "personal" | "project" };
   recorded_at: string;
   /** Where the person opens it. */
   open?: { surface: string; id: string };

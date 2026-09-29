@@ -286,12 +286,14 @@ function describeObjects(objects: readonly AssistantWorkObject[]): string {
     const where = `${object.title}（${object.subject.kind}，标识 ${object.subject.id}）`;
     const state = object.state === "changed" ? `已被修改：这项工作记下的是版本 ${object.recorded_revision}，现在是版本 ${object.current_revision}`
       : object.state === "missing" ? "已不存在（被删除或移走）" : object.state === "unavailable" ? "暂时读不到"
+      : object.state === "moved" ? `已被用户移到${object.moved_to?.kind === "personal" ? "个人空间" : "项目"}「${object.moved_to?.title ?? ""}」，这项工作读不到它的正文`
       : object.current_revision ? `未变，版本 ${object.current_revision}` : "可用";
     return `- ${RELATION_WORDS[object.relation]}：${where}——${state}`;
   });
   const notes = [
     objects.some(object => object.state === "changed") ? "标为“已被修改”的对象，在这项工作之后被用户或其他入口改过：继续之前先读取它的当前版本，在当前版本上接着做，保留其中的修改，不要用这项工作之前的内容覆盖；提交修改时带上当前版本。" : "",
     objects.some(object => object.state === "missing") ? "已不存在的对象不要重新创建，除非用户明确要求；先说明它已不在。" : "",
+    objects.some(object => object.state === "moved") ? "被移走的对象不要在这里重新创建或按旧内容改写；告诉用户它现在在哪里，需要时请用户到那里继续，或把它放回这个项目。" : "",
   ].filter(Boolean);
   return [...lines, ...(notes.length ? ["", ...notes] : [])].join("\n");
 }
@@ -1176,9 +1178,32 @@ export class AssistantService {
           ...(context.open ? { open: context.open } : {}) };
       } catch (error) {
         const code = (error as { code?: string }).code ?? "";
-        return { ...base, title: relation.object.id, current_revision: null, state: /not_found|missing|deleted/.test(code) ? "missing" as const : "unavailable" as const };
+        if (/not_found|missing|deleted/.test(code)) {
+          // Not here any more may mean moved: the placement service says where, and the work names it without reading it.
+          const moved = await this.whereNow(work, actions, relation.object);
+          if (moved) return { ...base, title: moved.title, current_revision: null, state: "moved" as const, moved_to: moved.to };
+          return { ...base, title: relation.object.id, current_revision: null, state: "missing" as const };
+        }
+        return { ...base, title: relation.object.id, current_revision: null, state: "unavailable" as const };
       }
     }));
+  }
+
+  /**
+   * Where an object this work knew has gone, when the person moved it (the placement service follows moves). Content
+   * in another project or the personal space is not read from this work's scope: only its name and new place are told.
+   */
+  private async whereNow(work: StoredWork, actions: PersonActions | null, subject: { kind: string; id: string }): Promise<{ title: string; to: NonNullable<AssistantWorkObject["moved_to"]> } | null> {
+    if (!actions) return null;
+    const describe = (await actions.discover().catch(() => [] as ActionView[])).find(view => view.capability_id === "placement.describe" && view.availability.available);
+    if (!describe) return null;
+    try {
+      const found = await withinTime(actions.invoke({ capability_id: describe.capability_id, version: describe.version, provider_id: describe.provider.provider_id },
+        { object: { kind: subject.kind, id: subject.id, project_id: work.project_ref?.project_id ?? null } })) as
+        { state: string; title: string; object: { project_id: string | null }; location: { title: string; kind: "personal" | "project" } | null; moved_from: unknown };
+      if (found.state !== "ok" || !found.location || !found.moved_from || found.object.project_id === (work.project_ref?.project_id ?? null)) return null;
+      return { title: found.title, to: { title: found.location.title, kind: found.location.kind } };
+    } catch { return null; }
   }
 
   /** One object as its owner has it now: its context, "missing" when the owner says it is gone, null when unreadable. */
@@ -1231,7 +1256,10 @@ export class AssistantService {
       catch { return null; }
     };
     const context = await read(object.kind, object.id);
-    if (!context) return null;
+    if (!context) {
+      const moved = await this.whereNow(work, actions, object);
+      return moved ? `「${moved.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」。这项工作的范围读不到它现在的正文；需要时请用户到那里打开，或把它放回这个项目。` : null;
+    }
     const goals = (await Promise.all(context.goal_ids.slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
     const others = (await this.related(identity(work).project_id, { kind: object.kind, id: object.id })).filter(row => row.work_id !== work.work_id).slice(0, 5);
     const claimed = object.version === undefined ? null : String(object.version);
@@ -1263,6 +1291,8 @@ export class AssistantService {
         .catch((error: unknown) => ({ state: "unavailable" as const, reason: error instanceof Error ? error.message : String(error) })) as
         { state: "ok"; subject: { kind: string; id: string }; title: string; revision: string } | { state: "missing" | "unavailable"; reason: string };
       if (opened.state !== "ok") {
+        const moved = opened.state === "missing" ? await this.whereNow(work, actions, material.object) : null;
+        if (moved) throw new AssistantError("assistant.invalid", `引用的「${material.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」，这项工作读不到它；去掉引用，或在那里继续`);
         throw new AssistantError("assistant.invalid", `引用的「${material.title}」${opened.state === "missing" ? "已不存在" : "现在读不到"}（${opened.reason}）；去掉它或重新选择后再发`);
       }
       const subject = opened.subject, reader = readers.find(view => view.action.subject_kinds.includes(subject.kind));

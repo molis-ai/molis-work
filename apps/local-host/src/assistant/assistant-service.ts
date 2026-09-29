@@ -532,6 +532,11 @@ export class AssistantService {
    * Become the runner for timed rounds, and make sure each standing one has its queued task (idempotent by key: one
    * per follow-up and due time). Called when the Host starts; tasks that fell due meanwhile run as soon as it attaches.
    */
+  /** Whether anything timed is waiting: an enabled follow-up with a next time, or background work still followed. */
+  hasTimedWork(): boolean {
+    return this.store.followUps(this.actorId).some(item => item.enabled && item.next_at) || this.store.jobs(this.actorId).some(job => job.state === "running");
+  }
+
   async attachSchedule(): Promise<boolean> {
     const schedule = await this.schedule().catch(() => null);
     if (!schedule) return false;

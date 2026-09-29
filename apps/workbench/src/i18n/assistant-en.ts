@@ -334,4 +334,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "已核对，结束这一轮": "Checked — close this round",
   "准确参数与能力": "Exact input and capability",
   "完整参数": "Full input",
+  "用一个能力，或这样开始": "Use a capability, or start like this",
+  "用": "Use",
+  "没有匹配的能力；换个词，或直接说要做什么": "No matching capability; try other words, or just say what to do",
 };

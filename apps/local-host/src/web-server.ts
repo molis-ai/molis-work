@@ -194,8 +194,11 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
       projectTitle: async projectId => platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
     // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
-    // The runtime may be busy for a moment at start (another process releasing it): keep trying for a while.
+    // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the
+    // runtime (a server start then costs no runtime until it is needed). It may be busy for a moment at start (another
+    // process releasing it): keep trying for a while.
     void runWithMolisWorkHome(storageHome, async () => {
+      if (!assistant().hasTimedWork()) await agents.started;
       for (let attempt = 0; attempt < 40; attempt++) {
         try { await agents.ready; if (await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
         await new Promise(resolve => setTimeout(resolve, 15_000).unref());

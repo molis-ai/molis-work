@@ -278,7 +278,7 @@ const CRAFT_BASE_STYLES = `
   }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
   ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
-  ${SHELL} .bar-center { position: relative; min-width: 0; }
+  ${SHELL} .bar-center { position: relative; min-width: 0; container: assistant-bar / inline-size; }
   html ${SHELL} .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
   ${SHELL} :is(.bar-start .account-global-trigger, .dock-pins, .bar-composer, .bar-resident, .bar-chat) { background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
 
@@ -754,6 +754,19 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .dock-window-body { flex: 1; min-height: 0; overflow: hidden; }
   ${SHELL} .dock-window-body iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--paper); }
 
+  /* A narrow Assistant column (a 640–900px window, a side-by-side layout) keeps one chooser beside a usable input, as on
+     a phone: unchosen Character and executor chips fold away while the panel is closed, the plugin chip narrows. */
+  @container assistant-bar (max-width: 460px) {
+    ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
+    ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
+    ${SHELL} .bar-composer { gap: 4px; }
+    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 80px; }
+    ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    ${SHELL} .bar-composer .bar-composer-search { flex: none; gap: 0; padding: 0 6px; }
+    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
+    /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention, .bar-composer-search) { display: none; }
+  }
   /* A phone keeps the bar at the foot of the page: menu, the Assistant with its switcher, the project. */
   @media (max-width: 600px) {
     ${SHELL} .immersive-workspace,

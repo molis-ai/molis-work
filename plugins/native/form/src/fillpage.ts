@@ -27,21 +27,28 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 .rating{display:flex;gap:14px}.req{color:#c0392b}button{font:inherit;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:#fff;cursor:pointer}
 .error{color:#c0392b;min-height:1.4em}.done{display:none}.done.on{display:block}.foot{margin-top:16px;font-size:12px;color:var(--muted)}
 </style></head>
-<body><main><div class="sheet"><form id="f"><h1 id="t"></h1><p class="lede" id="d"></p><div id="qs"></div><p class="error" id="e" role="alert"></p><button type="submit">生成答卷文件</button>
-<p class="hint">填完后会保存一个答卷文件（.json）。把它发回给发起人即可；这个页面不会上传任何内容。</p></form>
-<div class="done" id="ok"><h1>答卷文件已保存</h1><p class="lede">请把刚下载的文件发回给发起人。需要改的话，可以重新填写再生成一份；发起人导入时同一份只算一次。</p><button type="button" id="again">重新填写</button></div></div>
-<p class="foot">Molis Work 问卷 · 在你的浏览器里填写，不需要账号</p></main>
+<body><main><div class="sheet"><form id="f"><h1 id="t"></h1><p class="lede" id="d"></p><div id="qs"></div><p class="error" id="e" role="alert"></p><button type="submit" id="go">生成答卷文件</button>
+<p class="hint" id="h">填完后会保存一个答卷文件（.json）。把它发回给发起人即可；这个页面不会上传任何内容。</p></form>
+<div class="done" id="ok"><h1 id="okt">答卷文件已保存</h1><p class="lede" id="okd">请把刚下载的文件发回给发起人。需要改的话，可以重新填写再生成一份；发起人导入时同一份只算一次。</p><button type="button" id="again">重新填写</button></div></div>
+<p class="foot" id="foot">Molis Work 问卷 · 在你的浏览器里填写，不需要账号</p></main>
 <script id="form-data" type="application/json">${scriptJson(data)}</script>
 <script>
 (function(){
   var data = JSON.parse(document.getElementById("form-data").textContent);
+  // Whoever fills it in may not read the author's language: a browser not set to Chinese gets English.
+  var en = !/^zh/i.test(navigator.language || "") ? { title: "Form", untitled: "(Untitled question)", missing: "A required question is still empty: ", file: " · answers · ",
+    go: "Save my answers", h: "When you finish, an answer file (.json) is saved. Send it back to whoever asked; this page uploads nothing.",
+    okt: "Answer file saved", okd: "Send the file you just downloaded back to whoever asked. To change an answer, fill it in again and save another; each file counts once when it is imported.",
+    again: "Fill in again", foot: "Molis Work form · filled in your browser, no account needed" } : null;
+  var say = function(key, zh){ return en ? en[key] : zh; };
+  if (en) { document.documentElement.lang = "en"; ["go", "h", "okt", "okd", "again", "foot"].forEach(function(id){ document.getElementById(id).textContent = en[id]; }); }
   var form = document.getElementById("f"), qs = document.getElementById("qs"), error = document.getElementById("e");
-  document.getElementById("t").textContent = data.title || "问卷";
+  document.getElementById("t").textContent = data.title || say("title", "问卷");
   document.getElementById("d").textContent = data.description || "";
   var el = function(tag, text){ var node = document.createElement(tag); if (text) node.textContent = text; return node; };
   data.questions.forEach(function(q){
     var box = el("div"); box.className = "q"; box.dataset.id = q.id; box.dataset.type = q.type; box.dataset.required = q.required ? "1" : "";
-    var label = el("span", q.title || "（未命名题目）"); if (q.required) { var star = el("b", " *"); star.className = "req"; label.appendChild(star); } box.appendChild(label);
+    var label = el("span", q.title || say("untitled", "（未命名题目）")); if (q.required) { var star = el("b", " *"); star.className = "req"; label.appendChild(star); } box.appendChild(label);
     if (q.type === "singleChoice" || q.type === "multiChoice") {
       var opts = el("div"); opts.className = "opts";
       (q.options || []).forEach(function(o){ var l = el("label"); var i = el("input"); i.type = q.type === "multiChoice" ? "checkbox" : "radio"; i.name = q.id; i.value = o.label; l.appendChild(i); l.appendChild(document.createTextNode(o.label)); opts.appendChild(l); });
@@ -70,12 +77,12 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     event.preventDefault();
     var value = answers();
     var missing = data.questions.filter(function(q){ return q.required && !value[q.id]; });
-    if (missing.length) { error.textContent = "还有必填题没填：" + missing[0].title; return; }
+    if (missing.length) { error.textContent = say("missing", "还有必填题没填：") + missing[0].title; return; }
     error.textContent = "";
     var answer = { format: data.format, form_id: data.form_id, form_version: data.form_version, answer_id: uuid(), submitted_at: new Date().toISOString(), questions: data.questions, answers: value };
     var blob = new Blob([JSON.stringify(answer, null, 2)], { type: "application/json" });
     var link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-    link.download = (data.title || "问卷").replace(/[\\\\/:*?"<>|]/g, "_") + " · 答卷 · " + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-") + ".molis-answer.json";
+    link.download = (data.title || say("title", "问卷")).replace(/[\\\\/:*?"<>|]/g, "_") + say("file", " · 答卷 · ") + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-") + ".molis-answer.json";
     document.body.appendChild(link); link.click(); link.remove();
     form.style.display = "none"; document.getElementById("ok").className = "done on";
   });

@@ -3,6 +3,7 @@ import test, { type TestContext } from "node:test";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { formFillPageHtml, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
@@ -227,4 +228,46 @@ test("placement journey: one document used by two projects and a Goal — edit, 
   await press(`[data-placement-material][data-placement-id="${doc.id}"] button`, "清理");
   await card("已移除关联");
   await waitFor(`!document.querySelector('[data-placement-material][data-placement-id="${doc.id}"]')`, 12_000);
+});
+
+// AC5 for forms: the exported fill page is what someone else gets. It speaks their browser's language, refuses an empty
+// required answer in words, and saves an answer file that the form then takes in, once.
+test("placement journey: the exported fill page works in the filler's language and its answer file comes back in", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, homeDirectory, projectId } = browser;
+  const forms = openFormStore(homeDirectory);
+  const form = forms.receive(projectId!, "fill-page-e2e", "Beta 用户满意度", [{ id: "why", title: "最希望改进的地方", required: true }]);
+  forms.close();
+  const page = join(homeDirectory, "Beta 用户满意度 · 填写页.html");
+  await writeFile(page, formFillPageHtml(form));
+  const downloads = join(homeDirectory, "answers");
+  await mkdir(downloads);
+  await command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads }, sessionId);
+  const userAgent = await evaluate<string>("navigator.userAgent");
+  for (const [language, words] of [["en-US", { go: "Save my answers", missing: "A required question is still empty: 最希望改进的地方", done: "Answer file saved", file: " · answers · " }],
+    ["zh-CN", { go: "生成答卷文件", missing: "还有必填题没填：最希望改进的地方", done: "答卷文件已保存", file: " · 答卷 · " }]] as const) {
+    await command("Emulation.setUserAgentOverride", { userAgent, acceptLanguage: language }, sessionId);
+    await navigate(() => command("Page.navigate", { url: "file://" + page }, sessionId));
+    assert.equal(await evaluate("document.querySelector('#go').textContent"), words.go);
+    await click("#go");
+    await waitFor(`document.querySelector('#e').textContent === ${JSON.stringify(words.missing)}`, 5_000);
+    await evaluate(`(() => { const input = document.querySelector('input[name="why"]'); input.value = ${JSON.stringify(language === "en-US" ? "Faster export" : "导出更快")}; })()`);
+    await click("#go");
+    await waitFor(`document.querySelector('#okt').textContent === ${JSON.stringify(words.done)} && getComputedStyle(document.querySelector('#ok')).display !== 'none'`, 5_000);
+    let name = "";
+    for (let tries = 0; !name; tries++) {
+      name = (await readdir(downloads)).find(entry => entry.includes(words.file) && entry.endsWith(".molis-answer.json")) ?? "";
+      if (!name && tries > 50) assert.fail(`no answer file for ${language}`);
+      if (!name) await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  // Both files go back into the form; importing them again adds nothing.
+  const files = await Promise.all((await readdir(downloads)).filter(entry => entry.endsWith(".molis-answer.json")).map(async entry => ({ name: entry, content: await readFile(join(downloads, entry), "utf8") })));
+  const back = openFormStore(homeDirectory);
+  try {
+    assert.equal(back.importAnswers(form.id, files, projectId!).imported, 2);
+    assert.equal(back.importAnswers(form.id, files, projectId!).imported, 0, "the same answer counts once");
+    assert.deepEqual(back.listSubmissions(form.id, projectId!).map(item => item.answers.why).sort(), ["Faster export", "导出更快"]);
+  } finally { back.close(); }
 });

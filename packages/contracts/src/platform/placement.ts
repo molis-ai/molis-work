@@ -28,13 +28,19 @@ export const PLACEMENT_RESULT_SCHEMA = { type: "object", properties: { subject: 
   revision: { type: "string", minLength: 1, maxLength: 200 } }, required: ["subject", "project_id", "revision"], additionalProperties: false };
 
 /** Moving or copying changes who can read an object; only the person decides it, never an agent or a workflow. */
-const metadata = (kinds: readonly string[], title: string, permissions: readonly string[]) => ({
-  title, kind: "operation" as const, scope: "project" as const, audiences: ["user" as const], permissions: [...permissions], subject_kinds: [...kinds],
+const metadata = (kinds: readonly string[], title: string, permissions: readonly string[], scope: "project" | "home" = "project") => ({
+  title, kind: "operation" as const, scope, audiences: ["user" as const], permissions: [...permissions], subject_kinds: [...kinds],
 });
 
-/** Move keeps the object's identity and every link to it; only its partition changes. */
-export function defineObjectMoveAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[]): ActionDefinition<PlacementMoveInput, PlacementResult> {
-  return { capability_id: capabilityId, version: 1, operation: "command", action: { ...metadata(kinds, title, permissions),
+/**
+ * Move keeps the object's identity and every link to it; only where it belongs changes.
+ * `project` (the default): the object lives in a project partition and the action runs there, moving it to another partition.
+ * `home`: the plugin keeps its objects in the person's Home and records itself which project each belongs to (a todo list);
+ * the action runs at Home and `to_project_id` is the new belonging — a project, or the personal space.
+ */
+export function defineObjectMoveAction(capabilityId: string, kinds: readonly string[], title: string, permissions: readonly string[],
+  scope: "project" | "home" = "project"): ActionDefinition<PlacementMoveInput, PlacementResult> {
+  return { capability_id: capabilityId, version: 1, operation: "command", action: { ...metadata(kinds, title, permissions, scope),
     description: `把${title}移到另一个位置（个人空间或项目）；同一份内容，身份不变。`, effect: "write",
     input_type: PLACEMENT_MOVE_INPUT_TYPE, output_type: PLACEMENT_MOVE_OUTPUT_TYPE, input_schema: PLACEMENT_MOVE_INPUT_SCHEMA, output_schema: PLACEMENT_RESULT_SCHEMA } };
 }
@@ -66,6 +72,13 @@ export function bindObjectMoveHandler(definition: ActionDefinition<PlacementMove
     handle: (caller, input) => { const value = input as PlacementMoveInput; return move({ ...value, from_project_id: placementSourceProject(caller, value.to_project_id) }, caller); } };
 }
 
+/** A Home-scoped mover (see defineObjectMoveAction): the plugin knows where the object belongs now; `to_project_id` is where it goes. */
+export function bindHomeObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>,
+  move: (input: PlacementMoveInput, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
+  if (definition.action.scope !== "home") throw new ActionError("actions.definition_invalid", "Home 作用域的移动处理只能绑定 Home 作用域的放置动作");
+  return { capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => move(input as PlacementMoveInput, caller) };
+}
+
 export function bindObjectCopyHandler(definition: ActionDefinition<PlacementCopyInput, PlacementResult>,
   copy: (input: PlacementCopyInput & { from_project_id: string }, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding {
   return { capability_id: definition.capability_id, version: definition.version,
@@ -86,10 +99,12 @@ export function placementDeclarationProblems(key: string, action: Record<string,
   const schema = mover ? PLACEMENT_MOVE_INPUT_SCHEMA : copier ? PLACEMENT_COPY_INPUT_SCHEMA : null;
   const audiences = Array.isArray(action.audiences) ? action.audiences as unknown[] : [];
   const kinds = Array.isArray(action.subject_kinds) ? action.subject_kinds as unknown[] : [];
-  if (!schema || operation !== "command" || action.kind !== "operation" || action.scope !== "project" || kinds.length === 0
+  // Only a mover may be Home-scoped (a plugin that keeps its objects at Home and their belonging itself); copies stay in partitions.
+  const scoped = action.scope === "project" || mover && action.scope === "home";
+  if (!schema || operation !== "command" || action.kind !== "operation" || !scoped || kinds.length === 0
     || audiences.length !== 1 || audiences[0] !== "user"
     || canonical(action.input_schema) !== canonical(schema) || canonical(action.output_schema) !== canonical(PLACEMENT_RESULT_SCHEMA)) {
-    return [`能力 ${key} 没有兑现放置协议 v1：需要规范输入输出、项目作用域、只对本机用户开放的操作，以及对象种类`];
+    return [`能力 ${key} 没有兑现放置协议 v1：需要规范输入输出、项目作用域（移动也可以是 Home 作用域）、只对本机用户开放的操作，以及对象种类`];
   }
   return [];
 }

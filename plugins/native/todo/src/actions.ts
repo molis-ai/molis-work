@@ -22,17 +22,20 @@ const date = { ...text, pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 const time = { ...text, pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$" };
 const instant = { ...text, minLength: 10, maxLength: 40 };
 const revision = { type: "integer", minimum: 1 };
-const status = { enum: ["open", "doing", "waiting", "done", "cancelled"] };
-const placement = { enum: ["personal", "project", "unassigned"] };
-const view = { enum: ["today", "waiting", "unscheduled", "upcoming", "all", "closed"] };
+/** A choice each value of which has the name a person reads (cards show the name and send the value). */
+const choices = (entries: readonly (readonly [string, string])[], title?: string) => ({ oneOf: entries.map(([value, name]) => ({ const: value, title: name })), ...(title ? { title } : {}) });
+const status = choices([["open", "待处理"], ["doing", "进行中"], ["waiting", "等待他人"], ["done", "已完成"], ["cancelled", "已取消"]], "状态");
+const placement = choices([["personal", "个人空间"], ["project", "当前项目"], ["unassigned", "暂未归类"]], "放在哪里");
+const view = choices([["today", "今天"], ["waiting", "等待中"], ["unscheduled", "未安排"], ["upcoming", "即将到期"], ["all", "全部进行中"], ["closed", "已完成或已取消"]], "视图");
 const subject = object({ kind: { ...id, maxLength: 80 }, id });
 const open = object({ surface: { ...text, pattern: "^[a-z0-9_-]{1,40}$" }, id });
 const waiting = object({ who: { ...text, maxLength: 80 }, what: { ...text, maxLength: 200 }, follow_up_on: nullable(date) });
-const sourceKind = { enum: ["manual", "material", "assistant", "onboarding", "inbox", "lingguang"] };
+const sourceKind = choices([["manual", "手动"], ["material", "材料"], ["assistant", "助理"], ["onboarding", "开始使用时"], ["inbox", "Inbox"], ["lingguang", "灵光"]], "来源种类");
 const source = object({ source_id: id, kind: sourceKind, title: text, excerpt: text, reason: text, subject: nullable(subject), open: nullable(open), added_at: text });
-const linkKind = { enum: ["goal", "material", "todo", "outcome", "work"] };
-const relation = { enum: ["blocked_by", "blocks", "split_from", "merged", "related"] };
-const link = object({ link_id: id, kind: linkKind, subject, title: text, relation: nullable(relation), outcome: nullable({ enum: ["draft", "done"] }), open: nullable(open), added_at: text });
+const linkKind = choices([["goal", "Goal"], ["material", "材料"], ["todo", "另一件待办"], ["outcome", "成果"], ["work", "助理工作"]], "关联的种类");
+const relation = choices([["blocked_by", "要等它先完成"], ["blocks", "它在等这件"], ["split_from", "拆分自"], ["merged", "合并自"], ["related", "相关"]], "关系");
+const outcome = choices([["draft", "草稿"], ["done", "已完成的动作"]], "成果状态");
+const link = object({ link_id: id, kind: linkKind, subject, title: text, relation: nullable(relation), outcome: nullable(outcome), open: nullable(open), added_at: text });
 const editable = { enum: ["title", "notes", "due_date", "due_time", "planned_date", "remind_at", "placement", "important", "waiting"] };
 const itemFields = {
   id, title: text, notes: text, status, placement, project_id: nullable(id), due_date: nullable(date), due_time: nullable(time), planned_date: nullable(date),
@@ -55,13 +58,13 @@ const fieldInput = {
   due_time: { ...nullable(time), title: "截止时间（HH:MM）" },
   planned_date: { ...nullable(date), title: "计划处理日期（YYYY-MM-DD）" },
   remind_at: { ...nullable(instant), title: "提醒时间（带时区）" },
-  placement: { ...placement, title: "归属：个人、当前项目或暂未归类" },
+  placement: { ...placement, title: "放在哪里：个人空间、当前项目或暂未归类" },
   important: { type: "boolean", title: "重要（只能由本人设置）" },
   waiting: { ...nullable(waiting), title: "在等谁、等什么、何时跟进" },
 };
 const sourceInput = object({ kind: sourceKind, title: { ...text, maxLength: 200 }, excerpt: { ...text, maxLength: 2000 }, reason: { ...text, maxLength: 500 },
   subject: nullable(subject), open: nullable(open) }, ["kind", "title"]);
-const linkInput = object({ kind: linkKind, subject, title: { ...text, maxLength: 200 }, relation: nullable(relation), outcome: nullable({ enum: ["draft", "done"] }), open: nullable(open) }, ["kind", "subject", "title"]);
+const linkInput = object({ kind: linkKind, subject, title: { ...text, maxLength: 200 }, relation: nullable(relation), outcome: nullable(outcome), open: nullable(open) }, ["kind", "subject", "title"]);
 const batchChange = {
   oneOf: [
     object({ status }), object({ planned_date: nullable(date) }), object({ due_date: nullable(date) }),

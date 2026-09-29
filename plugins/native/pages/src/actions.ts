@@ -36,6 +36,7 @@ function define<I, O>(name: string, title: string, description: string, operatio
     ...(operation === "command" && (output as { properties?: Record<string, unknown> }).properties?.document ? { result_subject: { id: "document.id", revision: "document.version" } } : {}),
     ...(scheduling ? { scheduling } : {}) } };
 }
+const withAction = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, ...extra } });
 export const pagesActions = {
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
   subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
@@ -47,7 +48,12 @@ export const pagesActions = {
   list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read),
   templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
   get: define<{ id: string }, { document: PagesRecord }>("get", "读取文档", "读取当前项目的一篇文档", "query", object({ id }), object({ document: page }), read),
-  create: define<Fields & { template_id?: string }, { document: PagesRecord }>("create", "新建文档", "在当前项目创建正文或使用内置模板", "command", object({ ...fields, template_id: text }, []), object({ document: page }), write),
+  // A new document can be taken back while no one has changed it, so the Assistant may create one when asked without a confirmation.
+  create: withAction(define<Fields & { template_id?: string }, { document: PagesRecord }>("create", "新建文档", "在当前项目创建正文或使用内置模板", "command", object({ ...fields, template_id: text }, []), object({ document: page }), write),
+    { undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } } }),
+  // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
+  discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
+    { effect: "irreversible" }),
   update: define<Fields & { id: string; expected_version?: number }, { document: PagesRecord }>("update", "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑", "command", object({ id, ...fields, expected_version: version }, ["id"]), object({ document: page }), write),
   delete: define<{ id: string }, { ok: true }>("delete", "删除文档", "永久删除当前项目的一篇文档", "command", object({ id }), object({ ok: { const: true } }), write),
   createFolder: define<{ title?: string }, { folder: PagesFolder }>("folders.create", "新建文件夹", "在当前项目创建文档文件夹", "command", object({ title: { type: "string", maxLength: 40 } }, []), object({ folder }), write),
@@ -117,6 +123,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.create, (input, caller) => ports.withStore(store => ({ document: store.create({ ...input, project_id: project(caller) }) }))),
     bind(pagesActions.update, (input, caller) => ports.withStore(store => ({ document: store.update(input.id, input, project(caller)) }))),
     bind(pagesActions.delete, (input, caller) => ports.withStore(store => { store.delete(input.id, project(caller)); return { ok: true }; })),
+    bind(pagesActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.id, input.expected_version, project(caller)); return { ok: true }; })),
     bind(pagesActions.createFolder, (input, caller) => ports.withStore(store => ({ folder: store.createFolder({ ...input, project_id: project(caller) }) }))),
     bind(pagesActions.updateFolder, (input, caller) => ports.withStore(store => ({ folder: store.updateFolder(input.id, input, project(caller)) }))),
     bind(pagesActions.deleteFolder, (input, caller) => ports.withStore(store => { store.deleteFolder(input.id, project(caller)); return { ok: true }; })),

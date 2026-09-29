@@ -134,3 +134,19 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
     }, mode === "missing" ? null : provider);
   });
 }
+
+test("a new document can be taken back only while unchanged: create names its undo, discard refuses once it was edited", async () => {
+  const { inspectActionDeclarations, actionEffect } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  assert.deepEqual(actions.create.action.undo, { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } });
+  assert.deepEqual(inspectActionDeclarations([actions.create, actions.discard], undefined), []);
+  assert.equal(actionEffect(actions.discard.action, actions.discard.capability_id), "irreversible", "an agent calling discard itself is asked each time");
+  await fixture(async ({ bound }) => {
+    const { document: kept } = await bound.invoke(actions.create, { title: "Draft", body: body("First draft") });
+    await bound.invoke(actions.discard, { id: kept.id, expected_version: kept.version });
+    assert.equal((await bound.invoke(actions.list, {})).documents.some(doc => doc.id === kept.id), false, "taken back while unchanged");
+    const { document: edited } = await bound.invoke(actions.create, { title: "Plan", body: body("v1") });
+    await bound.invoke(actions.update, { id: edited.id, body: body("v2 by the person"), expected_version: edited.version });
+    await assert.rejects(bound.invoke(actions.discard, { id: edited.id, expected_version: edited.version }), { code: "pages.conflict" });
+    assert.equal((await bound.invoke(actions.get, { id: edited.id })).document.version, edited.version + 1, "the edited document stays");
+  });
+});

@@ -375,6 +375,14 @@ export class PagesStore {
     this.db.prepare("DELETE FROM pages WHERE id = ?").run(id);
   }
 
+  /** Take back a document just created: removed only while it is still the version it was created at, so no later edit is lost. */
+  discard(id: string, expectedVersion: number, projectId?: string): void {
+    const current = this.get(id, projectId);
+    if (current.version !== expectedVersion) throw new PagesError("pages.conflict", `《${current.title || "未命名"}》在新建之后改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己删除`);
+    const result = this.db.prepare("DELETE FROM pages WHERE id = ? AND version = ?").run(id, expectedVersion);
+    if (result.changes !== 1) throw new PagesError("pages.conflict", "文档刚被修改，没有撤销");
+  }
+
   extract(id: string, projectId: string): { document: PagesRecord; cards: number; created: PagesRecord[] } {
     this.db.exec("BEGIN IMMEDIATE");
     try {

@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PERSONAL_SPACE_PROJECT_ID, actionEffect, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, actionEffect, actionFieldOptions, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
@@ -358,4 +358,16 @@ test("the Assistant's reminder query lists the person's own reminders due in the
   assert.ok(!(await f.me.invoke(actions.get, { id: later.id })).item.reminder_acknowledged_at);
   await assert.rejects(f.me.invoke(actions.dueWindow, { from: at(3), to: at(1) }), { code: "actions.input_invalid" });
   await assert.rejects(f.agentHome.invoke(actions.dueWindow, window));
+});
+
+test("choices a card may show carry the names a person reads, and still validate by their values", async t => {
+  const props = (definition: { action: { input_schema: unknown } }) => (definition.action.input_schema as { properties: Record<string, unknown> }).properties;
+  assert.deepEqual(actionFieldOptions(props(actions.status).status), [
+    { value: "open", label: "待处理" }, { value: "doing", label: "进行中" }, { value: "waiting", label: "等待他人" }, { value: "done", label: "已完成" }, { value: "cancelled", label: "已取消" }]);
+  assert.deepEqual(actionFieldOptions(props(actions.update).placement)?.map(option => option.label), ["个人空间", "当前项目", "暂未归类"]);
+  assert.deepEqual(actionFieldOptions(props(actions.list).view)?.map(option => option.value), ["today", "waiting", "unscheduled", "upcoming", "all", "closed"]);
+  const f = fixture(t);
+  const made = (await f.inA.invoke(actions.create, { title: "按名称选", placement: "project", status: "doing" })).item;
+  assert.deepEqual([made.placement, made.status], ["project", "doing"]);
+  await assert.rejects(f.inA.invoke(actions.create, { title: "不认识的值", placement: "当前项目" as never }), { code: "actions.input_invalid" });
 });

@@ -17,7 +17,8 @@ const object = (properties: Record<string, unknown>, required = Object.keys(prop
 const array = (items: unknown, extra: Record<string, unknown> = {}) => ({ type: "array", items, ...extra });
 const date = { ...text, pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
 const time = { ...text, pattern: "^(?:[01]\\d|2[0-3]):[0-5]\\d$" };
-const placement = { enum: ["personal", "project", "unassigned"] };
+const choices = (entries: readonly (readonly [string, string])[], title?: string) => ({ oneOf: entries.map(([value, name]) => ({ const: value, title: name })), ...(title ? { title } : {}) });
+const placement = choices([["personal", "个人空间"], ["project", "当前项目"], ["unassigned", "暂未归类"]], "放在哪里");
 const subject = object({ kind: { ...id, maxLength: 80 }, id });
 const open = object({ surface: { ...text, pattern: "^[a-z0-9_-]{1,40}$" }, id });
 const changeValues = object(Object.fromEntries(["title", "due_date", "due_time", "planned_date", "notes"].map(key => [key, nullable(text)])), []);
@@ -39,7 +40,7 @@ const batch = object({ batch_id: id, title: text, origin: { enum: ["assistant", 
 const materialInput = object({ title: { ...text, minLength: 1, maxLength: 200, title: "材料名称（邮件主题、文件名）" }, text: { ...text, minLength: 1, maxLength: 200_000, title: "材料正文" },
   subject: nullable(subject), open: nullable(open), received_at: nullable({ ...text, maxLength: 40, title: "材料的发出或收到时间" }),
   read: { enum: ["read", "truncated", "failed"], title: "读成了多少：全文、只读了一部分、没读成" }, note: { ...text, maxLength: 200, title: "没读全时说明缺了什么" } }, ["title", "text"]);
-const decision = object({ candidate_id: id, action: { enum: ["add", "merge", "update", "complete", "reopen", "ignore"] },
+const decision = object({ candidate_id: id, action: choices([["add", "加入待办"], ["merge", "合并到已有待办"], ["update", "更新已有待办"], ["complete", "把已有待办标为完成"], ["reopen", "重新打开已有待办"], ["ignore", "忽略"]], "怎么处理"),
   edits: object({ title: { ...text, minLength: 1, maxLength: 200 }, due_date: nullable(date), due_time: nullable(time), planned_date: nullable(date), placement, notes: { ...text, maxLength: 10_000 } }, []),
   accept_protected: array({ enum: ["title", "due_date", "due_time", "planned_date", "notes"] }), ignore_reason: { ...text, maxLength: 100 } }, ["candidate_id", "action"]);
 
@@ -56,13 +57,13 @@ export const todoOrganizeActions = {
     object({ materials: { ...array(materialInput), minItems: 1, maxItems: 50 }, title: { ...text, maxLength: 120 }, request: { ...text, maxLength: 500, title: "用户这次的要求" }, request_id: id,
       origin: { enum: ["onboarding"], title: "由开始使用时的整理发起" },
       me: { ...array({ ...text, minLength: 1, maxLength: 40 }), maxItems: 8, title: "用户本人在材料里的称呼（名字、昵称）" },
-      method: { enum: ["basic", "organizer"], title: "整理方法：basic 基本整理；organizer 待办整理师的方法" } }, ["materials"]),
+      method: choices([["basic", "基本整理"], ["organizer", "待办整理师的方法"]], "整理方法") }, ["materials"]),
     object({ batch, replayed: { type: "boolean" } }), [...WRITE, "model:invoke"],
     // Organizing only saves a result to confirm; taking it back puts that result away (nothing was added to Todo).
     { execution: { cost: "metered" }, scheduling: "concurrent", result_subject: { id: "batch.batch_id", revision: "batch.revision" }, result_view: { summary: "整理结果已保存，等你确认", title_pointer: "/batch/title" },
       undo: { capability_id: "todo.organize.close", version: 1, input: { id: "batch.batch_id" } } }),
   list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", "整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
-    object({ status: { enum: ["open", "all"] } }, []), object({ batches: array(batch) }), READ),
+    object({ status: choices([["open", "等你确认的"], ["all", "全部最近的"]], "列哪些") }, []), object({ batches: array(batch) }), READ),
   get: define<{ id: string }, { batch: TodoBatch }>("organize.get", "读取整理结果", "读取一份整理结果：候选、依据、与已有待办的关系、未列入的参考信息", "query",
     object({ id }), object({ batch }), READ),
   apply: define<{ id: string; expected_revision?: number; decisions: TodoCandidateDecision[] }, TodoApplyResult>("organize.apply", "采用整理结果", "按用户的选择处理候选：加入待办、合并到已有、更新已有、标为完成、重新打开或忽略；全部成功或全部不改，可凭 change_batch_id 整批撤销", "command",

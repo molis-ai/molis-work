@@ -263,8 +263,26 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
       existing: existingLink,
     });
   }
-  const known = new Set(candidates.map(candidate => candidate.ref));
-  const cleaned = candidates.map(candidate => ({ ...candidate, depends_on: candidate.depends_on.filter(ref => known.has(ref) && ref !== candidate.ref) }));
+  // Two candidates about the same existing todo (an update, and a “same” suggestion saying the same thing) are one
+  // thing for the person to decide: keep the one that says what changes, and fold the other's evidence into it.
+  const RANK: Record<NonNullable<TodoCandidateDraft["existing"]>["relation"], number> = { conflict: 5, update: 4, reopen: 3, maybe_done: 2, same: 1 };
+  const keptFor = new Map<string, TodoCandidateDraft>(), alias = new Map<string, string>();
+  const folded: TodoCandidateDraft[] = [];
+  for (const candidate of candidates) {
+    const itemId = candidate.existing?.item_id;
+    const kept = itemId ? keptFor.get(itemId) : undefined;
+    if (!itemId || !kept) { if (itemId) keptFor.set(itemId, candidate); folded.push(candidate); continue; }
+    const [stronger, weaker] = RANK[candidate.existing!.relation] > RANK[kept.existing!.relation] ? [candidate, kept] : [kept, candidate];
+    const combined: TodoCandidateDraft = { ...stronger,
+      evidence: [...stronger.evidence, ...weaker.evidence.filter(entry => !stronger.evidence.some(own => own.material === entry.material && own.excerpt === entry.excerpt))].slice(0, 5),
+      uncertain: [...new Set([...stronger.uncertain, ...weaker.uncertain])] };
+    folded[folded.indexOf(kept)] = combined;
+    keptFor.set(itemId, combined);
+    alias.set(weaker.ref, combined.ref);
+  }
+  const known = new Set(folded.map(candidate => candidate.ref));
+  const cleaned = folded.map(candidate => ({ ...candidate,
+    depends_on: [...new Set(candidate.depends_on.map(ref => alias.get(ref) ?? ref))].filter(ref => known.has(ref) && ref !== candidate.ref) }));
   const reference_only = (Array.isArray(parsed.reference_only) ? parsed.reference_only : []).flatMap((entry: any) => {
     const summary = text(entry?.summary, 200), index = Number(entry?.material);
     return summary && Number.isInteger(index) && index >= 1 && index <= materials.length ? [{ summary, material: index }] : [];

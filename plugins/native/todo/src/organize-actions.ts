@@ -37,7 +37,8 @@ const batch = object({ batch_id: id, title: text, origin: { enum: ["assistant", 
   materials: array(material), candidates: array(candidate), reference_only: array(object({ summary: text, material: { type: "integer", minimum: 1 } })),
   notes: array(text), status: { enum: ["open", "done"] }, created_at: text, updated_at: text, revision: { type: "integer", minimum: 1 } });
 const materialInput = object({ title: { ...text, minLength: 1, maxLength: 200, title: "材料名称（邮件主题、文件名）" }, text: { ...text, minLength: 1, maxLength: 200_000, title: "材料正文" },
-  subject: nullable(subject), open: nullable(open), received_at: nullable({ ...text, maxLength: 40, title: "材料的发出或收到时间" }) }, ["title", "text"]);
+  subject: nullable(subject), open: nullable(open), received_at: nullable({ ...text, maxLength: 40, title: "材料的发出或收到时间" }),
+  read: { enum: ["read", "truncated", "failed"], title: "读成了多少：全文、只读了一部分、没读成" }, note: { ...text, maxLength: 200, title: "没读全时说明缺了什么" } }, ["title", "text"]);
 const decision = object({ candidate_id: id, action: { enum: ["add", "merge", "update", "complete", "reopen", "ignore"] },
   edits: object({ title: { ...text, minLength: 1, maxLength: 200 }, due_date: nullable(date), due_time: nullable(time), planned_date: nullable(date), placement, notes: { ...text, maxLength: 10_000 } }, []),
   accept_protected: array({ enum: ["title", "due_date", "due_time", "planned_date", "notes"] }), ignore_reason: { ...text, maxLength: 100 } }, ["candidate_id", "action"]);

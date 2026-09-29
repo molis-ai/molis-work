@@ -122,3 +122,64 @@ test("recall words cover Chinese two-character pieces and Latin words", () => {
   assert.deepEqual(recallKeywords("NSM 这周"), ["nsm", "这周"]);
   assert.ok(recallKeywords("北极星指标").includes("星指"));
 });
+
+test("a work suggests keeping a lesson only where the person allows it; nothing is kept until they accept, and a declined one is not suggested again", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-candidates-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", board_id: "board-a", storage_key: "memory:a" };
+  const requests: any[] = [];
+  const script: Array<(body: any) => Response> = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    requests.push(body);
+    return (script.shift() ?? (() => reply()))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-candidates-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai" }, "web-user");
+  const tools = (body: any) => (body.tools as Array<{ name: string }>).map(tool => tool.name);
+  const lesson = { text: "项目甲的周报先写风险，再写进展", scope: "project", why: "这次和上次你都把风险挪到了最前面", applies: "写项目甲的周报时" };
+  try {
+    // Off by default: the tool is not offered, and nothing can be suggested.
+    const first = await service.send({ text: "写周报", request_id: "req-candidate-1" }, { project_ref: project });
+    await until(async () => (await service.read(first.work.work_id)).work.state === "completed", "first");
+    assert.ok(!tools(requests[0]).includes("suggest-memory"), "suggesting is off until the person allows it");
+
+    // Allowed for project work only: offered there; a personal suggestion is refused.
+    service.saveMemoryPrefs({ learn_project: true });
+    script.push(() => reply({ name: "suggest-memory", input: lesson }),
+      () => reply({ name: "suggest-memory", input: { text: "回答都用要点", scope: "personal", why: "看起来喜欢要点", applies: "总是" } }),
+      () => reply(undefined, "建议记住：项目甲的周报先写风险，需要你认可。"));
+    const before = requests.length;
+    await service.send({ work_id: first.work.work_id, text: "风险放最前面，和上次一样", request_id: "req-candidate-2" }, {});
+    const view = await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "second");
+    assert.ok(tools(requests[before]).includes("suggest-memory"));
+    assert.match(JSON.stringify(requests.at(-1)), /用户没有允许从工作里提出个人偏好/, "the personal suggestion was refused");
+    assert.deepEqual(view.memory_candidates?.map(item => [item.text, item.scope, item.project_id, item.state]), [[lesson.text, "project", "project-a", "pending"]]);
+    assert.deepEqual(await service.memories("project-a"), [], "nothing is kept yet");
+
+    // Accepted (reworded by the person): kept like a remembered item, recalled in the project's next work.
+    const kept = await service.acceptMemoryCandidate(view.memory_candidates![0]!.candidate_id, { text: "项目甲的周报：先写风险，再写进展" });
+    assert.equal(kept.state, "accepted");
+    assert.deepEqual((await service.memories("project-a")).map(item => [item.text, item.scope]), [["项目甲的周报：先写风险，再写进展", "project"]]);
+    assert.match((await service.memories("project-a"))[0]!.origin, /你认可的建议/);
+    await assert.rejects(service.acceptMemoryCandidate(kept.candidate_id), /已经记住了/);
+    assert.equal((await service.read(first.work.work_id)).memory_candidates, undefined);
+
+    // Declined: it goes, and the same one is refused if suggested again.
+    script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
+    await service.send({ work_id: first.work.work_id, text: "这次用表格", request_id: "req-candidate-3" }, {});
+    const third = await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" ? v : undefined; }, "third");
+    service.discardMemoryCandidate(third.memory_candidates![0]!.candidate_id);
+    script.push(() => reply({ name: "suggest-memory", input: { ...lesson, text: "项目甲的周报用表格" } }), () => reply(undefined, "好的。"));
+    await service.send({ work_id: first.work.work_id, text: "再用表格", request_id: "req-candidate-4" }, {});
+    await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 4 && v.work.state === "completed"; }, "fourth");
+    assert.match(JSON.stringify(requests.at(-1)), /已经建议过了/);
+    assert.equal(service.memoryCandidates().length, 0);
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

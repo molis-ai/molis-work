@@ -50,7 +50,7 @@ export const MEMORY_CLAIM_HELD = {
  * answered with “[suggest-action] … capability_id: pages.create …” blocks, so the person saw markup and no card.
  * Held once whatever the round's execution: nothing it wrote happened.
  */
-const TOOL_NAMES = "suggest-action|change-capability|change-reversible|read-capability|find-capabilities|delegate-work|check-delegated-work|follow-up-delegated-work|remember|forget-memory|list-memories|ask-user|update-todo";
+const TOOL_NAMES = "suggest-action|change-capability|change-reversible|read-capability|find-capabilities|delegate-work|check-delegated-work|follow-up-delegated-work|remember|forget-memory|list-memories|suggest-memory|ask-user|update-todo";
 const WRITTEN_CALL = new RegExp(`\\[\\/?(?:${TOOL_NAMES})\\]|<\\/?(?:${TOOL_NAMES})>|(?:^|\\n)\\s*(?:capability_id|provider_id)\\s*[:=：]|"capability_id"\\s*:`);
 export function writesToolCallAsText(text: string): boolean {
   return WRITTEN_CALL.test(text);

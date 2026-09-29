@@ -41,12 +41,15 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
     </section>
     <section class="settings-section assistant-memory" aria-labelledby="assistant-memory-title" data-assistant-memory>
       <h2 id="assistant-memory-title">${L("记忆与偏好")}</h2>
-      <p class="settings-muted">${L("助理只记你明确要它记住的（例如“以后回答都用要点列表”），不会从你的一次选择或修改里自己学。个人的在你所有工作里用；项目的只在那个项目里用。停用是保留但暂不使用；删除后不会再被想起。")}</p>
+      <p class="settings-muted">${L("助理只记你明确要它记住的（例如“以后回答都用要点列表”），或你认可的建议；不会从你的一次选择或修改里自己学。个人的在你所有工作里用；项目的只在那个项目里用。停用是保留但暂不使用；删除后不会再被想起。")}</p>
       <div class="assistant-memory-prefs">
         <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="form"> ${L("允许记住我明确要求记住的事")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="use_personal"> ${L("在工作里使用个人记忆")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="use_project"> ${L("在项目的工作里使用这个项目的记忆")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="learn_personal"> ${L("从工作里提出值得记住的个人偏好或经验（等我认可才生效）")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="learn_project"> ${L("从项目的工作里提出这个项目的约定或经验（等我认可才生效）")}</label>
       </div>
+      <div data-assistant-memory-candidates hidden></div>
       <div data-assistant-memory-list><p class="settings-muted">${L("正在读取…")}</p></div>
       <p class="settings-form-error" data-assistant-memory-error role="alert" hidden></p>
     </section>
@@ -277,6 +280,41 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
     runMemory(() => memoryApi(prefs, "/memory-prefs"));
   }));
   runMemory(() => memoryApi());
+  // Suggestions to keep, from work: each waits for the person, and takes effect only when they keep it.
+  const candidateBox = root.querySelector("[data-assistant-memory-candidates]");
+  const candidateApi = async (path, payload) => {
+    const response = await fetch("/api/assistant/memory-candidates" + (path || ""), payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
+    return data;
+  };
+  const paintCandidates = (candidates) => {
+    candidateBox.replaceChildren();
+    candidateBox.hidden = !candidates.length;
+    if (!candidates.length) return;
+    candidateBox.append(el("h3", "", L("等你认可的建议")));
+    const list = el("ul", "prompt-list");
+    candidates.forEach((candidate) => {
+      const item = el("li", "prompt-row"), head = el("div", "prompt-row-head"), copy = el("div", "prompt-row-copy");
+      copy.append(el("strong", "", candidate.text), el("span", "settings-muted", L(candidate.scope === "personal" ? "个人" : "项目") + " · " + L("适用") + "：" + candidate.applies + " · " + L("依据") + "：" + candidate.why + " · " + L("来自工作") + "「" + candidate.work_title + "」"));
+      const keep = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("记住")); keep.type = "button";
+      keep.setAttribute("aria-label", L("记住") + "：" + candidate.text);
+      const drop = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("不用")); drop.type = "button";
+      drop.setAttribute("aria-label", L("不用") + "：" + candidate.text);
+      const settle = async (path) => {
+        keep.disabled = drop.disabled = true; memoryError.hidden = true;
+        try { await candidateApi("/" + encodeURIComponent(candidate.candidate_id) + path, {}); await loadCandidates(); await runMemory(() => memoryApi()); }
+        catch (failure) { keep.disabled = drop.disabled = false; memoryError.textContent = failure.message; memoryError.hidden = false; }
+      };
+      keep.addEventListener("click", () => settle("/accept"));
+      drop.addEventListener("click", () => settle("/discard"));
+      const actions = el("span", "prompt-row-meta"); actions.append(keep, drop);
+      head.append(copy, actions); item.append(head); list.append(item);
+    });
+    candidateBox.append(list);
+  };
+  const loadCandidates = async () => { try { paintCandidates((await candidateApi()).candidates || []); } catch { /* the list shows again on the next visit */ } };
+  void loadCandidates();
   // Usage and the daily cap belong to the person: the Home's own route.
   const usageLine = root.querySelector("[data-assistant-usage-today]");
   const budgetForm = root.querySelector("[data-assistant-budget]");

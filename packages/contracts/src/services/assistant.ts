@@ -366,6 +366,8 @@ export interface AssistantWorkView {
   unsettled?: AssistantUnsettledChange[];
   /** Changes of this work that say how they are undone: each can be taken back once, by the person. */
   undoable?: AssistantUndoable[];
+  /** What this work suggests keeping, waiting for the person. */
+  memory_candidates?: AssistantMemoryCandidate[];
   /** Background work this work started in plugins, and how each stands. */
   jobs?: AssistantBackgroundJob[];
   /**
@@ -503,12 +505,36 @@ export interface AssistantMethod {
 }
 
 export interface AssistantMemoryPrefs {
-  /** May keep what the person explicitly asks it to remember. It never learns from behaviour on its own. */
+  /** May keep what the person explicitly asks it to remember. It never keeps anything the person did not ask for or accept. */
   form: boolean;
   /** Personal memories are used in work. */
   use_personal: boolean;
   /** A project's memories are used in that project's work. */
   use_project: boolean;
+  /** May propose, from work, a personal preference or lesson worth keeping — only as a candidate the person accepts. */
+  learn_personal: boolean;
+  /** May propose, from a project's work, a convention or lesson for that project — only as a candidate. */
+  learn_project: boolean;
+}
+
+/**
+ * Something a work suggests keeping (a preference seen more than once, a lesson from how a work went). It takes effect
+ * only when the person accepts it; declined or left alone for 14 days, it goes.
+ */
+export interface AssistantMemoryCandidate {
+  candidate_id: string;
+  work_id: string;
+  work_title: string;
+  scope: "personal" | "project";
+  project_id?: string;
+  text: string;
+  /** What in the work it rests on. */
+  why: string;
+  /** When it applies. */
+  applies: string;
+  state: "pending" | "accepted" | "discarded" | "expired";
+  created_at: string;
+  memory_id?: string;
 }
 
 /**

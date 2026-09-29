@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS assistant_notices (
 CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id, state, created_at);
 CREATE TABLE IF NOT EXISTS assistant_followups (
   followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS assistant_memory_candidates (
+  candidate_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, body TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS assistant_undos (
   undo_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
@@ -398,7 +401,19 @@ export class AssistantStore {
 
   memoryPrefs(actorId: string): AssistantMemoryPrefs {
     const saved = this.setting(actorId, "memory_prefs");
-    return { form: true, use_personal: true, use_project: true, ...(saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : {}) };
+    return { form: true, use_personal: true, use_project: true, learn_personal: false, learn_project: false, ...(saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : {}) };
+  }
+
+  /** Candidates to keep: one work's, or all of the person's; newest last. */
+  memoryCandidates(actorId: string, workId?: string): AssistantMemoryCandidate[] {
+    const rows = workId ? this.db.prepare("SELECT body FROM assistant_memory_candidates WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId)
+      : this.db.prepare("SELECT body FROM assistant_memory_candidates WHERE actor_id=? ORDER BY rowid").all(actorId);
+    return rows.map(row => JSON.parse(String(row.body)) as AssistantMemoryCandidate);
+  }
+
+  saveMemoryCandidate(actorId: string, candidate: AssistantMemoryCandidate): void {
+    this.db.prepare("INSERT INTO assistant_memory_candidates(candidate_id,actor_id,work_id,state,body) VALUES (?,?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET state=excluded.state, body=excluded.body")
+      .run(candidate.candidate_id, actorId, candidate.work_id, candidate.state, JSON.stringify(candidate));
   }
 
   setMemoryPrefs(actorId: string, prefs: AssistantMemoryPrefs): void { this.setSetting(actorId, "memory_prefs", JSON.stringify(prefs)); }

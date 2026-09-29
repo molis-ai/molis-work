@@ -563,6 +563,8 @@ export interface AgentMemoryTools {
   remember(input: { text: string; scope: "personal" | "project"; said: string }): Promise<{ memory_id: string; scope: "personal" | "project"; applies: string }>;
   list(): Promise<Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin: string }>>;
   forget(memoryId: string): Promise<{ forgotten: boolean }>;
+  /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */
+  propose?(input: { text: string; scope: "personal" | "project"; why: string; applies: string }): Promise<{ candidate_id: string; note: string }>;
 }
 
 export interface AgentActionClient {

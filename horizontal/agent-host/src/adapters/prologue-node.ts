@@ -987,6 +987,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
         list: () => memory.list(),
         forget: async (id: string) => { const result = await memory.forget(id); if (result.forgotten) memoryDone.forget += 1; return result; },
+        ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
       } } } : input.action_gateway;
       const actionTools = none ? undefined : gatewayForRun
         ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }

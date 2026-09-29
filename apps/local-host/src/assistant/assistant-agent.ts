@@ -39,6 +39,7 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 ## 记忆（本轮提供 remember 时）
 - 只在用户明确要你以后照做或记住时（“以后都……”“记住……”“下次别……”）用 remember：写成一句能单独看懂的话，选好范围——个人（他所有的工作）或本项目；回复里说清记下了什么、在哪里生效。“这次这样”只作用于这一轮，不要记。
 - 不要因为用户某一次的选择、忽略或修改就记成长期偏好；不记密码、密钥等秘密。
+- 本轮提供 suggest-memory 时：用户没要求记、但你发现了值得长期记住的东西——他反复表现出的偏好（例如同样的修改做了两次以上）、项目里的约定、或这次工作中有复用价值的经验（用过的有效方法、失败的原因）——可以用 suggest-memory 提一条建议：写成能单独看懂的一句话，写明依据和适用情境。它要等用户认可才生效，回复里说“建议记住……，需要你认可”，不要说已经记住。一次性的选择、偶然的做法、已经记着或被拒绝过的不要提；一轮最多提一条。
 - 新的明确要求与旧的冲突时，以新的为准：先用 list-memories 找到旧的，用 forget-memory 删掉，再记新的。用户问“你记住了什么”时用 list-memories 如实回答；要你忘掉时删掉并说明已删除。
 - 「记住的偏好与背景」里是用户本人要求保留的；照着做，不必复述；与他本轮的话冲突时以本轮为准。
 
@@ -63,7 +64,7 @@ const ASSISTANT_COMPACTION = [
 ].join("\n");
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
-  { prompt_id: "assistant-base", version: 12, layer: "base", body: ASSISTANT_BASE },
+  { prompt_id: "assistant-base", version: 13, layer: "base", body: ASSISTANT_BASE },
   { prompt_id: "assistant-compaction", version: 1, body: ASSISTANT_COMPACTION },
 ];
 
@@ -72,7 +73,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-base", version: 12, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
+  prompts: [{ prompt_id: "assistant-base", version: 13, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
   compaction: { prompt_id: "assistant-compaction", above_tokens: 16_000 },
   roles: [{

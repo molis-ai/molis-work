@@ -5,7 +5,7 @@ import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -71,6 +71,8 @@ const MAX_FOLLOW_UPS_PER_WORK = 5;
 /** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
 const MAX_DELEGATED = 6, MAX_ACTIVE_DELEGATED = 3, MAX_FOLLOW_UPS = 2;
 
+/** A suggestion to keep something, left alone this long, goes: it was never in effect. */
+const CANDIDATE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 /** Notices older than this are no longer news: resolved quietly rather than shown late. */
 const NOTICE_TTL_MS = 48 * 60 * 60 * 1000;
 /** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
@@ -367,7 +369,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     // Sub-tasks handed to works of their own.
     "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
     // The person's memory.
-    "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget",
+    "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
     // The Host let a round that only announced its next step continue.
     "自动续做": "auto-continue" };
   return activity.flatMap(item => {
@@ -823,6 +825,7 @@ export class AssistantService {
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
     const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference: _reference, input: _input, told: _told, ...view }) => view);
+    const memory_candidates = this.memoryCandidates(work.work_id);
     const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
     for (const card of this.store.cards(work.work_id).filter(item => item.target && (item.status === "ready" || item.status === "needs-input"))) {
@@ -831,7 +834,7 @@ export class AssistantService {
     }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}),
+      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}),
       ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}) };
   }
 
@@ -2043,8 +2046,8 @@ export class AssistantService {
 
   saveMemoryPrefs(input: Partial<AssistantMemoryPrefs>): AssistantMemoryPrefs {
     const current = this.store.memoryPrefs(this.actorId);
-    const next = { form: typeof input?.form === "boolean" ? input.form : current.form, use_personal: typeof input?.use_personal === "boolean" ? input.use_personal : current.use_personal,
-      use_project: typeof input?.use_project === "boolean" ? input.use_project : current.use_project };
+    const pick = (key: keyof AssistantMemoryPrefs) => typeof input?.[key] === "boolean" ? input[key] as boolean : current[key];
+    const next: AssistantMemoryPrefs = { form: pick("form"), use_personal: pick("use_personal"), use_project: pick("use_project"), learn_personal: pick("learn_personal"), learn_project: pick("learn_project") };
     this.store.setMemoryPrefs(this.actorId, next);
     return next;
   }
@@ -2067,11 +2070,69 @@ export class AssistantService {
     return this.memories(projectId);
   }
 
+  /**
+   * What works suggest keeping, still waiting for the person (one work's, or all). Left alone for 14 days, a suggestion
+   * goes quietly: it was never in effect.
+   */
+  memoryCandidates(workId?: string): AssistantMemoryCandidate[] {
+    const stale = this.now().getTime() - CANDIDATE_TTL_MS;
+    return this.store.memoryCandidates(this.actorId, workId).filter(candidate => {
+      if (candidate.state !== "pending") return false;
+      if (Date.parse(candidate.created_at) >= stale) return true;
+      this.store.saveMemoryCandidate(this.actorId, { ...candidate, state: "expired" });
+      return false;
+    });
+  }
+
+  /** The person keeps a suggestion (as it was, or as they reworded it): written like anything they asked to remember. */
+  async acceptMemoryCandidate(candidateId: string, input: { text?: string } = {}): Promise<AssistantMemoryCandidate> {
+    const candidate = this.store.memoryCandidates(this.actorId).find(item => item.candidate_id === candidateId);
+    if (!candidate) throw new AssistantError("assistant.not_found", "没有这条建议");
+    if (candidate.state !== "pending") throw new AssistantError("assistant.invalid", candidate.state === "accepted" ? "这条已经记住了" : "这条建议已经不在了");
+    const text = typeof input.text === "string" && input.text.trim() ? input.text.trim() : candidate.text;
+    if (text.length > 400) throw new AssistantError("assistant.invalid", "记忆内容要在 400 字以内");
+    const memory = await this.memoryStore();
+    const date = new Intl.DateTimeFormat("zh-CN", { timeZone: this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, dateStyle: "medium" }).format(this.now());
+    const origin = candidate.scope === "project" ? `你认可的建议 · 工作「${candidate.work_title.slice(0, 40)}」· ${date} · 依据：${candidate.why.slice(0, 120)}` : `你认可的建议 · ${date} · 依据：${candidate.why.slice(0, 120)}`;
+    const entry = await memory.write({ ...(candidate.scope === "project" ? { scope: "project" as const, owner: candidate.project_id! } : { scope: "user" as const, owner: this.actorId }), text, origin, tags: ["accepted-suggestion"] });
+    const kept = { ...candidate, text, state: "accepted" as const, memory_id: entry.memory_id };
+    this.store.saveMemoryCandidate(this.actorId, kept);
+    return kept;
+  }
+
+  /** The person declines a suggestion: it goes, and the same one is not suggested again. */
+  discardMemoryCandidate(candidateId: string): AssistantMemoryCandidate {
+    const candidate = this.store.memoryCandidates(this.actorId).find(item => item.candidate_id === candidateId);
+    if (!candidate) throw new AssistantError("assistant.not_found", "没有这条建议");
+    if (candidate.state !== "pending") throw new AssistantError("assistant.invalid", "这条建议已经不在了");
+    const declined = { ...candidate, state: "discarded" as const };
+    this.store.saveMemoryCandidate(this.actorId, declined);
+    return declined;
+  }
+
   /** The round's memory tools, or none when the person switched off forming memories. */
   memoryTools(work: StoredWork): AgentMemoryTools | undefined {
-    if (!this.store.memoryPrefs(this.actorId).form) return undefined;
+    const prefs = this.store.memoryPrefs(this.actorId);
+    if (!prefs.form) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
+    // Suggesting is its own switch per scope: a project's work suggests for that project only where the person allows it.
+    const mayPropose = prefs.learn_personal || (prefs.learn_project && projectId !== null);
+    const propose: AgentMemoryTools["propose"] = async input => {
+      if (input.scope === "project" && !projectId) throw new AssistantError("assistant.scope", "这是个人工作，没有项目；只能建议个人范围");
+      if (input.scope === "project" ? !prefs.learn_project : !prefs.learn_personal)
+        throw new AssistantError("assistant.forbidden", input.scope === "project" ? "用户没有允许从项目工作里提出项目约定" : "用户没有允许从工作里提出个人偏好");
+      const text = input.text.trim(), same = (value: string) => value.replace(/\s+/g, "") === text.replace(/\s+/g, "");
+      const earlier = this.store.memoryCandidates(this.actorId);
+      if (earlier.some(item => same(item.text) && item.state !== "expired")) throw new AssistantError("assistant.invalid", "这条已经建议过了（用户认可、拒绝或还在等），不要再提");
+      if ((await this.memories(projectId).catch(() => [] as AssistantMemory[])).some(item => same(item.text))) throw new AssistantError("assistant.invalid", "已经记着这一条了");
+      if (earlier.filter(item => item.work_id === work.work_id && item.state === "pending").length >= 3) throw new AssistantError("assistant.limit", "这项工作已有 3 条建议在等用户，先不要再提");
+      const candidate: AssistantMemoryCandidate = { candidate_id: `candidate-${randomUUID()}`, work_id: work.work_id, work_title: work.title, scope: input.scope,
+        ...(input.scope === "project" ? { project_id: projectId! } : {}), text, why: input.why.trim(), applies: input.applies.trim(), state: "pending", created_at: this.now().toISOString() };
+      this.store.saveMemoryCandidate(this.actorId, candidate);
+      return { candidate_id: candidate.candidate_id, note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。回复里说“建议记住……，需要你认可”，不要说已经记住。" };
+    };
     return {
+      ...(mayPropose ? { propose } : {}),
       remember: async input => {
         if (input.scope === "project" && !projectId) throw new AssistantError("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
         const memory = await this.memoryStore();

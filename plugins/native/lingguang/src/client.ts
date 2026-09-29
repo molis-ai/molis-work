@@ -265,6 +265,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         markSelected(next.id);
       }
     }
+    // Whichever load fills the list settles a spark asked for by link (an overtaken load leaves it to the newer one).
+    if (wantedId && records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
+    else if (wantedId && wantedByLink) {
+      // A link from elsewhere (a todo's source, an old tab) can name one that was discarded: say so instead of opening nothing.
+      wantedId = null; wantedByLink = false;
+      showNote(L("这条灵光已丢掉或不存在"), true);
+    }
   };
   const discardIds = async (ids) => {
     if (!ids.length) return;
@@ -481,10 +488,11 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   // A tab or a workflow step can ask for one spark; it opens as soon as the list knows it.
   const paneParams = new URLSearchParams(location.search);
   let wantedId = paneParams.get("panePlugin") === "lingguang" ? paneParams.get("paneItem") : null;
+  let wantedByLink = false;
   const openWanted = async () => {
     const record = wantedId && records.find((item) => item.id === wantedId);
     if (!record) return;
-    wantedId = null;
+    wantedId = null; wantedByLink = false;
     if (selected?.id === record.id) return;
     if (selected) await save();
     selectedIds = new Set([record.id]);
@@ -494,16 +502,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("molis-work:select-item", (event) => {
     wantedId = event.detail?.itemId || null;
     if (!wantedId) return;
+    wantedByLink = true;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
-    else void loadList().then(() => {
-      // A link from elsewhere (a todo's source, an old tab) can name one that was discarded: say so instead of opening nothing.
-      if (wantedId && !records.some((item) => item.id === wantedId)) {
-        wantedId = null;
-        showNote(L("这条灵光已丢掉或不存在"), true);
-        return;
-      }
-      return openWanted();
-    }).catch((error) => showNote(error.message, true));
+    else void loadList().then(openWanted).catch((error) => showNote(error.message, true));
   });
   void loadList().then(openWanted).catch((error) => showNote(error.message, true));
 }

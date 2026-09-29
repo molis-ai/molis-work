@@ -2,7 +2,8 @@ import { isDeepStrictEqual } from 'node:util';
 import type { SandboxEffects, SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export class SandboxError extends Error {
-  constructor(readonly code: string, message: string) { super(message); this.name = 'SandboxError'; }
+  /** Only trusted Host errors carry outcome; the worker's JSON error never supplies it. */
+  constructor(readonly code: string, message: string, readonly outcome?: 'unknown') { super(message); this.name = 'SandboxError'; }
 }
 
 export function assertJson(value: unknown, depth = 0, budget = { remaining: 50_000 }): asserts value is SandboxJson {

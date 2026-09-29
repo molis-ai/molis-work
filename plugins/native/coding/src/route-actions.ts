@@ -14,8 +14,8 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 
 type Translate = { toInput(request: PluginRouteRequest): Record<string, unknown>; toRequest(input: Record<string, unknown>): Pick<PluginRouteRequest, "params" | "query" | "body"> & { method: PluginRouteMethod } };
 function define(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[]): ActionDefinition<Record<string, unknown>, unknown> {
-  return { capability_id: `coding.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+  permissions: readonly string[], audiences: readonly ActionAudience[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Record<string, unknown>, unknown> {
+  return { capability_id: `coding.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation",
     scope: "project", audiences, permissions, subject_kinds: ["coding_session"], input_schema: input, output_schema: result } };
 }
 const body = (request: PluginRouteRequest) => request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {};
@@ -49,7 +49,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => fromRequest(request, ["before", "limit"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["before", "limit"]), body: {} }) },
   "coding.start-run": { definition: define("runs.start", "开始一轮编码", "在已授权的工作目录按所选方式（讨论、规划、修改、执行、评审、并行写入）开始一轮；写操作仍经审查", "command",
       open({ ...session, task: { type: "string", maxLength: 100_000 }, intent: { enum: ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"] }, workspace_id: id, provider_id: id, model_id: id }, ["session_id", "intent", "workspace_id", "provider_id", "model_id"]),
-      ["artifact:read", "storage:private"], LOCAL),
+      ["artifact:read", "storage:private"], LOCAL, { cost: "metered" }),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.control-run": { definition: define("runs.control", "控制编码轮次", "回答提问、补充要求、暂停、继续或停止正在进行的一轮", "command",
       open({ ...session, run_id: id, kind: { enum: ["answer", "steer", "stop", "pause", "resume"] } }, ["session_id", "run_id", "kind"]), [], LOCAL),

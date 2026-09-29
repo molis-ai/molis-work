@@ -55,6 +55,7 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-event-http.js";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -146,10 +147,15 @@ export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promi
 /** Host dispatches only declared plugin routes, after the normal control guard. */
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
   const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
+  const runtimeEvents = isPluginEventManagementPath(url.pathname);
   const pluginRoute = url.pathname.match(/^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\/(.+)$/u);
-  if (!runtimeUpdates && !pluginRoute) return false;
+  if (!runtimeUpdates && !runtimeEvents && !pluginRoute) return false;
   const record = await ensureStarted(ports);
   if (!record.platform) { sendLocalWebJson(response, 503, { error: record.error ?? "插件运行平台未能启动" }); return true; }
+  if (runtimeEvents) {
+    await handlePluginEventHttp(request, response, url, { events: record.platform.events, boardId: ports.boardId, actorId: ports.actorId });
+    return true;
+  }
   if (runtimeUpdates) {
     const updates = record.platform.upgradeCandidates().map(candidate => ({
       ...candidate,
@@ -190,6 +196,11 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   }
   const router = record.platform.router();
   if (active.status !== "running") { sendLocalWebJson(response, 503, { error: active.message ?? "插件未能启动" }); return true; }
+  if (operation === "view-revision" && request.method === "GET") {
+    response.setHeader("cache-control", "no-store");
+    sendLocalWebJson(response, 200, { revision: record.platform.viewRevision(pluginId) });
+    return true;
+  }
   if (!router.match(request.method ?? "GET", url.pathname)) return false;
   // Existing workspace outputs need a settings refresh before their consumers
   // read them. Unrelated plugins must not cause Files reads or publications.

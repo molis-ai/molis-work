@@ -1,5 +1,27 @@
+import type { BoundedInferenceReceipt } from "../services/agent-host.js";
 import type { ArtifactReference } from "./artifacts.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import type { MaterialExtractor, MaterialWebsiteReader } from "../services/materials.js";
+
+/** Execution authority is supplied by the Host, never by a serialized Shelf request. */
+export interface ShelfExecutionControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
+export interface ShelfMaterialPorts { readWebsite?: MaterialWebsiteReader; extract?: MaterialExtractor; imageTextAvailable?(): boolean }
+
+export interface ShelfModelSelection { readonly provider_id: string; readonly model_id: string }
+export interface ShelfAiStatus {
+  readonly available: boolean; readonly reason: string | null;
+  readonly selected: ShelfModelSelection | null;
+  readonly choices: readonly (ShelfModelSelection & { readonly label: string; readonly vision: boolean })[];
+}
+/** Trusted Host sources are built by the store, never accepted from an Action input. */
+export interface ShelfAiPorts {
+  status(selection?: ShelfModelSelection | null): ShelfAiStatus;
+  generate(input: {
+    recipe: Exclude<ShelfRecipeId, "extract_text">; option_id: string | null; shortcut_prompt?: string;
+    selection: ShelfModelSelection; root: string;
+    sources: readonly { relative_path: string; name: string; kind: ShelfItemKind; mime: string }[];
+  }, control: ShelfExecutionControl): Promise<{ text: string; execution: BoundedInferenceReceipt; coverage?: readonly string[]; validateResult?(): void }>;
+}
 
 /** Provenance of an explicitly imported personal copy, never an execution authority. */
 export interface ShelfArtifactSource {
@@ -84,6 +106,7 @@ export interface ShelfFolderChild {
 }
 
 export interface ShelfItemRecord {
+  readonly material_coverage?: readonly string[];
   readonly item_id: string;
   readonly artifact_source?: ShelfArtifactSource;
   readonly group: ShelfItemGroup;
@@ -106,6 +129,8 @@ export interface ShelfItemRecord {
 }
 
 export interface ShelfJobRecord {
+  readonly execution?: BoundedInferenceReceipt;
+  readonly material_coverage?: readonly string[];
   readonly job_id: string;
   readonly recipe: ShelfRecipeId;
   readonly status: ShelfJobStatus;
@@ -189,6 +214,7 @@ export interface ShelfRuntimeStatus {
 }
 
 export interface ShelfSnapshot {
+  readonly ai?: ShelfAiStatus;
   readonly materials: readonly ShelfItemRecord[];
   readonly results: readonly ShelfItemRecord[];
   readonly clipboard: readonly ShelfClipboardRecord[];
@@ -249,6 +275,7 @@ export interface ShelfPanelKeyChord {
 export type ShelfPanelKeys = Readonly<Record<ShelfPanelKeySlot, ShelfPanelKeyChord>>;
 
 export interface ShelfDeviceSettings {
+  readonly model_selection?: ShelfModelSelection | null;
   readonly drop_wheel_enabled: boolean;
   readonly hotkeys: ShelfHotKeys;
   readonly panel_keys: ShelfPanelKeys;
@@ -262,6 +289,7 @@ export interface ShelfDeviceSettings {
 }
 
 export interface ShelfSettingsPatch {
+  readonly model_selection?: ShelfModelSelection | null;
   readonly drop_wheel_enabled?: boolean;
   readonly hotkeys?: Partial<ShelfHotKeys>;
   readonly panel_keys?: Partial<ShelfPanelKeys>;

@@ -79,7 +79,7 @@ describe('revocable source projections and final-dispatch business guards',{time
  });
  it('preserves an existing research dispatch guard instead of replacing it',async()=>{
   f=await fixture();const {plan}=await f.plan();const {version}=await f.call(a.ideaGet,{id:f.idea.id,version:1});let sent=0;
-  const ai:AlchemistAiPort={listModels:async()=>[],search:async()=>[],generate:async input=>{await input.beforeModelDispatch?.();sent++;return{text:'{}',runtimeLabel:'test'}}};
+  const ai:AlchemistAiPort={listModels:async()=>[],search:async()=>[],generate:async input=>{await input.beforeModelDispatch?.();sent++;return{text:'{}',json:{ok:true,value:{}},runtimeLabel:'test'}}};
   const runtime=new HostResearchRuntimeAdapter({ai,resolvePlaybookMethods:()=>[]});
   await expect(runtime.crossCheck({plan,ideaVersion:version,idFactory:{next:()=>crypto.randomUUID()},now:new Date().toISOString(),evidence:[],beforeModelDispatch:async()=>{throw new Error('original guard denied')}})).rejects.toThrow('original guard denied');
   expect(sent).toBe(0);

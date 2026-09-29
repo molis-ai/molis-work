@@ -53,7 +53,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
         action: { title: tool.tool, description: mcpToolDescription(tool.server_label, tool.description),
           // Not offered to agents: the built-in Agent reaches these servers through its own MCP connection.
           kind: "operation" as const, scope: "project" as const, audiences: ["user", "workflow", "mcp", "plugin"] as const, permissions: [EXTERNAL_MCP_PERMISSION],
-          scheduling: "concurrent" as const,
+          scheduling: "concurrent" as const, execution: { cost: "unknown" as const },
           subject_kinds: [], input_schema: contract.schema, output_schema: OUTPUT, result_view: { summary: "服务已返回", text_pointer: "/text" } } } }; });
       next.push({ server, label: list[0]!.server_label, entries });
     }

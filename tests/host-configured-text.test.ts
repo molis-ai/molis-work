@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer, type Server } from "node:http";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -72,6 +72,26 @@ function configure(f: Parameters<Parameters<typeof fixture>[0]>[0], providerId =
   f.catalog.models.selectConnection(providerId, connection.credential_ref!);
   return connection;
 }
+
+test("configured image input requires declared vision and refuses a late result after vision is disabled", async () => fixture(async f => {
+  configure(f);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+  await writeFile(join(f.home, "original.png"), png);
+  const options = { images: [{ root_path: f.home, relative_path: "original.png" }] };
+  const complete = hostCompleteText({ homeDirectory: f.home, selection: { provider_id: "configured", model_id: "configured-model" } })!;
+  await assert.rejects(complete("Describe the original.", options), /已声明支持图片/); assert.equal(f.requests.length, 0);
+  const setVision = (vision: boolean) => {
+    const provider = f.catalog.models.list().find(value => value.provider_id === "configured")!;
+    f.catalog.models.upsert({ ...provider, models: provider.models.map(model => ({ ...model, vision })) });
+  };
+  setVision(true);
+  await complete("Describe the original.", options);
+  const parts = f.requests.at(-1)!.body.messages.at(-1).content;
+  assert.equal(parts.find((part: any) => part.type === "image_url").image_url.url, `data:image/png;base64,${png.toString("base64")}`);
+  f.answer(async () => { setVision(false); return { choices: [{ message: { content: "late answer" } }] }; });
+  await assert.rejects(complete("Describe the original.", options), { code: "actions.configuration_changed" });
+  assert.equal(f.requests.length, 2);
+}));
 
 test("production settings HTTP -> shared connection -> Lingguang action actually calls the configured server", async () => fixture(async f => {
   const created = await f.catalog.createProject({ display_name: "模型调用", actor_id: "test" });
@@ -188,7 +208,7 @@ test("protocol, cache preference, cancellation and scoped Home are preserved on 
   assert.equal(f.requests.length, 1);
   // Simulate a transport that ignores cancellation: the completion must still reject the late reply.
   const late = new AbortController();
-  const ignored = hostCompleteText({ homeDirectory: f.home, resolveInference: async () => ({ completeText: async () => { late.abort(); return "late"; } }) as never })!;
+  const ignored = hostCompleteText({ homeDirectory: f.home, resolveInference: async () => ({ completeTextResult: async () => { late.abort(); throw new Error("cancelled"); } }) as never })!;
   await assert.rejects(ignored("cancel during send", { signal: late.signal }), { name: "AbortError" });
 }));
 

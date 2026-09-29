@@ -64,6 +64,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly #automatic = new Map<string, { set_by: string; set_at: string }>();
   readonly #rows = new Map<string, ReviewRow>();
   readonly #consumed = new Set<string>();
+  readonly #settlements = new Set<(request: AgentReviewRequest, receipt: AgentReviewReceipt) => void>();
   readonly #listeners = new Set<(request: AgentReviewRequest) => void>();
   readonly #deciders = new Map<string, (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>>();
   readonly #refreshers = new Set<(boardId: string) => Promise<void>>();
@@ -251,6 +252,19 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     };
   }
 
+  /** UI invalidation after an execution owner records a new outcome; never replays history. */
+  observeSettlement(listener: (request: AgentReviewRequest, receipt: AgentReviewReceipt) => void): () => void {
+    this.#settlements.add(listener);
+    return () => { this.#settlements.delete(listener); };
+  }
+
+  #notifySettlement(row: ReviewRow): void {
+    for (const listener of this.#settlements) {
+      try { listener(structuredClone(row.request), structuredClone(row.receipt)); }
+      catch { /* A projection failure cannot turn a committed Effect into an execution failure. */ }
+    }
+  }
+
   /**
    * One-time authority to perform exactly the approved effect. Calling it twice
    * fails: a replayed approval must never authorize a second write.
@@ -271,7 +285,7 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   }
 
   /** Record what really happened after an approved effect ran. */
-  settle(reviewId: string, outcome: { ok: boolean; error?: string }): AgentReviewReceipt {
+  settle(reviewId: string, outcome: { ok: boolean; error?: string }, options?: { restored?: boolean }): AgentReviewReceipt {
     const row = this.#rows.get(reviewId);
     if (!row) {
       throw new AgentReviewError("agent.review_unknown", "找不到这条待审操作");
@@ -296,13 +310,16 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
       effect_settled: outcome.ok,
       effect_error: effectError,
     };
+    if (!options?.restored) this.#notifySettlement(row);
     return structuredClone(row.receipt);
   }
 
-  uncertain(reviewId: string, reason: string): void {
+  uncertain(reviewId: string, reason: string, options?: { restored?: boolean }): void {
     const row = this.#rows.get(reviewId);
     if (!row || row.receipt.effect_settled || row.receipt.effect_error !== null) return;
+    if (row.receipt.effect_uncertain === reason) return;
     row.receipt.effect_uncertain = reason;
+    if (!options?.restored) this.#notifySettlement(row);
   }
 
   /** Withdraw everything still pending for one run, e.g. when the user stops it. */

@@ -1,3 +1,4 @@
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
@@ -34,6 +35,14 @@ async function openShelfBrowser(t: TestContext) {
   shelf.admit({ filename: "目录材料.md", bytes: Buffer.from("# Shelf 专用测试页\n"), mime: "text/markdown" });
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({ actions: directShelfActions(shelf) }));
   const requests: string[] = [];
+  let delayNextRead: (() => Promise<void>) | undefined;
+  const delaySnapshot = () => {
+    let ready!: () => void, release!: () => void;
+    const started = new Promise<void>(resolve => { ready = resolve; });
+    const wait = new Promise<void>(resolve => { release = resolve; });
+    delayNextRead = () => { ready(); return wait; };
+    return { started, release };
+  };
   const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const html = `<!doctype html><html data-resolved-theme="light"><head><meta charset="utf-8"><style>
     [hidden]{display:none!important}body{margin:0;font-family:system-ui}*{box-sizing:border-box}
@@ -44,7 +53,8 @@ async function openShelfBrowser(t: TestContext) {
     <script src="/fixture.js"></script></body></html>`;
   const script = `document.querySelector('[data-shelf=workbench]').hidden=false;
     window.molisWorkControlHeaders=()=>({'content-type':'application/json'});
-    (${SHELF_CLIENT_FACTORY_SCRIPT})({translate:(value,values)=>String(value).replace(/\\{([^}]+)\\}/g,(_,key)=>values?.[key]??key)});`;
+    window.mountShelf=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
+    window.bootShelf=()=>(${SHELF_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mountShelf,translate:(value,values)=>String(value).replace(/\\{([^}]+)\\}/g,(_,key)=>values?.[key]??key)});bootShelf();`;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url || "/", "http://localhost");
     requests.push(`${request.method} ${url.pathname}`);
@@ -56,6 +66,7 @@ async function openShelfBrowser(t: TestContext) {
       const bytes = Buffer.concat(chunks);
       const result = await routes.handle({ method: request.method === "POST" ? "POST" : "GET", pathname: url.pathname, query: url.searchParams, body: bytes.length ? JSON.parse(bytes.toString("utf8")) : {} });
       if (!result) { response.writeHead(404); response.end(); return; }
+      if (request.method === "GET" && url.pathname === "/api/shelf" && delayNextRead) { const wait = delayNextRead; delayNextRead = undefined; await wait(); }
       response.writeHead(result.status, { "content-type": result.mime || "application/json; charset=utf-8", "cache-control": "no-store", ...result.headers });
       response.end(result.bytes ? Buffer.from(result.bytes) : JSON.stringify(result.body));
     } catch (error) {
@@ -121,7 +132,7 @@ async function openShelfBrowser(t: TestContext) {
     const check=()=>{if(${expression})resolve(true);else if(Date.now()>end)reject(new Error('Condition timed out: '+${JSON.stringify(expression)}));else setTimeout(check,25)};check()})`);
   await command("Page.navigate", { url: origin }, sessionId);
   await waitFor("document.querySelector('[data-shelf-list=materials] [data-shelf-item]') && document.querySelector('[data-shelf-bar]')?.textContent.length > 0");
-  return { home, shelf, requests, evaluate, waitFor, command, sessionId };
+  return { home, shelf, requests, evaluate, waitFor, command, sessionId, delaySnapshot };
 }
 
 test("Shelf isolated client boundaries use production UI and real file HTTP", { timeout: 90_000 }, async t => {
@@ -197,4 +208,35 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
     assert.equal(shelf.readFile(file.item_id).bytes.toString('utf8'),'outside folder');
     assert.equal(await evaluate(`Boolean(document.querySelector('[data-shelf-item="${file.item_id}"]'))`),true);
   });
+});
+
+
+test("Shelf keeps the latest snapshot and releases global handlers across hide, detach and remount", { timeout: 35_000 }, async t => {
+  const browser = await openShelfBrowser(t); if (!browser) return;
+  const { shelf, requests, evaluate, waitFor, delaySnapshot } = browser;
+  const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const reads = () => requests.filter(request => request === "GET /api/shelf").length;
+  const delayed = delaySnapshot();
+  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
+  shelf.admit({ filename: "更新后的材料.md", bytes: Buffer.from("# 最新内容"), mime: "text/markdown" });
+  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
+  await waitFor("document.querySelector('[data-shelf-list=materials]').textContent.includes('更新后的材料')");
+  delayed.release(); await pause(100);
+  assert.equal(await evaluate("document.querySelector('[data-shelf-list=materials]').textContent.includes('更新后的材料')"), true, "late earlier snapshot cannot erase a later read");
+  await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.hidden=true");
+  const hiddenReads = reads(); await pause(800); assert.equal(reads(), hiddenReads);
+  await evaluate("shelfRoot.hidden=false");
+  for (let n = 0; n < 100 && reads() === hiddenReads; n++) await pause(20);
+  assert.equal(reads(), hiddenReads + 1, "returning reads authoritative data once");
+  await pause(100); await evaluate("shelfRoot.remove()"); await pause(50);
+  const detachedReads = reads();
+  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await pause(100);
+  assert.equal(reads(), detachedReads, "detached Shelf no longer listens to global refresh events");
+  await evaluate("shelfParent.append(shelfRoot);bootShelf();bootShelf()");
+  for (let n = 0; n < 100 && reads() === detachedReads; n++) await pause(20);
+  assert.equal(reads(), detachedReads + 1);
+  await pause(100); const mountedReads = reads();
+  await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
+  for (let n = 0; n < 100 && reads() === mountedReads; n++) await pause(20);
+  await pause(100); assert.equal(reads(), mountedReads + 1, "one current handler serves one refresh after remount");
 });

@@ -1,10 +1,9 @@
 import path from "node:path";
 import { mkdirSync } from "node:fs";
-import { createFeedEvidenceContentStore } from "@molis-ai/molis-work-module-feed";
-import { createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
+import { createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
-import { createFeedSourceRuntime } from "./feed-source-runtime.js";
-import { createAlchemistSearchTransport } from "./alchemist-search-transport.js";
+import { createSearchEvidenceRuntime } from "./search-evidence-runtime.js";
+import { createAnySearchTransport } from "./anysearch-transport.js";
 
 /** Own the search database and encrypted material directory independently of Studio's schema/lifecycle. */
 export function createAlchemistSearchPort(options: { homeDirectory: string; projectId: string; secretStore?: SecretStore }): {
@@ -19,8 +18,8 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
       storage.db.exec(LOCAL_OPAQUE_BLOB_SCHEMA_SQL);
       return runWithMolisWorkHome(options.homeDirectory, () => {
         const secretStore = options.secretStore ?? createFileSecretStore();
-        return createFeedSourceRuntime({ db: storage.db, secretStore, queryTransport: createAlchemistSearchTransport(),
-          content: createFeedEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, "search-content") }) });
+        return createSearchEvidenceRuntime({ db: storage.db, secretStore, queryTransport: createAnySearchTransport(),
+          content: createEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, "search-content") }) });
       });
     } catch (error) { storage.close(); throw error; }
   })();

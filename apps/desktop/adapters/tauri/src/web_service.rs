@@ -195,28 +195,6 @@ fn install_embedded_molis_work(resource_dir: &Path, home: &Path) -> Result<(), S
     })
 }
 
-/// The on-device text recognizer ships beside the App binary, or sits in the
-/// Cargo target folder when running from source.
-fn ocr_helper(resource_dir: Option<&Path>) -> Option<PathBuf> {
-    if let Ok(configured) = std::env::var("MOLIS_WORK_OCR_BIN") {
-        let path = PathBuf::from(configured);
-        if path.is_file() {
-            return Some(path);
-        }
-    }
-    let mut candidates: Vec<PathBuf> = Vec::new();
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            candidates.push(dir.join("molis-work-ocr"));
-        }
-    }
-    if let Some(dir) = resource_dir {
-        candidates.push(dir.join("molis-work-ocr"));
-        candidates.push(dir.join("resources").join("molis-work-ocr"));
-    }
-    candidates.into_iter().find(|path| path.is_file())
-}
-
 fn sync_managed_web_service_after_upgrade(home: &Path) -> bool {
     let cli = home.join("bin").join("molis-work");
     if !cli.is_file() {
@@ -341,10 +319,6 @@ pub(crate) fn ensure_molis_work_web(
     command
         .args(["--home", home.to_str().unwrap_or_default()])
         .env("PATH", &path);
-    // The shelf reads image text through this helper; no helper, no image OCR.
-    if let Some(helper) = ocr_helper(resource_dir) {
-        command.env("MOLIS_WORK_OCR_BIN", helper);
-    }
     let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())

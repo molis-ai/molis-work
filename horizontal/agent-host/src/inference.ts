@@ -1,3 +1,13 @@
+import type { ExactRef, ModelEvent, StructuredRequest, TerminalRunState, UsageReceipt } from "@prologue/sdk";
+
+export { decodeJsonOutput as decodePrologueJsonOutput } from "@prologue/sdk";
+
+export type PrologueUsageReceipt = UsageReceipt;
+export type PrologueStructuredRequest = StructuredRequest;
+export type PrologueRunRef = ExactRef<"run">;
+export type PrologueTextProgress = { type: "started"; run_ref: PrologueRunRef }
+  | Extract<ModelEvent, { type: "text-delta" | "model-reported" | "usage-recorded" }>;
+
 /** Host-owned bounded inference. No Runtime, workspace or tool authority crosses this port. */
 export interface PrologueCredentialInput {
   /** Host-only continuing authority check, immediately before each actual dispatch. */
@@ -7,15 +17,32 @@ export interface PrologueCredentialInput {
 }
 export interface PrologueTextInput extends PrologueCredentialInput {
   protocol: string; endpoint: string; model: string; prompt: string;
+  system?: string;
+  structured?: PrologueStructuredRequest;
+  /** Original images selected by the trusted Host; never roots supplied by a model or serialized action. */
+  images?: readonly PrologueInputImage[];
+  onProgress?(event: PrologueTextProgress): void;
   prompt_cache?: "off" | "best-effort" | "required";
   signal?: AbortSignal; max_output_tokens: number; timeout_ms: number;
 }
-export interface PrologueTextResult {
-  value: string;
+export interface PrologueInputImage {
+  root_path: string;
+  relative_path: string;
+  label?: string;
+}
+export interface PrologueExecutionReceipt {
+  run_ref: PrologueRunRef;
+  state: TerminalRunState;
   configuredModel: string;
   /** Empty when the provider does not report a model; never inferred from the request. */
   reportedModels: readonly string[];
-  usage: readonly unknown[];
+  usage: readonly PrologueUsageReceipt[];
+}
+export interface PrologueTextResult extends PrologueExecutionReceipt {
+  state: "completed";
+  value: string;
+  /** Present only when a requested structure was checked by Prologue. */
+  structured?: unknown;
 }
 export interface PrologueImageInput extends PrologueCredentialInput {
   protocol: "openai-images" | "gemini"; endpoint: string; model: string; prompt: string;
@@ -32,9 +59,21 @@ export interface PrologueInferenceClient {
   evaluateTypeSafe(input: PrologueTypeSafeInput): Promise<unknown>;
 }
 export class PrologueInferenceError extends Error {
-  constructor(readonly code: string, message: string, readonly status?: number) {
+  constructor(readonly code: string, message: string, readonly status?: number, readonly execution?: PrologueExecutionReceipt) {
     super(message); this.name = "PrologueInferenceError";
   }
+}
+
+/** A total is reported only if every call reports this direction; unknown/estimated never becomes zero. */
+export function reportedTokenTotal(receipts: readonly PrologueUsageReceipt[], direction: "input" | "output"): number | undefined {
+  if (!receipts.length) return undefined;
+  let total = 0;
+  for (const receipt of receipts) {
+    const count = receipt[direction];
+    if (count.source !== "reported" || count.tokens === undefined) return undefined;
+    total += count.tokens;
+  }
+  return total;
 }
 
 // A registry symbol, so a refusal still reads as one when two copies of this module are loaded (source and build).

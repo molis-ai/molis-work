@@ -119,25 +119,28 @@ export function generatedRegistration(release: AgentRelease, releases: readonly 
     ...(callsModel && !release.prompts ? { notes: ['这个版本生成于登记 Prompt 之前：调用模型的要求写在代码里，设置里看不到也改不了。在插件创作台修改后重新发布一次即可登记。'] } : {}) };
 }
 
-export function registerGeneratedPrompts(home: string, registration: AgentDefinitionRegistration): void {
-  agentDefinitionsFor(home, builtinRegistrations).register(registration);
+export function registerGeneratedPrompts(home: string, registration: AgentDefinitionRegistration, scope?: string): void {
+  agentDefinitionsFor(home, builtinRegistrations).register(registration, scope);
 }
 
-export function unregisterGeneratedPrompts(home: string, pluginId: string): void {
-  agentDefinitionsFor(home, builtinRegistrations).unregister(pluginId);
+export function unregisterGeneratedPrompts(home: string, pluginId: string, scope?: string): void {
+  agentDefinitionsFor(home, builtinRegistrations).unregister(pluginId, scope);
 }
 
-/**
- * What an installed or trial plugin's `model.generate` call runs with: the registered text (the person's edit, if
- * any) when the installed plugin declares that prompt, else what the build or release declares. Unknown ids fail.
- */
-export async function resolvePluginPrompt(home: string, pluginId: string, promptId: string, declared: () => Promise<readonly PluginPrompt[]>): Promise<{ body: string; version: string }> {
-  const registry = agentDefinitionsFor(home, builtinRegistrations);
-  if (registry.hasPrompt(pluginId, promptId)) {
-    const resolved = registry.instruction(pluginId, promptId, 'plugin:' + pluginId);
-    return { body: resolved.body, version: `${promptId}@${resolved.version}${resolved.user_revision === null ? '' : '+user.' + resolved.user_revision}` };
+export type PluginPromptSource = { kind: 'preview'; prompts: readonly PluginPrompt[] }
+  | { kind: 'installed'; registration: AgentDefinitionRegistration };
+
+/** Resolve only what this execution declares. Authoring trials test the build, without an installed user's overlay. */
+export function resolvePluginPrompt(home: string, pluginId: string, promptId: string, source: PluginPromptSource): { body: string; version: string } {
+  if (source.kind === 'installed') {
+    const prompt = source.registration.owner_id === pluginId && source.registration.prompts.find(item => item.prompt_id === promptId);
+    if (prompt) {
+      const resolved = agentDefinitionsFor(home, builtinRegistrations).instructionForDeclaration(pluginId, prompt, 'plugin:' + pluginId);
+      return { body: resolved.body, version: `${promptId}@${resolved.version}${resolved.user_revision === null ? '' : '+user.' + resolved.user_revision}` };
+    }
+  } else {
+    const prompt = source.prompts.find(item => item.id === promptId);
+    if (prompt) return { body: prompt.body, version: `${promptId}@build` };
   }
-  const prompt = (await declared()).find(item => item.id === promptId);
-  if (!prompt) throw new Error('插件调用了没有声明的模型要求：' + promptId);
-  return { body: prompt.body, version: `${promptId}@build` };
+  throw new Error('插件调用了没有声明的模型要求：' + promptId);
 }

@@ -22,6 +22,7 @@ import {
   PluginRuntime,
   PluginSupervisor,
   SqlitePluginEventsRepository,
+  SqlitePluginRuntimeRepository,
   SqlitePluginWiringRepository,
 } from "@molis-ai/molis-work-plugin-runtime";
 
@@ -99,7 +100,7 @@ function process(file: string, options: {
   onReady?: (inputs: PluginUpstreamReadyInputs) => void;
 }) {
   const db = new Database(file);
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db));
   const supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({
     boardId: BOARD,
@@ -218,6 +219,8 @@ test("events and wiring survive a host restart on the same database", async () =
     assert.deepEqual(received, []);
     assert.equal(first.bus.log(BOARD).length, 1);
     assert.equal(first.bus.cursors(BOARD, CODING)[0]?.delivered_sequence, 0);
+    const installation = first.supervisor.installation(CODING);
+    await first.bus.close();
     first.db.close();
 
     // Second process over the same file: the binding is restored from storage and
@@ -230,6 +233,8 @@ test("events and wiring survive a host restart on the same database", async () =
       onReady: (inputs) => delivered.push(inputs),
     });
     await second.start();
+    assert.equal(second.supervisor.installation(CODING)?.installation_generation, installation?.installation_generation,
+      "重启必须续接原安装，不能重装后继承旧事件");
 
     assert.equal(
       second.graph.status(CODING).status,
@@ -249,6 +254,7 @@ test("events and wiring survive a host restart on the same database", async () =
     await second.bus.resume(BOARD);
     await second.bus.drain();
     assert.equal(replayed.length, 1, "再次 resume 不应重复投递");
+    await second.bus.close();
     second.db.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });

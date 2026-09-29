@@ -59,16 +59,19 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
     assert.deepEqual([view.source.kind, view.kind, view.title, view.used_by], ["plugin", "instruction", "要点提炼", ["笔记助手"]]);
     assert.equal(view.source.kind === "plugin" && view.source.origin, "generated");
 
-    const declared = async () => [{ id: "summary", title: "要点提炼", purpose: "p", body: "BUILD" }];
-    assert.deepEqual(await resolvePluginPrompt(home, v1.pluginId, "summary", declared), { body: "只输出三条中文要点。", version: "summary@1" });
+    const installed = { kind: "installed" as const, registration: generatedRegistration(v1, [v1], "enabled", "1.0.0") };
+    const preview = { kind: "preview" as const, prompts: [{ id: "summary", title: "要点提炼", purpose: "p", body: "BUILD" }] };
+    assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", installed), { body: "只输出三条中文要点。", version: "summary@1" });
+    assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", preview), { body: "BUILD", version: "summary@build" });
     registry.save("io.molis.work.generated.b1/summary", "只输出两条要点。", null, "person");
-    assert.deepEqual(await resolvePluginPrompt(home, v1.pluginId, "summary", declared), { body: "只输出两条要点。", version: "summary@1+user.1" });
+    assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", installed), { body: "只输出两条要点。", version: "summary@1+user.1" });
+    assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", preview), { body: "BUILD", version: "summary@build" }, "authoring must test its new text even while an edited older release is installed");
     assert.equal(registry.uses("io.molis.work.generated.b1/summary")[0]?.caller, "plugin:io.molis.work.generated.b1");
 
     // Uninstalled: nothing registered, the trial runs the build's declaration; the edit is kept for a reinstall.
     unregisterGeneratedPrompts(home, v1.pluginId);
-    assert.deepEqual(await resolvePluginPrompt(home, v1.pluginId, "summary", declared), { body: "BUILD", version: "summary@build" });
-    await assert.rejects(resolvePluginPrompt(home, v1.pluginId, "missing", declared), /没有声明的模型要求/);
+    assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", preview), { body: "BUILD", version: "summary@build" });
+    assert.throws(() => resolvePluginPrompt(home, v1.pluginId, "missing", preview), /没有声明的模型要求/);
     registerGeneratedPrompts(home, generatedRegistration(v1, [v1], "disabled", "1.0.0"));
     const again = registry.prompt("io.molis.work.generated.b1/summary");
     assert.equal(again.effective, "user");
@@ -77,6 +80,32 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
     const legacy = generatedRegistration(release(1, undefined), [], "enabled", "1.0.0");
     assert.equal(legacy.prompts.length, 0);
     assert.match(legacy.notes?.[0] ?? "", /登记 Prompt 之前/);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("one installation cannot supply another release's defaults, declarations or registration lifetime", () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-prompt-installations-"));
+  try {
+    const registry = agentDefinitionsFor(home, builtinRegistrations);
+    const v1 = release(1, [{ id: "summary", title: "Summary", purpose: "p", body: "V1" }, { id: "old-only", title: "Old", purpose: "p", body: "OLD" }]);
+    const v2 = release(2, [{ id: "summary", title: "Summary", purpose: "p", body: "V2" }, { id: "new-only", title: "New", purpose: "p", body: "NEW" }]);
+    const first = generatedRegistration(v1, [v1], "enabled", "1.0.0"), second = generatedRegistration(v2, [v1, v2], "enabled", "2.0.0");
+    registerGeneratedPrompts(home, first, "project-a/install-a");
+    registerGeneratedPrompts(home, second, "project-b/install-b");
+    const selected = { kind: "installed" as const, registration: first };
+    assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", selected), { body: "V1", version: "summary@1" });
+    assert.equal(registry.prompt(v1.pluginId + "/summary").default_body, "V2");
+    assert.ok(registry.hasPrompt(v1.pluginId, "old-only"));
+    assert.throws(() => resolvePluginPrompt(home, v1.pluginId, "new-only", selected), /没有声明/);
+    registry.save(v1.pluginId + "/summary", "EDIT", null, "person");
+    registerGeneratedPrompts(home, { ...second, source: { ...second.source, state: "disabled" } } as typeof second, "project-b/install-b");
+    assert.equal(registry.prompt(v1.pluginId + "/summary").default_body, "V1");
+    unregisterGeneratedPrompts(home, v1.pluginId, "project-b/install-b");
+    assert.equal(registry.prompt(v1.pluginId + "/summary").body, "EDIT");
+    assert.equal(registry.hasPrompt(v1.pluginId, "new-only"), false);
+    assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", selected), { body: "EDIT", version: "summary@1+user.1" });
+    unregisterGeneratedPrompts(home, v1.pluginId, "project-a/install-a");
+    assert.equal(registry.hasPrompt(v1.pluginId, "summary"), false);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -100,6 +129,7 @@ test("developer diagnostics say what each source registered and what is not in e
     const assistant = report.owners.find(owner => owner.owner_id === "io.molis.work.assistant")!;
     assert.ok(assistant.prompts > 0 && assistant.roles > 0);
     assert.ok(assistant.issues.some(issue => issue.level === "info" && /还没有被调用过/.test(issue.text)));
-    assert.deepEqual(report.unregistered.map(call => call.owner_id), ["io.molis.work.alchemist"]);
+    assert.ok(report.owners.find(owner => owner.owner_id === "io.molis.work.alchemist")!.instructions > 0, "Alchemist now registers its model instructions");
+    assert.deepEqual(report.unregistered, [], "migrated consumers are no longer listed as unregistered calls");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

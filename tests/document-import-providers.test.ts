@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
 import { CATALOG_CONNECTORS } from "../plugins/official-integrations/catalog/src/catalog.js";
 import { catalogWhoami } from "../plugins/official-integrations/catalog/src/provider.js";
 import {
@@ -181,6 +182,49 @@ test("document reads reject oversized declared and streamed responses", async ()
     }), errorCode("too_large", 413));
     assert.equal(cancelled, true);
   }
+});
+
+test("document reads preserve cancellation during a real HTTP body and close the stream", { timeout: 10_000 }, async () => {
+  const started = Promise.withResolvers<void>(), closed = Promise.withResolvers<void>();
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" }); response.write("{"); started.resolve();
+    const timer = setInterval(() => response.write(" "), 10);
+    response.on("close", () => { clearInterval(timer); closed.resolve(); });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const controller = new AbortController(), reason = new Error("cancelled document read");
+  let calls = 0;
+  try {
+    const pending = readExternalDocument({ source: "notion", url: NOTION_URL }, { token: "fixture-token", signal: controller.signal,
+      fetch: (_input, init) => { calls++; return fetch(`http://127.0.0.1:${address.port}/`, init); } });
+    const rejected = assert.rejects(pending, error => error === reason);
+    await started.promise; controller.abort(reason); await rejected; await closed.promise;
+    assert.equal(calls, 1);
+  } finally { controller.abort(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test("a cancelled asynchronous document dispatch guard does not send a late request", { timeout: 10_000 }, async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
+  const reason = new Error("guard cancelled"), calls: string[] = [];
+  const pending = readExternalDocument({ source: "notion", url: NOTION_URL }, { token: "fixture", signal: controller.signal,
+    beforeDispatch: async () => { entered.resolve(); await release.promise; },
+    fetch: async url => { calls.push(String(url)); return json(page()); } });
+  const rejected = assert.rejects(pending, error => error === reason);
+  try { await entered.promise; controller.abort(reason); await rejected; }
+  finally { controller.abort(); release.resolve(); await Promise.allSettled([pending, rejected]); }
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(calls, []);
+});
+
+test("document authority is rechecked before each API read and refusal stays distinct from network failure", async () => {
+  const reason = Object.assign(new Error("permission revoked"), { code: "actions.permission_denied" });
+  let checks = 0, calls = 0;
+  await assert.rejects(readExternalDocument({ source: "notion", url: NOTION_URL }, { token: "fixture",
+    beforeDispatch: () => { if (++checks === 2) throw reason; },
+    fetch: async () => { calls++; return json(page()); },
+  }), error => error === reason);
+  assert.equal(calls, 1); assert.equal(checks, 2);
 });
 
 test("Lark has a separate catalog credential and identity API", async () => {

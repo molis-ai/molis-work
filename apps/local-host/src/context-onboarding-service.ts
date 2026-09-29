@@ -69,7 +69,7 @@ export function reopenContextJourney(home: string, id: string): ContextJourney {
   return withContextJourneys(home, store => store.save(journey));
 }
 export async function contextModel(home: string, ports: ContextOnboardingPorts): Promise<CogniaAiPorts> {
-  return ports.model ? ports.model(home) : createCogniaProloguePort({ homeDirectory: home, actorId: "web-user" });
+  return ports.model ? ports.model(home) : createCogniaProloguePort({ homeDirectory: home });
 }
 export function startContextJourney(home: string, id: string, ports: ContextOnboardingPorts): ContextJourney {
   if (running.has(key(home, id))) return readContextJourney(home, id);

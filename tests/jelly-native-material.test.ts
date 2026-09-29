@@ -6,7 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { extractJellyMaterial, JellyMaterialError } from "../apps/local-host/src/jelly-native-material.js";
-const helper = fileURLToPath(new URL("../plugins/native/jelly/native/bin/jelly-material", import.meta.url));
+const helper = fileURLToPath(new URL("../apps/local-host/native/materials/bin/jelly-material", import.meta.url));
 const upload = (name: string, text: string | Buffer) => ({ file_name: name, data_base64: Buffer.from(text).toString("base64") });
 function home() { return mkdtempSync(path.join(tmpdir(), "molis-jelly-material-")); }
 
@@ -46,15 +46,15 @@ test("real macOS helper extracts image OCR, PDF text and image-only PDF pages", 
     const fixture = path.join(directory, "fixtures.swift");
     writeFileSync(fixture, `import Foundation\nimport AppKit\nimport PDFKit\nlet directory = CommandLine.arguments[1]\nlet rect = NSRect(x: 0, y: 0, width: 1200, height: 500)\nlet image = NSImage(size: rect.size)\nimage.lockFocus()\nNSColor.white.setFill(); rect.fill()\n("JELLY MATERIAL SAMPLE 2026" as NSString).draw(at: NSPoint(x: 50, y: 230), withAttributes: [.font: NSFont.systemFont(ofSize: 46), .foregroundColor: NSColor.black])\nimage.unlockFocus()\nlet bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!\ntry bitmap.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: directory + "/sample.png"))\nvar mediaBox = CGRect(x: 0, y: 0, width: 600, height: 400)\nlet context = CGContext(URL(fileURLWithPath: directory + "/sample.pdf") as CFURL, mediaBox: &mediaBox, nil)!\ncontext.beginPDFPage(nil)\nNSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)\n("JELLY PDF NATIVE TEXT 2026" as NSString).draw(at: NSPoint(x: 30, y: 200), withAttributes: [.font: NSFont.systemFont(ofSize: 26), .foregroundColor: NSColor.black])\nNSGraphicsContext.restoreGraphicsState(); context.endPDFPage()\ncontext.beginPDFPage(nil); context.draw(bitmap.cgImage!, in: CGRect(x: 0, y: 50, width: 600, height: 250)); context.endPDFPage(); context.closePDF()\n`);
     execFileSync("swift", [fixture, directory], { timeout: 60_000 });
-    const image = await extractJellyMaterial(directory, upload("sample.png", readFileSync(path.join(directory, "sample.png"))), { helperPath: helper });
+    const image = await extractJellyMaterial(directory, upload("sample.png", readFileSync(path.join(directory, "sample.png"))));
     assert.match(image.text, /JELLY MATERIAL SAMPLE 2026/); assert.equal(image.pages[0]!.method, "vision-ocr"); assert.equal(image.coverage.status, "sufficient");
-    const pdf = await extractJellyMaterial(directory, upload("sample.pdf", readFileSync(path.join(directory, "sample.pdf"))), { helperPath: helper });
+    const pdf = await extractJellyMaterial(directory, upload("sample.pdf", readFileSync(path.join(directory, "sample.pdf"))));
     assert.equal(pdf.coverage.total_pages, 2); assert.equal(pdf.pages[0]!.method, "pdf-text"); assert.equal(pdf.pages[1]!.method, "vision-ocr"); assert.match(pdf.text, /JELLY PDF NATIVE TEXT 2026/); assert.match(pdf.text, /JELLY MATERIAL SAMPLE 2026/);
-    const capabilities = JSON.parse(execFileSync(helper, ["capabilities"], { encoding: "utf8" })); assert.equal(capabilities.image_ocr, "available"); assert.match(capabilities.foundation_models, /^(available|unavailable:)/);
+    const capabilities = JSON.parse(execFileSync(helper, ["capabilities"], { encoding: "utf8" })); assert.equal(capabilities.image_ocr, "available"); assert.equal(capabilities.pdf, "available"); assert.equal(capabilities.foundation_models, undefined);
     await assert.rejects(extractJellyMaterial(directory, upload("invalid.pdf", "broken pdf"), { helperPath: helper }), (error: unknown) => error instanceof JellyMaterialError && error.status === 422);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
-const whisperHelper = fileURLToPath(new URL("../plugins/native/jelly/native/bin/jelly-whisper", import.meta.url));
+const whisperHelper = fileURLToPath(new URL("../apps/local-host/native/materials/bin/jelly-whisper", import.meta.url));
 function silentWav(): Buffer {
   const samples = 16000; const header = Buffer.alloc(44); header.write("RIFF", 0); header.writeUInt32LE(36 + samples * 2, 4); header.write("WAVEfmt ", 8); header.writeUInt32LE(16, 16); header.writeUInt16LE(1, 20); header.writeUInt16LE(1, 22); header.writeUInt32LE(16000, 24); header.writeUInt32LE(32000, 28); header.writeUInt16LE(2, 32); header.writeUInt16LE(16, 34); header.write("data", 36); header.writeUInt32LE(samples * 2, 40); return Buffer.concat([header, Buffer.alloc(samples * 2)]);
 }

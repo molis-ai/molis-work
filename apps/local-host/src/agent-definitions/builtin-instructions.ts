@@ -2,21 +2,16 @@ import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { COGNIA_EVIDENCE_PROMPT, INFORMATION_PLANNER, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
 import { BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
-import { PAGES_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-pages";
-import { JELLY_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { FORM_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { LINGGUANG_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-lingguang";
-import { WORKFLOWS_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-workflows";
-import { COGNIA_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
- * Every instruction a built-in model call uses. A Plugin's live in its package and are listed here once; the Host's own
+ * Every instruction a built-in model call uses. A Plugin's live in its package and come from the shared composition; the Host's own
  * sit beside the code that calls the model. `tests/prompt-registration.test.ts` fails when a call's instructions are
  * not in this list, or when a call sends a raw prompt string.
  */
-export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [...PAGES_INSTRUCTIONS, ...JELLY_INSTRUCTIONS, ...FORM_INSTRUCTIONS, ...DATASET_INSTRUCTIONS,
-  ...LINGGUANG_INSTRUCTIONS, ...WORKFLOWS_INSTRUCTIONS, ...COGNIA_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER];
+export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
+  ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.instructions ?? []), ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER,
+];
 
 /**
  * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Cognia's knowledge answers), with the
@@ -32,8 +27,8 @@ export const BUILTIN_INLINE_AGENT_PROMPTS: ReadonlyArray<{ owner_id: string; pro
 
 /** Roles of those Agents, so they show as Characters beside the ones Plugin manifests declare. */
 export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role: AgentRoleRegistration }> = [
-  { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "designer", version: 1, name: "主线设计师", purpose: "理解需求，设计插件的产品与功能合同；没有工具，只输出设计",
-    execution: "read-only", workspace: "none", prompt_ids: ["builder-designer"] } },
+  { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "designer", version: 2, name: "主线设计师", purpose: "理解需求，规划体验、功能合同与界面，并按截图复查；没有工具，每次按阶段使用对应指令",
+    execution: "read-only", workspace: "none", prompt_ids: ["builder-designer", "builder-experience", "builder-ui", "builder-review"] } },
   { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "coder", version: 1, name: "代码 Agent", purpose: "在构建目录里写插件代码：实现、按意见修改、按检查修复、处理验收失败，每次按任务用其中一段",
     execution: "workspace-write", workspace: "required", prompt_ids: ["builder-implement", "builder-revise", "builder-repair", "builder-acceptance"] } },
 ];
@@ -43,7 +38,6 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
  * step with the transitional list in `tests/prompt-registration.test.ts`.
  */
 export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [
-  { owner_id: "io.molis.work.alchemist", title: "炼金术士", reason: "工作室按每个任务在插件内拼出 systemPrompt，还没有拆成可登记的固定指令；迁移单列" },
 ];
 
 /** Built-in Plugins whose manifest Agent block is not what their runs use; their real prompts are registered above instead. */

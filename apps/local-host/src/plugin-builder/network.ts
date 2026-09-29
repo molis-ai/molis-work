@@ -84,12 +84,15 @@ export function hostNetwork(options: HostNetworkOptions): NonNullable<SandboxSer
         headers[secret.header.toLowerCase()] = secret.value;
       }
       if (request.body !== undefined) headers['content-length'] = String(Buffer.byteLength(request.body));
-      return send(url, method, headers, request.body, context.signal, resolve, options.allowAddress ?? publicAddress, options.agent);
+      context.signal.throwIfAborted(); await context.beforeEffect?.(); context.signal.throwIfAborted();
+      const result = await send(url, method, headers, request.body, context.signal, resolve, options.allowAddress ?? publicAddress, options.agent, context.beforeEffect);
+      await context.beforeEffect?.(); context.signal.throwIfAborted();
+      return result;
     },
   };
 }
 
-function send(url: URL, method: string, headers: Record<string, string>, body: string | undefined, signal: AbortSignal, resolve: Lookup, allowed: (address: string) => boolean, agent?: Agent): Promise<SandboxNetworkResponse> {
+function send(url: URL, method: string, headers: Record<string, string>, body: string | undefined, signal: AbortSignal, resolve: Lookup, allowed: (address: string) => boolean, agent?: Agent, beforeEffect?: () => Promise<void>): Promise<SandboxNetworkResponse> {
   return new Promise((done, fail) => {
     const timeout = AbortSignal.timeout(TIMEOUT_MS), stop = AbortSignal.any([signal, timeout]);
     // The connection's own lookup: whatever address it is about to use must be public.
@@ -97,7 +100,11 @@ function send(url: URL, method: string, headers: Record<string, string>, body: s
     const lookup = (hostname: string, lookupOptions: { all?: boolean } | undefined, callback: (error: Error | null, address: string | LookupAddress[], family?: number) => void) => resolve(hostname, (error, addresses) => {
       if (error) return callback(error, []);
       if (!addresses.length || addresses.some(item => !allowed(item.address))) return callback(Object.assign(new Error('不能访问本机或内网地址'), { code: 'PRIVATE_ADDRESS' }), []);
-      if (lookupOptions?.all) callback(null, addresses); else callback(null, addresses[0]!.address, addresses[0]!.family);
+      // DNS is asynchronous. Recheck the original invocation before allowing the socket to connect.
+      Promise.resolve().then(async () => {
+        stop.throwIfAborted(); await beforeEffect?.(); stop.throwIfAborted();
+        if (lookupOptions?.all) callback(null, addresses); else callback(null, addresses[0]!.address, addresses[0]!.family);
+      }).catch(() => callback(Object.assign(new Error('原调用已取消或授权已失效'), { code: 'INVOCATION_REVOKED' }), []));
     });
     const outgoing = httpsRequest({ protocol: 'https:', hostname: url.hostname, port: 443, path: url.pathname + url.search, method, headers, lookup: lookup as never, signal: stop, ...(agent ? { agent } : {}) }, response => {
       const chunks: Buffer[] = []; let size = 0;

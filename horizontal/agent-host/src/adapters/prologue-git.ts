@@ -55,10 +55,10 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
         : value.document?.kind !== "git-index")) throw new Error("Git 审查归属不可读，不能猜测执行结果");
     return value;
   };
-  const settle = async (effect: Effect, request: AgentReviewRequest, error?: unknown) => {
+  const settle = async (effect: Effect, request: AgentReviewRequest, error?: unknown, restored = false) => {
     const current = runtime.effects.get(effect.ref), dispatch = await runtime.effects.inspectDispatch(effect.ref);
     if (!current || dispatch.state === "unknown" || ["dispatching", "reconcile-required"].includes(current.state)) {
-      queue.uncertain(request.review_id, "Git 操作结果尚未确定，请核对仓库；不会自动重复执行");
+      queue.uncertain(request.review_id, "Git 操作结果尚未确定，请核对仓库；不会自动重复执行", { restored });
       return;
     }
     if (queue.receipt(request.review_id)?.status === "approved") {
@@ -66,7 +66,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       const reconciled = current.state === "failed" && dispatch.state === "not-dispatched" ? saved?.reconciliation : undefined;
       queue.settle(request.review_id, current.state === "completed" && dispatch.state === "dispatched" && dispatch.ok === true
         ? { ok: true } : { ok: false, error: reconciled ? "经核对，原操作未发生；不会自动重试"
-          : error instanceof Error ? error.message : saved?.failure_reason ?? "这次 Git 操作没有完成；需要时重新预览，不会自动重试" });
+          : error instanceof Error ? error.message : saved?.failure_reason ?? "这次 Git 操作没有完成；需要时重新预览，不会自动重试" }, { restored });
       if (reconciled) queue.recordReconciliation(request.review_id, reconciled);
     } else if (["cancelled", "denied", "failed"].includes(current.state)) queue.cancel(request.review_id, "原操作未执行，已撤回");
   };
@@ -141,7 +141,7 @@ export function createPrologueGitReviews(ports: Ports): PrologueGitReviewPort {
       if (["prepared", "awaiting-approval", "authorized"].includes(effect.state) && dispatch.state === "not-dispatched") {
         await runtime.effects.cancel(effect.ref); queue.cancel(request.review_id, "应用已重启，原等待已撤回；原 Git 操作未执行，需要时重新预览");
       }
-      await settle(effect, request, typeof decision?.failure_reason === "string" ? new Error(decision.failure_reason) : undefined);
+      await settle(effect, request, typeof decision?.failure_reason === "string" ? new Error(decision.failure_reason) : undefined, true);
       restored.add(effect.ref.id);
     }
     settledBoards.add(boardId);

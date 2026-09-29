@@ -4,6 +4,7 @@
  * its result is good enough stays the person's call, made in the results panel.
  */
 export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {api,current,status,refresh,timeline,showReviews,sessionId,openInPanel,parentLive,prefill}=ports;
   const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
@@ -52,18 +53,18 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const foot=node.querySelector('.coding-child-foot'),key=JSON.stringify([child.state,verdict,child.integration_available,edited.length>0]);
     if(foot.dataset.key!==key){
       foot.dataset.key=key;foot.replaceChildren();
-      if(child.state==='running'){const stop=el('button','mw-btn mw-btn--ghost','停止这个子任务');stop.type='button';stop.addEventListener('click',async()=>{stop.disabled=true;const id=current();
+      if(child.state==='running'){const stop=el('button','mw-btn mw-btn--ghost','停止这个子任务');stop.type='button';lifetime.listen(stop,'click',async()=>{stop.disabled=true;const id=current();
         try{await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run.ref.run_id)+'/subagents/'+encodeURIComponent(child.subagent_id),'POST',{action:'stop'});status('已请求停止这个子任务；其他子任务照常进行。');}
-        catch(error){status(error.message,true);stop.disabled=false;}if(id===current())await refresh();});foot.append(stop);}
-      if(child.state==='completed'){const judge=el('button','mw-btn mw-btn--ghost',child.integration_available?'评价并整合成果':'评价结论');judge.type='button';judge.addEventListener('click',()=>openInPanel(child.subagent_id));foot.append(judge);}
+        catch(error){if(!lifetime.alive)return;status(error.message,true);stop.disabled=false;}if(id===current())await refresh();});foot.append(stop);}
+      if(child.state==='completed'){const judge=el('button','mw-btn mw-btn--ghost',child.integration_available?'评价并整合成果':'评价结论');judge.type='button';lifetime.listen(judge,'click',()=>openInPanel(child.subagent_id));foot.append(judge);}
       // A failed or stopped child is sent again by the parent, never re-run behind its back: a live parent is asked through the
       // supplemental channel; an ended one gets the request in the composer, sent only when the person chooses.
       // A child that ended badly may still have written real work in its own directory; the person looks before deciding.
-      if(['failed','cancelled'].includes(child.state)&&child.integration_available&&edited.length){const look=el('button','mw-btn mw-btn--ghost','查看改动并决定是否整合');look.type='button';look.addEventListener('click',()=>openInPanel(child.subagent_id));foot.append(look);}
-      if(['failed','cancelled'].includes(child.state)){const retry=el('button','mw-btn mw-btn--ghost','重试这个子任务');retry.type='button';retry.addEventListener('click',async()=>{
+      if(['failed','cancelled'].includes(child.state)&&child.integration_available&&edited.length){const look=el('button','mw-btn mw-btn--ghost','查看改动并决定是否整合');look.type='button';lifetime.listen(look,'click',()=>openInPanel(child.subagent_id));foot.append(look);}
+      if(['failed','cancelled'].includes(child.state)){const retry=el('button','mw-btn mw-btn--ghost','重试这个子任务');retry.type='button';lifetime.listen(retry,'click',async()=>{
         // A dispatch key already used names the same dispatch and returns the stopped result instead of running again.
         const ask='请重新派出子任务「'+(child.role_name||child.role_id)+'」，沿用原分工，并用一个没用过的 idempotencyKey（原来的标识会被当成同一次派出，直接返回已停止的结果，不会重跑）'+(child.error?'；上次没有完成的原因：'+child.error:'')+'。原分工：\\n'+(child.task||'');
-        if(parentLive(run)){retry.disabled=true;const id=current();try{await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:run.ref.run_id,text:ask});status('已请执行中的这一轮重新派出这个子任务。');}catch(error){status(error.message,true);retry.disabled=false;}if(id===current())await refresh();}
+        if(parentLive(run)){retry.disabled=true;const id=current();try{await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:run.ref.run_id,text:ask});status('已请执行中的这一轮重新派出这个子任务。');}catch(error){if(!lifetime.alive)return;status(error.message,true);retry.disabled=false;}if(id===current())await refresh();}
         else{prefill(ask);status('重试请求已放进输入框；确认执行方式后发送。');}
       });foot.append(retry);}
     }
@@ -79,7 +80,7 @@ export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     head.replaceChildren(document.createTextNode('派出 '+group.children.length+' 个子任务'+(running?' · '+running+' 个进行中':' · 都已结束')));
     // Two or more children can be read side by side, conclusions open, like comparing parallel agents.
     if(group.children.length>1){const compare=el('button','coding-children-compare',section.dataset.layout==='compare'?'逐个查看':'并排对比');compare.type='button';compare.setAttribute('aria-pressed',String(section.dataset.layout==='compare'));
-      compare.addEventListener('click',()=>{const on=section.dataset.layout!=='compare';section.dataset.layout=on?'compare':'';section.querySelectorAll('.coding-child-result').forEach(node=>{if(!node.hidden)node.open=on;});compare.textContent=on?'逐个查看':'并排对比';compare.setAttribute('aria-pressed',String(on));});head.append(compare);}
+      lifetime.listen(compare,'click',()=>{const on=section.dataset.layout!=='compare';section.dataset.layout=on?'compare':'';section.querySelectorAll('.coding-child-result').forEach(node=>{if(!node.hidden)node.open=on;});compare.textContent=on?'逐个查看':'并排对比';compare.setAttribute('aria-pressed',String(on));});head.append(compare);}
     for(const child of group.children)card(section,run,child);
     for(const node of [...section.querySelectorAll(':scope > .coding-child')])if(!group.children.some(child=>child.subagent_id===node.dataset.child))node.remove();
     return section;

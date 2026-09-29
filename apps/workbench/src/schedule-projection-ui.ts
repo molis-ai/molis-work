@@ -19,6 +19,8 @@ export function createWorkbenchScheduleProjectionRenderer(primitives: {
       route_prefix: view.route_prefix,
       jobs: view.schedule_jobs ?? [],
       tasks: view.schedule_tasks ?? [],
+      operations: view.schedule_operations ?? [],
+      orphaned_occurrences: view.schedule_orphaned_occurrences ?? [],
       primitives: scheduleUiPrimitives,
     };
   }

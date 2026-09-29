@@ -1,18 +1,17 @@
 /**
  * The capability catalog generated plugins draw from: the project's unified action service, nothing else. The studio's
- * own capabilities (calling the model, reminders) are registered into that same service as a platform provider; what
+ * model capability is registered into that same service as a platform provider; Schedule owns reminders. What
  * other plugins offer to agents reaches plugins too unless it cannot be undone (see `actionReachesAudience`).
  *
- * This layer only adds what the service does not know: a stand-in for checks and trials, how long a call may take,
- * which capabilities cost money, and the words shown when the person grants them.
+ * This layer adds stand-ins for checks and trials and consent text; execution policy belongs to each provider.
  */
-import type { ActionCallContext, ActionClient, ActionDefinition, ActionHandlerBinding, ActionRegistryPort, ActionSchema, ActionView } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { ActionCallContext, ActionClient, ActionExecutionPolicy, ActionDefinition, ActionHandlerBinding, ActionRegistryPort, ActionSchema, ActionView } from '@molis-ai/molis-work-contracts/platform/actions';
 import { actionEffect } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { MODEL_STAND_IN_PREFIX, studioCapability } from '@molis-ai/molis-work-plugin-builder';
 import { isMcpToolCapability } from '../mcp-tool-actions.js';
-import type { CapabilityImplementations, ModelGenerateInput } from './capabilities.js';
+import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
 
 /** Designs made against this catalog call real actions with their real schemas; older designs keep the studio's own list. */
 export const CATALOG_VERSION = 'actions/1';
@@ -32,41 +31,24 @@ export interface CatalogCapability {
   offered: boolean; reason?: string;
   /** False when its plugin is not enabled in this project: a design that uses it waits for the person to enable it. */
   installed: boolean;
-  /** Longest a call may take; costly capabilities run only from a person's click and are rate limited. */
-  timeoutMs: number; costly: boolean;
+  execution: ActionExecutionPolicy;
 }
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 const pluginOf = (context: ActionCallContext) => context.actor_id.startsWith('plugin:') ? context.actor_id.slice('plugin:'.length) : '';
 
 /** The studio's own capabilities, as actions of the platform provider: only plugins may call them. */
-export function registerPlatformCapabilities(actions: ProjectActions, implementations: Pick<CapabilityImplementations, 'generate' | 'reminders' | 'schedules'>): () => void {
-  const define = (id: 'model.generate' | 'reminders.add' | 'reminders.cancel' | 'schedules.add' | 'schedules.cancel', effect: 'read' | 'write'): ActionDefinition => {
+export function registerPlatformCapabilities(actions: ProjectActions, implementations: Pick<CapabilityImplementations, 'generate'>): () => void {
+  const define = (id: 'model.generate', effect: 'read' | 'write', scheduling?: ActionDefinition['scheduling']): ActionDefinition => {
     const known = studioCapability(id)!;
     return { capability_id: id, version: 1, operation: 'command', provider_id: PLATFORM_PROVIDER_ID,
-      action: { title: known.title, description: known.description, kind: 'operation', scope: 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],
+      action: { ...(scheduling ? { scheduling } : {}), execution: known.execution, title: known.title, description: known.description, kind: 'operation', scope: 'project', effect, audiences: ['plugin'], permissions: [], subject_kinds: [],
         input_schema: known.input as unknown as ActionSchema, output_schema: known.output as unknown as ActionSchema } };
   };
-  const identity = (context: ActionCallContext): SandboxIdentity => ({ projectId: context.project_id ?? actions.project_id, installationId: context.plugin_install_id ?? '', pluginId: pluginOf(context), namespace: 'installed' });
-  const definitions = [define('model.generate', 'read'), define('reminders.add', 'write'), define('reminders.cancel', 'write'), define('schedules.add', 'write'), define('schedules.cancel', 'write')];
+  const definitions = [define('model.generate', 'read', 'concurrent')];
   const handlers: ActionHandlerBinding[] = [
-    { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal) },
-    { capability_id: 'reminders.add', version: 1, handle: async (context, input) => {
-      if (!implementations.reminders) throw new Error('这个项目还不能设置提醒');
-      return implementations.reminders.add(identity(context), input as { at: string; text: string; repeat?: 'none' | 'daily' | 'weekly' });
-    } },
-    { capability_id: 'reminders.cancel', version: 1, handle: async (context, input) => {
-      if (!implementations.reminders) throw new Error('这个项目还不能设置提醒');
-      return implementations.reminders.cancel(identity(context), input as { reminderId: string });
-    } },
-    { capability_id: 'schedules.add', version: 1, handle: async (context, input) => {
-      if (!implementations.schedules) throw new Error('这个项目还不能设置定时执行');
-      return implementations.schedules.add(identity(context), input as Parameters<NonNullable<CapabilityImplementations['schedules']>['add']>[1]);
-    } },
-    { capability_id: 'schedules.cancel', version: 1, handle: async (context, input) => {
-      if (!implementations.schedules) throw new Error('这个项目还不能设置定时执行');
-      return implementations.schedules.cancel(identity(context), input as { scheduleId: string });
-    } },
+    { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal,
+      () => context.beforeEffect(), { project_id: context.project_id, plugin_install_id: context.plugin_install_id }) },
   ];
   return actions.registry.registerProvider({ provider: { provider_id: PLATFORM_PROVIDER_ID, title: '插件平台', kind: 'system', project_id: actions.project_id }, definitions, handlers });
 }
@@ -99,7 +81,7 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
       effect, input: view.action.input_schema, ...(view.action.output_schema ? { output: view.action.output_schema } : {}), permissions: view.action.permissions,
       source, offered: isOffered, ...(isOffered ? {} : { reason: effect === 'irreversible' ? '不能撤销，不开放给插件' : refused ? '只对它自己的使用方开放' : '提供方没有开放给插件' }),
       installed: !disabled,
-      timeoutMs: known?.timeoutMs ?? 30_000, costly: view.capability_id === 'model.generate' };
+      execution: { ...view.action.execution, cost: view.action.execution?.cost ?? 'unknown' } };
   };
   return [...offered.map(view => entry(view, true)), ...agents.filter(view => !offeredKeys.has(key(view))).map(view => entry(view, false))];
 }
@@ -131,32 +113,32 @@ export function standIn(entry: CatalogCapability, input: SandboxJson): SandboxJs
 }
 export { MODEL_STAND_IN_PREFIX };
 
-/** Real model calls one plugin identity may make per minute. */
-const COSTLY_CALLS_PER_MINUTE = 20;
 /**
  * The capability service for designs made against the catalog. A call reaches the real action only for identities
  * `live` accepts, and a call that changes something outside the plugin only for the installed plugin; every other call
  * gets the stand-in. The broker has already checked the id against the installation's grants.
  */
 export function catalogCapabilities(options: { actions: ProjectActions; catalog(): Promise<CatalogCapability[]>; live(identity: Readonly<SandboxIdentity>): boolean; author?(pluginId: string): string | undefined }): NonNullable<SandboxServices['capability']> {
-  const windows = new Map<string, number[]>();
   return {
     async call(context, id, input) {
-      const entry = (await options.catalog()).filter(item => item.offered && item.id === id).sort((a, b) => b.version - a.version)[0];
+      const entry = latestCapability(await options.catalog(), id);
       if (!entry) throw new SandboxError('CAPABILITY_DENIED', '平台目录里没有开放给插件的能力：' + id);
       if (!options.live(context.identity) || entry.effect !== 'read' && context.identity.namespace !== 'installed') return standIn(entry, input);
-      if (entry.costly) {
-        const key = [context.identity.pluginId, context.identity.namespace, context.identity.installationId].join('|'), now = Date.now();
-        const recent = (windows.get(key) ?? []).filter(at => now - at < 60_000);
-        if (recent.length >= COSTLY_CALLS_PER_MINUTE) throw new SandboxError('RATE_LIMITED', '这个插件一分钟内调用「' + entry.title + '」的次数太多，请稍后再试');
-        recent.push(now); windows.set(key, recent);
-      }
       const author = options.author?.(context.identity.pluginId);
       const caller: ActionCallContext = { actor_id: 'plugin:' + context.identity.pluginId, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin',
         plugin_install_id: context.identity.installationId, permissions: [...entry.permissions], ...(author ? { audit_actor_id: '插件「' + author + '」' } : {}),
-        allowed_actions: [{ capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }], signal: context.signal };
+        allowed_actions: [{ capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }], signal: context.signal,
+        validate_authority: async () => {
+          await context.beforeEffect?.();
+          context.signal.throwIfAborted();
+          if (!options.live(context.identity)) throw new SandboxError('CAPABILITY_DENIED', '这个插件的能力调用已停止');
+        } };
       try { return await options.actions.client.invoke(caller, { capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }, input) as SandboxJson; }
-      catch (error) { throw new SandboxError('CAPABILITY_REFUSED', error instanceof Error ? error.message : String(error)); }
+      catch (error) {
+        const code = (error as { code?: string })?.code;
+        const uncertain = context.signal.aborted || ['actions.timeout', 'actions.provider_changed', 'actions.output_invalid_after_effect', 'actions.outcome_unknown'].includes(code ?? '');
+        throw new SandboxError('CAPABILITY_REFUSED', error instanceof Error ? error.message : String(error), uncertain ? 'unknown' : undefined);
+      }
     },
   };
 }

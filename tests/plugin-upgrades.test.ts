@@ -43,6 +43,7 @@ test("compatible code can restore an older install without changing its version 
   const first = await firstSupervisor.start([{ definition: old }]);
   assert.deepEqual(first.running, [old.manifest.plugin_id]);
   const installId = firstRuntime.list()[0]!.install_id;
+  const generation = firstRuntime.get(installId).installation_generation;
   assert.equal(v1Starts, 1);
 
   const reopenedRuntime = new PluginRuntime(repository);
@@ -64,6 +65,7 @@ test("compatible code can restore an older install without changing its version 
   const upgraded = await reopenedSupervisor.upgrade(next.manifest.plugin_id);
   assert.equal(upgraded.status, "running");
   assert.equal(reopenedRuntime.get(installId).version, "2.0.0");
+  assert.equal(reopenedRuntime.get(installId).installation_generation, generation, 'a code upgrade does not transfer task ownership to a new installation');
   assert.deepEqual(reopenedSupervisor.upgradeCandidates(), []);
   await reopenedRuntime.stop(installId);
 });

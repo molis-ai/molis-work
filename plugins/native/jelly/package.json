@@ -17,17 +17,12 @@
   },
   "files": [
     "dist",
-    "README.md",
-    "native/bin",
-    "native/THIRD-PARTY-NOTICES.md",
-    "native/licenses"
+    "README.md"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && node native/build.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
-    "native:build": "bash native/build.sh",
-    "native:build:whisper": "bash native/build-whisper.sh"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",

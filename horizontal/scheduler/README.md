@@ -22,7 +22,7 @@ Owner 经 Host Capability `schedule.register` 挂一条 job，并事先把唤醒
 
 不拥有 cron 表达式、Automation rule、Feed 来源意图或 Action 参数。插件不能替别人登记：Host 在 invoke 时覆盖 `plugin_id`。未注册 handler 的 capability 不能挂闹钟。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`。
 
 ## 本地开发
 
@@ -44,7 +44,7 @@ node --import tsx --test --test-concurrency=1 tests/scheduler.test.ts tests/sche
 - 负责：一次性叫醒、租约、错过后的补叫与投递回执。
 - 不负责：cron 表达式、自动化规则、来源计划意图、动作参数。
 - 公开入口：`@molis-ai/molis-work-service-scheduler`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/scheduler`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`。方向：合同、公共执行生命周期与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 到点只叫一次；once 与 interval 由 Schedule 插件的 job 模型解释。
   - 插件不能替别人登记：Host 在调用时覆盖 `plugin_id`；没有注册处理器的能力不能挂闹钟。
@@ -62,3 +62,7 @@ node --import tsx --test --test-concurrency=1 tests/scheduler.test.ts tests/sche
 - SSOT: `docs/SSOT-MATRIX.md`
 - Contract: `@molis-ai/molis-work-contracts/services/scheduler`
 - Migration Goals: `goal-reorg-f2`
+
+执行期间通过 Kernel 生命周期独立续租，不依赖下一次 tick。唤醒处理器的第二个参数 `ScheduleWakeupControl` 提供 signal 和同步 `beforeEffect()`，等待后写入前必须复查；该控制对象不属于持久化任务输入。暂停、取消、重排或被接管会撤销原执行身份，迟到结果不能写成成功或普通业务失败。领域幂等和未知副作用的恢复仍由 owner 负责。
+
+租约只可在到期前续期。到期即失去执行权，即使尚无人接管，原执行也不能续租或写入业务结果、成功或失败回执；休眠或长阻塞后必须遵守同一边界。`isExecuting()`、提交检查和续租使用相同的有效期判断。

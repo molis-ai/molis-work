@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { prepareContextDocuments } from "../apps/local-host/src/context-onboarding-documents.js";
 import { contextSources, includedContextFiles, readContextSource } from "../apps/local-host/src/context-onboarding-sources.js";
 
-const { zipSync, strToU8 } = createRequire(new URL("../plugins/native/pages/package.json", import.meta.url))("fflate");
+const { zipSync, strToU8 } = createRequire(new URL("../apps/local-host/package.json", import.meta.url))("fflate");
 function pdf(text: string) {
   const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
   const content = `BT /F1 12 Tf 50 700 Td (${text}) Tj ET`;

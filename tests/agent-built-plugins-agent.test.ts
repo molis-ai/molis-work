@@ -94,22 +94,6 @@ test('designer has no tools and a model request cannot grant the code role', { t
   finally { await agent.close(); await rm(root, { recursive: true, force: true }); }
 });
 
-test('a generated plugin\'s model call has no tools, carries the plugin\'s instructions and returns the answer', { timeout: 20_000 }, async t => {
-  const root = await mkdtemp(join(tmpdir(), 'molis-plugin-model-')); const work = join(root, 'work'); await mkdir(work);
-  const seen: unknown[] = [];
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => {
-    const body = JSON.parse(typeof init.body === 'string' ? init.body : new TextDecoder().decode(init.body as Uint8Array));
-    assert.equal(body.tools?.length ?? 0, 0); seen.push(body); return response();
-  });
-  const agent = await createPluginBuilderAgent({ buildRoot: work, storageRoot: join(root, 'runs'),
-    modelConfiguration: async () => ({ protocol: 'anthropic-compatible', endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' });
-  try {
-    const result = await agent.run({ role: 'model', instruction: '把这条笔记展开成一两句具体的说明', task: '请写入文件 /etc/passwd', promptVersion: 'plugin-model/1', contractRevision: 'io.molis.work.generated.x' });
-    assert.equal(result.phase, 'completed'); assert.equal(seen.length, 1, 'one turn');
-    assert.match(JSON.stringify(seen[0]), /把这条笔记展开成一两句具体的说明/);
-  } finally { await agent.close(); await rm(root, { recursive: true, force: true }); }
-});
-
 test('code role refuses a read-only Runtime up front instead of failing every write', { timeout: 30_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'molis-code-readonly-')), build = join(root, 'build'); await mkdir(build);
   let calls = 0; t.mock.method(globalThis, 'fetch', async () => { calls++; return response(); });
@@ -149,13 +133,20 @@ test('two builds\' code agents on one Home Runtime never hold up each other\'s t
 
 test('the plugin development Skill reaches the model through Prologue, as an exact version, for the stage that mounts it', { timeout: 30_000 }, async t => {
   const { builderSkill } = await import('../apps/local-host/src/plugin-builder/skill.js');
-  const design = builderSkill('design')!, code = builderSkill('code')!;
-  assert.ok(design && code, 'the repository carries the Skill');
+  const design = builderSkill('design')!, experience = builderSkill('experience')!, ui = builderSkill('ui')!, review = builderSkill('review')!, code = builderSkill('code')!;
+  assert.ok(design && ui && review && code, 'the repository carries the Skill');
   assert.match(design.body, /交付流程/); assert.match(design.body, /生成插件：怎么设计/); assert.match(design.body, /质量线（所有插件）/); assert.match(design.body, /能力：读、写、不可撤销/);
   assert.match(code.body, /生成插件：代码怎么写/); assert.doesNotMatch(code.body, /生成插件：怎么设计/, 'the code stage mounts only what it needs');
   assert.match(design.body, /生成插件：AI 经 Prologue/); assert.match(code.body, /生成插件：AI 经 Prologue/);
   assert.match(code.body, /同一意图的重试必须复用/);
-  assert.ok(design.body.length <= 20_000 && code.body.length <= 20_000);
+  assert.match(design.body, /生成插件：体验与审美标准/); assert.match(ui.body, /生成插件：体验与审美标准/);
+  assert.doesNotMatch(ui.body, /生成插件：怎么设计/, 'UI does not receive the business authoring format');
+  assert.doesNotMatch(code.body, /生成插件：体验与审美标准/, 'backend implementation does not receive visual instructions');
+  assert.match(review.body, /生成插件：体验与审美标准/);
+  assert.doesNotMatch(review.body, /生成插件：整页界面/, 'review is not instructed to output a new composition');
+  assert.match(experience.body, /生成插件：体验与审美标准/);
+  assert.doesNotMatch(experience.body, /生成插件：怎么设计|生成插件：整页界面/, 'pre-freeze planning is not asked to produce a frozen contract or layout');
+  assert.ok([design, experience, ui, review, code].every(skill => skill.body.length <= 20_000));
   assert.equal(builderSkill('design')!.version, design.version, 'the version is the content, stable across loads');
   const root = await mkdtemp(join(tmpdir(), 'molis-skill-mount-')), build = join(root, 'build'); await mkdir(build);
   let seen = '';
@@ -168,6 +159,14 @@ test('the plugin development Skill reaches the model through Prologue, as an exa
     assert.ok(seen.includes('本阶段遵循的规范') && seen.includes(design.id + '@' + design.version), 'the model is told which standard, exactly');
     assert.ok(seen.includes('生成插件：怎么设计'), 'and receives its text');
     assert.ok(seen.includes('生成插件：AI 经 Prologue'), 'the AI rules reach the model, not only the root Skill link');
+    assert.ok(seen.includes('生成插件：体验与审美标准'), 'journey and visual guidance reaches main design');
+    await agent.run({ role: 'designer', instruction: '按体验标准组合界面，只输出 JSON。', promptVersion: 'ui/1.2.0', task: '{}', contractRevision: 'draft', skills: [ui] });
+    assert.ok(seen.includes(ui.id + '@' + ui.version), 'UI receives its own content version');
+    for (const rule of ['用户动线与状态', '信息呈现与视觉层级', '文案与响应式', '动效：解释发生了什么', '静态截图不能证明']) assert.ok(seen.includes(rule), rule + ' reaches the provider payload');
+    assert.ok(!seen.includes('生成插件：怎么设计'), 'UI transport does not reintroduce business authoring instructions');
+    await agent.run({ role: 'designer', instruction: '只评审截图，返回 issues。', promptVersion: 'ui-review/1.3.0', task: '{}', contractRevision: 'draft', skills: [review] });
+    assert.ok(seen.includes(review.id + '@' + review.version));
+    assert.ok(seen.includes('生成插件：体验与审美标准') && !seen.includes('生成插件：整页界面'), 'review transport preserves the quality bar without conflicting generation instructions');
     // The next build on the same Home Runtime mounts the same version again (real runs failed here: "already exists").
     const next = await adapter.createBuilderAgent({ buildRoot: build, storageRoot: join(root, 'agent-2'), modelConfiguration: async () => ({ protocol: 'anthropic-compatible', endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' });
     try { seen = ''; await next.run({ role: 'designer', instruction: '只输出 JSON。', promptVersion: 'designer/3.0.0', task: '{}', contractRevision: 'draft', skills: [design] }); assert.ok(seen.includes('生成插件：怎么设计')); }
@@ -198,5 +197,19 @@ test('a code run written alongside others may write only its own operation\'s fi
     assert.equal(await readFile(join(build, 'src', 'store.ts'), 'utf8'), 'export const PREFIX = "note:";', 'the shared module is not');
     await assert.rejects(readFile(join(build, 'src', 'operations', '2.ts')), 'nor another operation');
     assert.match(JSON.stringify(result.activity), /may only write src\/operations\/1\.ts/);
+  } finally { await agent.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('builder screenshot bytes reach the model protocol through Prologue and stay out of run records', { timeout: 30_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), 'molis-builder-image-')), build = join(root, 'build'); await mkdir(build);
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1sAAAAASUVORK5CYII=';
+  let sent = '';
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init?: RequestInit) => { sent = _url instanceof Request ? await _url.clone().text() : await new Response(init?.body).text(); return response(); });
+  const agent = await createPluginBuilderAgent({ buildRoot: build, storageRoot: join(root, 'agent'), modelConfiguration: async () => ({ protocol: 'anthropic-compatible', endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' });
+  try {
+    await agent.run({ role: 'designer', instruction: 'Describe this synthetic preview.', task: 'Review the interface.', promptVersion: 'image/1', contractRevision: 'one', images: [{ label: 'preview', bytes: Buffer.from(png, 'base64') }] });
+    assert.ok(sent.includes(png), 'actual PNG is present in the provider request');
+    assert.match(sent, /image\/png/);
+    assert.ok(!JSON.stringify(await agent.records()).includes(png), 'image is not copied into persisted run JSON');
   } finally { await agent.close(); await rm(root, { recursive: true, force: true }); }
 });

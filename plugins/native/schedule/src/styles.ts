@@ -1,5 +1,9 @@
 export const SCHEDULE_STYLES = `
   .schedule-stage-chrome { pointer-events: auto; }
+  [data-schedule-operation-input], [data-operation-review-input] {
+    white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto;
+    font: 12px/1.6 var(--font-mono, monospace); color: var(--muted);
+  }
   .schedule-task-detail {
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   }

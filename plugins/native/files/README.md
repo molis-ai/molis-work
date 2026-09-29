@@ -41,5 +41,8 @@ Directory candidates and browsing preferences come from the [current-project set
   - 插件自己不读目录，只经 Host 能力。
   - 快照有界并带版本，下游按 Artifact 类型消费，不指定生产者。
   - 自动刷新还没有端到端接通，不要假设内容已刷新。
-- 改动后必跑：`node scripts/run-tests.mjs tests/files-plugin.test.ts tests/files-product-http.test.ts tests/files-git-actions.test.ts`
+- 前端目录子树通过 Host 注入的 `mountPluginClient` 管理请求与监听；隐藏取消查询，重新进入读当前状态；已派出的写入不随切页重试。嵌入与独立页面共用此契约。
+- 改动后必跑：`node scripts/run-tests.mjs tests/files-plugin.test.ts tests/files-product-http.test.ts tests/files-git-actions.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)、[docs/platform/PROJECT-SETTINGS.md](../../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+订阅 Coding `run-updated`、Git `operation-updated` 后，Host 失效当前项目视图 revision。可见客户端只在首次进入、revision 变化或重连时重新读取目录与当前文件；隐藏/卸载停止。旧固定快照保持不变。

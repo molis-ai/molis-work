@@ -13,8 +13,8 @@ Manifest 写完不等于底栏插件切换里有入口。一等插件还要改 H
 1. **合同类型**（有私人记录时）：`packages/contracts/src/modules/<id>.ts`，并在 `packages/contracts/package.json` 加 `./modules/<id>` export。
 2. **插件包**：`package.json` 的 `molis-work` 块（path/kind/ssot），以及 `README.md`、`tsconfig.json`、`src/index.ts`（`workspace-packages.mjs` 缺一个就报错）。`index.ts` 必须再导出 Manifest、contribution、stylesheet、client factory、routes，Workbench / Host 从包根 import。
 3. **`scripts/workspace-packages.mjs`**：加一条 `entry(...)`，并在 workbench、local-host 的 `extraWorkspaceDependencies` 里加上这个包名。然后 `node scripts/workspace-packages.mjs` 核对。
-4. **`apps/workbench/src/plugin-catalog.ts`**：`BUILTIN_PLUGIN_CATALOG` 加一条。`project_plugin_id`、`manifest`、可选 `personal`、`summary`（有 summary 才进内建市场）。
-5. **`apps/workbench/src/plugin-workbench.ts`**：`BUILTIN_PLUGIN_WORKBENCH` 登记 `contributions`、`stylesheet`、`clientFactory`、可选 `settingsClient`、`searchRow`。Pages 族照 Pages；Feed/Inbox **没有**插件包里的 factory，客户端在 `apps/workbench/src/scripts/client/navigation-feed.ts` / `navigation-inbox.ts`。
+4. **`apps/workbench/src/builtin-plugins.ts`**：内置 build 在 `BUILTIN_PLUGIN_CATALOG` 加一条，绑定 `project_plugin_id`、包导出的 `manifest`、可选 `personal`、`summary`（有 summary 才进内建市场）及 `agent` 正文。`plugin-catalog.ts` 只派生产品目录，不再维护第二份名单。
+5. **同一条目的 `workbench`**：声明 `order`（静态资源加载顺序）、`contributions`、`stylesheet`、`clientFactory`、可选 `settingsClient`、`searchRow`。`plugin-workbench.ts` 自动派生，无须另登记。Pages 族照 Pages；Feed/Inbox **没有**插件包里的 factory，客户端在 `apps/workbench/src/scripts/client/navigation-feed.ts` / `navigation-inbox.ts`。
    工作面还须在 `ui-composition.ts` 通过 UiHost mount，`renderer.ts` 注入 primitives，再由 `goals-page-renderer.ts` 渲染到主页面；只登记 pack 不会产生页面 DOM。对照图片插件 `renderImagesContribution`。
 6. **HTTP**：个人插件（Pages 族、Shelf、灵光）实现 `apps/local-host/src/<id>-native-plugin-http.ts`，再挂进 `personal-native-plugin-http.ts` 的 handler 列表。项目插件（Feed、Inbox、Schedule）挂进 `web-request.ts`。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 7. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
@@ -28,13 +28,13 @@ Manifest 写完不等于底栏插件切换里有入口。一等插件还要改 H
 | 有这个 | 再改 |
 | --- | --- |
 | 新的 MCP 能力 | 声明公共 `actions` 与处理器，设置 MCP audience，经 Runtime 注册后自动导出；不增加 Host 适配表 |
-| 维护存量 `mcp_exports` | 用 `required_actions` 声明其精确动作版本。历史处理器只做参数/结果转接，共用逐客户端授权和 ActionClient；开关不授予权限。无 provider 的引用属于本插件，复合工具须满足所有引用 |
+| 维护存量 `mcp_exports` | 用 `required_actions` 声明其精确动作版本，并在同一内置条目绑定包导出的 `legacyMcp`，Host 不再另列 handler 表。历史处理器只做参数/结果转接，共用逐客户端授权和 ActionClient；开关不授予权限。无 provider 的引用属于本插件，复合工具须满足所有引用 |
 | `actions` / 判断消费场景 | 下面「接到统一判断场景」 |
 | 插件事件总线 | 下面「接到插件事件总线」；Native 不要抄 |
 | 新 Artifact 类型 | 合同 + Artifacts Module，不要只写在插件里 |
 | 设置页 | contribution + `settings` 槽 + `settingsClient` |
 | 图标名 | 必须是 `packages/design-system/src/icons.ts` 的 `MolisWorkIcon`（灵光用 `idea`）。写了不存在的名字，插件切换里那一行还在，图标是空的；不写 `icon` 才落到 `package`。不要往壳层塞 SVG |
-| `agent` | `apps/workbench/src/plugin-catalog.ts` 的 `BUILTIN_PLUGIN_AGENTS`。今天只给 Coding、Schedule 填了提示词正文。第三个带 `agent` 的插件不改这里，角色会登记成空正文 |
+| `agent` | 在 `builtin-plugins.ts` 的同一条目绑定 `agent.prompts/skills` 包正文；`BUILTIN_PLUGIN_AGENTS` 自动派生。Manifest 声明不等于已经提供正文，缺失由现有回归拒绝 |
 | 重编辑器 IIFE | `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，页面再引 script。只打 bundle、不挂路径，浏览器 404 |
 | 项目启用连带 | `PROJECT_PLUGIN_COMPANIONS`（今天只有 Feed→Inbox） |
 | 全局搜索 | Pages 族：`searchRow`。Feed/Inbox/Goals：`apps/workbench/src/scripts/client/global-search.ts` 写死，不会跟 searchRow 走 |
@@ -153,3 +153,19 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 ## 异步提交
 
 等待模型/网络的动作按 `scheduling: "concurrent"` 执行，读快照 → 等待 → `await caller.beforeEffect()` → 版本比较提交。嵌套调用使用 `retainActionAuthority(caller, originReference, caller.beforeEffect)`，同时保留外层注册、权限和生命周期约束。来源拉取还需逐来源独占，不能只把串行标记改掉。被撤权或取消后，不写失败记账；此前已发出的外部操作保留未确认状态供恢复。
+
+### 已授权材料的提取
+
+插件需要文字/HTML/PDF/OCR/媒体材料时，由 Host 注入 `contracts/services/materials` 端口。输入已授权字节，系统解析器/原生进程归 Host；原件、SHA 引用、业务转换和引用规则留给消费者。检查 coverage 和 truncated，不能把扫描空页或截断当作全文。传递取消，异步返回后与业务写入前复查 beforeEffect；媒体模型下载必须显式选择。Jelly 的 Host 适配与 onboarding 是当前接入示例，不在插件复制解析器或绕过 Prologue 生成摘要。
+
+Shelf 的 PDF 预览和 OCR 同样复用公共提取口。语言放在 `ocrLanguages`，逐行置信度读取页面的 `lines`；不能拿页平均值冒充每行置信度。用户提示与结果命名留在消费者，多选材料逐项提取，不按第一项忽略其他内容。异步提取完成后先复查原执行与输入 hash，再写结果；取消/撤权也不能被 catch 成失败成果。已终止执行的历史 running 标签不代表进程仍在运行，不自动恢复外部工作。
+
+文档/ZIP 导入使用同一契约的 MaterialDocumentReader：Host 产出原名、格式、内容与 coverage，插件再执行编辑器/领域转换；不把 PagesBody 或产品的图片支持写入解析器。预览与提交使用同一注入端口，解析异步等待可声明 concurrent，写入仍走领域事务、幂等键和 beforeEffect。ZIP/DOCX 依赖仅归 Host，禁止插件再解析一遍或自行启动 worker。
+
+网页捕获使用 MaterialWebsiteReader，Host 负责受限网络与同一 HTML 提取，插件保留材料命名、链接和内容组织。传递 signal / beforeDispatch，每次跳转复核派出，返回后 beforeEffect，再同步校验原对象版本后写入；不要在更早的异步检查中校验完版本便视为永久有效。Shelf 与 Artifacts 是现有消费者。失败保留链接是业务选择，取消/撤权不能被 catch 后当普通失败保存。
+
+HTML 解析也通过既有 Host worker 生命周期执行，不能让主线程同步解析绕过网络超时。网页复用 Kernel 执行生命周期，把异步派出检查、网络和解析包含在同一取消/时限内；Artifacts 的异步 HTML 导入保留原文和自身容量合同，提交前再检查取消和权限。
+
+导入等待网络或 worker 的动作显式声明 concurrent。端口保留 ActionExecutionContext 的 beforeEffect，不能只把 actor / validate_authority 传下去再自己查启用状态；完整检查还包含注册世代、当前权限、宿主生命周期与取消。
+
+账号文档读取复用 Host 的连接器请求生命周期，向 Integration 传递 signal 与每次请求前的 beforeDispatch。元信息返回后读取正文、获取令牌或 OAuth 重试前仍需复查原调用；取消不能被映射成网络故障后重试。最终账号 revision 检查放在异步授权检查之后，保留最初选择的连接，不能接受读取途中重新授权的新账号。

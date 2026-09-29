@@ -132,6 +132,8 @@ export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js"
 export type * from "./capsule-view.js";
 export { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries } from "./plugin-catalog.js";
 export type { BuiltinPluginEntry, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
+export { pluginWorkbenchPacks } from "./plugin-workbench.js";
+export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {
   isDecidable,
   leakedMarkup,

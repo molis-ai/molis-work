@@ -10,16 +10,25 @@ import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, typ
 import { contractEffects, validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './validation.js';
 import { expandDesign, normalizeProposal } from './agent-authoring.js';
+import { presentationTask, presentationReviewTask, acceptPresentation } from './agent-presentation.js';
+import { proposalSketch, experienceTask, acceptExperience } from './agent-experience.js';
+import { acceptPresentationReview } from './agent-review.js';
+import { displayProblem, failureReason, humanize } from './agent-diagnostics.js';
+export { failureReason, humanize } from './agent-diagnostics.js';
 import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease, PluginPrompt } from './agent-model.js';
 
 export interface AgentBuilderPorts {
   projectId: string;
+  /** The host supports versioned whole-page composition. */
+  presentation?: boolean;
+  visionAvailable?(): boolean;
+  inspectPresentation?(build: AgentBuild, signal: AbortSignal): Promise<{ structural: boolean; issues: string[]; images: NonNullable<BuilderAgentRequest['images']> }>;
   catalog(): Promise<CatalogEntry[]>;
   resources?: readonly string[];
   models(): Promise<readonly { provider_id: string; model_id: string; label: string }[]>;
   agent(build: AgentBuild, purpose: 'design' | 'code'): Promise<{ run(request: BuilderAgentRequest): Promise<BuilderAgentRecord>; close(): Promise<void>; records(): Promise<BuilderAgentRecord[]> }>;
   /** The plugin development Skill a stage works to (the same standard official plugins use); absent in a release without it. */
-  skill?(stage: 'design' | 'code'): BuilderSkill | undefined;
+  skill?(stage: 'design' | 'code' | 'experience' | 'ui' | 'review'): BuilderSkill | undefined;
   /**
    * The text an Agent prompt runs with now: the person's edit (from “Prompt 与 Character”) or the shipped default. The
    * version names which, so a run's record says whether it used the person's text.
@@ -51,49 +60,13 @@ export interface AgentBuilderPorts {
   installations(): Promise<unknown[]>;
   lifecycle(action: 'install' | 'upgrade' | 'rollback' | 'disable' | 'enable' | 'uninstall', release: AgentRelease, grants?: unknown): Promise<void>;
 }
-const snapshot = (build: AgentBuild): AgentBuildSnapshot => ({ design: build.design, nodes: build.nodes, connected: build.connected, ...(build.directory ? { directory: build.directory } : {}), ...(build.designSource ? { designSource: build.designSource } : {}) });
+const snapshot = (build: AgentBuild): AgentBuildSnapshot => ({ design: build.design, nodes: build.nodes, connected: build.connected, ...(build.directory ? { directory: build.directory } : {}), ...(build.designSource ? { designSource: build.designSource } : {}), checks: build.checks, browserResult: build.browserResult, visualResult: build.visualResult });
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 const PENDING_CASE = '前置用例失败，尚未执行';
 /** Nodes follow the design's part order however they were placed: parts kept from the previous design are placed before new ones. */
 export function inDesignOrder<T extends { id: string }>(design: { parts: readonly { id: string }[] } | null | undefined, nodes: readonly T[]): T[] {
   const order = (id: string) => design?.parts.findIndex(part => part.id === id) ?? 0;
   return [...nodes].sort((a, b) => order(a.id) - order(b.id));
-}
-/** A person-readable reason from a failed case's detail (plain text or the runner's JSON diagnosis). */
-export function failureReason(detail: string): string {
-  try { const info = JSON.parse(detail) as { step?: number; reason?: string; visible?: string }; return (info.step ? '第 ' + info.step + ' 步' : '') + (info.reason ?? '') + (info.visible ? '（界面显示：' + info.visible.slice(0, 80) + '）' : ''); }
-  catch { return detail; }
-}
-/** Reads the runner's diagnosis of a failed step: expected texts present in the part's data but not on screen. */
-/**
- * Failures the code agent cannot fix. `display`: the part's own data has the expected text, the part does not show
- * it. `wiring`: the part reads nothing, so what it should show can only arrive through the design (a prefilled field
- * or a shown command result).
- */
-function displayProblem(test: AgentDesign['acceptance'][number], detail: string, parts: AgentDesign['parts']): { type: 'display' | 'wiring' | 'form'; componentId: string; expected: string[]; visible: string; reason?: string } | null {
-  let info: { step?: number; componentId?: string; visible?: string; data?: string; reason?: string };
-  try { info = JSON.parse(detail); } catch { return null; }
-  const step = info.step ? test.steps[info.step - 1] : undefined;
-  // A required field left empty: either another part should have carried it, or the case forgot to fill it.
-  if (step?.action === 'submit' && info.componentId && /必填字段是空的/.test(info.reason ?? '')) return { type: 'form', componentId: info.componentId, expected: [], visible: info.visible ?? '', reason: (info.reason ?? '').replace(/^Error:\s*/, '') };
-  const expected = step?.action === 'expect' ? [step.text] : step?.action === 'expectOrder' ? step.texts : step?.action === 'expectValue' ? [String(step.value)] : [];
-  const flat = (value: string) => value.replace(/\s+/g, ' ');
-  if (!expected.length || !info.componentId || typeof info.visible !== 'string') return null;
-  const part = parts.find(item => item.id === info.componentId);
-  if (part && !part.read) return { type: 'wiring', componentId: info.componentId, expected, visible: info.visible };
-  const labels = (part?.props.columns ?? []).map(column => column.label).filter(Boolean);
-  if (labels.some(label => expected.some(text => text !== label && flat(text).includes(label)))) return { type: 'display', componentId: info.componentId, expected, visible: info.visible };
-  if (!info.data) return null;
-  const inData = expected.every(text => flat(info.data!).includes(flat(text))), onScreen = expected.every(text => flat(info.visible!).includes(flat(text)));
-  return inData && !onScreen ? { type: 'display', componentId: info.componentId, expected, visible: info.visible } : null;
-}
-/** Runtime and model errors in words the person can act on; the original stays in the collaboration record. */
-export function humanize(text: string): string {
-  if (/too many tool turns/i.test(text)) return '代码 Agent 这一轮用完了可用的操作次数，写好的文件都已保留；继续后会从检查结果接着修正';
-  if (/验收等待超时/.test(text)) return '界面上等了 20 秒仍没有出现预期的结果';
-  if (/timed? ?out|超时/i.test(text) && !/[\u4e00-\u9fa5]/.test(text)) return '等待模型或工具超时，写好的内容都已保留，可以继续';
-  if (/credential|api key|401|403/i.test(text) && !/[\u4e00-\u9fa5]/.test(text)) return '模型服务拒绝了请求，请检查模型设置里的密钥和额度';
-  return text.replace(/^Error:\s*/, '').replace(/\n\s+at [\s\S]*$/, '');
 }
 type ProposeOutcome = { kind: 'questions'; questions: string[]; summary: string } | { kind: 'proposals'; proposals: AgentProposal[]; summary: string; dropped: string[] };
 /** The whole build record is rewritten on every change, so its history must stay bounded. */
@@ -151,6 +124,7 @@ export class AgentBuilderWorkflow {
     const build = async () => { if (!await this.waitForPlugins(id, token)) await this.build(id, token, signal); };
     const work = stage === 'design' ? () => this.propose(id, token, signal)
       : stage === 'detail' ? async () => { await this.detail(id, token, signal); await build(); }
+      : stage === 'visual' ? () => this.reviseVisual(id, token, signal)
       : stage === 'revise' ? async () => { await this.revise(id, token, signal); await build(); }
       : build;
     const done = Promise.resolve().then(work).catch(error => {
@@ -172,7 +146,7 @@ export class AgentBuilderWorkflow {
     return true;
   }
   /** The stage's Skill, and a prompt version that names the exact standard the run followed. */
-  private mounted(stage: 'design' | 'code', version: string): Pick<BuilderAgentRequest, 'promptVersion' | 'skills'> {
+  private mounted(stage: 'design' | 'code' | 'experience' | 'ui' | 'review', version: string): Pick<BuilderAgentRequest, 'promptVersion' | 'skills'> {
     const skill = this.ports.skill?.(stage);
     return skill ? { promptVersion: version + '+' + skill.id + '@' + skill.version, skills: [skill] } : { promptVersion: version };
   }
@@ -184,13 +158,13 @@ export class AgentBuilderWorkflow {
    * One designer answer with the host's repair loop: a rejected answer goes back to the same role with the exact reason,
    * at most twice in a row. Long structured answers are where models most often slip.
    */
-  private async designer<T>(id: string, token: string, signal: AbortSignal, stepId: string, task: Record<string, unknown>, accept: (output: string) => T): Promise<T> {
-    const prompt = this.prompt('designer');
+  private async designer<T>(id: string, token: string, signal: AbortSignal, stepId: string, task: Record<string, unknown>, accept: (output: string) => T, images?: BuilderAgentRequest['images']): Promise<T> {
+    const stage = task.mode === 'compose' ? 'ui' : task.mode === 'experience' ? 'experience' : 'design', prompt = this.prompt(stage === 'design' ? 'designer' : stage);
     let repair: { previousAnswer: string; validationError: string } | undefined;
     for (let attempt = 0; ; attempt++) {
       const current = this.store.require(id);
-      const ask = () => this.withAgent(id, 'design', agent => agent.run({ role: 'designer', instruction: prompt.text, ...this.mounted('design', prompt.version),
-        contractRevision: current.design?.contract.revision ?? 'draft', signal, task: JSON.stringify(repair ? { ...task, repair } : task) }));
+      const ask = () => this.withAgent(id, 'design', agent => agent.run({ role: 'designer', instruction: prompt.text, ...this.mounted(stage, prompt.version),
+        contractRevision: current.design?.contract.revision ?? 'draft', signal, ...(images?.length ? { images } : {}), task: JSON.stringify(repair ? { ...task, repair } : task) }));
       // A dropped connection to the model is not the designer's answer: ask again (see RETRY_WAITS) before giving up.
       let record: BuilderAgentRecord | undefined;
       for (let retry = 0; !record; retry++) {
@@ -209,14 +183,14 @@ export class AgentBuilderWorkflow {
         // A designer answer takes seconds; a third repair costs little and saves the whole stage.
         if (attempt >= 3 || !record.output.trim()) throw error;
         repair = { previousAnswer: record.output.slice(0, 30_000), validationError: message(error) };
-        this.step(id, { id: stepId + ':repair:' + attempt, agent: 'design', action: 'repair', label: '答案未通过宿主校验，交回主线设计修正（第 ' + (attempt + 1) + ' 次）', status: 'done', detail: message(error) });
+        this.step(id, { id: stepId + ':repair:' + attempt, agent: stage === 'design' ? 'design' : 'ui', action: 'repair', label: '答案未通过宿主校验，交回' + (stage === 'experience' ? '体验设计' : stage === 'ui' ? 'UI Agent' : '主线设计') + '修正（第 ' + (attempt + 1) + ' 次）', status: 'done', detail: message(error) });
       }
     }
   }
   /** The catalog as the designer sees it: what bears on `focus` in full, what the design already uses always, the rest summarised. */
   private async designContext(focus = '', keep: readonly string[] = []) {
     const all = await this.ports.catalog(), { capabilities, moreCapabilities } = focusCatalog(all, focus, keep);
-    return { catalog: withinBudget(capabilities, keep), more: moreCapabilities, ids: all.map(item => item.id), resources: [...(this.ports.resources ?? [])] };
+    return { all, catalog: withinBudget(capabilities, keep), more: moreCapabilities, ids: all.map(item => item.id), resources: [...(this.ports.resources ?? [])] };
   }
   /** Stage one: clarify once at most, then 2–3 product-level proposals the person compares on the canvas. */
   private async propose(id: string, token: string, signal: AbortSignal) {
@@ -268,19 +242,11 @@ export class AgentBuilderWorkflow {
       }));
     } finally { this.drawing.delete(abort); }
   }
-  /** What the model sees of a proposal: the product decision, not the host's expanded preview machinery. */
-  private sketch(proposal: AgentProposal) {
-    const { contract, parts } = proposal.preview;
-    return { id: proposal.id, title: proposal.title, description: proposal.description, rationale: proposal.rationale, journey: proposal.journey,
-      // The capabilities are already settled (see pickCapabilities); the full design uses exactly these.
-      operations: contract.operations.map(({ id, kind, description, input, output, effects }) => ({ id, kind, description, input, output, ...(effects.capabilities?.length ? { effects: { capabilities: effects.capabilities } } : {}) })),
-      pages: contract.pages.map(page => ({ id: page.id, title: page.title, parts: parts.filter(part => part.pageId === page.id).map(part => ({ id: part.id, intent: part.intent, purpose: part.purpose, uses: part.read?.operationId ?? part.submit?.operationId })) })) };
-  }
   /** Expands and strictly validates one full design answer (detail or revision). */
-  private acceptDesign(id: string, output: string, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, ids: string[], resources: string[]) {
+  private acceptDesign(id: string, output: string, base: { id: string; title: string; description: string; rationale: string; journey: string[] }, capabilities: CatalogEntry[], resources: string[]) {
     const value = parseModelJson(output), dropped: string[] = [];
-    const design = expandDesign(value, base, 'io.molis.work.generated.' + id, randomUUID(), dropped);
-    const valid = validateAgentDesign(design, ids, resources, this.ports.validateContract);
+    const design = expandDesign(value, base, 'io.molis.work.generated.' + id, randomUUID(), dropped, capabilities);
+    const valid = validateAgentDesign(design, capabilities.map(item => item.id), resources, this.ports.validateContract);
     const source = value && typeof value === 'object' && !Array.isArray(value) && 'design' in value ? (value as { design: unknown }).design : value;
     // A change inside an operation that its contract cannot show (e.g. what the model is asked) still reaches the code.
     const rework: Record<string, string> = {};
@@ -294,6 +260,7 @@ export class AgentBuilderWorkflow {
     }
     // A build keeps the catalog it began with, so code already written against it keeps working; new builds use the current one.
     const previous = this.store.require(id).design;
+    if (previous?.experience) valid.experience = previous.experience;
     const catalog = previous ? previous.catalog : this.ports.catalogVersion;
     if (catalog) valid.catalog = catalog; else delete valid.catalog;
     return { design: valid, dropped, source: JSON.stringify(source), rework };
@@ -303,12 +270,21 @@ export class AgentBuilderWorkflow {
     const initial = this.store.require(id), chosen = initial.candidates.find(item => item.id === initial.chosen);
     if (!chosen) throw new Error('选中的方案已失效，请重新选择');
     // Capabilities are settled before the design is written in full: it is written against their real inputs and outputs.
-    const proposal = await this.pickCapabilities(id, token, signal, chosen), picked = usedCapabilities(proposal.preview.contract.operations);
-    const stepId = 'detail:' + token, { catalog, more, ids, resources } = await this.designContext([initial.brief, proposal.title, proposal.description, ...proposal.journey,
+    let proposal = await this.pickCapabilities(id, token, signal, chosen), experience: AgentDesign['experience'], sketch: ReturnType<typeof acceptExperience>['sketch'] = proposalSketch(proposal);
+    if (this.ports.presentation) {
+      const step = 'experience:' + token;
+      this.step(id, { id: step, agent: 'ui', action: 'design', label: '先设计使用路径、内容主次与代表性场景', status: 'active' });
+      const planned = await this.designer(id, token, signal, step, { ...experienceTask(initial.brief, proposal), messages: initial.messages }, output => acceptExperience(output, proposal));
+      proposal = planned.proposal; experience = planned.experience; sketch = planned.sketch;
+      this.step(id, { id: step, agent: 'ui', action: 'design', label: '体验草图已交给主线设计', status: 'done', detail: experience.summary });
+    }
+    const picked = usedCapabilities(proposal.preview.contract.operations);
+    const stepId = 'detail:' + token, { all, catalog, more, resources } = await this.designContext([initial.brief, proposal.title, proposal.description, ...proposal.journey,
       ...proposal.preview.contract.operations.map(operation => operation.description)].join('\n'), picked);
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: '细化「' + proposal.title + '」：功能合同、界面与验收', status: 'active' });
-    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: this.sketch(proposal), capabilities: catalog, moreCapabilities: more, resources },
-      output => this.acceptDesign(id, output, proposal, ids, resources));
+    const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources },
+      output => this.acceptDesign(id, output, proposal, all, resources));
+    if (experience) result.design.experience = experience;
     await this.adopt(id, token, result, stepId, '主线已确定：' + result.design.contract.operations.length + ' 项功能、' + result.design.parts.length + ' 个界面零件、' + result.design.acceptance.length + ' 条验收');
   }
   /**
@@ -352,11 +328,11 @@ export class AgentBuilderWorkflow {
     const initial = this.store.require(id), design = initial.design;
     if (!design) throw new Error('还没有确定的方案可以修改');
     const request = hostRequest ?? [...initial.messages].reverse().find(item => item.role === 'user')?.text ?? '';
-    const stepId = 'revise:' + token + (hostRequest ? ':' + randomUUID().slice(0, 8) : ''), { catalog, more, ids, resources } = await this.designContext([initial.brief, request, design.title].join('\n'), usedCapabilities(design.contract.operations));
+    const stepId = 'revise:' + token + (hostRequest ? ':' + randomUUID().slice(0, 8) : ''), { all, catalog, more, resources } = await this.designContext([initial.brief, request, design.title].join('\n'), usedCapabilities(design.contract.operations));
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: hostRequest ? '按验收结果调整界面显示' : '按你的意见修订主线', status: 'active', detail: request.slice(0, 300) });
-    const result = await this.designer(id, token, signal, stepId, { mode: 'revise', brief: initial.brief, request, messages: initial.messages,
+    const result = await this.designer(id, token, signal, stepId, { mode: 'revise', brief: initial.brief, request, messages: initial.messages, experience: design.experience,
       current: initial.designSource ? JSON.parse(initial.designSource) : { title: design.title, operations: design.contract.operations, parts: design.parts, acceptance: design.acceptance },
-      capabilities: catalog, moreCapabilities: more, resources }, output => this.acceptDesign(id, output, design, ids, resources));
+      capabilities: catalog, moreCapabilities: more, resources }, output => this.acceptDesign(id, output, design, all, resources));
     const reworked = Object.keys(result.rework);
     await this.adopt(id, token, result, stepId, (hostRequest ? '已按验收调整界面显示；' : '') + describeRevision(design, result.design) + (reworked.length ? '；要改代码：' + reworked.map(item => '「' + operationName(result.design, item) + '」').join('、') : ''));
   }
@@ -374,7 +350,7 @@ export class AgentBuilderWorkflow {
       if (value.design) value.history.push(snapshot(value));
       if (value.history.length > 20) value.history.splice(0, value.history.length - 20);
       value.design = design; value.designSource = result.source; value.title = design.title; value.directory = directory; value.notes = result.dropped.slice(0, 40);
-      value.nodes = kept; value.connected = unchanged; value.checks = {}; value.browserResult = undefined; value.pendingPart = undefined;
+      value.nodes = kept; value.connected = unchanged; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.pendingPart = undefined; value.pendingVisual = undefined;
       if (Object.keys(rework).length) value.rework = rework; else delete value.rework;
       value.active = value.active ? { ...value.active, stage: 'build', contractRevision: design.contract.revision } : value.active; value.phase = 'building';
     });
@@ -412,6 +388,7 @@ export class AgentBuilderWorkflow {
       throw new Error('界面验收' + (test ? '「' + test.description + '」' : '') + '仍未通过：' + humanize(failureReason(failed?.detail ?? '')) + '。可以重新验收，或说明这条验收该怎么改');
     }
     await this.smoke(id, token, signal);
+    await this.reviewPresentation(id, token, signal);
     this.change(id, value => { value.active = null; value.phase = 'ready'; value.error = null; });
   }
   /**
@@ -445,22 +422,89 @@ export class AgentBuilderWorkflow {
     this.step(id, { id: stepId, agent: 'code', action: 'implement', label: broken ? '用真实数据读取仍然出错' : '已按真实数据修正', operationId: broken?.operation.id, status: broken ? 'failed' : 'done', detail: broken?.error });
     if (broken) throw new Error('用真实数据读取「' + (broken.operation.description || broken.operation.id) + '」出错：' + broken.error);
   }
+  private async compose(id: string, token: string, signal: AbortSignal, request: string, history = false, review?: { issues: string[]; images: BuilderAgentRequest['images'] }) {
+    const initial = this.store.require(id), stepId = 'compose:' + token;
+    this.step(id, { id: stepId, agent: 'ui', action: 'design', label: '设计整页的布局与主次', status: 'active' });
+    const result = await this.designer(id, token, signal, stepId, presentationTask(initial, request, review?.issues), output => acceptPresentation(output, initial.design!), review?.images);
+    this.current(id, token);
+    this.change(id, value => {
+      if (history) { value.history.push(snapshot(value)); if (value.history.length > 20) value.history.shift(); }
+      value.design = result.design; value.visualResult = undefined; value.browserResult = undefined;
+      value.nodes = value.nodes.map(node => ({ ...result.design.parts.find(part => part.id === node.id)!, kind: (result.design.presentation!.parts[node.id]?.kind ?? node.kind) as typeof node.kind }));
+    });
+    this.step(id, { id: stepId, agent: 'ui', action: 'design', label: '整页设计已应用', status: 'done', detail: result.summary });
+  }
+  private async reviseVisual(id: string, token: string, signal: AbortSignal) {
+    const build = this.store.require(id);
+    if (!build.design || !build.checks.global?.passed) throw new Error('功能验证通过后才能调整界面');
+    await this.compose(id, token, signal, build.pendingVisual ?? '继续完善当前界面');
+    const result = await this.acceptance(id, token, signal, 0);
+    if (!result.passed) throw new Error('界面调整后的交互验收未通过，可以修改或撤回；后端保持原样');
+    await this.reviewPresentation(id, token, signal);
+    this.change(id, value => { value.active = null; value.pendingVisual = undefined; value.phase = 'ready'; value.error = null; });
+  }
+  private async reviewPresentation(id: string, token: string, signal: AbortSignal) {
+    if (!this.ports.inspectPresentation || !this.store.require(id).design?.presentation) return;
+    const start = Date.now(), stepId = 'visual-review:' + token;
+    let deferred: string[] = [];
+    this.step(id, { id: stepId, agent: 'ui', action: 'review', label: '检查宽窄屏与实际画面', status: 'active' });
+    for (let round = 0; round < 2; round++) {
+      const build = this.store.require(id), inspected = await this.ports.inspectPresentation(build, signal);
+      this.current(id, token);
+      let issues = [...deferred, ...inspected.issues], repairs = inspected.structural ? [] : [...inspected.issues], status: NonNullable<AgentBuild['visualResult']>['status'] = 'unavailable';
+      if (this.ports.visionAvailable?.()) {
+        try {
+          const prompt = this.prompt('review');
+          const record = await this.withAgent(id, 'design', agent => agent.run({ role: 'designer', instruction: prompt.text,
+            ...this.mounted('review', prompt.version), contractRevision: build.design!.contract.revision, signal, images: inspected.images,
+            task: JSON.stringify(presentationReviewTask(build, inspected.images.map(image => image.label), inspected.issues)) }));
+          this.current(id, token); this.record(id, record);
+          const answer = acceptPresentationReview(record.output, build, inspected.images.map(image => image.label));
+          issues = [...new Set([...issues, ...answer.issues])]; repairs = [...repairs, ...answer.repairs]; status = 'reviewed';
+          deferred = [...new Set([...deferred, ...answer.issues.filter(issue => !answer.repairs.includes(issue))])];
+        } catch (error) { signal.throwIfAborted(); this.current(id, token); status = 'failed'; issues = [...issues, '视觉模型未完成复查：' + humanize(message(error))]; }
+      }
+      this.change(id, value => { value.visualResult = { structural: inspected.structural, status, issues, at: new Date().toISOString(), revision: token, elapsedMs: Date.now() - start }; });
+      if (round === 0 && repairs.length) {
+        const before = snapshot(this.store.require(id)), history = this.store.require(id).history;
+        try {
+          await this.compose(id, token, signal, '核对本轮评审建议，集中改善有证据且当前组件能表达的问题，保持功能与绑定。', true, { issues: repairs, images: this.ports.visionAvailable?.() ? inspected.images : undefined });
+          const checked = await this.acceptance(id, token, signal, 1);
+          if (!checked.passed) throw new Error('视觉修正后的交互验收未通过');
+        } catch (error) {
+          signal.throwIfAborted(); this.current(id, token); if (!inspected.structural) throw error;
+          const detail = '视觉建议未能应用，已保留通过验收的界面：' + humanize(message(error));
+          this.change(id, value => { Object.assign(value, before); value.history = history; value.visualResult!.issues = [...issues, detail]; });
+          this.step(id, { id: stepId, agent: 'ui', action: 'review', label: '保留可用界面，仍有视觉建议', status: 'done', detail }); return;
+        }
+        continue;
+      }
+      this.step(id, { id: stepId, agent: 'ui', action: 'review', label: !inspected.structural ? '界面结构仍有问题' : status === 'reviewed' ? (issues.length ? '视觉复查完成，仍有建议' : '视觉复查完成') : '功能已验证；视觉未复查', status: inspected.structural ? 'done' : 'failed', detail: issues.join('\n') || (status === 'unavailable' ? '当前所选模型未声明图片输入能力；宽窄屏结构检查通过' : undefined) });
+      if (!inspected.structural) throw new Error('界面结构检查未通过：' + inspected.issues.join('；'));
+      return;
+    }
+  }
   private async assemble(id: string, token: string, signal: AbortSignal) {
+    if (this.ports.presentation && !this.store.require(id).design!.presentation) await this.compose(id, token, signal, '按用户旅程设计整页的主次和空间');
     const design = this.store.require(id).design!;
     for (const part of design.parts) {
       signal.throwIfAborted(); this.current(id, token); if (this.store.require(id).nodes.some(node => node.id === part.id)) continue;
       const choices = pluginComponentChoices(part, design.contract), stepId = 'part:' + design.contract.revision + ':' + part.id;
       this.step(id, { id: stepId, agent: 'ui', action: 'select', label: '选择「' + part.purpose + '」的组件', target: part.id, status: 'active' });
-      let selection: NonNullable<AgentBuildStep['selection']> = { source: 'rule', candidates: choices.map(choice => choice.kind), choice: choices[0]!.kind };
+      const preference = design.presentation?.parts[part.id]?.kind;
+      let selection: NonNullable<AgentBuildStep['selection']> = { source: preference ? 'design' : 'rule', candidates: choices.map(choice => choice.kind), choice: preference ?? choices[0]!.kind };
       if (choices.length > 1 && this.ports.choose && this.ports.selectionAvailable?.()) {
         try {
-          const answer = await this.ports.choose({ key: 'builder-' + randomUUID(), instructions: '只从合法候选中选最适合当前用户旅程的一个组件，不改变属性或合同。', state: JSON.stringify({ title: design.title, journey: design.journey, part }), candidates: choices.map(choice => ({ key: choice.kind, description: choice.description })) });
+          const answer = await this.ports.choose({ key: 'builder-' + randomUUID(), instructions: '结合整页布局与相邻部件，从合法候选中选择组件。优先保留界面设计的偏好，不破坏主次与交互，不改变属性或合同。', state: JSON.stringify({ title: design.title, journey: design.journey, pages: design.contract.pages, presentation: design.presentation, neighbors: design.parts.filter(item => item.pageId === part.pageId), preference, part }), candidates: choices.map(choice => ({ key: choice.kind, description: choice.description })) });
           signal.throwIfAborted(); this.current(id, token);
           if (!answer.choice || !choices.some(choice => choice.kind === answer.choice)) throw new Error('Jev 没有返回合法组件');
           selection = { source: 'jev', candidates: choices.map(choice => choice.kind), choice: answer.choice, model: answer.model, elapsedMs: answer.elapsedMs, confidence: answer.confidence };
         } catch (error) {
-          signal.throwIfAborted(); this.current(id, token); this.change(id, value => { value.pendingPart = { id: part.id, candidates: choices.map(choice => choice.kind), reason: message(error) }; });
+          signal.throwIfAborted(); this.current(id, token);
+          if (preference) this.step(id, { id: stepId + ':fallback', agent: 'ui', action: 'note', label: 'Jev 暂不可用，沿用整页设计的选择', status: 'done', detail: message(error) });
+          else { this.change(id, value => { value.pendingPart = { id: part.id, candidates: choices.map(choice => choice.kind), reason: message(error) }; });
           this.step(id, { id: stepId, agent: 'ui', action: 'select', label: '等待选择界面组件', target: part.id, status: 'waiting', detail: message(error) }); return;
+          }
         }
       }
       this.current(id, token); this.change(id, value => { value.nodes = inDesignOrder(value.design, [...value.nodes, { ...part, kind: selection.choice as typeof choices[number]['kind'] }]); });
@@ -552,13 +596,12 @@ export class AgentBuilderWorkflow {
   }
   /** G7 in a real browser, on an empty preview; the preview is emptied again so the person starts clean. */
   private async acceptance(id: string, token: string, signal: AbortSignal, round: number) {
-    await this.resetPreview(id);
     const stepId = 'browser:' + token + ':' + round;
     this.step(id, { id: stepId, agent: 'host', action: 'verify', label: round ? '重新在真实界面执行验收' : '在真实界面执行验收', status: 'active' });
     let result: NonNullable<AgentBuild['browserResult']>;
     try { result = await this.ports.browserAcceptance(this.store.require(id), signal); }
     catch (error) { signal.throwIfAborted(); result = { passed: false, cases: [{ id: '*', passed: false, detail: message(error) }], at: new Date().toISOString() }; }
-    this.current(id, token); await this.resetPreview(id);
+    this.current(id, token);
     this.change(id, value => { value.browserResult = result; });
     this.step(id, { id: stepId, agent: 'host', action: 'verify', label: result.passed ? '界面验收通过' : '界面验收未通过', status: result.passed ? 'done' : 'failed', detail: JSON.stringify(result.cases) });
     return result;
@@ -577,7 +620,9 @@ export class AgentBuilderWorkflow {
       const display = displayProblem(test, failed.detail, this.store.require(id).design!.parts);
       if (display) {
         const kind = this.store.require(id).nodes.find(node => node.id === display.componentId)?.kind;
-        const request = display.type === 'form'
+        const request = display.type === 'choice'
+          ? '宿主在界面验收「' + test.description + '」中填写组件 ' + display.componentId + ' 时发现：' + display.reason + '。这是验收值或字段显示映射与已有枚举不一致，代码不能改变这些选项。请按字段已声明的原始值或实际显示文字修正 fill（或该字段的显示映射），保持被检查的行为、操作合同和代码不变。'
+          : display.type === 'form'
           ? '宿主在界面验收「' + test.description + '」中提交组件 ' + display.componentId + ' 时发现：' + display.reason + '。如果这个字段应该从其他组件带过来（prefill），确认来源命令的结果里有它（没有就加进那个命令的 output）；如果应该由用户填写，在验收里补上 fill 步骤。'
           : display.type === 'display'
           ? '宿主在界面验收「' + test.description + '」中发现：组件 ' + display.componentId + (kind ? '（现在显示为 ' + kind + '，显示 titleField、textField 和 columns 里的字段）' : '') + ' 读到的数据里已经有「' + display.expected.join('」「')
@@ -639,19 +684,23 @@ export class AgentBuilderWorkflow {
   }
   async action(id: string, body: Record<string, unknown>) {
     if (body.action === 'pause' || body.action === 'stop') return this.pause(id);
+    if (body.action === 'visual' && (!this.ports.presentation || !this.store.require(id).design || !this.store.require(id).checks.global?.passed)) throw new Error('功能接通并通过检查后才能单独调整界面');
     // A change request never goes stale: whatever the build is doing, it stops and takes the request in.
-    if ((body.action === 'message' || body.action === 'revise') && this.store.require(id).active) {
+    if ((body.action === 'message' || body.action === 'revise' || body.action === 'visual') && this.store.require(id).active) {
       if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 48_000) throw new Error('请输入具体修改意见');
       await this.pause(id); body = { ...body, revision: this.store.require(id).revision };
     }
     // Pictures arriving for the proposals change the draft but not the choice, so choosing only needs the candidate to exist.
-    const build = this.store.require(id); if ((body.revision !== build.revision && body.action !== 'message' && body.action !== 'revise' && !(body.action === 'choose' && build.phase === 'choosing')) || build.active) throw new Error('草稿已更新或正在构建，请先暂停并刷新');
+    const build = this.store.require(id); if ((body.revision !== build.revision && body.action !== 'message' && body.action !== 'revise' && body.action !== 'visual' && !(body.action === 'choose' && build.phase === 'choosing')) || build.active) throw new Error('草稿已更新或正在构建，请先暂停并刷新');
     if (body.action === 'choose') return this.choose(id, build.revision, String(body.candidateId));
-    if (body.action === 'resume') { this.launch(id, build.design ? 'build' : build.chosen && build.candidates.length ? 'detail' : 'design'); return this.store.require(id); }
-    if (body.action === 'message' || body.action === 'revise') {
+    if (body.action === 'resume') { this.launch(id, build.pendingVisual ? 'visual' : build.design ? 'build' : build.chosen && build.candidates.length ? 'detail' : 'design'); return this.store.require(id); }
+    if (body.action === 'message' || body.action === 'revise' || body.action === 'visual') {
       if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 48_000) throw new Error('请输入具体修改意见');
       this.change(id, value => { value.messages.push({ role: 'user', text: body.message as string }); value.clarificationAnswered ||= !!value.questions.length; value.questions = []; });
-      this.launch(id, build.design ? 'revise' : 'design'); return this.store.require(id);
+      if (body.action === 'visual') this.change(id, value => {
+        value.history.push(snapshot(value)); if (value.history.length > 20) value.history.shift(); value.pendingVisual = body.message as string;
+      });
+      this.launch(id, body.action === 'visual' ? 'visual' : build.design ? 'revise' : 'design'); return this.store.require(id);
     }
     if (body.action === 'enable-plugins' || body.action === 'skip-plugins') {
       const pending = build.pendingPlugins;
@@ -672,12 +721,13 @@ export class AgentBuilderWorkflow {
       this.change(id, value => { value.nodes = inDesignOrder(value.design, [...value.nodes, { ...part, kind: body.kind as AgentBuild['nodes'][number]['kind'] }]); value.pendingPart = undefined; });
       this.step(id, { id: 'part:' + build.design!.contract.revision + ':' + part.id, agent: 'ui', action: 'place', label: '使用你选择的组件', target: part.id, status: 'done', selection: { source: 'user', candidates: pending.candidates, choice: String(body.kind) } }); this.launch(id, 'build'); return this.store.require(id);
     }
-    if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw new Error('没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.connected = []; value.checks = {}; value.browserResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
+    if (body.action === 'undo' && build.design && build.history.at(-1)?.design?.contract.revision === build.design?.contract.revision) { const previous = build.history.at(-1)!; this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.error = null; value.phase = previous.browserResult?.passed ? 'ready' : 'paused'; }); return this.store.require(id); }
+    if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw new Error('没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
     if (body.action === 'remove') { this.store.remove(id, build.revision); await this.resetPreview(id); return null; }
     if (body.action === 'publish') {
       if (build.phase !== 'ready' || !build.browserResult?.passed || !build.checks.global?.passed || !build.design) throw new Error('全部功能和浏览器验收通过后才能发布');
       const latest = this.store.versions(id)[0];
-      if (latest && latest.design.contract.revision === build.design.contract.revision && JSON.stringify(latest.nodes) === JSON.stringify(build.nodes)) throw new Error('v' + latest.version + ' 已经是当前这一版，没有新的改动可以发布');
+      if (latest && latest.design.contract.revision === build.design.contract.revision && JSON.stringify(latest.nodes) === JSON.stringify(build.nodes) && JSON.stringify(latest.design.presentation) === JSON.stringify(build.design.presentation)) throw new Error('v' + latest.version + ' 已经是当前这一版，没有新的改动可以发布');
       const version = (this.store.versions(id)[0]?.version ?? 0) + 1, manifest: BuildManifest = { version: 1, pluginId: build.design.contract.pluginId, revision: build.design.contract.revision, effects: contractEffects(build.design) };
       const artifact = await this.ports.publish(build, manifest, build.checks.global.bundlePath!, version);
       const release: AgentRelease = { buildId: id, pluginId: build.design.contract.pluginId, version, design: build.design, nodes: build.nodes, manifest, permissions: manifest.effects, publishedAt: new Date().toISOString(), ...artifact }; this.store.release(release); return release;

@@ -8,9 +8,9 @@ import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
-import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
+import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
+import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform } from "./plugin-platform.js";
@@ -20,6 +20,7 @@ import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 
 export interface ProjectPluginPorts {
+  observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
   characterWorkspaces?: () => Promise<readonly ProjectWorkspaceRef[]>;
   characterSpawn?: (request: import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnRequest) => import("@molis-ai/molis-work-contracts/services/runtime-host").PtySpawnResult;
   store: LocalProjectDatabase;
@@ -40,6 +41,8 @@ export interface ProjectPluginState {
   platform: PluginPlatform | null;
   running: boolean;
   error?: string;
+  updateObservers?(): void;
+  stopObservers?(): void;
 }
 
 const started = new WeakMap<LocalProjectDatabase, Map<string, { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> }>>();
@@ -51,12 +54,14 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, boardId
   if (!opening) return;
   boards!.delete(boardId);
   const record = await opening.ready;
+  record.stopObservers?.();
   if (!record.platform) return;
   await stopProjectPlugins(record.platform);
 }
 
 async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   const failures: unknown[] = [];
+  await platform.closeCoordination();
   for (const pluginId of platform.supervisor.enabledPluginIds()) {
     const active = platform.supervisor.state(pluginId);
     platform.supervisor.revoke(pluginId);
@@ -75,10 +80,12 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["execution", "characterSpawn", "characterWorkspaces", "workspaces", "routePrefix"] as const) {
+    for (const key of ["execution", "characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
-    return existing.ready;
+    const state = await existing.ready;
+    state.updateObservers?.();
+    return state;
   }
   const configuration = { ...ports };
   const opening = startPlatform(configuration);
@@ -95,6 +102,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       board_id: ports.boardId,
       actor_id: ports.actorId,
       db: ports.store.db,
+      journal: ports.store,
       artifacts,
       ui: new UiHost(),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
@@ -143,7 +151,23 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } };
-    const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
+    const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
+      onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };
+    const operationListeners = new Set<(event: GitOperationUpdate) => void>();
+    let observer: ProjectPluginPorts["observeGitOperations"], unsubscribe: (() => void) | undefined, closed = false;
+    record.updateObservers = () => {
+      if (closed || observer === ports.observeGitOperations) return;
+      unsubscribe?.(); observer = ports.observeGitOperations;
+      unsubscribe = observer?.(event => { if (!closed) for (const listener of operationListeners) listener(event); });
+    };
+    record.stopObservers = () => { closed = true; unsubscribe?.(); operationListeners.clear(); };
+    record.updateObservers();
+    const gitPorts = {
+      observeOperationSettled(listener: (event: GitOperationUpdate) => void) {
+        operationListeners.add(listener); return () => { operationListeners.delete(listener); };
+      },
+      onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
+    };
     const entries: PluginSupervisorEntry[] = [
       {
         definition: createCharactersPlugin(charactersPorts),
@@ -171,9 +195,9 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-diff", "createDiffPlugin", factory => factory()),
       },
       {
-        definition: createGitPlugin(),
+        definition: createGitPlugin(gitPorts),
         releaseArtifact: nativePluginReleaseArtifact<typeof createGitPlugin>(
-          "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory()),
+          "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory(gitPorts)),
       },
       {
         definition: createTextStatsPlugin(),
@@ -186,6 +210,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.running = report.running.includes(CODING_PLUGIN_ID);
     record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
   } catch (error) {
+    record.stopObservers?.();
     if (record.platform) {
       try { await stopProjectPlugins(record.platform); }
       catch (cleanupError) { error = new AggregateError([error, cleanupError], "项目插件启动及清理失败"); }
@@ -208,4 +233,3 @@ function currentWorkspaceId(ports: ProjectPluginPorts): string | null {
   const workspaces = ports.workspaces ?? [];
   return workspaces.length === 1 ? workspaces[0]!.workspace_id : null;
 }
-

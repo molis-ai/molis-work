@@ -1,52 +1,40 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, mkdir } from "node:fs/promises";
+import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { cancelAgentProcess, isAgentProcessRunning, runAgentProcess } from "../modules/shelf/src/job-runner.js";
+import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 
-for (const format of ["json", "streaming-messages-json"] as const) {
-  test(`Shelf rejects invalid ${format} output through the job Promise`, async () => {
-    const home = await mkdtemp(join(tmpdir(), "shelf-invalid-result-"));
-    try {
-      const outputFile = join(home, "result.txt");
-      const input = { executable: process.execPath, workdir: home, outputFile, jobId: `invalid-${format}` };
-      await assert.rejects(runAgentProcess({ ...input, args: ["-e", "console.log('{}')", "--", "--output-format", format] }), { code: "shelf.job_failed" });
-      assert.equal(isAgentProcessRunning(input.jobId), false);
-      const value = format === "json" ? { text: "Recovered" } : { type: "result", subtype: "success", result: "Recovered" };
-      const result = await runAgentProcess({ ...input, args: ["-e", `console.log(${JSON.stringify(JSON.stringify(value))})`, "--", "--output-format", format] });
-      assert.equal(result.last_message, "Recovered");
-      assert.equal(await readFile(outputFile, "utf8"), "Recovered");
-    } finally { await rm(home, { recursive: true, force: true }); }
-  });
-}
-
-test("Shelf returns an unreadable output file as a rejected job", async () => {
-  const home = await mkdtemp(join(tmpdir(), "shelf-output-error-"));
+for (const mode of ["cancel", "abort", "revoke", "source", "model", "shortcut"] as const) test(`Shelf ${mode} refuses late model results and failure records`, async () => {
+  const home = await mkdtemp(join(tmpdir(), "shelf-late-"));
+  let enter!: () => void, release!: () => void;
+  const started = new Promise<void>(resolve => { enter = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let valid = true;
+  const controller = new AbortController();
+  const store = openShelfStore(home, { disabled: true }, {}, shelfTestAi(async () => {
+    enter(); await held; return { text: "Late output", execution: shelfTestReceipt };
+  }));
   try {
-    const outputFile = join(home, "directory"); await mkdir(outputFile);
-    await assert.rejects(runAgentProcess({ executable: process.execPath, args: ["-e", "console.log('done')"], workdir: home, outputFile, jobId: "unreadable" }), { code: "EISDIR" });
-    assert.equal(isAgentProcessRunning("unreadable"), false);
-  } finally { await rm(home, { recursive: true, force: true }); }
-});
-
-for (const mode of ["timeout", "cancel"] as const) test(`Shelf ${mode} finishes even when the CLI ignores SIGTERM`, { timeout: 10_000 }, async () => {
-  const home = await mkdtemp(join(tmpdir(), "shelf-stop-"));
-  const jobId = `stop-${mode}`, ready = join(home, "ready");
-  try {
-    const pending = runAgentProcess({ executable: process.execPath,
-      args: ["-e", `process.on('SIGTERM', () => {}); require('node:fs').writeFileSync(${JSON.stringify(ready)}, 'ready'); setInterval(() => {}, 100);`],
-      workdir: home, outputFile: join(home, "result.txt"), jobId, timeoutMs: mode === "timeout" ? 500 : 5000 });
-    const rejected = assert.rejects(pending, { code: mode === "timeout" ? "shelf.timeout" : "shelf.cancelled" });
-    if (mode === "cancel") {
-      for (let attempt = 0; attempt < 100; attempt++) {
-        if (await readFile(ready, "utf8").catch(() => "") === "ready") break;
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-      assert.equal(await readFile(ready, "utf8"), "ready");
-      assert.equal(cancelAgentProcess(jobId), true);
-    }
-    await rejected;
-    assert.equal(isAgentProcessRunning(jobId), false);
-  } finally { cancelAgentProcess(jobId); await rm(home, { recursive: true, force: true }); }
+    const item = store.admit({ filename: "材料.md", bytes: Buffer.from("原材料") });
+    store.saveSettings({ shortcuts: [{ id: "custom", name: "摘要", prompt: "总结", kinds: ["markdown"] }] });
+    const pending = store.runJob({ recipe: mode === "shortcut" ? "shortcut" : "summarize", item_id: item.item_id, shortcut_id: "custom" },
+      { signal: controller.signal, beforeEffect: async () => { if (!valid) throw new Error("revoked"); } });
+    const rejected = assert.rejects(pending);
+    await started;
+    const job = store.snapshot().running_jobs[0]!;
+    if (mode === "cancel") store.cancelJob(job.job_id);
+    if (mode === "abort") controller.abort(new Error("aborted"));
+    if (mode === "revoke") valid = false;
+    if (mode === "source") writeFileSync(join(store.root, item.relative_path), "changed");
+    if (mode === "model") store.saveSettings({ model_selection: { provider_id: "test", model_id: "other" } });
+    if (mode === "shortcut") store.saveSettings({ shortcuts: [{ id: "custom", name: "摘要", prompt: "已改变的任务", kinds: ["markdown"] }] });
+    release(); await rejected;
+    assert.equal(store.snapshot().results.length, 0);
+    const saved = JSON.parse(readFileSync(join(store.root, "catalog.json"), "utf8")).jobs[0];
+    assert.equal(saved.status, mode === "cancel" ? "cancelled" : "running"); assert.equal(saved.error, null);
+    assert.equal(store.snapshot().running_jobs.length, 0);
+  } finally { release(); await rm(home, { recursive: true, force: true }); }
 });

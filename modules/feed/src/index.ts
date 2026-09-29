@@ -917,4 +917,5 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { FeedReceiptStore } from "./contract-receipts.js";
 
-export { type FeedEvidenceContentStore, createFeedEvidenceContentStore } from "./content-store.js";
+// Compatibility names for the existing public Feed API; Storage owns the only implementation.
+export { type EvidenceContentStore as FeedEvidenceContentStore, createEvidenceContentStore as createFeedEvidenceContentStore } from "@molis-ai/molis-work-storage";

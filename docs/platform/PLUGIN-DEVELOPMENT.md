@@ -6,6 +6,8 @@ Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts`
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
+内置 build 的组合声明在 `apps/workbench/src/builtin-plugins.ts`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。目录、Workbench UI 注册/样式/客户端和历史 MCP 适配从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。维护旧 MCP 名称时同条目绑定 `legacyMcp` 与 Manifest 的 `mcp_exports`，不再修改 Host handler 白名单；新能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+
 ## 安装 Skill
 
 正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；那条链路只接 Runtime 工作协议 `goal-advance`。
@@ -24,6 +26,7 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 
 - 交付流程与每步做完的标准：`process.md`（按模型能力伸缩：能出图就给效果图，能读图就加截图走查）。
 - 质量线（所有插件）：`ui.md#质量线所有插件`——只用 UI 目录组件、三态、一处主操作、token 配色、不重复插件名大标题。视觉统一按 [DESIGN.md](../../DESIGN.md) 的 Soft Workbench：插件画在同一张连续白色工作面里，不画自己的外框卡片、不带身份色；石墨主操作、铜色焦点与链接、字重 400/500/600；全局入口在底栏（Dock 与插件切换器），`navigator` Slot id 保留，没有全局侧栏。
+- 生成界面：首次生成先运行体验设计，输入所选方案与组件能力，输出可重组的部件草图和代表性使用场景；主线 detail 将它们落成绑定与验收后才冻结。`generated-experience.md` 管任务动线、信息层级与体验标准；`generated-ui.md` 管冻结合同后的整页呈现。UI 与评审收到宿主的交互词表：Sheet/Dialog 的 title 是入口及面板名称，submitLabel 是内部提交；行内动作先选中所点记录再执行；成功反馈会清除（包括减少动效模式）。有全文阅读路径的组合目录使用两行摘要，完整正文不裁切。界面纯修订不改变绑定或后端。
 - 能力：`capabilities.md`——统一动作服务是唯一目录；动作写清 `effect`（read / write / irreversible），带 `agent` 受众的可逆动作自动对生成插件开放，`plugin: false` 可退出。
 
 生成插件从能力到安装：
@@ -32,8 +35,18 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 - 用到未启用的插件时，构建停在决定卡片：启用后接着构建；不启用，就把"不要用它"交回主线设计修订。
 - 试用与验收时，别处的写入与读取都由替身按输出 schema 代答：列表里有一条文字为「示例」的记录。
 - 安装授权分"它自己的数据 / 会读取 / 会替你改动"列出；不可撤销的动作不开放。
-- 安装后，生成插件的每项功能登记为统一目录里的动作：提供方是 `plugin:<插件 id>`，能力 id 是 `generated.<构建号前 8 位>.<功能 id>`，受众为用户、agent、MCP 和插件。停用或卸载时撤回，升级时换成新版本的。调用在插件自己的沙箱里运行，身份是插件本身。
-- 平台能力里有到点提醒（`reminders.*`）和定时执行（`schedules.*`）：到点在沙箱里运行插件自己的功能，结果可以进收件箱；项目还没打开时，打开后补跑。
+- 安装后，生成插件的每项功能登记为统一目录里的动作：提供方是 `plugin:<插件 id>`，能力 id 是 `generated.<构建号前 8 位>.<功能 id>`，受众为用户、agent、workflow、MCP 和插件。停用或卸载时撤回，升级时换成新版本的。调用在插件自己的沙箱里运行，身份是插件本身。
+- 公开操作的事实来源是已发布 `SandboxContract.operations`，安装 Host 派生注册；合成 Runtime Manifest 负责执行容器身份，不重复保存操作表。不要修改同版本 Manifest 指纹或替换旧 provider 来实现形式上的统一。发现与调用准备会按当前依赖目录刷新 `execution.cost`，包含生成插件之间的传递依赖；本地操作为 none，声明的收费依赖为 metered，网络、缺失或循环依赖无法确认费用时为 unknown。费用变化不扩大授权，只替换相关动作的注册；普通查询目录不撤销在途执行。
+- 同一安装 owner 复用每个已发布版本的唯一执行定义，升级后回滚使用原定义；不能为绕过冲突而放宽 Runtime 的同版本校验。版本切换先核对批准覆盖发布所需权限，沙箱只持有该发布所需集合；卸载清理定义，重新安装创建新实例。
+- 生成插件命名提示词按可信项目/安装上下文选择当前发布声明，再应用 Home/owner/prompt 用户覆盖；创作台实时试运行使用构建声明的正文。未知 id 在当前版本中拒绝，不能借其他项目或已安装版补全。设置页聚合多安装登记，优先展示启用安装中的最新 prompt 默认；各次执行仍保留自己的默认版本。停用/升级/卸载只更新该安装登记，用户修改在重装后继续有效。
+- 生成式动作声明 `concurrent`，由各自沙箱的有界队列串行执行；不能占住项目动作队列再反向调用平台能力。Host 通过独立的 `execution` 参数把原调用的 signal/beforeEffect 传到 route、Runner、Broker 和服务适配器。它不是 JSON 字段或 actor 名称授权；页面仍只调用声明的组件绑定。存储 CAS、嵌套 Action、DNS/密钥解析后的网络派出均须复查。排队取消不影响别人的执行，执行中取消终止该通道；结果可能已产生的调用不自动重试。任务自己的持久授权由任务 owner 重建，不能保存当前回调供下次运行。
+- 安装后的每次 operation 使用当前依赖目录的版本与执行声明，按该操作的实际依赖计算通道和超时。query 在运行时也不能调用 metered 或写入能力，避免依赖升级后页面刷新产生收费/写入。等待中提供方、版本、可用性或策略改变，原调用停止提交，新调用重新读取；不要求重启安装来刷新策略。未知费用仍是 unknown。
+- Host 服务或嵌套 Action 超时后，外部结果可能未知。可信 Host 将 unknown 保留到沙箱调用、安装 HTTP、公开 Action（`actions.outcome_unknown`）及 Schedule 恢复记录；插件 catch 错误或返回替代值不能清除该状态，也不能继续写入。worker 不能伪造这个标记；用户下一次明确调用使用独立状态，旧操作不自动重放。
+- 到点提醒（`reminders.*`）由 Schedule 在公共目录提供，按项目和安装实例隔离；到点将文字放入收件箱，不运行插件代码，也不依赖打开创作台。定时执行（`schedules.*`）同样由 Schedule 保存计划和每次执行记录，实际 operation 由当前安装的沙箱执行，结果可进收件箱。Host 在项目恢复和发现时登记执行入口，关闭 Studio 不影响安装运行；登记本身不清空队列或补跑，真正派出必须取得新的 Scheduler lease。
+- `schedules.add` 的插件/安装身份来自调用上下文，每个安装世代最多 20 个未完成计划；daily/weekly 保持固定 24 小时/7 天。尚未派出的 pending 可以等待执行入口，running 中断后的未知结果停止后续排期，不能当普通失败自动重放。输入、计划、结果与 Inbox 的事务规则属于 Schedule；Scheduler 只管排期和 lease，插件仍拥有实际业务实现。
+- 旧记录和整个 pending 队列一次性迁入 Schedule，保留任务、job、时间、输入、链接和收据；归属不明的旧任务先暂停，丢失定义的引用留作不可执行历史。管理者先通过 `schedule.tasks.list` 或页面核对，再用 `schedule.operations.recover` 明确恢复、重试或跳过未知结果。Action 拒绝过期的任务/历史 revision 与安装世代/版本，声明 `plugin: false`，新插件不能借此继承旧任务。重试可能重复外部副作用，决定及原说明保留；确认只调整计划，不在管理请求中运行插件代码。
+- `installed-plugin-host.ts` 复用原发布版本、批准记录、Manifest 指纹和 Action id，恢复已安装插件不初始化创作 Workflow。正常 Host 关闭使用 Runtime.stop 的 `preserve_enabled`，保留 startable 的 installed 状态；显式停用留下 disabled，重启不自动启用。批准或发布记录缺失会报告恢复失败，不能改用 release.permissions 自动补权；缺少批准记录时可卸载并保留数据，再重新确认安装。
+- 通用提醒的提供方是 Host 装配的 `schedule.reminders`，不要求启用可选的 Schedule 对话页面；调用仍检查真实安装身份与原能力授权。不要把可发现误当成已授权。
 - 联网（`networkDomains`）：只能 https、访问批准的确切域名、公网地址；安装前只读，写入用替身。本机代理用 fake-IP 模式时，域名会解析到 198.18.0.0/15；按用户决定，这一段放行（插件只能按批准的域名访问，不能直接写地址）。
 - 和模型的连接中断（fetch failed、terminated 等）时，主线设计与代码 Agent 都会自动重问两次，不计入修复轮数；已经写下的文件保留。
 - 设计答卷里的常见笔误由宿主整理并在构建记录里写明：方案草图里各页重复的组件名按页改名；类型提示里带空格（`string(YYYY-MM-DD HH:mm)`）照常识别；读记录列表却写了 `{{字段}}` 的文字块，改为显示刚执行的命令结果。命令输入里的幂等键、请求号从表单去掉，由代码生成；同页刚得到的一句文字结果，预填到下一张表单对应的文字字段。写在列表 `actions` 里的按钮移到页面上和列表并列；例子里只写了字段名或类型名的期望值（`"loggedAt": "loggedAt"`），只检查字段存在。模型长时间连不上时，重问三次后构建停下并说明原因，不占修复轮数。完整设计里的组件名仍须唯一，由主线设计修正。
@@ -104,6 +117,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 `compatible_from_versions` 表示新实现能直接使用该版本的私人数据和既有 grant。为同一版本修正文档时，也可精确声明兼容当前已安装版本；这只允许插件继续运行，不改变已保存的 Manifest 指纹，也不会产生市场升级候选。重新打开项目可以用已声明兼容的新实现恢复旧安装，但不会改写已安装版本；市场会列出更高版本的升级候选，只有用户点「升级」才提交新版本。
 
 Runtime 管理的首方 Native 工厂会保存为单文件发行物，写入当前项目已有 SQLite 的 `plugin_runtime_release_artifacts` 表，身份由插件 ID、发布者签名、版本和 Manifest 指纹确定。Host 重启时，不兼容的新版候选不会顶替旧实现；Runtime 会加载已安装版本的发行物，或加载一份明确兼容该已安装版本的留存实现。兼容实现恢复时安装记录仍保持原版本。首次安装、明确兼容的新版实现首次运行，以及用户点击「升级」前都会归档对应代码；保存的是可执行代码，不属于 `storage:private`，也不会创建独立代码目录。
+
+`install_id` 是稳定的数据命名空间，重装可沿用保留的数据；持久任务还必须绑定 Runtime 的 `installation_generation`。后者在确认重装时更新，重启、停用/启用和版本升级保持不变。Host 通过 `pluginInstallationGeneration(record)` 读取当前或历史兼容身份，不从任务输入接受安装世代。Schedule 提醒已经按此规则隔离，历史归属不能证明的记录保留并暂停。
 
 `migratable_from_versions` 表示发布者允许从列出的旧版本手动升级，但不能据此直接启动新实现。目标 `PluginDefinition` 必须实现 `validateUpgrade({ from, context })`：在切换前只读检查 `storage:private` 数据能否被目标实现处理。校验上下文只提供只读的 `get` 和必要身份，不暴露其他 Host 服务。Host 不执行数据迁移；预检通过后，目标版本按现有格式直接使用这些数据。需要转换格式的插件目前不受此协议支持。验证失败时旧安装记录、grant 与私有数据保持原样。
 
@@ -196,6 +211,8 @@ Host 侧改哪里、调用链怎么走，见 [CLI 与开发 · 对外 MCP](../cl
 
 ## 事件去向的动作名单
 
+Runtime 插件的持久事件总线与这里的判断场景不同。订阅声明和权限属于安装实例；处理器使用 `delivery.signal/beforeEffect()`，等待后写入前复查，不保存发布者的临时调用上下文。游标绑定安装世代，旧发布 client 停止后失效；重装不重放旧工作，处理中断的未知结果隔离而不自动重试。事件处理与外部副作用不能凭游标宣称 exactly-once。具体协议见 [插件平台](PLUGIN-PLATFORM.md) 与 [事件 Skill](../../skills/molis-plugin-dev/elements.md#插件事件总线不是判断场景)。
+
 Functions「用在哪」里，首页 / Inbox / Feed 是事件去向：判断本身不改数据，也不在现场长出新按钮。默认建议人点击已有处置。Feed 来源规则另有用户显式配置的 `admission: "inbox"`：Feed 用例消费判断后加入 Inbox（失败或不确定进入待复核），不改变 Functions 的只判断职责，也不授权其他自动动作。旧规则默认 `suggest`。Agent 去向才放「能调、但不长在这张卡片上」的动作（含 MCP 写工具）。
 
 Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等收据归 Pages，Attention 仍归 Inbox 对应 Module。Workbench 助手复用这些 HTTP 动作；未新增对外 MCP 或 Native 事件总线。标签对象恢复与调用约定见 [Host 接线](../../skills/molis-plugin-dev/host.md#信息整理的-host-组合)。
@@ -225,3 +242,31 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 ## 异步动作与原调用授权
 
 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后调用 dispatcher 提供的 `caller.beforeEffect()`，再按原对象或配置版本提交。发起嵌套动作/场景时用 `retainActionAuthority(caller, originReference, caller.beforeEffect)` 保留外层执行检查；仅复查权限字符串不能识别同名提供方已被替换。来源同步另持有按数据库、项目和来源隔离的活动租约。失去授权时保留此前的未确认记录用于恢复，不补写失败记录或伪造成功。
+
+提供方在 `action.execution` 声明执行事实：`timeout_ms` 是处理器开始执行后的等待上限，`cost` 为 `none` / `metered` / `unknown`，`max_calls_per_minute` 是同一 actor、项目、安装实例滚动一分钟内的接受次数。未声明费用保持 unknown；未声明时限/频率不自动加限。Kernel 对声明的时限与频率统一执行，切换用户、Agent、Workflow、MCP 或插件入口不能重置同一身份的预算。限额是当前注册实例的本机保护，不是跨进程计费账本；重启或重新注册会重置计数。
+
+例如调用收费文字模型的能力声明 `execution: { timeout_ms: 120000, cost: "metered", max_calls_per_minute: 20 }`。声明不代替 `scheduling: "concurrent"`、权限或模型服务自己的预算。超时停止本机等待并中止传给处理器的 signal，外部副作用可能已经发生，不自动重试；每次异步等待后仍须调用 `beforeEffect()` 才能提交。同步阻塞代码无法靠 JavaScript 定时器抢占。Agent 可以使用更严格的入口时限；生成插件的 sandbox 依据共同目录选择时限和慢操作通道，费用未知不能显示成免费。老生成物只转换历史输入输出，模型和提醒执行仍走当前 ActionService。
+
+生成式公开动作的费用是可能收费的声明，不是实际用量或预算。其沙箱 operation 时限从排队头开始，lane 频率按安装计数；公共 Action 时限从处理器开始、频率按调用者与安装计数。两者含义不同，不能直接复制沙箱限额到公共动作。实际依赖仍逐次受提供方的授权、时限和频率约束。
+
+## 单次 AI 能力与 Host 取消
+
+Coding 草稿、Cognia 知识生成等工具为空的调用使用 Home 共享推理入口；插件拥有提示词和领域校验，Host 拥有模型/凭据绑定。需要结构结果、执行引用、进度或 typed usage 时使用 `hostTextGeneration`，标准接线见 [Prologue AI 手册](PROLOGUE-AI.md) 与 [开发 Skill](../../skills/molis-prologue-ai/SKILL.md)。
+
+Host Capability 可选调用参数 `signal` 由 Plugin SDK 传递给 Host invocation；取消只收紧本次操作，不授予任何身份/权限。`before_effect` 与原调用持续授权检查仍保留，不能用成功收到模型文字代替提交前检查。
+
+Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstreamReady(inputs, context)` 接到完整固定版本；异步读取后、更新投影前调用 `context.beforeEffect()`，并把 `context.signal` 传给可取消操作。Host 从领域已提交 journal 发现失效/归档并重新计算已有输入图；不可用版本不再投递，旧实例和旧输入的晚结果拒绝提交。新实例重新读取当前输入，不能把重启通知当成再次执行外部操作的授权。
+
+Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Files/Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。
+
+公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。Jelly 和 onboarding 已共用提取口，媒体模型下载仍需显式选择；生成摘要继续走 Prologue。
+
+Shelf 的 PDF 预览与文字提取、OCR 同样走此端口。语言选项属于提取请求，逐行置信度来自 `pages[].lines`，不以页平均值代替；“待确认”、来源标题和不完整提示由业务组织。多选逐项处理。标准输入仍限 25 MiB，Shelf 由可信 Host 明确采用 32 MiB，不改变其他上传端限额。原调用撤权、取消或输入 hash 改变后不写成果或失败成果。
+
+显式网页读取用同一合同的 `MaterialWebsiteReader`：Host 限制 HTTP(S)、跳转、总时限与解压后字节数，复用 HTML 提取；传递 signal / beforeDispatch，业务提交前仍需 beforeEffect 和来源版本检查。Shelf 只组织网页材料、链接与失败提示，Artifacts 只组织导入文档，不得互相导入解析实现。普通抓取失败可以按产品约定保留链接，取消或撤权不能退化成“成功保存链接”。
+
+HTML 与 PDF/文档解析复用 Host 的可终止 worker 生命周期；不能只给网络阶段设定时器，却让畸形 HTML 在主线程无限解析。Artifacts 的异步 readHtml 保留原 HTML 与既有正文限额，解析后复核 beforeSave 和 signal；不要套用网页的部分正文策略。
+
+Pages 的 prepareImport 是 Host 注入端口：公共 MaterialDocumentReader 负责 UTF 编码、ZIP/DOCX 和容量限制，插件的 preparePagesImport 只将公共正文转换为编辑器文档。预览和提交共用装配，解析等待后复核权限与取消，再沿原事务提交；批次损坏不能导致部分写入。
+
+Builder 的截图评审把 presentation、design、host、unverified 问题分开：只有截图/目标有效、呈现属性受支持的意见进入有限自动修订，其余显示为未自动修改。合同示例的本地空存储规则同时检查 output 与 includes/outputIncludes/expect，矛盾在设计阶段返回，不交给代码 Agent 制造假记录。

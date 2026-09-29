@@ -148,7 +148,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <p class="shelf-run-line" data-shelf-run-line hidden>${p.text("正在从副本抽取可选中文字…")}</p>
       </div>
       <div class="shelf-bar-wrap">
-        <p class="shelf-bar-hint" data-shelf-bar-hint hidden>${p.text("总结、翻译等动作需要本机 Agent。图片与 PDF 可直接提取文字。")}</p>
+        <p class="shelf-bar-hint" data-shelf-bar-hint hidden>${p.text("总结、翻译等动作需要在设置中配置 AI 模型。图片与 PDF 可在本机提取文字。")}</p>
         <div class="shelf-bar" data-shelf-bar></div>
       </div>
       ${renderDropOverlay(p)}

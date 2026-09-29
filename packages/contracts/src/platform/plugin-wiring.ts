@@ -159,7 +159,7 @@ export interface PluginWiringView {
 export type PluginInputStatus =
   | { status: "ready"; ports: string[] }
   | { status: "inconsistent"; ports: string[]; message: string }
-  | { status: "missing"; missing: string[] };
+  | { status: "missing"; missing: string[]; reason?: PluginUpstreamUnavailableReason };
 
 export type PluginUpstreamUnavailableCode =
   | "input_inconsistent"
@@ -181,6 +181,13 @@ export interface PluginUpstreamUnavailableReason {
  */
 export interface PluginUpstreamReadyInputs {
   readonly [port: string]: ArtifactVersionRecord;
+}
+
+/** Input notifications refresh projections; they are not durable business commands. */
+export interface PluginInputDeliveryContext {
+  signal: AbortSignal;
+  /** Recheck the current installation and fixed inputs after every async wait. */
+  beforeEffect(): void;
 }
 
 export interface PluginInputsClient {

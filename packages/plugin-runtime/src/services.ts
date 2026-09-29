@@ -194,7 +194,8 @@ export function createPluginCapabilityClient(
       }
       // Caller authority is added by the trusted executor around this port.
       // A plugin may supply a stricter effect check, never its own identity.
-      return await port.invoke(capability, input, { ...(options?.before_effect ? { before_effect: options.before_effect } : {}), consumer: "plugin" });
+      return await port.invoke(capability, input, { ...(options?.before_effect ? { before_effect: options.before_effect } : {}),
+        ...(options?.signal ? { signal: options.signal } : {}), consumer: "plugin" });
     },
   };
 }

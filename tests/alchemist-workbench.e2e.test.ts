@@ -1,3 +1,4 @@
+import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
@@ -12,7 +13,7 @@ async function seed(home: string, project: string) {
   await mkdir(directory, {recursive:true});
   const runtime = createLocalRuntime({databasePath:join(directory,"studio.sqlite"),pulseSourceMode:"fixture",ai:{
     listModels:async()=>[{id:"test/model",label:"UI 测试模型",runtimeLabel:"显式测试",costVisibility:"unobservable"}],
-    generate:async input=>({runtimeLabel:"显式测试",text:JSON.stringify(input.jsonSchema.properties?.summary?{summary:"有有限支持，仍需访谈。"}:input.jsonSchema.properties?.judgments?{judgments: ((input.jsonSchema.properties.judgments as any).items.properties.label.enum as string[]).map(label=>({label,status:"tentative",conclusion:"需要直接验证",rationale:"仅有一个来源",supportingEvidenceIndexes:[0],counterEvidenceIndexes:[],unknowns:["持续使用"],changeConditions:["独立访谈"]}))}:{understanding:{summary:"保留访谈与假设",assumptions:["愿意记录"],unknowns:["使用频率"],concreteness:"direction"},cards:["证据墙","访谈时间线"].map(title=>({title,highlight:"追溯原句与判断",targetUser:"独立开发者",scenario:"访谈结束",problem:"原句散落",mechanism:"关联原句和假设",valueProposition:"可追溯",whyItMayWork:"已有记录习惯",assumptions:["愿意标注"],unknowns:["付费"],mvp:{inScope:["本地文本存储"],outOfScope:["团队协作"]}})),noCardsReason:null})}),
+    generate:async input=>alchemistOutput(JSON.stringify(input.jsonSchema.properties?.summary?{summary:"有有限支持，仍需访谈。"}:input.jsonSchema.properties?.judgments?{judgments: ((input.jsonSchema.properties.judgments as any).items.properties.label.enum as string[]).map(label=>({label,status:"tentative",conclusion:"需要直接验证",rationale:"仅有一个来源",supportingEvidenceIndexes:[0],counterEvidenceIndexes:[],unknowns:["持续使用"],changeConditions:["独立访谈"]}))}:{understanding:{summary:"保留访谈与假设",assumptions:["愿意记录"],unknowns:["使用频率"],concreteness:"direction"},cards:["证据墙","访谈时间线"].map(title=>({title,highlight:"追溯原句与判断",targetUser:"独立开发者",scenario:"访谈结束",problem:"原句散落",mechanism:"关联原句和假设",valueProposition:"可追溯",whyItMayWork:"已有记录习惯",assumptions:["愿意标注"],unknowns:["付费"],mvp:{inScope:["本地文本存储"],outOfScope:["团队协作"]}})),noCardsReason:null}), "显式测试"),
     search:async()=>[{url:"https://docs.example.org/evidence",title:"测试来源",excerpt:"可以保存访谈原句，付费意愿未知。"}],
   }});
   const api=async(path:string,body?:unknown)=>{const r=await runtime.app.request("http://localhost/api/v1"+path,{method:body===undefined?"GET":"POST",...(body===undefined?{}:{headers:{"content-type":"application/json"},body:JSON.stringify(body)})});const v=await r.json() as any;assert.ok(r.ok,JSON.stringify(v));return v;};

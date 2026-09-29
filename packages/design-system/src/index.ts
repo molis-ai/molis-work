@@ -65,3 +65,5 @@ export * from "./primitives/index.js";
 export { renderPluginStageShell } from "./plugin-stage-shell.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';
+export * from './plugin-presentation.js';
+export { renderPluginPresentationExample } from './plugin-presentation-example.js';

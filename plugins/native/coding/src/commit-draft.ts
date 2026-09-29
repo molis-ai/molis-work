@@ -7,15 +7,6 @@ import { fileDiff } from "./materials.js";
 export const COMMIT_DRAFT_ROUNDS = 6;
 const LIMIT = 58_000, PER_FILE = 4_000;
 
-/** How the model writes the message. The person still reads and edits it before the reviewed commit. */
-export const COMMIT_DRAFT_INSTRUCTIONS = [
-  "你为一组代码改动写 git 提交说明。",
-  "第一行是标题：不超过 60 个字符，概括这次提交做了什么；用和材料相同的语言。",
-  "空一行后写 2–6 条要点，每条一行、以「- 」开头，说明主要改动和原因。",
-  "只写材料里真实出现的改动，不编造；不要写「全部完成」「已验证」这类套话，不复述过程，不列出你没看到的测试结果。",
-  "只返回提交说明本身，不要代码围栏，不要其他文字。",
-].join("\n");
-
 /**
  * What the model reads: the plan the rounds served, then each round that changed files — the person's request, the
  * round's conclusion, and the applied diff of each file. The oldest rounds are dropped first when it runs long.

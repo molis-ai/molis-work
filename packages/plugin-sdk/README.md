@@ -34,7 +34,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 SDK 不包含 Runtime 或业务 Store。Manifest 解析委托 Contracts；授权的实际执行由 Host/Runtime 控制。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。作者可声明 `mcp_exports` 并向 Host 贡献工具；公开名和开关留在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`。其他运行依赖见 [package.json](package.json)。
 
 可从[本地 Plugin 示例](../../examples/plugin-sample/README.md)开始：示例使用 context.services 存取私人状态、发布 Artifact 并注册 UI，完整授权和开发步骤见开发指南。
 
@@ -134,15 +134,16 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 - 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口。
 - 不负责：Host 内部实现、自动发布的市场。
 - 公开入口：`@molis-ai/molis-work-plugin-sdk`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-kernel`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 项目、用户、生产者签名与安装身份由 Host 绑定，参数不能覆盖；停止或崩溃后的旧客户端不能继续操作。
+  - `ActionExecutionPolicy` 描述提供方的时限、费用与频率；在 `action.execution` 声明，由 Kernel 执行，插件内不另写同一限额。
   - 动作适配只转换参数与结果，执行仍经同一 Kernel 的 schema、项目策略与权限；缺少动作服务时不直调业务兜底。
   - 处理器在外部等待之后、保存之前调用 `beforeWrite()`。
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`、`defineSearchQueryAction`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -196,6 +197,9 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 判断编辑器的 Agent 用途直接读取当前授权目录中带 `agent` 或 `mcp` audience 的能力，无须声明旧 MCP 名称或增加作者白名单。能力引用同时包含 ID、版本和提供方；Choice/Noul 的可选结果映射保存该引用，调用返回 `recommended_actions`。调用者仍须根据业务输入合同构造参数，再通过共同服务单独调用。推荐不执行、不授权；发布和判断前后检查来源与授权，失效引用保留。旧连接凭据本身不代表可调用能力，只有正式注册动作才进入目录。
 
 `defineAction` 的处理器接收 `ActionExecutionContext`。等待模型、网络或其他异步工作后，写入前调用 `await context.beforeEffect()`，再验证原对象版本。该检查由 dispatcher 创建，不能由业务输入提供；它覆盖取消、注册替换、生命周期与实时授权。嵌套调用保留外层检查时使用合同层 `retainActionAuthority(context, originReference, context.beforeEffect)`。
+
+长任务可使用 `createExecutionLifetime({ signal, timeout, monitor })`。`monitor.check()` 必须同步，检查失败抛出原错误以取消本次执行。将返回的 signal 交给外部等待，返回后 `assertActive()`，再执行所属插件的事务/版本/授权检查；finally 调用 `dispose()`。取消或 shutdown 不应误记成普通业务失败。这个工具不替代幂等请求、持久 lease、执行身份和未知副作用的恢复决策。
+
 ### 展示动作结果
 
 `action.result_view` 是可选的提供方声明；不改变原业务返回值或授权。`summary` 说明实际返回的业务事实，`title_pointer` / `text_pointer` 用 JSON Pointer 从该次原输出选取标量，不运行代码。可选 `link` 的 `href_template` 必须是站内绝对路径，`{project_id}` 来自原调用上下文，`{/item/id}` 等值来自原输出并逐个 URL 编码。不要把密钥、内部路径或大段调试数据选成默认摘要。

@@ -1,4 +1,4 @@
-import type { ActionCallContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ModelApiFormat, ModelRecord } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { defineJellyAction as define } from "./command-actions.js";
 import type { JellyMaterialExtraction } from "./material.js";
@@ -31,14 +31,14 @@ export const jellyServiceActions = {
   saveModelSettings: define<JellyModelInput, JellyModelSettings>("model.configure", "设置 Jelly 文字模型", "选择已有模型连接或修改 Jelly 专用模型配置，沿用统一连接和凭据存储", "command", s.object({ provider_id: s.text, model_id: s.text, base_url: s.text, api_format: apiFormat, connection_id: s.text }, []), settings, ["jelly:settings"]),
 };
 export interface JellyServicePorts {
-  material(input: Upload, caller: ActionCallContext): Promise<JellyMaterialExtraction>;
-  reread(input: Stored, caller: ActionCallContext): Promise<JellyMaterialExtraction>;
-  source(input: Source, caller: ActionCallContext): Promise<JellyMaterialExtraction>;
+  material(input: Upload, caller: ActionExecutionContext): Promise<JellyMaterialExtraction>;
+  reread(input: Stored, caller: ActionExecutionContext): Promise<JellyMaterialExtraction>;
+  source(input: Source, caller: ActionExecutionContext): Promise<JellyMaterialExtraction>;
   modelSettings(): JellyModelSettings;
   saveModelSettings(input: JellyModelInput): JellyModelSettings;
 }
 export function createJellyServiceHandlers(ports: JellyServicePorts): ActionHandlerBinding[] {
   return Object.entries(jellyServiceActions).map(([key, definition]) => ({ capability_id: definition.capability_id, version: definition.version,
-    handle: (caller, input) => { caller.signal?.throwIfAborted(); return (ports[key as keyof JellyServicePorts] as (input: unknown, caller: ActionCallContext) => unknown)(input, caller); },
+    handle: (caller, input) => { caller.signal?.throwIfAborted(); return (ports[key as keyof JellyServicePorts] as (input: unknown, caller: ActionExecutionContext) => unknown)(input, caller); },
   }));
 }

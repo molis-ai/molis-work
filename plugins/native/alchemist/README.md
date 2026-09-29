@@ -10,6 +10,8 @@
 
 在 Molis Work「设置 → 模型」启用供应商、模型并保存凭据，然后从底栏的插件切换（或 Dock）打开炼金术士。在方向详情比较候选，保留后继续研究和决策；集合筛选切换已保留想法、市场脉搏和决策记录。所有生成和研究判断经宿主 Prologue；插件设置可选固定模型或使用默认模型，并设置每个 Lens 的调用上限。未配置模型时保留输入并提示设置，不自动生成演示卡。
 
+模型目录复用 Host 元数据查询，发现时不解密凭据；实际生成通过共享 `hostTextGeneration` 绑定同一 Home Runtime。宿主管理模型配置失效、取消、时限和授权复查；Host 使用 SDK 公共 JSON 解码并返回可区分的语法结果，插件继续拥有研究提示词、Zod 领域验证和显式预算内的一次格式纠正。
+
 公开研究通过宿主 Search Evidence Layer 收集实际 URL 和摘要；市场脉搏保留 Toolify、Watcha、GitHub 来源。单次 Lens 的本地计划不消费 AI 调用，执行阶段的搜索、交叉判断和综合计入确认的调用预算。一次搜索计为一个业务调用，包含一次搜索供应商请求和最多三个页面的提取；不是底层 HTTP 请求数。预算不足会产生部分报告，不能作为完整双 Lens 决策依据。供应商费用不可观测，不把调用数换算为金额。
 
 数据按项目存于 `{home}/alchemist/projects/<encoded projectId>/studio.sqlite`。安全检查点可恢复；外部请求已发出但无法确认结果时，任务标记中断，由用户重新研究，避免后台重复消费。停止会中断当前请求并阻止后续阶段。已完成的报告可重新研究，过程中保留上一份报告；新任务失败或取消不会显示成研究完成。旧演示库 `{home}/alchemist/alchemist.db` 原样保留，可从设置中的历史入口只读导出。
@@ -22,17 +24,21 @@ Studio 的 41 项业务已声明为 `alchemistActions`，输入输出验证与�
 
 构建：`pnpm --filter @molis-ai/molis-work-plugin-alchemist build`；业务测试：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。宿主、恢复和浏览器回归见根目录 `tests/alchemist-*.test.ts`。范围与验收记录见 `specs/alchemist-plugin/spec.md`。
 
+AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMIST_INSTRUCTIONS`；领域与 Host 端口使用 `InstructedPrompt`，研究维度和任务材料单独传递。Host 在授权复查后使用当前 Home 的用户覆盖；格式纠正仍需显式预算、最多一次，SDK 负责 JSON 解码，插件核对领域语义。回归包含 `tests/prompt-registration.test.ts` 和 `tests/alchemist-structured-output.test.ts`。
+
 ## 开发要求
 
 - 负责：按项目隔离的 Alchemist 工作室：方向探索、有证据的研究与创始人决策。
 - 不负责：宿主模型凭据、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-alchemist`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 未配置模型时保留输入并提示，不生成演示卡。
   - 预算不足产生部分报告，不能当作完整的双 Lens 依据；费用不可观测时不把调用数换算成金额。
   - 执行中的任务持续续租；任务状态与事件同事务保存。
-  - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送声明 `scheduling: "concurrent"`。
+  - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts`
 - 相关手册：[specs/alchemist-plugin/spec.md](../../../specs/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+LocalWorker 经 Plugin SDK 共用执行生命周期：本地关闭、取消和失租都禁止迟到的业务提交、检查点和终态写入，并停止续租。关闭后的未决外部调用保留原检查点，恢复仍由 Alchemist 判断，不自动重复模型请求。

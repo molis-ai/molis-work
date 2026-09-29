@@ -11,7 +11,7 @@ import {
   CODING_DIAGRAM_TYPE,
   CODING_REPORT_TYPE,
 } from "./artifacts.js";
-import { CODING_FILE_CHANGED_EVENT, CODING_PREFERENCE_EVENT, CODING_WORKSPACE_INVALIDATED_EVENT } from "./events.js";
+import { CODING_RUN_UPDATED_EVENT, CODING_FILE_CHANGED_EVENT, CODING_PREFERENCE_EVENT, CODING_WORKSPACE_INVALIDATED_EVENT } from "./events.js";
 import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
@@ -97,6 +97,7 @@ export const codingManifest: PluginManifest = {
     // What Coding tells the project: a file under the workspace changed, and a
     // prepared change set no longer matches what is on disk.
     publishes: [
+      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1 },
       { event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1 },
       { event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT, type_version: 1 },
       { event_type_id: CODING_PREFERENCE_EVENT, type_version: 1 },

@@ -3,7 +3,7 @@ import { COGNIA_ANSWER } from "./prompts.js";
 import { randomUUID } from "node:crypto";
 import { COGNIA_LIMITS, requireCognia, stringField, type Draft, type Reference } from "./types.js";
 import type { CogniaStore } from "./store.js";
-export interface CogniaAiPorts { runtimeLabel?: string; unavailableReason?: string; completeText?: (prompt: InstructedPrompt, options?: { signal?: AbortSignal }) => Promise<string>; signal?: AbortSignal; beforeEffect?: () => Promise<void> }
+export interface CogniaAiPorts { runtimeLabel?: string; unavailableReason?: string; completeText?: (prompt: InstructedPrompt, options?: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }) => Promise<string>; signal?: AbortSignal; beforeEffect?: () => Promise<void> }
 export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStore) => T) => T, input: Record<string, unknown>, ports: CogniaAiPorts): Promise<Draft> {
   requireCognia(ports.completeText, ports.unavailableReason ?? "尚未配置文字模型。请在宿主配置文字模型后重试；导入、搜索和阅读仍可使用。", 503);
   requireCognia(input.mode === "synthesize" || input.mode === "query", "整理方式无效");
@@ -36,7 +36,7 @@ export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStor
   requireCognia(references.reduce((n, r) => n + r.body.length, 0) <= COGNIA_LIMITS.ai_characters, "选中材料超过 100,000 字符，请缩小选择；内容未被截断。", 413);
   const boundary = "UNTRUSTED_MATERIAL_" + randomUUID();
   const prompt = instructed(COGNIA_ANSWER, `用户任务：${JSON.stringify(question)}\nBEGIN_${boundary}\n${JSON.stringify(references)}\nEND_${boundary}`);
-  const raw = await ports.completeText(prompt, { signal: ports.signal });
+  const raw = await ports.completeText(prompt, { signal: ports.signal, beforeDispatch: ports.beforeEffect });
   requireCognia(!ports.signal?.aborted, "生成已取消，未保存草稿", 499);
   const heading = /^# ([^\r\n]+)\r?\n([\s\S]*)$/u.exec(raw.trim());
   requireCognia(heading, "模型未返回标题和 Markdown 正文，未保存草稿；请重试。", 502);

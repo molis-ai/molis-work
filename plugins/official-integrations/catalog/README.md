@@ -12,6 +12,8 @@ Status: `partial`。Contract：`@molis-ai/molis-work-contracts/platform/plugin`�
 
 `readExternalDocument({ source, url }, { token, fetch? })` 显式读取 Notion、飞书、Lark 或 Google Docs 的正文快照，返回标题、正文、来源与格式限制提示。只请求所选供应商的固定官方 API；凭据由 Host 注入，不在这里保存。本包不创建 Artifact，版本与去重由 [Artifacts Plugin](../../native/artifacts/README.md#从文档工具导入) 编排。飞书与 Lark 使用独立连接器凭据和各自 API 域名。
 
+文档读取接受可信 `signal` / `beforeDispatch`，每次 API 请求前复查，包括元信息、正文和获取应用令牌。30 秒总时限覆盖异步派出检查，取消原因原样抛出，不伪装成网络错误或触发凭据刷新；超限、失败和取消释放响应流。账号身份及提交校验由 Host 负责。
+
 ## 从哪里读代码
 
 | 文件 | 用途 |
@@ -39,4 +41,5 @@ pnpm --filter @molis-ai/molis-work-integration-catalog build
   - 只读；`catalogWhoami` 只在设置页或显式动作时调用。
   - Host 按 connector id 装配，不按服务建空包。
 - 改动后必跑：`node scripts/run-tests.mjs tests/catalog-connectors.test.ts tests/connector-method-directory.test.ts tests/connector-oauth-choice.test.ts`
+- 文档读取额外验证：`node scripts/run-tests.mjs tests/document-import-providers.test.ts tests/connector-document-import.test.ts`
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

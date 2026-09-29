@@ -1,5 +1,7 @@
+import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 export class ShelfError extends Error {
   readonly code: string;
+  execution?: BoundedInferenceReceipt;
   readonly details?: Record<string, unknown>;
 
   constructor(code: string, message: string, details?: Record<string, unknown>) {

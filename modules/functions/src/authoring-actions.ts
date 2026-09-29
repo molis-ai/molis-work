@@ -36,7 +36,7 @@ function define<I, O>(suffix: string, title: string, description: string, input_
   return { capability_id: `functions.authoring.${suffix}`, version: 1, operation: write ? "command" : "query", action: {
     title, description, kind: write ? "operation" : "query", scope: "home", audiences: ["user", "agent", "workflow", "mcp"],
     permissions: preview ? ["functions:manage", "functions:invoke"] : ["functions:manage"], subject_kinds: [], input_schema, output_schema,
-    ...(preview ? { scheduling: "concurrent" as const } : {}),
+    ...(preview ? { scheduling: "concurrent" as const, execution: { cost: "metered" as const } } : {}),
   } };
 }
 

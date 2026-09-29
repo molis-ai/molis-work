@@ -1,8 +1,10 @@
 import type { SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 
 /** A part's component: a UI catalog id (see PLUGIN_COMPONENTS), or a kind from before parts came from the catalog. */
 export type PluginComponentKind = string;
 export type PluginComponentIntent = 'heading' | 'description' | 'input' | 'action' | 'collection' | 'reading' | 'conversation' | 'evidence' | 'schedule' | 'feedback';
+export const PLUGIN_COMPONENT_PROP_KEYS = ['title', 'description', 'submitLabel', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'] as const;
 export type PluginInputValue = { source: 'literal'; value: SandboxJson }
   | { source: 'form'; field: string; prefill?: { componentId: string; field: string } }
   | { source: 'selection'; componentId: string; field: string };
@@ -179,7 +181,9 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     if (!IDENTIFIER.test(part.id) || seen.has(part.id)) fail('零件标识重复或不合法'); seen.add(part.id);
     if (!contract.pages.some(page => page.id === part.pageId && page.regions.some(region => region.id === part.regionId))) fail('零件引用了不存在的页面或区域');
     if (!PREFERENCE[part.intent as PluginComponentIntent] || typeof part.purpose !== 'string' || !part.purpose.trim() || part.purpose.length > 600) fail('用途无效');
-    if (!plain(part.props) || Object.keys(part.props).some(key => !['title', 'description', 'submitLabel', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'].includes(key))) fail('未知零件配置');
+    if (!plain(part.props)) fail('props 必须是对象');
+    const unknown = Object.keys(part.props).filter(key => !(PLUGIN_COMPONENT_PROP_KEYS as readonly string[]).includes(key));
+    if (unknown.length) fail('不支持 props 属性：' + unknown.join('、') + '；可用：' + PLUGIN_COMPONENT_PROP_KEYS.join('、'));
     for (const [key, val] of Object.entries(part.props)) if (key !== 'columns' && (typeof val !== 'string' || val.length > 2000)) fail('零件文本配置无效');
     if (part.props.columns !== undefined && (!Array.isArray(part.props.columns) || part.props.columns.length > 24 || part.props.columns.some(column => !plain(column) || Object.keys(column).some(key => !['field', 'label', 'values'].includes(key)) || !FIELD.test(column.field) || typeof column.label !== 'string' || column.label.length > 120
       || column.values !== undefined && (!plain(column.values) || Object.keys(column.values).length > 24 || Object.values(column.values).some(value => typeof value !== 'string' || value.length > 60))))) fail('表格列配置无效');
@@ -314,4 +318,4 @@ export const PLUGIN_COMPONENT_STYLES = `
 @keyframes pc-toast{0%{opacity:0;transform:translateY(4px)}8%{opacity:1;transform:none}82%{opacity:1}100%{opacity:0}}
 @container (max-width:560px){.pc-app-head h1{font-size:20px}.pc-mark{width:40px;height:40px}.pc-stat>dd{font-size:20px}.pc-page{gap:16px}.pc-directory>.pc-record{flex-wrap:wrap}.pc-directory>.pc-record>.pc-row-actions{padding:0 12px 12px}.pc-search,.pc-filter-item:has(.pc-search){max-width:none}.pc-card-grid{grid-template-columns:1fr}.pc-agenda-day{grid-template-columns:48px minmax(0,1fr)}}
 @media (prefers-reduced-motion:reduce){.pc-view *{animation:none!important;transition:none!important}}
-`;
+` + PLUGIN_PRESENTATION_STYLES;

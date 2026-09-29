@@ -1,3 +1,4 @@
+import { observeGitOperations } from "./git-operation-notifications.js";
 import { informationActionProvider } from "./information-actions.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
 import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
@@ -22,7 +23,7 @@ import { formActionProvider } from "./form-actions.js";
 import { datasetActionProvider } from "./dataset-actions.js";
 import { jellyActionProvider } from "./jelly-actions.js";
 import { lingguangActionProvider } from "./lingguang-actions.js";
-import { scheduleActionProvider } from "./schedule-actions.js";
+import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { experimentsActionProvider } from "./experiments-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
@@ -36,6 +37,8 @@ import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseBuilderSurface } from "./plugin-builder-surface.js";
+import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
+import { ensureInstalledPlugins, releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { InteractionObserver, goalActionObservation } from './casebook/observer.js';
 import path from "node:path";
 import { existsSync } from "node:fs";
@@ -82,6 +85,8 @@ export interface MolisWorkLocalHostOptions {
   actionAvailability?: LocalHostOptions<MolisWorkProjectRuntime>["actionAvailability"];
   onRuntimeOpen?: (reference: LocalHostProjectReference) => void;
   onRuntimeClose?: (reference: LocalHostProjectReference) => void;
+  /** Web composition supplies an empty prefix for its explicit standalone project; catalog projects use /projects/<id>. */
+  projectRoutePrefix?(projectId: string): string;
   /**
    * Resolves the workspace a project is bound to. The catalog lives at the Home
    * level, above a single project's database, so the composition supplies it.
@@ -201,6 +206,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) registry.registerProvider(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             registry.registerProvider(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
             registry.registerProvider(scheduleActionProvider(runtime));
+            registry.registerProvider(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
             if (options.homeDirectory) registry.registerProvider(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) registry.registerProvider(shelfProjectActionProvider(runtime, options.homeDirectory));
             if (options.homeDirectory) registry.registerProvider(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
@@ -217,6 +223,8 @@ export class MolisWorkLocalHost {
           }
         },
         close: async (runtime, reference) => {
+          await releaseAgentStudio(runtime.store, runtime.board_id);
+          await releaseInstalledPlugins(runtime.store, runtime.board_id);
           await releaseProjectPlugins(runtime.store, runtime.board_id);
           await releaseBuilderSurface(runtime.store, runtime.board_id);
           runtime.store.close();
@@ -340,6 +348,18 @@ export class MolisWorkLocalHost {
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
     await this.ensureProjectPluginActions(reference);
     await this.agents?.service.restoreExternalMcp(reference);
+    await this.host.withRuntime(reference, runtime => this.prepareInstalledPlugins(reference, runtime));
+  }
+
+  private async prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
+    if (!this.options.homeDirectory) return;
+    const installed = await ensureInstalledPlugins({ store: runtime.store, boardId: runtime.board_id, homeDirectory: this.options.homeDirectory, actorId: "web-user",
+      routePrefix: this.options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
+      capabilities: this.host.client(reference),
+      actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id,
+        // This internal directory is already in a prepared Host; recursing through the public entry would wait on itself.
+        inspect: caller => this.host.inspectActions(caller, reference) } });
+    await installed.refreshPublicActions();
   }
 
   private ensureProjectPluginActions(reference: LocalHostProjectReference): Promise<unknown> {
@@ -350,6 +370,7 @@ export class MolisWorkLocalHost {
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id },
       characterWorkspaces: async () => this.options.workspacesFor ? await this.options.workspacesFor(reference.project_id)
         : this.options.workspaceFor ? [await this.options.workspaceFor(reference.project_id)].filter((value): value is ProjectWorkspaceRef => !!value) : [],
+      ...(this.agents ? { observeGitOperations: listener => observeGitOperations(this.agents!.service.agentHost.reviews, runtime.board_id, listener) } : {}),
       // Headless callers reach Coding's actions through the Host's own Agent service; page adapters may still attach theirs.
       ...(this.agents && this.options.homeDirectory ? { execution: { ready: () => this.agents!.service.ready,
         models: async () => configuredModelChoices(this.options.homeDirectory!) } } : {}),
@@ -390,13 +411,13 @@ export class MolisWorkLocalHost {
     reference: LocalHostProjectReference,
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
   ): Promise<Result> {
-    return this.host.withRuntime(reference, operation);
+    return this.host.withRuntime(reference, async runtime => { await this.prepareInstalledPlugins(reference, runtime); return operation(runtime); });
   }
 
   /** Only the configured owner calls this; never initialize, create or migrate a project. */
   async restoreExistingProject(reference: LocalHostProjectReference): Promise<void> {
     this.existingOnly.add(reference.storage_key);
-    try { await this.withProject(reference, () => undefined); }
+    try { await this.ensureProjectPluginActions(reference); await this.withProject(reference, () => undefined); }
     finally { this.existingOnly.delete(reference.storage_key); }
   }
 

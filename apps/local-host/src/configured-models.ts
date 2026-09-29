@@ -26,14 +26,16 @@ export function openConfiguredModels(home: string): { storage: LocalSqliteStorag
   } catch (error) { storage.close(); throw error; }
 }
 
-/** Enabled models of providers whose health is ready: what a Coding round may pick, read from the same catalog. */
-export function configuredModelChoices(home: string): { provider_id: string; model_id: string; label: string }[] {
+/** Available text models from the same catalog, checked through metadata without decrypting credentials. */
+export function configuredModelChoices(home: string): { provider_id: string; model_id: string; label: string; vision: boolean }[] {
   const opened = openConfiguredModels(home);
   if (!opened) return [];
   try {
-    const healthy = new Set(opened.store.health().filter(entry => entry.status === "ready").map(entry => entry.provider_id));
-    return opened.store.list().filter(entry => healthy.has(entry.provider_id)).flatMap(provider => provider.models.filter(model => model.enabled)
-      .map(model => ({ provider_id: provider.provider_id, model_id: model.model_id, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` })));
+    return opened.store.list().flatMap(provider => provider.models.flatMap(model => {
+      const selection = { provider_id: provider.provider_id, model_id: model.model_id };
+      return selectConfiguredTextModel(home, opened.store, selection)
+        ? [{ ...selection, vision: model.vision === true, label: `${provider.display_name} · ${model.display_name ?? model.model_id}` }] : [];
+    }));
   } finally { opened.storage.close(); }
 }
 
@@ -73,4 +75,13 @@ export function selectConfiguredTextModel(home: string, store: ModelProviderStor
     if (credential.available) return { provider, model, connection_revision: credential.revision };
   }
   return undefined;
+}
+
+/** Trusted Host snapshot for dispatch and final commit guards; never returned to a plugin or UI. */
+export function configuredTextModelSnapshot(home: string, selection: TextModelSelection) {
+  const catalog = openConfiguredModels(home);
+  try {
+    const selected = catalog && selectConfiguredTextModel(home, catalog.store, selection);
+    return selected && { ...selected, credential_snapshot: runWithMolisWorkHome(home, () => peekSealedEntry(selected.provider.credential_ref)) };
+  } finally { catalog?.storage.close(); }
 }

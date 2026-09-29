@@ -64,6 +64,8 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
     assert.equal(first.body.history, "digest");
     assert.deepEqual(first.body.digest, { source: "model", usage: { input: 5000, output: 400 } });
     assert.equal(drafts.length, 1);
+    assert.equal(drafts[0]!.prompt, "coding.history-summary");
+    assert.equal(drafts[0]!.instructions, undefined, "fixed instructions are resolved by the Host's register");
     assert.deepEqual(drafts[0]!.model_selection, { provider_id: "p", model_id: "m" }, "the summary is written by the model the person chose for this round");
     assert.match(drafts[0]!.material, /第 1 轮（已完成）\n- 要求：给习惯加归档/);
     assert.ok(!drafts[0]!.material.includes("工具原文不带入"), "tool output is never material for the summary");

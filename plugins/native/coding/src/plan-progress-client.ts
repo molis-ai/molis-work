@@ -4,6 +4,7 @@
  * operation through the Host; the card never infers a step's state from the model's prose.
  */
 export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {api,current,status,refresh,openStep}=ports;
   const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
@@ -20,7 +21,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(card.dataset.live!=='true')status(result?.board?.terminal?'已记在任务图上。计划的每一步都已结束。':'已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
       else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);
       delete card.dataset.editing;
-    }catch(error){status(error.message,true);}
+    }catch(error){if(!lifetime.alive)return;status(error.message,true);}
     finally{delete card.dataset.busy;card.dataset.signature='';if(id===current())await refresh();}
   };
   // One inline form at a time, placed under the step it acts on.
@@ -28,9 +29,9 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     card.querySelector('.coding-plan-form')?.remove();card.dataset.editing='true';
     const box=el('form','coding-plan-form'),inputs=fields.map(([name,placeholder,max])=>{const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;box.append(input);return input;});
     const actions=el('div','coding-plan-form-actions'),cancel=el('button','mw-btn mw-btn--ghost','取消'),ok=el('button','mw-btn mw-btn--primary',label);cancel.type='button';ok.type='submit';actions.append(cancel,ok);box.append(actions);
-    cancel.addEventListener('click',()=>{box.remove();delete card.dataset.editing;});
-    box.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();box.remove();delete card.dataset.editing;}});
-    box.addEventListener('submit',event=>{event.preventDefault();if(inputs.some(input=>!input.value.trim()))return;ok.disabled=true;void submit(inputs.map(input=>input.value.trim()));});
+    lifetime.listen(cancel,'click',()=>{box.remove();delete card.dataset.editing;});
+    lifetime.listen(box,'keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();box.remove();delete card.dataset.editing;}});
+    lifetime.listen(box,'submit',event=>{event.preventDefault();if(inputs.some(input=>!input.value.trim()))return;ok.disabled=true;void submit(inputs.map(input=>input.value.trim()));});
     row.after(box);inputs[0].focus();
   };
   return {render(run,entry,live,latest=false){
@@ -58,7 +59,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const step=stepOf(entry.plan,node),row=el('li','coding-board-item coding-plan-step');row.dataset.state=skipped(node)?'skipped':node.state;row.dataset.step=node.id;if(node.inserted)row.dataset.inserted='true';
       const line=el('div','coding-board-entry'),lead=el('span','coding-board-lead'),main=el('button','coding-board-node coding-plan-title');main.type='button';
       const note=node.reports.at(-1)?.note;main.title=(step.acceptance?'完成条件：'+step.acceptance:'')+(note?'\\n最近回报：'+note:'')||'查看这一步的回报并验收';
-      main.append(el('span','coding-board-key',node.inserted?'插入':'S'+(index+1)),el('strong','',step.title));main.addEventListener('click',()=>openStep(run.ref.run_id,node.id));
+      main.append(el('span','coding-board-key',node.inserted?'插入':'S'+(index+1)),el('strong','',step.title));lifetime.listen(main,'click',()=>openStep(run.ref.run_id,node.id));
       lead.append(el('span','coding-board-guide'),main);
       const verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===board.version?verdict.status:null;
       const state=el('span','coding-board-state coding-plan-state');state.dataset.tone=decided==='accepted'?'accepted':decided==='needs-work'?'attention':skipped(node)?'quiet':TONE[node.state]||'idle';
@@ -75,7 +76,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       avatar.title='负责：'+(holder?(holder.kind==='session'?'本会话 · '+who:holder.kind==='person'?'你':holder.label):who);avatar.setAttribute('aria-label',avatar.title);meta.append(time,avatar);
       line.append(lead,state,chip,meta);row.append(line);
       if(editable){
-        const tools=el('span','coding-board-tools coding-plan-tools'),tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+step.title);button.innerHTML=svg(icon);button.addEventListener('click',action);tools.append(button);};
+        const tools=el('span','coding-board-tools coding-plan-tools'),tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+step.title);button.innerHTML=svg(icon);lifetime.listen(button,'click',action);tools.append(button);};
         const waiting=node.state==='not-started'||node.state==='ready';
         if(waiting&&index>0&&['not-started','ready'].includes(board.nodes[index-1].state))tool('提前一步','chevron-up',()=>void amend(card,run.ref.run_id,board.version,{kind:'move',node:node.id,direction:'up'}));
         if(waiting&&['not-started','ready'].includes(board.nodes[index+1]?.state))tool('推后一步','chevron-down',()=>void amend(card,run.ref.run_id,board.version,{kind:'move',node:node.id,direction:'down'}));

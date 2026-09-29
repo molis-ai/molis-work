@@ -2,8 +2,10 @@
 export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const { translate: L } = host;
   const root = document.querySelector('[data-images=workbench]');
-  if (!root || root.dataset.imagesBound) return;
-  root.dataset.imagesBound = 'true';
+  if (!root) return;
+  const lifetime = host.mountPluginClient(root);
+  if (!lifetime) return;
+  let viewSignal;
   const $ = (selector) => root.querySelector(selector);
   const projectId = () => String((typeof host.projectId === 'function' ? host.projectId() : host.projectId) || '');
   const compose = $('[data-images-compose]');
@@ -38,6 +40,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     node.type = 'button'; node.setAttribute(attr, value || ''); return node;
   };
   const say = (message, isError = false, selector = '[data-images-note]') => {
+    if (!lifetime.alive) return;
     const node = $(selector);
     node.textContent = message || ''; node.hidden = !message;
     node.classList.toggle('is-error', Boolean(message && isError));
@@ -62,13 +65,14 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     selectedId = typeof draft.selected_id === 'string' ? draft.selected_id : '';
     pending = draft.pending && typeof draft.pending.request_id === 'string' && typeof draft.pending.fingerprint === 'string' ? draft.pending : null;
   };
-  const request = async (method, path, body) => {
-    const response = await fetch(host.route('/api/images' + path), {
-      method, cache: 'no-store',
+  const request = async (method, path, body, signal) => {
+    const response = await lifetime.fetch(host.route('/api/images' + path), {
+      method, cache: 'no-store', signal,
       headers: molisWorkControlHeaders(),
       body: method === 'GET' || body === undefined ? undefined : JSON.stringify(body),
     });
     const payload = await response.json().catch(() => ({}));
+    lifetime.assertCurrent(signal);
     if (!response.ok) {
       const error = new Error(payload.error || L('图片服务请求失败'));
       error.httpStatus = response.status; throw error;
@@ -81,6 +85,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
   const syncGenerate = () => {
+    if (!lifetime.alive) return;
     generate.disabled = submitting || !context || !selectedConnection() || selectedConnection().available === false || !prompt.value.trim();
     generate.textContent = submitting ? L('正在提交…') : L('生成图片');
     $('[data-images-project-note]').hidden = Boolean(context);
@@ -206,18 +211,18 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if (context === projectId()) return;
     context = projectId(); listSeq += 1; loadSeq += 1; jobs = []; selectedId = '';
     pending = null; submitting = false; cancelling = false; listSignature = ''; resultSignature = '';
-    clearTimeout(timer); restoreDraft(); paintList(); syncParameters();
+    lifetime.clearTimeout(timer); restoreDraft(); paintList(); syncParameters();
     result.hidden = true; compose.hidden = false; say('');
   };
   const schedulePoll = () => {
-    clearTimeout(timer);
-    if (root.isConnected && jobs.some(job => job.status === 'running')) timer = setTimeout(() => loadJobs().catch(() => {}), 2500);
+    lifetime.clearTimeout(timer);
+    if (lifetime.visible && jobs.some(job => job.status === 'running')) timer = lifetime.timeout(() => loadJobs().catch(() => {}), 2500);
   };
-  const loadJobs = async () => {
-    if (!root.isConnected) return;
+  const loadJobs = async (signal = viewSignal) => {
+    if (!lifetime.visible) return;
     ensureContext(); const currentContext = context; const seq = ++listSeq;
     try {
-      const payload = await request('GET', '/jobs');
+      const payload = await request('GET', '/jobs', undefined, signal);
       if (currentContext !== projectId() || seq !== listSeq || !root.isConnected) return;
       jobs = Array.isArray(payload.jobs) ? payload.jobs : []; paintList();
       if (selectedId) {
@@ -226,17 +231,17 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       say('', false, '[data-images-list-note]');
     } catch (error) {
-      if (currentContext !== projectId() || seq !== listSeq) return;
+      if (!lifetime.alive || signal?.aborted || currentContext !== projectId() || seq !== listSeq) return;
       say((error.message || L('无法读取生成记录')) + ' ' + L('可点击刷新重试。'), true, '[data-images-list-note]');
       if (selectedId) say(L('暂时无法更新进度，恢复连接后会继续读取。') + ' ' + L('可点击刷新重试。'), true);
       throw error;
     } finally {
-      if (currentContext === projectId() && seq === listSeq) schedulePoll();
+      if (!signal?.aborted && currentContext === projectId() && seq === listSeq) schedulePoll();
     }
   };
-  const loadConnections = async () => {
+  const loadConnections = async (signal = viewSignal) => {
     const seq = ++loadSeq;
-    const payload = await request('GET', '/connections');
+    const payload = await request('GET', '/connections', undefined, signal);
     if (seq !== loadSeq || !root.isConnected) return;
     connections = Array.isArray(payload.connections) ? payload.connections : [];
     authConnections = Array.isArray(payload.auth_connections) ? payload.auth_connections : [];
@@ -280,11 +285,12 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     editConnection(connectionId); if (!dialog.open) dialog.showModal(); connectionName.focus();
   };
   const syncSaving = () => {
+    if (!lifetime.alive) return;
     $('[data-images-connection-fields]').disabled = saving;
     dialog.querySelectorAll('[data-images-edit-connection], [data-images-delete-connection], [data-images-add-connection], [data-images-dialog-close], [data-images-save-connection]').forEach(node => node.disabled = saving);
     $('[data-images-save-connection]').textContent = saving ? L('正在保存…') : L('保存服务');
   };
-  connectionForm.addEventListener('submit', async event => {
+  lifetime.listen(connectionForm, 'submit', async event => {
     event.preventDefault(); if (saving || !connectionForm.reportValidity()) return;
     const input = {
       ...(editingId ? { id: editingId } : {}), name: connectionName.value.trim(), api_format: editingFormat,
@@ -302,12 +308,11 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       say(error.message || L('保存服务失败'), true, '[data-images-connection-note]');
     } finally { saving = false; syncSaving(); }
   });
-  dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
-  dialog.addEventListener('close', () => {});
-  connectionUrl.addEventListener('input', syncConnectionEditor);
-  connectionAuth.addEventListener('change', () => { editingAuth = connectionAuth.value; syncConnectionEditor(); });
-  compose.addEventListener('input', () => { saveDraft(); syncGenerate(); });
-  compose.addEventListener('submit', async event => {
+  lifetime.listen(dialog, 'cancel', event => { if (saving) event.preventDefault(); });
+  lifetime.listen(connectionUrl, 'input', syncConnectionEditor);
+  lifetime.listen(connectionAuth, 'change', () => { editingAuth = connectionAuth.value; syncConnectionEditor(); });
+  lifetime.listen(compose, 'input', () => { saveDraft(); syncGenerate(); });
+  lifetime.listen(compose, 'submit', async event => {
     event.preventDefault(); ensureContext();
     if (submitting || !context || !selectedConnection() || selectedConnection().available === false || !compose.reportValidity()) return;
     const currentContext = context;
@@ -328,10 +333,10 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       say(message, true);
       void loadJobs().catch(() => {});
     } finally {
-      if (currentContext === projectId()) { submitting = false; syncGenerate(); }
+      if (lifetime.alive && currentContext === projectId()) { submitting = false; syncGenerate(); }
     }
   });
-  root.addEventListener('click', async event => {
+  lifetime.listen(root, 'click', async event => {
     const target = event.target.closest('button'); if (!target || target.disabled) return;
     try {
       if (target.hasAttribute('data-images-connections')) { openConnections(); return; }
@@ -344,13 +349,14 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         const id = target.dataset.imagesDeleteConnection;
         if (!confirm(L('删除这个生图服务？已有生成记录会保留。'))) return;
         target.disabled = true;
+        const enable = lifetime.own(() => { target.disabled = false; });
         try {
           await request('DELETE', '/connections/' + encodeURIComponent(id));
           connections = connections.filter(item => item.id !== id);
           if (editingId === id) editConnection('');
           paintConnections(); saveDraft();
           say(L('服务已删除。'), false, '[data-images-connection-note]');
-        } finally { target.disabled = false; }
+        } finally { enable(); }
         return;
       }
       if (target.dataset.imagesUseConnection) {
@@ -362,8 +368,9 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (target.hasAttribute('data-images-refresh')) {
         target.disabled = true;
+        const enable = lifetime.own(() => { target.disabled = false; });
         say('');
-        try { await Promise.all([loadConnections(), loadJobs()]); } finally { target.disabled = false; }
+        try { await Promise.all([loadConnections(), loadJobs()]); } finally { enable(); }
         return;
       }
       if (target.dataset.imagesJob) {
@@ -381,13 +388,14 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         const id = target.dataset.imagesDeleteJob, currentContext = context;
         if (!confirm(L('删除这次生成记录和图片文件？'))) return;
         target.disabled = true;
+        const enable = lifetime.own(() => { target.disabled = false; });
         try {
           await request('DELETE', '/jobs/' + encodeURIComponent(id));
           if (currentContext !== projectId()) return;
           jobs = jobs.filter(item => item.id !== id);
           if (selectedId === id) showCompose();
           paintList(); saveDraft(); schedulePoll();
-        } finally { target.disabled = false; }
+        } finally { enable(); }
         return;
       }
       if (target.dataset.imagesCancel && !cancelling) {
@@ -395,22 +403,19 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         cancelling = true; paintResult(jobs.find(item => item.id === selectedId));
         try {
           const payload = await request('POST', '/jobs/' + encodeURIComponent(id) + '/cancel', {});
-          if (currentContext === projectId()) { rememberJob(payload.job); schedulePoll(); }
+          if (lifetime.alive && currentContext === projectId()) { rememberJob(payload.job); schedulePoll(); }
         } finally {
-          if (currentContext === projectId()) { cancelling = false; paintResult(jobs.find(item => item.id === selectedId)); }
+          if (lifetime.alive && currentContext === projectId()) { cancelling = false; paintResult(jobs.find(item => item.id === selectedId)); }
         }
       }
     } catch (error) { say(error.message || L('图片服务请求失败'), true); }
   });
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) void loadJobs().catch(() => {});
+  restoreDraft(); expand(); syncGenerate(); syncSaving();
+  lifetime.whenVisible(signal => {
+    viewSignal = signal; ensureContext(); syncGenerate();
+    void Promise.all([loadConnections(signal), loadJobs(signal)]).catch(error => {
+      if (!signal.aborted) say(error.message || L('图片服务请求失败'), true);
+    });
+    return () => { lifetime.clearTimeout(timer); listSeq++; loadSeq++; };
   });
-  const visibilityObserver = new MutationObserver(() => {
-    if (!root.hidden && root.isConnected) {
-      ensureContext(); syncGenerate(); void loadJobs().catch(() => {});
-    }
-  });
-  visibilityObserver.observe(root, { attributes: true, attributeFilter: ['hidden'] });
-  restoreDraft(); expand(); syncGenerate();
-  void Promise.all([loadConnections(), loadJobs()]).catch(error => say(error.message || L('图片服务请求失败'), true));
 }`;

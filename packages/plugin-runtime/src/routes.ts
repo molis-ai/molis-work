@@ -3,6 +3,7 @@ import type {
   PluginRouteMethod,
   PluginRouteRequest,
   PluginRouteResponse,
+  PluginExecutionControl,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { PluginHostLifecycle } from "./lifecycle.js";
@@ -52,6 +53,8 @@ export interface PluginRouteDispatchInput {
   actor_id: string;
   /** Permissions the caller's session holds. A declared route permission must be in here. */
   granted?: readonly string[];
+  /** Internal callers may preserve their invocation guard. HTTP adapters must not read this from request data. */
+  execution?: PluginExecutionControl;
 }
 
 /**
@@ -133,6 +136,7 @@ export class PluginRouteRouter {
       query: input.query ?? {},
       body: input.body ?? null,
       actor_id: input.actor_id,
+      ...(input.execution ? { execution: input.execution } : {}),
     };
     return await binding.handle(request);
   }

@@ -3,7 +3,7 @@ import {createPrologueTypeSafeProvider} from './typesafe-prologue.js';
 import {FUNCTIONS_DEFAULT_MODEL,type FunctionRecord} from '@molis-ai/molis-work-contracts/modules/functions';
 import {typeSafeCredential,typeSafeConfiguration} from './typesafe-connection.js';
 import {SqlitePluginPrivateStorage} from '@molis-ai/molis-work-plugin-runtime';
-import {UiHost} from '@molis-ai/molis-work-ui-host';
+import {UiHost, UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {ArtifactsModule} from '@molis-ai/molis-work-module-artifacts';
 import {escapeHtml,renderIconSprite} from '@molis-ai/molis-work-design-system';
 import {createBuilderPlugin,createGeneratedPlugin,compatibleReleaseVersions,migratableReleaseVersions,BUILDER_PLUGIN_ID,BUILDER_STYLES,BUILDER_CLIENT_FACTORY_SCRIPT,RECORD_CLIENT_FACTORY_SCRIPT,renderBuilder,type BuilderWorkflow,type ChoiceQuestion,type Release,type GeneratedPluginControl} from '@molis-ai/molis-work-plugin-builder';
@@ -28,7 +28,7 @@ export function selectionPorts(homeDirectory?:string){
   return {choice:result.choice,model:result.model,elapsedMs:Math.round(performance.now()-started),confidence:result.confidence};
  }};
 }
-function platformFor(ports:CodingSurfacePorts){const storage=new SqlitePluginPrivateStorage(ports.store.db);return createPluginPlatform({board_id:ports.boardId,actor_id:ports.actorId,db:ports.store.db,artifacts:new ArtifactsModule({db:ports.store.db,appendEvent:event=>ports.store.appendEvent(event)}),ui:new UiHost(),privateStorageFor:(context,manifest)=>storage.forPlugin(context,manifest),capturePrivateData:installId=>storage.snapshotInstallationData(installId),restorePrivateData:(installId,snapshot)=>storage.restoreInstallationData(installId,snapshot as ReturnType<typeof storage.snapshotInstallationData>),capabilities:ports.capabilities,actions:ports.actions});}
+function platformFor(ports:CodingSurfacePorts){const storage=new SqlitePluginPrivateStorage(ports.store.db);return createPluginPlatform({board_id:ports.boardId,actor_id:ports.actorId,db:ports.store.db,journal:ports.store,artifacts:new ArtifactsModule({db:ports.store.db,appendEvent:event=>ports.store.appendEvent(event)}),ui:new UiHost(),privateStorageFor:(context,manifest)=>storage.forPlugin(context,manifest),capturePrivateData:installId=>storage.snapshotInstallationData(installId),restorePrivateData:(installId,snapshot)=>storage.restoreInstallationData(installId,snapshot as ReturnType<typeof storage.snapshotInstallationData>),capabilities:ports.capabilities,actions:ports.actions});}
 async function ensureBuilder(ports:CodingSurfacePorts):Promise<BuilderSurface>{
  let boards=surfaces.get(ports.store);if(!boards){boards=new Map();surfaces.set(ports.store,boards);}let promise=boards.get(ports.boardId);if(promise)return promise;
  let surface!:BuilderSurface;
@@ -82,7 +82,7 @@ export async function handleBuilderHttp(request:IncomingMessage,response:ServerR
   const surface=await ensureBuilder(ports);const prefix=ports.routePrefix??'';
   if(builderPage&&request.method==='GET'){
    const body=renderBuilder().replace(' hidden>','>');
-   response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});response.end(documentHtml('插件创作工作台',body,'('+BUILDER_CLIENT_FACTORY_SCRIPT+')({route:p=>'+literal(prefix)+'+p});',controlToken));return true;
+   response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});response.end(documentHtml('插件创作工作台',body,'('+BUILDER_CLIENT_FACTORY_SCRIPT+')({mountPluginClient:('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')(),route:p=>'+literal(prefix)+'+p});',controlToken));return true;
   }
   let platform=surface.platform;
   if(generatedApi||generatedPage){
@@ -93,7 +93,7 @@ export async function handleBuilderHttp(request:IncomingMessage,response:ServerR
     const view=platform.supervisor.contribution(id);const contribution=view?.kind==='app'?view.views?.[0]:null;
     if(!contribution)throw new Error('插件界面尚未启动');
     const body='<header class="pb-standalone-bar"><a href="'+escapeHtml(prefix+'/plugin-builder?build='+release.buildId)+'">编辑新草稿</a><span>'+escapeHtml(release.design.title)+' · v'+release.version+' · 数据保存在本机</span></header>'+contribution.render({contribution_id:contribution.descriptor.contribution_id,surface:'app',model:{}});
-    const script='(async()=>{const base='+literal(prefix+'/api/plugins/'+id)+';let release;const request=async(method,body,query)=>{const u=new URL(base+"/records",location.origin);if(query)Object.entries(query).forEach(([k,v])=>{if(v)u.searchParams.set(k,v)});const response=await fetch(u,{method,headers:method==="GET"?{}:globalThis.molisWorkControlHeaders(),...(method==="GET"?{}:{body:JSON.stringify({...body,releaseVersion:release.version})})});const result=await response.json();if(!response.ok)throw new Error(result.error||"操作失败");return result;};const root=document.querySelector("[data-generated-app]");root.style.setProperty("--pb-atlas",'+literal('url("'+prefix+'/api/plugins/'+BUILDER_PLUGIN_ID+'/assets/inspiration-atlas.png")')+');try{const response=await fetch(base+"/state");const result=await response.json();if(!response.ok)throw new Error(result.error);release=result.release;const app=('+RECORD_CLIENT_FACTORY_SCRIPT+')({root,request});app.update(release.design,release.nodes,release.behavior);}catch(error){root.textContent=error.message;}})();';
+    const script='(async()=>{const root=document.querySelector("[data-generated-app]"),lifetime=('+UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT+')()(root);if(!lifetime)return;const base='+literal(prefix+'/api/plugins/'+id)+';let release;const request=async(method,body,query)=>{const u=new URL(base+"/records",location.origin);if(query)Object.entries(query).forEach(([k,v])=>{if(v)u.searchParams.set(k,v)});const response=await lifetime.fetch(u,{method,headers:method==="GET"?{}:globalThis.molisWorkControlHeaders(),...(method==="GET"?{}:{body:JSON.stringify({...body,releaseVersion:release.version})})});const result=await response.json();lifetime.assertCurrent();if(!response.ok)throw new Error(result.error||"操作失败");return result;};root.style.setProperty("--pb-atlas",'+literal('url("'+prefix+'/api/plugins/'+BUILDER_PLUGIN_ID+'/assets/inspiration-atlas.png")')+');try{const response=await lifetime.fetch(base+"/state");const result=await response.json();lifetime.assertCurrent();if(!response.ok)throw new Error(result.error);release=result.release;const app=('+RECORD_CLIENT_FACTORY_SCRIPT+')({root,lifetime,request});app.update(release.design,release.nodes,release.behavior);}catch(error){if(lifetime.alive)root.textContent=error.message;}})();';
     response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});response.end(documentHtml(release.design.title,body,script,controlToken));return true;
    }
   }
@@ -102,7 +102,7 @@ export async function handleBuilderHttp(request:IncomingMessage,response:ServerR
   if(result.bytes){response.writeHead(result.status,{"content-type":result.mime??"application/octet-stream","cache-control":"private, max-age=86400",...result.headers});response.end(result.bytes);}else sendLocalWebJson(response,result.status,result.body);return true;
  }catch(error){sendLocalWebJson(response,400,{error:error instanceof Error?error.message:'插件暂时无法打开'});return true;}
 }
-export async function releaseBuilderSurface(store:LocalProjectDatabase,boardId:string){const boards=surfaces.get(store),pending=boards?.get(boardId);if(!pending)return;boards!.delete(boardId);const surface=await pending.catch(()=>null);if(!surface)return;for(const platform of [surface.platform,...(await Promise.all([...surface.generated.values()])).map(value=>value.platform)]){for(const id of platform.supervisor.enabledPluginIds()){const state=platform.supervisor.state(id);platform.supervisor.revoke(id);if(state?.status==='running'&&state.install_id)await platform.runtime.stop(state.install_id);}}}
+export async function releaseBuilderSurface(store:LocalProjectDatabase,boardId:string){const boards=surfaces.get(store),pending=boards?.get(boardId);if(!pending)return;boards!.delete(boardId);const surface=await pending.catch(()=>null);if(!surface)return;for(const platform of [surface.platform,...(await Promise.all([...surface.generated.values()])).map(value=>value.platform)]){await platform.closeCoordination();for(const id of platform.supervisor.enabledPluginIds()){const state=platform.supervisor.state(id);platform.supervisor.revoke(id);if(state?.status==='running'&&state.install_id)await platform.runtime.stop(state.install_id);}}}
 
 /**
  * The studio asks the workbench to open a plugin it installed, through the same rail entry a person would click.

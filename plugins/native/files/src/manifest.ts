@@ -2,6 +2,8 @@ import { FILES_ACTIONS } from "./actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
+  CODING_RUN_UPDATED_EVENT,
+  GIT_OPERATION_UPDATED_EVENT,
   CODING_FILE_CHANGED_EVENT,
   CODING_WORKSPACE_INVALIDATED_EVENT,
   FILES_COLLECTION_SCHEMA_VERSION,
@@ -94,6 +96,8 @@ export const filesManifest: PluginManifest = {
   events: {
     publishes: [],
     subscribes: [
+      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1, from_plugin_ids: [CODING_PLUGIN_ID] },
+      { event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1, from_plugin_ids: ["io.molis.work.git"] },
       {
         event_type_id: CODING_FILE_CHANGED_EVENT,
         type_version: 1,

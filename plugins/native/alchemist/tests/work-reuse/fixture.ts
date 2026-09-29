@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { alchemistOutput } from "../../../../../tests/fixtures/alchemist-output.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
@@ -45,7 +46,7 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
         assumptions: ["愿意记录"], unknowns: ["付费"], mvp: { inScope: ["证据整理"], outOfScope: ["自动发布"] } })), noCardsReason: null };
       afterGenerate?.();
       const body = badOutput ? "not valid JSON" : JSON.stringify(value);
-      return { text: transformOutput ? transformOutput(input, body) : body, runtimeLabel: "test double (not Prologue validation)" };
+      return alchemistOutput(transformOutput ? transformOutput(input, body) : body, "test double (not live model validation)");
     },
   };
   const host: WorkReuseHostPort = {

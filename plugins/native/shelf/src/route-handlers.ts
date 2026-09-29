@@ -87,7 +87,7 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
       const itemId = stringValue(request.body.item_id);
       if (!recipe || (!itemIds.length && !itemId)) return { status: 400, body: { error: "请选择动作和材料" } };
       try {
-        return await withShelf(await call(shelfActions.runJob, {
+        return await withShelf(await call(recipe === "extract_text" ? shelfActions.extract : shelfActions.generate, {
           recipe,
           ...(itemId ? { item_id: itemId } : {}),
           ...(itemIds.length ? { item_ids: itemIds } : {}),

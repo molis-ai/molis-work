@@ -5,16 +5,16 @@
  */
 import type { PluginDefinition, PluginManifest, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
+import { createSandboxRunner, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { resolvePluginComponentCall, validatePluginPresentation, PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { capabilityLimits, slowOperations, type Lane } from './capabilities.js';
+import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
 export const releaseVersion = (version: number) => `${version}.0.0`;
 const ENTRIES = 'sandbox:entries';
-const GONE = new Set(['PROCESS_EXIT', 'STOPPED', 'START_FAILED', 'START_TIMEOUT', 'OPERATION_TIMEOUT', 'MEMORY_LIMIT', 'CPU_LIMIT', 'CHANNEL_LIMIT', 'CHANNEL_ERROR', 'PROTOCOL_ERROR']);
+const GONE = new Set(['PROCESS_EXIT', 'STOPPED', 'CANCELLED', 'START_FAILED', 'START_TIMEOUT', 'OPERATION_TIMEOUT', 'MEMORY_LIMIT', 'CPU_LIMIT', 'CHANNEL_LIMIT', 'CHANNEL_ERROR', 'PROTOCOL_ERROR']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
@@ -24,10 +24,12 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
   return {
     transaction(context, mutate) {
       const run = async () => {
+        await context.beforeEffect?.();
         context.signal.throwIfAborted();
         const raw = storage.get(ENTRIES);
         const working = new Map<string, SandboxJson>(raw ? JSON.parse(raw) as Array<[string, SandboxJson]> : []);
         const result = mutate(working);
+        await context.beforeEffect?.();
         context.signal.throwIfAborted();
         if (!storage.compareAndSet!(ENTRIES, raw, JSON.stringify([...working]))) throw new Error('数据被同时修改，请重试');
         return result;
@@ -39,13 +41,9 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
   };
 }
 
-/** The actor the platform's scheduler calls installed plugins as; web requests are always stamped with the person's. */
-export const SCHEDULED_RUN_ACTOR = 'plugin-builder:scheduled-run';
-/** The actor the unified action directory calls installed plugins as, when someone calls one of their functions. */
-export const EXPOSED_ACTION_ACTOR = 'plugin-builder:action';
-const DIRECT_CALLERS = new Set([SCHEDULED_RUN_ACTOR, EXPOSED_ACTION_ACTOR]);
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network'] } = {}): PluginDefinition {
+export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {}): PluginDefinition {
+  if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
   const uiId = release.pluginId + '.ui.v1';
   const manifest: PluginManifest = {
     schema_version: 2, host_api_version: 2, plugin_id: release.pluginId, version: releaseVersion(release.version), name: release.design.title, kind: 'app',
@@ -53,12 +51,13 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(compatibleFrom.length ? { upgrade_compatibility: { compatible_from_versions: compatibleFrom.map(releaseVersion) } } : {}),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
+    capabilities: { provides: [], consumes: release.design.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
+    ...(release.design.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
     ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: release.design.title, contribution_id: uiId }] },
   };
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
-  const lanes = new Map<Lane, Promise<SandboxRunner>>(), slow = slowOperations(release.design.contract);
+  const lanes = new Map<Lane, Promise<SandboxRunner>>();
   return {
     manifest,
     // Host provenance: Plugin Runtime then requires explicit grants and rolls back code without rolling back data.
@@ -70,7 +69,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       const services: SandboxServices = { storage: storageTransactions(storage), ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}) };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
-        const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services, limits: capabilityLimits(approved),
+        const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,
           identity: { projectId: context.board_id ?? 'local', installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' } });
         lanes.set(lane, created);
         created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
@@ -81,21 +80,53 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       return {
         kind: 'app',
         routes: [{ route_id: 'studio.call', async handle(request) {
+          let outcomeUnknown = false;
           try {
             const body = (request.body ?? {}) as { componentId?: unknown; binding?: unknown; payload?: unknown; operation?: unknown; input?: unknown };
             // The platform (its scheduler, or the action directory) runs an operation by id; people reach operations through parts.
-            const scheduled = DIRECT_CALLERS.has(request.actor_id) && typeof body.operation === 'string' && release.design.contract.operations.some(item => item.id === body.operation);
+            const scheduled = !!request.execution && typeof body.operation === 'string' && release.design.contract.operations.some(item => item.id === body.operation);
             const node = release.nodes.find(item => item.id === body.componentId);
             if (!scheduled && (!node || (body.binding !== 'read' && body.binding !== 'submit'))) throw new Error('未知的组件操作');
-            const call = scheduled ? { operationId: body.operation as string, input: body.input ?? {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
-            const lane: Lane = slow.has(call.operationId) ? 'slow' : 'quick', active = await open(lane);
-            try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson) } }; }
-            catch (error) {
-              // A dead process restarts on the next call; the failed call itself is not replayed, so nothing is written twice.
-              if (GONE.has((error as { code?: string }).code ?? '')) { lanes.delete(lane); throw new Error('插件刚才出错已重新启动，请再试一次'); }
-              throw error;
+            const call = scheduled ? { operationId: body.operation as string, input: Object.hasOwn(body, 'input') ? body.input : {} } : resolvePluginComponentCall(node!, body.binding as 'read' | 'submit', body.payload ?? {});
+            await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+            const operation = release.design.contract.operations.find(item => item.id === call.operationId)!;
+            const dependencies = operation.effects.capabilities ?? [];
+            const capabilities = dependencies.length ? await host.capabilities?.() ?? [] : [];
+            if (host.capabilities) for (const id of dependencies) {
+              const entry = latestCapability(capabilities, id);
+              if (!entry || entry.installed === false) throw new SandboxError('CAPABILITY_UNAVAILABLE', '这项功能依赖的能力当前不可用：' + id);
+              if (operation.kind === 'query' && (entry.execution?.cost === 'metered' || entry.effect && entry.effect !== 'read')) {
+                throw new SandboxError('CAPABILITY_DENIED', '查询不能自动调用收费或写入能力，请改为手动运行：' + id);
+              }
             }
-          } catch (error) { return { status: 400, body: { error: message(error) } }; }
+            const binding = capabilityPolicyBinding(operation.effects, capabilities);
+            let policyChanged = false;
+            const beforeEffect = async () => {
+              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+              if (!host.capabilities || !dependencies.length) return;
+              if (capabilityPolicyBinding(operation.effects, await host.capabilities()) !== binding) {
+                policyChanged = true;
+                throw new SandboxError('CAPABILITY_CHANGED', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
+              }
+              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+            };
+            await beforeEffect();
+            const lane: Lane = slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;
+            try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, {
+              signal: request.execution?.signal, beforeEffect, limits: capabilityLimits(operation.effects, capabilities),
+            }) } }; }
+            catch (error) {
+              // The worker may wrap a refused SDK call as PLUGIN_ERROR; keep the trusted Host's reason.
+              let failure = error;
+              try { await beforeEffect(); } catch (current) { failure = current; }
+              const gone = GONE.has((error as { code?: string }).code ?? '');
+              if (gone && lanes.get(lane) === pending) lanes.delete(lane);
+              if (policyChanged || error instanceof SandboxError && error.outcome === 'unknown') { outcomeUnknown = true; throw failure; }
+              // A dead process restarts on the next call; the failed call itself is not replayed, so nothing is written twice.
+              if (gone) { outcomeUnknown = true; throw new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
+              throw failure;
+            }
+          } catch (error) { return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } }; }
         } }],
         views: [{ descriptor: { contribution_id: uiId, plugin_id: release.pluginId, kind: 'primary-page', label: release.design.title, slots: [] },
           render: () => '<main data-installed-plugin="' + release.pluginId + '"></main>' }],

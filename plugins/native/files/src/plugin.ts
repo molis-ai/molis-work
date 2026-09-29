@@ -3,6 +3,7 @@ import type {
   PluginCommandInput,
   PluginDefinition,
   PluginStartContext,
+  PluginEventDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { filesManifest } from "./manifest.js";
@@ -24,7 +25,7 @@ export interface FilesPluginPorts {
   /** Whether the Host can list and read under the bound workspace right now. */
   readable?(): boolean;
   /** Notifies the Host after subscribed filesystem events so it can reload. */
-  onWorkspaceChanged?(available: boolean): void | Promise<void>;
+  onWorkspaceChanged?(available: boolean, delivery: PluginEventDeliveryContext): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
 
@@ -63,10 +64,12 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
           if (objectId === null) throw new Error("没有可打开的文件");
           return { ref: { view_id: "tree", object_id: objectId }, title: objectId };
         },
-        onEvent: async () => {
+        onEvent: async (_event, delivery) => {
           // Coding wrote, or Git moved the working tree. Either way what is on
           // screen may no longer match the disk, so the Host re-reads.
-          await ports.onWorkspaceChanged?.(ports.readable?.() === true);
+          delivery.beforeEffect();
+          await ports.onWorkspaceChanged?.(ports.readable?.() === true, delivery);
+          delivery.beforeEffect();
         },
       };
     },

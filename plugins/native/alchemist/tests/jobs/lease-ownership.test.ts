@@ -63,6 +63,36 @@ it("a remote cancellation aborts the original wait and rejects a late business c
   } finally { release.resolve(); await running; f.close(); vi.useRealTimers(); }
 });
 
+for (const rejects of [false, true]) it(`local shutdown rejects late writes and preserves the original checkpoint after ${rejects ? "rejection" : "return"}`, async () => {
+  vi.useFakeTimers();
+  const f = fixture(), release = Promise.withResolvers<void>();
+  f.first.exec("CREATE TABLE business_result (value TEXT)");
+  const job = f.a.enqueue({ kind: "slow", payload: {} });
+  let cancelled = false, commitError: unknown, checkpointError: unknown;
+  const worker = new LocalWorker(f.a, { slow: async (_job, control) => {
+    control.saveCheckpoint({ phase: "external_call_started" });
+    await release.promise;
+    cancelled = control.isCancelled();
+    try { control.commit(() => f.first.prepare("INSERT INTO business_result VALUES ('late')").run()); } catch (error) { commitError = error; }
+    try { control.saveCheckpoint({ phase: "done" }); } catch (error) { checkpointError = error; }
+    if (rejects) throw new Error("late failure");
+  } });
+  const running = worker.runNext();
+  try {
+    const original = f.b.get(job.id);
+    worker.stop();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(f.b.get(job.id)?.leaseExpiresAt).toBe(original?.leaseExpiresAt);
+    release.resolve(); await running;
+    expect(cancelled).toBe(true);
+    expect(commitError).toMatchObject({ message: "RUNTIME_SHUTDOWN" });
+    expect(checkpointError).toMatchObject({ message: "RUNTIME_SHUTDOWN" });
+    expect(f.b.get(job.id)).toMatchObject({ status: "running", checkpoint: { phase: "external_call_started" } });
+    expect(f.second.prepare("SELECT * FROM business_result").all()).toEqual([]);
+    expect(f.b.listEvents(job.id).map(event => event.type)).toEqual(["queued", "running", "checkpoint_saved"]);
+  } finally { release.resolve(); await running; f.close(); vi.useRealTimers(); }
+});
+
 it("a replaced worker cannot overwrite the recovered brainstorm or repeat its ambiguous model call", async () => {
   vi.useFakeTimers();
   const f = fixture(), release = Promise.withResolvers<void>();

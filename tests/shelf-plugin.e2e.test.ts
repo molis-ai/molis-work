@@ -83,7 +83,7 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#93604b"); // copper, a step darker for 4.5:1 (spec → 第三轮 · 对比度)
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('aria-disabled')"), "true");
-  assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "未发现终端 Agent。");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "请在设置中配置 AI 模型，再为置物架选择可用模型");
   // 整合 stays on the bar and greys out until a second material joins.
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('aria-disabled')"), "true");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=combine]')?.getAttribute('title')"), "「整合」至少要两份材料");
@@ -110,7 +110,7 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   assert.match(await evaluate<string>("document.querySelector('[data-shelf-confirm-title]')?.textContent || ''"), /提取 PDF 文字/);
   assert.match(await evaluate<string>("document.querySelector('[data-shelf-confirm-out]')?.textContent || ''"), /pdf\.md/);
   assert.equal(await evaluate("document.querySelector('[data-shelf-fact=read]')?.textContent"), "1 份材料的副本");
-  assert.equal(await evaluate("document.querySelector('[data-shelf-fact=write]')?.textContent"), "仅任务目录");
+  assert.equal(await evaluate("document.querySelector('[data-shelf-fact=write]')?.textContent"), "仅保存新结果，原件不变");
   assert.equal(await evaluate("document.querySelector('[data-shelf-fact=isolation]')?.textContent"), "本机提取，不发送");
   assert.equal(await evaluate("document.querySelector('[data-shelf-actor]')?.textContent"), "本机提取，不发送。");
   assert.equal(await evaluate("document.querySelector('[data-shelf-choice]')?.hidden"), true);
@@ -174,10 +174,11 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   const beforeMaterials = await evaluate<number>("document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]').length");
   await evaluate(`(async () => {
     await fetch("/api/shelf/clipboard", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(clipBody)} }) });
-    const current = document.body.dataset.desktopSurface;
-    document.body.dataset.desktopSurface = current === "shelf" ? "home" : "shelf";
-    document.body.dataset.desktopSurface = "shelf";
   })()`);
+  // Re-enter through the real Workbench visibility lifecycle, not a private data-attribute observer.
+  await click('[data-plugin-strip] [data-plugin-id="inbox"]');
+  await waitFor("document.body.dataset.desktopSurface === 'inbox'");
+  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
   await waitFor(`[...document.querySelectorAll('[data-shelf-clip]')].some(row => row.dataset.shelfName === ${JSON.stringify("本周待办：完善文件预览与结果对照。")})`, 8_000);
   assert.equal(await evaluate("document.querySelector('[data-shelf-current]')?.textContent"), "当前");
   await click('[data-shelf-list="clipboard"] [data-shelf-clip]');
@@ -262,12 +263,16 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
     assert.equal(await evaluate("document.querySelectorAll('[data-shelf-settings-tab]').length"), 0);
     assert.equal(await evaluate("[...document.querySelectorAll('[data-shelf-settings-pane]')].every((pane) => !pane.hidden)"), true);
     assert.equal(await evaluate("document.querySelectorAll('[data-shelf-panel-slot]').length"), 4);
+    assert.equal(await evaluate("document.querySelectorAll('[data-shelf-model]').length"), 1);
+    assert.equal(await evaluate("document.querySelector('[data-shelf-model]')?.value"), "");
+    assert.equal(await evaluate("document.querySelector('[data-shelf-settings] a[href=\"/settings/models\"]')?.textContent"), "配置 AI 模型");
     // Soft Workbench (DESIGN.md → Plugin identity): the settings surface keeps DropAgent's `--da-*` names, now
     // aliased to the shared press tone of the current theme.
     const press = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");
     const shared = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--nav-press').trim()");
     assert.equal(press, shared);
     assert.match(press, theme === "light" ? /#292a2c 11%/ : /#f0efed 15%/);
+    await evaluate("document.querySelector('[data-shelf-settings-pane=machine]').scrollIntoView({block: 'start'})");
     // Let the compositor land on the new palette before the shot is taken.
     await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);

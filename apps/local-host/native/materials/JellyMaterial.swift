@@ -1,0 +1,115 @@
+import Foundation
+import AppKit
+import PDFKit
+import Vision
+import ImageIO
+
+private struct MaterialLine: Codable { let text: String; let confidence: Double }
+private struct MaterialPage: Codable {
+    let number: Int
+    let text: String
+    let method: String
+    let confidence: Double?
+    var lines: [MaterialLine]? = nil
+}
+private struct MaterialCoverage: Codable {
+    let status: String
+    let processed_pages: Int
+    let total_pages: Int
+    let issues: [String]
+}
+private struct MaterialOutput: Codable {
+    let text: String
+    let pages: [MaterialPage]
+    let coverage: MaterialCoverage
+    let extractor: String
+}
+private enum MaterialError: Error { case failure(String, String) }
+
+private func emit<T: Encodable>(_ value: T) throws {
+    let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+    FileHandle.standardOutput.write(try encoder.encode(value)); FileHandle.standardOutput.write(Data([10]))
+}
+private func checkFile(_ path: String) throws -> URL {
+    let url = URL(fileURLWithPath: path)
+    let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+    guard values.isRegularFile == true, values.isSymbolicLink != true else { throw MaterialError.failure("invalid_file", "材料必须是普通文件") }
+    guard let size = values.fileSize, size > 0, size <= 32 * 1024 * 1024 else { throw MaterialError.failure("file_too_large", "文件应为 1 字节至 32 MB") }
+    return url
+}
+private func recognize(_ image: CGImage, languages: [String]?) throws -> (String, Double?, [MaterialLine]) {
+    guard image.width > 0, image.height > 0, image.width <= 20000, image.height <= 20000, image.width * image.height <= 50_000_000 else { throw MaterialError.failure("image_too_large", "图片像素超过安全提取范围") }
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .accurate; request.usesLanguageCorrection = true
+    let supported = try request.supportedRecognitionLanguages()
+    if let languages, !languages.allSatisfy({ supported.contains($0) }) { throw MaterialError.failure("unsupported_language", "本机不支持所选识别语言") }
+    request.recognitionLanguages = languages ?? ["zh-Hans", "zh-Hant", "en-US"].filter { supported.contains($0) }
+    try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+    let observations = (request.results ?? []).sorted { left, right in
+        if abs(left.boundingBox.midY - right.boundingBox.midY) > 0.012 { return left.boundingBox.midY > right.boundingBox.midY }
+        return left.boundingBox.minX < right.boundingBox.minX
+    }
+    let candidates = observations.compactMap { $0.topCandidates(1).first }
+    let lines = candidates.map { MaterialLine(text: $0.string.trimmingCharacters(in: .whitespacesAndNewlines), confidence: Double($0.confidence)) }.filter { !$0.text.isEmpty }
+    let text = lines.map(\.text).joined(separator: "\n")
+    let confidence = candidates.isEmpty ? nil : candidates.reduce(0.0) { $0 + Double($1.confidence) } / Double(candidates.count)
+    return (text, confidence, lines)
+}
+private func extractImage(_ url: URL, languages: [String]?) throws -> MaterialOutput {
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+          let width = properties[kCGImagePropertyPixelWidth] as? Int,
+          let height = properties[kCGImagePropertyPixelHeight] as? Int,
+          width > 0, height > 0, width <= 20000, height <= 20000, width * height <= 50_000_000,
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+    else { throw MaterialError.failure("invalid_image", "无法读取图片，或图片像素过大") }
+    let (text, confidence, lines) = try recognize(image, languages: languages)
+    let multiple = CGImageSourceGetCount(source) > 1
+    var issues: [String] = multiple ? ["仅提取第一帧/第一张图片"] : []
+    if text.isEmpty { issues.append("图片未识别到可读文字；未理解纯视觉内容") }
+    return MaterialOutput(text: text, pages: [MaterialPage(number: 1, text: text, method: "vision-ocr", confidence: confidence, lines: lines)], coverage: MaterialCoverage(status: text.isEmpty ? "insufficient" : multiple ? "partial" : "sufficient", processed_pages: 1, total_pages: CGImageSourceGetCount(source), issues: issues), extractor: "macos-vision")
+}
+private func extractPDF(_ url: URL, languages: [String]?) throws -> MaterialOutput {
+    guard let document = PDFDocument(url: url) else { throw MaterialError.failure("invalid_pdf", "无法读取 PDF") }
+    guard !document.isLocked else { throw MaterialError.failure("locked_pdf", "PDF 已加密，请先解锁后上传") }
+    guard document.pageCount > 0 else { throw MaterialError.failure("empty_pdf", "PDF 没有页面") }
+    let maximumPages = 100; let maximumCharacters = 2_000_000
+    var pages: [MaterialPage] = []; var issues: [String] = []; var characterCount = 0
+    if document.pageCount > maximumPages { issues.append("仅提取前 100 页") }
+    for index in 0..<min(document.pageCount, maximumPages) {
+        guard let page = document.page(at: index) else { issues.append("第 \(index + 1) 页无法读取"); continue }
+        var text = (page.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        var method = "pdf-text"; var confidence: Double? = nil
+        if text.isEmpty {
+            let thumbnail = page.thumbnail(of: NSSize(width: 2000, height: 2000), for: .mediaBox)
+            if let image = thumbnail.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                do { let result = try recognize(image, languages: languages); text = result.0; confidence = result.1; method = "vision-ocr" }
+                catch { issues.append("第 \(index + 1) 页 OCR 失败") }
+            } else { issues.append("第 \(index + 1) 页无法渲染") }
+        }
+        if text.isEmpty { issues.append("第 \(index + 1) 页没有可提取文字") }
+        if characterCount + text.count > maximumCharacters { text = String(text.prefix(maximumCharacters - characterCount)); issues.append("文字达到 200 万字符上限") }
+        pages.append(MaterialPage(number: index + 1, text: text, method: method, confidence: confidence)); characterCount += text.count
+        if characterCount >= maximumCharacters { break }
+    }
+    let text = pages.filter { !$0.text.isEmpty }.map { "[第 \($0.number) 页]\n\($0.text)" }.joined(separator: "\n\n")
+    return MaterialOutput(text: text, pages: pages, coverage: MaterialCoverage(status: text.isEmpty ? "insufficient" : issues.isEmpty ? "sufficient" : "partial", processed_pages: pages.count, total_pages: document.pageCount, issues: issues), extractor: "macos-pdfkit-vision")
+}
+@main struct JellyMaterialMain {
+    static func main() async {
+        do {
+            let arguments = Array(CommandLine.arguments.dropFirst())
+            if arguments == ["capabilities"] { try emit(["extractor": "jelly-material", "pdf": "available", "image_ocr": "available"]); return }
+            guard (arguments.count == 2 || (arguments.count == 4 && arguments[2] == "--languages")), arguments[0] == "extract" else { throw MaterialError.failure("invalid_arguments", "用法：jelly-material extract <文件> [--languages 语言列表]，或 capabilities") }
+            let languages: [String]? = arguments.count == 4 ? arguments[3].split(separator: ",").map(String.init) : nil
+            if let languages, languages.isEmpty || languages.count > 3 || !languages.allSatisfy({ ["zh-Hans", "zh-Hant", "en-US"].contains($0) }) { throw MaterialError.failure("invalid_arguments", "识别语言无效") }
+            let url = try checkFile(arguments[1])
+            let output = url.pathExtension.lowercased() == "pdf" ? try extractPDF(url, languages: languages) : try extractImage(url, languages: languages)
+            try emit(output)
+        } catch {
+            let code: String; let message: String
+            if case let MaterialError.failure(c, m) = error { code = c; message = m } else { code = "extraction_failed"; message = "材料提取失败：\(error.localizedDescription)" }
+            try? emit(["error": code, "message": message]); exit(1)
+        }
+    }
+}

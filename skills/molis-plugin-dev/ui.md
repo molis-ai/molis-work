@@ -69,7 +69,7 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
-Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），由 Workbench `plugin-workbench.ts` 的 `clientFactory` / `settingsClient` 注入。
+Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在 `builtin-plugins.ts` 的同一插件条目声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
 Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps/workbench/src/scripts/client/navigation-feed.ts`、`navigation-inbox.ts`、`events-primary.ts`。抄 Pages 的 client 到 Feed 不会接到现有画面。
 
@@ -115,3 +115,19 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 ## 验收
 
 改了可见 UI：用浏览器把「打开插件 → 点一行 → 主按钮 → 返回」走完。只截一张静态图不算验过。相关列表/详情共享状态的，两边都看一眼。空态、错误、窄屏返回一起做。
+
+## 客户端挂载与异步资源
+
+原生插件 factory 使用 Host 注入的 `mountPluginClient(root)`，返回 null 就退出，避免同一 DOM 重复绑定。用 scope 的 listen、timeout、frame、observe、own 管理资源；不要留下全局监听、SSE 或观察器。Workbench 和独立页面都由 UI Host 提供同一实现。
+
+进度查询放在 `whenVisible(signal => cleanup)` / `poll` 中：隐藏停止轮询与订阅，再次显示读取权威状态。请求用 `scope.fetch`，读取 body 后 `scope.assertCurrent(signal)` 才消费结果。普通写入只绑定挂载取消，不因隐藏页面重放命令；UI 卸载不等于服务端业务任务已取消。保留业务幂等和结果未知的提示。参考 Images、Coding、Builder 与 Shelf 当前客户端、`packages/ui-host/README.md`；用真实浏览器验证隐藏祖先、重复挂载、卸载、延迟返回与恢复。
+
+Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一个挂载。Host 审查组件接收调用方生命周期和当前可见性 signal，并以自己的容器管理监听与卸载；不要用审查容器因空数据而 hidden 来判断是否该读取，也不要让旧显示世代的决定回调操作重新进入的界面。普通刷新不使同一显示世代的在途决定失效，过期回执只可触发读取当前状态，不能重放命令。
+
+需要事件刷新时复用 `scope.watchRevision(read, refresh)`；可见时只查轻量 revision，变化后读原状态，隐藏/卸载停止，重连重新读当前事实。忙碌时 refresh 返回 false，避免丢失发生在当前读取期间的通知。revision 不是业务执行身份或成功回执，不能重放写命令。参考 Files/Git。
+
+## 生成插件的页面组合
+
+生成插件使用 design-system 的 `PluginPresentation` v1：stack/split/grid 树引用已有部件，kind、密度、阅读宽度、主操作与选中详情都是语义属性。结构由 `validatePluginPresentation` 严格校验；旧插件没有 presentation 时沿用旧布局。可操作示例在 `/__ui/catalog#plugin-composition`，由正式渲染器运行，示例数据只在该页内存。
+
+详情从当前集合记录读取，宽屏并排、窄屏返回目录；移动布局保留输入与选中。不要另复制操作和绑定，也不要写自有 CSS 或脚本。流程与输出见 [generated-ui.md](generated-ui.md)。

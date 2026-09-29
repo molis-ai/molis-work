@@ -36,7 +36,7 @@ export class AlchemistHostService {
     if (entry?.closing) throw new ActionError("alchemist.closing", "炼金术士服务正在关闭，请稍后重试。");
     if (!entry) {
       const projectId = caller.project_id;
-      const ai = this.options.ai?.(projectId) ?? createAlchemistProloguePort({ homeDirectory: this.home, projectId, search: input => {
+      const ai = this.options.ai?.(projectId) ?? createAlchemistProloguePort({ homeDirectory: this.home, search: input => {
         entry!.search ??= createAlchemistSearchPort({ homeDirectory: this.home, projectId });
         return entry!.search.search(input);
       } });

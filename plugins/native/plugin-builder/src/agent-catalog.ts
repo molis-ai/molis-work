@@ -3,7 +3,9 @@
  * gets the ones that bear on this request in full (schemas included), the ones the design already uses always, and
  * a line per remaining source with example ids, so it knows what else exists without drowning in it.
  */
-export interface CatalogEntry { id: string; description: string; title?: string; source?: string; effect?: string; input?: unknown; output?: unknown }
+import type { ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
+
+export interface CatalogEntry { execution?: ActionExecutionPolicy; id: string; description: string; title?: string; source?: string; effect?: string; input?: unknown; output?: unknown }
 
 /** Words for matching: Latin words whole, Chinese as overlapping character pairs. */
 function grams(value: string): Set<string> {

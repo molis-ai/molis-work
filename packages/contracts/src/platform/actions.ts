@@ -1,5 +1,7 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
+export * from "./action-execution.js";
+import { validActionExecutionPolicy, type ActionExecutionPolicy } from "./action-execution.js";
 import { validActionResultView, type ActionResultView } from "./action-result.js";
 import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } from "./action-subjects.js";
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_SCHEMA, type SubjectOfferChoice } from "./action-offers.js";
@@ -95,6 +97,8 @@ export interface ActionMetadata {
   readonly plugin?: false;
   /** Provider owns transaction/conflict safety across awaits; Host still tracks lifetime. Default is serial. */
   readonly scheduling?: "concurrent";
+  /** Declarative limits shared by every entry; cancellation uses signal + beforeEffect. */
+  readonly execution?: ActionExecutionPolicy;
   readonly audiences: readonly ActionAudience[];
   readonly permissions: readonly string[];
   readonly subject_kinds: readonly string[];
@@ -451,6 +455,9 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
         }
         if (a.result_view !== undefined && !validActionResultView(a.result_view)) {
           problems.push(`能力 ${key} 的结果展示定义无效`);
+        }
+        if (a.execution !== undefined && !validActionExecutionPolicy(a.execution)) {
+          problems.push(`能力 ${key} 的执行策略无效`);
         }
         if (a.required_scene !== undefined && (!object(a.required_scene) || !id(a.required_scene.scene_id) || !version(a.required_scene.version))) {
           problems.push(`能力 ${key} 的消费场景依赖无效`);

@@ -274,6 +274,19 @@ function overlayRoot(): HTMLElement {
     ?? document.body;
 }
 
+/**
+ * Put a fixed overlay at viewport coordinates. Inside the workbench a pane can itself be the box fixed positioning is
+ * measured from (it would shift the overlay by the pane's offset onto the text it belongs above): measure where it
+ * landed and correct by the difference. The element must be shown when this runs.
+ */
+function pinAt(el: HTMLElement, left: number, top: number): void {
+  el.style.left = left + "px";
+  el.style.top = top + "px";
+  const box = el.getBoundingClientRect();
+  const dx = Math.round(box.left - left), dy = Math.round(box.top - top);
+  if (dx || dy) { el.style.left = left - dx + "px"; el.style.top = top - dy + "px"; }
+}
+
 function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "above" | "beside"): void {
   const stage = el.closest("[data-pages-stage-workspace]")?.getBoundingClientRect();
   const left = Math.max(0, stage?.left ?? 0);
@@ -293,8 +306,7 @@ function placeOverlay(el: HTMLElement, anchor: FloatingAnchor, mode: "below" | "
     { width, height },
     mode,
   );
-  el.style.left = left + spot.left + "px";
-  el.style.top = top + spot.top + "px";
+  pinAt(el, left + spot.left, top + spot.top);
 }
 
 function followScroll(panel: Element, run: () => void): () => void {
@@ -1198,13 +1210,13 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
         const top = Math.round(rect.top + 2);
         const left = Math.round(Math.min(Math.max(minLeft, minLeft + indent), maxLeft));
         const sameCaret = handle.classList.contains("is-caret") === followingCaret;
-        if (!force && placed === rowPos && handle.style.top === top + "px" && handle.style.left === left + "px" && sameCaret) return;
+        if (!force && placed === rowPos && handle.dataset.at === left + "," + top && !handle.hidden && sameCaret) return;
         gripFollowsCaret = followingCaret;
         handle.classList.toggle("has-note", Boolean(node.attrs.note));
         handle.classList.toggle("is-caret", followingCaret);
-        handle.style.top = top + "px";
-        handle.style.left = left + "px";
         handle.hidden = false;
+        pinAt(handle, left, top);
+        handle.dataset.at = left + "," + top;
         pos = rowPos;
         placed = rowPos;
       };
@@ -3503,9 +3515,12 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     keymap({ Escape: selectEnclosingBlock }),
   ];
 
+  // While the person is still dragging out a selection the bar stays away: it would cover the text being selected.
+  // It appears once the button is released (keyboard selection shows it at once).
+  let dragSelecting = false;
   const placeToolbar = (current: EditorView) => {
     const { from, to, empty } = current.state.selection;
-    if (empty || !(current.state.selection instanceof TextSelection)) {
+    if (dragSelecting || empty || !(current.state.selection instanceof TextSelection)) {
       toolbar.hidden = true;
       return;
     }
@@ -3830,6 +3845,15 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
   document.addEventListener("keydown", onPopEscape, true);
   refreshToc(view, options.translate);
+  const onSelectStart = (event: PointerEvent) => { if (event.button === 0 && event.pointerType !== "touch") { dragSelecting = true; toolbar.hidden = true; } };
+  const onSelectEnd = () => {
+    if (!dragSelecting) return;
+    dragSelecting = false;
+    if (view.hasFocus()) placeToolbar(view);
+  };
+  view.dom.addEventListener("pointerdown", onSelectStart);
+  document.addEventListener("pointerup", onSelectEnd, true);
+  document.addEventListener("pointercancel", onSelectEnd, true);
   const reposition = () => {
     if (view.hasFocus()) {
       placeToolbar(view);
@@ -3848,6 +3872,9 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     window.removeEventListener("resize", reposition);
     hidePop();
     document.removeEventListener("keydown", onPopEscape, true);
+    view.dom.removeEventListener("pointerdown", onSelectStart);
+    document.removeEventListener("pointerup", onSelectEnd, true);
+    document.removeEventListener("pointercancel", onSelectEnd, true);
     pop.remove();
     linkPreview.remove();
     commentPreview.remove();

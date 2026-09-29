@@ -211,7 +211,7 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 | P5 | SDK、Skill、手册、包说明、SSOT、架构需求书、产品范围 | 完成（3715bdfc 及之前） |
 | P6 | 真实场景：隔离 Home 预览与浏览器实操、真实 MCP 进程、助理授权 | 见下 |
 
-与助理分支：已合入 `feature/system-assistant` aa5b1a61（含 origin/main 21cdfbf8），本分支须在其后合入 main。
+与助理分支：已合入 `feature/system-assistant` 5b209d5d（含 origin/main 21cdfbf8），本分支须在其后合入 main。
 
 ### 工程通过（定向）
 
@@ -250,7 +250,8 @@ SDK（`packages/plugin-sdk`）导出 `defineSearchEntriesAction(capabilityId, ki
 - 合入助理分支 aa5b1a61 后重跑：
   - 上面 4 项偶发失败全部通过。
   - 搜索相关的浏览器用例：`immersive-directory`、`goals-tree` 通过（Goals 树在基线失败，合入后通过）；`product-experience-polish` 里“分屏打开”通过，“产品旅程”仍在第 97 行失败（与基线相同）。
-  - `global-ui-interaction` 的键盘选择用例：失败原因变了。基线上窄屏搜索按钮被隐藏；助理 73f3ef37 让它显示后，现在被底栏“项目讨论”按钮压住。在不含搜索代码的 aa5b1a61 上单独构建重跑，失败完全相同，已交给助理会话。
+  - `global-ui-interaction` 的键盘选择用例：基线上窄屏搜索按钮被隐藏；助理 73f3ef37 让它显示后，一度被底栏“项目讨论”按钮压住（在不含搜索代码的 aa5b1a61 上同样失败）。助理在 5b209d5d 修复；合入后重新构建，`global-ui-interaction`、`goals-narrow-navigation`、`goals-tree`、`immersive-directory` 全部通过，定向 45 项仍全部通过，`boundary:check` 零错误。
+  - 仍失败、且与基线相同的只剩“产品旅程”第 97 行（Cognia 打开模型设置）与 Goal Frame 下方分屏、窗格里打开相关 Goal、项目旅程、Feed 判断。
 
 ## 13. 未完成与限制
 

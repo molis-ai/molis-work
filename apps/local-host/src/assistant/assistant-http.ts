@@ -14,6 +14,8 @@ import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./ass
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
+import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
+import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = "web-user";
@@ -44,6 +46,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     characters: async project => (await projectCharacters(ports, project)).list().map(choice => ({ reference: { ...choice.reference }, title: choice.title, available: choice.available,
       ...(choice.reason ? { reason: choice.reason } : {}) })),
     projectTitle: ports.projectTitle,
+    // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
+    methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
+      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
     // The person's own actions in the work's project, as the page there would use them.
     personActions: async work => {
       const reference = work.project_ref;
@@ -140,6 +145,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
         return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
       }
+      // Methods Plugins offer that this scope can use (for “/”).
+      if (method === "GET" && parts.length === 1 && parts[0] === "methods") return { status: 200, body: { methods: await service.methods(null, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       // Which object kind each surface's tab items are, from the plugins' search source declarations.
       if (method === "GET" && parts.length === 1 && parts[0] === "surface-kinds") return { status: 200, body: { kinds: await service.surfaceKinds(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       // What the Assistant's own rounds used today, and the person's daily cap.

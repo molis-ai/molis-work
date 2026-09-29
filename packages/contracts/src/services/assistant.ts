@@ -149,7 +149,7 @@ export interface AssistantContextSnapshot {
 /** A material the person put into this message, or one the page offered and they kept. */
 export interface AssistantMaterial {
   material_id: string;
-  kind: "selection" | "object" | "text" | "file" | "image" | "capability";
+  kind: "selection" | "object" | "text" | "file" | "image" | "capability" | "method";
   title: string;
   /** For `capability`: the one the person picked with “/” to be used this round (its exact identity). */
   capability?: { capability_id: string; version: number; provider_id: string; title: string };
@@ -158,6 +158,8 @@ export interface AssistantMaterial {
    * the Host checks it again with its owner and reads the object's text itself before the round.
    */
   reference?: { hit_id: string };
+  /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
+  method?: { method_id: string; version?: number; name?: string; plugin_title?: string };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
   image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
@@ -483,6 +485,17 @@ export interface AssistantMemory {
 }
 
 /** What the Assistant may do with memory, set by the person; applied exactly as written. */
+/** A method a Plugin offers for business work that a work in this scope can use (registered with the Host). */
+export interface AssistantMethod {
+  /** `<plugin_id>/<skill_id>`. */
+  method_id: string;
+  plugin_id: string;
+  plugin_title: string;
+  version: number;
+  name: string;
+  summary: string;
+}
+
 export interface AssistantMemoryPrefs {
   /** May keep what the person explicitly asks it to remember. It never learns from behaviour on its own. */
   form: boolean;

@@ -1109,20 +1109,40 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     try { capabilityRows = ((await api("/capabilities")).capabilities || []).filter((row) => row.enabled); } catch { capabilityRows = []; }
     return capabilityRows;
   };
+  let methodRows = null;
+  const loadMethodRows = async () => {
+    if (methodRows) return methodRows;
+    try { methodRows = (await api("/methods")).methods || []; } catch { methodRows = []; }
+    return methodRows;
+  };
   const slashOpen = () => startersPop && !startersPop.hidden && startersPop.dataset.mode === "slash";
   async function setSlash(query) {
     if (!startersPop) return;
     const q = String(query || "").trim().toLowerCase();
     const starters = startersFor().filter((starter) => !q || starter.label.toLowerCase().includes(q));
     const rows = (await loadCapabilityRows()).filter((row) => !q || [row.title, row.provider, row.description].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 8);
+    const methods = (await loadMethodRows()).filter((row) => !q || [row.name, row.plugin_title, row.summary].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 5);
     if (!String(input.value || "").startsWith("/")) return;
     startersPop.dataset.mode = "slash";
     startersPop.hidden = false;
-    startersPop.replaceChildren(el("p", "assistant-popover-title", L("用一个能力，或这样开始")));
+    startersPop.replaceChildren(el("p", "assistant-popover-title", L("用一个方法或能力，或这样开始")));
     starters.forEach((starter) => {
       const button = el("button", "assistant-starter", starter.label); button.type = "button";
       button.addEventListener("mousedown", (event) => event.preventDefault());
       button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); closeSlash(); input.focus(); });
+      startersPop.append(button);
+    });
+    // A method is how to do it: chosen here, its steps go with this round only.
+    methods.forEach((row) => {
+      const button = el("button", "assistant-starter", L("方法") + "：" + row.name + " · " + row.plugin_title); button.type = "button";
+      button.title = row.summary || row.name;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => {
+        if (!files.some((file) => file.kind === "method" && file.method.method_id === row.method_id)) {
+          files.push({ material_id: "method-" + crypto.randomUUID(), kind: "method", title: L("方法") + "：" + row.name, explicit: true, method: { method_id: row.method_id } });
+        }
+        input.value = ""; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
+      });
       startersPop.append(button);
     });
     rows.forEach((row) => {
@@ -1139,7 +1159,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       });
       startersPop.append(button);
     });
-    if (!starters.length && !rows.length) startersPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
+    if (!starters.length && !rows.length && !methods.length) startersPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
   }
   function closeSlash() { if (startersPop && startersPop.dataset.mode === "slash") { delete startersPop.dataset.mode; startersPop.hidden = true; } }
   /* “@”: find something in this project or the person's own content through the system search and bring it along.

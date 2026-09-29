@@ -57,6 +57,14 @@ export const ASSISTANT_FOLLOW_UP_ACTIONS = {
     { type: "object", additionalProperties: false, required: ["followup_id"], properties: { followup_id: { type: "string", title: "定时" } } }),
 } as const;
 
+/** Reading a method a Plugin offers: how a round adopts one it found in its list of methods. */
+const methodRead = define("assistant.methods.read", "query", "读取方法", "读取插件提供的一个做事方法的完整步骤（method_id 见本轮“可用的方法”）。读了就按它做，并告诉用户用了哪个方法。",
+  { type: "object", additionalProperties: false, required: ["method_id"], properties: { method_id: { type: "string", title: "方法", maxLength: 200 } } });
+export const ASSISTANT_METHOD_ACTIONS = {
+  read: { ...methodRead, action: { ...methodRead.action, output_schema: { type: "object", required: ["method_id", "name", "version", "body"], properties: {
+    method_id: { type: "string" }, name: { type: "string" }, plugin_title: { type: "string" }, version: { type: "integer" }, body: { type: "string", title: "方法步骤" } } } } },
+} as const;
+
 /** The work an Assistant round is acting for (its calls are audited as `assistant:<work_id>`). */
 const callingWork = (context: { audit_actor_id?: string }) => context.audit_actor_id?.startsWith("assistant:") ? context.audit_actor_id.slice("assistant:".length) : null;
 
@@ -73,6 +81,11 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
       await service().saveFollowUp({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
       return { followups: service().followUps(work) };
     } },
+    { capability_id: "assistant.methods.read", version: 1, handle: async (context, input) => {
+      const work = callingWork(context);
+      const method = await service().readMethod(work ? service().workRecord(work) : null, String((input as { method_id?: unknown }).method_id ?? ""));
+      return { method_id: method.method_id, name: method.name, plugin_title: method.plugin_title, version: method.version, body: method.body };
+    } },
     { capability_id: "assistant.followups.remove", version: 1, handle: async (context, input) => {
       const id = String((input as { followup_id?: unknown }).followup_id ?? ""), work = callingWork(context);
       if (work && !service().followUps(work).some(item => item.followup_id === id)) throw new Error("这项工作没有这个定时");
@@ -81,5 +94,5 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
     } },
   ];
   return registry.registerProvider({ provider: { provider_id: ASSISTANT_RULES_PROVIDER, title: "助理", kind: "system" },
-    definitions: [...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS)], handlers });
+    definitions: [...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(ASSISTANT_METHOD_ACTIONS)], handlers });
 }

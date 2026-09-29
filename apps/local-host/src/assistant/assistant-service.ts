@@ -5,11 +5,13 @@ import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryPrefs, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
+import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
+import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
@@ -50,6 +52,8 @@ export interface AssistantServicePorts {
   scopeActions?(work: StoredWork): Promise<PersonActions>;
   /** The Characters the person published in a project, each saying whether it can run now. */
   characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
+  /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
+  methods?: { list(): AgentMethodView[]; read(ownerId: string, skillId: string, version?: number): AgentMethodRegistration };
 }
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
@@ -107,11 +111,16 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
   let total = 0;
   return value.map((raw, index) => {
     const item = raw as AssistantMaterial;
-    if (!item || typeof item !== "object" || !["selection", "object", "text", "file", "image", "capability"].includes(item.kind)
+    if (!item || typeof item !== "object" || !["selection", "object", "text", "file", "image", "capability", "method"].includes(item.kind)
       || typeof item.title !== "string" || typeof item.explicit !== "boolean" || item.text !== undefined && typeof item.text !== "string") {
       throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
     }
     // A capability picked with “/”: its exact identity; the words the model reads are the Host's, not the page's.
+    // A method chosen with “/”: only its identity; the Host adds the registered body before the round.
+    if (item.kind === "method") {
+      if (typeof item.method?.method_id !== "string" || !/^[^\/\s]{1,120}\/[^\/\s]{1,80}$/.test(item.method.method_id)) throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "method" as const, title: item.title.slice(0, 200), explicit: true, method: { method_id: item.method.method_id } };
+    }
     if (item.kind === "capability") {
       const cap = item.capability;
       if (!cap || typeof cap.capability_id !== "string" || !Number.isSafeInteger(cap.version) || typeof cap.provider_id !== "string" || typeof cap.title !== "string") {
@@ -844,6 +853,7 @@ export class AssistantService {
       if (created && input.coding_session_id) work = await this.adoptCodingSession(work, input.coding_session_id);
       work = await this.chooseCharacter(work, input.character);
       if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
+      if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       this.linkSent(work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode);
       this.store.finishRequest(this.actorId, input.request_id, result);
@@ -1192,6 +1202,46 @@ export class AssistantService {
         ? `用户用“@”引用的对象，已向${where}重新读取（版本 ${context.revision}${context.truncated ? "，正文为节选" : ""}）。\n${context.content.slice(0, 12_000)}`
         : `用户用“@”引用的对象。${where}没有提供正文读取，下面只是搜索结果里的摘要，不是全文：\n${material.text ?? "（没有摘要）"}`;
       out.push({ ...material, title: opened.title || material.title, object: { kind: subject.kind, id: subject.id, version: context?.revision ?? opened.revision, title: opened.title || material.title }, text });
+    }
+    return out;
+  }
+
+  /**
+   * Methods Plugins offer for business work that this scope can use: registered with the Host, and their Plugin has
+   * something available here (not turned off in this project). Discoverable is not adopted: a round takes one when
+   * the person chooses it or the round reads it, and only for that round.
+   */
+  async methods(work: StoredWork | null, caller: AssistantCaller = {}): Promise<AssistantMethod[]> {
+    const registered = this.ports.methods?.list() ?? [];
+    if (!registered.length) return [];
+    let actions: PersonActions | null = null;
+    try { actions = await this.ports.scopeActions?.(work ?? ({ project_ref: caller.project_ref ?? undefined } as StoredWork)) ?? null; } catch { actions = null; }
+    const live = new Set((actions ? await actions.discover().catch(() => [] as ActionView[]) : []).filter(view => view.availability.available).map(view => view.provider.provider_id));
+    return registered.filter(method => live.has(method.owner_id)).map(method => ({ method_id: method.key, plugin_id: method.owner_id,
+      plugin_title: method.source.kind === "plugin" ? method.source.title : method.owner_id, version: method.version, name: method.name, summary: method.summary }));
+  }
+
+  /** One method's body for a round, when this work's scope can use it. */
+  async readMethod(work: StoredWork | null, methodId: string): Promise<AssistantMethod & { body: string }> {
+    const found = (await this.methods(work)).find(method => method.method_id === methodId);
+    if (!found || !this.ports.methods) throw new AssistantError("assistant.invalid", `没有可用的方法「${methodId}」（插件没有提供、已停用，或不在这个范围）`);
+    const body = this.ports.methods.read(found.plugin_id, methodId.slice(found.plugin_id.length + 1), found.version).body;
+    return { ...found, body };
+  }
+
+  /** A work of this person, as stored (for the Assistant's own actions acting for it); null when it is not theirs. */
+  workRecord(workId: string): StoredWork | null {
+    try { return this.store.get(this.actorId, workId); } catch { return null; }
+  }
+
+  /** Methods the person chose with “/”: the registered body goes with this round, said as their choice. */
+  private async chosenMethods(work: StoredWork, materials: AssistantMaterial[]): Promise<AssistantMaterial[]> {
+    const out: AssistantMaterial[] = [];
+    for (const material of materials) {
+      if (material.kind !== "method" || !material.method) { out.push(material); continue; }
+      const method = await this.readMethod(work, material.method.method_id);
+      out.push({ ...material, title: `方法：${method.name}`, method: { method_id: method.method_id, version: method.version, name: method.name, plugin_title: method.plugin_title },
+        text: `用户为这一轮选定的方法「${method.name}」（${method.plugin_title} 提供，v${method.version}）。这一轮按它的步骤做：\n${method.body}` });
     }
     return out;
   }
@@ -1574,6 +1624,12 @@ export class AssistantService {
       if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
     out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", offered.length ? this.directory(offered) : "本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"));
+    // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
+    const methods = work.executor.kind === "coding" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
+    const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
+    const listed = methods.filter(method => !chosen.has(method.method_id)).slice(0, 20);
+    if (listed.length) out.push(...chunked({ ...base, title: "可用的方法" }, "methods", [`插件提供的做事方法。某个方法适合这件事时，先用 read-capability 读取它的步骤再照着做，并告诉用户用了哪个方法；不适合就不用。读取时 capability_id 为 assistant.methods.read，version 为 1，provider_id 为 ${ASSISTANT_RULES_PROVIDER}，input 是对象，例如 {"method_id": "${listed[0]!.method_id}"}。`,
+      ...listed.map(method => `- 「${method.name}」（${method.plugin_title}，method_id ${method.method_id}，v${method.version}）：${method.summary}`)].join("\n")));
     // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
     // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
     if (context?.object) {

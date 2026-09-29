@@ -75,7 +75,7 @@
 | --- | --- | --- | --- | --- |
 | `characters.create/publish` | 项目 Character | 项目工作可选 Character，冻结版本 | ✅ | ✅ §8（P5 实测） |
 | Scenario Pack（会话包工具） | 能力网关包 `molis-action-gateway` | find/read/change/suggest＋委托工具 | — | ✅ §5 P1、§11 |
-| `skills.register`、`discoverSkillsIn` | Coding 技能库 | SDK app 模式起跑即拒绝 skills | ✅ | ⛔ 助理用插件方法（Skill）未接（P5 余项） |
+| `skills.register`、`discoverSkillsIn` | Coding 技能库 | SDK app 模式起跑即拒绝 skills；助理改用 Host 登记的插件方法（Manifest `methods`，“/”选定或经“读取方法”采用，只对那一轮有效） | ✅ | 🟡 助理不经 SDK skills，由 Host 内联（§8 P5 第三片，MiniMax 实测） |
 | `harnesses` | — | — | — | ⛔ 低优先：只用 SDK 默认运行循环，尚无按任务切换运行配置的需求 |
 
 ## 10. 工具发现、MCP、Functions、TypeSafe 与 Code Tools
@@ -166,7 +166,7 @@
 按对完整度的影响排序：
 
 1. 记忆的候选提炼（memoryInbox）与 Character 维度（明确要求的个人／项目记忆已接通）。
-2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；分别对应 P5 余项与 P9 的替代实现。
+2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；已分别由 Host 登记的插件方法（P5 第三片）与 Host 委托子任务（P9）替代实现。
 3. 按工作的预算（每日上限已接通）。
 4. 语音（PDF 附件与图片输入已接通）。
 5. 会话分支、受控导出、跨会话搜索（后者待“系统级搜索”合入）。

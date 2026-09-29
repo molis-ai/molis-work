@@ -1,5 +1,5 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegatedWork, AgentDelegation, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -52,6 +52,9 @@ export interface AssistantServicePorts {
 export interface AssistantCaller {
   project_ref?: LocalHostProjectReference;
 }
+
+/** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
+const MAX_DELEGATED = 6, MAX_ACTIVE_DELEGATED = 3, MAX_FOLLOW_UPS = 2;
 
 /** Notices older than this are no longer news: resolved quietly rather than shown late. */
 const NOTICE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -239,6 +242,8 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
     "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
     "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
+    // Sub-tasks handed to works of their own.
+    "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
     // The Host let a round that only announced its next step continue.
     "自动续做": "auto-continue" };
   return activity.flatMap(item => {
@@ -287,6 +292,8 @@ export class AssistantService {
     if (state === "running") this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["failed", "completed"] }, "resolved");
     const round = this.store.rounds(work.work_id).at(-1)?.run_id ?? "none";
     const raise = (kind: AssistantNoticeKind, text: string) => this.store.raiseNotice(this.actorId, { kind, work_id: work.work_id, work_title: work.title, text }, `${work.work_id}:${round}:${kind}:${state}`);
+    // A delegated work reports to the work that asked for it; only what the person must decide reaches them directly.
+    if (work.delegated_by && state !== "waiting-review" && state !== "waiting-input") return;
     if (state === "failed") raise("failed", `「${work.title}」这一轮没有完成，打开看看原因`);
     else if (state === "waiting-review") raise("needs-decision", `「${work.title}」在等你确认一项修改`);
     else if (state === "waiting-input") raise("needs-decision", `「${work.title}」在等你回答一个问题`);
@@ -360,8 +367,12 @@ export class AssistantService {
     const state = coding?.unreadable && work.executor.kind === "coding" ? "needs-check"
       : stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || coding?.recovery));
     const shown: StoredWork = work.executor.kind === "coding" && coding?.mode ? { ...work, executor: { ...work.executor, mode: coding.mode } } : work;
+    // Its task board: the sub-tasks it handed out, each as its own work.
+    const children = this.store.delegatedBy(this.actorId, work.work_id);
+    const host = children.length ? await this.ports.host() : null;
+    const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0 }))) : [];
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
-      cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(problem ? { problem } : {}) };
+      cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}), ...(problem ? { problem } : {}) };
   }
 
   /** The rounds run in the Assistant's own session. */
@@ -1050,6 +1061,72 @@ export class AssistantService {
       return { review_id: review.review_id, kind: review.document.kind, run_id: review.run?.run_id ?? null, summary: readable.summary, fields: readable.fields,
         requested_at: review.requested_at, expires_at: review.expires_at };
     });
+  }
+
+  /**
+   * The Host's delegation for one work's rounds: independent sub-tasks handed to separate works of the same person and
+   * scope, each with its own session. Bounded (a few at once, a few in all, a few follow-ups each) and one level deep:
+   * a delegated work does not delegate. What they report is read back, never taken as the parent's own result.
+   */
+  delegation(parent: StoredWork): AgentDelegation | undefined {
+    if (parent.delegated_by) return undefined;
+    const own = (workId: string) => {
+      const work = this.store.get(this.actorId, workId);
+      if (work.delegated_by?.work_id !== parent.work_id) throw new AssistantError("assistant.scope", "这不是这项工作委托出去的子任务");
+      return work;
+    };
+    const view = async (work: StoredWork): Promise<AgentDelegatedWork> => {
+      const host = await this.ports.host();
+      const state = await this.stateFor(host, work);
+      const turns = work.session_id ? (await this.assistantPart(work).catch(() => null))?.rounds.at(-1)?.turns ?? [] : [];
+      const reply = [...turns].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim();
+      const results = this.store.relations.forWork(identity(work)).filter(row => row.relation === "result").map(row => ({ kind: row.object.kind, id: row.object.id, revision: row.object.revision }));
+      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: reply.length > 1200 ? reply.slice(0, 1200) + "…" : reply } : {}),
+        ...(results.length ? { results } : {}), follow_ups: work.follow_ups ?? 0 };
+    };
+    return {
+      start: async input => {
+        const host = await this.ports.host();
+        const children = this.store.delegatedBy(this.actorId, parent.work_id);
+        const active = (await Promise.all(children.map(child => this.stateFor(host, child)))).filter(state => !["completed", "failed", "stopped", "idle"].includes(state)).length;
+        if (children.length >= MAX_DELEGATED) throw new AssistantError("assistant.limit", `这项工作已经委托了 ${MAX_DELEGATED} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
+        if (active >= MAX_ACTIVE_DELEGATED) throw new AssistantError("assistant.limit", `已有 ${MAX_ACTIVE_DELEGATED} 个子任务在进行，等其中一个结束再委托`);
+        const child = this.store.create({ actor_id: this.actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
+          origin: { surface: "assistant", title: `「${parent.title}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
+          delegated_by: { work_id: parent.work_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000) } });
+        const materials: AssistantMaterial[] = (input.materials ?? []).slice(0, 4).map((material, index) => ({ material_id: `delegated-${index + 1}`, kind: "text", title: material.title.slice(0, 200),
+          text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
+        await this.dispatch(child, [`这是「${parent.title}」委托给你的子任务，只做这一部分。`, input.brief, `验收标准：${input.acceptance}`,
+          "完成时说明结果在哪里（对象名称）、是否满足验收；做不到的部分如实说明，不要声称已完成。"].join("\n\n"), materials, null);
+        return view(this.store.get(this.actorId, child.work_id));
+      },
+      status: async (input, signal) => {
+        const deadline = Date.now() + Math.max(0, Math.min(50_000, input.wait_ms ?? 0));
+        for (;;) {
+          const works = this.store.delegatedBy(this.actorId, parent.work_id).filter(work => !input.work_ids || input.work_ids.includes(work.work_id));
+          const views = await Promise.all(works.map(view));
+          if (views.every(item => !["running", "paused"].includes(item.state)) || Date.now() >= deadline || signal?.aborted) return views;
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      },
+      follow_up: async (workId, text) => {
+        const child = own(workId);
+        if ((child.follow_ups ?? 0) >= MAX_FOLLOW_UPS) throw new AssistantError("assistant.limit", `已经追加过 ${MAX_FOLLOW_UPS} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
+        const updated = this.store.update(this.actorId, child.work_id, null, { follow_ups: (child.follow_ups ?? 0) + 1 }, false);
+        await this.dispatch(updated, text, [], null);
+        return view(this.store.get(this.actorId, child.work_id));
+      },
+      stop: async workId => {
+        const child = own(workId);
+        const host = await this.ports.host();
+        const latest = await this.latestRun(host, child);
+        if (latest && !isTerminalAgentPhase(latest.phase)) {
+          await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
+          host.reviews.cancelPending(latest.ref.run_id, "委托它的工作停止了这个子任务");
+        }
+        return view(this.store.get(this.actorId, child.work_id));
+      },
+    };
   }
 
   /** The Characters the person may choose for a work: only project work has them, and only the Assistant's own rounds use them. */

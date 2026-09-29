@@ -3,6 +3,8 @@ import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type Act
 import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action" } as const;
+/** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
+export const DELEGATION_TOOLS = { start: "delegate-work", check: "check-delegated-work", follow: "follow-up-delegated-work", stop: "stop-delegated-work" } as const;
 const PACK_ID = "molis-action-gateway";
 const FIND_LIMIT = 8;
 
@@ -84,7 +86,8 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     }),
     [GATEWAY_TOOLS.read]: guarded(async (args, signal) => { const parsed = parseCapability(args); return invoke(parsed, await current(parsed, false), signal); }),
     // A proposal for the person: recorded by the caller, checked against the capability as it is now; runs nothing.
-    ...(gateway.client.offer ? { [GATEWAY_TOOLS.suggest]: guarded(async args => {
+    [GATEWAY_TOOLS.suggest]: guarded(async args => {
+      if (!gateway.client.offer) throw new ActionError("actions.forbidden", "This round cannot offer actions.");
       const parsed = parseCapability(args);
       const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
       if (!view || !view.action.audiences.includes("agent") || !view.availability.available) throw new ActionError("actions.missing", "That capability is not available here; nothing was suggested. Search again with find-capabilities.");
@@ -96,7 +99,8 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
         reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input),
         ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) });
       return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
-    }) } : {}),
+    }),
+    ...delegationExecutors(gateway.client.delegate, guarded),
     [GATEWAY_TOOLS.change]: guarded(async (args, signal) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
@@ -123,13 +127,57 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
     tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", capability, "safe-read"),
     tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", capability, "mutate-external"),
-    ...(gateway.client.offer ? [tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", suggest, "safe-read")] : []),
+    tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", suggest, "safe-read"),
+    ...[
+      tool(DELEGATION_TOOLS.start, "Hand one independent sub-task to a separate work that runs on its own (same person and scope, its own session). Give it a clear brief, the acceptance bar, and only the material it needs. Its changes still wait for the person's confirmation; it cannot delegate further. Use it for parts that can proceed independently; do small things yourself.",
+        { type: "object", additionalProperties: false, required: ["title", "brief", "acceptance"], properties: {
+          title: { type: "string", description: "Short name of the sub-task, as the person would recognise it." },
+          brief: { type: "string", description: "What to do, with the context it needs. It does not see this conversation." },
+          acceptance: { type: "string", description: "How to tell it is done and right: what must exist and hold." },
+          materials: { type: "array", items: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["title", "text"] }, description: "Only the text it needs (at most 4)." },
+        } }, "safe-read"),
+      tool(DELEGATION_TOOLS.check, "Read the delegated works (all, or given work_ids): state, latest reply, objects they produced. With wait_seconds (≤50) it waits for them to finish or to need the person. A work's own report is not proof: check its results against the acceptance bar before relying on them.",
+        { type: "object", additionalProperties: false, properties: { work_ids: { type: "array", items: { type: "string" } }, wait_seconds: { type: "integer", minimum: 0, maximum: 50 } } }, "safe-read"),
+      tool(DELEGATION_TOOLS.follow, "Tell a delegated work exactly what to fix or add (its next round). Only a few follow-ups per work are allowed; if it still falls short, stop it and report to the person.",
+        { type: "object", additionalProperties: false, required: ["work_id", "text"], properties: { work_id: { type: "string" }, text: { type: "string" } } }, "safe-read"),
+      tool(DELEGATION_TOOLS.stop, "Stop a delegated work that is no longer needed or keeps falling short.",
+        { type: "object", additionalProperties: false, required: ["work_id"], properties: { work_id: { type: "string" } } }, "safe-read"),
+    ],
   ];
-  const names = tools.map(one => one.registration.name);
-  const pack: ScenarioPack = { id: gateway.client.offer ? `${PACK_ID}-offers` : PACK_ID, version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
-    permissions: { tools: names, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
+  // The runtime keeps one declaration per pack and one per tool name, so every session declares the same full set;
+  // what a round may call is its own list of names (and a tool outside it refuses in its executor anyway).
+  const all = tools.map(one => one.registration.name);
+  const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate));
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+    permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names };
+}
+
+/** The delegation tools, each a thin call into the caller's delegation (which owns limits and the works themselves). */
+function delegationExecutors(given: Gateway["client"]["delegate"], guarded: (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => ToolRunner): Record<string, ToolRunner> {
+  const available = () => { if (!given) throw new ActionError("actions.forbidden", "This work cannot hand out sub-tasks (a delegated work does not delegate further)."); return given; };
+  const delegate = { start: (...args: Parameters<NonNullable<typeof given>["start"]>) => available().start(...args), status: (...args: Parameters<NonNullable<typeof given>["status"]>) => available().status(...args),
+    follow_up: (...args: Parameters<NonNullable<typeof given>["follow_up"]>) => available().follow_up(...args), stop: (...args: Parameters<NonNullable<typeof given>["stop"]>) => available().stop(...args) };
+  const text = (value: unknown, field: string, max: number) => {
+    if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`);
+    return value.trim();
+  };
+  return {
+    [DELEGATION_TOOLS.start]: guarded(async args => {
+      const materials = Array.isArray(args.materials) ? args.materials.flatMap(item => item && typeof item === "object" && typeof (item as { title?: unknown }).title === "string" && typeof (item as { text?: unknown }).text === "string"
+        ? [{ title: (item as { title: string }).title.slice(0, 200), text: (item as { text: string }).text.slice(0, 20_000) }] : []).slice(0, 4) : [];
+      const started = await delegate.start({ title: text(args.title, "title", 80), brief: text(args.brief, "brief", 8000), acceptance: text(args.acceptance, "acceptance", 2000), ...(materials.length ? { materials } : {}) });
+      return JSON.stringify({ delegated: started, note: "It runs on its own now. Use check-delegated-work to follow it; do not redo its part yourself meanwhile." });
+    }),
+    [DELEGATION_TOOLS.check]: guarded(async (args, signal) => {
+      const ids = Array.isArray(args.work_ids) ? args.work_ids.filter((id): id is string => typeof id === "string").slice(0, 20) : undefined;
+      const wait = typeof args.wait_seconds === "number" ? Math.max(0, Math.min(50, Math.floor(args.wait_seconds))) * 1000 : 0;
+      return JSON.stringify({ works: await delegate.status({ ...(ids ? { work_ids: ids } : {}), wait_ms: wait }, signal) });
+    }),
+    [DELEGATION_TOOLS.follow]: guarded(async args => JSON.stringify({ work: await delegate.follow_up(text(args.work_id, "work_id", 200), text(args.text, "text", 8000)) })),
+    [DELEGATION_TOOLS.stop]: guarded(async args => JSON.stringify({ work: await delegate.stop(text(args.work_id, "work_id", 200)) })),
+  };
 }
 
 /**

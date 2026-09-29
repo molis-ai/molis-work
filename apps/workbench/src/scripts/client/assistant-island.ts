@@ -308,6 +308,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
   const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新待办", "lookup-tools": "查找工具",
+    delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
     "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做" };
   const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行" };
   const activityLine = (item) => {
@@ -618,10 +619,49 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     details.append(list);
     objectsBox.replaceChildren(details);
   };
+  /* The work's task board: sub-tasks it handed to works of their own, and for a delegated work, who asked for it. */
+  const delegatedBox = island.querySelector("[data-assistant-delegated]");
+  const renderDelegated = (work) => {
+    if (!delegatedBox) return;
+    const children = work && view.delegated ? view.delegated : [];
+    const parent = work && work.delegated_by ? work.delegated_by : null;
+    const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id]);
+    if (delegatedBox.dataset.signature === signature) return;
+    delegatedBox.dataset.signature = signature;
+    delegatedBox.hidden = !children.length && !parent;
+    delegatedBox.replaceChildren();
+    if (parent) {
+      const row = el("p", "assistant-object");
+      row.append(el("span", "assistant-object-relation", L("受托于")), el("span", "assistant-object-title", parent.title), el("span", "assistant-object-state", L("验收") + "：" + parent.acceptance));
+      const back = el("button", "assistant-object-open", L("打开")); back.type = "button";
+      back.addEventListener("click", () => switchTo(parent.work_id));
+      row.append(back);
+      delegatedBox.append(row);
+    }
+    if (children.length) {
+      const details = el("details", "assistant-objects-list"); details.open = true;
+      const waiting = children.filter((c) => c.state === "waiting-review" || c.state === "waiting-input").length;
+      details.append(el("summary", "", L("分工") + " · " + children.length + (waiting ? " · " + waiting + " " + L("个在等你") : "")));
+      const list = el("ul", "assistant-objects-items");
+      children.forEach((child) => {
+        const row = el("li", "assistant-object");
+        row.append(el("span", "assistant-object-relation", L("子任务")), el("span", "assistant-object-title", child.title),
+          el("span", "assistant-object-state", stateLabel(child.state) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
+        const open = el("button", "assistant-object-open", L("打开")); open.type = "button";
+        open.setAttribute("aria-label", L("打开") + "：" + child.title);
+        open.addEventListener("click", () => switchTo(child.work_id));
+        row.append(open);
+        list.append(row);
+      });
+      details.append(list);
+      delegatedBox.append(details);
+    }
+  };
   const render = () => {
     const stick = nearBottom();
     const work = view && view.work.work_id === currentId ? view.work : null;
     renderObjects(work);
+    renderDelegated(work);
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });

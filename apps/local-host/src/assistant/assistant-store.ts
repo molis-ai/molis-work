@@ -50,6 +50,8 @@ export interface StoredWork extends Omit<AssistantWork, "state"> {
   handover_brief?: string;
   /** Present for project work: the project it was started in, never the page it is later viewed from. */
   project_ref?: LocalHostProjectReference;
+  /** On a delegated work: follow-ups its delegating work sent it. */
+  follow_ups?: number;
 }
 
 /** A notice as stored: the public facts plus whether the person still has to see it. */
@@ -107,13 +109,15 @@ export class AssistantStore {
     this.relations = new AssistantRelations(db, now);
   }
 
-  create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor }): StoredWork {
+  create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
+    delegated_by?: AssistantWork["delegated_by"] }): StoredWork {
     const at = this.now().toISOString();
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
       executor: input.executor ?? { kind: "assistant" },
       session_id: null, draft: "", created_at: at, updated_at: at, archived: false, actor_id: input.actor_id,
-      ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}) };
+      ...(input.project_ref ? { project_ref: structuredClone(input.project_ref) } : {}),
+      ...(input.delegated_by ? { delegated_by: { ...input.delegated_by } } : {}) };
     this.db.prepare("INSERT INTO assistant_works(work_id,actor_id,revision,updated_at,archived,body) VALUES (?,?,?,?,0,?)")
       .run(work.work_id, work.actor_id, work.revision, work.updated_at, JSON.stringify(work));
     return work;
@@ -133,7 +137,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
@@ -250,6 +254,11 @@ export class AssistantStore {
   setRules(actorId: string, rules: readonly AssistantRule[]): void {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, 'attention_rules', 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, JSON.stringify(rules));
+  }
+
+  /** The works a work delegated, oldest first. */
+  delegatedBy(actorId: string, workId: string): StoredWork[] {
+    return this.list(actorId, { limit: 500 }).filter(work => work.delegated_by?.work_id === workId).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   releaseRequest(actorId: string, requestId: string): void {

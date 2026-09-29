@@ -12,6 +12,9 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { ASSISTANT_PROMPTS } from "../apps/local-host/src/assistant/assistant-agent.js";
+
+const BASE_VERSION = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-base")!.version;
 
 function registry(now = () => new Date("2026-09-28T00:00:00.000Z")) {
   const definitions = new AgentDefinitions(new DatabaseSync(":memory:"), now);
@@ -47,21 +50,21 @@ test("the person's edit is kept apart from the default: saved, conflict-checked,
   assert.throws(() => definitions.save(key, "   ", null, "web-user"), /不能为空/);
   assert.throws(() => definitions.save(key, "x".repeat(20_001), null, "web-user"), /最长/);
   const saved = definitions.save(key, "只用中文回答。", null, "web-user");
-  assert.deepEqual([saved.effective, saved.body, saved.user?.revision, saved.user?.base_version, saved.default_updated], ["user", "只用中文回答。", 1, 5, false]);
+  assert.deepEqual([saved.effective, saved.body, saved.user?.revision, saved.user?.base_version, saved.default_updated], ["user", "只用中文回答。", 1, BASE_VERSION, false]);
   assert.throws(() => definitions.save(key, "改第二次", null, "web-user"), /已在别处修改/, "an edit made against the default cannot overwrite one made since");
   const second = definitions.save(key, "只用中文回答，简短。", 1, "web-user");
   assert.equal(second.user?.revision, 2);
 
   // The run's text is the person's version, marked so its record can say so; other prompts pass through.
-  const effective = definitions.effective(ASSISTANT_PLUGIN_ID, { prompt_id: "assistant-base", version: 5, layer: "base", body: "default" });
+  const effective = definitions.effective(ASSISTANT_PLUGIN_ID, { prompt_id: "assistant-base", version: BASE_VERSION, layer: "base", body: "default" });
   assert.deepEqual([effective.body, effective.user_revision], ["只用中文回答，简短。", 2]);
   assert.deepEqual(definitions.effective("io.molis.work.unknown", { prompt_id: "x", version: 1, body: "as given" }).body, "as given");
   assert.equal(definitions.prompt(key).last_used?.user_revision, 2);
 
   // A newer default does not replace the person's version; it is flagged for them to look at.
   const [assistant] = builtinAgents();
-  definitions.register(agentRegistration(assistant!.owner_id, assistant!.source, { ...assistant!.manifest, prompts: [{ prompt_id: "assistant-base", version: 6, layer: "base" }] },
-    [{ ...assistant!.prompts[0]!, version: 6, body: "新的默认" }]));
+  definitions.register(agentRegistration(assistant!.owner_id, assistant!.source, { ...assistant!.manifest, prompts: [{ prompt_id: "assistant-base", version: BASE_VERSION + 1, layer: "base" }] },
+    [{ ...assistant!.prompts[0]!, version: BASE_VERSION + 1, body: "新的默认" }]));
   assert.deepEqual([definitions.prompt(key).effective, definitions.prompt(key).default_updated, definitions.prompt(key).default_body], ["user", true, "新的默认"]);
 
   const reset = definitions.reset(key, 2, "web-user");
@@ -107,6 +110,6 @@ test("a run starts with the person's version of a registered prompt, and its rec
     assert.doesNotMatch(JSON.stringify(requests[0]), /你是 Molis Work 的个人工作助理/, "the default text did not run");
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
     const frozen = (session as any).latest_run.frozen.prompts.find((prompt: { prompt_id: string }) => prompt.prompt_id === "assistant-base");
-    assert.deepEqual([frozen.version, frozen.user_revision], [5, 1]);
+    assert.deepEqual([frozen.version, frozen.user_revision], [BASE_VERSION, 1]);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

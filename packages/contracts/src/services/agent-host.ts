@@ -511,8 +511,36 @@ export interface AgentActionOffer {
   missing?: Array<{ field: string; question: string }>;
 }
 
+/**
+ * Sub-tasks a business round hands to separate works of the same person and scope (the Host's delegation, where the
+ * runtime has no sub-agents of its own). Each delegated work is a real work with its own session: its changes still
+ * wait for the person's confirmation, and it cannot delegate further.
+ */
+export interface AgentDelegatedWork {
+  work_id: string;
+  title: string;
+  /** The work's state: running, waiting-input/-review (on the person), completed, failed, stopped… */
+  state: string;
+  /** Its latest reply, shortened. */
+  reply?: string;
+  /** Objects it produced or changed, as their owners name them. */
+  results?: Array<{ kind: string; id: string; revision: string | null }>;
+  /** Follow-ups sent to it so far; the Host refuses more than the limit. */
+  follow_ups: number;
+}
+export interface AgentDelegation {
+  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }> }): Promise<AgentDelegatedWork>;
+  /** The delegated works (all, or the given ones), waiting up to `wait_ms` for them to finish or need the person. */
+  status(input: { work_ids?: string[]; wait_ms?: number }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
+  /** Tell a delegated work what to fix or add (its next round); bounded per work. */
+  follow_up(workId: string, text: string): Promise<AgentDelegatedWork>;
+  stop(workId: string): Promise<AgentDelegatedWork>;
+}
+
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
+  /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */
+  delegate?: AgentDelegation;
   /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */
   offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */

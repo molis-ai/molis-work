@@ -194,6 +194,8 @@ export interface AssistantWork {
    * round on. Absent means the Assistant itself. Only project work can have one (Characters are published per project).
    */
   character?: AssistantCharacter;
+  /** Set on a work another work delegated: which one, and what it was asked to deliver. */
+  delegated_by?: { work_id: string; title: string; acceptance: string };
 }
 
 /** An exact published Character version, as the person chose it. */
@@ -337,6 +339,8 @@ export interface AssistantWorkView {
   cards: AssistantCard[];
   /** The objects this work started from, used, produced and handed to, as their owners have them now. */
   objects: AssistantWorkObject[];
+  /** Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups. */
+  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number }>;
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }

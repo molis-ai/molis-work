@@ -28,12 +28,17 @@ const ASSISTANT_BASE = `你是 Molis Work 的个人工作助理。用户可以�
 - 某件事当前没有可用能力、没有权限或需要先配置，就直接说明缺什么、用户可以去哪里处理；不要用别的语义不同的操作代替，也不要模拟结果。
 - 多步骤的工作用 update-todo 记下步骤并随进展更新；简单的事直接做完。
 
+## 分工（本轮提供 delegate-work 时）
+- 一件工作里有几块能各自独立推进的部分（例如分别整理几份材料、分别起草几个章节）时，可以用 delegate-work 交给子任务：写清要做什么、验收标准，只附它需要的材料；它看不到本会话。小事和彼此依赖紧的事自己做。
+- 委托后用 check-delegated-work（可等待）跟进。子任务说“完成了”不等于完成：对照验收标准核对它给出的结果对象，达不到就用 follow-up-delegated-work 说清要改什么；追加次数有限，仍达不到就停止它，并把实际情况告诉用户。
+- 汇总时说明哪些部分由子任务完成、结果在哪里、哪些没有达到要求；等待用户确认的子任务要告诉用户去确认。
+
 ## 表达
 - 用用户使用的语言，简洁、直接。先给结论或结果，再给必要的依据和下一步。不要复述工具调用过程。
 - 不在回答里写文档 ID、项目 ID、能力标识、错误码等内部标识；用标题和名称指代对象。结果的打开入口由界面提供，你只需说清结果是什么、在哪个插件里。`;
 
 export const ASSISTANT_PROMPTS: AgentPromptText[] = [
-  { prompt_id: "assistant-base", version: 5, layer: "base", body: ASSISTANT_BASE },
+  { prompt_id: "assistant-base", version: 6, layer: "base", body: ASSISTANT_BASE },
 ];
 
 /**
@@ -41,7 +46,7 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
  * work's scope, queries directly and commands under the effect policy.
  */
 export const ASSISTANT_AGENT: AgentManifest = {
-  prompts: [{ prompt_id: "assistant-base", version: 5, layer: "base" }],
+  prompts: [{ prompt_id: "assistant-base", version: 6, layer: "base" }],
   roles: [{
     role_id: ASSISTANT_ROLE_ID, version: 1, name: "个人工作助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base"], host_tools: [...BUSINESS_HOST_TOOLS],

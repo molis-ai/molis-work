@@ -1,0 +1,76 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { LocalHost } from "../apps/local-host/src/local-host.js";
+import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
+import { AssistantError, AssistantService } from "../apps/local-host/src/assistant/assistant-service.js";
+import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+
+async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
+  for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
+  throw new Error(`Expected ${what} not reached`);
+}
+function reply(tool?: { name: string; input: unknown }, text = "好的。"): Response {
+  const events: string[] = [];
+  const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+  emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
+  emit("content_block_start", { index: 0, content_block: tool ? { type: "tool_use", id: `call-${Math.random().toString(36).slice(2)}`, name: tool.name, input: {} } : { type: "text", text: "" } });
+  emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text } });
+  emit("content_block_stop", { index: 0 });
+  emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
+  emit("message_stop", {});
+  return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+}
+
+test("a work hands an independent part to a work of its own, waits for it, reads back what it did; one level deep and bounded", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const parentTools: string[][] = [], childTools: string[][] = [];
+  let parentStep = 0;
+  const parentScript = [
+    () => reply({ name: "delegate-work", input: { title: "整理访谈要点", brief: "把给你的访谈记录整理成三条要点。", acceptance: "恰好三条、每条一句话", materials: [{ title: "访谈记录", text: "用户说每周要手工对账两小时。" }] } }),
+    () => reply({ name: "check-delegated-work", input: { wait_seconds: 20 } }),
+    (body: any) => { assert.match(JSON.stringify(body.messages), /对账/, "the parent reads back the child's reply"); return reply(undefined, "子任务已整理出三条要点。"); },
+  ];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    const names = (body.tools ?? []).map((tool: { name: string }) => tool.name);
+    if (JSON.stringify(body.messages).includes("委托给你的子任务")) { childTools.push(names); return reply(undefined, "三条要点：1. 每周手工对账两小时。2. 希望自动化。3. 愿意试用。"); }
+    parentTools.push(names);
+    return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+  try {
+    const sent = await service.send({ text: "把这次访谈整理一下，分给子任务做", request_id: "req-delegation-1" }, { project_ref: project });
+    const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.length ? view : undefined; }, "parent completion");
+    assert.equal(done.delegated!.length, 1);
+    const child = await service.read(done.delegated![0]!.work_id);
+    assert.deepEqual(child.work.delegated_by, { work_id: sent.work.work_id, title: sent.work.title, acceptance: "恰好三条、每条一句话" });
+    assert.equal(child.work.state, "completed");
+    assert.deepEqual(child.rounds[0]!.materials.map(material => material.title), ["访谈记录"], "the child gets only the material handed to it");
+    assert.ok(parentTools[0]!.includes("delegate-work"), "the parent may delegate");
+    assert.ok(!childTools[0]!.includes("delegate-work") && !childTools[0]!.includes("check-delegated-work"), "a delegated work does not delegate further");
+    assert.deepEqual(done.rounds[0]!.activity.map(item => item.verb), ["delegate", "delegate-check"]);
+    await service.list();
+    assert.deepEqual(service.notices(null).filter(notice => notice.work_id === child.work.work_id), [], "a delegated work reports to its parent, not to the person");
+
+    const delegation = service.delegation(store.get("web-user", sent.work.work_id))!;
+    await delegation.follow_up(child.work.work_id, "每条再短一点");
+    await delegation.follow_up(child.work.work_id, "去掉编号");
+    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof AssistantError && error.code === "assistant.limit", "follow-ups are bounded");
+    const other = await service.send({ text: "别的事", request_id: "req-delegation-2" }, { project_ref: project });
+    await assert.rejects(service.delegation(store.get("web-user", other.work.work_id))!.stop(child.work.work_id), (error: unknown) => error instanceof AssistantError && error.code === "assistant.scope");
+    assert.equal(service.delegation(store.get("web-user", child.work.work_id)), undefined);
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

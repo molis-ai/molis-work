@@ -1,7 +1,7 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
 import { validActionResultView, type ActionResultView } from "./action-result.js";
-import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN } from "./action-subjects.js";
+import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT } from "./action-subjects.js";
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_SCHEMA, type SubjectOfferChoice } from "./action-offers.js";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_COLLECTION_SCHEMA } from "./home-events.js";
 export * from "./home-events.js";
@@ -491,7 +491,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           if (raw.operation !== "query" || (a.scope !== "project" && a.scope !== "home") || a.kind !== "query" || !a.subject_kinds.length
             || a.input_type !== SUBJECT_REFERENCE_TYPE || a.output_type !== SUBJECT_CONTEXT_TYPE
             || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_CONTEXT_INPUT_SCHEMA)
-            || ![SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN].some(schema => canonicalSchema(a.output_schema) === canonicalSchema(schema))) {
+            || ![SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN].some(schema => canonicalSchema(a.output_schema) === canonicalSchema(schema))) {
             problems.push(`能力 ${key} 没有兑现对象上下文协议 v1 的输入输出合同`);
           }
         }

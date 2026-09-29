@@ -74,6 +74,29 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   };
   document.addEventListener("input", settle, true);
   document.addEventListener("pointerdown", settle, true);
+  // A card's buttons never sit on the stage's own controls (a composer's send button on a phone): when one would cover a
+  // button or field underneath, the cards rise above it; with no room left they go to the top.
+  const INTERACTIVE = "button, a[href], input, textarea, select, [contenteditable=true], [role=button]";
+  const clearControls = () => {
+    region.style.bottom = ""; region.classList.remove("is-top");
+    for (let attempt = 0; attempt < 3 && region.children.length; attempt += 1) {
+      let lift = 0;
+      region.querySelectorAll("button").forEach((button) => {
+        const rect = button.getBoundingClientRect();
+        if (!rect.width) return;
+        for (const [x, y] of [[rect.left + 2, rect.top + 2], [rect.right - 2, rect.top + 2], [rect.left + 2, rect.bottom - 2], [rect.right - 2, rect.bottom - 2]]) {
+          const under = document.elementsFromPoint(x, y).find((element) => !region.contains(element));
+          const control = under && under.closest ? under.closest(INTERACTIVE) : null;
+          if (control) lift = Math.max(lift, innerHeight - control.getBoundingClientRect().top + 8);
+        }
+      });
+      if (!lift) return;
+      if (lift > innerHeight - 160) { region.style.bottom = ""; region.classList.add("is-top"); return; }
+      region.style.bottom = lift + "px";
+    }
+  };
+  new MutationObserver(() => clearControls()).observe(region, { childList: true });
+  window.addEventListener("resize", () => clearControls());
   const card = (title, detail, actions, tone) => {
     const item = node("div", undefined, "placement-toast" + (tone ? " placement-toast--" + tone : ""));
     const text = node("div", undefined, "placement-toast-text");

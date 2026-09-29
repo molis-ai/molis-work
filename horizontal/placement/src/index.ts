@@ -421,7 +421,7 @@ export class PlacementService {
 
   /** Where a Home-kept object belongs, as its reader says; null for the personal space or when the plugin does not say. */
   private belongsOf(read: Read): string | null {
-    const value = (read.context as (ActionSubjectContext & { project_id?: string | null }) | null)?.project_id ?? null;
+    const value = read.context?.project_id ?? null;
     return value && value !== PERSONAL_SPACE_PROJECT_ID ? value : null;
   }
 

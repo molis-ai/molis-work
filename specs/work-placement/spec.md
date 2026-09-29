@@ -321,6 +321,10 @@
 
 ### 12.6 与助理、Todo 合成一个分支（2026-09-29，用户要求）
 
+- 共同分支为 feature/system-assistant：助理会话已并入本分支（31f5e685 连同 Todo、28177fbb），本分支随后快进到 28177fbb，之后在本分支提交、常合共同分支。
+- 合并后发现：Todo 的“转为待办”让灵光标题栏更挤，手机宽度下完成提示的“移到…”按钮压在灵光对话的发送按钮上（灵光 390px e2e）。已修：完成提示的按钮若会压住页面自己的按钮或输入框，提示整体上移到它上方，没有空间时移到顶部。
+- `ActionSubjectContext.project_id`（可选）按助理同意加入：只给存在 Home 里、属于某个项目的对象用；旧的两版读取声明（无 `open`、有 `open` 无 `project_id`）仍通过声明检查。
+
 - 本分支提交 7069a654（需求书）、62de3994（实现），并入助理 feature/system-assistant 76518a81（合并提交 d039d7ae）：只有灵光 `ui.ts`、`en.ts` 两处冲突，两边保留；合并后 `pnpm build` 通过，交汇处 36 个测试文件 160 项通过。已与助理会话、Todo 会话协调以 feature/system-assistant 为共同分支。Todo（d888347a）在 d039d7ae 上试合只有灵光 `ui.ts`、`scripts/workspace-packages.mjs` 两处冲突。
 - 与 Todo 对齐（双方确认）：Todo 的 personal、unassigned 都在个人空间（unassigned 是“还没整理”），project 在项目「X」；在个人空间里打开 Todo 按“个人”视图；对象读取返回 `open`、不存在或归档抛 `todo.not_found`（Todo 已做）；移动用 Home 作用域的放置移动（本分支已提供），Todo 声明 `todo.placement.move`，不另做一套；位置条与完成提示按 `skills/molis-plugin-dev/placement.md` 接。
 - 炼金术士“建成 Goal”界面验证：用与炼金术士 e2e 相同的方式经正式 API 生成两份研究（模型与搜索为显式测试替身），在 Q4 打开想法 → 决定页“去做”填理由 → “建成 Goal”，完成提示“已建成 Goal《证据墙》 存到 项目「Q4 新版发布」 · 这个想法和决定是它的来源；炼金术士里的记录不变”；Goal 打开后描述里带决定与下一步，关联写“来自《证据墙》”。
@@ -329,8 +333,8 @@
 
 | 项 | 状态 | 原因与下一步 |
 | --- | --- | --- |
-| 助理按移动后的位置读取对象 | 受阻（依赖助理分支） | 助理分支在进行中，未合入 main；需要它在对象读不到时调用 `placement.locate`（第 10 节）。本分支不改助理代码，避免与其工作重叠 |
-| Home 级对象属于哪个项目（Todo 的项目待办显示为项目「X」） | 等助理定合同 | 需要 `ActionSubjectContext` 增加可选 `project_id`（合同归助理，已提议）；定下后 Todo 在读取里填、放置服务已按它显示位置与“从 … 移来”。未定之前项目待办在位置条里显示为个人空间 |
+| 助理按移动后的位置读取对象 | 助理会话在做 | 已商定由助理在其对象读取处（`assistant-service.ts` 的 workObjects、objectBackground、readReferences）先调 `placement.locate` 再读；本分支不改这几处 |
+| Todo 在读取里填 `project_id` | 等 Todo 接入 | 合同已定（助理同意）并已加在 `ActionSubjectContext`（可选，旧的两版读取声明仍然有效）；放置服务按它显示位置与“从 … 移来”。Todo 会话在其读取里给项目待办填上、声明 `todo.placement.move` 后，项目待办在位置条里显示为项目「X」 |
 | 灵光“交给助理” | 由助理分支提供 | 在其分支 34821f7f |
 | Goal 画布（Frame）上的摆放 | 不改 | Frame 是 Goal 页面上的视图组合（本机浏览器存储），不是关联事实；关联以 Goal“资料”为准 |
 | 移动项目库对象（Goals、Feed、Inbox、Artifacts、Schedule、Coding） | 本期不做 | 第 9 节 |

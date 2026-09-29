@@ -1,3 +1,4 @@
+import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 /**
  * Local preview of the agent-built plugin studio: real build gates, macOS Seatbelt sandbox, preview storage and
  * the headless-Chrome acceptance run. `--fixture` swaps only the models: a labelled designer that proposes two
@@ -24,6 +25,7 @@ const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...(fixtur
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
   if (url.pathname === '/') { response.writeHead(302, { location: '/plugin-builder/studio' }); response.end(); return; }
+  if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
   if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
   void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: '请打开 /plugin-builder/studio' }); })
     .catch(error => sendLocalWebJson(response, 500, { error: String(error) }));

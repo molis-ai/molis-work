@@ -212,3 +212,9 @@ Coding 的后台 follower 按 activation 观察 Run，停止后取消等待并�
 
 
 Shelf 自动动作经 `shelf.jobs.generate` → `ShelfAiPorts` → Host 配置模型 → 同 Home Prologue。模型选择与人工终端 engine 独立；固定指令按 recipe/option 登记，用户 shortcut 作为数据，材料使用冻结副本。任务保存完整回执、真实 reportedModels 及 unknown 用量，JSON 只复用 SDK 解码，领域拒绝非对象和纯进度文本。不自动修复或重跑计费请求。`shelf.jobs.extract` 继续本机提取，不要求模型权限。旧 jobs.run 只做兼容分派，AI 分支仍须 model:invoke；新消费者用成本明确的独立 Action。
+
+### Builder 的界面截图
+
+Builder `images` 是宿主持有的 PNG 字节（最多 9 张、总共 12 MiB），经授权目录的 Prologue Intake 发布为资源，再作为 `start.attachments` 传入。同一 Home Runtime 负责模型、凭据、取消与协议发送；运行 JSON 不保存 base64。临时文件与图片资源在结束后清除/撤销。`resources.stage` 的 JS 字节不能替代 Host-backed Intake 附件。
+
+UI 复查只使用隔离验收数据，不截整个工作台；只使用当前选定且声明 `vision: true` 的模型，缺失或失败时不宣称视觉通过。

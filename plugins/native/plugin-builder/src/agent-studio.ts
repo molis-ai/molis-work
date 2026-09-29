@@ -11,6 +11,7 @@ export function renderAgentStudio(): string {
     + '<label class="as-select as-model"><span>模型</span><select data-as-model aria-label="构建使用的模型"></select></label>'
     + '<a class="as-model-setup" data-as-model-setup href="/settings/models" hidden>打开模型设置</a></div></header>'
     + '<aside class="as-left" aria-label="协作"><div class="as-feed" data-as-feed aria-live="polite"></div>'
+    + '<label class="as-select" data-as-edit-label hidden><span>修改范围</span><select data-as-edit-mode aria-label="修改范围"><option value="message">功能与界面</option><option value="visual">只调整界面</option></select></label>'
     + '<form class="as-composer" data-as-composer><div class="as-target" data-as-target hidden></div><textarea data-as-input rows="2" maxlength="48000" aria-label="描述或修改"></textarea>'
     + '<button class="as-send" type="submit" aria-label="发送" title="发送"><svg aria-hidden="true"><use href="#icon-send"/></svg></button></form>'
     + '<p class="as-model-note" data-as-model-note></p></aside>'
@@ -123,13 +124,13 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const v=await r.json().catch(()=>({}));lifetime.assertCurrent(signal);if(!r.ok)throw Object.assign(new Error(v.error||'操作失败，内容已保留'),{status:r.status});return v;
  }
  let pending=0;globalThis.__molisPluginPending=0;
- const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload})).value}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
+ const pluginCall=id=>async(componentId,binding,payload)=>{pending++;globalThis.__molisPluginPending=pending;try{return (await api('/builds/'+id+'/call','POST',{componentId,binding,payload,...(host.acceptance?{acceptance:host.acceptance}:{})})).value}finally{pending--;if(lifetime.alive)globalThis.__molisPluginPending=pending}};
  if(host.mode==='preview'){
-  const plugin=host.components({root,call:pluginCall(host.build)});
- lifetime.own(()=>plugin.destroy());
-  // Read-only probe for the host's acceptance run: what a part's query returns, to tell display from behavior problems.
-  globalThis.__molisPluginRead=componentId=>pluginCall(host.build)(componentId,'read',{selection:{}});
-  api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error('这个草稿还没有确定方案');await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected});if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
+  const readings=new Map(),plugin=host.components({root,call:pluginCall(host.build),onRead:(id,result)=>readings.set(id,result)});
+  lifetime.own(()=>plugin.destroy());
+  // Diagnose the actual rendered query, including selection and filters, without issuing another request.
+  globalThis.__molisPluginRead=async componentId=>{const result=readings.get(componentId);if(!result)throw new Error('当前组件尚未读取');if('error'in result)throw new Error(result.error);return structuredClone(result.value)};
+  api('/builds/'+host.build).then(async({build})=>{if(!build.design)throw new Error('这个草稿还没有确定方案');await plugin.update({contract:build.design.contract,nodes:build.nodes,connected:build.connected,presentation:build.design.presentation});if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   return;
  }
  if(host.mode==='installed'){
@@ -162,7 +163,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const componentName=kind=>(state.components.find(c=>c.kind===catalogKind(kind))||{}).name||kind;
  const active=b=>!!b?.active;
  const EXAMPLES=[['读书笔记','记录读过的书、评分和一句话感受，按状态筛选'],['每日复盘','每天写下完成了什么、卡在哪里、明天最重要的一件事'],['小组报名表','收集报名人的姓名、联系方式和时间段，能看到已报名名单']];
- function selection(s){if(!s)return '';if(s.source==='jev')return '<span class="as-chip jev">Jev · '+s.candidates.length+' 选 1'+(s.elapsedMs!=null?' · '+s.elapsedMs+'ms':'')+'</span>';if(s.source==='user')return '<span class="as-chip user">你选择</span>';return '<span class="as-chip rule">'+(s.candidates.length===1?'唯一合法':'规则选择')+'</span>';}
+ function selection(s){if(!s)return '';if(s.source==='jev')return '<span class="as-chip jev">Jev · '+s.candidates.length+' 选 1'+(s.elapsedMs!=null?' · '+s.elapsedMs+'ms':'')+'</span>';if(s.source==='design')return '<span class="as-chip rule">UI Agent</span>';if(s.source==='user')return '<span class="as-chip user">你选择</span>';return '<span class="as-chip rule">'+(s.candidates.length===1?'唯一合法':'规则选择')+'</span>';}
  function gates(detail){try{const g=JSON.parse(detail);if(!Array.isArray(g))return '';const name={G1:'合同',G2:'类型',G3:'打包',G4:'实现',G5:'测试',G6:'沙箱试运行'};return '<div class="as-gates">'+g.map(x=>'<span class="as-chip '+(x.passed?'ok':'bad')+'" title="'+esc(x.id+' '+x.detail)+'">'+esc(name[x.id]||x.id)+(x.passed?' ✓':' ✗')+'</span>').join('')+'</div>'+g.filter(x=>!x.passed).map(x=>'<small>'+esc(x.detail).slice(0,600)+'</small>').join('');}catch{return detail?'<small>'+esc(detail).slice(0,600)+'</small>':'';}}
  function checkChips(detail){try{const r=JSON.parse(detail);return Array.isArray(r?.gates)?gates(JSON.stringify(r.gates)):'';}catch{return '';}}
  function cases(detail){try{const c=JSON.parse(detail);if(!Array.isArray(c))return '';return '<small>'+c.filter(x=>x.passed).length+'/'+c.length+' 条验收通过</small>'+c.filter(x=>!x.passed).map(x=>{let d=x.detail;try{const i=JSON.parse(d);d=(i.step?'第 '+i.step+' 步 ':'')+(i.reason||'')+(i.visible?'（界面显示：'+i.visible.slice(0,80)+'）':'');}catch{}return '<small>✗ '+esc(x.id)+'：'+esc(d).slice(0,300)+'</small>';}).join('');}catch{return '';}}
@@ -245,27 +246,30 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
    if(b.pendingPlugins?.length)parts.push('<div class="as-card as-decision"><h3>这个方案要用到还没在这个项目启用的插件</h3><ul class="as-ops">'+b.pendingPlugins.map(p=>'<li><span><b>'+esc(p.title)+'</b> · '+esc(p.capabilities.join('、'))+'</span></li>').join('')+'</ul><p class="as-small as-muted">启用后它会出现在这个项目里，插件也才能用它的能力；不启用的话，主线设计会换一种不需要它的做法。</p><div class="as-actions"><button type="button" class="as-button as-primary" data-as-action="enable-plugins">'+icon('check')+'启用并继续</button><button type="button" class="as-button" data-as-action="skip-plugins">不用它，改方案</button></div></div>');
    if(b.pendingPart){const part=b.design?.parts.find(p=>p.id===b.pendingPart.id);parts.push('<div class="as-card as-decision"><h3>请你选择「'+esc(part?.purpose||b.pendingPart.id)+'」用哪个组件</h3><p class="as-small as-muted">'+esc(b.pendingPart.reason)+'。已放入的组件不受影响。</p><div class="as-actions">'+b.pendingPart.candidates.map(k=>'<button type="button" class="as-button" data-as-part="'+esc(k)+'">'+esc(componentName(k))+'</button>').join('')+'</div></div>');}
    if(b.error)parts.push('<div class="as-card as-error"><h3>'+(b.phase==='paused'?'已暂停':failure(b.error)?.[0]||'这一步没有完成')+'</h3><p>'+(b.phase!=='paused'&&failure(b.error)?esc(failure(b.error)[1])+'</p><details class="as-small as-muted"><summary>技术细节</summary><p>'+esc(b.error)+'</p></details>':esc(b.error)+'</p>')+'<div class="as-actions">'+(!active(b)?'<button type="button" class="as-button as-primary" data-as-action="resume">'+icon('play')+'继续</button>':'')+(b.history.length&&!active(b)?'<button type="button" class="as-button" data-as-action="undo">'+icon('undo')+'撤回上次修订</button>':'')+'</div></div>');
-   if(b.phase==='ready'){const cases=b.browserResult?.cases||[],latest=versions[0],published=latest&&latest.design.contract.revision===b.design.contract.revision&&JSON.stringify(latest.nodes)===JSON.stringify(b.nodes);parts.push('<div class="as-card"><h3>可以试用了</h3><p class="as-small">'+b.connected.length+' 项功能全部接通 · 门禁 G1–G6 通过 · 界面验收 '+cases.filter(c=>c.passed).length+'/'+cases.length+' 通过</p><div class="as-actions">'+(published?'<span class="as-chip ok">v'+latest.version+' 已是当前版本</span>':'<button type="button" class="as-button as-primary" data-as-action="publish">'+icon('package')+'发布 v'+((latest?.version||0)+1)+'</button>')+'<a class="as-button" href="'+esc(host.preview(b.id))+'" target="_blank" rel="noopener">'+icon('external')+'单独打开试用</a></div>'+installHtml(b)+'</div>');}
+   if(b.phase==='ready'){const cases=b.browserResult?.cases||[],latest=versions[0],published=latest&&latest.design.contract.revision===b.design.contract.revision&&JSON.stringify(latest.nodes)===JSON.stringify(b.nodes)&&JSON.stringify(latest.design.presentation)===JSON.stringify(b.design.presentation);parts.push('<div class="as-card"><h3>可以试用了</h3><p class="as-small">'+b.connected.length+' 项功能全部接通 · 门禁 G1–G6 通过 · 界面验收 '+cases.filter(c=>c.passed).length+'/'+cases.length+' 通过</p><div class="as-actions">'+(published?'<span class="as-chip ok">v'+latest.version+' 已是当前版本</span>':'<button type="button" class="as-button as-primary" data-as-action="publish">'+icon('package')+'发布 v'+((latest?.version||0)+1)+'</button>')+'<a class="as-button" href="'+esc(host.preview(b.id))+'" target="_blank" rel="noopener">'+icon('external')+'单独打开试用</a></div>'+installHtml(b)+'</div>');}
    if(active(b))parts.push('<div class="as-controls"><button type="button" class="as-button" data-as-action="pause">'+icon('pause')+'暂停</button></div>');
    else if(b.phase==='paused'&&!b.error&&!b.pendingPlugins?.length)parts.push('<div class="as-controls"><button type="button" class="as-button as-primary" data-as-action="resume">'+icon('play')+'继续构建</button></div>');
    if(b.steps.length){const done=b.steps.filter(s=>s.status==='done').length,shown=b.steps.slice(-60);parts.push('<details class="as-steps" data-as-steps'+(openSteps??active(b)?' open':'')+'><summary>协作记录 · '+done+' 步已完成</summary><ol>'+(b.steps.length>shown.length?'<li class="as-small as-muted">更早的 '+(b.steps.length-shown.length)+' 步已折叠</li>':'')+shown.map(stepHtml).join('')+'</ol></details>');}
   }
+  if(b?.visualResult){const v=b.visualResult;parts.push('<div class="as-card"><h3>'+(v.structural?'宽窄屏结构检查通过':'界面结构需要修正')+'</h3><p>'+(v.status==='reviewed'?'视觉复查已完成':'功能已验证；视觉未复查')+'</p>'+v.issues.map(issue=>'<p class="as-small">'+esc(issue)+'</p>').join('')+'</div>');}
   if(notice)parts.push('<div class="as-card as-error" role="alert"><p>'+esc(notice)+'</p></div>');
   const html=parts.join('');if(html===rendered)return;rendered=html;
   const bottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<40;feed.innerHTML=html;if(!current)feed.scrollTop=0;else if(bottom||firstPaint)feed.scrollTop=feed.scrollHeight;firstPaint=false;
  }
  function renderHead(){
+  $('[data-as-edit-label]').hidden=!(current?.design&&current?.checks?.global?.passed);if($('[data-as-edit-label]').hidden)$('[data-as-edit-mode]').value='message';
   const b=current;$('[data-as-title]').textContent=b?(b.design?.title||b.candidates.find(c=>c.id===b.chosen)?.title||b.title):'新插件';const phase=$('[data-as-phase]');phase.textContent=b?(b.active?.stage==='detail'?'细化方案中':b.active?.stage==='revise'?'修订中':b.active?.stage==='design'?'理解需求中':phaseOf(b)):'';phase.dataset.phase=b?.phase||'';phase.hidden=!b;
   root.querySelectorAll('[data-as-tab]').forEach(t=>{t.setAttribute('aria-selected',String(t.dataset.asTab===tab));t.disabled=t.dataset.asTab==='try'&&!(b?.connected.length);});
+  if(active(b)||!previousVisual(b))comparePrevious=false;
   canvas.dataset.tab=tab;canvas.toggleAttribute('data-inspectable',!!b?.design&&!active(b));
-  $('[data-as-head-actions]').innerHTML=(b?.design?'<a class="as-icon" href="'+esc(host.preview(b.id))+'" target="_blank" rel="noopener" title="单独打开试用" aria-label="单独打开试用">'+icon('external')+'</a>':'')+(b&&!active(b)?'<button type="button" class="as-icon" data-as-remove title="删除这个草稿" aria-label="删除这个草稿">'+icon('trash')+'</button>':'');
+  $('[data-as-head-actions]').innerHTML=(previousVisual(b)&&!active(b)?'<button type="button" class="as-button" data-as-compare aria-pressed="'+comparePrevious+'">'+(comparePrevious?'返回当前界面':'查看上次界面')+'</button><button type="button" class="as-icon" data-as-action="undo" title="撤回上次修订" aria-label="撤回上次修订">'+icon('undo')+'</button>':'')+(b?.design?'<a class="as-icon" href="'+esc(host.preview(b.id))+'" target="_blank" rel="noopener" title="单独打开试用" aria-label="单独打开试用">'+icon('external')+'</a>':'')+(b&&!active(b)?'<button type="button" class="as-icon" data-as-remove title="删除这个草稿" aria-label="删除这个草稿">'+icon('trash')+'</button>':'');
   const composer=$('[data-as-composer]'),send=composer.querySelector('.as-send');
   input.placeholder=!b?'描述你想要的插件，例如：记录读过的书和感受，按状态筛选':b.questions.length?'回答上面的问题':active(b)?'直接说要改什么：会先停下这一轮，再按你的意思改':b.design?'对整体或选中的组件提出修改':'补充你的需求';
   // Typing never waits for a build: a change request stops the current round and is taken in.
   send.disabled=busy;
   const t=$('[data-as-target]');const node=target&&b?.nodes.find(n=>n.id===target);t.hidden=!node;t.innerHTML=node?'指向 · '+esc(node.purpose)+' <button type="button" data-as-untarget aria-label="取消指向">'+icon('x')+'</button>':'';
   const model=state.models.find(m=>m.provider_id===state.model?.provider_id&&m.model_id===state.model?.model_id);
-  $('[data-as-model-note]').textContent=(model?'主线设计与代码 Agent：'+model.label:'请选择构建使用的模型')+' · Jev '+(state.selectionAvailable?'已配置':'未配置（按规格板顺序选择组件）');
+  $('[data-as-model-note]').textContent=(model?'主线设计与代码 Agent：'+model.label:'请选择构建使用的模型')+' · Jev '+(state.selectionAvailable?'已配置':'未配置（优先使用 UI Agent 的设计）');
  }
  /** What the rendered plugin actually uses from the catalog: every component carries its catalog slot. */
  function usedSlots(){const used=new Map();for(const el of pluginRoot.querySelectorAll('[data-slot]')){if(el.closest('[hidden]'))continue;const k=({'directory-row':'directory','button-loading-indicator':'spinner','collapsible':'accordion'})[el.dataset.slot]||el.dataset.slot;used.set(k,(used.get(k)||0)+1);}return used;}
@@ -301,11 +305,14 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   const c=state.components.find(x=>x.kind===button.dataset.kind);if(!c)return;const used=(current?.nodes||[]).filter(n=>catalogKind(n.kind)===c.kind&&revealed.has(n.id));
   tip.innerHTML='<b>'+esc(c.name)+' · '+esc(c.catalog)+'</b><p>'+esc(c.description)+'</p><p>'+esc(c.use==='part'?'可以作为一个组件放进插件':c.use==='inside'?'在组件里面用：字段、筛选、状态、提示':'UI 目录里有，生成的插件暂未用到')+'</p>'+(used.length?'<ul>'+used.map(n=>'<li>'+esc(n.props.title||n.purpose)+'</li>').join('')+'</ul>':'')+(button.hasAttribute('data-legal')?'<p class="as-tip-legal">点一下，用它放入这个组件</p>':'');
   const area=canvas.getBoundingClientRect(),box=button.getBoundingClientRect();tip.style.left=Math.round(Math.max(8,Math.min(area.width-240,box.left-area.left+box.width/2-116)))+'px';tip.hidden=false;}
- let lastView='';
+ let lastView='',comparePrevious=false;
+ const previousVisual=b=>b?.design&&b.history.at(-1)?.design?.contract.revision===b.design.contract.revision?b.history.at(-1):null;
  async function renderCanvas(){
   const b=current;let view=null;
-  if(b?.design)view={contract:b.design.contract,nodes:b.nodes,connected:b.connected};
+  if(b?.design)view={contract:b.design.contract,nodes:b.nodes,connected:b.connected,presentation:b.design.presentation};
   else if(b?.candidates.length&&(b.phase==='choosing'||b.active?.stage==='detail')){const c=b.candidates.find(x=>x.id===(b.chosen||preview||b.candidates[0].id))||b.candidates[0];const kind=p=>(state.components.find(x=>x.use==='part'&&x.intents[0]===p.intent)||state.components.find(x=>x.use==='part'&&x.intents.includes(p.intent))||{}).kind||'card';view={contract:c.preview.contract,nodes:c.preview.parts.map(p=>({...p,kind:kind(p)})),connected:[]};}
+  if(comparePrevious&&previousVisual(b)){const before=previousVisual(b);view={contract:before.design.contract,nodes:before.nodes,connected:before.connected,presentation:before.design.presentation};}
+  pluginRoot.inert=comparePrevious;pluginRoot.setAttribute('aria-label',comparePrevious?'上次界面，只读对照':'当前界面');
   empty.hidden=!!view&&view.nodes.length>0;pluginRoot.hidden=!view||!view.nodes.length;
   if(!b)empty.innerHTML='<h2>这里会出现你的插件</h2><p>方案确定后，UI Agent 从下方规格板里逐个取出组件放进来，代码 Agent 同时编写功能，接通一项就能试用一项。</p>';
   else if(!view)empty.innerHTML='<div class="as-skeleton" aria-label="正在理解需求"><div style="width:40%"></div><div class="tall"></div><div></div><div style="width:70%"></div></div><p style="margin-top:18px">“'+esc(b.brief.slice(0,120))+'”</p>';
@@ -402,7 +409,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  function subscribe(id){source?.close();source=null;if(!id||!lifetime.visible)return;const subscribed=source=new EventSource(host.api('/builds/'+id+'/events'));source.onmessage=e=>{if(source!==subscribed||!lifetime.visible)return;const b=JSON.parse(e.data);if(b.id!==current?.id)return;if(b.design?.contract.revision!==current.design?.contract.revision)seenWired=new Set();current=b;
    const listed=state.builds.find(x=>x.id===b.id);if(listed&&(listed.phase!==b.phase||(listed.design?.title||listed.title)!==(b.design?.title||b.title))){Object.assign(listed,{phase:b.phase,title:b.title,design:b.design});renderBuilds();}
    schedule();};}
- async function open(id,signal){const ticket=++opening;target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
+ async function open(id,signal){const ticket=++opening;comparePrevious=false;target=null;preview=null;rendered='';lastView='';seenWired=new Set();firstPaint=true;tab='build';playToken++;playing=false;queue=[];landing=null;picking=null;revealed=new Set();wiredCaps=new Set();wires=[];wiring=null;
   if(!id){current=null;versions=[];subscribe(null);history.replaceState(null,'',location.pathname);schedule();return;}
   const v=await api('/builds/'+id,'GET',undefined,signal);if(ticket!==opening)return;current=v.build;versions=v.versions;current.nodes.forEach(n=>revealed.add(n.id));usedCapabilities(current).forEach(x=>{if(x.done)wiredCaps.add(x.c.id);});subscribe(id);history.replaceState(null,'',location.pathname+'?build='+encodeURIComponent(id));renderBuilds();schedule();}
  async function refreshState(signal){state=await api('/state','GET',undefined,signal);renderBuilds();}
@@ -419,6 +426,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(el.dataset.asChoose){run(()=>act('choose',{candidateId:el.dataset.asChoose}));return;}
   if(el.dataset.asPart){run(()=>act('part',{kind:el.dataset.asPart}));return;}
   if(el.dataset.asAction){const a=el.dataset.asAction;if(a==='publish')run(()=>act('publish'));else run(()=>act(a));return;}
+  if(el.hasAttribute('data-as-compare')){comparePrevious=!comparePrevious;schedule();return;}
   if(el.dataset.asTab){tab=el.dataset.asTab;target=null;if(tab!=='build'){playToken++;playing=false;queue.forEach(id=>revealed.add(id));queue=[];landing=null;picking=null;wires.forEach(w=>wiredCaps.add(w.cap));wires=[];wiring=null;}schedule();return;}
   if(el.hasAttribute('data-as-untarget')){target=null;schedule();return;}
   if(el.dataset.asInstall){const v=versions.find(x=>x.version===Number(el.dataset.asInstall));consent('安装「'+(current.design?.title||'')+'」到这个项目',v?.permissions,'安装').then(ok=>{if(ok)run(async()=>{
@@ -439,7 +447,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;
   const go=fresh=>run(async()=>{
    if(!current||fresh){const v=await api('/builds','POST',{brief:text});input.value='';await refreshState();await open(v.build.id);return;}
-   const node=target&&current.nodes.find(n=>n.id===target);await act('message',{message:node?'［'+node.purpose+'］'+text:text});input.value='';target=null;});
+   const node=target&&current.nodes.find(n=>n.id===target);await act($('[data-as-edit-mode]').value,{message:node?'［'+node.purpose+'］'+text:text});input.value='';target=null;});
   // "做一个……" while another plugin is open is most likely a new plugin; ask rather than rewrite the open one.
   if(current?.design&&!target&&/^(我|帮我|请)?(要|想|需要|来)?(做|建|创建|新建|开发|搭)(一个|个|一款|款)/.test(text))
    ask('做一个新插件，还是修改「'+current.design.title+'」？','“'+text.slice(0,80)+'”',[['new','做成新插件',true],['modify','修改「'+current.design.title+'」'],['cancel','取消']]).then(choice=>{if(choice==='new')go(true);else if(choice==='modify')go(false);});

@@ -5,7 +5,7 @@
  * still goes through the strict validators (`validateAgentDesign`, `assertContract`).
  */
 import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
+import { PLUGIN_COMPONENT_PROP_KEYS, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
 import type { CatalogEntry } from './agent-catalog.js';
 import { STUDIO_CAPABILITIES, MODEL_STAND_IN_PREFIX } from './agent-capabilities.js';
@@ -198,6 +198,9 @@ function normalizeExamples(raw: unknown, operation: Omit<SandboxOperationContrac
     const error = pick(item, 'error', 'errorCode');
     if (error !== undefined) return { input, error: text(error) };
     const includes = pick(item, 'includes', 'outputIncludes', 'expect');
+    const expected = includes === undefined ? item.output : includes;
+    if (operation.kind === 'query' && operation.effects.storage?.includes('read') && !operation.effects.capabilities?.length && !operation.effects.networkDomains?.length && !operation.effects.resources?.length && (Array.isArray(expected) ? expected.length > 0 : includes !== undefined && object(includes) && operation.output.type === 'array'))
+      fail(at, '查询示例在空存储上运行，output/includes 不能期望已有记录；空列表写 output: []，需要已有数据的情况写进验收（acceptance）');
     if (includes !== undefined && operation.effects.networkDomains?.length && includes && typeof includes === 'object') { dropped.push(`${at} 访问外部网站，结果随网站变化，只检查结果的结构`); return { input, outputIncludes: (Array.isArray(includes) ? [] : {}) as SandboxJson }; }
     // "The list has a record like this" written as the record itself: the list contains it.
     if (includes && typeof includes === 'object' && !Array.isArray(includes) && operation.output.type === 'array') {
@@ -219,8 +222,6 @@ function normalizeExamples(raw: unknown, operation: Omit<SandboxOperationContrac
       const settled = settle(item.output, input, at, dropped); timeless(settled, input, at);
       return { input, outputIncludes: settled as SandboxJson };
     }
-    if (operation.kind === 'query' && Array.isArray(item.output) && item.output.length)
-      fail(at, '查询示例在空存储上运行，只能返回空列表；需要已有数据的情况写进验收（acceptance）');
     // A result field that depends on today (the current month) cannot be checked exactly; the rest still is.
     const given = new Set(datesIn(input));
     if (object(item.output) && datesIn(item.output).some(date => !given.has(date))) {
@@ -312,7 +313,7 @@ const INTENTS: Record<string, PluginComponentIntent> = {
   卡片: 'collection', 阅读: 'reading', 原文: 'reading', 对话: 'conversation', 聊天: 'conversation', 证据: 'evidence', 日程: 'schedule', 日历: 'schedule',
   提示: 'feedback', 反馈: 'feedback', 状态: 'feedback',
 };
-const PROPS = ['title', 'description', 'submitLabel', 'emptyText', 'idField', 'titleField', 'textField', 'roleField', 'hintLevelField', 'citationsField', 'columns'] as const;
+const PROPS = PLUGIN_COMPONENT_PROP_KEYS;
 function intentOf(value: unknown, where: string): PluginComponentIntent {
   const intent = INTENTS[text(value).toLowerCase()];
   return intent ?? fail(where, `intent「${text(value)}」不在组件池里，可用 heading / description / input / action / collection / reading / conversation / evidence / schedule / feedback`);
@@ -375,7 +376,7 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxOperatio
   // "Show this field of the command's result" written beside the binding rather than inside it.
   const shown = raw.submitShow ?? raw.show, showField = typeof shown === 'string' ? shown : object(shown) ? text(pick(shown as Json, 'show', 'path', 'field', 'outputPath')) : '';
   if (submit && showField && !submit.outputPath) submit.outputPath = showField;
-  return { id, pageId, regionId: 'main', intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props: props as PluginComponentPlan['props'],
+  return { id, pageId, regionId: slug(pick(raw, 'regionId', 'region') || 'main', where), intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props: props as PluginComponentPlan['props'],
     ...(read ? { read } : {}), ...(submit ? { submit } : {}) };
 }
 /** Pages carry their parts; a model that lists parts separately with a pageId gets them grouped the same way. */
@@ -433,8 +434,8 @@ function normalizePages(raw: unknown, operations: SandboxOperationContract[], dr
       part.id = name;
     }
     parts.push(...pageParts);
-    const operationIds = [...new Set(pageParts.flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))];
-    pages.push({ id, title: text((page as Json).title) || id, regions: [{ id: 'main', title: text((page as Json).title) || id, operationIds }] });
+    const regions = [...new Set(pageParts.map(part => part.regionId))].map(regionId => ({ id: regionId, title: regionId === 'main' ? text((page as Json).title) || id : regionId, operationIds: [...new Set(pageParts.filter(part => part.regionId === regionId).flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))] }));
+    pages.push({ id, title: text((page as Json).title) || id, regions });
   }
   if (new Set(parts.map(part => part.id)).size !== parts.length) fail('界面', '组件标识重复');
   return { pages, parts };
@@ -449,7 +450,7 @@ export function parseStep(raw: unknown, parts: PluginComponentPlan[], where: str
     const s = raw.trim(); let m: RegExpExecArray | null;
     if (s === 'reload') return { action: 'reload' };
     if ((m = /^page\s+(\S+)$/.exec(s))) return { action: 'page', pageId: slug(m[1], where) };
-    if ((m = /^fill\s+([a-z][a-z0-9_.-]*?)(?:\.([a-zA-Z_]\w*))?\s*=\s*([\s\S]+)$/.exec(s))) {
+    if ((m = /^fill\s+([a-z][a-z0-9_.-]*?)(?:\.([a-zA-Z_]\w*))?\s*=\s*([\s\S]*)$/.exec(s))) {
       const componentId = m[1]!, field = m[2] ?? formField(componentId) ?? fail(where, `「${s}」要写成 fill 组件.字段 = 值`);
       return { action: 'fill', componentId, field, value: literal(m[3]!) };
     }
@@ -462,7 +463,7 @@ export function parseStep(raw: unknown, parts: PluginComponentPlan[], where: str
     if ((m = /^(?:expect-not|expect\s+not)\s+(\S+)\s+(?:contains\s+|包含\s*|显示\s*)?([\s\S]+)$/.exec(s)) || (m = /^expect\s+(\S+)\s+(?:lacks|without)\s+([\s\S]+)$/.exec(s))) return { action: 'expectAbsent', componentId: m[1]!, text: unquote(m[2]!) };
     if ((m = /^expect\s+(\S+)\s+(?:contains\s+|shows\s+|包含\s*|显示\s*)?([\s\S]+)$/.exec(s))) return { action: 'expect', componentId: m[1]!, text: unquote(m[2]!) };
     if (/^expect(?:-not)?\s+\S+$/.test(s)) return fail(where, `「${s}」缺少期望的文字：写成 ${s} 要出现的文字`);
-    return fail(where, `看不懂的验收步骤「${s}」`);
+    return fail(where, `看不懂的验收步骤「${s}」；只支持 fill/submit/select/expect/expect-not/page/reload，清空字段写 fill 组件.字段 = ""`);
   }
   if (!object(raw)) return fail(where, '验收步骤写成一行文字，例如 "submit editor"');
   const action = text(raw.action), componentId = text(pick(raw, 'componentId', 'component'));
@@ -794,5 +795,5 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   const journey = steps(pick(design, 'journey', 'journal'));
   return { id: base.id, title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
     journey: journey.length ? journey.slice(0, 20) : base.journey,
-    contract: { version: 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser };
+    contract: { version: 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser, ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}) };
 }

@@ -1,3 +1,4 @@
+import { renderPluginPresentationExample } from '../plugin-presentation-example.js';
 import { icon, ICON_LIBRARY } from "../icons.js";
 import { renderProjectMonogram } from "../monogram.js";
 import {
@@ -482,6 +483,7 @@ export function renderPrimitiveCatalog(): string {
     ${typefaceSection()}
     ${iconSection()}
     ${craftSection()}
+    ${section("plugin-composition", "插件页面组合", renderPluginPresentationExample())}
     ${section("button", "Button", `<div class="mw-catalog__specimens">
       ${specimen("主操作", `${primary}${secondary}${ghost}`)}
       ${specimen("破坏性", `${danger}${dangerOutline}`)}

@@ -27,8 +27,8 @@ export const BUILTIN_INLINE_AGENT_PROMPTS: ReadonlyArray<{ owner_id: string; pro
 
 /** Roles of those Agents, so they show as Characters beside the ones Plugin manifests declare. */
 export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role: AgentRoleRegistration }> = [
-  { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "designer", version: 1, name: "主线设计师", purpose: "理解需求，设计插件的产品与功能合同；没有工具，只输出设计",
-    execution: "read-only", workspace: "none", prompt_ids: ["builder-designer"] } },
+  { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "designer", version: 2, name: "主线设计师", purpose: "理解需求，规划体验、功能合同与界面，并按截图复查；没有工具，每次按阶段使用对应指令",
+    execution: "read-only", workspace: "none", prompt_ids: ["builder-designer", "builder-experience", "builder-ui", "builder-review"] } },
   { owner_id: BUILDER_PLUGIN_ID, role: { role_id: "coder", version: 1, name: "代码 Agent", purpose: "在构建目录里写插件代码：实现、按意见修改、按检查修复、处理验收失败，每次按任务用其中一段",
     execution: "workspace-write", workspace: "required", prompt_ids: ["builder-implement", "builder-revise", "builder-repair", "builder-acceptance"] } },
 ];

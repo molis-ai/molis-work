@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, realpath, readFile, writeFile, rename, readdir } from 'node:fs/promises';
+import { mkdir, realpath, readFile, writeFile, rename, readdir, rm } from 'node:fs/promises';
 import { join, relative, isAbsolute } from 'node:path';
 import { collectRun, fillSkillBody, prepareSkillIntent, type ExactRef, type Runtime, type ScenarioPack, type Skill, type ToolRunner } from '@prologue/sdk';
 import type { PrologueModelConfiguration } from './prologue.js';
@@ -104,6 +104,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
         let session: Awaited<ReturnType<Runtime['sessions']['create']>> | undefined, hooked: string | undefined;
         let stop: (() => void) | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
+        const images: ExactRef<'resource'>[] = [];
         const cancel = () => { abort.abort(request.signal?.reason ?? new Error('Build stopped')); stop?.(); };
         request.signal?.addEventListener('abort', cancel, { once: true });
         const activity = (entry: BuilderAgentActivity) => { if (sealed) return; record.activity.push(entry); try { request.onActivity?.(entry); } catch { /* observer is not execution authority */ } };
@@ -154,6 +155,17 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           const bytes = new TextEncoder().encode([request.instruction, ...mounted].join('\n\n'));
           const stage = sdk.resources.stage({ mediaKind: 'text', byteLength: bytes.length, label: request.promptVersion });
           stage.write(bytes); const instructions = await stage.publishDurable();
+          if ((request.images?.length ?? 0) > 9 || (request.images ?? []).reduce((total, image) => total + image.bytes.length, 0) > 12 * 1024 * 1024) throw new Error('界面截图超过本轮图片预算');
+          for (const [index, image] of (request.images ?? []).entries()) {
+            if (image.bytes.length < 8 || [137,80,78,71,13,10,26,10].some((byte, index) => image.bytes[index] !== byte)) throw new Error('界面截图必须是 PNG');
+            const name = '.preview-' + record.id + '-' + index + '.png', path = join(root, name), intake = sdk.beginIntake(authorized.ref);
+            try {
+              await writeFile(path, image.bytes, { mode: 0o600, flag: 'wx' });
+              await intake.add(name, image.label.slice(0, 160));
+              images.push(...(await intake.publish()).map(resource => resource.ref));
+            } catch (error) { await intake.cancel(); throw error; }
+            finally { await rm(path, { force: true }); }
+          }
           const tools = request.role === 'coder' ? [...TOOLS] : [];
           const character = sdk.characters.publish(sdk.characters.create({ id: 'builder-' + record.id, version: 1,
             name: request.role === 'coder' ? 'Plugin Code Agent' : 'Plugin Designer', role: 'builder-' + request.role,
@@ -162,7 +174,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           const started = await sdk.startAgentRun({ session, rootRef: authorized.ref, grants: { toolNames: tools, paths: request.role === 'coder' ? ['.'] : [] },
             start: { protocol: model.protocol, endpoint: model.endpoint, model: model.model, credentialRef, params: { maxOutputTokens: request.role === 'designer' ? 32768 : 16384 },
               ...(model.prompt_cache && model.prompt_cache !== 'off' ? { promptCache: model.prompt_cache } : {}),
-              messages: [{ role: 'user', text: request.task }] },
+              messages: [{ role: 'user', text: request.task }], ...(images.length ? { attachments: images.map(ref => ({ ref, as: 'original' as const })) } : {}) },
             agent: { idempotencyKey: record.id, mode: request.role === 'coder' ? 'build' : 'plan',
               characterRef: character.ref, toolNames: tools, budget: { maxTurns: request.role === 'coder' ? 30 : 1, maxWallClockMs: options.timeoutMs ?? 600_000 } } });
           record.runId = started.run.ref.id;
@@ -206,6 +218,7 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
           await Promise.allSettled([...activeChecks]);
           if (timer) clearTimeout(timer);
           request.signal?.removeEventListener('abort', cancel);
+          await Promise.allSettled(images.map(ref => sdk.resources.revoke(ref)));
           record.finishedAt = new Date().toISOString();
           try { await save(record); } finally { try { await session?.archive(); } finally { if (hooked) sdk.hooks.unregister('builder-frozen-authority-' + hooked); current = undefined; } }
         }

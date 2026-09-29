@@ -1,5 +1,5 @@
-import type { PluginComponentNode, PluginComponentPlan } from '@molis-ai/molis-work-design-system';
-import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { PluginComponentNode, PluginComponentPlan, PluginPresentation } from '@molis-ai/molis-work-design-system';
+import type { SandboxEffects, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 
 export interface BrowserAcceptance {
@@ -30,6 +30,9 @@ export interface AgentDesign {
   contract: SandboxPluginContract;
   parts: PluginComponentPlan[];
   acceptance: BrowserAcceptance[];
+  presentation?: PluginPresentation;
+  /** The pre-freeze UI decision and representative content; advisory context, not executable acceptance. */
+  experience?: { summary: string; scenarios: Array<{ task: string; content: SandboxJson; expected: string }> };
 }
 /** Stage one of design: a product-level proposal the person compares; only the chosen one is designed in full. */
 export interface AgentProposal {
@@ -40,7 +43,7 @@ export interface AgentProposal {
   journey: string[];
   effects: SandboxEffects;
   /** Enough contract and parts to render the proposal on the canvas; never built or validated as a plugin. */
-  preview: { contract: SandboxPluginContract; parts: PluginComponentPlan[] };
+  preview: { contract: SandboxPluginContract; parts: PluginComponentPlan[]; presentation?: PluginPresentation };
   /** A picture of the proposal, when an image service is configured (W7): drawn once, never retried. */
   mockup?: { status: 'drawing' | 'ready' | 'failed'; jobId?: string; imageId?: string; reason?: string };
 }
@@ -48,19 +51,24 @@ export interface AgentBuildStep {
   id: string; agent: 'design' | 'ui' | 'code' | 'host'; action: string;
   label: string; status: 'queued' | 'active' | 'done' | 'waiting' | 'failed' | 'cancelled';
   target?: string; operationId?: string; detail?: string; at: string;
-  selection?: { source: 'rule' | 'jev' | 'user'; candidates: string[]; choice: string; model?: string; elapsedMs?: number; confidence?: number | null };
+  selection?: { source: 'rule' | 'jev' | 'user' | 'design'; candidates: string[]; choice: string; model?: string; elapsedMs?: number; confidence?: number | null };
 }
 export interface AgentBuildSnapshot {
   design: AgentDesign | null; nodes: PluginComponentNode[]; connected: string[]; directory?: string;
   /** The designer's own authoring answer for this design; a revision hands it back so the model edits its own format. */
   designSource?: string;
+  checks?: Record<string, BuildCheckResult>;
+  browserResult?: { passed: boolean; cases: Array<{ id: string; passed: boolean; detail: string }>; at: string };
+  visualResult?: { structural: boolean; status: 'reviewed' | 'unavailable' | 'failed'; issues: string[]; at: string; revision: string; elapsedMs: number };
+  /** A paused visual revision resumes without starting code generation. */
+  pendingVisual?: string;
 }
 export interface AgentBuild extends AgentBuildSnapshot {
   id: string; revision: number; brief: string; title: string;
   phase: 'draft' | 'designing' | 'clarifying' | 'choosing' | 'building' | 'paused' | 'failed' | 'ready';
   messages: Array<{ role: 'user' | 'assistant'; text: string }>;
   candidates: AgentProposal[]; chosen?: string; questions: string[]; clarificationAnswered: boolean;
-  active: { token: string; stage: 'design' | 'detail' | 'revise' | 'build'; contractRevision?: string } | null;
+  active: { token: string; stage: 'design' | 'detail' | 'revise' | 'build' | 'visual'; contractRevision?: string } | null;
   /** The designer's last host-normalized notes (dropped unknown settings), shown so nothing disappears silently. */
   notes?: string[];
   steps: AgentBuildStep[]; checks: Record<string, BuildCheckResult>;

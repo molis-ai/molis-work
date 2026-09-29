@@ -146,9 +146,17 @@ async function fixtureAgent(build: AgentBuild) {
   return {
     async run(request: BuilderAgentRequest): Promise<BuilderAgentRecord> {
       if (request.role === 'designer') {
-        const task = JSON.parse(request.task) as { mode: string; proposal?: { id: string }; current?: { title?: string }; request?: string };
+        const task = JSON.parse(request.task) as { mode: string; proposal?: { id: string; journey: string[]; pages: unknown[] }; current?: { title?: string }; request?: string };
         await pause(task.mode === 'propose' ? 1400 : 1800, request.signal);
         if (task.mode === 'propose') return record(request, DESIGN);
+        if (task.mode === 'experience') return record(request, JSON.stringify({ summary: '体验替身：先浏览、随手写入，再按需要展开', journey: task.proposal!.journey, pages: task.proposal!.pages,
+          scenarios: [{ task: '记录后能找到并展开', content: { text: '间隔复习比集中复习记得更久' }, expected: '列表显示笔记，可使用展开操作' }] }));
+        if (task.mode === 'compose') {
+          const input = JSON.parse(request.task) as { parts: Array<{ id: string; pageId: string; intent: string }> };
+          return record(request, JSON.stringify({ summary: '示例：浏览优先，新建收进侧面表单', presentation: { version: 1,
+            pages: [...new Set(input.parts.map(part => part.pageId))].map(pageId => ({ pageId, layout: { layout: 'stack', children: input.parts.filter(part => part.pageId === pageId).map(part => ({ part: part.id })) } })),
+            parts: Object.fromEntries(input.parts.map(part => [part.id, part.intent === 'input' ? { kind: 'sheet', emphasis: 'primary' } : part.intent === 'collection' ? { kind: 'directory', density: 'compact' } : {}])) } }));
+        }
         if (task.mode === 'detail') return record(request, detail(task.proposal?.id ?? 'quick'));
         // A labelled stand-in revision: only the name changes, so working code and parts are kept.
         const named = /改成[「“"]?([^」”"，。]+)/.exec(task.request ?? '')?.[1];

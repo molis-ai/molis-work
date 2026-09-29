@@ -13,8 +13,11 @@ export const PLUGIN_SKILL_ID = 'molis-plugin-dev';
 /** Prologue inlines at most this much Skill body. */
 const MAX_BODY = 20_000;
 /** What each stage reads, in order. The UI quality bar is the section of ui.md every plugin shares. */
-const CHAPTERS: Record<'design' | 'code', Array<string | { file: string; section: string }>> = {
-  design: ['process.md', 'generated-design.md', 'generated-ai.md', { file: 'ui.md', section: '## 质量线（所有插件）' }, 'capabilities.md'],
+const CHAPTERS: Record<'design' | 'code' | 'experience' | 'ui' | 'review', Array<string | { file: string; section: string }>> = {
+  design: ['process.md', 'generated-design.md', 'generated-experience.md', 'generated-ai.md', { file: 'ui.md', section: '## 质量线（所有插件）' }, 'capabilities.md'],
+  ui: ['generated-experience.md', 'generated-ui.md', { file: 'ui.md', section: '## 质量线（所有插件）' }],
+  experience: ['generated-experience.md', { file: 'ui.md', section: '## 质量线（所有插件）' }],
+  review: ['generated-experience.md', { file: 'ui.md', section: '## 质量线（所有插件）' }],
   code: ['generated-code.md', 'generated-ai.md', 'capabilities.md'],
 };
 
@@ -36,7 +39,7 @@ function section(markdown: string, heading: string): string {
 }
 
 /** The Skill a stage mounts, or undefined when the release has no Skill directory. */
-export function builderSkill(stage: 'design' | 'code', directory = pluginSkillDirectory()): BuilderSkill | undefined {
+export function builderSkill(stage: keyof typeof CHAPTERS, directory = pluginSkillDirectory()): BuilderSkill | undefined {
   if (!directory) return undefined;
   const parts = CHAPTERS[stage].map(chapter => {
     const file = typeof chapter === 'string' ? chapter : chapter.file, text = readFileSync(join(directory, file), 'utf8').trim();
@@ -45,5 +48,5 @@ export function builderSkill(stage: 'design' | 'code', directory = pluginSkillDi
   const body = parts.join('\n\n---\n\n');
   if (body.length > MAX_BODY) throw new Error(`插件开发 Skill 的 ${stage} 部分有 ${body.length} 字，超过 ${MAX_BODY} 字的挂载上限；请精简章节`);
   const version = Number.parseInt(createHash('sha256').update(body).digest('hex').slice(0, 7), 16);
-  return { id: PLUGIN_SKILL_ID + '.' + stage, version, name: stage === 'design' ? '插件开发规范 · 设计' : '插件开发规范 · 代码', body };
+  return { id: PLUGIN_SKILL_ID + '.' + stage, version, name: stage === 'design' ? '插件开发规范 · 设计' : stage === 'experience' ? '插件开发规范 · 体验设计' : stage === 'ui' ? '插件开发规范 · 界面' : stage === 'review' ? '插件开发规范 · 界面复查' : '插件开发规范 · 代码', body };
 }

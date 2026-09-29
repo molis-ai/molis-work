@@ -4,6 +4,7 @@ import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallC
 import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
+import { createFormSearchHandlers, formSearchActions } from "./search.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -35,6 +36,8 @@ export const formActions = {
   submit: define<Identity & { answers: Record<string, string>; request_id?: string }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
   results: define<{ id: string }, { analysis: { form_id: string; submission_count: number }; submissions: FormSubmissionRecord[] }>("results", "读取答卷", "读取答卷及计数，新增答卷保留提交时题目；旧答卷快照为 null，不重建未知历史", "query", object({ id }), object({ analysis: object({ form_id: id, submission_count: { type: "integer", minimum: 0 } }), submissions: array(submission) })),
   promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存成 Artifact", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  searchEntries: formSearchActions.entries,
+  subject: formSearchActions.subject,
 };
 export const FORM_ACTION_PERMISSIONS = [...new Set(Object.values(formActions).flatMap(d => d.action.permissions))];
 export interface FormActionPorts {
@@ -77,5 +80,6 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
     })),
     bind(formActions.promote, (input, caller) => ports.withStore(store => promoteForm(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
       () => ports.publishArtifact ? { available: true } : { available: false, code: "form.unavailable", reason: "当前环境不能发出 Artifact" }),
+    ...createFormSearchHandlers(ports.withStore),
   ];
 }

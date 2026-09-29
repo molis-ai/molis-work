@@ -144,6 +144,17 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 
 Pages 与 Coding 是完整样例；需求与验收见 `specs/system-assistant/spec.md` 第 10.4 节与 AC46—AC51。
 
+## 系统搜索
+
+插件的内容经共同动作目录进入系统搜索（`search.query`，工作台 ⌘K、助理、工作流与 MCP 共用），插件不写索引、不调用搜索服务：
+
+- 可搜索的每种对象提供对象读取器（`defineSubjectContextAction`，不存在时抛 `<plugin>.not_found`）；
+- 声明一个搜索来源 `defineSearchEntriesAction(id, [{ kind, title, surface }], title, permissions, scope?, audiences?)`，用 `bindSearchEntriesHandler` 返回当前全部条目：`subject`、`revision`（内容一变就变）、`title`、`summary`、`updated_at`、`content`（`context` 正文经读取器进索引，`summary` 只索引标题与摘要）、`open: { surface, id }`；
+- 不能持久化的内容用 `defineSearchQueryAction` 按需查询。
+- 来源的受众不能比你原有的读取更宽：原来只给本机界面看的内容（例如剪贴板历史）单独声明一个来源，受众限为 `["user"]`，助理、工作流与 MCP 客户端就搜不到它。
+
+系统负责首次建立、按集合版本与条目版本增量更新、删除清理、失败保留与重试、停用/卸载清理、按调用者授权过滤和打开前核对。清单里声明的来源经 `inspectActionDeclarations` 校验规范合同。细则与判例见 [搜索接入](../../skills/molis-plugin-dev/search.md)，需求见 `specs/system-search/spec.md`。
+
 ## 调用模型：登记的指令
 
 插件发给模型的要求（指令 Prompt）和 Agent 的角色 Prompt 一样，由 Host 统一登记，用户在设置“Prompt 与 Character”里能看到、修改、恢复默认，也能看到最近一次用的是默认版还是自己的版本。

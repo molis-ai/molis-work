@@ -1,0 +1,11 @@
+# Search
+
+**白话：** 在当前项目与个人范围里找到插件里的真实内容，并告诉调用者去哪里打开；它不理解内容是什么意思，也不决定谁能读。
+
+**提供：** 搜索来源发现（动作目录里的 `molis.search.entries.v1` 与按需的 `molis.search.query.v1`）、可重建的本地全文索引（中日韩单字与双字、拉丁词前缀）、按集合版本与条目版本的增量同步、失败保留与重试、停用与卸载清理、按调用者权限过滤的查询、打开前的对象核对。系统动作 `search.query`、`search.open`、`search.status`、`search.rebuild`（提供方 `system.search`）。
+
+**技术状态：** `{home}/search/search.db`：来源的集合版本、同步时间与错误；每个条目的版本、标题、允许持久化的摘要与正文、打开位置。全部可以删除后从各插件重建。
+
+**不拥有：** 插件的表与业务规则、对象正文的解释（归各插件的对象读取器）、权限授予（归动作服务与各入口的授权）、可信身份、会话与助理交互。
+
+**当前来源与 Goal：** `horizontal/search`，索引适配 `packages/storage` 的 `openTextSearchIndex`，Host 装配 `apps/local-host/src/search-actions.ts`。见 `specs/system-search/spec.md`。

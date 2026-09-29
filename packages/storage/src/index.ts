@@ -40,3 +40,5 @@ export {
 export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, type SecretStoreMigrationResult, KeychainUnavailableError, holdSecretsLockForTest, isLegacyEnvelope, sealLegacyForTest, assertNotReversibleBase64Only, safeEqualString, createFileSecretStore, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 
 export * from "./adapters/search-storage.js";
+
+export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";

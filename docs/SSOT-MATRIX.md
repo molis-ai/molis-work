@@ -17,7 +17,7 @@
 | 旧路径、迁移状态、兼容出口 | [`docs/system/MIGRATION.md`](system/MIGRATION.md) |
 | Huge Class 每块职责的唯一迁移 Goal | [`docs/system/HUGE-CLASS-MIGRATION.md`](system/HUGE-CLASS-MIGRATION.md) |
 | 16 个业务事实 owner | [`docs/modules/`](modules/README.md) |
-| 5 个横向运行服务 | [`docs/horizontal/`](horizontal/README.md) |
+| 6 个横向运行服务 | [`docs/horizontal/`](horizontal/README.md) |
 | Plugin、存储、交换、UI 等平台机制 | [`docs/platform/`](platform/README.md) |
 | 新插件先写什么、怎么接到产品 | [`skills/molis-plugin-dev/SKILL.md`](../skills/molis-plugin-dev/SKILL.md)（Host/CLI/接入分文件）；命令与录取四问仍是 [`docs/platform/PLUGIN-DEVELOPMENT.md`](platform/PLUGIN-DEVELOPMENT.md) |
 | 某次实现具体改什么、如何验收 | 对应 `specs/<task>/spec.md` 或已接受 Goal Contract |
@@ -37,7 +37,7 @@
 | `retired` | 旧路径 caller 清零并删除或只留下有时限的兼容入口 |
 | `workspace-root + legacy-release` | Monorepo 根已能管理全部 package，但当前产品构建与发布仍由旧根 package 承担 |
 
-当前 69 个 package（6 app、11 foundation、15 module、5 horizontal、25 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-09-27 核对）的描述符为 68 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
+当前 70 个 package（6 app、11 foundation、15 module、6 horizontal、25 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-09-28 核对）的描述符为 69 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
 
 ## 3. Apps
 
@@ -58,7 +58,7 @@
 | `packages/kernel` | Capability 注册、选择、权限与生命周期骨架 | versioned Capability registry 与统一动作服务核心 `ActionService`（定义/兑现校验、输入输出 schema、可用性、`beforeEffect` 副作用前复查、场景绑定与判断消费）；授权事实由 Local Host 持久保存 | `partial` | F2、F3、AP2；`specs/action-architecture/spec.md` |
 | `packages/plugin-runtime` | Plugin 安装、签名身份、grant、隔离和生命周期 | 本地 Runtime、持久开发状态、可撤销授权和签名校验；不是 OS sandbox | `partial` | F2、FD3、DV3；分发收口见 DV4 |
 | `packages/plugin-sdk` | 外部 Plugin 作者使用的稳定 API 与测试入口 | Manifest/definition/polling、公开 Artifact/UI/private client 类型、`mcp_exports` 再导出；fixture 由 Local Host 实现 | `partial` | F2、FD3、DV3 |
-| `packages/storage` | SQLite、Filesystem、Blob、事务和 migration 技术能力 | SQLite/事务/文件/密文/搜索缓存 Adapter；业务 schema 归 Module | `partial` | 各事实迁移/Cutover；Web Home 作用域隔离 |
+| `packages/storage` | SQLite、Filesystem、Blob、事务和 migration 技术能力 | SQLite/事务/文件/密文/联网搜索缓存 Adapter；系统搜索的本地全文索引适配（`openTextSearchIndex`，可删除重建）；业务 schema 归 Module | `partial` | 各事实迁移/Cutover；Web Home 作用域隔离 |
 | `packages/exchange` | Envelope、ACK、Cursor、Replay、CAS 与 Blob 交换 | 当前不存在正式 Server/Exchange | `absent` | F2；未来独立功能 Spec |
 | `packages/ui-host` | UI Contribution、Slot、嵌入、隔离和桥接 | FD4 registry/render 与 AP3 surface/Slot mount 校验已落地；Installed Plugin 隔离与完整安全 bridge 仍待独立实现 | `partial` | F2、FD4、AP3 |
 | `packages/design-system` | Token、基础组件、图标和可访问性基线 | 主题、密度、token、icon 与视觉样式；旧 visual-foundation 已删除 | `partial` | AP3/Cutover；真实浏览器与 Native 布局 |
@@ -103,6 +103,7 @@
 | `horizontal/scheduler` | Durable one-shot wakeup | sqlite job/lease/收据；Web timer 与 Feed timer 并行；once/interval 由 Schedule 插件拥有 | `partial` | `specs/archive/schedule-plugin/spec.md` |
 | `horizontal/runtime-host` | Runtime 启动、恢复、中断、stream 与技术 Receipt | Runtime router、Codex app-server 与 PTY server host 已迁；浏览器 transport/reconnect 由 Work 消费 | `partial` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 |
 | `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），CLI Runtime 为辅；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `partial` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` |
+| `horizontal/search` | 系统搜索：经动作目录发现插件的搜索来源、维护可重建索引、按调用者权限聚合结果 | `SearchService`；系统动作 `search.query/open/status/rebuild` 由 Host 装配；索引持久化在 storage 适配；不读插件私有库 | `partial` | `specs/system-search/spec.md` |
 
 Horizontal Service 只保存可恢复的技术状态，不拥有 Goal、Signal、Action、Session 或 Run 等业务事实。
 

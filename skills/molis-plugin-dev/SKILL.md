@@ -17,6 +17,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | --- | --- |
 | 从需求到发布的八步、每步做完的标准 | [process.md](process.md) |
 | 能力：读、写、不可撤销，谁能调用 | [capabilities.md](capabilities.md) |
+| 让内容能被系统搜索找到、打开到 | [search.md](search.md) |
 | 生成插件的说明书怎么设计 | [generated-design.md](generated-design.md) |
 | 生成插件的 AI 边界（创作台直接挂载） | [generated-ai.md](generated-ai.md) |
 | 生成插件的代码怎么写 | [generated-code.md](generated-code.md) |
@@ -75,14 +76,15 @@ description: The single standard for building Molis Work plugins, hand-written o
 6. 浏览器客户端：Pages 族在插件包 `CLIENT_FACTORY_SCRIPT`，Workbench pack 注入。Feed/Inbox 的点击在 `apps/workbench/src/scripts/client/navigation-*.ts`。只出静态 HTML 不够。
 7. 注册 `actions` 和实际处理器，让 UI、编排和授权 MCP 共用同一实现；旧 HTTP 路由只转发到这些动作。不要再声明已废弃的 `behaviors`。
 8. 消费判断：注册 `action_scenes`，按 [host.md](host.md#接到统一判断场景) 兑现真实绑定、上下文准备和结果消费。兼容场景来自合同，使用位置来自真实配置；新增场景不再修改 Host 白名单。判断规则归系统模块 `modules/functions`，编辑器在「能力」（`apps/workbench/src/functions`），不是插件。
-9. 对外调用：新注册动作按 `audiences` 和真实授权进入共同 MCP 目录，不另写业务处理器或工具总表。旧 `mcp_exports` 只用于存量兼容入口。schema 不接收可信身份；声明 mcp 入口不授予权限，外部客户端在「能力 → 对外接入」逐客户端授权。
-10. Artifacts：可保存、同步、按类型消费的内容。判断记录不是 Artifact。新类型先写合同，再 `produces`。
-11. 插件事件总线：只给 **Runtime 托管的 app**（Coding 族）。Native 今天没有这条总线。id 放合同，发布用 `services.events.publish`，接收写 `onEvent`。不要和判断场景（`action_scenes`）、Integration 的 Signal 混在一起。
-12. ports：只在已有真实 Artifact 类型可连时声明。可选口用 `optional: true`。Diff 用 `input_groups`。上游到齐走 `onUpstreamReady`。缺绑定不挡启动。产品里还没有连线页。细则 [elements.md](elements.md)。
-13. `agent`：Agent 驱动才加。Schedule 是 native 带 agent；Coding 是 app 带 agent。提示词正文还要进 catalog，见 [host.md](host.md)。`agent.mcp` 不是对外贡献开关。
-14. Integration：外部协议 → Signal / Feed。账号设置挂 `workbench.settings`；来源任务留在 Feed。
-15. 接到运行处：本仓库产品走 [host.md](host.md)；仓库外样例走 [authoring.md](authoring.md)。**Manifest 写完不等于能看见。**
-16. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
+9. 可搜索内容：每种对象一个读取器，再声明一个搜索来源（`defineSearchEntriesAction`），按版本列出条目。不写索引、不调用搜索服务。见 [search.md](search.md)。
+10. 对外调用：新注册动作按 `audiences` 和真实授权进入共同 MCP 目录，不另写业务处理器或工具总表。旧 `mcp_exports` 只用于存量兼容入口。schema 不接收可信身份；声明 mcp 入口不授予权限，外部客户端在「能力 → 对外接入」逐客户端授权。
+11. Artifacts：可保存、同步、按类型消费的内容。判断记录不是 Artifact。新类型先写合同，再 `produces`。
+12. 插件事件总线：只给 **Runtime 托管的 app**（Coding 族）。Native 今天没有这条总线。id 放合同，发布用 `services.events.publish`，接收写 `onEvent`。不要和判断场景（`action_scenes`）、Integration 的 Signal 混在一起。
+13. ports：只在已有真实 Artifact 类型可连时声明。可选口用 `optional: true`。Diff 用 `input_groups`。上游到齐走 `onUpstreamReady`。缺绑定不挡启动。产品里还没有连线页。细则 [elements.md](elements.md)。
+14. `agent`：Agent 驱动才加。Schedule 是 native 带 agent；Coding 是 app 带 agent。提示词正文还要进 catalog，见 [host.md](host.md)。`agent.mcp` 不是对外贡献开关。
+15. Integration：外部协议 → Signal / Feed。账号设置挂 `workbench.settings`；来源任务留在 Feed。
+16. 接到运行处：本仓库产品走 [host.md](host.md)；仓库外样例走 [authoring.md](authoring.md)。**Manifest 写完不等于能看见。**
+17. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
 
 ## 要素怎么选（别全要）
 
@@ -127,6 +129,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - Manifest 字段、kind 语义、permissions、视图槽
 - MCP 对外协议、`agent.mcp`、闸门/scope
 - actions / action_scenes / 动作录取
+- 系统搜索的来源协议（`search_source`、条目列出、按需查询）与打开方式
 - 当前项目设置的具名读取能力与按项授权
 - 插件 Manifest 升级兼容声明、升级预检或市场升级入口
 - 插件事件、ports、Artifact 交换

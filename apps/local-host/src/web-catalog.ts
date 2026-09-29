@@ -1,3 +1,6 @@
+import { handleSearchHttp } from "./search-http.js";
+import { bindLocalWebActions } from "./local-web-actions.js";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
@@ -83,6 +86,8 @@ export async function handleLocalCatalogWebRequest(
     response.end();
     return;
   }
+  // Without a project, search covers personal content only; the caller's context has no project to widen it.
+  if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] })),
   })) return;

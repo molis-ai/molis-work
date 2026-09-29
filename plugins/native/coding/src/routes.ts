@@ -1,4 +1,4 @@
-import { bindOwnerPluginAction, parseExactActionReferences, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindOwnerPluginAction, parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -997,6 +997,11 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     }),
     // What the session is and where it stands, for whoever holds a reference to it (the Assistant's work, a reference
     // in another plugin). Its revision moves with every round, so a holder can tell the session went on since.
+    route("coding.search-entries", async (request, _api, execution) => searchEntriesPage(execution.sessions.list(boardId).filter(record => !record.archived).map(record => ({
+      subject: { kind: "coding_session", id: record.session_id }, revision: `${record.updated_at}:${record.state}`, title: record.title || "编码会话",
+      summary: record.goal_id ? `关联目标：${execution.goalTitle(record.goal_id) ?? record.goal_id}` : "", updated_at: record.updated_at, content: "context" as const,
+      open: { surface: "coding", id: record.session_id } })), { cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null,
+      limit: Math.min(500, Math.max(1, Number(request.query.limit ?? 500) || 500)) })),
     route("coding.subject", async (request, api, execution) => {
       const record = selected(request, execution);
       const saved = context.services?.storage?.get(`configuration:${record.session_id}`);

@@ -1,9 +1,9 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
-import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStore } from "./store.js";
+import { createLingguangSearchHandlers, lingguangSearchActions } from "./search.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -35,10 +35,10 @@ export const lingguangActions = {
   getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
   message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
     object({ id, body: { type: "string", minLength: 1, maxLength: 2000, pattern: "\\S" } }), conversationState, [...read, ...write, "model:invoke"]),
+  searchEntries: lingguangSearchActions.entries,
+  subject: lingguangSearchActions.subject,
 };
-/** One spark by the shared subject protocol: what it says now and where to open it. */
-export const lingguangSubjectAction = defineSubjectContextAction("lingguang.subject.read", "lingguang_spark", "灵光", read);
-export const LINGGUANG_ACTIONS: readonly ActionDefinition[] = [...Object.values(lingguangActions), lingguangSubjectAction as unknown as ActionDefinition];
+export const LINGGUANG_ACTIONS: readonly ActionDefinition[] = Object.values(lingguangActions);
 export const LINGGUANG_ACTION_PERMISSIONS = [...new Set(LINGGUANG_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface LingguangActionPorts {
   withStore<T>(run: (store: LingguangStore) => T): T;
@@ -57,11 +57,6 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
   return [
     bind(lingguangActions.list, (_, caller) => ports.withStore(store => ({ sparks: store.list(project(caller)) }))),
     bind(lingguangActions.get, (input, caller) => ports.withStore(store => ({ spark: store.get(input.id, project(caller)) }))),
-    bind(lingguangSubjectAction, (input, caller) => ports.withStore(store => {
-      const spark = store.get(input.subject_id, project(caller));
-      return subjectContext({ subject: { kind: "lingguang_spark", id: spark.id }, revision: spark.updated_at, title: spark.title || "灵光", content: spark.body || "",
-        goal_ids: [], session_id: null, open: { surface: "lingguang", id: spark.id } });
-    })),
     bind(lingguangActions.create, (input, caller) => ports.withStore(store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
     bind(lingguangActions.update, (input, caller) => ports.withStore(store => ({ spark: store.update(input.id, input, project(caller)) }))),
     bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller)); return { ok: true }; })),
@@ -80,6 +75,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
       await caller.beforeEffect();
       return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot));
     }, () => ports.modelAvailability()),
+    ...createLingguangSearchHandlers(ports.withStore),
   ];
 }
 

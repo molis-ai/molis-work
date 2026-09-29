@@ -2,6 +2,7 @@ import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallC
 import type { PptRecord, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore } from "./store.js";
+import { createPptSearchHandlers, pptSearchActions } from "./search.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -27,6 +28,8 @@ export const pptActions = {
   delete: define<Identity, { ok: true }>("delete", "删除演示稿", "删除当前项目演示稿，待恢复的 Artifact 发布需先完成", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   export: define<Identity, { filename: string; mime_type: "application/json"; content: string }>("export", "导出演示稿 JSON", "返回已保存演示稿的完整 JSON、文件名和 MIME 类型；不是 PPTX", "query", object(identity, ["id"]), object({ filename: text, mime_type: { const: "application/json" }, content: text })),
   promote: define<Identity, { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "演示稿存成 Artifact", "发布固定幻灯片与配色或恢复原发布；后续编辑保留", "command", object(identity, ["id"]), object({ presentation: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  searchEntries: pptSearchActions.entries,
+  subject: pptSearchActions.subject,
 };
 export const PPT_ACTION_PERMISSIONS = [...new Set(Object.values(pptActions).flatMap(definition => definition.action.permissions))];
 export interface PptActionPorts {
@@ -50,5 +53,6 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
     })),
     bind(pptActions.promote, (input, caller) => ports.withStore(store => promotePpt(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
       () => ports.publishArtifact ? { available: true } : { available: false, code: "ppt.unavailable", reason: "当前环境不能发出 Artifact" }),
+    ...createPptSearchHandlers(ports.withStore),
   ];
 }

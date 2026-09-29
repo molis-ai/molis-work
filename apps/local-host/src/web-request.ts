@@ -62,6 +62,7 @@ import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
+import { handleSearchHttp } from "./search-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
@@ -335,6 +336,8 @@ export async function handleMolisWorkWebRequest(
           sendJson(response, 200, await readWebView());
           return;
         }
+        // Search reaches every plugin through the same directory and the person's own authority in this project.
+        if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
         if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
           actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
         })) return;

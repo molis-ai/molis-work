@@ -1,4 +1,4 @@
-import { defineActionUsagesAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineActionUsagesAction, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { CharacterDraft, CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
 
@@ -54,5 +54,8 @@ export const charactersActions = {
   launch: define<CharacterLaunchInput, unknown>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
     { type: "object", properties: { reference, workspace_id: { type: "string" }, task: { type: "string" }, request_id: { type: "string" } },
       required: ["reference", "workspace_id", "task", "request_id"] }, { type: "object" }, ["artifact:read"], LOCAL),
+  /** System search: the person's Characters (not deleted) by title and how they work. */
+  searchEntries: defineSearchEntriesAction("characters.search.entries", [{ kind: "character", title: "角色", surface: "characters" }], "角色", []),
+  subject: defineSubjectContextAction("characters.subject.read", "character", "角色", []),
 };
 export const CHARACTERS_ACTIONS: readonly ActionDefinition[] = Object.values(charactersActions);

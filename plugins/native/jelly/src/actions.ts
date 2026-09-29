@@ -9,6 +9,7 @@ import type { JellyPreview, JellyStore } from "./store.js";
 import { createJellyCommandHandlers, defineJellyAction as define, jellyCommandActions, JELLY_READ, JELLY_WRITE } from "./command-actions.js";
 import * as s from "./action-schema.js";
 import { jellyServiceActions } from "./service-actions.js";
+import { createJellySearchHandlers, jellySearchActions } from "./search.js";
 
 type Range = { start: string; end: string };
 type AiInput = Omit<JellyAiInput, "kind" | "manual">;
@@ -38,6 +39,10 @@ export const jellyActions = {
   manualPlan: define<AiInput, AiResult>("plan.manual", "按原文逐行拆解", "将原文逐行形成待采纳任务，不使用模型，不写入笔记或日历", "query", aiInput, planOutput),
   modelPlan: define<AiInput, AiResult>("plan.generate", "模型拆解行动计划", "根据原文或笔记选区生成待采纳任务；不自动写入或执行任务", "command", aiInput, planOutput, [...JELLY_READ, "model:invoke"], "concurrent"),
   digest: define<AiInput, AiResult>("inspiration.summarize", "提炼素材摘要", "保留逐条证据；灵感来源在生成结束后重新检查原文和素材，再保存摘要", "command", aiInput, s.object({ digest: s.digest, state: s.workspace }, ["digest"]), [...JELLY_WRITE, "model:invoke"], "concurrent"),
+  searchEntries: jellySearchActions.entries,
+  itemSubject: jellySearchActions.item,
+  noteSubject: jellySearchActions.note,
+  inspirationSubject: jellySearchActions.inspiration,
 };
 export const JELLY_ACTIONS: readonly ActionDefinition[] = [...Object.values(jellyCommandActions), ...Object.values(jellyActions), ...Object.values(jellyServiceActions)];
 export const JELLY_ACTION_PERMISSIONS = [...new Set(JELLY_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -86,5 +91,6 @@ export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandle
     bind(jellyActions.manualPlan, (input, caller) => ai(input, "decompose", true, caller)),
     bind(jellyActions.modelPlan, (input, caller) => ai(input, "decompose", false, caller), () => ports.modelAvailability()),
     bind(jellyActions.digest, (input, caller) => ai(input, "digest", false, caller), () => ports.modelAvailability()),
+    ...createJellySearchHandlers(ports.withStore),
   ];
 }

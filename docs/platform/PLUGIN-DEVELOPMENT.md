@@ -260,6 +260,8 @@ Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来
 
 公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。Jelly 和 onboarding 已共用提取口，媒体模型下载仍需显式选择；生成摘要继续走 Prologue。
 
+Shelf 的 PDF 预览与文字提取、OCR 同样走此端口。语言选项属于提取请求，逐行置信度来自 `pages[].lines`，不以页平均值代替；“待确认”、来源标题和不完整提示由业务组织。多选逐项处理。标准输入仍限 25 MiB，Shelf 由可信 Host 明确采用 32 MiB，不改变其他上传端限额。原调用撤权、取消或输入 hash 改变后不写成果或失败成果。
+
 显式网页读取用同一合同的 `MaterialWebsiteReader`：Host 限制 HTTP(S)、跳转、总时限与解压后字节数，复用 HTML 提取；传递 signal / beforeDispatch，业务提交前仍需 beforeEffect 和来源版本检查。Shelf 只组织网页材料、链接与失败提示，Artifacts 只组织导入文档，不得互相导入解析实现。普通抓取失败可以按产品约定保留链接，取消或撤权不能退化成“成功保存链接”。
 
 HTML 与 PDF/文档解析复用 Host 的可终止 worker 生命周期；不能只给网络阶段设定时器，却让畸形 HTML 在主线程无限解析。Artifacts 的异步 readHtml 保留原 HTML 与既有正文限额，解析后复核 beforeSave 和 signal；不要套用网页的部分正文策略。

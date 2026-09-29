@@ -120,6 +120,6 @@ Coding/Git 生产通知接到当前项目的 Files/Git 视图 revision；Host re
 
 `material-extraction.ts` 实现 `contracts/services/materials`：输入已授权字节，返回正文、页/时间定位、覆盖及截断信息；不产生附件身份或业务材料记录。UTF-8 只做本地解码；HTML、PDF 文本在有界 worker 中执行，取消/超时会终止并等待 worker 退出，异常 HTML 不能阻塞主线程时限。原生 PDF/OCR/音视频和许可证归 `native/materials`，构建随 Host 打包。模型下载必须显式允许，临时文件在子进程关闭后清理。
 
-Jelly 保留上传 SHA、历史路径和领域引用，只委托解析；onboarding 复用文字/HTML/PDF 文本提取，保留原始附件并拒绝截断或缺失文本层的 PDF。DOCX/ZIP 经同一 Host 文档 worker 读取，Pages 负责编辑器转换；Shelf 网页与 Artifacts HTML 已接通共同解析，Shelf 的 PDF/OCR 与 AI recipe 继续迁移。Artifacts HTML 端口异步，12 秒限时，保留原 2 MiB 正文与原文限制，不用网页截断代替文档；提交前沿用 beforeSave 并复核 signal。相关回归：`tests/material-extraction.test.ts`、`tests/jelly-native-material.test.ts`、`tests/context-onboarding-documents.test.ts`。
+Jelly 保留上传 SHA、历史路径和领域引用，只委托解析；onboarding 复用文字/HTML/PDF 文本提取，保留原始附件并拒绝截断或缺失文本层的 PDF。DOCX/ZIP 经同一 Host 文档 worker 读取，Pages 负责编辑器转换；Shelf 网页、PDF 预览、PDF 文字层与 OCR 也复用共同提取口，AI recipe 仍待迁移。Shelf 显式采用 32 MiB 输入，公共默认仍为 25 MiB；图片可按语言返回逐行置信度，产品低置信度提示留在 Shelf。Artifacts HTML 端口异步，12 秒限时，保留原 2 MiB 正文与原文限制，不用网页截断代替文档；提交前沿用 beforeSave 并复核 signal。相关回归：`tests/material-extraction.test.ts`、`tests/shelf-material-extraction.test.ts`、`tests/jelly-native-material.test.ts`、`tests/context-onboarding-documents.test.ts`。
 
 文档批次用 `MaterialDocumentReader` 返回原名、正文格式、内容和覆盖信息。ZIP 路径/目录/CRC/有界解压、DOCX Mammoth 和 UTF-16 BOM 解码归 Host；预览和正式导入经 `pages-import.ts` 共用装配。取消/超时终止 worker，Pages 在异步返回后再检查执行权限，最终业务转换与单事务/请求幂等仍由 Pages 管理。文档输出合计限 20 MiB，超限拒绝整个批次。

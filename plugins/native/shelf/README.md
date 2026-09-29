@@ -1,5 +1,7 @@
 # Shelf 置物架入口
 
+文件入库与提取任务沿原 Action 传递 signal/beforeEffect；PDF 预览、文字层和 OCR 由 Host 注入公共材料口。所有选中材料逐项提取并保留不完整提示，取消/撤权/副本变化不保存迟到结果或失败成果。视觉布局不变。
+
 把 DropAgent 的材料 / 结果 / 剪贴板工作台挂进 Molis 目录与主工作面，视觉与交互跟 DropAgent。
 
 包名：`@molis-ai/molis-work-plugin-shelf`。工作区内部包，通过仓库构建和 Host 装配使用。

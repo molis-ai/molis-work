@@ -158,6 +158,8 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 
 插件需要文字/HTML/PDF/OCR/媒体材料时，由 Host 注入 `contracts/services/materials` 端口。输入已授权字节，系统解析器/原生进程归 Host；原件、SHA 引用、业务转换和引用规则留给消费者。检查 coverage 和 truncated，不能把扫描空页或截断当作全文。传递取消，异步返回后与业务写入前复查 beforeEffect；媒体模型下载必须显式选择。Jelly 的 Host 适配与 onboarding 是当前接入示例，不在插件复制解析器或绕过 Prologue 生成摘要。
 
+Shelf 的 PDF 预览和 OCR 同样复用公共提取口。语言放在 `ocrLanguages`，逐行置信度读取页面的 `lines`；不能拿页平均值冒充每行置信度。用户提示与结果命名留在消费者，多选材料逐项提取，不按第一项忽略其他内容。异步提取完成后先复查原执行与输入 hash，再写结果；取消/撤权也不能被 catch 成失败成果。已终止执行的历史 running 标签不代表进程仍在运行，不自动恢复外部工作。
+
 文档/ZIP 导入使用同一契约的 MaterialDocumentReader：Host 产出原名、格式、内容与 coverage，插件再执行编辑器/领域转换；不把 PagesBody 或产品的图片支持写入解析器。预览与提交使用同一注入端口，解析异步等待可声明 concurrent，写入仍走领域事务、幂等键和 beforeEffect。ZIP/DOCX 依赖仅归 Host，禁止插件再解析一遍或自行启动 worker。
 
 网页捕获使用 MaterialWebsiteReader，Host 负责受限网络与同一 HTML 提取，插件保留材料命名、链接和内容组织。传递 signal / beforeDispatch，每次跳转复核派出，返回后 beforeEffect，再同步校验原对象版本后写入；不要在更早的异步检查中校验完版本便视为永久有效。Shelf 与 Artifacts 是现有消费者。失败保留链接是业务选择，取消/撤权不能被 catch 后当普通失败保存。

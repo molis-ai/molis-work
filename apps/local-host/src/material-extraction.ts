@@ -6,6 +6,7 @@ import { extractMaterialText, MaterialExtractionError } from "./material-text.js
 export { MaterialExtractionError } from "./material-text.js";
 
 const defaults: MaterialLimits = { maxBytes: 25 * 1024 * 1024, maxCharacters: 2_000_000, maxTextBytes: 8_000_000, maxPages: 200 };
+const ceilings: MaterialLimits = { ...defaults, maxBytes: 32 * 1024 * 1024 };
 export const materialTextExtensions = new Set([".txt", ".md", ".markdown", ".html", ".htm", ".csv", ".json", ".log"]);
 export function supportsMaterialExtension(extension: string): boolean {
   return materialTextExtensions.has(extension) || materialImageExtensions.has(extension) || materialMediaExtensions.has(extension) || extension === ".pdf";
@@ -13,9 +14,11 @@ export function supportsMaterialExtension(extension: string): boolean {
 function checkedLimits(options: MaterialExtractionOptions): MaterialLimits {
   const limits = { ...defaults, ...options.limits };
   for (const [key, value] of Object.entries(limits)) {
-    if (!Number.isSafeInteger(value) || value <= 0 || value > defaults[key as keyof MaterialLimits]) throw new MaterialExtractionError("invalid_limits", "提取容量上限无效");
+    if (!Number.isSafeInteger(value) || value <= 0 || value > ceilings[key as keyof MaterialLimits]) throw new MaterialExtractionError("invalid_limits", "提取容量上限无效");
   }
   if (options.timeoutMs !== undefined && (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0 || options.timeoutMs > 30 * 60_000)) throw new MaterialExtractionError("invalid_limits", "提取超时设置无效");
+  if (options.ocrLanguages !== undefined && (!options.ocrLanguages.length || options.ocrLanguages.length > 3
+    || options.ocrLanguages.some(language => !["zh-Hans", "zh-Hant", "en-US"].includes(language)))) throw new MaterialExtractionError("invalid_limits", "文字识别语言无效");
   return limits;
 }
 function extractPdf(source: MaterialSource, options: MaterialExtractionOptions, limits: MaterialLimits): Promise<MaterialExtraction> {

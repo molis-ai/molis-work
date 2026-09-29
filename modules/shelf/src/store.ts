@@ -13,6 +13,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
+import type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
 import type {
   ShelfAdmitFolderInput,
   ShelfAdmitInput,
@@ -33,7 +35,7 @@ import type {
   ShelfMaterialPorts,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { ShelfError } from "./errors.js";
-import { extractLocalText, markdownFromExtract, resultNameForExtract } from "./extract.js";
+import { markdownFromExtract, resultNameForExtract } from "./extract.js";
 import {
   cancelAgentProcess,
   collectRecipeOutput,
@@ -41,7 +43,7 @@ import {
   runAgentProcess,
   SHELF_JOB_TIMEOUT_MS,
 } from "./job-runner.js";
-import { imageTextAvailable, ocrLanguages, ocrMarkdown, recognizeImageText } from "./ocr.js";
+import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 import { captureWebsite, websiteFilename, WEBSITE_MIME } from "./website.js";
 import {
@@ -108,20 +110,20 @@ interface CatalogFile {
   settings: ShelfDeviceSettings;
 }
 
-function assertNotBusy(catalog: CatalogFile, itemId: string): void {
+const activeJobs = new Map<string, AbortController>();
+const jobKey = (root: string, jobId: string) => JSON.stringify([path.resolve(root), jobId]);
+function assertNotBusy(catalog: CatalogFile, itemId: string, root: string): void {
   const busy = catalog.jobs.some((job) => (
     job.status === "running"
-    && !isStaleJob(job)
+    && !isStaleJob(job, root)
     && (job.item_ids.includes(itemId) || job.item_id === itemId || job.result_item_id === itemId)
   ));
   if (busy) throw new ShelfError("shelf.busy", "运行中不能隐藏或删除");
 }
 
 /** A job the process never finished stops blocking once it cannot still be alive. */
-function isStaleJob(job: ShelfJobRecord): boolean {
-  const started = Date.parse(job.created_at);
-  if (Number.isNaN(started)) return true;
-  return Date.now() - started > SHELF_JOB_TIMEOUT_MS * 2;
+function isStaleJob(job: ShelfJobRecord, root: string): boolean {
+  return !activeJobs.has(jobKey(root, job.job_id));
 }
 
 function safeInside(root: string, target: string): string {
@@ -144,7 +146,7 @@ export class ShelfStore {
 
   /** The terminal Agent a recipe would run in. Never throws at the caller. */
   runtime(settings: ShelfDeviceSettings = this.settings(), probeCapabilities = false): ShelfRuntimeStatus {
-    const image_text = imageTextAvailable();
+    const image_text = this.materials.imageTextAvailable?.() ?? false;
     try {
       return {
         ...detectShelfRuntime({
@@ -184,13 +186,31 @@ export class ShelfStore {
       recipes: recipeTable(runtime),
       current_clip_id: catalog.current_clip_id,
       runtime,
-      running_jobs: catalog.jobs.filter((job) => job.status === "running" && !isStaleJob(job)),
+      running_jobs: catalog.jobs.filter((job) => job.status === "running" && !isStaleJob(job, this.root)),
       settings,
       root: this.root,
     };
   }
 
-  admit(input: ShelfAdmitInput): ShelfItemRecord {
+  /** Parses only through the Host, then admits the authorized copy without an asynchronous commit gap. */
+  async admitFile(input: ShelfAdmitInput, control?: ShelfExecutionControl): Promise<ShelfItemRecord> {
+    if (!input.bytes.byteLength) throw new ShelfError("shelf.empty_file", "没有可加入的文件内容");
+    if (input.bytes.byteLength > 32 * 1024 * 1024) throw new ShelfError("shelf.too_large", "文件超过 32 MB");
+    await beforeShelfEffect(control);
+    let preview: string | undefined;
+    if (classify(input.filename, input.mime ?? "") === "pdf" && this.materials.extract) {
+      try {
+        const extracted = await this.materials.extract({ file_name: "preview.pdf", bytes: input.bytes },
+          { signal: control?.signal, pdfMode: "text", timeoutMs: 12_000, limits: { maxBytes: 32 * 1024 * 1024, maxCharacters: 20_000 } });
+        preview = extracted.text ? extractionText(extracted) : undefined;
+      } catch { control?.signal?.throwIfAborted(); /* A preview failure does not reject the person's original copy. */ }
+    }
+    await beforeShelfEffect(control);
+    return this.admit(input, preview);
+  }
+
+  /** Synchronous storage for copies whose derived preview has already been prepared. */
+  admit(input: ShelfAdmitInput, preparedPreview?: string | null): ShelfItemRecord {
     // A retry returns the existing copy, preserving any user edits. Hidden copies
     // can be explicitly received again; deleted copies are new admissions.
     if (input.artifact_source) {
@@ -218,7 +238,7 @@ export class ShelfStore {
     writeFileSync(abs, bytes);
     const originHash = sha256(bytes);
     const originRealpath = input.origin_realpath ? path.resolve(input.origin_realpath) : null;
-    const preview = previewFor(kind, bytes);
+    const preview = preparedPreview ?? previewFor(kind, bytes);
     const item: StoredItem = {
       item_id: itemId,
       ...(input.artifact_source ? { artifact_source: structuredClone(input.artifact_source) } : {}),
@@ -367,7 +387,7 @@ export class ShelfStore {
       filename: SAMPLE_NAME,
       bytes: createExtractablePdf(SAMPLE_PDF_TEXT),
       mime: "application/pdf",
-    });
+    }, SAMPLE_PDF_TEXT);
     this.update((next) => {
       next.seeded_sample = true;
     });
@@ -377,7 +397,7 @@ export class ShelfStore {
   hide(itemId: string): void {
     this.update((catalog) => {
       const item = this.requireItem(catalog, itemId);
-      assertNotBusy(catalog, itemId);
+      assertNotBusy(catalog, itemId, this.root);
       item.hidden = true;
     });
   }
@@ -385,7 +405,7 @@ export class ShelfStore {
   deleteCopy(itemId: string): void {
     const catalog = this.readCatalog();
     const item = this.requireItem(catalog, itemId);
-    assertNotBusy(catalog, item.item_id);
+    assertNotBusy(catalog, item.item_id, this.root);
     const copyDir = item.relative_path
       ? safeInside(path.join(this.root, "files"), path.join(this.root, path.dirname(item.relative_path)))
       : null;
@@ -407,7 +427,8 @@ export class ShelfStore {
    * run the picked Agent (or the on-device extractor) on the copy, collect one
    * deliverable, then check the original is still byte for byte what it was.
    */
-  async runJob(input: ShelfRunJobInput): Promise<ShelfJobOutcome> {
+  async runJob(input: ShelfRunJobInput, control?: ShelfExecutionControl): Promise<ShelfJobOutcome> {
+    await beforeShelfEffect(control);
     const spec = this.requireRecipe(input.recipe);
     const settings = this.settings();
     const shortcut = input.recipe === "shortcut"
@@ -435,6 +456,8 @@ export class ShelfStore {
     if (spec.requires_agent && !runtime.can_run_job) {
       throw new ShelfError("shelf.no_agent", runtime.runtime_key ? missingJobReason(runtime.title) : NO_AGENT_REASON);
     }
+    if (!spec.requires_agent && !this.materials.extract) throw new ShelfError("shelf.extraction_unavailable", "材料提取服务不可用，请从 Molis Work 打开置物架后重试");
+    if (!spec.requires_agent && items.some(item => item.kind === "image") && !runtime.image_text) throw new ShelfError("shelf.no_ocr", OCR_MISSING);
     const optionId = spec.choices.length ? resolvedChoiceId(spec.recipe, input.option_id) : null;
     const copyHashes = new Map<string, string>();
     for (const item of items) {
@@ -497,7 +520,29 @@ export class ShelfStore {
       next.jobs.unshift(running);
     });
 
+    const controller = new AbortController(), key = jobKey(this.root, jobId);
+    const lifetime = createExecutionLifetime({ signal: control?.signal ? AbortSignal.any([control.signal, controller.signal]) : controller.signal,
+      timeout: { milliseconds: SHELF_JOB_TIMEOUT_MS, reason: new ShelfError("shelf.job_timeout", "任务超时，未继续保存结果") } });
+    activeJobs.set(key, controller);
+    const stopProcess = () => cancelAgentProcess(jobId);
+    lifetime.signal.addEventListener("abort", stopProcess, { once: true });
+    const assertCurrent = () => {
+      const current = this.readCatalog();
+      if (current.jobs.find(job => job.job_id === jobId)?.status !== "running") throw new ShelfError("shelf.cancelled", "任务已取消");
+      for (const item of items) {
+        const latest = this.requireItem(current, item.item_id);
+        if (latest.hidden || latest.relative_path !== item.relative_path) throw new ShelfError("shelf.item_not_found", "材料已收起或改变，未保存结果");
+        this.assertOriginUntouched(latest);
+        if (this.contentHash(latest) !== copyHashes.get(item.item_id)) throw new ShelfError("shelf.hash_changed", "架子上的副本 Hash 已变化，已停止写入");
+      }
+    };
+    const beforeCommit = async () => {
+      await lifetime.wait(Promise.resolve(control?.beforeEffect?.()));
+      lifetime.assertActive(); assertCurrent();
+    };
+
     try {
+      await beforeCommit();
       if (spec.requires_agent) {
         const promptFile = path.join(jobRoot, "prompt.txt");
         const listed = workNames.map((name) => `- ${name}`).join("\n");
@@ -523,6 +568,7 @@ export class ShelfStore {
           outputFile,
           jobId,
         });
+        await beforeCommit();
         appendEvent(jobRoot, "收尾");
         collectRecipeOutput({
           outputFile,
@@ -531,26 +577,22 @@ export class ShelfStore {
           inputNames: workNames,
           lastMessage: result.last_message,
         });
-      } else if (items[0].kind === "image") {
-        const languages = ocrLanguages(optionId);
-        const pages = items.map((item, index) => ({
-          name: item.name,
-          lines: recognizeImageText(path.join(workDir, workNames[index]), languages),
-        }));
-        writeFileSync(outputFile, ocrMarkdown(pages));
       } else {
-        const item = items[0];
-        const text = extractLocalText(readFileSync(path.join(workDir, workNames[0])), item.kind, item.mime);
-        writeFileSync(outputFile, markdownFromExtract(item.name, text));
+        const parts: string[] = [];
+        for (const [index, item] of items.entries()) {
+          const sourceName = item.kind === "pdf" ? "source.pdf" : path.extname(item.name) ? item.name : `source.${item.mime.slice("image/".length)}`;
+          const extracted = await this.materials.extract!({ file_name: sourceName, bytes: readFileSync(path.join(workDir, workNames[index])) },
+            { signal: lifetime.signal, pdfMode: "text", ...(item.kind === "image" ? { ocrLanguages: ocrLanguages(optionId) } : {}),
+              timeoutMs: 60_000, limits: { maxBytes: 32 * 1024 * 1024 } });
+          await beforeCommit();
+          if (item.kind !== "image" && !extracted.text.trim()) throw new ShelfError("shelf.no_text", "这份 PDF 没有可抽取的文字");
+          const body = item.kind === "image" ? ocrMarkdown([{ name: item.name,
+            lines: extracted.pages.flatMap(page => page.lines ?? (page.text ? [{ text: page.text, confidence: null }] : [])) }]) + extractionNote(extracted) : extractionText(extracted);
+          parts.push(items.length > 1 ? `## ${item.name}\n\n${body}` : item.kind === "image" ? body : markdownFromExtract(item.name, body));
+        }
+        writeFileSync(outputFile, parts.join("\n\n"));
       }
       appendEvent(jobRoot, "写入 output/");
-
-      for (const item of items) {
-        this.assertOriginUntouched(item);
-        if (this.contentHash(item) !== copyHashes.get(item.item_id)) {
-          throw new ShelfError("shelf.hash_changed", "架子上的副本 Hash 已变化，已停止写入");
-        }
-      }
 
       unlockDirectories(inputDir);
       const result = this.storeResult({
@@ -572,6 +614,7 @@ export class ShelfStore {
       return { job: finished, result, origin_hash: items[0].origin_hash };
     } catch (error) {
       unlockDirectories(inputDir);
+      await beforeCommit();
       const cancelled = error instanceof ShelfError && error.code === "shelf.cancelled";
       const reason = failureCopy(error);
       const closed: ShelfJobRecord = {
@@ -595,6 +638,11 @@ export class ShelfStore {
         });
       }
       throw error instanceof ShelfError ? error : new ShelfError("shelf.job_failed", reason);
+    } finally {
+      activeJobs.delete(key);
+      lifetime.signal.removeEventListener("abort", stopProcess);
+      lifetime.dispose();
+      unlockDirectories(inputDir);
     }
   }
 
@@ -669,6 +717,7 @@ export class ShelfStore {
     const job = catalog.jobs.find((entry) => entry.job_id === jobId);
     if (!job) throw new ShelfError("shelf.item_not_found", "这个任务不存在");
     if (job.status !== "running") return job;
+    activeJobs.get(jobKey(this.root, jobId))?.abort(new ShelfError("shelf.cancelled", "任务已取消"));
     cancelAgentProcess(jobId);
     const cancelled: ShelfJobRecord = { ...job, status: "cancelled", finished_at: now() };
     this.update((next) => {
@@ -705,7 +754,7 @@ export class ShelfStore {
     if (item.group !== "result") throw new ShelfError("shelf.not_result", "只有生成结果可以再用作材料");
     if (!item.relative_path) throw new ShelfError("shelf.missing_output", "这次没有生成文件");
     const bytes = readFileSync(this.absolute(item));
-    return this.admit({ filename: item.name, bytes, mime: item.mime });
+    return this.admit({ filename: item.name, bytes, mime: item.mime }, item.preview_text);
   }
 
   addClipboard(
@@ -955,15 +1004,16 @@ function mimeFor(kind: ShelfItemKind, filename: string): string {
 }
 
 function previewFor(kind: ShelfItemKind, bytes: Buffer): string | null {
-  if (kind === "pdf") {
-    try {
-      return extractLocalText(bytes, "pdf", "application/pdf");
-    } catch {
-      return null;
-    }
-  }
   if (kind === "text" || kind === "markdown" || kind === "url" || kind === "website") return bytes.toString("utf8").slice(0, 20_000);
   return null;
+}
+
+function extractionText(extracted: MaterialExtraction): string {
+  return extracted.text + extractionNote(extracted);
+}
+function extractionNote(extracted: MaterialExtraction): string {
+  const incomplete = extracted.coverage.status !== "sufficient" || extracted.coverage.truncated;
+  return incomplete ? `\n\n提取说明：${extracted.coverage.issues.join("；") || "仅提取了部分内容，请核对原件"}` : "";
 }
 
 function emptyCatalog(): CatalogFile {

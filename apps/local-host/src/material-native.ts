@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { constants } from "node:fs";
+import { accessSync, constants } from "node:fs";
 import { access, mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -24,6 +24,9 @@ function validateNativeResult(raw: unknown): MaterialExtraction {
   const value = raw as MaterialExtraction;
   fail(typeof value.text === "string" && value.text.length <= 4_100_000 && typeof value.extractor === "string" && Array.isArray(value.pages) && value.pages.length <= 100 && value.coverage && ["sufficient", "partial", "insufficient"].includes(value.coverage.status) && Number.isSafeInteger(value.coverage.processed_pages) && Number.isSafeInteger(value.coverage.total_pages) && value.coverage.processed_pages >= 0 && value.coverage.total_pages >= value.coverage.processed_pages && Array.isArray(value.coverage.issues) && value.coverage.issues.every(issue => typeof issue === "string"), "invalid_result", "原生提取结果缺少正文或覆盖信息", 502);
   for (const page of value.pages) fail(page && Number.isSafeInteger(page.number) && page.number > 0 && typeof page.text === "string" && typeof page.method === "string" && (page.confidence == null || (typeof page.confidence === "number" && page.confidence >= 0 && page.confidence <= 1)), "invalid_result", "原生提取器页面信息无效", 502);
+  for (const page of value.pages) if (page.lines !== undefined) fail(Array.isArray(page.lines) && page.lines.length <= 100_000
+    && page.lines.every(line => line && typeof line.text === "string" && (line.confidence === null || (Number.isFinite(line.confidence) && line.confidence >= 0 && line.confidence <= 1)))
+    && page.lines.map(line => line.text).join("\n") === page.text, "invalid_result", "原生提取器逐行文字或置信度无效", 502);
   if (value.segments !== undefined) fail(Array.isArray(value.segments) && value.segments.length <= 10000 && value.segments.every(segment => segment && typeof segment.text === "string" && Number.isFinite(segment.start_seconds) && segment.start_seconds >= 0 && Number.isFinite(segment.end_seconds) && segment.end_seconds >= segment.start_seconds), "invalid_result", "转写时间戳无效", 502);
   if (value.frames !== undefined) fail(Array.isArray(value.frames) && value.frames.length <= 5 && value.frames.every(frame => frame && typeof frame.text === "string" && Number.isFinite(frame.seconds) && frame.seconds >= 0 && (frame.confidence == null || (Number.isFinite(frame.confidence) && frame.confidence >= 0 && frame.confidence <= 1))), "invalid_result", "视频帧定位无效", 502);
   if (value.duration_seconds !== undefined) fail(Number.isFinite(value.duration_seconds) && value.duration_seconds >= 0, "invalid_result", "媒体时长无效", 502);
@@ -32,6 +35,11 @@ function validateNativeResult(raw: unknown): MaterialExtraction {
 
 function packageHelper(name: string): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.resolve("@molis-ai/molis-work-app-local-host"))), `../native/materials/bin/${name}`);
+}
+/** Passive discovery for UI; never starts a helper or downloads a model. */
+export function materialImageTextAvailable(native: NativeMaterialOptions = {}): boolean {
+  if ((native.platform ?? process.platform) !== "darwin") return false;
+  try { accessSync(native.helperPath ?? packageHelper("jelly-material"), constants.X_OK); return true; } catch { return false; }
 }
 export async function extractNativeMaterial(source: MaterialSource, options: MaterialExtractionOptions, limits: MaterialLimits, native: NativeMaterialOptions): Promise<MaterialExtraction> {
   options.signal?.throwIfAborted();
@@ -51,6 +59,7 @@ export async function extractNativeMaterial(source: MaterialSource, options: Mat
     await native.beforeEffect?.(); options.signal?.throwIfAborted();
     const args = ["extract", input];
     if (media) { args.push(native.modelDirectory!, work); if (options.allowModelDownload === true) args.push("--allow-model-download"); }
+    else if (options.ocrLanguages) args.push("--languages", options.ocrLanguages.join(","));
     const pending = run(helper, args, { timeout: options.timeoutMs ?? (media ? 30 * 60_000 : 120_000),
       maxBuffer: 20 * 1024 * 1024, encoding: "utf8", windowsHide: true, killSignal: "SIGKILL" });
     const closed = new Promise<void>(resolve => pending.child.once("close", () => resolve()));

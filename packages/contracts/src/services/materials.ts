@@ -1,6 +1,7 @@
 /** Host extraction consumes already-authorized bytes, never an arbitrary filesystem path. */
 export interface MaterialSource { file_name: string; bytes: Uint8Array }
-export interface MaterialPage { number: number; text: string; method: string; confidence: number | null }
+export interface MaterialLine { text: string; confidence: number | null }
+export interface MaterialPage { number: number; text: string; method: string; confidence: number | null; lines?: MaterialLine[] }
 export interface MaterialExtraction {
   text: string;
   title?: string;
@@ -30,6 +31,8 @@ export interface MaterialExtractionOptions {
   timeoutMs?: number;
   textFormat?: "text" | "markdown";
   pdfMode?: "text" | "ocr";
+  /** Recognition languages are selected by the consuming feature; omission retains the Host defaults. */
+  ocrLanguages?: readonly ("zh-Hans" | "zh-Hant" | "en-US")[];
   allowModelDownload?: boolean;
   onProgress?: (progress: { stage: string; progress: number }) => void;
 }

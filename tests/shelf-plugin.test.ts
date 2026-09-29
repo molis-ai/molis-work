@@ -1,3 +1,4 @@
+import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
@@ -66,7 +67,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
 
 test("empty shelf seeds a real extractable sample PDF and keeps origin hash", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT);
+    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const snapshot = store.snapshot();
     assert.equal(snapshot.materials.length, 1);
     assert.equal(snapshot.materials[0]?.name, "试用示例.pdf");
@@ -94,7 +95,7 @@ test("empty shelf seeds a real extractable sample PDF and keeps origin hash", as
 
 test("admitting a local file copies bytes and refuses to write if the original hash changes", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT);
+    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const originPath = join(home, "quote.pdf");
     const bytes = createExtractablePdf("Quote for the shelf copy.");
     await writeFile(originPath, bytes);
@@ -118,7 +119,7 @@ test("admitting a local file copies bytes and refuses to write if the original h
 
 test("hide, delete, clipboard, and use-as-material keep copies off the original path", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT);
+    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const item = await store.admitText("clipboard body for the shelf", "note");
     store.addClipboard("https://example.com/page");
     store.addClipboard("plain clip");
@@ -160,7 +161,7 @@ test("hide, delete, clipboard, and use-as-material keep copies off the original 
 
 test("clipboard history dedupes, caps at 10, skips concealed types, and deletes records", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT);
+    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const first = store.addClipboard("https://example.com/page");
     const again = store.addClipboard("https://example.com/page");
     assert.equal(again?.clip_id, first?.clip_id);
@@ -187,7 +188,7 @@ test("clipboard history dedupes, caps at 10, skips concealed types, and deletes 
 
 test("writeCopy edits the shelf copy and leaves the original file hash untouched", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT);
+    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const originPath = join(home, "note.md");
     await writeFile(originPath, "# keep\n");
     const item = store.admit({
@@ -220,7 +221,7 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
 
 test("hide keeps the copy; delete removes the copy and job folder, not the original", async () => {
   await withHome(async (home) => {
-    const store = openShelfStore(home, NO_AGENT);
+    const store = openShelfStore(home, NO_AGENT, { extract: extractMaterial });
     const originPath = join(home, "keep-me.md");
     await writeFile(originPath, "# original stays\n");
     const item = store.admit({

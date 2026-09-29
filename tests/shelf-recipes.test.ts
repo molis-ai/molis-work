@@ -1,3 +1,5 @@
+import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
+import { materialImageTextAvailable } from "../apps/local-host/src/material-native.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -8,7 +10,6 @@ import test from "node:test";
 import {
   ShelfError,
   clearShelfRuntimeCache,
-  ocrHelperPath,
   detectShelfRuntime,
   headlessArguments,
   openShelfStore,
@@ -55,7 +56,7 @@ async function withFixture<T>(run: (fixture: Fixture) => Promise<T>, help?: stri
   clearShelfRuntimeCache();
   if (help !== undefined) await fakeAgent(bin, help, body ?? "exit 0");
   try {
-    return await run({ home, bin, store: openShelfStore(home, { pathEnvironment: bin, home }) });
+    return await run({ home, bin, store: openShelfStore(home, { pathEnvironment: bin, home }, { extract: extractMaterial, imageTextAvailable: materialImageTextAvailable }) });
   } finally {
     clearShelfRuntimeCache();
     await rm(home, { recursive: true, force: true });
@@ -280,12 +281,9 @@ test("agent discovery only looks at the search path it was given", async () => {
   }, HELP_WITH_PRINT);
 });
 
-test("an image reads on this Mac: Vision writes ocr.md, no agent and no network", async () => {
-  const helper = ocrHelperPath();
-  if (!helper) {
-    console.log("skipped: no molis-work-ocr helper built");
-    return;
-  }
+test("an image reads on this Mac: Vision writes ocr.md, no agent and no network", async t => {
+  if (process.platform !== "darwin") { t.skip("Vision requires macOS"); return; }
+  assert.equal(materialImageTextAvailable(), true, "the packaged Host helper must be built before regression");
   await withFixture(async ({ store }) => {
     const png = readFileSync(new URL("./fixtures/shelf-ocr-text.png", import.meta.url));
     const item = store.admit({ filename: "截图.png", bytes: png, mime: "image/png" });

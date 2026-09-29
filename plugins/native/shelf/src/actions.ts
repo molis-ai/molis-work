@@ -90,14 +90,14 @@ export interface ShelfActionPorts {
   snapshot(): ShelfSnapshot;
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
-  admit(input: ShelfAdmitInput): ShelfItemRecord;
+  admit(input: ShelfAdmitInput, control?: ShelfExecutionControl): ShelfItemRecord | Promise<ShelfItemRecord>;
   admitText(body: string, title?: string, capture?: boolean, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
   admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord;
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer };
   seedSample(): ShelfItemRecord;
   hide(itemId: string): void;
   deleteCopy(itemId: string): void;
-  runJob(input: ShelfRunJobInput): Promise<ShelfJobOutcome>;
+  runJob(input: ShelfRunJobInput, control?: ShelfExecutionControl): Promise<ShelfJobOutcome>;
   cancelJob(jobId: string): ShelfJobRecord;
   useAsMaterial(itemId: string): ShelfItemRecord;
   addClipboard(body: string, extra?: { concealed?: boolean; types?: readonly string[] }): ShelfClipboardRecord | null;
@@ -137,7 +137,8 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
       if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, input.capture_pages !== false, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
       const filename = input.filename?.trim();
       if (!filename || !input.bytes_base64) throw new ActionError("shelf.invalid", "请选择要加入的文件");
-      return { item: ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null }) };
+      return { item: await ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null },
+        { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
     }),
     bind(shelfActions.admitFolder, input => ({ item: ports.admitFolder({ name: input.name.trim(), origin_realpath: input.origin_realpath?.trim() || null,
       entries: input.entries.map(entry => ({ relative: entry.relative, bytes: bytes(entry.bytes_base64), mime: entry.mime || undefined })) }) })),
@@ -146,9 +147,10 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.delete, input => { ports.deleteCopy(input.item_id); return { deleted: true as const }; }),
     bind(shelfActions.useAsMaterial, input => ({ item: ports.useAsMaterial(input.item_id) })),
     bind(shelfActions.edit, input => ({ item: ports.writeCopy(input.item_id, input.text) })),
-    bind(shelfActions.runJob, input => {
+    bind(shelfActions.runJob, (input, caller) => {
       if (!input.item_id && !input.item_ids?.length) throw new ActionError("shelf.invalid", "请选择动作和材料");
-      return ports.runJob({ recipe: input.recipe, item_id: input.item_id, item_ids: input.item_ids, option_id: input.option_id ?? null, shortcut_id: input.shortcut_id ?? null });
+      return ports.runJob({ recipe: input.recipe, item_id: input.item_id, item_ids: input.item_ids, option_id: input.option_id ?? null, shortcut_id: input.shortcut_id ?? null },
+        { signal: caller.signal, beforeEffect: () => caller.beforeEffect() });
     }),
     bind(shelfActions.cancelJob, input => ({ job: ports.cancelJob(input.job_id) })),
     bind(shelfActions.settings, () => ports.settings()),

@@ -12,7 +12,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { ShelfError, isShelfError } from "./errors.js";
-export { extractLocalText, markdownFromExtract, resultNameForExtract } from "./extract.js";
+export { markdownFromExtract, resultNameForExtract } from "./extract.js";
 export {
   SHELF_JOB_TIMEOUT_MS,
   agentEnvironment,
@@ -30,11 +30,8 @@ export type { ShelfWebsiteCapture } from "./website.js";
 export {
   OCR_LOW_CONFIDENCE,
   OCR_MISSING,
-  imageTextAvailable,
-  ocrHelperPath,
   ocrLanguages,
   ocrMarkdown,
-  recognizeImageText,
 } from "./ocr.js";
 export type { ShelfOcrLine } from "./ocr.js";
 export {
@@ -71,7 +68,7 @@ export {
   supportsWorkspaceSandbox,
 } from "./runtimes.js";
 export type { ShelfAgentRunRequest, ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
-export { SAMPLE_PDF_TEXT, createExtractablePdf, extractPdfSelectableText } from "./pdf.js";
+export { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 export {
   CLIPBOARD_LIMIT,
   ShelfStore,

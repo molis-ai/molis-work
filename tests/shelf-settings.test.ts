@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { readMaterialWebsite } from "../apps/local-host/src/material-web.js";
 import {
   ShelfError,
   clearShelfRuntimeCache,
@@ -248,7 +249,7 @@ test("a link is shelved as a captured page, and a dead link still lands with its
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address() as AddressInfo;
-    const store = openShelfStore(home, { disabled: true });
+    const store = openShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite });
     try {
       const page = await store.admitText(`http://127.0.0.1:${address.port}/page`);
       assert.equal(page.kind, "website");

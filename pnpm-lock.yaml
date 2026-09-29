@@ -782,6 +782,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
 
   modules/signals:
     dependencies:

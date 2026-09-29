@@ -2,29 +2,31 @@ import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/
 import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
-import { SHELF_TEXT_MATERIAL_TYPE, type ShelfTextMaterial } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { SHELF_TEXT_MATERIAL_TYPE, type ShelfTextMaterial, type ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { readMaterialWebsite } from "./material-web.js";
+import { extractMaterial } from "./material-extraction.js";
+import { materialImageTextAvailable } from "./material-native.js";
 
 const provider = (projectId?: string) => ({ provider_id: shelfManifest.plugin_id, plugin_id: shelfManifest.plugin_id, title: shelfManifest.name,
   kind: "plugin" as const, ...(projectId ? { project_id: projectId } : {}) });
 
 /** The personal Shelf belongs to this Home. Each call reads the current store and agent PATH, as the HTTP panel did. */
-export function shelfActionProvider(home: string): ActionProviderRegistration {
-  const store = () => openShelfStore(home, shelfRuntimeProbe(), { readWebsite: readMaterialWebsite });
+export function shelfActionProvider(home: string, materials: ShelfMaterialPorts = { readWebsite: readMaterialWebsite, extract: extractMaterial, imageTextAvailable: materialImageTextAvailable }): ActionProviderRegistration {
+  const store = () => openShelfStore(home, shelfRuntimeProbe(), materials);
   return { provider: provider(), definitions: SHELF_ACTIONS, handlers: createShelfActionHandlers({
     snapshot: () => store().snapshot(),
     settings: () => store().settings(),
     saveSettings: patch => store().saveSettings(patch),
-    admit: input => store().admit(input),
+    admit: (input, control) => store().admitFile(input, control),
     admitText: (text, title, capture, control) => store().admitText(text, title, capture, control),
     admitFolder: input => store().admitFolder(input),
     readChild: (itemId, relative) => store().readChild(itemId, relative),
     seedSample: () => store().seedSample(),
     hide: itemId => store().hide(itemId),
     deleteCopy: itemId => store().deleteCopy(itemId),
-    runJob: job => store().runJob(job),
+    runJob: (job, control) => store().runJob(job, control),
     cancelJob: jobId => store().cancelJob(jobId),
     useAsMaterial: itemId => store().useAsMaterial(itemId),
     addClipboard: (text, extra) => store().addClipboard(text, extra),

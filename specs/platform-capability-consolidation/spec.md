@@ -22,7 +22,7 @@
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；提示词按执行版本解析、按安装分别登记，真实 Sandbox/SDK/HTTP 验证通过；最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
-| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf 网页与 Artifacts HTML/外部导入已迁移并验证；Shelf PDF/OCR、AI recipe 及最终消费者复核待完成 |
+| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf 网页与 Artifacts HTML/外部导入已迁移并验证；Shelf PDF/OCR 已迁入公共 Host 并完成本地验证，AI recipe 及最终消费者复核待完成 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
 | 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
@@ -461,3 +461,22 @@ Shelf Module 只持有注入的网页读取端口、标题/文件名和产品 Ma
 验证：最终整体 `pnpm build` 通过（`/tmp/platform-web-materials-connector-final-build.log`）；本段网页/材料/导入/Shelf 定向 4 文件 33 项通过（`/tmp/platform-web-materials-final-targeted.log`），广义消费者回归 20 文件 110 项通过（`/tmp/platform-web-materials-regression.log`）。随后 Artifacts 并发/完整执行控制补齐 11 文件 67 项通过，连接器提交与取消补齐后对受影响链及 Host/Integration 必跑项重新执行 16 文件 106 项，全通过且无跳过（`/tmp/platform-web-materials-connector-regression.log`）；以上批次重叠，不累加为独立用例数。新增实际 HTTP 流取消关闭、元信息后撤权零后续请求、异步 guard 取消零派出、账号在最终授权等待期间断开零提交、并发导入不阻塞及提供方撤下零迟到写入。`pnpm boundary:check` errors 为空（`/tmp/platform-web-materials-boundary.log`），`git diff --check` 通过。测试期间未改源码/Skill 或并发构建；未使用真实外部账号/付费模型，也不代表用户体验或本人验收。
 
 接续：已连续完成提示词版本绑定与本段网页材料，后续仍在同一 Goal / spec 内推进。先完成 Shelf PDF/OCR 的公共 Host 端口与逐行置信度/语言选择、保留 PDF 预览和 32 MiB 入库行为，再将自动 AI recipe 接入同一 Home Prologue，保留人工终端交接与现有材料/结果身份；不能用只读 CLI Agent 适配器包装旧写文件 CLI 便声称已迁移。Shelf runJob 还未传原 Action 控制，取消/撤权后的失败记录和输入变化需一起修复。最后核对 Coding 草稿、Alchemist 动态指令及全部 01–12 消费者、手册和 Skill。剩余项未完成，保持实施中；本段仍仅为本地改造。
+
+### Shelf PDF/OCR 与任务提交
+
+当前代码证据：`previewFor`、`extractLocalText` 使用 Shelf 私有 PDF 正则；`ocr.ts` 同步启动 Desktop 自带的另一套 Vision helper，阻塞主线程，无法在等待中取消。公共 Host 仅有页级 OCR 置信度，不能直接替换 Shelf 的逐行“待确认”；Shelf 还支持中/英/自动语言及 32 MiB 文件，必须保留。`runJob` 丢弃原 Action 控制，外部等待后无授权复查，取消或输入变更也可能写失败成果。
+
+公共 materials 增加可选逐行文字/置信度与 OCR 语言；原生 helper 和 Host 验证兑现两者，其他调用方默认行为保持。默认提取仍限 25 MiB，仅可信 Host 可显式使用 32 MiB 上限供 Shelf；不提升上传端本身的限制。删除 Shelf PDF 通用解析与进程启动；OCR 的产品 Markdown 和低置信度标记仍归 Shelf。替换后删除 Desktop 不再使用的 OCR 二进制、构建与环境接线。图像提取失败和空结果保留原有提示；PDF 不完整的 coverage 必须进入输出，不冒充全文。
+
+Host 注入提取与可用性端口。文件 Action 经异步 `admitFile` 提取 PDF 预览，再复查权限并同步入库；底层 `admit` 只保存原始副本与已准备的预览，Coding 已确认的文字成果不增加异步提交间隙。示例 PDF 的正文是随示例定义的已知内容，无须同步解析。原图/PDF、来源 hash、材料/任务/结果身份和输入只读工作目录均保留，不改持久格式。
+
+任务使用现有 Kernel 执行生命周期处理原调用 signal、显式取消与时限。Shelf 仅拥有按 Home/root/job 归属的在途执行记录；快照和 busy 判定依据当前实际在途执行，重启或终止后旧 running 记录不自动重跑、不由原失权调用补写失败。用户显式取消可以关闭其持久记录。每次异步等待后、输出/成果/失败记账前保留原 beforeEffect，再同步核对 job 状态、材料可见性和原件/副本 hash。变化或撤权拒绝迟到提交，失败记账仅在调用仍有效时写入；清理进程、监听器与只读目录权限不被取消阻断。
+
+验收：真实 PDF 文字预览/提取、扫描或截断提示；本机 Vision 中英文字与逐行结果；Host 原生进程取消及临时文件清理；原 Action 下暂停提取、取消/撤权/提供方替换/副本变化后零晚结果与零失败成果，独立任务继续可用；历史任务不重放、可显式取消及重新运行。同步手册/Skill，整体构建后运行 Shelf、材料、Host、Contracts/Kernel 的适用回归与 boundary。AI recipe 的 Prologue 迁移在本段之后继续，不把旧 CLI 保留路径计作完成。
+
+
+本段已实现：Shelf 的 PDF 预览/提取和图片 OCR 统一调用 Host，保留 32 MiB 原件、语言选择、逐行低置信度标记及覆盖提示；删除私有 PDF 正则、同步原生进程与 Desktop OCR 二进制。混合选择复核同时发现旧逻辑只处理首份 PDF，或按首项类型处理全部材料；现逐份处理所选 PDF/图片，保留每份来源与正文。任务复用 Kernel 生命周期并保留原 Action 提交授权，取消/撤权/提供方撤下/副本变化后不写晚结果或失败成果；历史 running 记录不再凭二十分钟时长阻止用户操作，也不自动重放。
+
+验证：整体构建通过，最后补齐工作区依赖登记后的构建为 `/tmp/platform-shelf-materials-inventory-build.log`；Desktop `cargo check --offline --manifest-path apps/desktop/src-tauri/Cargo.toml --bin molis-work-desktop` 通过（22 条 warning，`/tmp/platform-shelf-materials-desktop-check.log`）。最终材料/设置定向 3 文件 31/31（`/tmp/platform-shelf-materials-final-targeted.log`）；首轮其余未变化的 Shelf plugin/recipes/actions 22 项通过证据保留。Host/Desktop/Contracts/Kernel 及消费者 24 文件 157/157，无跳过（`/tmp/platform-shelf-materials-regression.log`）。依赖清单补齐后安装收集 2/2 复验通过，70 包 boundary errors 为空（`/tmp/platform-shelf-materials-inventory-test.log`、`/tmp/platform-shelf-materials-boundary.log`），diff whitespace 通过。
+
+首轮失败原因分别是旧网页测试未注入已迁移的 Host 端口，以及新增小图双语言 OCR 断言不符合本机识别结果。用改造前 Swift 源码编译实测同图，旧版同样返回 SHELP、置信度 0.3，确认不是此次迁移退化；保留原有英文回归，新增清晰中英原生图片逐语言验证，同时经真实子进程验证语言参数、逐行结果及非法置信度拒绝。没有改识别结果或放宽权限断言来使测试通过。源码/Skill 编辑、构建与测试串行；本地 PDF、Vision、Chrome、HTTP 路径已验证，未调用付费模型或代表用户本人验收。AI recipe 与 01–12 最终消费者复核继续实施，本段仅本地提交。

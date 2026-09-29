@@ -1,13 +1,13 @@
 # Host 原生素材组件
 
-组件只读取公共 Host 提取器在独立临时目录写入的已授权字节。原始文件、引用与业务模型缓存目录由调用方管理；Jelly 继续使用 `jelly/imports/<sha256>.<扩展名>` 和 `jelly/models`，历史附件不迁移。输入默认限 25 MB。文件名不能触发网络读取或模型下载。
+组件只读取公共 Host 提取器在独立临时目录写入的已授权字节。原始文件、引用与业务模型缓存目录由调用方管理；Jelly 继续使用 `jelly/imports/<sha256>.<扩展名>` 和 `jelly/models`，历史附件不迁移。输入默认限 25 MiB，Shelf 的文档/图片可由可信 Host 显式采用 32 MiB；上传端限额保持各自合同。文件名不能触发网络读取或模型下载。
 
 ## 文档与图片
 
 从 Local Host 目录运行 `pnpm materials:build`。原生程序为 `native/materials/bin/jelly-material`，依赖 macOS 自带的 Vision、PDFKit、AppKit，最低目标 macOS 14。图片先检查像素上限，PDF 最多 100 页，正文最多 200 万字符。图片/扫描页使用 OCR；PDF 有文字的页面直接读文字。缺页、空页、截断或仅第一帧都返回覆盖信息。
 
 - `jelly-material capabilities`：探测 PDF 和 OCR。
-- `jelly-material extract <临时材料>`：输出 JSON 的 text/pages/coverage。
+- `jelly-material extract <临时材料> [--languages zh-Hans,en-US]`：输出 JSON 的 text/pages/coverage；图片页面额外提供每行 text/confidence。未选语言保留原有中英文默认，显式语言不支持时说明失败，不能静默替换。低置信度的产品提示由消费者决定。
 
 
 ## 音视频

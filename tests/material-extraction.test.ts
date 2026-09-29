@@ -126,6 +126,27 @@ test("native cancellation kills the child and cleans its actual temporary input 
     }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test("Host sends the selected OCR languages to its helper and rejects invalid line confidence or text", async () => {
+  const home = mkdtempSync(path.join(tmpdir(), "material-ocr-contract-"));
+  const helper = path.join(home, "helper"), args = path.join(home, "arguments.json");
+  const source = { file_name: "fixture.png", bytes: Buffer.from("authorized image bytes") };
+  const base = { text: "Known line", extractor: "fixture", pages: [{ number: 1, text: "Known line", method: "vision-ocr", confidence: 0.9,
+    lines: [{ text: "Known line", confidence: 0.9 }] }], coverage: { status: "sufficient", processed_pages: 1, total_pages: 1, issues: [] } };
+  const fixture = (value: unknown) => writeFileSync(helper,
+    `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(args)},JSON.stringify(process.argv.slice(2)));process.stdout.write(${JSON.stringify(JSON.stringify(value))});\n`, { mode: 0o700 });
+  const extract = createMaterialExtractor({ platform: "darwin", helperPath: helper });
+  try {
+    fixture(base);
+    const result = await extract(source, { ocrLanguages: ["zh-Hans", "en-US"] });
+    assert.deepEqual(JSON.parse(readFileSync(args, "utf8")).slice(2), ["--languages", "zh-Hans,en-US"]);
+    assert.deepEqual(result.pages[0]!.lines, [{ text: "Known line", confidence: 0.9 }]);
+    for (const line of [{ text: "Known line", confidence: 2 }, { text: "Different line", confidence: 0.9 }]) {
+      fixture({ ...base, pages: [{ ...base.pages[0], lines: [line] }] });
+      await assert.rejects(extract(source), { code: "invalid_result" });
+    }
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
 test("onboarding rejects partially readable PDFs and truncated text, preserves exact originals and titles", async () => {
   const html = '<title>Project</title><article><h1>Plan</h1><p>Ship it</p></article>';
   const files = [{ path: "partial.pdf", data: pdf(["Readable", ""]).toString("base64") },

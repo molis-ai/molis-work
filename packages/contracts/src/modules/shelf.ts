@@ -1,10 +1,10 @@
 import type { ArtifactReference } from "./artifacts.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { MaterialWebsiteReader } from "../services/materials.js";
+import type { MaterialExtractor, MaterialWebsiteReader } from "../services/materials.js";
 
 /** Execution authority is supplied by the Host, never by a serialized Shelf request. */
 export interface ShelfExecutionControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
-export interface ShelfMaterialPorts { readWebsite?: MaterialWebsiteReader }
+export interface ShelfMaterialPorts { readWebsite?: MaterialWebsiteReader; extract?: MaterialExtractor; imageTextAvailable?(): boolean }
 
 /** Provenance of an explicitly imported personal copy, never an execution authority. */
 export interface ShelfArtifactSource {

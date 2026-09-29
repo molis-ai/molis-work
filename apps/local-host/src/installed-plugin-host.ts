@@ -18,10 +18,10 @@ import { hostScheduleReminders } from './schedule-reminders.js';
 import { scheduleServiceFor } from './schedule-runtime.js';
 import { studioStorage } from './plugin-builder/storage.js';
 import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
-import { exposeInstalledPlugin } from './plugin-builder/exposed-actions.js';
+import { exposeInstalledPlugin, exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { bindInstalledOperationCaller } from './schedule-operations.js';
 import { hostCapabilities, type CapabilityImplementations } from './plugin-builder/capabilities.js';
-import { CATALOG_VERSION, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './plugin-builder/catalog.js';
+import { CATALOG_VERSION, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type CatalogCapability, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
 import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
@@ -71,7 +71,25 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, board
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, boardId, homeDirectory } = options, storage = studioStorage(store.db, boardId), releases = new AgentBuilderStore(storage);
   const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, project_id: boardId }; })();
-  const catalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
+  const readCatalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
+  let catalogPending: Promise<CatalogCapability[]> | undefined, exposureRevision = 0;
+  const catalog = (): Promise<CatalogCapability[]> => {
+    if (catalogPending) return catalogPending;
+    catalogPending = (async () => {
+      // Re-read after an install/upgrade/withdraw during asynchronous Host inspection.
+      let snapshot: CatalogCapability[], revision: number;
+      for (;;) {
+        revision = exposureRevision; snapshot = await readCatalog();
+        if (closed) return [];
+        if (revision !== exposureRevision) continue;
+        const costs = exposedOperationCosts([...exposed.values()].map(entry => entry.release), snapshot);
+        let changed = false;
+        for (const [pluginId, entry] of exposed) changed = entry.refresh(costs.get(pluginId)!) || changed;
+        if (!changed) return snapshot;
+      }
+    })().finally(() => { catalogPending = undefined; });
+    return catalogPending;
+  };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ board_id: boardId, actor_id: options.actorId ?? 'web-user', db: store.db, actions, ui: new UiHost(),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
@@ -132,8 +150,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers(actions.project_id, scheduledRuns) });
   const disposeReminders = !options.actions ? actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: actions.project_id },
     definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers(actions.project_id, reminders) }) : undefined;
-  const exposed = new Map<string, () => void>(), recoveryErrors = new Map<string, string>();
-  const withdraw = (pluginId: string) => { exposed.get(pluginId)?.(); exposed.delete(pluginId); };
+  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
+  const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = async (release: AgentRelease) => {
     withdraw(release.pluginId);
     const record = recordFor(release.pluginId)!;
@@ -145,22 +163,31 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
           return !closed && current?.install_id === record.install_id && current.version === releaseVersion(release.version) && current.state === 'running'
             ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' };
         }));
+      exposureRevision++;
+      await catalog();
     } catch (error) {
       recoveryErrors.set(release.pluginId, error instanceof Error ? error.message : String(error));
       platform.supervisor.revoke(release.pluginId); await platform.runtime.stop(record.install_id);
       throw error;
     }
   };
+  const definitions = new Map<string, { pluginId: string; value: ReturnType<typeof sandboxedPluginDefinition> }>();
   const definition = (release: AgentRelease, approved: SandboxEffects) => {
+    if (!covered(release.permissions, approved)) throw new Error('此版本的安装批准不足，请重新确认权限');
+    const key = JSON.stringify([release.pluginId, release.buildId, release.version]), prior = definitions.get(key);
+    // Runtime retains immutable implementations across version switches; rollback must reuse the same object.
+    if (prior) return prior.value;
     const capability = capabilityFor(release.design, () => true);
     const guard = (context: Parameters<typeof capability.call>[0]) => ({ ...context, beforeEffect: async () => {
       await context.beforeEffect?.(); context.signal.throwIfAborted(); assertInstalled(context.identity);
     } });
-    return sandboxedPluginDefinition(release, approved, releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version), {
+    const value = sandboxedPluginDefinition(release, release.permissions, releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version), {
       capabilities: catalog,
       capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
       network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return network.request(guarded, input, authorization); } },
     });
+    definitions.set(key, { pluginId: release.pluginId, value });
+    return value;
   };
   const covered = (next: SandboxEffects, approved: SandboxEffects) => Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
   const lifecycle: AgentBuilderPorts['lifecycle'] = async (action, release, grants) => {
@@ -203,6 +230,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       reminders.cancelInstallation(release.pluginId, record.install_id); scheduledRuns.cancelInstallation(release.pluginId, record.install_id); secrets.remove(release.pluginId);
       const keepData = (grants as { keepData?: unknown } | undefined)?.keepData === true;
       await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
+      for (const [key, entry] of definitions) if (entry.pluginId === release.pluginId) definitions.delete(key);
       if (!keepData) privateStorage.deleteInstallationData(record.install_id);
       storage.delete(APPROVED_KEY + release.pluginId); recoveryErrors.delete(release.pluginId);
     }
@@ -240,6 +268,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         value: response?.status === 200 ? body?.value : body?.error ?? recoveryErrors.get(run.pluginId) ?? '这个插件当前没有运行（可能已停用）' };
     } });
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
+      refreshPublicActions: async () => { if (exposed.size) await catalog(); },
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.slice(SIGNATURE.length), version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }

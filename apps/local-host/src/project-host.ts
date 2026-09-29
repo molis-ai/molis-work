@@ -324,18 +324,19 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
     await this.ensureProjectPluginActions(reference);
-    await this.host.withRuntime(reference, runtime => this.prepareInstalledPlugins(reference, runtime));
     await this.agents?.service.restoreExternalMcp(reference);
+    await this.host.withRuntime(reference, runtime => this.prepareInstalledPlugins(reference, runtime));
   }
 
   private async prepareInstalledPlugins(reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
     if (!this.options.homeDirectory) return;
-    await ensureInstalledPlugins({ store: runtime.store, boardId: runtime.board_id, homeDirectory: this.options.homeDirectory, actorId: "web-user",
+    const installed = await ensureInstalledPlugins({ store: runtime.store, boardId: runtime.board_id, homeDirectory: this.options.homeDirectory, actorId: "web-user",
       routePrefix: this.options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
       capabilities: this.host.client(reference),
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id,
         // This internal directory is already in a prepared Host; recursing through the public entry would wait on itself.
         inspect: caller => this.host.inspectActions(caller, reference) } });
+    await installed.refreshPublicActions();
   }
 
   private ensureProjectPluginActions(reference: LocalHostProjectReference): Promise<unknown> {

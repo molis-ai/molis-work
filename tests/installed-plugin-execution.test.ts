@@ -64,7 +64,7 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
         firstRouteBody ??= response.body;
         return response;
       } finally { firstRouteFinished.resolve(); }
-    });
+    }).dispose;
     withdraw = register();
     const caller: ActionCallContext = { actor_id: 'owner', project_id: 'p', audience: 'user', permissions: [], signal: controller.signal,
       validate_authority: () => { if (!allowed) throw new Error('Authority revoked'); } };

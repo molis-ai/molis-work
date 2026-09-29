@@ -146,7 +146,7 @@ test('an installed plugin\'s functions are actions of the directory: people, the
   assert.deepEqual(await service.invoke(caller, { capability_id: exposedActionId(release, 'words.add'), version: 2 }, { word: 'serendipity' }), { id: 'w1', word: 'serendipity' });
   assert.deepEqual(calls, [['io.molis.work.generated.words', 'words.add', { word: 'serendipity' }]]);
   await assert.rejects(service.invoke(caller, { capability_id: exposedActionId(release, 'words.list'), version: 2 }, {}), /插件出错了/);
-  withdraw();
+  withdraw.dispose();
   assert.deepEqual(ids('agent'), [], 'uninstalled: nothing left in the directory');
 });
 

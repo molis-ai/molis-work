@@ -19,8 +19,8 @@
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
-| 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开动作的声明与发现一致性随 07 收尾 |
-| 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留，生成式公开声明与策略待完成 |
+| 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
+| 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 相关架构 Session 已完成，合并基线已在本分支；待实现 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
@@ -86,7 +86,7 @@ Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminde
 
 复核时发现公开生成式动作丢弃 ActionExecutionContext，以静态 actor 字符串穿过 route；SandboxRunner 只产生本地 signal。先沿可信 Host route execution 端口（独立于 JSON body）传入当前调用 signal/beforeEffect，再经 Runner/Broker 到实际存储提交、能力派出与网络解析后的派出。队列里取消的调用不运行，不停止别人的当前操作；已经运行的调用取消时终止该沙箱通道，不能自动重放。所有异步服务返回后、存储 CAS 前复查原授权。执行时限从队列头开始，包含执行前和结果后的授权等待；Host stop 也能终止这些等待。外层生成式动作声明 concurrent，插件自己的 sandbox queue/CAS 保持序列化，避免等跨模块调用时占住项目队列。
 
-不靠 payload 或 actor 名字授予直接 operation 权限；UI 仍按声明组件解析。定时调用以当前 Scheduler control 及任务/调用者存续检查传入，同一 control 不保存进 pending。旧 pending 的持久执行与安装 Runtime 独立启动随后迁移。注册归回 Runtime 会改变其合成 Manifest 指纹和提供方身份，必须为已有相同版本的安装证明等价迁移，并处理旧授权引用失效，不能直接改 Manifest 导致重启失败。此切片保留原提供方/版本，仅先接通控制；随后仍须完成 05/07。
+不靠 payload 或 actor 名字授予直接 operation 权限；UI 仍按声明组件解析。定时调用以当前 Scheduler control 及任务/调用者存续检查传入，同一 control 不保存进 pending。旧 pending 的持久执行与安装 Runtime 独立启动随后迁移。直接把公开注册转到 Runtime 会改变其合成 Manifest 指纹和提供方身份。后续 07 已依据当前实现修正方案：由安装 Host 从已发布 operations 派生公开注册，保留三种部署模式，见“内置插件装配与生成式公开声明”；不再要求形式上的 Manifest 归并。
 
 验证真实沙箱 + 原 SQLite：排队取消不执行、执行中取消无晚写入、异步撤权后能力/网络不派出、解除限制后的新调用可用；旧静态 actor 不能直接调用 operation。更改公共包后整体构建、包要求测试及边界检查，保留不自动重试与原安装数据。
 
@@ -94,7 +94,7 @@ Host 在创建 Schedule service 时注册新唤醒及旧 `plugin-builder.reminde
 
 新增 Host 安装运行装配，读取 Builder 已发布的版本与批准记录，复用现有 Plugin Runtime、沙箱定义和公开 Action 目录；读取已发布工件不初始化 AgentBuilderWorkflow，也不启动草稿恢复、模型或浏览器验收。按同一数据库和 board 缓存唯一实例，项目关闭统一停止并撤回；关闭创作工作台仅停止创作任务与预览进程。生成式页面、项目能力发现、Home 恢复和调度准备均使用这个实例，Studio 的安装/升级/回滚/启停/卸载端口委托给它。
 
-此步骤保持原安装版本、Manifest 指纹、提供方 id、私有数据和历史路径；旧版本必须有可读发布记录及明确批准信息，不能因恢复而升级或扩大授权。恢复失败逐插件显式保留原因，不能吞掉异常再把插件当可用；一个失效安装不阻断其他项目能力。派出使用当前安装与同一 Project Action 服务，安装实例撤销后不得退回试用替身。复用 Catalog 的内部 inspect 端口以避免初始化递归。通用 model.generate 与 schedule 能力的 Host 装配随安装运行存在，不随创作页面注销。后续 05 持久 pending/安装实例迁移及 07 Manifest 归并继续完成，不保留两套安装执行实现。
+此步骤保持原安装版本、Manifest 指纹、提供方 id、私有数据和历史路径；旧版本必须有可读发布记录及明确批准信息，不能因恢复而升级或扩大授权。恢复失败逐插件显式保留原因，不能吞掉异常再把插件当可用；一个失效安装不阻断其他项目能力。派出使用当前安装与同一 Project Action 服务，安装实例撤销后不得退回试用替身。复用 Catalog 的内部 inspect 端口以避免初始化递归。通用 model.generate 与 schedule 能力的 Host 装配随安装运行存在，不随创作页面注销。05 的持久 pending/安装实例迁移已完成；07 保留发布 operations 与安装 Host 的派生注册，不引入第二套公开声明或安装执行实现。
 
 生命周期复核还发现原 Runtime.stop 同时用于用户停用和 Host 关闭，均记录 disabled，旧启动又无条件恢复，导致停用意图丢失。为现有 stop 增加可信 Host 的 preserve_enabled 选项，正常关闭后保留 installed，用户停用保持 disabled；关闭时先停进程再撤销 Supervisor，避免 revoke 自带的 stop 抢先写成 disabled。恢复不自动开启 disabled/quarantined；旧 disabled 无法证明是停用还是关闭，保留原记录并提供显式「启用」入口。没有批准记录的安装仍拒绝启用，不能退回 release.permissions 自动补权。
 
@@ -158,7 +158,7 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
 
 每次安装 operation 读取其实际依赖的当前目录，按同一 latest/offered 选择计算慢调用通道和本次操作/服务时限。Sandbox 增加仅可信 Host 可传的单次时限，沿现有 queue、Runner、Broker 和取消链执行，不修改 worker 协议或 CPU/内存/频率限制，也不为时限变化重建整套 Runtime。没有依赖的本地读写继续用原默认值；未声明费用保持 unknown。
 
-安装调用捕获依赖的提供方、版本、可用性、执行策略和读写性质，派出前及异步等待后的原 beforeEffect 中复核；发生变更的原调用不继续产生副作用或提交结果，也不自动重试。新调用读取新策略。当前 query 拒绝收费或写入型依赖，不依靠能力名字；缺失/停用/不再开放的依赖在派出前拒绝。这里不扩大安装 grants，提供方自己的 Kernel 授权与频率检查仍逐次执行。外部结果可能未知时保留 unknown，不能经 HTTP 降格成普通失败。公开生成式动作的身份与 Manifest 归位仍属于 07，不能顺带破坏既有指纹或授权引用。
+安装调用捕获依赖的提供方、版本、可用性、执行策略和读写性质，派出前及异步等待后的原 beforeEffect 中复核；发生变更的原调用不继续产生副作用或提交结果，也不自动重试。新调用读取新策略。当前 query 拒绝收费或写入型依赖，不依靠能力名字；缺失/停用/不再开放的依赖在派出前拒绝。这里不扩大安装 grants，提供方自己的 Kernel 授权与频率检查仍逐次执行。外部结果可能未知时保留 unknown，不能经 HTTP 降格成普通失败。07 保留公开生成式动作的既有身份与不可变 Manifest，补齐费用事实；不改变既有指纹或授权引用。
 
 嵌套 Action 超时或提供方被替换、Host 服务超时的未知结果由可信 Host 标记，并贯穿 Sandbox、安装 HTTP、公开 Action 和 Schedule。worker 不能通过 JSON 伪造该标记；也不能 catch 后返回替代值，将结果变成成功或继续提交。一次调用的未知状态不会污染下一次明确发起的调用。普通缺服务/权限拒绝仍保留原本的已知错误语义。
 
@@ -176,7 +176,13 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
 
 验证实际 UI Host 挂载、客户端初始化和资源组合，未知内置条目无需增加 Host 名单即可提供 UI 与历史别名。通过真实 MCP 的原用例验证旧别名及新 Action 发现/调用保持权限、版本和项目隔离。源码归属门禁改为跟随唯一声明，并保留删除贡献、断开派生或未注册时必失败的负例。构建前记录原产物，比较导航/Manifest/静态资源/MCP 描述无语义变化；不把该比较单独当成业务验证。
 
-生成式安装目前用独立公开 Action 注册，原 Manifest.actions 为空且 provider_id 为旧稳定插件标识；直接改用 Runtime 的 installation provider 会改变保存的授权和指纹。后续须保留既有安装身份与不可变 Manifest，完成明确的迁移路径，并使公开费用等策略与实际依赖一致；本切片不以原地改指纹或放宽版本校验掩盖兼容问题。上述 07 整体仍为进行中。
+生成式安装的唯一公开操作声明已经是已发布 SandboxContract.operations，Host 的安装 owner 将其登记进共同 Action 目录；合成 Runtime Manifest 只承担执行容器身份。复核后不再要求为了形式一致改用 Manifest.actions：这会无谓改变旧提供方授权和不可变安装指纹。保留原动作 ID/provider/version、安装批准与状态检查，升级/回滚仍以实际发布契约替换公开声明。
+
+当前补齐费用事实：Host 依据每个 operation 的 effects 与当前依赖目录派生公开 execution.cost；本地存储等不收费，任一依赖明确收费则 metered；没有明确收费证据时，网络、缺失声明、缺失依赖或循环依赖保持 unknown。生成插件互相调用时沿当前实际 provider/version 递归解析，不以旧的派生结果再次推导；一轮刷新收敛，不按名称猜费用。发现、调用准备与 Builder 目录均刷新，只有变化的 operation 重新注册；普通目录读取、其他 operation 的费用变化不能撤销无关的在途调用。停用、卸载或关闭后，异步刷新不得重新挂回旧动作。声明不扩大任何 MCP/Agent/插件授权。
+
+公共 cost 是可能收费的事实，不是用量或预算。沙箱 operationTimeout 从排队头开始、频率按 lane/安装计数，公共 Action 的时限从处理器开始、频率按 caller/project/install 计数；不把这些不同语义的限制直接互拷。现有动态沙箱依赖策略与每次 beforeEffect 复核保留。验证覆盖真实 Host 自动恢复/发现/调用，直接及传递费用、缺失/网络/循环、动态更新、无关调用存活、升级回滚与原 MCP 授权引用、停用与关闭期间刷新；安装指纹不变，无数据迁移，回滚仅回退 Host 派生代码。08/09 与最终全消费者验收仍待完成。
+
+实际升级→回滚验证发现：Host 每次重新构造同版本 PluginDefinition，而 Runtime 正确拒绝用新对象覆盖已注册的不可变实现。由安装 owner 按已发布 plugin/build/version 保留唯一执行定义；切换先验证批准覆盖该发布所需权限，沙箱只收到该发布所需的权限集合。卸载清理该插件的定义，重新安装创建新的执行对象。保留 Runtime 的冲突检查、发布版本不可覆盖、原安装指纹及版本授权；不在 Kernel 放宽约束。
 
 ### 当前验证记录
 
@@ -234,7 +240,7 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
 
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-scheduled-operations-boundary.log。源码与构建完成后再回归，回归期间没有改源码、脚本、package.json 或 Skill。
 
-接续位置：05 的提醒、定时 operation、持久待执行、安装独立执行和显式恢复链路已接通并完成上述验证。下一步继续 06：安装定义在 start 时捕获 capabilities/slow lanes，需核对依赖提供方、版本和策略变化后的失效与重建。07 的生成式动作归 Runtime 生命周期前，仍须处理合成 Manifest 的同版本指纹和旧提供方授权引用，不能静默破坏安装；Native catalog/pack/Host 多清单继续审查。08 事件订阅的独立身份、世代与领域 outbox，09 材料提取/资源合同，以及最终全消费者和文档验收仍未完成。当前仅本地改造，不能把已完成切片等同整个 Goal 完成。
+接续位置：05 的调度归位、安装运行独立与恢复链路，06 的执行策略及依赖复核，07 的 Native 装配与生成式公开声明均已实现相应链路；生成式费用与版本回滚已完成本轮工程验证。后续继续 08：持久订阅的独立身份、世代及领域事件提交桥接；09：材料提取/资源契约；再完成 01–03 及其余实际消费者、文档与 Skill 的最终总验收。仍只交付本地改造，不以已完成切片替代整个任务。
 
 - 安装调用策略更新：删除启动时固定依赖目录、通道和时限的旧路径，每次 operation 使用当前依赖事实，经可信 beforeEffect 复核。query 动态拒绝 metered/写入/停用依赖；无关目录变化不影响本次调用。Sandbox 的单次时限在排队前复制，不进入 worker JSON，也不改 CPU、内存、频率或 grants。嵌套 Action/服务超时的 unknown 贯穿 HTTP 与公开 Action；插件捕获错误后不能继续写入或伪装成功。返回值违反 schema 也保留可能已提交的效果，撤下死进程，下一次明确调用可重新执行。手册、Skill 与包约定同步。
 
@@ -249,3 +255,10 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
   首轮 4 文件 15/16，唯一失败是新增检查错误要求静态 Native UI 必须遵守 Runtime 的 owner/全部面板声明规则。依据 Goals Manifest 的明确分层与真实挂载路径修正测试契约，保留旧贡献身份检查；未放宽 Runtime 校验。最终整体构建通过，23 文件 126/126，无跳过，包含真实 MCP stdio 到常驻 Host 的六族旧工具/精确授权/撤权/项目隔离，未知条目 UI 挂载与客户端初始化、原 Action 的缺权拒绝/授权成功/注销拒绝，以及 Chrome 标签/分屏。没有付费模型和真实用户数据改动，不代表用户本人验收。日志 /tmp/platform-builtin-composition-final-build.log、/tmp/platform-builtin-composition-regression.log；首轮 /tmp/platform-builtin-composition-targeted.log。
 
   69 包边界检查 errors 为空、diff whitespace 检查通过，日志 /tmp/platform-builtin-composition-boundary.log。门禁沿唯一声明追踪，删除贡献、断开派生或取消 UiHost 注册都会被负例拒绝。回归期间未改源码、脚本、package.json 或 Skill。生成式公开声明与策略、事件与材料契约、最终全消费者复核继续保持未完成状态。
+
+
+- 生成式公开能力与版本复用：保留已发布 operations 为唯一公开声明，由安装 owner 派生 Action；保留原 provider/action/version、Manifest 指纹和 MCP grants，不强制统一三种运行模式。公共费用沿当前实际 provider/version 解析直接及传递依赖，网络、未知依赖和循环不能被标成免费；普通发现与无关费用变化保留在途调用，仅变化的 operation 替换注册。关闭期间等待中的目录刷新不能重新注册。外部 MCP 恢复先于最终费用刷新，没有生成式动作的普通项目不额外扫描目录。
+
+  实际升级→回滚暴露了同版本执行对象冲突，安装 owner 现复用不可变发布定义，版本切换核对批准、仅授予发布所需集合，卸载清理并允许新安装重建；未放宽 Runtime 冲突与发布版本校验。手册和能力 Skill 同步。最初定向检查发现新增夹具括号/未声明操作两处错误及上述真实回滚问题；修复后 5 文件 32/32，通过前没有放宽断言。最终整体构建通过，22 文件 135/135，无跳过，包含真实 SQLite/Seatbelt 执行与数据提交、Host 自动恢复、升级回滚、启停卸载重装、MCP 精确授权、Runtime 任意新插件 HTTP 发现及原发布流水线。
+
+  69 包边界检查 errors 为空，diff whitespace 检查通过；回归期间未改源码、脚本、package.json 或 Skill。日志 /tmp/platform-generated-costs-final-build.log、/tmp/platform-generated-costs-targeted.log、/tmp/platform-generated-costs-regression.log、/tmp/platform-generated-costs-boundary.log。均使用隔离测试数据，未调用真实付费模型或外部服务，不代表用户本人验收。事件/材料契约与最终全消费者复核仍未完成。

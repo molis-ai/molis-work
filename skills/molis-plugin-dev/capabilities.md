@@ -34,6 +34,8 @@
 ## 调用身份与限额
 
 生成插件调用时，身份是它自己（`plugin:<插件 id>`），历史里显示为"插件「名称」"；每次调用前宿主都会重查安装是否仍有效、授权是否被撤回。调用有次数和时长上限，调用模型另有每分钟上限。
+
+生成插件的公开操作从已发布 `contract.operations` 自动登记，不另写 MCP/Action 清单。Host 在发现和调用前，根据 operation 的 effects 与当前实际依赖刷新公共 `execution.cost`，包括经其他生成插件间接调用的费用；未知网络/依赖和无法解析的循环不能写成免费。费用声明不代表实际用量，也不授予执行权限。沙箱排队、安装级频率与公共 Action 的调用者级限额语义不同，不直接互抄。旧动作 provider/version 与安装 Manifest 指纹保留，升级到新版本仍需要相应的外部授权。
 # 有界模型调用与取消
 
 插件模型能力按 [Prologue AI Skill](../molis-prologue-ai/SKILL.md) 接入。业务只拿 Host 注入的函数端口；需结构、进度与回执时由 Host 使用 `hostTextGeneration`。Coding 的短草稿与 Cognia 的知识生成都复用 Home Runtime，不能复制测试中创建 adapter 的做法到按钮处理器。

@@ -5,6 +5,8 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import { ActionService } from '@molis-ai/molis-work-kernel';
+import type { ActionDefinition, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
@@ -20,7 +22,7 @@ import { scheduleServiceFor } from '../apps/local-host/src/schedule-runtime.js';
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: 'project' };
 
-async function publishedFixture(home: string, name: string) {
+async function publishedFixture(home: string, name: string, lookup = false) {
   const databasePath = join(home, name + '.sqlite'); seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath), storage = studioStorage(store.db, DEMO_BOARD_ID), builder = new AgentBuilderStore(storage);
   const draft = builder.create('An unfinished draft must not resume when an installed plugin runs');
@@ -31,17 +33,84 @@ async function publishedFixture(home: string, name: string) {
     { id: 'read', kind: 'query', input: { type: 'null' }, output: { type: 'string' }, effects: { storage: ['read'] }, errors: [], examples: [{ input: null, output: 'empty' }] },
     { id: 'schedule', kind: 'command', input: { type: 'string' }, output: { type: 'string' }, effects: { capabilities: ['schedules.add'] }, errors: [], examples: [{ input: '2026-09-28T01:00:00Z', output: 'id' }] },
   ] };
+  if (lookup) contract.operations.push({ id: 'lookup', kind: 'command', input: { type: 'null' }, output: { type: 'string' },
+    effects: { capabilities: ['fixture.lookup'], storage: ['write'] }, errors: [], examples: [{ input: null, output: 'looked up' }] });
   const bundlePath = join(home, name + '.mjs');
-  await writeFile(bundlePath, `export const operations={save:async(input,sdk)=>{await sdk.storage.set('value',input.value);return input.value},read:async(_,sdk)=>await sdk.storage.get('value')??'empty',schedule:async(at,sdk)=>(await sdk.capability.call('schedules.add',{operation:'save',at,input:{value:'scheduled'},inbox:false})).scheduleId};`);
+  await writeFile(bundlePath, `export const operations={save:async(input,sdk)=>{await sdk.storage.set('value',input.value);return input.value},read:async(_,sdk)=>await sdk.storage.get('value')??'empty',schedule:async(at,sdk)=>(await sdk.capability.call('schedules.add',{operation:'save',at,input:{value:'scheduled'},inbox:false})).scheduleId${lookup ? ",lookup:async(_,sdk)=>{const value=await sdk.capability.call('fixture.lookup',null);await sdk.storage.set('value',value);return value}" : ''}};`);
   const release: AgentRelease = { buildId, pluginId, version: 1, directory: home, bundlePath, packagePath: home,
     design: { id: 'one', catalog: 'actions/1', title: 'Installed fixture', description: 'Fixture', rationale: 'Fixture', journey: [], contract, parts: [], acceptance: [] },
-    nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add'] }, publishedAt: new Date().toISOString() };
+    nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])] }, publishedAt: new Date().toISOString() };
   builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
   const { install } = runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
   store.close();
   return { databasePath, release, install, draft: waiting, ref: molisWorkHostProjectReference({ databasePath, projectId: 'project', boardId: DEMO_BOARD_ID }) };
 }
+
+test('Host discovery and invocation refresh generated cost without rewriting installed identity or running its capabilities', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-public-policy-')), fixture = await publishedFixture(home, 'project', true);
+  const host = new MolisWorkLocalHost({ homeDirectory: home }), client = host.actionClient(fixture.ref);
+  let dispose = () => {}, calls = 0;
+  const register = (cost: ActionExecutionPolicy['cost'], version = 1) => {
+    dispose();
+    const definition: ActionDefinition = { capability_id: 'fixture.lookup', version, operation: 'query', action: { title: 'Lookup', description: 'Fixture', kind: 'query', scope: 'project',
+      audiences: ['plugin'], permissions: [], subject_kinds: [], execution: { cost }, input_schema: { type: 'null' }, output_schema: { type: 'string' } } };
+    dispose = host.actionRegistry(fixture.ref).registerProvider({ provider: { provider_id: 'fixture', title: 'Fixture', kind: 'system', project_id: 'project' }, definitions: [definition],
+      handlers: [{ ...definition, handle: () => { calls++; return 'looked up'; } }] });
+  };
+  const action = (id: string, version = 1) => ({ capability_id: exposedActionId(fixture.release, id), version, provider_id: 'plugin:' + fixture.release.pluginId });
+  try {
+    register('none');
+    assert.equal((await client.discover(caller)).find(view => view.capability_id === action('lookup').capability_id)!.action.execution?.cost, 'none');
+    register('metered', 2);
+    for (const audience of ['user', 'agent', 'mcp', 'workflow', 'plugin'] as const) {
+      const views = await client.discover({ ...caller, audience });
+      assert.equal(views.find(view => view.capability_id === action('lookup').capability_id)!.action.execution?.cost, 'metered');
+      assert.equal(views.find(view => view.capability_id === action('read').capability_id)!.action.execution?.cost, 'none');
+    }
+    assert.equal(calls, 0, 'discovery never calls the dependency');
+    assert.equal(await client.invoke(caller, action('lookup'), null), 'looked up');
+    assert.equal(await client.invoke(caller, action('read'), null), 'looked up');
+    assert.equal(calls, 1);
+    register('none', 3);
+    // Invoke without a preceding discovery also refreshes the public declaration.
+    assert.equal(await client.invoke(caller, action('lookup'), null), 'looked up');
+    const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, boardId: DEMO_BOARD_ID, homeDirectory: home,
+      actions: { registry: host.actionRegistry(fixture.ref), client, project_id: 'project' } }));
+    assert.equal((await installed.catalog()).find(entry => entry.id === action('lookup').capability_id)!.execution.cost, 'none');
+    assert.equal(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
+    assert.equal(installed.records()[0]!.install_id, fixture.install.install_id);
+    const next = { ...fixture.release, version: 2 }; installed.releases.release(next);
+    await installed.lifecycle('upgrade', next);
+    await assert.rejects(client.invoke(caller, action('lookup'), null), 'the old version is withdrawn');
+    assert.equal(await client.invoke(caller, action('lookup', 2), null), 'looked up');
+    await installed.lifecycle('rollback', fixture.release);
+    assert.equal(await client.invoke(caller, action('lookup'), null), 'looked up');
+    assert.equal(installed.records()[0]!.manifest_digest, fixture.install.manifest_digest);
+    await installed.lifecycle('disable', fixture.release);
+    assert.equal((await installed.catalog()).some(entry => entry.id.startsWith('generated.')), false);
+    await installed.lifecycle('enable', fixture.release);
+    dispose();
+    assert.equal((await client.discover(caller)).find(view => view.capability_id === action('lookup').capability_id)!.action.execution?.cost, 'unknown');
+    await assert.rejects(client.invoke(caller, action('lookup'), null));
+    assert.equal(await client.invoke(caller, action('read'), null), 'looked up', 'missing dependency cannot change committed local data');
+  } finally { dispose(); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test('an in-flight catalog inspection cannot restore generated registrations after the installation owner closes', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-catalog-close-')), fixture = await publishedFixture(home, 'project');
+  const store = new LocalProjectDatabase(fixture.databasePath), service = new ActionService();
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let hold = false;
+  try {
+    const installed = await ensureInstalledPlugins({ store, boardId: DEMO_BOARD_ID, homeDirectory: home, actions: { registry: service, client: service, project_id: 'project',
+      inspect: async caller => { const snapshot = service.inspect(caller); if (hold) { entered.resolve(); await release.promise; } return snapshot; } } });
+    hold = true;
+    const pending = installed.catalog(); await entered.promise;
+    await installed.close(); release.resolve();
+    assert.deepEqual(await pending, []);
+    assert.deepEqual(service.discover(caller), []);
+  } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_BOARD_ID); store.close(); await rm(home, { recursive: true, force: true }); }
+});
 
 test('Host alone restores installed actions and scheduled operations, retains data across restart and leaves authoring untouched', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-headless-'));

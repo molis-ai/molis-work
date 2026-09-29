@@ -55,7 +55,7 @@ async function fixture(t: TestContext) {
   const call = async (operation: string, input = 'value', execution?: ActionExecutionContext) => (await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + contract.pluginId + '/call', actor_id: 'owner',
     execution: execution ?? { beforeEffect: async () => {} }, body: { operation, input } }))!;
   const unexpose = exposeInstalledPlugin(actions, releaseFixture, (_, operation, input, context) => call(operation, input as string, context));
-  t.after(unexpose);
+  t.after(unexpose.dispose);
   const invoke = (operation: string, input = 'value') => service.invoke({ actor_id: 'owner', project_id: 'p', audience: 'user', permissions: [] },
     { capability_id: exposedActionId(releaseFixture, operation), version: 1, provider_id: 'plugin:' + contract.pluginId }, input);
   return { register, call, invoke, service, entered, release, finished, wait: () => { waiting = true; }, counts: () => ({ calls, effects }) };

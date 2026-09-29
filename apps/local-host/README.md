@@ -80,11 +80,13 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
   - 被取消、撤权、停用的调用不再写任何记录，包括失败记账。
   - 安装插件的 Action/定时入口通过可信 route execution 向沙箱传递当前控制；异步能力、密钥/DNS 解析与存储 CAS 后续派出或提交前复查。生成式外层动作 concurrent，串行由沙箱队列承担；未知结果不自动重放。定时调用者按数据库/项目隔离。
   - 安装 operation 每次读取当前依赖的版本、可用性和 execution，决定通道及单次时限；等待后依赖变更拒绝晚提交。query 运行时也拒绝收费或写入能力。嵌套超时的未知结果沿 Sandbox、HTTP 和公开 Action 保留，不能被插件 catch 后变成成功。
+  - 生成式公开 Action 从已发布 operation 契约派生，发现/调用准备与 Builder 目录刷新直接及传递依赖的 cost；网络/缺失/循环无法确认时保持 unknown。仅变化的 operation 替换注册，关闭或卸载期间的异步检查不能重挂旧动作；不改安装指纹或旧 provider/version，不借声明自动授予权限。
+  - 安装 owner 按已发布版本复用唯一执行定义，回滚不能用新对象替换 Runtime 已登记的同版本实现。版本切换先验证批准覆盖所需权限，执行定义只持有所需集合；卸载同时清除该插件的缓存，重装产生新定义。
   - `installed-plugin-host.ts` 按项目数据库拥有生成式安装运行；发现/恢复读取已发布工件和批准记录，不初始化创作 Workflow。Studio 只委托生命周期管理。正常关闭保留启用意图，用户停用不随重启撤销；关闭顺序是创作与预览、安装进程、其他项目插件、数据库。
   - 只装配和做 IO（连接、事务、文件、HTTP、进程），不复制 Module 的业务规则；能力注册不启动 SDK、CLI 或请求模型。
   - 安装器准备 npm 与 Desktop 资产但不自动发布；vendored 依赖的传递依赖必须能从标准 ancestor 解析。
 - 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts`
-- 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。
+- 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/generated-action-costs.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。
 - 相关手册：[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

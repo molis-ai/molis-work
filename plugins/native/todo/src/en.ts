@@ -262,4 +262,5 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "已不存在": "No longer exists",
   "暂时读不到": "Can't be read right now",
   "已移到别处": "Moved elsewhere",
+  "已移到「{place}」": "Moved to “{place}”",
 };

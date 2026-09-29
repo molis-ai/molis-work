@@ -775,7 +775,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
           name.dataset.workbenchItemTitle = result.title;
         }
         row.append(make("span", "todo-link-kind", L("成果")), name);
-        if (RESULT_STATE[result.state]) row.append(make("small", "todo-muted", RESULT_STATE[result.state]));
+        // Moved is not gone: say where it went, in the Assistant's words for the place.
+        const state = result.state === "moved" && result.moved_to && result.moved_to.title ? L("已移到「{place}」").replace("{place}", result.moved_to.title) : RESULT_STATE[result.state];
+        if (state) row.append(make("small", "todo-muted", state));
         box.append(row);
       });
     });

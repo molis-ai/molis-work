@@ -138,8 +138,8 @@ export class LingguangStore {
       if (talks.some(row => (JSON.parse(row.spark_ids_json) as string[]).length > 1)) {
         throw new LingguangError("lingguang.invalid", "这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
       }
-      const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();
-      this.db.prepare("UPDATE sparks SET project_id = ?, updated_at = ? WHERE id = ?").run(target, now, id);
+      // A move is not an edit: the spark keeps its time and revision, so work that recorded it still matches.
+      this.db.prepare("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?").run(target, id, current.updated_at);
       for (const talk of talks) this.db.prepare("UPDATE conversations SET project_id = ? WHERE id = ?").run(target, talk.id);
       return this.get(id, target);
     });

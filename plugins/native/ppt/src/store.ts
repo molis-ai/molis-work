@@ -113,8 +113,9 @@ export class PptStore {
     return this.transaction(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw new PptError("ppt.publication_pending", "上次固定版本还没存完，请先在原位置恢复，再移动");
-      const result = this.db.prepare("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
-        .run(target, new Date().toISOString(), id, current.version);
+      // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
+      const result = this.db.prepare("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
+        .run(target, id, current.version);
       if (result.changes !== 1) throw new PptError("ppt.conflict", "演示稿刚被修改，请重新读取后再移动");
       return this.get(id, target);
     });

@@ -288,7 +288,8 @@ test("plugin stores move with the same id, copy independently and receive handed
   const pages = openPagesStore(home);
   const page = pages.create({ project_id: "personal", title: "上线前检查清单" });
   const moved = pages.relocate(page.id, "personal", "q4");
-  assert.deepEqual([moved.id, moved.project_id, moved.version], [page.id, "q4", page.version + 1]);
+  // A move is not an edit: same id, same version and time, so work that recorded this version still matches.
+  assert.deepEqual([moved.id, moved.project_id, moved.version, moved.updated_at], [page.id, "q4", page.version, page.updated_at]);
   assert.throws(() => pages.get(page.id, "personal"), /找不到/);
   const pageCopy = pages.duplicate(page.id, "q4", "personal", "r1");
   assert.equal(pages.duplicate(page.id, "q4", "personal", "r1").id, pageCopy.id);
@@ -297,7 +298,8 @@ test("plugin stores move with the same id, copy independently and receive handed
 
   const ppt = openPptStore(home);
   const deck = ppt.create({ project_id: "personal", title: "评审" });
-  assert.equal(ppt.relocate(deck.id, "personal", "q4").project_id, "q4");
+  const movedDeck = ppt.relocate(deck.id, "personal", "q4");
+  assert.deepEqual([movedDeck.project_id, movedDeck.version], ["q4", deck.version]);
   const deckCopy = ppt.duplicate(deck.id, "q4", "personal", "c1");
   assert.equal(ppt.duplicate(deck.id, "q4", "personal", "c1").id, deckCopy.id);
   const outline = slidesFromMarkdown("# Q4 新版发布评审\n\n## 做成了什么\n- 计费重构\n- 团队空间 Beta\n> 数字来自周报\n\n## 风险\n- 价格变化", "备用标题");
@@ -311,7 +313,8 @@ test("plugin stores move with the same id, copy independently and receive handed
   const table = datasets.receiveCsv("personal", "d-1", "答卷", "提交时间,整体满意度\n2026-09-28,4\n2026-09-28,5");
   assert.deepEqual([table.columns.length, table.rows.length], [2, 2]);
   assert.equal(datasets.receiveCsv("personal", "d-1", "答卷", "x").id, table.id);
-  assert.equal(datasets.relocate(table.id, "personal", "q4").project_id, "q4");
+  const movedTable = datasets.relocate(table.id, "personal", "q4");
+  assert.deepEqual([movedTable.project_id, movedTable.version], ["q4", table.version]);
   datasets.close();
 
   const sparks = openLingguangStore(home);
@@ -321,7 +324,9 @@ test("plugin stores move with the same id, copy independently and receive handed
   assert.throws(() => sparks.relocate(alone.id, "q4", "personal"), /同一场头脑风暴/);
   const single = sparks.create({ project_id: "q4", title: "独自一条" });
   sparks.openConversation([single.id], "q4");
-  assert.equal(sparks.relocate(single.id, "q4", "personal").project_id, "personal");
+  const beforeMove = sparks.get(single.id, "q4");
+  const movedSpark = sparks.relocate(single.id, "q4", "personal");
+  assert.deepEqual([movedSpark.project_id, movedSpark.updated_at], ["personal", beforeMove.updated_at], "a spark keeps its time: its revision is its content");
   sparks.close();
 });
 
@@ -441,7 +446,9 @@ test("a form collects on this computer and through answer files, honestly", asyn
   assert.ok(!page.includes("Beta </script> 满意度\","), "the title cannot end the data script");
   assert.match(page, /\\u003c\/script>/u);
   assert.match(page, /这个页面不会上传任何内容/);
+  const formBefore = forms.get(form.id, "personal");
   const moved = forms.relocate(form.id, "personal", "q4");
+  assert.equal(moved.version, formBefore.version, "a move is not an edit");
   assert.equal(forms.listSubmissions(moved.id, "q4").length, 2, "answers go with the form");
   forms.close();
 });

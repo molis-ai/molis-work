@@ -353,9 +353,9 @@ export class PagesStore {
     try {
       const current = this.get(id, from);
       if (current.publication_pending) throw new PagesError("pages.publication_pending", "上次成果保存还没完成，请先在原位置继续保存，再移动");
-      const updated_at = new Date().toISOString();
-      const result = this.db.prepare("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
-        .run(target, updated_at, id, current.version);
+      // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
+      const result = this.db.prepare("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
+        .run(target, id, current.version);
       if (result.changes !== 1) throw new PagesError("pages.conflict", "文档刚被修改，请重新读取后再移动");
       const moved = this.get(id, target);
       this.db.exec("COMMIT");

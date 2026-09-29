@@ -126,10 +126,20 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
       ops.setExclusive(state, null);
-      ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      const opened = ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
+      // A Goal opened for its materials lands on its work view rather than the Frame canvas.
+      if (requestedPlugin === "goals" && paneParams.get("openGoalView") === "work" && opened) opened.goalView = "work";
       const returnedUrl = new URL(location.href);
-      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle");
+      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle"); returnedUrl.searchParams.delete("openGoalView");
       history.replaceState(history.state, "", returnedUrl);
+    }
+    // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
+    const requestedRecord = paneParams.get("openRecord");
+    if (requestedPlugin && requestedRecord) {
+      const returnedUrl = new URL(location.href);
+      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openRecord");
+      history.replaceState(history.state, "", returnedUrl);
+      requestAnimationFrame(() => openPluginRecord(requestedPlugin, requestedRecord));
     }
     // Resolve an explicit Goal link before applying saved tabs; applying the old
     // active item first can enqueue a stale document read over the requested Goal.
@@ -192,6 +202,17 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     surface.querySelectorAll(".is-selected").forEach((row) => {
       row.classList.remove("is-selected");
       if (row.hasAttribute("aria-selected")) row.setAttribute("aria-selected", "false");
+    });
+    // The open object left the screen without the plugin knowing: stop naming it to the Assistant and the placement bar.
+    [surface, ...surface.querySelectorAll("[data-assistant-context]")].forEach((node) => {
+      if (!node.hasAttribute("data-assistant-context")) return;
+      try {
+        const context = JSON.parse(node.getAttribute("data-assistant-context") || "{}");
+        if (!context.object) return;
+        delete context.object;
+        delete context.unsaved;
+        node.setAttribute("data-assistant-context", JSON.stringify(context));
+      } catch {}
     });
   };
   const applyPluginDefault = (plugin) => {
@@ -265,7 +286,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
-    if (tab.plugin === "home") return L("项目首页");
+    if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
     if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : ops.pluginTitle(tab.plugin);
     return tab.title;
   };
@@ -961,6 +982,13 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     apply();
     persist();
   };
+  // An object that moved to another place no longer opens here: its tabs close (the move card offers the new place).
+  const closeItem = (plugin, itemId) => {
+    let closed = false;
+    state.panes.forEach((pane) => pane.tabs.filter((tab) => tab.plugin === plugin && tab.kind === "item" && tab.itemId === itemId).map((tab) => tab.id)
+      .forEach((id) => { ops.closeTab(state, pane.id, id); closed = true; }));
+    if (closed) { apply(); persist(); }
+  };
   const openGoalWork = () => {
     const tab = ops.activeTab(state);
     if (tab?.plugin !== "goals" || tab.kind !== "item") return;
@@ -1534,5 +1562,5 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
-  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
+  return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot, isExclusive: () => Boolean(state.exclusive), isEmbedded: () => embedded, state: () => state };
 }`;

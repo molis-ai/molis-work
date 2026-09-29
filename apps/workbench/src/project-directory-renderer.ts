@@ -33,6 +33,9 @@ function renderMolisWorkProjectIndex(
   desktopShell = false,
 ): string {
   const href = (path: string) => desktopShell ? withDesktopQuery(path) : path;
+  // The personal space is a location, not a project: it is always offered first and made when first opened.
+  const personalCard = `<a class="mw-card project-card project-card--personal" data-slot="card" role="listitem" href="${href("/projects/personal/")}" data-personal-space-entry><header><span class="project-monogram project-monogram--personal" aria-hidden="true">${icon("user")}</span><span class="project-card-kind">${L("只有你")}</span></header><div><h2>${L("个人空间")}</h2><p>${L("不属于任何项目的资料和工作。没想好放哪里，就先放这里。")}</p></div><footer><span>${L("打开个人空间")}</span>${icon("arrow")}</footer></a>`;
+  projects = projects.filter((project) => project.project_id !== "personal");
   const projectCards = projects
     .map((project) => {
       const kind = projectIndexKind(project);
@@ -61,8 +64,8 @@ function renderMolisWorkProjectIndex(
   </header>
   <main class="project-index">
     <section class="project-index-panel" aria-labelledby="project-index-title">
-      <header class="project-index-heading"><div><p class="craft-greeting" data-craft-greeting hidden></p><h1 id="project-index-title">${L("选择一个项目")}</h1><p>${L("把同一项工作的资料、文档和进展放在一起。")}</p></div><div class="project-index-actions">${projects.length ? `<label class="project-index-search">${icon("search")}<input type="search" data-project-search placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}"></label>` : ""}<a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${icon("plus")}${L("新建项目")}</a></div></header>
-      <div class="project-index-body">${projects.length
+      <header class="project-index-heading"><div><p class="craft-greeting" data-craft-greeting hidden></p><h1 id="project-index-title">${L("选择一个项目")}</h1><p>${L("项目把同一件事的资料、文档和进展放在一起；只属于你的东西放在个人空间。")}</p></div><div class="project-index-actions">${projects.length ? `<label class="project-index-search">${icon("search")}<input type="search" data-project-search placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}"></label>` : ""}<a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${icon("plus")}${L("新建项目")}</a></div></header>
+      <div class="project-index-body"><div class="project-card-grid project-card-grid--personal" role="list" aria-label="${L("个人空间")}">${personalCard}</div>${projects.length
         ? `<div class="project-card-grid" role="list">${projectCards}</div><p class="project-index-search-empty" data-project-search-empty hidden aria-live="polite">${L("没有匹配的项目，换一个关键词。")}</p>`
         : `<div class="project-index-empty"><h2>${L("从一个真实项目开始")}</h2><p>${L("带入已有资料，整理成项目；也可以直接空白开始。")}</p><div class="project-index-start"><a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${L("开始建立第一个项目")}</a><a class="mw-btn mw-btn--secondary" href="${href("/settings/projects")}">${L("直接进入项目设置")}</a></div></div>`}</div>
       <p class="project-index-note">${L("项目和文档保存在这台电脑。")}</p>

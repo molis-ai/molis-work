@@ -210,4 +210,9 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "需求推断": "Demand inference",
   "预算范围内只完成了部分研究。补充研究后才能正式决策。": "Only part of the research fit within the budget. Complete the research before deciding.",
   "预览变更": "Preview changes",
+  "决定：去做。": "Decision: go ahead. ",
+  "下一步：": "Next: ",
+  "这个想法和决定是它的来源；炼金术士里的记录不变": "This idea and decision are its source; the Alchemist record stays as it is",
+  "在本项目建一个 Goal，这个想法和决定作为它的来源": "Create a Goal in this project with this idea and decision as its source",
+  "建成 Goal": "Make it a Goal",
 };

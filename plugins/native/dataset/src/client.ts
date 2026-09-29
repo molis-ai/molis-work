@@ -101,13 +101,25 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     node.classList.add("is-arriving");
     return node;
   };
+  /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
+  const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
+  /** The table on screen, for the placement bar and the Assistant. */
+  const publishContext = () => {
+    const context = { plugin_id: "io.molis.work.dataset", surface_title: "Dataset" };
+    if (selected) {
+      context.object = { kind: "dataset", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
+      if (editRevision > savedRevision || saveError) context.unsaved = true;
+    }
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+  };
   const paintStatus = (record) => {
+    if (selected && selected.id === record.id) publishContext();
     const ready = record.status === "ready";
     statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : ready ? "done" : "quiet");
     statusEl.textContent = saveError ? L("保存失败") : savePromise ? L("保存中") : editRevision > savedRevision ? L("尚未保存") : busy ? L("处理中") : L("已保存");
     const pending = workbench.querySelector("[data-dataset-publication-note]");
     pending.hidden = !record.publication_pending;
-    pending.textContent = record.publication_pending ? L("上次发布尚未完成。恢复发布会使用上次的固定内容；后续修改可另存一版。") : "";
+    pending.textContent = record.publication_pending ? L("上次固定版本还没存完。恢复会使用上次的固定内容，之后的修改可以再存一版。") : "";
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
     if (!confirmDialog) { resolve(false); return; }
@@ -276,11 +288,12 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     selected = null;
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
+    publishContext();
   };
   const renderList = () => {
     keepListScroll(() => paintList());
   };
-  const artifactLabel = (record) => record?.publication_pending ? L("恢复发布") : record && record.artifact_version > 0 ? L("再存一版") : L("保存成果版本");
+  const artifactLabel = (record) => record?.publication_pending ? L("继续保存上次固定版本") : record && record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
   const artifactControl = (record, key) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -420,6 +433,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         const payload = await request("POST", "/api/plugins/dataset", {});
         await loadList();
         await fillEditor(payload.dataset);
+        placed({ verb: "created", title: payload.dataset.title, object: { kind: "dataset", id: payload.dataset.id } });
         return;
       }
       const artifact = event.target.closest("[data-dataset-artifact]");
@@ -442,7 +456,8 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           throw error;
         }
-        showNote(L("已保存成果版本"), false);
+        placed({ verb: "versioned", title: payload.dataset.title, object: { kind: "dataset", id: payload.dataset.id },
+          note: L("第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版", { version: payload.artifact.version }) });
         await loadList();
         if (payload.dataset && selected && selected.id === payload.dataset.id) remember(payload.dataset, false);
         return;
@@ -536,15 +551,22 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         await loadList();
         return;
       }
+      if (event.target.closest("[data-dataset-import-file]") && selected) {
+        const input = workbench.querySelector("[data-dataset-import-input]");
+        input.value = ""; input.click();
+        return;
+      }
       if (event.target.closest("[data-dataset-export-csv]") && selected) {
         await save();
         const payload = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/export");
-        download((selected.title || "dataset") + ".csv", payload.csv || "", "text/csv;charset=utf-8");
+        download((selected.title || "dataset") + ".csv", "\ufeff" + (payload.csv || ""), "text/csv;charset=utf-8");
+        placed({ verb: "exported", title: selected.title, file: { name: (selected.title || "dataset") + ".csv", format: L("{count} 行 · Excel、Numbers 可以打开", { count: (selected.rows || []).length }) } });
         return;
       }
       if (event.target.closest("[data-dataset-export-json]") && selected) {
         await save();
         download((selected.title || "dataset") + ".json", JSON.stringify(selected, null, 2), "application/json");
+        placed({ verb: "exported", title: selected.title, file: { name: (selected.title || "dataset") + ".json", format: L("数据文件") } });
         return;
       }
       if (event.target.closest("[data-dataset-snapshot]") && selected) {
@@ -598,6 +620,28 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     selected = { ...selected, ...draftFromDom() };
     renderTable(selected);
     queueSave();
+  });
+  workbench.querySelector("[data-dataset-import-input]")?.addEventListener("change", async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file || !selected) return;
+    try {
+      if (file.size > 2_000_000) throw new Error(L("CSV 文件超过 2 MB，请拆分后再导入"));
+      if (!await ask(L("导入会覆盖当前表格的列和行。确定吗？"), L("导入"))) return;
+      await save();
+      const text = (await file.text()).replace(/^\ufeff/, "");
+      const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/import-csv", { csv: text, expected_version: selected.version });
+      await fillEditor(payload.dataset);
+      await loadList();
+      showNote(L("已从文件导入 {count} 行", { count: (payload.dataset.rows || []).length }), false);
+    } catch (error) { showNote(error.message || L("导入失败"), true); }
+    finally { event.target.value = ""; }
+  });
+  // Moved or copied from the placement bar: this list changed; a table moved away is no longer here to edit.
+  window.addEventListener("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("dataset")) return;
+    if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
+    void loadList().catch((error) => showNote(error.message, true));
   });
   window.addEventListener("beforeunload", (event) => {
     if (selected && (saveError || editRevision > savedRevision)) {

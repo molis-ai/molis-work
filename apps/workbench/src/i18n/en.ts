@@ -28,9 +28,12 @@ import { GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
+import { PLACEMENT_EN } from "./placement-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  // Placement comes first so an existing translation of the same words wins.
+  ...PLACEMENT_EN,
   "保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。": "Changes apply to subsequent runs. Restart text generation if its model or connection changes while it is running.",
   "连接不可用": "Connection unavailable",
   "原连接已不可用，请重新选择": "Previous connection unavailable; choose another",

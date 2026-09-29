@@ -67,6 +67,8 @@ export async function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     home_directory: options.homeDirectory ?? "",
+    // Materials bound to a Goal are written without a journal event, so the cursor alone would keep an old list.
+    input_bindings: collection.input_bindings.map(binding => [binding.binding_id, binding.state]),
   });
   const cached = cache.get(options.databasePath);
   const base = cached?.cursor === cursor && cached.optionsFingerprint === optionsFingerprint

@@ -15,6 +15,7 @@ export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: Imme
           <div class="home-tl__head">${icon("clock")}${L("当天的事件")}<span data-home-list-count></span></div>
           <div class="home-tl__rows" data-home-list></div>
         </div>
+        <section class="placement-related" data-placement-related aria-label="${L("关联资料")}" hidden></section>
         <section class="home-launch" aria-label="${L("快捷方式")}">
           <ul class="home-shortcuts" data-home-shortcuts aria-label="${L("快捷方式")}"><li class="mw-card mw-card--tile home-shortcut home-shortcut-add" data-slot="card"><button type="button" class="home-shortcut-main" data-home-shortcut-add><span class="home-shortcut-icon">${icon("plus")}</span><span>${L("添加快捷方式")}</span></button></li></ul>
           <p class="home-shortcut-error" data-home-shortcut-error role="alert" hidden></p>

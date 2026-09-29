@@ -18,11 +18,22 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const confirmDialog = workbench.querySelector("[data-lingguang-confirm]");
   const saveStatus = workbench.querySelector('[data-lingguang-save-status]');
   const saveRetry = workbench.querySelector('[data-lingguang-save-retry]');
+  /** The spark on screen, for the placement bar and the Assistant. */
+  const publishContext = (unsaved) => {
+    const context = { plugin_id: "io.molis.work.lingguang", surface_title: L("灵光") };
+    if (selected) {
+      context.object = { kind: "lingguang_spark", id: selected.id, version: selected.updated_at, title: titleInput.value || selected.title };
+      if (unsaved) context.unsaved = true;
+    }
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+  };
   const showSave = (text, failed = false) => {
     saveStatus.textContent = L(text);
     saveStatus.dataset.failed = String(failed);
     saveRetry.hidden = !failed;
+    publishContext(failed || text !== "已保存");
   };
+  const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
   const contextEl = workbench.querySelector("[data-lingguang-context]");
   const messagesEl = workbench.querySelector("[data-lingguang-messages]");
   const chatForm = workbench.querySelector("[data-lingguang-chat]");
@@ -139,6 +150,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     showChat(false);
     markSelected("");
     syncSelectionBar();
+    publishContext(false);
   };
   const markSelected = (id) => {
     rowsEl.querySelectorAll("[data-lingguang-id]").forEach((row) => {
@@ -304,6 +316,13 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
 
+  // Moved or copied from the placement bar: this list changed; a spark moved away is no longer here to edit.
+  window.addEventListener("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("lingguang_spark")) return;
+    if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeWorkspace();
+    void loadList().catch((error) => showNote(error.message, true));
+  });
   workbench.addEventListener("click", async (event) => {
     try {
       if (event.target.closest("[data-lingguang-save-retry]")) { await save(); return; }
@@ -315,6 +334,15 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         fillEditor(payload.spark);
         titleInput.focus();
         titleInput.select();
+        placed({ verb: "created", title: payload.spark.title, object: { kind: "lingguang_spark", id: payload.spark.id } });
+        return;
+      }
+      if (event.target.closest("[data-lingguang-to-doc], [data-lingguang-to-goal]") && selected) {
+        await save();
+        const goal = Boolean(event.target.closest("[data-lingguang-to-goal]"));
+        window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "lingguang_spark", id: selected.id },
+          ...(goal ? { goal: true } : { station: "pages" }),
+          note: goal ? L("这条灵光是它的来源；灵光本身留着，想好了可以丢掉") : L("文档里记着它来自这条灵光；灵光本身留着，想好了可以丢掉") } }));
         return;
       }
       if (event.target.closest("[data-lingguang-clear-selection]")) {

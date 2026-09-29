@@ -55,6 +55,8 @@ import { ActionError, type ActionCallContext, type ActionClient, type ActionRegi
 import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
+import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
+import { isPersonalSpace } from "./personal-space.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 
@@ -129,6 +131,7 @@ export class MolisWorkLocalHost {
   readonly callLog?: ActionCallLog;
   /** System search over this Home's plugins; absent without a Home directory. */
   readonly search?: SearchHost;
+  readonly placement?: PlacementHost;
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     this.sessions = new SessionRuntimeService(options);
@@ -267,7 +270,24 @@ export class MolisWorkLocalHost {
         knownProjects: async () => this.catalogRunner
           ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),
             ...this.host.status().projects.map(project => project.project_id)] : null,
+        openPersonalSpace: async () => {
+          const space = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().find(project => isPersonalSpace(project))) : undefined;
+          if (!space) return undefined;
+          const value = molisWorkHostProjectReference({ databasePath: space.database_path, boardId: space.board_id, projectId: space.project_id });
+          await this.withProject(value, () => undefined);
+          return value;
+        },
         onError: (error, where) => { if (process.env.MOLIS_WORK_SEARCH_DEBUG) console.warn(`[search] ${where}:`, error); } });
+      const reference = (project: PlacementProjectRecord) => molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
+      this.placement = createPlacementHost({ homeDirectory: home, registry: this.host.actionRegistry(),
+        projects: async () => this.catalogRunner ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects()) : null,
+        ensurePersonalSpace: async () => {
+          if (!this.catalogRunner) throw new ActionError("placement.catalog_unavailable", "项目目录尚未就绪，请稍后重试");
+          return this.catalogRunner({ homeDirectory: home }, catalog => catalog.ensurePersonalSpace());
+        },
+        open: async project => { const value = reference(project); await this.withProject(value, () => undefined); return value; },
+        projectClient: value => this.actionClient(value), homeClient: () => this.homeActionClient(),
+        ownerContext: value => localWebActionContext(this, value, LOCAL_OWNER_PERMISSIONS) });
     }
   }
 
@@ -412,6 +432,7 @@ export class MolisWorkLocalHost {
       releaseSystemAgentService(this);
       this.connectorMcp?.close();
       await this.search?.close().catch(() => undefined);
+      try { this.placement?.close(); } catch { /* closing anyway */ }
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();

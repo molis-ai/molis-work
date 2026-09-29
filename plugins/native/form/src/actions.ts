@@ -1,10 +1,11 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { FORM_DRAFT_QUESTION } from "./prompts.js";
-import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
+import { formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -13,10 +14,11 @@ const optionFields = { id: text, label: text };
 const questionFields = { id: text, type: { enum: ["text", "singleChoice", "multiChoice", "dropdown", "rating", "date"] }, title: { ...text, maxLength: 200 }, required: { type: "boolean" }, order: { type: "integer" } };
 const question = object({ ...questionFields, options: array(object(optionFields)) }, Object.keys(questionFields));
 const questionInput = object({ ...questionFields, options: array(object(optionFields, [])) }, []);
-const recordFields = { id, project_id: id, title: text, description: text, status: { enum: ["draft", "published"] }, share_id: { type: ["string", "null"] }, questions: array(question), created_at: text, updated_at: text, version, artifact_id: text, artifact_version: { type: "integer", minimum: 0 } };
+const recordFields = { id, project_id: id, title: text, description: text, status: { enum: ["draft", "published", "closed"] }, share_id: { type: ["string", "null"] }, questions: array(question), created_at: text, updated_at: text, version, artifact_id: text, artifact_version: { type: "integer", minimum: 0 } };
 const record = object({ ...recordFields, publication_pending: object({ version, source_version: version }) }, Object.keys(recordFields));
 const answers = { type: "object", additionalProperties: { ...text, maxLength: 4000 } };
-const submission = object({ id, form_id: id, answers, submitted_at: text, form_version: { type: ["integer", "null"], minimum: 1 }, questions: { anyOf: [array(question), { type: "null" }] } });
+const submission = object({ id, form_id: id, answers, submitted_at: text, form_version: { type: ["integer", "null"], minimum: 1 }, questions: { anyOf: [array(question), { type: "null" }] },
+  source: { enum: ["preview", "fill", "file"] } }, ["id", "form_id", "answers", "submitted_at", "form_version", "questions"]);
 const changed = object({ form: record }), identity = { id, expected_version: version };
 const read = ["form:read"], write = ["form:read", "form:write"];
 type Identity = { id: string; expected_version?: number };
@@ -29,13 +31,24 @@ export const formActions = {
   get: define<{ id: string }, { form: FormRecord }>("get", "读取问卷", "读取题目、选项、状态、版本和发布状态", "query", object({ id }), changed),
   create: define<{ title?: string }, { form: FormRecord }>("create", "新建问卷", "创建当前项目的草稿问卷", "command", object({ title: { ...text, maxLength: 80 } }, []), changed),
   update: define<Edit, { form: FormRecord }>("update", "编辑问卷", "替换指定字段或题目列表；提交读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, questions: { ...array(questionInput), maxItems: 40 } }, ["id"]), changed),
-  publish: define<Identity, { form: FormRecord }>("publish", "标记问卷已发布", "更新本机发布状态并保留或生成 share_id；不提供外网公开链接，也不发布 Artifact", "command", object(identity, ["id"]), changed),
+  publish: define<Identity, { form: FormRecord }>("publish", "开始收集答卷", "开始在这台电脑上收集答卷：本机填写页可以提交，也可以导出填写页文件发给别人，对方生成的答卷文件导回结果；不会生成外网链接，也不发布 Artifact", "command", object(identity, ["id"]), changed),
   delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的 Artifact 发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   generate: define<Identity & { prompt: string }, { form: FormRecord }>("questions.add", "按题目加题", "本地追加一题填空，以输入作为题目，不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 200 } }, ["id", "prompt"]), changed),
   generateAi: define<Identity & { prompt: string }, { form: FormRecord }>("questions.ai", "AI 拟题并追加", "按明确提示拟一道填空题；调用当前文字模型，失败或问卷变化时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"]),
-  submit: define<Identity & { answers: Record<string, string>; request_id?: string }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
+  submit: define<Identity & { answers: Record<string, string>; request_id?: string; source?: "preview" | "fill" }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 }, source: { enum: ["preview", "fill"] } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
   results: define<{ id: string }, { analysis: { form_id: string; submission_count: number }; submissions: FormSubmissionRecord[] }>("results", "读取答卷", "读取答卷及计数，新增答卷保留提交时题目；旧答卷快照为 null，不重建未知历史", "query", object({ id }), object({ analysis: object({ form_id: id, submission_count: { type: "integer", minimum: 0 } }), submissions: array(submission) })),
   promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存成 Artifact", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  close: define<Identity, { form: FormRecord }>("close", "停止收集答卷", "停止收集：本机填写页不再接受提交，已有答卷保留；之后可以重新开始收集", "command", object(identity, ["id"]), changed),
+  importAnswers: define<{ id: string; files: { name: string; content: string }[] }, { imported: number; skipped: number; rejected: { name: string; reason: string }[] }>("answers.import", "导入答卷文件",
+    "导入别人用填写页生成的答卷文件；同一份只算一次，属于其他问卷或内容无效的会列出原因、不写入", "command",
+    object({ id, files: { ...array(object({ name: { ...text, maxLength: 200 }, content: { ...text, maxLength: 400000 } })), minItems: 1, maxItems: 200 } }),
+    object({ imported: { type: "integer", minimum: 0 }, skipped: { type: "integer", minimum: 0 }, rejected: array(object({ name: text, reason: text })) }), ["form:read", "form:submit"]),
+  csv: define<{ id: string }, { filename: string; mime_type: "text/csv"; content: string; count: number }>("results.csv", "导出答卷表格", "全部答卷按题目成列的 CSV（UTF-8，Excel、Numbers 可直接打开），含提交时间与来源", "query",
+    object({ id }), object({ filename: text, mime_type: { const: "text/csv" }, content: text, count: { type: "integer", minimum: 0 } })),
+  fillPage: define<{ id: string }, { filename: string; mime_type: "text/html"; content: string }>("fillpage", "导出填写页文件", "生成一个独立的 HTML 填写页：对方在自己的浏览器里填写，得到答卷文件发回；页面不上传任何内容", "query",
+    object({ id }), object({ filename: text, mime_type: { const: "text/html" }, content: text })),
+  move: defineObjectMoveAction("form.placement.move", ["form"], "问卷", write),
+  copy: defineObjectCopyAction("form.placement.copy", ["form"], "问卷", write),
   searchEntries: formSearchActions.entries,
   subject: formSearchActions.subject,
 };
@@ -73,7 +86,27 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       await caller.beforeEffect();
       return ports.withStore(store => ({ form: store.generateQuestions(input.id, title, project(caller), current.version) }));
     }, () => ports.modelAvailability()),
-    bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id }) }))),
+    bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: input.source }) }))),
+    bind(formActions.close, (input, caller) => ports.withStore(store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),
+    bind(formActions.importAnswers, (input, caller) => ports.withStore(store => store.importAnswers(input.id, input.files, project(caller)))),
+    bind(formActions.csv, (input, caller) => ports.withStore(store => {
+      const form = store.get(input.id, project(caller));
+      const submissions = store.listSubmissions(input.id, project(caller));
+      return { filename: formResultsCsvFilename(form.title), mime_type: "text/csv" as const, content: formResultsCsv(form, submissions), count: submissions.length };
+    })),
+    bind(formActions.fillPage, (input, caller) => ports.withStore(store => {
+      const form = store.get(input.id, project(caller));
+      if (!form.questions.length) throw new ActionError("form.invalid", "还没有题目，先加题再导出填写页");
+      return { filename: formFillPageFilename(form.title), mime_type: "text/html" as const, content: formFillPageHtml(form) };
+    })),
+    bindObjectMoveHandler(formActions.move, input => ports.withStore(store => {
+      const form = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
+      return { subject: { kind: "form", id: form.id }, project_id: form.project_id, revision: String(form.version) };
+    })),
+    bindObjectCopyHandler(formActions.copy, input => ports.withStore(store => {
+      const form = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
+      return { subject: { kind: "form", id: form.id }, project_id: form.project_id, revision: String(form.version) };
+    })),
     bind(formActions.results, (input, caller) => ports.withStore(store => {
       const submissions = store.listSubmissions(input.id, project(caller));
       return { analysis: { form_id: input.id, submission_count: submissions.length }, submissions };

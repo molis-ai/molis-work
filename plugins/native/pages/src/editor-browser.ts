@@ -177,6 +177,13 @@ function commandToggle(markName: string): Command {
   };
 }
 
+/** The document as Markdown, the same conversion the server uses when it hands a page to another plugin. */
+export function toMarkdown(value: unknown): string {
+  const nodes: Node[] = [];
+  nodeFromUnknown(value).forEach((child) => { nodes.push(child); });
+  return nodesToMarkdown(nodes).trim() + "\n";
+}
+
 export function toHTML(value: unknown): string {
   const node = nodeFromUnknown(value);
   const serializer = DOMSerializer.fromSchema(pagesSchema);

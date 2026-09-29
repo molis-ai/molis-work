@@ -14,7 +14,10 @@ export const FORM_ARTIFACT_TYPE_ID = "io.molis.work.form.questionnaire";
 export const FORM_ARTIFACT_SCHEMA_VERSION = 1;
 
 export type FormQuestionType = "text" | "singleChoice" | "multiChoice" | "dropdown" | "rating" | "date";
-export type FormStatus = "draft" | "published";
+/** `published` is collecting responses on this computer (the name stays for stored data); `closed` stopped collecting. */
+export type FormStatus = "draft" | "published" | "closed";
+/** Where a response came from: the author trying the form, the fill page on this computer, or a returned answer file. */
+export type FormSubmissionSource = "preview" | "fill" | "file";
 
 export interface FormOption {
   readonly id: string;
@@ -55,4 +58,5 @@ export interface FormSubmissionRecord {
   readonly submitted_at: string;
   readonly form_version: number | null;
   readonly questions: readonly FormQuestion[] | null;
+  readonly source?: FormSubmissionSource;
 }

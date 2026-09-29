@@ -213,4 +213,13 @@ export const PAGES_EN: Record<string, string> = {
   "说明": "Caption",
   "名称": "Name",
   "写代码": "Code",
+  "再存一个固定版本": "Save another fixed version",
+  "存为固定版本": "Save as fixed version",
+  "网页": "Web page",
+  "第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版": "Version {version} · kept in this location's Artifacts; further edits won't change it",
+  "{count} 篇文档，导入后可以继续编辑": "{count} pages, editable after import",
+  "把当前内容存成不会再变的一版，放进这个位置的成果（Artifacts）": "Save the current content as a version that won't change, in this location's Artifacts",
+  "导出网页（HTML）": "Export web page (HTML)",
+  "打印或存为 PDF": "Print or save as PDF",
+  "继续保存上次固定版本": "Finish saving the last fixed version",
 };

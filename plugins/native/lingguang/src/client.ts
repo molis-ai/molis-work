@@ -250,9 +250,11 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
+  let loadingFor = null;
   const loadList = async () => {
     const seq = ++listSeq;
-    const payload = await request("GET", "/api/plugins/lingguang");
+    loadingFor = wantedId;
+    const payload = await request("GET", "/api/plugins/lingguang").finally(() => { if (seq === listSeq) loadingFor = null; });
     if (seq !== listSeq) return;
     records = payload.sparks || [];
     selectedIds = new Set([...selectedIds].filter((id) => records.some((item) => item.id === id)));
@@ -500,11 +502,15 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderList();
   };
   workbench.addEventListener("molis-work:select-item", (event) => {
-    wantedId = event.detail?.itemId || null;
-    if (!wantedId) return;
+    // The plugin shown without an item (the workbench also says so while a page loads): nothing new to open, and a
+    // spark asked for by link that is still loading is not cancelled by it.
+    const itemId = event.detail?.itemId || null;
+    if (!itemId) return;
+    wantedId = itemId;
     wantedByLink = true;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
-    else void loadList().then(openWanted).catch((error) => showNote(error.message, true));
+    // The workbench may name the same spark several times while the page settles: one load for it is enough.
+    else if (loadingFor !== itemId) void loadList().then(openWanted).catch((error) => showNote(error.message, true));
   });
   void loadList().then(openWanted).catch((error) => showNote(error.message, true));
 }

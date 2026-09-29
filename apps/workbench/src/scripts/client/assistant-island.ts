@@ -473,8 +473,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     row.append(runButton, dismiss); node.append(row);
   };
   const renderCards = (parent, work, cards) => {
-    [...parent.children].forEach((child) => { if (child.dataset.card && !cards.some((card) => card.card_id === child.dataset.card)) child.remove(); });
-    cards.filter((card) => card.status !== "dismissed").forEach((card) => {
+    // A card the person set aside leaves the list, like one that is gone.
+    const shown = cards.filter((card) => card.status !== "dismissed");
+    [...parent.children].forEach((child) => { if (child.dataset.card && !shown.some((card) => card.card_id === child.dataset.card)) child.remove(); });
+    shown.forEach((card) => {
       const node = keyed(parent, "data-card", card.card_id, () => el("div", "assistant-card assistant-card--action"));
       const signature = card.revision + ":" + card.status;
       if (node.dataset.signature !== signature) { node.dataset.signature = signature; renderCard(node, work, card); }

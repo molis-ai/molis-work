@@ -296,6 +296,20 @@ function belongsElsewhere(work: StoredWork, context: ActionSubjectContext): bool
   return context.project_id !== (work.project_ref?.project_id ?? null);
 }
 
+/**
+ * After the runtime compacts a long work, earlier replies reach the model labelled “[retained assistant …]” or
+ * “[historical … run:…]”, and it sometimes opens its answer with them. They are the runtime's bookkeeping, not
+ * something said to the person: labels at the very start of a reply are dropped, and a reply that was only labels goes.
+ */
+const RUNTIME_LABELS = /^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/;
+export function spokenTurns<T extends { kind: string; text: string }>(turns: readonly T[]): T[] {
+  return turns.flatMap(turn => {
+    if (turn.kind !== "assistant" || !RUNTIME_LABELS.test(turn.text)) return [turn];
+    const text = turn.text.replace(RUNTIME_LABELS, "");
+    return text.trim() ? [{ ...turn, text }] : [];
+  });
+}
+
 function describeObjects(objects: readonly AssistantWorkObject[]): string {
   const lines = objects.map(object => {
     const where = `${object.title}（${object.subject.kind}，标识 ${object.subject.id}）`;
@@ -2184,7 +2198,7 @@ export class AssistantService {
   private roundView(round: StoredRound, view: AgentRunView | undefined, titles: CapabilityTitles | undefined): AssistantRound {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest),
-      phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
+      phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
       ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}), ended_at: view?.ended_at ?? null };
   }
 

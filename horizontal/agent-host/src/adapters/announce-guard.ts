@@ -44,3 +44,19 @@ export const MEMORY_CLAIM_HELD = {
   keep: "You said you remembered it, but no remember call succeeded in this round, so nothing was kept. Call remember now if the person asked you to keep it; otherwise say plainly that it was not kept.",
   forget: "You said you forgot or deleted it, but no forget-memory call succeeded in this round, so it is still kept. Call forget-memory now if the person asked; otherwise say plainly that it was not deleted.",
 } as const;
+
+/**
+ * A reply that writes a tool call out as text instead of making it. Seen from MiniMax-M3: asked for buttons, it
+ * answered with “[suggest-action] … capability_id: pages.create …” blocks, so the person saw markup and no card.
+ * Held once whatever the round's execution: nothing it wrote happened.
+ */
+const TOOL_NAMES = "suggest-action|change-capability|change-reversible|read-capability|find-capabilities|delegate-work|check-delegated-work|follow-up-delegated-work|remember|forget-memory|list-memories|ask-user|update-todo";
+const WRITTEN_CALL = new RegExp(`\\[\\/?(?:${TOOL_NAMES})\\]|<\\/?(?:${TOOL_NAMES})>|(?:^|\\n)\\s*(?:capability_id|provider_id)\\s*[:=：]|"capability_id"\\s*:`);
+export function writesToolCallAsText(text: string): boolean {
+  return WRITTEN_CALL.test(text);
+}
+
+/** What the model reads when it wrote a call instead of making it. */
+export const WRITTEN_CALL_HELD =
+  "Your reply wrote a tool call out as text (a [tool] block or capability_id lines), so nothing happened: the person sees that text, not a button or an action. Make the call itself now with the tool, or answer in plain words without it.";
+

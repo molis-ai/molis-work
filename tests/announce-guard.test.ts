@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { announcesWithoutActing, claimsMemoryChange } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { announcesWithoutActing, claimsMemoryChange, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("an ending that only announces the next step is recognised; results, questions and blockers are not", () => {
   // Seen from MiniMax-M3 in real Coding rounds that then ended with nothing done.
@@ -32,3 +32,15 @@ test("a reply that claims a memory was kept or forgotten is recognised; saying i
   assert.equal(claimsMemoryChange("已记下会议要点到「周会纪要」。"), null);
   assert.equal(claimsMemoryChange("已删除文档「草稿」。"), null);
 });
+
+test("a reply that writes a tool call out as text is recognised; talking about capabilities in words is not", () => {
+  // Seen from MiniMax-M3 when asked for buttons.
+  assert.equal(writesToolCallAsText("下面两个按钮：\n\n[suggest-action]\ntitle: 新建「Q4 复盘草稿」文档\ncapability_id: pages.create\nversion: 1\n[/suggest-action]"), true);
+  assert.equal(writesToolCallAsText("<change-capability>{\"input\": {}}</change-capability>"), true);
+  assert.equal(writesToolCallAsText("我准备这样调用：{\"capability_id\": \"todo.items.create\", \"input\": {}}"), true);
+  assert.equal(writesToolCallAsText("provider_id: io.molis.work.pages"), true);
+  assert.equal(writesToolCallAsText("已记到待办：准备季度复盘，截止 10/05。可以在工作面板撤销。"), false);
+  assert.equal(writesToolCallAsText("我可以用 Pages 的“新建文档”帮你建一篇，要我建吗？"), false);
+  assert.equal(writesToolCallAsText("需要先在设置里打开“建议操作”（suggest-action）这项能力。"), false);
+});
+

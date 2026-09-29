@@ -1,6 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
-import { ANNOUNCE_HELD, MEMORY_CLAIM_HELD, announcesWithoutActing, claimsMemoryChange } from "./announce-guard.js";
+import { ANNOUNCE_HELD, MEMORY_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsMemoryChange, writesToolCallAsText } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -1018,6 +1018,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           // A claim of keeping or forgetting that no call made this round is held once, whatever the round's execution.
           const claim = memoryRounds.has(sessionId) ? claimsMemoryChange(text) : null;
           if (claim && memoryRounds.get(sessionId)![claim] === 0) { created.held.add(run); return { kind: "deny" as const, why: MEMORY_CLAIM_HELD[claim] }; }
+          if (business && writesToolCallAsText(text)) { created.held.add(run); return { kind: "deny" as const, why: WRITTEN_CALL_HELD }; }
           if (!created.writing || !announcesWithoutActing(text)) return { kind: "allow" as const };
           created.held.add(run);
           return { kind: "deny" as const, why: ANNOUNCE_HELD };

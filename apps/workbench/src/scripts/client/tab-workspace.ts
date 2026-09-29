@@ -215,9 +215,19 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       } catch {}
     });
   };
+  // A page load or a burst of state changes renders several times in a row, each naming the same object: the plugin
+  // hears it once. Only an identical, immediately repeated request is dropped; a later click on the tab still re-opens it.
+  const lastSelection = new WeakMap();
+  const selectItem = (surface, itemId) => {
+    if (!surface) return;
+    const last = lastSelection.get(surface), now = Date.now();
+    if (last && last.itemId === itemId && now - last.at < 250) return;
+    lastSelection.set(surface, { itemId, at: now });
+    surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
+  };
   const applyPluginDefault = (plugin) => {
     if (!plugin) return;
-    topLevelSurface(plugin)?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: null } }));
+    selectItem(topLevelSurface(plugin), null);
     if (plugin === "goals") {
       document.querySelector("[data-goal-collapse]")?.setAttribute("aria-label", L("收起 Goal，返回关系画布"));
       (restoreBoard || showCanvas)?.();
@@ -228,7 +238,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const applyTabContent = (tab, keepFrame) => {
     if (!tab) return;
-    topLevelSurface(tab.plugin)?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: tab.kind === "item" ? tab.itemId : null } }));
+    selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null);
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
       if (supportsGoalFrames() && tab.goalView !== "work") { applySelection?.(tab.itemId); showGoalFrame?.(tab.itemId); return; }
       releaseFrame?.();

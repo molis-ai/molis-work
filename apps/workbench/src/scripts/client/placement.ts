@@ -322,6 +322,18 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     shell.showModal();
     return shell;
   };
+  // A place that went away while the dialog was open leaves the choices, so it cannot be picked again; the error still shows.
+  const dropGone = async (name, error) => {
+    spaces = null;
+    try {
+      const now = new Set((await loadSpaces()).map((space) => space.project_id));
+      const inputs = [...document.querySelectorAll('dialog.placement-dialog input[name="' + name + '"]')];
+      inputs.forEach((input) => { if (!now.has(input.value)) input.closest(".placement-choice")?.remove(); });
+      const left = inputs.filter((input) => input.isConnected);
+      if (left.length && !left.some((input) => input.checked)) left[0].checked = true;
+    } catch {}
+    throw error;
+  };
   const choice = (name, value, title, detail, checked) => {
     const label = node("label", undefined, "placement-choice");
     const input = node("input"); input.type = "radio"; input.name = name; input.value = value; input.checked = !!checked;
@@ -341,7 +353,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       : L("用于项目只是建立关联：项目首页的“关联资料”会列出它，你在项目里能直接打开，看到的总是最新内容。它仍在原位置，项目里的助理和 Runtime 读不到正文；需要它们读到时，用“移到…”把它放进项目。"), "placement-dialog-note");
     dialog(L("把《{title}》用于项目", { title: description.title }), L("它仍然放在 {place}，只是和项目建立关联。", { place: description.location ? description.location.title : L("原来的位置") }), [...rows, note], L("用于项目"), async (data) => {
       const projectId = String(data.get("project") || "");
-      await api("link", { object: description.object, project_id: projectId });
+      await api("link", { object: description.object, project_id: projectId }).catch((error) => dropGone("project", error));
       invalidate(); repaint();
       const space = projects.find(entry => entry.project_id === projectId);
       card(L("已用于项目「{project}」", { project: space ? space.title : "" }), L("《{title}》仍在 {place}", { title: description.title, place: description.location ? description.location.title : "" }) + " · " + L("项目首页的“关联资料”可以打开"),
@@ -366,7 +378,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       mode === "move" ? L("移动只改存放位置：还是同一份内容，关联和引用继续有效。") : L("得到一份新的、独立的内容；之后改哪一份都不影响另一份。"),
       body, mode === "move" ? L("移动") : L("复制"), async (data) => {
         const to = String(data.get("to") || "");
-        const result = await api(mode, mode === "move" ? { object: description.object, to_project_id: to } : { object: description.object, to_project_id: to, request_id: crypto.randomUUID() });
+        const result = await api(mode, mode === "move" ? { object: description.object, to_project_id: to } : { object: description.object, to_project_id: to, request_id: crypto.randomUUID() })
+          .catch((error) => dropGone("to", error));
         invalidate();
         const where = result.location ? result.location.title : "";
         window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode, from: description.object, to: result.object } }));

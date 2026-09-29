@@ -84,4 +84,15 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   assert.ok(await evaluate("Boolean(document.querySelector('[data-lingguang-id]'))"), "灵光还在");
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");
   await screenshot("lingguang");
+
+  // Discarding the spark leaves the todo as it is; its source then says the spark is gone instead of opening nothing.
+  await evaluate(`document.querySelector("[data-lingguang-discard-current]").click()`);
+  await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");
+  await evaluate(`document.querySelector("[data-lingguang-confirm] [data-confirm-ok]").click()`);
+  await waitFor("!document.querySelector('[data-lingguang-id]')");
+  assert.equal(todos().find(todo => todo.id === spark.id)?.status, "open", "丢掉灵光不影响待办");
+  await load(`?openPlugin=todo&openItem=${encodeURIComponent(spark.id)}`, "todo");
+  await waitFor(`document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-field=title]')?.value === '给新人写一页入门'`);
+  await click(`[data-todo-sources] [data-workbench-item-plugin=lingguang]`);
+  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-note]').textContent.includes('已丢掉或不存在')");
 });

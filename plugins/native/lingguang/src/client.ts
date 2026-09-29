@@ -425,7 +425,15 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     wantedId = event.detail?.itemId || null;
     if (!wantedId) return;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
-    else void loadList().then(openWanted).catch((error) => showNote(error.message, true));
+    else void loadList().then(() => {
+      // A link from elsewhere (a todo's source, an old tab) can name one that was discarded: say so instead of opening nothing.
+      if (wantedId && !records.some((item) => item.id === wantedId)) {
+        wantedId = null;
+        showNote(L("这条灵光已丢掉或不存在"), true);
+        return;
+      }
+      return openWanted();
+    }).catch((error) => showNote(error.message, true));
   });
   void loadList().then(openWanted).catch((error) => showNote(error.message, true));
 }

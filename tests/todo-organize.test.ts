@@ -185,6 +185,23 @@ test("a stated due date that differs from an existing todo is an update, or a co
   ]);
 });
 
+test("two candidates about the same existing todo become one: the one that says what changes, with both passages", async t => {
+  let answer = "";
+  const f = fixture(t, () => answer);
+  const mine = (await f.me.invoke(todoActions.create, { title: "发送新版方案", due_date: "2026-10-05" })).item;
+  answer = JSON.stringify({ candidates: [
+    { ref: "c1", kind: "suggestion", title: "把发送新版方案的截止日期改到周五", owner: { who: "你", stated: false }, due: { date: null, phrase: null }, evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], existing: { id: mine.id, relation: "same" } },
+    { ref: "c2", kind: "request", title: "发送新版方案", owner: { who: "你", stated: true }, due: { date: "2026-10-02", phrase: "周五前" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }], existing: { id: mine.id, relation: "update", changes: { due_date: "2026-10-02" } } },
+    { ref: "c3", kind: "waiting", title: "等待小李确认预算", owner: { who: "小李", stated: true }, due: { date: null, phrase: null }, evidence: [{ material: 1, excerpt: "预算等小李确认" }], depends_on: ["c1"] },
+  ] });
+  const { batch } = await f.me.invoke(organize.extract, { materials: [MAIL] });
+  const about = batch.candidates.filter(candidate => candidate.existing?.item_id === mine.id);
+  assert.equal(about.length, 1, "同一件已有待办只留一项");
+  assert.deepEqual([about[0]!.title, about[0]!.existing!.relation, about[0]!.existing!.changes], ["发送新版方案", "update", { due_date: "2026-10-02" }]);
+  assert.deepEqual(about[0]!.evidence.map(entry => entry.excerpt).sort(), ["请周五前发新版方案", "预算等小李确认"]);
+  assert.equal(batch.candidates.length, 2);
+});
+
 test("the time a phrase was written comes from the material itself: the chat line's stamp, the mail header, the date at the top", async () => {
   const { phraseWrittenAt } = await import("@molis-ai/molis-work-plugin-todo");
   const chat = "[2026-09-27 22:10] 阿杰: 收到\n[2026-09-28 09:40] 小王: 好的，我今天下班前把会议纪要发群里。";

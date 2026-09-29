@@ -721,6 +721,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const SOURCE_KIND = { manual: L("手动"), material: L("材料"), assistant: L("助理"), onboarding: L("开始使用时"), inbox: "Inbox", lingguang: L("灵光") };
   const renderSources = (item) => {
     const box = $("[data-todo-sources]");
+    // The same version drawn again (the detail is often asked for twice as it opens) keeps its nodes, so a click already
+    // under way on a source is not lost to a redraw.
+    const drawn = item.id + "@" + item.revision + "@" + projectId();
+    if (box.dataset.drawn === drawn) return;
+    box.dataset.drawn = drawn;
     box.replaceChildren();
     item.sources.forEach((source) => {
       const entry = make("div", "todo-source");
@@ -745,6 +750,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Progress lives with the Assistant's work; the todo shows where each one stands and continues it (no second record).
   const WORK_STATE = { idle: L("尚未开始"), running: L("进行中"), "waiting-input": L("等你回答"), "waiting-review": L("等你确认"), paused: L("已暂停"),
     completed: L("已完成"), failed: L("没有完成"), stopped: L("已停止"), "needs-check": L("需要核对") };
+  // What a work produced (drafts, documents, notes), as the Assistant recorded them from their owners: the object's
+  // own kind and where it opens, so the todo shows the results without anyone retyping them.
+  const RESULT_STATE = { changed: L("之后改过"), missing: L("已不存在"), unavailable: L("暂时读不到"), moved: L("已移到别处") };
   const renderWorks = () => {
     const box = $("[data-todo-works]");
     box.replaceChildren();
@@ -756,14 +764,36 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       go.dataset.todoContinueWork = work.work_id;
       line.append(make("span", "todo-link-kind", WORK_STATE[work.state] || work.state), make("span", "", work.title), go);
       box.append(line);
+      (work.results || []).forEach((result) => {
+        const row = make("div", "todo-link todo-work-result");
+        const reachable = result.open && !["missing", "moved"].includes(result.state);
+        const name = reachable ? make("button", "mw-btn mw-btn--link", result.title) : make("span", "", result.title);
+        if (reachable) {
+          name.type = "button";
+          name.dataset.workbenchItemPlugin = result.open.surface;
+          name.dataset.workbenchItemId = result.open.id;
+          name.dataset.workbenchItemTitle = result.title;
+        }
+        row.append(make("span", "todo-link-kind", L("成果")), name);
+        if (RESULT_STATE[result.state]) row.append(make("small", "todo-muted", RESULT_STATE[result.state]));
+        box.append(row);
+      });
     });
   };
   const loadWorks = async (item) => {
     let found = [];
     try { found = (await request("GET", "/api/assistant/related?kind=todo_item&id=" + encodeURIComponent(item.id))).works || []; } catch { found = []; }
-    if (!selected || selected.id !== item.id) return;
     // One work can relate to the todo more than once (where it started, and as material): list it once.
-    works = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);
+    const unique = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);
+    const withResults = await Promise.all(unique.map(async (work) => {
+      try {
+        const view = await request("GET", "/api/assistant/works/" + encodeURIComponent(work.work_id));
+        const results = (view.objects || []).filter((object) => object.relation === "result" && !(object.subject.kind === "todo_item" && object.subject.id === item.id));
+        return { ...work, results };
+      } catch { return { ...work, results: [] }; }
+    }));
+    if (!selected || selected.id !== item.id) return;
+    works = withResults;
     renderWorks();
     // A round has no “finished” message for pages, so while one runs, look again now and then (only while this todo is open).
     clearTimeout(worksTimer);
@@ -772,6 +802,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const RELATION = { blocked_by: L("要等它先完成"), blocks: L("它在等这件"), split_from: L("拆分自"), merged: L("合并自"), related: L("相关") };
   const renderLinks = (item) => {
     const box = $("[data-todo-links]");
+    const drawn = item.id + "@" + item.revision + "@" + backlinks.map((back) => back.item_id + ":" + back.relation).join(",") + "@" + linkPool.map((other) => other.id + ":" + other.title).join(",");
+    if (box.dataset.drawn === drawn) return;
+    box.dataset.drawn = drawn;
     box.replaceChildren();
     const rows = [
       ...item.links.map((link) => ({ link, text: link.title, target: link.kind === "todo" ? link.subject.id : "",
@@ -781,8 +814,16 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!rows.length) box.append(make("p", "todo-muted", L("还没有关联。")));
     rows.forEach((entry) => {
       const line = make("div", "todo-link");
-      const name = entry.target ? make("button", "mw-btn mw-btn--link", entry.text) : make("span", "", entry.text);
+      // A draft, a finished result or a material that says where it opens is reached from here, as a source is.
+      const opens = !entry.target && entry.link && entry.link.open && projectId() && item.project_id === projectId();
+      const name = entry.target || opens ? make("button", "mw-btn mw-btn--link", entry.text) : make("span", "", entry.text);
       if (entry.target) { name.type = "button"; name.dataset.todoOpenLinked = entry.target; }
+      if (opens) {
+        name.type = "button";
+        name.dataset.workbenchItemPlugin = entry.link.open.surface;
+        name.dataset.workbenchItemId = entry.link.open.id;
+        name.dataset.workbenchItemTitle = entry.text;
+      }
       line.append(make("span", "todo-link-kind", entry.detail), name);
       if (entry.link) {
         const remove = make("button", "mw-btn mw-btn--ghost mw-btn--icon-only");

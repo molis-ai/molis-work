@@ -649,7 +649,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const when = followUp.enabled && followUp.next_at ? L("下一次") + " " + new Date(followUp.next_at).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : L("已结束");
       row.append(el("span", "assistant-object-relation", L("定时")), el("span", "assistant-object-title", followUp.label),
         el("span", "assistant-object-state", L(REPEAT[followUp.repeat] || followUp.repeat) + " · " + when
-          + (followUp.last ? " · " + L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) : "") + (followUp.enabled ? " · " + L("需要 Molis Work 在运行") : "")));
+          + (followUp.last ? " · " + L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) : "")
+          + (followUp.enabled ? " · " + L(view.schedule_survives_close ? "关闭窗口后仍会执行" : "需要 Molis Work 在运行") : "")));
       if (followUp.enabled) {
         const cancel = el("button", "assistant-object-open", L("取消")); cancel.type = "button";
         cancel.addEventListener("click", async () => { try { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await refresh(); } catch (error) { showProblem({ message: error.message }); } });

@@ -1103,6 +1103,34 @@ export interface AgentRecoveryReport {
 }
 
 /** Inspect authoritative receipts; closing records an interruption and never replays work. */
+/** Timed work the runtime keeps across restarts: the Host names what to do; its runner does it when due. */
+export interface AgentScheduledTask {
+  task_id: string;
+  /** Idempotency: the same key scheduled twice is one task. */
+  key: string;
+  session_id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  due_at: string;
+  state: "queued" | "running" | "done" | "failed" | "reconcile-required" | "cancelled";
+  attempts: number;
+  runs: number;
+  last_failure?: string;
+}
+
+/** The runtime's durable local queue (Prologue `LocalQueue`), not a timer of the Host's own. */
+export interface AgentScheduleCapability {
+  /** Whether queued work still runs with the window closed, and why — from the Host's own handshake. */
+  claim(): { survives_window_close: boolean; why: string };
+  enqueue(input: { key: string; session_id: string; kind: string; payload: Record<string, unknown>; due_at: string; max_attempts?: number }): Promise<AgentScheduledTask>;
+  /** Cancels a task not yet started; null when there is none under that key. A running one cannot be cancelled. */
+  cancel(key: string): Promise<AgentScheduledTask | null>;
+  find(key: string): AgentScheduledTask | null;
+  list(kind?: string): AgentScheduledTask[];
+  /** The one runner for a kind. Tasks that fall due before it attaches wait for it (briefly), then count a failed attempt. */
+  handle(kind: string, run: (task: AgentScheduledTask) => Promise<void>): () => void;
+}
+
 export interface AgentRecoveryCapability {
   inspect(session: AgentSessionRef): Promise<AgentRecoveryReport>;
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
@@ -1117,6 +1145,7 @@ export interface AgentStartExecution {
 
 export interface AgentRuntimeAdapter {
   readonly recovery?: AgentRecoveryCapability;
+  readonly schedule?: AgentScheduleCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;

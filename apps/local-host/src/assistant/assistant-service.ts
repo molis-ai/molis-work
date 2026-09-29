@@ -1,5 +1,5 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegatedWork, AgentDelegation, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegatedWork, AgentDelegation, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -302,6 +302,13 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
   });
 }
 
+const FOLLOW_UP_KIND = "assistant.follow-up";
+/** A follow-up's next due time as a queued task: one key per follow-up and due time. */
+function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
+  return { key: `fu-${followUp.followup_id}-${Date.parse(followUp.next_at!)}`, session_id: sessionId, kind: FOLLOW_UP_KIND,
+    payload: { followup_id: followUp.followup_id }, due_at: followUp.next_at!, max_attempts: 1 };
+}
+
 /** The same wall-clock time `days` later where the person is: “每天六点” stays at six across a daylight-saving change. */
 export function sameLocalTimeLater(at: number, days: number, timeZone: string | undefined): number {
   let wall: (ms: number) => number;
@@ -459,8 +466,11 @@ export class AssistantService {
 
   followUps(workId?: string): AssistantFollowUp[] { return this.store.followUps(this.actorId, workId); }
 
-  /** A standing request on a work: at `at` (and then daily or weekly), start a round of it with these words. */
-  saveFollowUp(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }): AssistantFollowUp {
+  /**
+   * A standing request on a work: at `at` (and then daily or weekly), start a round of it with these words. The time is
+   * kept by Prologue's durable local queue (it survives a restart), not by a timer of the Host's own.
+   */
+  async saveFollowUp(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }): Promise<AssistantFollowUp> {
     const work = this.store.get(this.actorId, String(input?.work_id ?? ""));
     const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
     const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
@@ -470,53 +480,102 @@ export class AssistantService {
     const repeat = input.repeat ?? "none";
     if (!["none", "daily", "weekly"].includes(repeat)) throw new AssistantError("assistant.invalid", "重复只能是一次、每天或每周");
     if (this.store.followUps(this.actorId, work.work_id).filter(item => item.enabled).length >= MAX_FOLLOW_UPS_PER_WORK) throw new AssistantError("assistant.limit", `一项工作最多 ${MAX_FOLLOW_UPS_PER_WORK} 个定时`);
+    if (!work.session_id) throw new AssistantError("assistant.state", "这项工作还没有开始过：先让助理做一轮，再给它加定时");
+    const schedule = await this.schedule();
     const followUp: AssistantFollowUp = { followup_id: randomUUID(), work_id: work.work_id, label, text, repeat, next_at: at.toISOString(),
       time_zone: input.time_zone || this.ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: this.now().toISOString() };
     this.store.saveFollowUp(this.actorId, followUp);
+    this.#runnerFor(schedule);
+    await schedule.enqueue(followUpTask(followUp, work.session_id));
     return followUp;
   }
 
-  removeFollowUp(followupId: string): boolean { return this.store.removeFollowUp(this.actorId, followupId); }
+  async removeFollowUp(followupId: string): Promise<boolean> {
+    const followUp = this.store.followUps(this.actorId).find(item => item.followup_id === followupId);
+    if (followUp?.next_at) await (await this.schedule().catch(() => null))?.cancel(followUpTask(followUp, "").key).catch(() => null);
+    return this.store.removeFollowUp(this.actorId, followupId);
+  }
+
+  #detachSchedule: (() => void) | null = null;
+  /**
+   * Become the runner for timed rounds, and make sure each standing one has its queued task (idempotent by key: one
+   * per follow-up and due time). Called when the Host starts; tasks that fell due meanwhile run as soon as it attaches.
+   */
+  async attachSchedule(): Promise<boolean> {
+    const schedule = await this.schedule().catch(() => null);
+    if (!schedule) return false;
+    this.#runnerFor(schedule);
+    for (const followUp of this.store.followUps(this.actorId).filter(item => item.enabled && item.next_at)) {
+      let work: StoredWork;
+      try { work = this.store.get(this.actorId, followUp.work_id); } catch { continue; }
+      if (!work.session_id) continue;
+      const task = followUpTask(followUp, work.session_id), held = schedule.find(task.key);
+      // Its time came with no runner attached (the Host was still starting): decided now by the same rule — on time
+      // enough it runs, too late it is reported as missed — never left silently undone.
+      if (held && (held.state === "failed" || held.state === "reconcile-required")) { await this.runFollowUp(followUp).catch(() => undefined); continue; }
+      await schedule.enqueue(task).catch(() => undefined);
+    }
+    return true;
+  }
+
+  #runnerFor(schedule: AgentScheduleCapability): void {
+    if (!this.#detachSchedule) this.#detachSchedule = schedule.handle(FOLLOW_UP_KIND, task => this.runFollowUpTask(task));
+  }
+
+  /** What the queue says about running with the window closed, for the person to read beside their timed rounds. */
+  async scheduleClaim(): Promise<{ survives_window_close: boolean; why: string } | null> {
+    return (await this.schedule().catch(() => null))?.claim() ?? null;
+  }
+
+  private async schedule(): Promise<AgentScheduleCapability> {
+    const schedule = (await this.ports.host()).adapter(RUNTIME).schedule;
+    if (!schedule) throw new AssistantError("assistant.unsupported", "当前运行时不能安排定时");
+    return schedule;
+  }
+
+  /** One due time of one follow-up, handed back by the queue. A task for a time since changed or removed does nothing. */
+  private async runFollowUpTask(task: AgentScheduledTask): Promise<void> {
+    const followUp = this.store.followUps(this.actorId).find(item => item.followup_id === String(task.payload.followup_id ?? ""));
+    if (!followUp || !followUp.enabled || !followUp.next_at || Date.parse(followUp.next_at) !== Date.parse(task.due_at)) return;
+    await this.runFollowUp(followUp);
+  }
 
   /**
-   * Start what is due now. A time missed by more than a few minutes (Molis Work was not running) is reported and moved
-   * on, never replayed late; each due time starts at most once (its request id), and a work still busy is skipped.
+   * A due time came. Too late (Molis Work was not running) is reported and moved on, never replayed; a work still busy
+   * is skipped; otherwise one round starts (its request id is the due time, so it cannot start twice). Then the next
+   * time is queued.
    */
-  async runDueFollowUps(): Promise<Array<{ followup_id: string; outcome: string }>> {
-    const now = this.now(), done: Array<{ followup_id: string; outcome: string }> = [];
-    for (const followUp of this.store.followUps(this.actorId)) {
-      if (!followUp.enabled || !followUp.next_at || Date.parse(followUp.next_at) > now.getTime()) continue;
-      const due = followUp.next_at;
-      let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
-      let work: StoredWork | undefined;
-      try { work = this.store.get(this.actorId, followUp.work_id); } catch { outcome = "failed"; detail = "这项工作已不存在"; }
-      if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
-        outcome = "missed"; detail = "当时 Molis Work 没有在运行，没有补做";
-        this.store.raiseNotice(this.actorId, { kind: "failed", work_id: work.work_id, work_title: work.title,
-          text: `错过了「${followUp.label}」（原定 ${new Date(due).toLocaleString("zh-CN", { timeZone: followUp.time_zone })}）：当时 Molis Work 没有在运行，没有补做` }, `followup:${followUp.followup_id}:${due}:missed`);
-      } else if (work) {
-        const host = await this.ports.host();
-        const state = await this.stateFor(host, work);
-        if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = "上一轮还没结束，这一次没有开始"; }
-        else {
-          try { await this.send({ work_id: work.work_id, text: `（按你的定时安排「${followUp.label}」）${followUp.text}`, request_id: `fu-${followUp.followup_id}-${Date.parse(due)}` }, {}); }
-          catch (error) { outcome = "failed"; detail = error instanceof Error ? error.message : String(error); }
-        }
+  private async runFollowUp(followUp: AssistantFollowUp): Promise<void> {
+    const now = this.now(), due = followUp.next_at!;
+    let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
+    let work: StoredWork | undefined;
+    try { work = this.store.get(this.actorId, followUp.work_id); } catch { outcome = "failed"; detail = "这项工作已不存在"; }
+    if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
+      outcome = "missed"; detail = "当时 Molis Work 没有在运行，没有补做";
+      this.store.raiseNotice(this.actorId, { kind: "failed", work_id: work.work_id, work_title: work.title,
+        text: `错过了「${followUp.label}」（原定 ${new Date(due).toLocaleString("zh-CN", { timeZone: followUp.time_zone })}）：当时 Molis Work 没有在运行，没有补做` }, `followup:${followUp.followup_id}:${due}:missed`);
+    } else if (work) {
+      const host = await this.ports.host();
+      const state = await this.stateFor(host, work);
+      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = "上一轮还没结束，这一次没有开始"; }
+      else {
+        try { await this.send({ work_id: work.work_id, text: `（按你的定时安排「${followUp.label}」）${followUp.text}`, request_id: `fu-${followUp.followup_id}-${Date.parse(due)}` }, {}); }
+        catch (error) { outcome = "failed"; detail = error instanceof Error ? error.message : String(error); }
       }
-      const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
-      let next = days ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
-      while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
-      const { next_at: _next, ...rest } = followUp;
-      this.store.saveFollowUp(this.actorId, { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
-        last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) } });
-      done.push({ followup_id: followUp.followup_id, outcome });
     }
-    return done;
+    const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
+    let next = days ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
+    while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
+    const { next_at: _next, ...rest } = followUp;
+    const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
+      last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) } };
+    this.store.saveFollowUp(this.actorId, saved);
+    if (next !== undefined && work?.session_id) await (await this.schedule()).enqueue(followUpTask(saved, work.session_id));
   }
 
   /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
   saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
-    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result"];
+    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material"];
     if (!input || !["quiet", "pause"].includes(input.kind)) throw new AssistantError("assistant.invalid", "规则只能是“在某处不提醒”或“暂停提醒”");
     const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
     const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];
@@ -566,6 +625,7 @@ export class AssistantService {
     const host = children.length ? await this.ports.host() : null;
     const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0 }))) : [];
     const scheduled = this.store.followUps(this.actorId, work.work_id);
+    const claim = scheduled.length ? await this.scheduleClaim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
     for (const card of this.store.cards(work.work_id).filter(item => item.target && (item.status === "ready" || item.status === "needs-input"))) {
@@ -574,7 +634,7 @@ export class AssistantService {
     }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(unsettled.length ? { unsettled } : {}), ...(problem ? { problem } : {}) };
+      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(problem ? { problem } : {}) };
   }
 
   /** The rounds run in the Assistant's own session. */

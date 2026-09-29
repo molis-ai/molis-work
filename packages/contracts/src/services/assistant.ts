@@ -343,6 +343,8 @@ export interface AssistantWorkView {
   delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number }>;
   /** Timed rounds the person asked this work to run. */
   scheduled?: AssistantFollowUp[];
+  /** Whether those timed rounds still run with the window closed (the runtime queue's own claim). */
+  schedule_survives_close?: boolean;
   /** Changes still running at their owner when a round stopped or ran out of time, and what the owner finally did. */
   unsettled?: AssistantUnsettledChange[];
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */

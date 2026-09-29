@@ -133,6 +133,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "停止时还没开始，没有执行": "had not started; nothing done",
   "下一次": "next",
   "需要 Molis Work 在运行": "needs Molis Work running",
+  "关闭窗口后仍会执行": "runs even with the window closed",
   "受托于": "Delegated by",
   "验收": "Acceptance",
   "分工": "Delegated",

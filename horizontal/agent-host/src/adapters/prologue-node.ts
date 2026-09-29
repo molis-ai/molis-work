@@ -148,10 +148,23 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
   });
+  // Timed work the runtime keeps across restarts. Its runner is attached here, once; the Host registers what each kind
+  // does later, so a task that falls due while the Host is still starting waits for its runner instead of failing.
+  const scheduleRunners = new Map<string, (task: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask) => Promise<void>>();
+  const scheduledView = (task: import("@prologue/sdk").QueuedTask): import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask => ({
+    task_id: task.ref.id, key: task.key, session_id: task.sessionRef.id, kind: task.work.kind, payload: { ...task.work.payload },
+    due_at: new Date(task.dueAtMs).toISOString(), state: task.state, attempts: task.attempts, runs: task.runs, ...(task.lastFailure ? { last_failure: task.lastFailure } : {}) });
+  const runScheduled = async (task: import("@prologue/sdk").QueuedTask): Promise<void> => {
+    for (let waited = 0; !scheduleRunners.has(task.work.kind) && waited < 120_000; waited += 500) await new Promise(resolve => setTimeout(resolve, 500));
+    const run = scheduleRunners.get(task.work.kind);
+    if (!run) throw new Error(`没有处理「${task.work.kind}」的执行者`);
+    await run(scheduledView(task));
+  };
   const runtime = await createRuntime({
     app: options.app,
     host,
     preset: "local-agent",
+    onQueuedWork: runScheduled,
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
     // Background commands belong to the session and keep running after its round (the person's decision), at most four
@@ -733,6 +746,26 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         return { ...item, wait_id: waitId };
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
+    },
+    schedule: {
+      claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
+      enqueue: async input => {
+        const index = await readIndex(input.session_id);
+        if (!index) throw new PrologueAdapterError("agent.session_unknown", "会话不存在，不能安排定时");
+        const due = Date.parse(input.due_at);
+        if (!Number.isFinite(due)) throw new PrologueAdapterError("agent.capability_unavailable", "定时的时间无效");
+        return scheduledView(await runtime.queue.enqueue({ key: input.key, sessionRef: index.ref, work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due,
+          ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
+      },
+      cancel: async key => {
+        const task = runtime.queue.find(key);
+        if (!task) return null;
+        if (task.state !== "queued") return scheduledView(task);
+        return scheduledView(await runtime.queue.cancel(task.ref));
+      },
+      find: key => { const task = runtime.queue.find(key); return task ? scheduledView(task) : null; },
+      list: kind => runtime.queue.list().filter(task => !kind || task.work.kind === kind).map(scheduledView),
+      handle: (kind, run) => { scheduleRunners.set(kind, run); return () => { if (scheduleRunners.get(kind) === run) scheduleRunners.delete(kind); }; },
     },
     recovery: {
       inspect: session => inspectRecovery(session.session_id),

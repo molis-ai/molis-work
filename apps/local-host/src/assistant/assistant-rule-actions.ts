@@ -70,13 +70,13 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
       const work = callingWork(context);
       if (!work) throw new Error("定时要在一项助理工作里添加");
       const value = input as { text: string; at: string; repeat?: "none" | "daily" | "weekly"; label: string };
-      service().saveFollowUp({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
+      await service().saveFollowUp({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
       return { followups: service().followUps(work) };
     } },
     { capability_id: "assistant.followups.remove", version: 1, handle: async (context, input) => {
       const id = String((input as { followup_id?: unknown }).followup_id ?? ""), work = callingWork(context);
       if (work && !service().followUps(work).some(item => item.followup_id === id)) throw new Error("这项工作没有这个定时");
-      service().removeFollowUp(id);
+      await service().removeFollowUp(id);
       return { followups: service().followUps(work ?? undefined) };
     } },
   ];

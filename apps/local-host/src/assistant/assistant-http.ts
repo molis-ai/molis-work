@@ -142,7 +142,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.rules() } };
       if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.removeRule(String(body.rule_id ?? "")) } };
-      if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: service.removeFollowUp(String(body.followup_id ?? "")) } };
+      if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.removeFollowUp(String(body.followup_id ?? "")) } };
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };

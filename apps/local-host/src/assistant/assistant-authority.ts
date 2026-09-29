@@ -1,5 +1,5 @@
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentActionOffer, AgentDelegation } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -28,7 +28,9 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   /** Hands independent sub-tasks to separate works (absent for a delegated work: one level deep). */
   delegation?: AgentDelegation,
   /** Told of a change its owner was still running when the round stopped or ran out of time, to learn how it ended. */
-  unsettled?: (view: ActionView, call: Promise<unknown>) => void): AgentStartAuthority {
+  unsettled?: (view: ActionView, call: Promise<unknown>) => void,
+  /** Remember, list and forget for the person (absent when forming memories is switched off). */
+  memory?: AgentMemoryTools): AgentStartAuthority {
   const reference = work.project_ref;
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [], ...(signal ? { signal } : {}) });
@@ -63,6 +65,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       discover: async () => service().discover(await context(validate)),
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
+      ...(memory ? { memory } : {}),
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
       check: async (action, input) => {
         const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);

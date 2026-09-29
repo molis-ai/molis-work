@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -293,6 +293,24 @@ export class AssistantStore {
   setSetting(actorId: string, key: string, value: string): void {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+  }
+
+  memoryPrefs(actorId: string): AssistantMemoryPrefs {
+    const saved = this.setting(actorId, "memory_prefs");
+    return { form: true, use_personal: true, use_project: true, ...(saved ? JSON.parse(saved) as Partial<AssistantMemoryPrefs> : {}) };
+  }
+
+  setMemoryPrefs(actorId: string, prefs: AssistantMemoryPrefs): void { this.setSetting(actorId, "memory_prefs", JSON.stringify(prefs)); }
+
+  disabledMemories(actorId: string): Set<string> {
+    const saved = this.setting(actorId, "memory_disabled");
+    return new Set(saved ? JSON.parse(saved) as string[] : []);
+  }
+
+  setMemoryDisabled(actorId: string, memoryId: string, disabled: boolean): void {
+    const current = this.disabledMemories(actorId);
+    if (disabled) current.add(memoryId); else current.delete(memoryId);
+    this.setSetting(actorId, "memory_disabled", JSON.stringify([...current].sort()));
   }
 
   rules(actorId: string): AssistantRule[] {

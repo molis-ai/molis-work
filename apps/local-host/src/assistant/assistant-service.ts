@@ -1,11 +1,11 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegatedWork, AgentDelegation, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegatedWork, AgentDelegation, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryPrefs, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -274,6 +274,8 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
     // Sub-tasks handed to works of their own.
     "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
+    // The person's memory.
+    "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget",
     // The Host let a round that only announced its next step continue.
     "自动续做": "auto-continue" };
   return activity.flatMap(item => {
@@ -300,6 +302,13 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     const capability = (verb === "read" || verb === "change") && item.target ? { capability_id: item.target } : {};
     return [{ call_id: item.call_id, verb, target, state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
   });
+}
+
+/** Words to recall by: Latin words and Chinese two-character pieces, most of each; the store matches them as substrings. */
+export function recallKeywords(text: string): string[] {
+  const latin = (text.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []);
+  const han = [...text.matchAll(/[\u4e00-\u9fff]+/g)].flatMap(run => { const chars = [...run[0]]; return chars.slice(0, -1).map((char, index) => char + chars[index + 1]); });
+  return [...new Set([...latin, ...han])].slice(0, 40);
 }
 
 const FOLLOW_UP_KIND = "assistant.follow-up";
@@ -1271,7 +1280,7 @@ export class AssistantService {
       board_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
       session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,
       action_gateway: true,
-      text_materials: await this.roundMaterials(work, materials, context, offered),
+      text_materials: await this.roundMaterials(work, materials, context, offered, text),
       history: "session", budget: { max_turns: ROUND_TURNS }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
       // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
       ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
@@ -1310,7 +1319,7 @@ export class AssistantService {
   }
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
-  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[]): Promise<AgentTextMaterial[]> {
+  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], request = ""): Promise<AgentTextMaterial[]> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
@@ -1324,6 +1333,9 @@ export class AssistantService {
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
     if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
+    // What the person asked to be remembered that bears on this round.
+    const remembered = await this.recallFor(work, `${request} ${work.title} ${materials.map(item => item.title).join(" ")}`);
+    if (remembered) out.push(...chunked({ ...base, title: "记住的偏好与背景" }, "memory", remembered));
     // Changes a stopped round left running, and how each ended: never to be submitted again blindly.
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     if (unsettled.length) {
@@ -1413,6 +1425,94 @@ export class AssistantService {
    * scope, each with its own session. Bounded (a few at once, a few in all, a few follow-ups each) and one level deep:
    * a delegated work does not delegate. What they report is read back, never taken as the parent's own result.
    */
+  private async memoryStore(): Promise<AgentMemoryCapability> {
+    const memory = (await this.ports.host()).adapter(RUNTIME).memory;
+    if (!memory) throw new AssistantError("assistant.unsupported", "当前运行时没有记忆能力");
+    return memory;
+  }
+
+  /** The person's memories: personal ones, and — given a project — that project's. Disabled ones are listed as such. */
+  async memories(projectId?: string | null): Promise<AssistantMemory[]> {
+    const memory = await this.memoryStore(), disabled = this.store.disabledMemories(this.actorId);
+    const personal = (await memory.list("user", this.actorId)).map(entry => ({ memory_id: entry.memory_id, scope: "personal" as const, text: entry.text, origin: entry.origin, disabled: disabled.has(entry.memory_id) }));
+    const project = projectId ? (await memory.list("project", projectId)).map(entry => ({ memory_id: entry.memory_id, scope: "project" as const, project_id: projectId,
+      text: entry.text, origin: entry.origin, disabled: disabled.has(entry.memory_id) })) : [];
+    return [...personal, ...project];
+  }
+
+  memoryPrefs(): AssistantMemoryPrefs { return this.store.memoryPrefs(this.actorId); }
+
+  saveMemoryPrefs(input: Partial<AssistantMemoryPrefs>): AssistantMemoryPrefs {
+    const current = this.store.memoryPrefs(this.actorId);
+    const next = { form: typeof input?.form === "boolean" ? input.form : current.form, use_personal: typeof input?.use_personal === "boolean" ? input.use_personal : current.use_personal,
+      use_project: typeof input?.use_project === "boolean" ? input.use_project : current.use_project };
+    this.store.setMemoryPrefs(this.actorId, next);
+    return next;
+  }
+
+  /** Change, switch off or delete one memory, in the scope it lives in (a project's only from that project's page). */
+  async changeMemory(input: { memory_id: string; action: "update" | "disable" | "enable" | "remove"; text?: string }, projectId?: string | null): Promise<AssistantMemory[]> {
+    const memory = await this.memoryStore(), id = String(input?.memory_id ?? "");
+    const found = (await this.memories(projectId)).find(item => item.memory_id === id);
+    if (!found) throw new AssistantError("assistant.not_found", "这条记忆不在这里（可能已删除，或属于别的项目）");
+    const where = found.scope === "personal" ? { scope: "user" as const, owner: this.actorId } : { scope: "project" as const, owner: found.project_id! };
+    if (input.action === "update") {
+      const text = typeof input.text === "string" ? input.text.trim() : "";
+      if (!text || text.length > 400) throw new AssistantError("assistant.invalid", "记忆内容要在 1–400 字之间");
+      await memory.update({ ...where, memory_id: id, text });
+    } else if (input.action === "remove") {
+      await memory.remove({ ...where, memory_id: id });
+      this.store.setMemoryDisabled(this.actorId, id, false);
+    } else if (input.action === "disable" || input.action === "enable") this.store.setMemoryDisabled(this.actorId, id, input.action === "disable");
+    else throw new AssistantError("assistant.invalid", "不支持的操作");
+    return this.memories(projectId);
+  }
+
+  /** The round's memory tools, or none when the person switched off forming memories. */
+  memoryTools(work: StoredWork): AgentMemoryTools | undefined {
+    if (!this.store.memoryPrefs(this.actorId).form) return undefined;
+    const projectId = work.project_ref?.project_id ?? null;
+    return {
+      remember: async input => {
+        if (input.scope === "project" && !projectId) throw new AssistantError("assistant.scope", "这是个人工作，没有项目；只能记为个人偏好");
+        const memory = await this.memoryStore();
+        const date = new Intl.DateTimeFormat("zh-CN", { timeZone: this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, dateStyle: "medium" }).format(this.now());
+        // A personal memory travels to other projects: its origin names no work of this one, only the person's own words.
+        const origin = input.scope === "project" ? `工作「${work.title.slice(0, 40)}」· ${date} · 你说：“${input.said.slice(0, 120)}”` : `${date} · 你说：“${input.said.slice(0, 120)}”`;
+        const entry = await memory.write({ ...(input.scope === "project" ? { scope: "project" as const, owner: projectId! } : { scope: "user" as const, owner: this.actorId }), text: input.text, origin, tags: ["explicit"] });
+        const title = input.scope === "project" ? await this.ports.projectTitle?.(projectId!).catch(() => null) : null;
+        return { memory_id: entry.memory_id, scope: input.scope, applies: input.scope === "project" ? `只在项目「${title ?? projectId}」的工作里使用` : "在你以后的所有工作里使用（个人）" };
+      },
+      list: async () => (await this.memories(projectId)).map(item => ({ memory_id: item.memory_id, scope: item.scope, text: item.disabled ? `（已停用）${item.text}` : item.text, origin: item.origin })),
+      forget: async memoryId => {
+        const found = (await this.memories(projectId)).find(item => item.memory_id === memoryId);
+        if (!found) return { forgotten: false };
+        await this.changeMemory({ memory_id: memoryId, action: "remove" }, projectId);
+        return { forgotten: true };
+      },
+    };
+  }
+
+  /** What the person asked to be remembered that bears on this round: most relevant first, a few per scope, switched-off ones never. */
+  private async recallFor(work: StoredWork, request: string): Promise<string | null> {
+    const prefs = this.store.memoryPrefs(this.actorId), disabled = this.store.disabledMemories(this.actorId);
+    let memory: AgentMemoryCapability;
+    try { memory = await this.memoryStore(); } catch { return null; }
+    const keywords = recallKeywords(request);
+    const scopes: Array<{ scope: "user" | "project"; owner: string; label: string }> = [
+      ...(prefs.use_personal ? [{ scope: "user" as const, owner: this.actorId, label: "个人" }] : []),
+      ...(prefs.use_project && work.project_ref ? [{ scope: "project" as const, owner: work.project_ref.project_id, label: "本项目" }] : []),
+    ];
+    const lines: string[] = [];
+    for (const where of scopes) {
+      const picked = new Map<string, AgentMemoryEntry>();
+      for (const hit of await memory.recall({ scope: where.scope, owner: where.owner, keywords, limit: 12 }).catch(() => [])) picked.set(hit.entry.memory_id, hit.entry);
+      for (const entry of (await memory.list(where.scope, where.owner).catch(() => [])).reverse()) { if (picked.size >= 12) break; picked.set(entry.memory_id, entry); }
+      for (const entry of picked.values()) if (!disabled.has(entry.memory_id)) lines.push(`- [${where.label}] ${entry.text}（来自：${entry.origin}）`);
+    }
+    return lines.length ? ["用户要你记住的（他本人明确要求保留的；与他本轮的话冲突时以本轮为准；不要复述给他，照着做即可）：", ...lines].join("\n") : null;
+  }
+
   delegation(parent: StoredWork): AgentDelegation | undefined {
     if (parent.delegated_by) return undefined;
     const own = (workId: string) => {

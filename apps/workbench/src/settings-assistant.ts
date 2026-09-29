@@ -27,6 +27,17 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>
     </section>
+    <section class="settings-section assistant-memory" aria-labelledby="assistant-memory-title" data-assistant-memory>
+      <h2 id="assistant-memory-title">${L("记忆与偏好")}</h2>
+      <p class="settings-muted">${L("助理只记你明确要它记住的（例如“以后回答都用要点列表”），不会从你的一次选择或修改里自己学。个人的在你所有工作里用；项目的只在那个项目里用。停用是保留但暂不使用；删除后不会再被想起。")}</p>
+      <div class="assistant-memory-prefs">
+        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="form"> ${L("允许记住我明确要求记住的事")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="use_personal"> ${L("在工作里使用个人记忆")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-memory-pref="use_project"> ${L("在项目的工作里使用这个项目的记忆")}</label>
+      </div>
+      <div data-assistant-memory-list><p class="settings-muted">${L("正在读取…")}</p></div>
+      <p class="settings-form-error" data-assistant-memory-error role="alert" hidden></p>
+    </section>
     <p class="prompt-settings-notice" role="note">${L("读取类能力直接使用；修改类每次执行前都会请你确认准确参数；不可撤回的操作每次单独确认。")}</p>
     <div class="prompt-settings-tools">
       <div class="mw-toggle-group settings-segmented" role="group" aria-label="${L("范围")}" data-assistant-scope-group>
@@ -195,6 +206,51 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
     run(() => rulesApi("/rules", { rule: { kind: "pause", surfaces: [], except, until: until.toISOString(), label: L("暂停提醒到") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } }));
   });
   run(() => rulesApi("/rules"));
+  // Memories: personal ones live with the person; a project's are read and changed under that project's own route.
+  const memoryBox = root.querySelector("[data-assistant-memory-list]");
+  const memoryError = root.querySelector("[data-assistant-memory-error]");
+  const memoryApi = async (payload, path) => {
+    const url = (project ? "/projects/" + encodeURIComponent(project) : "") + "/api/assistant" + (path || "/memories");
+    const response = await fetch(url, payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
+    return data;
+  };
+  const paintMemories = (memories) => {
+    memoryBox.replaceChildren();
+    if (!memories.length) { memoryBox.append(el("p", "settings-muted", L("还没有记住任何事：在对话里说“以后……”或“记住……”，助理会记下并告诉你在哪里生效。"))); return; }
+    const list = el("ul", "prompt-list");
+    memories.forEach((memory) => {
+      const item = el("li", "prompt-row" + (memory.disabled ? " is-disabled" : ""));
+      const head = el("div", "prompt-row-head"), copy = el("div", "prompt-row-copy");
+      const text = el("strong", "", memory.text);
+      copy.append(text, el("span", "settings-muted", L(memory.scope === "personal" ? "个人" : "本项目") + " · " + memory.origin + (memory.disabled ? " · " + L("已停用") : "")));
+      const edit = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("修改")); edit.type = "button";
+      edit.addEventListener("click", () => {
+        const next = window.prompt(L("修改这条记忆"), memory.text);
+        if (next !== null && next.trim() && next.trim() !== memory.text) runMemory(() => memoryApi({ memory_id: memory.memory_id, action: "update", text: next.trim() }));
+      });
+      const toggle = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L(memory.disabled ? "启用" : "停用")); toggle.type = "button";
+      toggle.addEventListener("click", () => runMemory(() => memoryApi({ memory_id: memory.memory_id, action: memory.disabled ? "enable" : "disable" })));
+      const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("删除")); remove.type = "button";
+      remove.setAttribute("aria-label", L("删除") + "：" + memory.text);
+      remove.addEventListener("click", () => { if (window.confirm(L("删除后助理不会再想起这条。确定删除？"))) runMemory(() => memoryApi({ memory_id: memory.memory_id, action: "remove" })); });
+      const actions = el("span", "prompt-row-meta"); actions.append(edit, toggle, remove);
+      head.append(copy, actions); item.append(head); list.append(item);
+    });
+    memoryBox.append(list);
+  };
+  const paintPrefs = (prefs) => root.querySelectorAll("[data-assistant-memory-pref]").forEach((box) => { box.checked = Boolean(prefs[box.dataset.assistantMemoryPref]); });
+  const runMemory = async (work) => {
+    memoryError.hidden = true;
+    try { const data = await work(); if (data.memories) paintMemories(data.memories); if (data.prefs) paintPrefs(data.prefs); }
+    catch (failure) { memoryError.textContent = failure.message; memoryError.hidden = false; }
+  };
+  root.querySelectorAll("[data-assistant-memory-pref]").forEach((box) => box.addEventListener("change", () => {
+    const prefs = {}; root.querySelectorAll("[data-assistant-memory-pref]").forEach((one) => { prefs[one.dataset.assistantMemoryPref] = one.checked; });
+    runMemory(() => memoryApi(prefs, "/memory-prefs"));
+  }));
+  runMemory(() => memoryApi());
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
   load();
 })();

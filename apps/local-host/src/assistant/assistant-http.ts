@@ -37,7 +37,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
-      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call)),
+      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
       ...(work.project_ref ? { resolveCharacter: await projectCharacters(ports, work.project_ref).then(characters => characters.resolve) } : {}) }),
@@ -139,6 +139,16 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
         return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
       }
+      // What the person asked the Assistant to keep: personal, and this project's when on a project's page.
+      if (method === "GET" && parts.length === 1 && parts[0] === "memories") {
+        return { status: 200, body: { memories: await service.memories(ports.projectRef?.project_id ?? null), prefs: service.memoryPrefs() } };
+      }
+      if (method === "POST" && parts.length === 1 && parts[0] === "memories") {
+        const action = body.action === "update" || body.action === "disable" || body.action === "enable" || body.action === "remove" ? body.action : null;
+        if (!action) throw new AssistantError("assistant.invalid", "不支持的操作");
+        return { status: 200, body: { memories: await service.changeMemory({ memory_id: String(body.memory_id ?? ""), action, ...(typeof body.text === "string" ? { text: body.text } : {}) }, ports.projectRef?.project_id ?? null) } };
+      }
+      if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.saveMemoryPrefs(body as never) } };
       if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.rules() } };
       if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.removeRule(String(body.rule_id ?? "")) } };

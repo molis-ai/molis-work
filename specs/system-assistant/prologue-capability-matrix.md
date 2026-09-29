@@ -1,6 +1,6 @@
 # Prologue 能力矩阵（P12，AC28）
 
-核对日期：2026-09-28。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant.tgz`，源码在 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`（核对时最新提交 `4702abe3`）。
+核对日期：2026-09-28。对象是本分支实际使用的 SDK：`vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant-memory.tgz`，源码在 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`（`ac4d1135`；与此前的 `4702abe3` 只差记忆的 project 作用域类型）。
 
 **核对方法**
 - SDK 公开面：`createRuntime` 返回的 `Runtime` 接口（`packages/sdk/src/composition/core/runtime.ts`）逐个成员，以及 `Session` 接口（`session/core/session.ts`）逐个方法；另查了 `LocalQueue`、`heartbeats`、`subagents` 等子面的方法。
@@ -58,7 +58,8 @@
 
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
-| `memory`、`memoryInbox` | — | — | — | ⛔ P8 未做。SDK 作用域只有 user/app/character/session，没有真正的项目隔离（规格第 11 节已点明），需 SDK 补项目作用域后接 |
+| `memory`（write/list/update/purge/recall） | Agent Host `memory` 能力；SDK 补了 `project` 作用域（`ac4d1135`） | 明确要求的个人／项目记忆：记住、召回、查看、停用、删除 | — | ✅ `assistant-memory`、SDK `memory-project-scope.live`；§13（MiniMax 实测） |
+| `memoryInbox`（候选提炼） | — | — | — | ⛔ 从工作中提炼经验的候选（需用户认可）未接 |
 
 ## 8. 上下文整理、压缩、历史与预算
 
@@ -161,7 +162,7 @@
 
 按对完整度的影响排序：
 
-1. Memory（P8）：需 Prologue 提供真正的项目作用域。
+1. 记忆的候选提炼（memoryInbox）与 Character 维度（明确要求的个人／项目记忆已接通）。
 2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；分别对应 P5 余项与 P9 的替代实现。
 3. 用户可设的整体预算（助理长工作的上下文整理已开，待真实长工作里观察）。
 4. PDF／图片等附件（`parseDocument/parseResource`、`images` 输入）、语音。

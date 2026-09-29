@@ -747,6 +747,30 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
     },
+    memory: (() => {
+      type Entry = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryEntry;
+      const view = (entry: import("@prologue/sdk").MemoryEntry): Entry => ({ memory_id: entry.ref.id, scope: entry.scope as Entry["scope"], owner: entry.owner,
+        text: entry.text, origin: entry.origin, tags: [...entry.tags], version: entry.version });
+      const hydrated = new Set<string>();
+      const ready = async (scope: Entry["scope"], owner: string) => {
+        const key = `${scope}:${owner}`;
+        if (!hydrated.has(key)) { await runtime.memory.hydrate([{ scope, owner }]); hydrated.add(key); }
+      };
+      const find = async (scope: Entry["scope"], owner: string, id: string) => {
+        await ready(scope, owner);
+        const entry = runtime.memory.list({ scope, owner }).find(item => item.ref.id === id);
+        if (!entry) throw new PrologueAdapterError("agent.capability_unavailable", "这条记忆不存在或已删除");
+        return entry;
+      };
+      return {
+        list: async (scope, owner) => { await ready(scope, owner); return runtime.memory.list({ scope, owner }).map(view); },
+        write: async input => { await ready(input.scope, input.owner); return view(await runtime.memory.write({ scope: input.scope, owner: input.owner, text: input.text, origin: input.origin, ...(input.tags ? { tags: input.tags } : {}) })); },
+        update: async input => view(await runtime.memory.update((await find(input.scope, input.owner, input.memory_id)).ref, input.text)),
+        remove: async input => { await runtime.memory.purge((await find(input.scope, input.owner, input.memory_id)).ref); return true; },
+        recall: async input => { await ready(input.scope, input.owner);
+          return runtime.memory.recall({ scope: input.scope, owner: input.owner, keywords: input.keywords, ...(input.limit ? { limit: input.limit } : {}) }).hits.map(hit => ({ entry: view(hit.entry), score: hit.score })); },
+      };
+    })(),
     schedule: {
       claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
       enqueue: async input => {

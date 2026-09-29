@@ -1,6 +1,16 @@
 # Prologue SDK 构建来源
 
-## 当前依赖：assistant（2026-09-28，系统级个人助理 + network-dispatch）
+## 当前依赖：assistant-memory（2026-09-28，在 assistant 包上补记忆的 project 作用域）
+
+`prologue-sdk-0.0.0-rc.1-assistant-memory.tgz`。在下面的 assistant 包之上只改一处：记忆作用域 `MemoryScope` 新增 `"project"`（归属者是 App 的项目标识，同一人不同项目的记忆各自隔离），并加测试 `test/memory-project-scope.live.test.ts`。
+
+- 源码：本机 `~/code/prologue-assistant` 分支 `feat/molis-assistant-app-mode`，提交 `ac4d1135`（父 `4702abe3`）；增量补丁 [memory-project.patch](memory-project.patch)。
+- 重建：检出 `4702abe3` 应用 `memory-project.patch`（或直接检出 `ac4d1135`），`pnpm install --frozen-lockfile`、`pnpm --filter @prologue/sdk build`，在 `packages/sdk` 执行 `pnpm pack`。
+- 包名与版本：`@prologue/sdk@0.0.0-rc.1`。SHA-256：`6c356f5cda731a402c5c5db1bb233f3ea22d2881593c0f7966e50439448998ca`。
+- 核对：与 assistant 包逐文件比对，只有 `dist/memory/core/memory.d.ts` 不同（运行时 JS 相同）。SDK 记忆测试 4 个文件 51 项全过。
+- 旧的 `prologue-sdk-0.0.0-rc.1-assistant.tgz` 仍在本目录，已不被依赖；按本目录约定应删除，删 vendor 文件由用户决定。
+
+## 上一依赖：assistant（2026-09-28，系统级个人助理 + network-dispatch）
 
 `prologue-sdk-0.0.0-rc.1-assistant.tgz`。把 main 的 network-dispatch 与系统级个人助理需要的两项 SDK 改动放进同一个包，取代 `network-dispatch.tgz` 与只在助理分支用过的 `app-mode.tgz`。
 

@@ -543,6 +543,7 @@ export class AgentHost implements AgentHostApi {
         ...(source.check ? { check: (ref: ExactActionReference, input: unknown) => source.check!(ref, input) } : {}),
         ...(source.offer ? { offer: (offer: import("@molis-ai/molis-work-contracts/services/agent-host").AgentActionOffer) => { validateCharacter?.(); return source.offer!(offer); } } : {}),
         ...(source.delegate ? { delegate: source.delegate } : {}),
+        ...(source.memory ? { memory: source.memory } : {}),
         invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
       } };
     }

@@ -1,10 +1,12 @@
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
 export const DELEGATION_TOOLS = { start: "delegate-work", check: "check-delegated-work", follow: "follow-up-delegated-work", stop: "stop-delegated-work" } as const;
+/** The person's memory, present only where the caller lets this round form memories. */
+export const MEMORY_TOOLS = { remember: "remember", list: "list-memories", forget: "forget-memory" } as const;
 const PACK_ID = "molis-action-gateway";
 const FIND_LIMIT = 8;
 
@@ -17,6 +19,21 @@ const describe = (view: ActionView) => {
     title: view.action.title, effect: effect === "read" ? "read" : effect === "irreversible" ? "irreversible-change" : "change",
     use: effect === "read" ? GATEWAY_TOOLS.read : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
 };
+
+/** The person's memory tools; each refuses when the round was not given memory. */
+function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => ToolRunner): Record<string, ToolRunner> {
+  const available = () => { if (!given) throw new ActionError("actions.forbidden", "Forming memories is switched off here; tell the person you did not keep it."); return given; };
+  const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
+  return {
+    [MEMORY_TOOLS.remember]: guarded(async args => {
+      const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : null;
+      if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal or project.");
+      return JSON.stringify(await available().remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400) }));
+    }),
+    [MEMORY_TOOLS.list]: guarded(async () => JSON.stringify({ memories: await available().list() })),
+    [MEMORY_TOOLS.forget]: guarded(async args => JSON.stringify(await available().forget(text(args.memory_id, "memory_id", 200)))),
+  };
+}
 
 /**
  * Why a named capability cannot run now, and what the round may do about it. Upgraded: the same capability at another
@@ -131,6 +148,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
     }),
     ...delegationExecutors(gateway.client.delegate, guarded),
+    ...memoryExecutors(gateway.client.memory, guarded),
     [GATEWAY_TOOLS.change]: guarded(async (args, signal) => {
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
@@ -174,11 +192,24 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
         { type: "object", additionalProperties: false, required: ["work_id"], properties: { work_id: { type: "string" } } }, "safe-read"),
     ],
   ];
+  tools.push(
+    tool(MEMORY_TOOLS.remember, "Keep something the person explicitly asked you to remember for later work (\"以后…\", \"记住…\", \"下次别…\"): a preference, a convention, a fact about their work. Never store something only because it happened once, and never credentials or secrets. scope: personal (all their work) or project (only this project). Tell them in your reply what you kept and where it applies.",
+      { type: "object", additionalProperties: false, required: ["text", "scope", "said"], properties: {
+        text: { type: "string", description: "What to remember, one short self-contained sentence in the person's language." },
+        scope: { type: "string", enum: ["personal", "project"], description: "personal: all their work; project: only this project's work." },
+        said: { type: "string", description: "The person's own words asking you to remember it." },
+      } }, "safe-read"),
+    tool(MEMORY_TOOLS.list, "List what you keep for the person here (personal and this project's), with ids and where each came from. Use it when they ask what you remember, or before forgetting something.",
+      { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
+    tool(MEMORY_TOOLS.forget, "Delete one remembered item for good when the person asks you to forget it or it is no longer true (find its id with list-memories). A newer explicit request replaces an older one: forget the old one.",
+      { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "safe-read"),
+  );
   // The runtime keeps one declaration per pack and one per tool name, so every session declares the same full set;
   // what a round may call is its own list of names (and a tool outside it refuses in its executor anyway).
   const all = tools.map(one => one.registration.name);
-  const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate));
-  const pack: ScenarioPack = { id: PACK_ID, version: "2.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
+  const names = all.filter(name => (name !== GATEWAY_TOOLS.suggest || gateway.client.offer) && (!(Object.values(DELEGATION_TOOLS) as string[]).includes(name) || gateway.client.delegate)
+    && (!(Object.values(MEMORY_TOOLS) as string[]).includes(name) || gateway.client.memory));
+  const pack: ScenarioPack = { id: PACK_ID, version: "2.1.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
   return { pack, executors, names };

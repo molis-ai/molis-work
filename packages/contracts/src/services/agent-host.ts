@@ -537,10 +537,22 @@ export interface AgentDelegation {
   stop(workId: string): Promise<AgentDelegatedWork>;
 }
 
+/**
+ * A round's own memory tools: remember what the person explicitly asked to keep, list and forget. Absent when forming
+ * memories is switched off. Never used to infer preferences from behaviour.
+ */
+export interface AgentMemoryTools {
+  remember(input: { text: string; scope: "personal" | "project"; said: string }): Promise<{ memory_id: string; scope: "personal" | "project"; applies: string }>;
+  list(): Promise<Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin: string }>>;
+  forget(memoryId: string): Promise<{ forgotten: boolean }>;
+}
+
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
   /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */
   delegate?: AgentDelegation;
+  /** Remember, list and forget for the person (see AgentMemoryTools). Absent: this round forms no memories. */
+  memory?: AgentMemoryTools;
   /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */
   offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
@@ -1103,6 +1115,28 @@ export interface AgentRecoveryReport {
 }
 
 /** Inspect authoritative receipts; closing records an interruption and never replays work. */
+/** One remembered item in the runtime's memory store (Prologue Memory), in one scope and owner. */
+export interface AgentMemoryEntry {
+  memory_id: string;
+  scope: "user" | "project" | "character";
+  owner: string;
+  text: string;
+  /** Where it came from, as recorded when it was written. */
+  origin: string;
+  tags: string[];
+  version: number;
+}
+
+/** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */
+export interface AgentMemoryCapability {
+  list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
+  write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[] }): Promise<AgentMemoryEntry>;
+  update(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string; text: string }): Promise<AgentMemoryEntry>;
+  /** Removed for good: purged from the store, never recalled again. */
+  remove(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string }): Promise<boolean>;
+  recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
+}
+
 /** Timed work the runtime keeps across restarts: the Host names what to do; its runner does it when due. */
 export interface AgentScheduledTask {
   task_id: string;
@@ -1146,6 +1180,7 @@ export interface AgentStartExecution {
 export interface AgentRuntimeAdapter {
   readonly recovery?: AgentRecoveryCapability;
   readonly schedule?: AgentScheduleCapability;
+  readonly memory?: AgentMemoryCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;

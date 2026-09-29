@@ -428,6 +428,29 @@ export interface AssistantContribution {
  * failed, a decision it waits on, a round that finished while they were elsewhere, a result a plugin handed back. It
  * never starts anything, so a notice cannot cause another notice.
  */
+/** Something the person asked the Assistant to keep: personal (all their work) or one project's. */
+export interface AssistantMemory {
+  memory_id: string;
+  scope: "personal" | "project";
+  /** For a project memory: which project. */
+  project_id?: string;
+  text: string;
+  /** Where it came from: the work, the date and the person's own words. */
+  origin: string;
+  /** Kept, but not used in work until switched on again (different from deleting it). */
+  disabled: boolean;
+}
+
+/** What the Assistant may do with memory, set by the person; applied exactly as written. */
+export interface AssistantMemoryPrefs {
+  /** May keep what the person explicitly asks it to remember. It never learns from behaviour on its own. */
+  form: boolean;
+  /** Personal memories are used in work. */
+  use_personal: boolean;
+  /** A project's memories are used in that project's work. */
+  use_project: boolean;
+}
+
 /** `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work. */
 export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material";
 export interface AssistantNotice {

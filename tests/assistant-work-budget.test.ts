@@ -77,5 +77,9 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     // A stop at the round's token limit, in a work with a cap, is that cap in the person's words.
     assert.match(stopInWords("AGENT_BUDGET_EXCEEDED: This run already used 1200 of its 390 tokens; nothing was sent.", 1000), /这项工作的用量上限（1,000 tokens）/);
     assert.match(stopInWords("This run already used 1200 of its 390 tokens; nothing was sent."), /这一轮的用量上限/);
+    // Seen with an unreachable model address: the person reads what happened and what to check, not a code.
+    assert.match(stopInWords("MODEL_NETWORK_FAILED: fetch failed"), /^连不上模型服务.*模型设置.*（MODEL_NETWORK_FAILED: fetch failed）$/);
+    assert.match(stopInWords("MODEL_AUTH_FAILED: 401 invalid api key"), /模型服务拒绝了这次调用/);
+    assert.match(stopInWords("MODEL_HTTP_ERROR: 529 overloaded"), /太忙/);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

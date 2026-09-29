@@ -341,6 +341,10 @@ export function stopInWords(reason: string, workBudget?: number): string {
       : "到了这一轮的用量上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
   }
   if (/wall.?clock|duration|timed.?out/i.test(reason)) return "到了这一轮的时间上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
+  // The model service could not be reached or answered with an error: say so, with what to check, keeping the code for reference.
+  if (/MODEL_NETWORK_FAILED|ECONNREFUSED|ENOTFOUND|fetch failed/i.test(reason)) return `连不上模型服务，这一轮没有完成；已完成的修改都保留。请检查网络和“模型设置”里的地址，再说“继续”（${reason.slice(0, 120)}）`;
+  if (/MODEL_AUTH|401|403|invalid.?api.?key|unauthori[sz]ed/i.test(reason)) return `模型服务拒绝了这次调用（凭据不对或没有权限）；请到“模型设置”检查密钥，再说“继续”（${reason.slice(0, 120)}）`;
+  if (/429|rate.?limit|overloaded|529/i.test(reason)) return `模型服务现在太忙，这一轮没有完成；稍等再说“继续”（${reason.slice(0, 120)}）`;
   return reason;
 }
 
@@ -1733,6 +1737,8 @@ export class AssistantService {
   }
 
   private async result(work: StoredWork, outcome: AssistantSendResult["outcome"], runId: string): Promise<AssistantSendResult> {
+    // A round that started is seen as running from here: however soon it ends, its end is news (a new work included).
+    if (outcome === "started") this.notice(work, "running");
     // Sent text is no longer a draft; the work moves to the top of the list.
     const updated = this.store.update(this.actorId, work.work_id, null, { draft: "" });
     return { work: this.publicWork(updated, await this.stateSafely(updated)), outcome, run_id: runId };

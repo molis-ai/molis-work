@@ -510,15 +510,22 @@ export interface AssistantMemoryPrefs {
   use_project: boolean;
 }
 
-/** `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work. */
-export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material";
+/**
+ * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.
+ * `reminder`: a reminder the person set in a Plugin came due (a time on a to-do); it belongs to no work.
+ */
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material" | "reminder";
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;
+  /** The work it is about; empty for a reminder. */
   work_id: string;
+  /** The work's title, or for a reminder the Plugin that holds it. */
   work_title: string;
   text: string;
   created_at: string;
+  /** For a reminder: where the person opens the item (its project, or null for the personal space). */
+  open?: { surface: string; id: string; title: string; project_id: string | null };
   /** Held by one of the person's rules while its condition holds (shown once it no longer does). */
   held?: { rule_id: string; reason: string };
 }

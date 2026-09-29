@@ -107,7 +107,7 @@ export interface TodoChange {
   readonly item_id: string;
   /** Changes made together (a batch) share one id and are undone together. */
   readonly batch_id: string | null;
-  readonly kind: "create" | "update" | "status" | "archive" | "unarchive" | "link" | "revert";
+  readonly kind: "create" | "update" | "status" | "archive" | "unarchive" | "link" | "source" | "revert";
   readonly actor: TodoActorKind;
   readonly at: string;
   /** Only the fields that changed; null before a create. */
@@ -123,3 +123,87 @@ export const TODO_REMINDER_STALE_HOURS = 48;
 
 /** The views the Todo page offers; each answers one question. */
 export type TodoView = "today" | "waiting" | "unscheduled" | "upcoming" | "all" | "closed";
+
+/**
+ * What a piece of material says about the person's work. `request`: someone asks the person to do it; `commitment`:
+ * the person said they would; `waiting`: someone else is to do it and the person depends on it; `suggestion`: not asked,
+ * but would help. Information that is only for reference never becomes a candidate.
+ */
+export type TodoCandidateKind = "request" | "commitment" | "waiting" | "suggestion";
+
+/** One material an organizing batch read, and how far it got. */
+export interface TodoBatchMaterial {
+  readonly index: number;
+  readonly title: string;
+  readonly subject: { readonly kind: string; readonly id: string } | null;
+  readonly open: { readonly surface: string; readonly id: string } | null;
+  /** When the material was written or received, if known; relative dates are read against it. */
+  readonly received_at: string | null;
+  readonly read: "read" | "truncated" | "failed";
+  readonly note: string;
+}
+
+/** A value the material states, as opposed to one the organizer inferred. */
+export interface TodoStated<T> {
+  readonly value: T;
+  /** True only when the material says it; false marks an inference to confirm. */
+  readonly stated: boolean;
+}
+
+export interface TodoCandidate {
+  readonly candidate_id: string;
+  readonly kind: TodoCandidateKind;
+  readonly title: string;
+  /** Why it needs doing, in the material's terms. */
+  readonly why: string;
+  /** Who is to do it; `stated: false` when the material leaves it open. */
+  readonly owner: TodoStated<string>;
+  /** Only a date the material states; the phrase as written ("周五前") is kept for checking. */
+  readonly due_date: string | null;
+  readonly due_time: string | null;
+  readonly due_phrase: string | null;
+  /** A day the organizer suggests working on it; always a suggestion. */
+  readonly suggested_date: string | null;
+  readonly topic: string | null;
+  readonly placement: TodoPlacement;
+  readonly waiting: { readonly who: string; readonly what: string } | null;
+  /** Where it comes from: a material and a passage that was found in it. */
+  readonly evidence: readonly { readonly material: number; readonly excerpt: string }[];
+  readonly uncertain: readonly string[];
+  /** Candidates in the same batch this one waits for. */
+  readonly depends_on: readonly string[];
+  /** How it meets the person's existing todos. */
+  readonly existing: {
+    readonly item_id: string;
+    readonly title: string;
+    readonly relation: "same" | "update" | "conflict" | "maybe_done" | "reopen";
+    /** Field changes the material asks for; a field the person edited by hand is listed under `protected` instead. */
+    readonly changes: Readonly<Partial<Record<"title" | "due_date" | "due_time" | "planned_date" | "notes", string | null>>>;
+    /** What the material says for fields the person edited by hand: shown as a conflict, kept as theirs unless they choose. */
+    readonly protected: readonly { readonly field: "title" | "due_date" | "due_time" | "planned_date" | "notes"; readonly value: string | null }[];
+    readonly reason: string;
+  } | null;
+  /** Preselected in the review: requests, commitments and waits are; suggestions are not. */
+  readonly selected: boolean;
+  /** What the person did with it. */
+  readonly decision: null | { readonly action: "added" | "merged" | "updated" | "ignored"; readonly item_id: string | null; readonly reason: string; readonly at: string };
+}
+
+/** One organizing pass over some materials: its candidates wait here until the person decides. */
+export interface TodoBatch {
+  readonly batch_id: string;
+  readonly title: string;
+  readonly origin: "assistant" | "onboarding" | "manual";
+  readonly project_id: string | null;
+  readonly method: string;
+  readonly materials: readonly TodoBatchMaterial[];
+  readonly candidates: readonly TodoCandidate[];
+  /** Passages judged reference only, so the person can see what was left out and why. */
+  readonly reference_only: readonly { readonly summary: string; readonly material: number }[];
+  /** Plain notes about the pass: what was skipped as already handled or ignored, what could not be checked. */
+  readonly notes: readonly string[];
+  readonly status: "open" | "done";
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly revision: number;
+}

@@ -363,6 +363,24 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const load = async () => {
     const seq = ++listSeq;
+    const reviewing = view === "review";
+    reviewEl.hidden = !reviewing;
+    rowsEl.hidden = reviewing;
+    if (reviewing) {
+      empty.hidden = true;
+      loading.hidden = true;
+      summary.hidden = true;
+      batchBar.hidden = true;
+      await loadBatches();
+      if (seq !== listSeq) return;
+      workbench.querySelectorAll("[data-todo-view]").forEach((button) => {
+        const on = button.dataset.todoView === view;
+        button.classList.toggle("is-current", on);
+        button.setAttribute("aria-pressed", String(on));
+      });
+      void loadReminders().catch(() => {});
+      return;
+    }
     const params = new URLSearchParams({ view: query ? "all" : view });
     if (query) params.set("q", query);
     if (everything) params.set("all", "1");
@@ -377,6 +395,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     items = payload.items || [];
     counts = payload.counts || {};
     void loadReminders().catch(() => {});
+    void loadBatches().catch(() => {});
     today = payload.today || isoDay(new Date());
     for (const id of [...picked]) if (!items.some((item) => item.id === id)) picked.delete(id);
     renderList();
@@ -431,6 +450,200 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (seq !== reminderSeq) return;
     reminders = payload.reminders || [];
     renderReminders();
+  };
+
+  // ---------- review: organizing results waiting for the person ----------
+  const reviewEl = $("[data-todo-review]");
+  const reviewToggle = $('[data-todo-view="review"]');
+  let batches = [];
+  let focusBatch = "";
+  const choices = new Map();
+  const KIND = { request: L("要你处理"), commitment: L("你的承诺"), waiting: L("在等别人"), suggestion: L("建议") };
+  const ACTION_OF = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" };
+  const DONE_AS = { added: L("已加入"), merged: L("已合并"), updated: L("已更新"), ignored: L("已忽略") };
+  const FIELD = { title: L("标题"), due_date: L("截止日期"), due_time: L("截止时间"), planned_date: L("计划日期"), notes: L("说明") };
+  const choiceOf = (candidate) => {
+    if (!choices.has(candidate.candidate_id)) choices.set(candidate.candidate_id, { picked: candidate.selected, edits: {}, accept: new Set(), editing: false });
+    return choices.get(candidate.candidate_id);
+  };
+  const actionOf = (candidate) => candidate.existing ? ACTION_OF[candidate.existing.relation] : "add";
+  const fieldValue = (field, value) => value === null || value === undefined || value === "" ? L("空") : field.endsWith("date") ? dayLabel(value) : String(value);
+  const applyLabel = (batch) => {
+    const counts = { add: 0, merge: 0, update: 0, complete: 0, reopen: 0 };
+    batch.candidates.filter((candidate) => !candidate.decision && choiceOf(candidate).picked).forEach((candidate) => { counts[actionOf(candidate)] += 1; });
+    const parts = [];
+    if (counts.add) parts.push(L("加入 {count} 项待办").replace("{count}", counts.add));
+    if (counts.merge) parts.push(L("合并 {count} 项").replace("{count}", counts.merge));
+    if (counts.update) parts.push(L("更新 {count} 项").replace("{count}", counts.update));
+    if (counts.complete) parts.push(L("标完成 {count} 项").replace("{count}", counts.complete));
+    if (counts.reopen) parts.push(L("重新打开 {count} 项").replace("{count}", counts.reopen));
+    return parts.join(L("、"));
+  };
+  const existingText = (candidate) => {
+    const existing = candidate.existing;
+    if (!existing) return "";
+    const changes = Object.entries(existing.changes).map(([field, value]) => FIELD[field] + " " + fieldValue(field, value)).join(L("，"));
+    if (existing.relation === "same") return L("和已有的「{title}」是同一件事，会补上这份来源").replace("{title}", existing.title);
+    if (existing.relation === "update") return L("会更新「{title}」：{changes}").replace("{title}", existing.title).replace("{changes}", changes);
+    if (existing.relation === "conflict") return L("你改过「{title}」，材料里的说法不同").replace("{title}", existing.title);
+    if (existing.relation === "maybe_done") return L("「{title}」可能已经完成").replace("{title}", existing.title) + (existing.reason ? L("：") + existing.reason : "");
+    return L("「{title}」已结束，材料带来了新要求").replace("{title}", existing.title) + (changes ? L("：") + changes : "");
+  };
+  const renderCandidate = (batch, candidate) => {
+    const choice = choiceOf(candidate);
+    const row = make("article", "todo-candidate" + (candidate.decision ? " is-decided" : ""));
+    row.dataset.todoCandidate = candidate.candidate_id;
+    const pick = make("input", "mw-check");
+    pick.type = "checkbox";
+    pick.dataset.todoPickCandidate = candidate.candidate_id;
+    pick.checked = !candidate.decision && choice.picked;
+    pick.disabled = Boolean(candidate.decision);
+    pick.setAttribute("aria-label", L("选中「{title}」").replace("{title}", candidate.title));
+    const body = make("div", "todo-candidate-body");
+    const head = make("div", "todo-candidate-head");
+    head.append(make("span", "todo-candidate-kind todo-candidate-kind--" + candidate.kind, KIND[candidate.kind]), make("strong", "", choice.edits.title || candidate.title));
+    body.append(head);
+    const facts = make("div", "todo-meta");
+    const due = choice.edits.due_date !== undefined ? choice.edits.due_date : candidate.due_date;
+    if (due) facts.append(make("span", "todo-meta-part todo-meta-part--due", L("截止") + " " + dayLabel(due) + (candidate.due_phrase && due === candidate.due_date ? L("（原文“{phrase}”）").replace("{phrase}", candidate.due_phrase) : "")));
+    facts.append(make("span", "todo-meta-part", candidate.kind === "waiting" ? L("在等 {who}").replace("{who}", candidate.waiting && candidate.waiting.who || L("别人"))
+      : L("负责：{who}").replace("{who}", candidate.owner.value || L("你")) + (candidate.owner.stated ? "" : L("（不确定）"))));
+    if (candidate.topic) facts.append(make("span", "todo-meta-part", candidate.topic));
+    const planned = choice.edits.planned_date;
+    if (planned) facts.append(make("span", "todo-meta-part", L("计划") + " " + dayLabel(planned)));
+    else if (candidate.suggested_date && !candidate.decision) {
+      const suggest = make("button", "mw-btn mw-btn--link todo-candidate-suggest", L("建议 {day} 做，按建议安排").replace("{day}", dayLabel(candidate.suggested_date)));
+      suggest.type = "button";
+      suggest.dataset.todoCandidateSuggest = candidate.candidate_id;
+      facts.append(suggest);
+    }
+    body.append(facts);
+    if (candidate.why) body.append(make("p", "todo-candidate-why", candidate.why));
+    if (candidate.existing) {
+      const line = make("p", "todo-candidate-existing todo-candidate-existing--" + candidate.existing.relation, existingText(candidate));
+      body.append(line);
+      candidate.existing.protected.forEach((entry) => {
+        const label = make("label", "mw-check-row todo-candidate-protected");
+        const box = make("input", "mw-check");
+        box.type = "checkbox";
+        box.dataset.todoAcceptProtected = candidate.candidate_id;
+        box.dataset.field = entry.field;
+        box.checked = choice.accept.has(entry.field);
+        box.disabled = Boolean(candidate.decision);
+        label.append(box, make("span", "", L("{field}改用材料里的：{value}（你现在的保留不动，除非勾这里）").replace("{field}", FIELD[entry.field]).replace("{value}", fieldValue(entry.field, entry.value))));
+        body.append(label);
+      });
+    }
+    candidate.evidence.forEach((entry) => {
+      const quote = make("blockquote", "todo-candidate-evidence", "“" + entry.excerpt + "”");
+      const material = batch.materials[entry.material - 1];
+      quote.append(make("small", "", " — " + (material ? material.title : L("材料"))));
+      body.append(quote);
+    });
+    if (candidate.uncertain.length) body.append(make("p", "todo-candidate-uncertain", L("不确定：") + candidate.uncertain.join(L("；"))));
+    if (choice.editing && !candidate.decision) {
+      const editor = make("div", "todo-candidate-editor");
+      const input = (label, field, type, value) => {
+        const wrap = make("label", "todo-field");
+        wrap.append(make("span", "", label));
+        const node = make("input", "mw-input");
+        node.type = type;
+        node.value = value || "";
+        node.dataset.todoCandidateField = field;
+        node.dataset.candidate = candidate.candidate_id;
+        wrap.append(node);
+        return wrap;
+      };
+      editor.append(input(L("要做什么"), "title", "text", choice.edits.title || candidate.title), input(L("截止日期"), "due_date", "date", due || ""), input(L("计划处理日期"), "planned_date", "date", planned || ""));
+      const place = make("div", "mw-toggle-group");
+      place.setAttribute("role", "radiogroup");
+      place.setAttribute("aria-label", L("放在"));
+      renderPlacementChoices(place, choice.edits.placement || candidate.placement, "data-todo-candidate-placement");
+      place.querySelectorAll("button").forEach((button) => { button.dataset.candidate = candidate.candidate_id; });
+      editor.append(place);
+      body.append(editor);
+    }
+    const actions = make("div", "todo-candidate-actions");
+    if (candidate.decision) actions.append(make("span", "mw-status mw-status--" + (candidate.decision.action === "ignored" ? "quiet" : "done"), DONE_AS[candidate.decision.action]));
+    else {
+      if (actionOf(candidate) === "add") {
+        const edit = make("button", "mw-btn mw-btn--ghost", choice.editing ? L("收起") : L("改一下"));
+        edit.type = "button";
+        edit.dataset.todoCandidateEditToggle = candidate.candidate_id;
+        actions.append(edit);
+      }
+      const ignore = make("button", "mw-btn mw-btn--ghost", L("忽略"));
+      ignore.type = "button";
+      ignore.dataset.todoCandidateIgnore = candidate.candidate_id;
+      actions.append(ignore);
+    }
+    row.append(pick, body, actions);
+    return row;
+  };
+  const renderReview = () => {
+    reviewEl.replaceChildren();
+    if (!batches.length) {
+      const none = make("div", "mw-empty");
+      none.append(make("strong", "", L("没有等你确认的整理结果")), make("p", "", L("让底部的助理整理材料，结果会先放在这里，由你决定加不加。")));
+      reviewEl.append(none);
+      return;
+    }
+    batches.forEach((batch) => {
+      const section = make("section", "todo-batch-review");
+      section.dataset.todoBatchReview = batch.batch_id;
+      const open = batch.candidates.filter((candidate) => !candidate.decision).length;
+      const head = make("header", "todo-batch-head");
+      head.append(make("h2", "", batch.title), make("small", "", L("{count} 项等你确认").replace("{count}", open) + " · " + timeLabel(batch.created_at)));
+      section.append(head);
+      batch.notes.forEach((line) => section.append(make("p", "todo-muted", line)));
+      const read = make("details", "todo-batch-materials");
+      read.append(make("summary", "", L("读了 {count} 份材料").replace("{count}", batch.materials.length)));
+      batch.materials.forEach((material) => read.append(make("p", "todo-muted", material.title + (material.read === "read" ? "" : material.read === "failed" ? L("（没读成）") : L("（没读完）")))));
+      section.append(read);
+      batch.candidates.forEach((candidate) => section.append(renderCandidate(batch, candidate)));
+      if (batch.reference_only.length) {
+        const reference = make("details", "todo-batch-reference");
+        reference.append(make("summary", "", L("另有 {count} 条仅供参考，未列入").replace("{count}", batch.reference_only.length)));
+        batch.reference_only.forEach((entry) => reference.append(make("p", "todo-muted", entry.summary + " — " + (batch.materials[entry.material - 1] ? batch.materials[entry.material - 1].title : ""))));
+        section.append(reference);
+      }
+      const foot = make("footer", "todo-batch-foot");
+      const label = applyLabel(batch);
+      const apply = make("button", "mw-btn mw-btn--primary", label || L("先勾选要保留的"));
+      apply.type = "button";
+      apply.dataset.todoApply = batch.batch_id;
+      apply.disabled = !label;
+      const rest = batch.candidates.filter((candidate) => !candidate.decision && !choiceOf(candidate).picked).length;
+      const ignoreRest = make("button", "mw-btn mw-btn--ghost", L("忽略没选的 {count} 项").replace("{count}", rest));
+      ignoreRest.type = "button";
+      ignoreRest.dataset.todoIgnoreRest = batch.batch_id;
+      ignoreRest.hidden = rest === 0;
+      const close = make("button", "mw-btn mw-btn--ghost", L("先收起"));
+      close.type = "button";
+      close.dataset.todoCloseBatch = batch.batch_id;
+      foot.append(apply, ignoreRest, close);
+      section.append(foot);
+      reviewEl.append(section);
+    });
+    if (focusBatch) {
+      const target = reviewEl.querySelector('[data-todo-batch-review="' + focusBatch + '"]');
+      if (target) { target.scrollIntoView({ block: "start" }); arrive(target); }
+      focusBatch = "";
+    }
+  };
+  const loadBatches = async () => {
+    const payload = await request("GET", "/api/todo/organize");
+    batches = payload.batches || [];
+    const waiting = batches.reduce((sum, batch) => sum + batch.candidates.filter((candidate) => !candidate.decision).length, 0);
+    reviewToggle.hidden = !batches.length && view !== "review";
+    reviewToggle.textContent = reviewToggle.dataset.todoViewLabel + (waiting ? " " + waiting : "");
+    if (view === "review") renderReview();
+  };
+  const decide = async (batch, decisions, text) => {
+    const payload = await request("POST", "/api/todo/organize/" + encodeURIComponent(batch.batch_id) + "/apply", { expected_revision: batch.revision, decisions });
+    decisions.forEach((decision) => choices.delete(decision.candidate_id));
+    await load();
+    showNote(text, { undo: payload.results.some((result) => result.item_id) ? { batch_id: payload.change_batch_id } : null });
   };
 
   // ---------- batch ----------
@@ -660,6 +873,18 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     searchTimer = setTimeout(() => { query = search.value.trim(); picked.clear(); void load().catch((error) => showNote(error.message, { error: true })); }, 250);
   });
   workbench.addEventListener("change", (event) => {
+    const pickCandidate = event.target.closest("[data-todo-pick-candidate]");
+    if (pickCandidate) { const batch = batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === pickCandidate.dataset.todoPickCandidate));
+      if (batch) { choiceOf(batch.candidates.find((candidate) => candidate.candidate_id === pickCandidate.dataset.todoPickCandidate)).picked = pickCandidate.checked; renderReview(); } return; }
+    const accept = event.target.closest("[data-todo-accept-protected]");
+    if (accept) { const batch = batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === accept.dataset.todoAcceptProtected));
+      if (batch) { const choice = choiceOf(batch.candidates.find((candidate) => candidate.candidate_id === accept.dataset.todoAcceptProtected));
+        if (accept.checked) choice.accept.add(accept.dataset.field); else choice.accept.delete(accept.dataset.field); } return; }
+    const candidateField = event.target.closest("[data-todo-candidate-field]");
+    if (candidateField) { const batch = batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === candidateField.dataset.candidate));
+      if (batch) { const choice = choiceOf(batch.candidates.find((candidate) => candidate.candidate_id === candidateField.dataset.candidate));
+        const value = candidateField.value.trim(); choice.edits[candidateField.dataset.todoCandidateField] = candidateField.dataset.todoCandidateField === "title" ? (value || undefined) : (value || null);
+        if (choice.edits.title === undefined) delete choice.edits.title; } return; }
     const pick = event.target.closest("[data-todo-pick]");
     if (pick) { if (pick.checked) picked.add(pick.dataset.todoPick); else picked.delete(pick.dataset.todoPick); renderBatch(); return; }
     const target = event.target.closest("[data-todo-field]");
@@ -699,6 +924,42 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (button.matches("[data-todo-id]")) { await flush(); await openDetail(button.dataset.todoId); return; }
+      const candidateId = button.dataset.todoCandidateIgnore || button.dataset.todoCandidateEditToggle || button.dataset.todoCandidateSuggest || button.dataset.candidate;
+      const owner = candidateId ? batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === candidateId)) : null;
+      if (owner) {
+        const candidate = owner.candidates.find((entry) => entry.candidate_id === candidateId);
+        const choice = choiceOf(candidate);
+        if (button.dataset.todoCandidateIgnore) { await decide(owner, [{ candidate_id: candidateId, action: "ignore" }], L("已忽略「{title}」").replace("{title}", candidate.title)); return; }
+        if (button.dataset.todoCandidateEditToggle) { choice.editing = !choice.editing; renderReview(); return; }
+        if (button.dataset.todoCandidateSuggest) { choice.edits.planned_date = candidate.suggested_date; renderReview(); return; }
+        if (button.dataset.todoCandidatePlacement) { choice.edits.placement = button.dataset.todoCandidatePlacement; renderReview(); return; }
+      }
+      const batchId = button.dataset.todoApply || button.dataset.todoIgnoreRest || button.dataset.todoCloseBatch;
+      const batch = batchId ? batches.find((entry) => entry.batch_id === batchId) : null;
+      if (batch) {
+        if (button.dataset.todoCloseBatch) {
+          await request("POST", "/api/todo/organize/" + encodeURIComponent(batch.batch_id) + "/close", {});
+          await load();
+          showNote(L("已收起「{title}」，没处理的留在原处").replace("{title}", batch.title));
+          return;
+        }
+        const pending = batch.candidates.filter((candidate) => !candidate.decision);
+        if (button.dataset.todoIgnoreRest) {
+          const rest = pending.filter((candidate) => !choiceOf(candidate).picked);
+          await decide(batch, rest.map((candidate) => ({ candidate_id: candidate.candidate_id, action: "ignore" })), L("已忽略 {count} 项").replace("{count}", rest.length));
+          return;
+        }
+        const label = applyLabel(batch);
+        const decisions = pending.filter((candidate) => choiceOf(candidate).picked).map((candidate) => {
+          const choice = choiceOf(candidate);
+          const decision = { candidate_id: candidate.candidate_id, action: actionOf(candidate) };
+          if (Object.keys(choice.edits).length) decision.edits = choice.edits;
+          if (choice.accept.size) decision.accept_protected = [...choice.accept];
+          return decision;
+        });
+        await decide(batch, decisions, L("已处理：{what}").replace("{what}", label));
+        return;
+      }
       const reminder = reminders.find((entry) => [button.dataset.todoReminderDone, button.dataset.todoReminderAck, button.dataset.todoReminderClose, button.dataset.todoReminderLater].includes(entry.item.id));
       if (reminder) {
         const item = reminder.item;
@@ -805,6 +1066,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   workbench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail && event.detail.itemId;
     if (!id) return;
+    if (String(id).indexOf("batch:") === 0) {
+      focusBatch = String(id).slice(6);
+      view = "review";
+      void flush().then(() => closeDetail()).then(() => load()).catch((error) => showNote(error.message, { error: true }));
+      return;
+    }
     void flush().then(() => openDetail(id)).catch((error) => showNote(error.message, { error: true }));
   });
   // The Assistant changed a todo: reread, never over unsaved input.

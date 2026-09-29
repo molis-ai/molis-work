@@ -239,7 +239,7 @@ export class MolisWorkLocalHost {
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), boardId: project?.board_id };
     });
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(todoActionProvider(options.homeDirectory));
+    if (options.homeDirectory) this.host.actionRegistry().registerProvider(todoActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(experimentsActionProvider(options.homeDirectory, this.homeActionClient()));

@@ -58,6 +58,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
       <header class="todo-chrome">
         <nav class="mw-toggle-group todo-views" data-slot="toggle-group" aria-label="${p.text("待办视图")}">
           ${VIEWS.map((view, index) => toggle("data-todo-view", view, index === 0, ` data-todo-view-label="${p.escape(p.text(view[1]))}"`)).join("")}
+          <button class="mw-toggle todo-review-toggle" type="button" data-todo-view="review" data-todo-view-label="${p.escape(p.text("待你确认"))}" aria-pressed="false" hidden>${p.text("待你确认")}</button>
         </nav>
         <div class="todo-chrome-tools">
           <label class="mw-input-group todo-search">${icon("search")}<input class="mw-input" type="search" data-todo-search placeholder="${p.text("搜索待办")}" aria-label="${p.text("搜索待办")}"></label>
@@ -87,6 +88,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
         <p data-todo-empty-text></p>
       </div>
       <div class="todo-rows" data-todo-rows role="list"></div>
+      <div class="todo-review" data-todo-review hidden></div>
       <div class="todo-batch" data-todo-batch hidden role="toolbar" aria-label="${p.text("批量处理")}">
         <strong data-todo-batch-count></strong>
         <button class="mw-btn mw-btn--ghost" type="button" data-todo-batch-action="done">${icon("check")}<span>${p.text("完成")}</span></button>

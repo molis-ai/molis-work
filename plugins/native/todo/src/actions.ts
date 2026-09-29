@@ -5,6 +5,9 @@ import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLink
 import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
 import { createTodoHomeEventsHandler, todoHomeEventsAction } from "./home-events.js";
+import { createTodoOrganizeHandlers, todoOrganizeActions } from "./organize-actions.js";
+import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 export const TODO_READ = ["todo:read"] as const;
 export const TODO_WRITE = ["todo:read", "todo:write"] as const;
@@ -38,7 +41,7 @@ const itemFields = {
 const item = object(itemFields);
 const flag = { enum: ["overdue", "due_today", "planned_past", "planned_today", "stale"] };
 const listed = object({ ...itemFields, flags: array(flag) });
-const change = object({ change_id: id, item_id: id, batch_id: nullable(id), kind: { enum: ["create", "update", "status", "archive", "unarchive", "link", "revert"] },
+const change = object({ change_id: id, item_id: id, batch_id: nullable(id), kind: { enum: ["create", "update", "status", "archive", "unarchive", "link", "source", "revert"] },
   actor: { enum: ["user", "assistant", "other"] }, at: text, before: nullable({ type: "object" }), after: { type: "object" }, revision_after: revision, reverted_by: nullable(id) });
 const changed = object({ item, change_id: nullable(id) });
 const expected = { expected_revision: revision };
@@ -117,7 +120,7 @@ export const todoActions = {
   searchEntries: todoSearchActions.entries,
   subject: todoSearchActions.subject,
 };
-export const TODO_ACTIONS: readonly ActionDefinition[] = Object.values(todoActions);
+export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
 export const TODO_ACTION_PERMISSIONS = [...new Set(TODO_ACTIONS.flatMap(definition => definition.action.permissions))];
 
 export interface TodoActionPorts {
@@ -126,6 +129,9 @@ export interface TodoActionPorts {
   today?(): string;
   /** The current instant, for reminders; tests pin it. */
   now?(): Date;
+  /** The Host's text model for organizing; absent when none is configured. */
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
+  modelAvailability?(): ActionAvailability;
 }
 
 /** Who is asking, as far as a todo is concerned. Only the person's own page may read across projects. */
@@ -178,6 +184,8 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       reminders: store.dueReminders(todoAccess(caller, caller.audience === "user"), ports.now?.()) }))),
     bind(todoActions.acknowledgeReminder, (input, caller) => ports.withStore(store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
     createTodoHomeEventsHandler(ports.withStore, ports.now),
+    ...createTodoOrganizeHandlers({ withStore: ports.withStore, today: ports.today, completeText: ports.completeText, access: todoAccess,
+      modelAvailability: () => ports.modelAvailability?.() ?? (ports.completeText ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" }) }),
     ...createTodoSearchHandlers(ports.withStore),
   ];
 }

@@ -61,6 +61,37 @@ export const TODO_STYLES = `
   .todo-trail { grid-area: trail; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
   .todo-row.is-closed .todo-title { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
 
+  .todo-review { display: flex; flex-direction: column; gap: 14px; }
+  .todo-review[hidden] { display: none; }
+  .todo-batch-review { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: var(--r-card, 12px); box-shadow: var(--lift-1); }
+  .todo-batch-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .todo-batch-head h2 { margin: 0; font-size: 15px; font-weight: 400; color: var(--ink); }
+  .todo-batch-head small { font-size: 12px; color: var(--muted); }
+  .todo-batch-materials > summary, .todo-batch-reference > summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  .todo-candidate { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; gap: 4px 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .todo-candidate > .mw-check { margin-top: 3px; justify-self: center; }
+  .todo-candidate.is-decided { opacity: .62; }
+  .todo-candidate-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .todo-candidate-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+  .todo-candidate-head strong { font-weight: 400; color: var(--ink); overflow-wrap: anywhere; }
+  .todo-candidate-kind { flex: none; padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; color: var(--ink-soft); background: var(--nav-hover); }
+  .todo-candidate-kind--suggestion { color: var(--muted); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+  .todo-candidate-why, .todo-candidate-existing, .todo-candidate-uncertain { margin: 0; font-size: 12px; color: var(--ink-soft); }
+  .todo-candidate-existing--conflict, .todo-candidate-existing--maybe_done { color: var(--tone-attention, var(--ink)); }
+  .todo-candidate-uncertain { color: var(--muted); }
+  .todo-candidate-evidence { margin: 0; padding: 2px 10px; border-left: 2px solid var(--line-strong); font-size: 12px; color: var(--ink-soft); }
+  .todo-candidate-evidence small { color: var(--faint); }
+  .todo-candidate-protected { font-size: 12px; }
+  .todo-candidate-suggest { padding: 0; height: auto; font-size: 12px; }
+  .todo-candidate-editor { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 8px 12px; padding-top: 6px; }
+  .todo-candidate-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+  .todo-batch-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .todo-review-toggle[hidden] { display: none; }
+  @media (max-width: 720px), (pointer: coarse) {
+    .todo-candidate { grid-template-columns: 32px minmax(0, 1fr); }
+    .todo-candidate-actions { grid-column: 2; justify-content: flex-start; }
+    .todo-batch-foot .mw-btn--primary { width: 100%; justify-content: center; }
+  }
   .todo-batch { position: sticky; bottom: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-3); }
   .todo-batch[hidden] { display: none; }
   .todo-batch strong { font-weight: 400; font-size: 13px; margin-right: 6px; font-variant-numeric: tabular-nums; }

@@ -25,6 +25,13 @@ export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHan
 export type { TodoActionPorts, TodoListItem, TodoListResult } from "./actions.js";
 export { todoSearchActions, todoText } from "./search.js";
 export { todoHomeEventsAction, todoHomeEvents } from "./home-events.js";
+export { TODO_INSTRUCTIONS, TODO_ORGANIZE_BASIC } from "./prompts.js";
+export { todoOrganizeActions, createTodoOrganizeHandlers, batchText, TODO_BATCH_SUBJECT_KIND } from "./organize-actions.js";
+export type { TodoOrganizePorts } from "./organize-actions.js";
+export { TodoOrganizer, materialSourceKey } from "./organize.js";
+export type { TodoApplyResult, TodoCandidateDecision } from "./organize.js";
+export { organizeParts, organizePrompt, parseOrganizeOutput, passageFound, normalizeForMatch } from "./organize-model.js";
+export type { TodoCandidateDraft, TodoOrganizeMaterial, TodoOrganizeParse } from "./organize-model.js";
 export { parseTodoQuickText } from "./quick-parse.js";
 export type { TodoQuickParse, TodoQuickPart } from "./quick-parse.js";
 export { inView, selectView, todoFlags, viewCounts } from "./views.js";

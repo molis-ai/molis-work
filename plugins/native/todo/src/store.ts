@@ -108,7 +108,7 @@ export class TodoStore {
     return rows.map(changeFromRow);
   }
 
-  create(input: TodoCreateInput, access: TodoAccess): { item: TodoItem; change_id: string; replayed: boolean } {
+  create(input: TodoCreateInput, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string; replayed: boolean } {
     const requestId = input.request_id?.trim();
     if (requestId) {
       const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestId) as { item_id: string } | undefined;
@@ -150,22 +150,22 @@ export class TodoStore {
     const changeId = crypto.randomUUID();
     this.transaction(() => {
       this.insert(item);
-      this.record({ change_id: changeId, item_id: item.id, batch_id: null, kind: "create", actor: access.actor, at, before: null,
+      this.record({ change_id: changeId, item_id: item.id, batch_id: batchId, kind: "create", actor: access.actor, at, before: null,
         after: { title: item.title }, revision_after: 1 });
       if (requestId) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestId, item.id, at);
     });
     return { item, change_id: changeId, replayed: false };
   }
 
-  update(id: string, patch: TodoFields, expectedRevision: number | undefined, access: TodoAccess): { item: TodoItem; change_id: string | null } {
+  update(id: string, patch: TodoFields, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string | null } {
     let result!: { item: TodoItem; change_id: string | null };
-    this.transaction(() => { result = this.applyUpdate(id, patch, expectedRevision, access, null); });
+    this.transaction(() => { result = this.applyUpdate(id, patch, expectedRevision, access, batchId); });
     return result;
   }
 
-  setStatus(id: string, status: TodoStatus, expectedRevision: number | undefined, access: TodoAccess): { item: TodoItem; change_id: string | null } {
+  setStatus(id: string, status: TodoStatus, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string | null } {
     let result!: { item: TodoItem; change_id: string | null };
-    this.transaction(() => { result = this.applyStatus(id, status, expectedRevision, access, null); });
+    this.transaction(() => { result = this.applyStatus(id, status, expectedRevision, access, batchId); });
     return result;
   }
 
@@ -212,7 +212,7 @@ export class TodoStore {
     });
   }
 
-  link(id: string, change: { add?: TodoLinkInput; remove_link_id?: string }, expectedRevision: number | undefined, access: TodoAccess): { item: TodoItem; change_id: string } {
+  link(id: string, change: { add?: TodoLinkInput; remove_link_id?: string }, expectedRevision: number | undefined, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string } {
     const current = this.get(id, access);
     assertRevision(current, expectedRevision);
     let links = [...current.links];
@@ -238,9 +238,40 @@ export class TodoStore {
     const changeId = crypto.randomUUID();
     this.transaction(() => {
       this.write(current, next);
-      this.record({ change_id: changeId, item_id: id, batch_id: null, kind: "link", actor: access.actor, at, before, after, revision_after: next.revision });
+      this.record({ change_id: changeId, item_id: id, batch_id: batchId, kind: "link", actor: access.actor, at, before, after, revision_after: next.revision });
     });
     return { item: next, change_id: changeId };
+  }
+
+  /** A further source for a todo that already exists (the same thing, seen again elsewhere). */
+  addSource(id: string, source: Omit<TodoSource, "source_id" | "added_at">, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string } {
+    const current = this.get(id, access);
+    const at = this.now().toISOString();
+    const [added] = normalizeSources([source], access, at);
+    if (current.sources.length >= 50) throw invalid("一件待办最多记 50 个来源");
+    const next: TodoItem = { ...current, sources: [...current.sources, added!], updated_at: at, revision: current.revision + 1 };
+    const changeId = crypto.randomUUID();
+    this.transaction(() => {
+      this.write(current, next);
+      this.record({ change_id: changeId, item_id: id, batch_id: batchId, kind: "source", actor: access.actor, at, before: { source_removed: null }, after: { source_added: added }, revision_after: next.revision });
+    });
+    return { item: next, change_id: changeId };
+  }
+
+  /** Run several store operations as one transaction (organizing applies a person's choices this way). */
+  inTransaction<T>(run: () => T): T {
+    let result!: T;
+    this.transaction(() => { result = run(); });
+    return result;
+  }
+
+  /** The same database, for the organizing records that live beside the todos. */
+  database(): DatabaseSync {
+    return this.db;
+  }
+
+  clock(): Date {
+    return this.now();
   }
 
   /** One change applied to several todos, all or nothing; undone together through its batch id. */
@@ -274,20 +305,23 @@ export class TodoStore {
    */
   revert(target: { change_id?: string; batch_id?: string }, access: TodoAccess): { items: TodoItem[]; removed_ids: string[] } {
     const rows = target.batch_id
-      ? this.db.prepare("SELECT * FROM todo_changes WHERE batch_id = ?").all(target.batch_id) as unknown as ChangeRow[]
+      ? this.db.prepare("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid").all(target.batch_id) as unknown as ChangeRow[]
       : this.db.prepare("SELECT * FROM todo_changes WHERE change_id = ?").all(target.change_id ?? "") as unknown as ChangeRow[];
     if (!rows.length) throw new TodoError("todo.not_found", "找不到要撤销的修改");
     const changes = rows.map(changeFromRow);
     if (changes.some(change => change.reverted_by)) throw new TodoError("todo.conflict", "这次修改已经撤销过了");
     if (changes.some(change => change.kind === "revert")) throw invalid("撤销本身不能再撤销，请直接修改");
+    // One todo may have several changes in a batch (created, then linked); they are undone together, newest first.
+    const groups = new Map<string, TodoChange[]>();
+    for (const change of changes) groups.set(change.item_id, [...(groups.get(change.item_id) ?? []), change]);
     const items: TodoItem[] = [];
     const removed: string[] = [];
     this.transaction(() => {
-      for (const change of changes) {
-        const current = this.get(change.item_id, access);
-        if (current.revision !== change.revision_after) throw new TodoError("todo.conflict", `「${current.title}」之后又被改过，不能撤销这次修改`);
-        const revertId = crypto.randomUUID();
-        if (change.kind === "create") {
+      for (const [itemId, group] of groups) {
+        const current = this.get(itemId, access);
+        const latest = Math.max(...group.map(change => change.revision_after));
+        if (current.revision !== latest) throw new TodoError("todo.conflict", `「${current.title}」之后又被改过，不能撤销这次修改`);
+        if (group.some(change => change.kind === "create")) {
           this.db.prepare("DELETE FROM todo_changes WHERE item_id = ?").run(current.id);
           this.db.prepare("DELETE FROM todo_requests WHERE item_id = ?").run(current.id);
           this.db.prepare("DELETE FROM todo_items WHERE id = ?").run(current.id);
@@ -295,11 +329,13 @@ export class TodoStore {
           continue;
         }
         const at = this.now().toISOString();
-        const next = restore(current, change, at);
+        let next = current;
+        for (const change of [...group].reverse()) next = restore(next, change, at);
         this.write(current, next);
+        const revertId = crypto.randomUUID();
         this.record({ change_id: revertId, item_id: current.id, batch_id: null, kind: "revert", actor: access.actor, at,
-          before: change.after, after: change.before ?? {}, revision_after: next.revision });
-        this.db.prepare("UPDATE todo_changes SET reverted_by = ? WHERE change_id = ?").run(revertId, change.change_id);
+          before: Object.assign({}, ...group.map(change => change.after)), after: Object.assign({}, ...[...group].reverse().map(change => change.before ?? {})), revision_after: next.revision });
+        for (const change of group) this.db.prepare("UPDATE todo_changes SET reverted_by = ? WHERE change_id = ?").run(revertId, change.change_id);
         items.push(next);
       }
     });
@@ -554,6 +590,10 @@ function normalizeOpen(value: { surface: string; id: string } | null | undefined
 /** Put back the fields a change touched, as they were before it. */
 function restore(current: TodoItem, change: TodoChange, at: string): TodoItem {
   const before = (change.before ?? {}) as Record<string, unknown>;
+  if (change.kind === "source") {
+    const added = (change.after as { source_added?: TodoSource }).source_added;
+    return { ...current, sources: added ? current.sources.filter(source => source.source_id !== added.source_id) : current.sources, updated_at: at, revision: current.revision + 1 };
+  }
   if (change.kind === "link") {
     const added = (change.after as { link_added?: TodoLink }).link_added;
     const removed = before.link_added as TodoLink | undefined;

@@ -1,5 +1,6 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { todoActions } from "./actions.js";
+import { todoOrganizeActions } from "./organize-actions.js";
 import type { TodoPluginRouteContext, TodoPluginRouteHandler, TodoPluginRouteResponse } from "./routes.js";
 
 export interface TodoRoutePorts {
@@ -35,6 +36,10 @@ export function createTodoRouteHandlers(ports: TodoRoutePorts): Record<string, T
     "todo.link": call(todoActions.link, identified),
     "todo.reminders": call(todoActions.dueReminders, () => ({})),
     "todo.acknowledge": call(todoActions.acknowledgeReminder, ({ params }) => ({ id: params.id })),
+    "todo.organize.list": call(todoOrganizeActions.list, ({ request: { query } }) => (query.get("status") === "all" ? { status: "all" } : {})),
+    "todo.organize.get": call(todoOrganizeActions.get, ({ params }) => ({ id: params.id })),
+    "todo.organize.apply": call(todoOrganizeActions.apply, identified),
+    "todo.organize.close": call(todoOrganizeActions.close, ({ params }) => ({ id: params.id })),
   };
 }
 

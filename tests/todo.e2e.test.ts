@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
 
@@ -171,4 +171,57 @@ test("Todo reminders and the project home: a due reminder shows once, later and 
   await click("[data-todo-reminder] [data-todo-reminder-ack]");
   await waitFor("document.querySelector('[data-todo-reminders]').hidden");
   assert.equal(read(overdueId).status, "open");
+});
+
+test("Organizing results wait in Todo: the person ticks, edits, adds and ignores; nothing is added before they choose", { timeout: 120_000 }, async t => {
+  const answer = JSON.stringify({
+    candidates: [
+      { ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true }, due: { date: null, time: null, phrase: null },
+        evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], uncertain: ["发给谁没写，推测是张总"], depends_on: ["c2"] },
+      { ref: "c2", kind: "waiting", title: "等待小李确认预算", why: "预算要小李确认", owner: { who: "小李", stated: true }, due: { date: null, phrase: null },
+        waiting: { who: "小李", what: "确认预算" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
+      { ref: "c3", kind: "suggestion", title: "今天催小李确认预算", why: "预算确认影响周五交付", owner: { who: "你", stated: false }, due: { date: null, phrase: null },
+        evidence: [{ material: 1, excerpt: "预算等小李确认" }] },
+    ],
+    reference_only: [{ summary: "下周团建改到周四（通知）", material: 1 }],
+  });
+  const browser = await openGoalBrowser(t, true, undefined, async () => answer);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory, localHost } = browser;
+  const everything = { projectId, everything: true, actor: "user" as const, actorId: "test" };
+  const items = () => { const store = openTodoStore(homeDirectory); try { return store.list(everything); } finally { store.close(); } };
+  // The Assistant's path: an agent asks Todo to organize; the result waits for the person.
+  await localHost.homeActionClient().invoke({ actor_id: "assistant", project_id: null, audience: "agent", permissions: [...TODO_ACTION_PERMISSIONS] }, todoOrganizeActions.extract,
+    { title: "整理：张总的邮件", materials: [{ title: "张总：新版方案", text: "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。" }] });
+  assert.equal(items().length, 0, "整理不会直接新建待办");
+  const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
+  await mkdir(output, { recursive: true });
+  const screenshot = async (name: string) => {
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    await writeFile(new URL(`todo-${name}-1440.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  };
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));
+  await waitFor("document.querySelector('[data-plugin-id=todo]')");
+  if (await evaluate("document.body.dataset.desktopSurface") !== "todo") await click("[data-plugin-strip] [data-plugin-id=todo]");
+  await waitFor("!document.querySelector('[data-todo-view=review]').hidden && document.querySelector('[data-todo-view=review]').textContent.includes('3')");
+  await click("[data-todo-view=review]");
+  await waitFor("document.querySelectorAll('[data-todo-candidate]').length === 3");
+  assert.equal(await evaluate("document.querySelector('[data-todo-apply]').textContent"), "加入 2 项待办");
+  assert.match(String(await evaluate("document.querySelector('[data-todo-review]').textContent")), /另有 1 条仅供参考，未列入/);
+  assert.match(String(await evaluate("document.querySelector('[data-todo-review]').textContent")), /“请周五前发新版方案”/);
+  await screenshot("review");
+
+  // Edit before adding, then add the two ticked ones.
+  await click("[data-todo-candidate-edit-toggle]");
+  await waitFor("document.querySelector('[data-todo-candidate-field=title]')");
+  await evaluate(`(() => { const node = document.querySelector('[data-todo-candidate-field=title]'); node.value = '发送新版方案给张总'; node.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+  await click("[data-todo-apply]");
+  await waitFor("document.querySelector('[data-todo-note-text]').textContent === '已处理：加入 2 项待办'");
+  assert.deepEqual(items().map(item => item.title).sort(), ["发送新版方案给张总", "等待小李确认预算"]);
+  await waitFor("document.querySelector('[data-todo-ignore-rest]') && !document.querySelector('[data-todo-ignore-rest]').hidden");
+  await click("[data-todo-ignore-rest]");
+  await waitFor("document.querySelector('[data-todo-review]').textContent.includes('没有等你确认的整理结果')");
+  assert.equal(items().length, 2);
 });

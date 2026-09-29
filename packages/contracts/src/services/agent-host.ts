@@ -571,6 +571,11 @@ export interface AgentActionClient {
   offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
   check?(reference: ExactActionReference, input: unknown): Promise<void>;
+  /**
+   * Whether this change may run without the person's confirmation: it declares how it is undone, its undo is offered
+   * now, and the person has not set it to confirm each time. Absent: every change is confirmed.
+   */
+  direct?(view: ActionView): boolean;
   invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
 }
 

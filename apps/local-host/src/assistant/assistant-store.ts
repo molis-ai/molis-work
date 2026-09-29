@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -38,6 +38,9 @@ CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id,
 CREATE TABLE IF NOT EXISTS assistant_followups (
   followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS assistant_undos (
+  undo_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assistant_jobs (
   key TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
@@ -65,6 +68,15 @@ export interface StoredWork extends Omit<AssistantWork, "state"> {
   project_ref?: LocalHostProjectReference;
   /** On a delegated work: follow-ups its delegating work sent it. */
   follow_ups?: number;
+}
+
+/** A change that can be taken back: the public view plus the exact undo to run. */
+export interface StoredUndo extends AssistantUndoable {
+  work_id: string;
+  reference: { capability_id: string; version: number; provider_id: string };
+  input: Record<string, unknown>;
+  /** Told to the next round once undone. */
+  told?: boolean;
 }
 
 /** A background job being followed: the public view plus how to read its state. */
@@ -326,6 +338,27 @@ export class AssistantStore {
     const { told: _told, ...body } = job;
     this.db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body")
       .run(job.key, actorId, job.work_id, JSON.stringify(body));
+  }
+
+  undos(actorId: string, workId: string): StoredUndo[] {
+    return this.db.prepare("SELECT body FROM assistant_undos WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId).map(row => JSON.parse(String(row.body)) as StoredUndo);
+  }
+
+  saveUndo(actorId: string, undo: StoredUndo): void {
+    this.db.prepare("INSERT INTO assistant_undos(undo_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(undo_id) DO UPDATE SET body=excluded.body")
+      .run(undo.undo_id, actorId, undo.work_id, JSON.stringify(undo));
+  }
+
+  /** Capabilities (action keys) the person wants confirmed each time even though they could be undone. */
+  confirmAlways(actorId: string): Set<string> {
+    const saved = this.setting(actorId, "confirm_always");
+    return new Set(saved ? JSON.parse(saved) as string[] : []);
+  }
+
+  setConfirmAlways(actorId: string, key: string, on: boolean): void {
+    const keys = this.confirmAlways(actorId);
+    if (on) keys.add(key); else keys.delete(key);
+    this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
   }
 
   markJobsTold(actorId: string, keys: readonly string[]): void {

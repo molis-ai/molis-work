@@ -187,7 +187,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       : { sandbox: "read-only", approval: "on-request" },
     ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "session-send" }] }, rules: [...codingExecutionRules,
       // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
-      { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } }] } : {}),
+      { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
+      // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.
+      { source: "runtime" as const, effect: "allow" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.direct } }] } : {}),
     require: ["secrets", "network", "clock", "workspace.read", "storage"],
   });
 

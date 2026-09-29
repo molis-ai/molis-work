@@ -135,6 +135,17 @@ export interface ActionMetadata {
     readonly done: readonly string[];
     readonly failed: readonly string[];
   };
+  /**
+   * How this change is taken back: another command of the same provider, with its input read from this command's
+   * output (a path such as "spark.id"; a one-item array wraps the value in an array, e.g. ["spark.id"]). A change that
+   * declares it may run without a confirmation when the person asked for exactly this effect (they can set it back to
+   * confirm each time), and the work then offers “撤销”. Never on an irreversible change.
+   */
+  readonly undo?: {
+    readonly capability_id: string;
+    readonly version: number;
+    readonly input: Readonly<Record<string, string | readonly [string]>>;
+  };
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
@@ -517,6 +528,15 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           if (raw.operation !== "command" || !object(job) || !object(job.status) || !id(job.status.capability_id) || !version(job.status.version)
             || !path(job.id) || !path(job.input) || !path(job.state) || !states(job.done) || !states(job.failed)) {
             problems.push(`能力 ${key} 的后台任务声明必须是命令，并写明状态查询、任务标识与状态的位置和结束状态`);
+          }
+        }
+        if (a.undo !== undefined) {
+          const undo = a.undo;
+          const path = (value: unknown) => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
+          const fields = object(undo) && object(undo.input) ? Object.entries(undo.input) : [];
+          if (raw.operation !== "command" || a.effect === "irreversible" || !object(undo) || !id(undo.capability_id) || !version(undo.version) || !fields.length
+            || fields.some(([, value]) => !(path(value) || (Array.isArray(value) && value.length === 1 && path(value[0]))))) {
+            problems.push(`能力 ${key} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`);
           }
         }
         problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));

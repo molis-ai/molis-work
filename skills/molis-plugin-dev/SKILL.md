@@ -85,6 +85,8 @@ description: The single standard for building Molis Work plugins, hand-written o
     历史提醒缺少可信安装世代时保留暂停。管理入口先展示提醒及 Host 解析的当前安装，再用 `schedule.reminders.recover` 明确恢复；预期安装 ID/世代只防止过期确认，不能当授权。普通启用不补权，重装后要重新查看和确认；恢复沿用原排期，过期补提醒一次，不执行插件代码。
     恢复动作声明 `plugin: false`，不由生成插件自行接管旧提醒。仅从 audiences 去掉 plugin 不能替代这一声明，因为 Agent 能力默认也可供生成插件使用。
     持久任务不能只记可复用的 `install_id`：同时绑定 Runtime 的安装世代，由 Host 读取并在执行前复查。重装更新世代，升级和重启不更新；旧记录归属不明时保留并暂停，不能用新安装的授权补跑。
+    定时运行自己插件的 operation 使用 `schedules.add/cancel`，生产实现归 Schedule，Host 提供当前安装执行器。启动或注册执行器不能自行清空队列补跑；只能由新的 Scheduler lease 唤醒持久 pending。已派出但结果未知时停止后续排期，先核对外部结果，不能假定失败而自动重试。daily/weekly 仍是固定 24 小时/7 天间隔。
+    旧定时 operation 与未知结果在 Schedule 查看原输入和历史，用 `schedule.operations.recover` 明确 resume/retry/skip；所见 revision 与安装 ID/世代/版本须与当前一致。管理动作禁止 plugin 自行调用，普通启用不能绕过核对；重试可能重复副作用，跳过一次性任务则结束。所有决定只调整持久计划，实际执行仍等待新的 lease。
 16. 发布新版本时递增 `version`，再按数据格式声明精确的 `upgrade_compatibility` 来源版本。直接兼容与可迁移来源不同；不要为未验证的旧版本声明兼容。细则见 [elements.md · 版本升级](elements.md#版本升级)。
 
 ## 要素怎么选（别全要）

@@ -50,14 +50,20 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
   const catalog = () => capabilityCatalog(actions, 'owner');
   const definition = sandboxedPluginDefinition(release, effects, [], { capability: catalogCapabilities({ actions, catalog, live: () => true }), capabilities: catalog });
   let withdraw = () => {};
+  const firstRouteFinished = gate();
+  let firstRouteBody: unknown;
   try {
     const report = await platform.start([{ definition, grants: ['storage:private'] }]);
     assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
     const installId = platform.runtime.list().find(item => item.plugin_id === contract.pluginId)!.install_id;
     const register = () => exposeInstalledPlugin(actions, release, async (pluginId, operation, input, context) => {
       assert.equal(context.actor_id, 'owner', 'the outer actor survives the route adapter');
-      return await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id,
-        execution: context, body: { operation, input } }) ?? { status: 409 };
+      try {
+        const response = await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id,
+          execution: context, body: { operation, input } }) ?? { status: 409 };
+        firstRouteBody ??= response.body;
+        return response;
+      } finally { firstRouteFinished.resolve(); }
     });
     withdraw = register();
     const caller: ActionCallContext = { actor_id: 'owner', project_id: 'p', audience: 'user', permissions: [], signal: controller.signal,
@@ -72,6 +78,8 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
     if (mode === 'revoked') allowed = false;
     if (mode === 'withdrawn') withdraw();
     releaseGate.resolve(); await rejected; await finished.promise;
+    await firstRouteFinished.promise;
+    if (mode === 'cancelled') assert.equal((firstRouteBody as { outcome?: string }).outcome, 'unknown', 'the HTTP adapter must preserve the sandbox interruption outcome for Schedule');
     assert.equal(externalEffects, 0, 'the nested Action rechecks the original invocation before its external effect');
     assert.deepEqual(privateStorage.snapshotInstallationData(installId), before, 'no late private data commit');
     allowed = true; if (mode === 'withdrawn') withdraw = register();

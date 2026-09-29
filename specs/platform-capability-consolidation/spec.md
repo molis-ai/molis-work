@@ -18,7 +18,7 @@
 | 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
-| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 执行控制、提醒归位、安装运行独立于 Studio、安装世代隔离、旧提醒明确恢复已实现；定时 operation、持久 pending 与其旧任务恢复待完成 |
+| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent 消费及 Native/Host 提供方已实现并验证；安装依赖变更与执行绑定随 05/07 完成 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
@@ -126,6 +126,22 @@ Schedule 将提醒正文、原插件及当前可用安装投影到 job 详情；
 
 验收：真实 SQLite 验证旧数据迁移后保持暂停、普通启用不授予身份、明确恢复后的重启/一次性投递/固定间隔、同 ID 重装导致旧确认拒绝、跨项目/Home 隔离、授权撤销零写入、事务失败回滚与并发重复提交不重开已暂停任务。真实 Chrome 验证发现恢复入口、取消确认、安装变更提示与刷新后重新确认，窄屏可操作。先整体构建，再跑 Schedule 包要求与新增定向回归、边界检查。回滚仍须暂停持久任务；本切片不新增第二数据源。
 
+### 定时 operation 与持久待执行记录
+
+当前 `plugin-builder/schedules.ts` 在没有安装执行入口时将 occurrence 写入最多 50 条的私有数组，注册入口时先删数组再执行并吞错；Scheduler 则在调用前推进间隔/停用 once。决定：任务记录、单次执行记录和恢复决策归 Schedule，安装版本、批准与调用入口归 Host/Runtime，Scheduler 继续只提供排期、原子 claim 和 lease。不另建任务引擎。
+
+Scheduler 的唤醒注册允许可信 Host 提供同步 prepare：在获取 lease 的同一 SQLite 事务中，Schedule 写入 `(任务, due_at)` 的 pending 记录，然后才进入原唤醒处理器。prepare 不能异步等待或派出外部工作，失败则 claim 和领域记录一起回滚；没有 prepare 的现有消费者保持原行为。唤醒结果可明确报告 failed/plugin_unavailable，不能把 operation 失败记成 ok。Schedule 在实际调用前、同事务检查 lease、任务状态、安装世代并改为 running；结果与 Inbox 写入同事务再复查。超时/进程退出必须保留结果未知的语义，不能因为 HTTP 把错误转为 400 就当作已知失败。
+
+安装执行入口注册只登记当前 executor，不能在初始化中补跑。每次 tick 前按同库 lease 复核：未派出的 pending 可以重新挂原 job 并使用新的执行控制；已派出而无终态且无活跃 lease 的 running 改为 unknown，停止后续排期，等待明确恢复决定。原 job 的身份、收据及固定 interval 保留；按 due_at 去重，旧队列中多次实际等待的 occurrence 逐个保存，不能用“漏周期只补一次”丢掉已经登记的待执行工作。暂停、取消、卸载或换执行入口后，旧控制不可提交成功/失败或 Inbox；未知副作用不自动重放。周期任务每次新的正常 occurrence 仍沿原固定间隔，不改日历语义。
+
+`schedules.add/cancel` 的稳定 id 和对象输入合同保留，定义和处理迁到 Schedule 的公共系统提供方；Host 按可信项目/安装上下文装配，Builder 仅保留 authoring stand-in/旧合同适配，不再拥有生产调度记录。任务绑定当前 Runtime 世代，配额按安装世代计算。恢复管理同样必须禁止生成插件自行接管旧安装，使用公开 Action 及 Schedule UI，明确区分确认旧归属、重试未知结果（可能重复副作用）和跳过本次后继续；此管理路径随后与迁移一起验收，不能用“已暂停保留”宣称 05 完成。
+
+管理列表通过同一个 `schedule.tasks.list` 返回原功能、原输入、安装候选、排期和每次执行历史，以及丢失定义的旧等待记录。`schedule.operations.recover` 显式 `plugin: false`；恢复前复查所见任务/历史 revision、当前安装世代和版本，任何过期确认都拒绝。未知结果只能明确 retry/skip，决定和原未知说明保留在 occurrence 历史；多个未知逐次核对完才恢复，一次性跳过即完成。HTTP 与 UI 只调用该 Action；刷新不自动提交，失败保留核对窗口。
+
+Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pending、保留原 id/job/时间/间隔/输入/链接/收据后，删除已转移的旧记录与队列项；无原任务定义的旧等待项保留为不可执行的历史记录，不猜测操作。缺安装世代的旧任务暂停，不能自动绑定当前安装。迁移不干预仍有活跃 lease 的旧任务，待 lease 结束再处理；重复启动不重复导入。旧版本不认识新持久状态，回滚前必须停用新任务并进行明确回迁，不能直接 revert 后同时启动旧队列。
+
+验证：真实 SQLite/进程中断覆盖 claim 前后、派出前后和业务提交后中断；两个连接竞争、暂停/取消/重装/更换入口时晚结果拒绝；超过旧 50 条上限的历史 pending 全量保留；失败事务不删原数据；恢复等待只执行一次、unknown 零自动重放、真实安装 sandbox 经公开 Schedule 能力创建并到点执行。按包要求整体构建后回归及边界检查，恢复 UI 另走真实 Chrome。未完成的管理或迁移行为仍列为缺口。
+
 ### 能力执行元数据切片（安装执行迁移的前置）
 
 当前 Builder 目录用 `capability_id === model.generate` 判断费用，sandbox 超时/slow lane 只读旧 Studio 名单；Agent 工具使用统一固定超时。新增提供方声明的 Action `execution`：明确时限、费用类别（未声明保持 unknown）和必要的调用频率上限，随原目录/版本传递。Kernel 对明确声明的时限和频率执行统一检查，沿既有 signal / beforeEffect 契约取消并拒绝迟到写入；入口可以有更严格的限额。现有 concurrent 声明继续负责并发，不新造第二种调度机制，取消仍为合作式而非保证厂商停止计费。
@@ -184,4 +200,12 @@ Schedule 将提醒正文、原插件及当前可用安装投影到 job 详情；
 
   提醒界面隐藏旧 Builder 内部标识的最后调整再次整体构建通过；9 文件 UI/Workbench 33/33，无跳过，包含真实 Chrome 的新恢复动线和原有工作台标签/分屏。已查看窄屏浅色/深色截图，使用现有组件，没有重做页面；深色截图等待主题过渡结束后核对文字对比。最终 69 包边界检查 errors 为空，diff whitespace 检查通过。日志 `/tmp/platform-reminder-recovery-ui-build.log`、`/tmp/platform-reminder-recovery-ui-regression.log`、`/tmp/platform-reminder-recovery-boundary.log`。所有数据、投递及迁移在隔离 SQLite/Home 中验证，没有修改真实 Home 数据，没有运行付费模型，也不代表用户本人验收。
 
-接续位置：05 提醒 owner、安装运行与 Studio 解耦、安装调用执行控制、Runtime/提醒世代隔离及旧提醒明确恢复已接通。下一步把定时 operation 的记录与管理迁入 Schedule，复用当前安装世代；迁移旧 pending（不能先删后跑、限长丢弃或吞错），补齐定时 operation 旧任务的显式恢复入口，不能把未知结果自动重试。当前旧 operation 队列仍在 `apps/local-host/src/plugin-builder/schedules.ts`，尚未迁移；新的 Host 调用者注册已不依赖 Studio，但该文件还会在注册时先删 pending 再补跑。Scheduler 在派出前推进 next_due_at/停用 once，因此还需核实未派出可等待与已派出结果未知的恢复边界，不能直接把它们混为自动重试。然后复查安装依赖变更后的能力执行策略。生成式动作归 Runtime 生命周期前仍须处理合成 Manifest 的同版本指纹及旧提供方授权引用，不能静默破坏原安装。07–09 及最终消费者/文档验收仍未完成。当前仅有本地提交，不能把已完成切片等同整个 Goal 完成。
+- 定时 operation 与持久恢复：Schedule 接管计划、occurrence、公共 schedules.add/cancel 和管理 Action/UI；删除 Builder 的生产队列与调度文件。Scheduler 同事务 prepare 保存 pending，派出前变为 running，结果/Inbox/终态同事务复查。已派出中断转 unknown，停止后续排期；确认 retry/skip 保留历史并拒绝过期的任务、安装或版本。旧队列完整迁移、保留原 job/间隔/输入/链接/收据；活动 lease 延后迁移，并在缓存 timer 的后续 tick 重新导入，不能把旧 job 当作已取消消费。缺失定义的历史可查看但不可运行。
+
+  整体构建通过。最初核心 3 文件 25/25，恢复入口 6 文件 32/32；代码复查补齐缓存 timer 的延后迁移后再次整体构建，最终 34 文件 220/220，无跳过。包括真实子进程在派出前、派出后和业务提交后被 SIGKILL；未派出的可继续，已派出的未知工作零自动重放，已提交结果不因缺技术收据而重放。真实 SQLite 验证准备/创建/取消/结果/恢复失败回滚、世代/Home/项目隔离、配额、晚结果拒绝；旧 60 条 pending 全部迁入并逐条执行，无限长裁剪。Seatbelt 实际安装操作在 Host 重启后继续执行，HTTP 适配保留沙箱中断的 unknown；Chrome 窄屏验证取消、重装拒绝旧确认、刷新失败保留窗口、明确跳过和浅/深色布局，已查看两张截图。
+
+  日志：/tmp/platform-scheduled-operations-final-build.log、/tmp/platform-scheduled-operations-regression.log；先前定向日志 /tmp/platform-scheduled-operations-targeted.log、/tmp/platform-scheduled-operation-recovery-targeted.log。全部使用隔离 Home/SQLite，没有改动真实用户数据；未调用付费模型或外部服务，不代表一骏本人验收。
+
+  最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-scheduled-operations-boundary.log。源码与构建完成后再回归，回归期间没有改源码、脚本、package.json 或 Skill。
+
+接续位置：05 的提醒、定时 operation、持久待执行、安装独立执行和显式恢复链路已接通并完成上述验证。下一步继续 06：安装定义在 start 时捕获 capabilities/slow lanes，需核对依赖提供方、版本和策略变化后的失效与重建。07 的生成式动作归 Runtime 生命周期前，仍须处理合成 Manifest 的同版本指纹和旧提供方授权引用，不能静默破坏安装；Native catalog/pack/Host 多清单继续审查。08 事件订阅的独立身份、世代与领域 outbox，09 材料提取/资源合同，以及最终全消费者和文档验收仍未完成。当前仅本地改造，不能把已完成切片等同整个 Goal 完成。

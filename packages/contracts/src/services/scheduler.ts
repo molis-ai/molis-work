@@ -67,6 +67,12 @@ export interface ScheduleWakeupInput {
   due_at: string;
 }
 
+/** The owner can report a known failure without throwing away its committed domain receipt. */
+export interface ScheduleWakeupReply {
+  detail?: string;
+  status?: ScheduleWakeupStatus;
+}
+
 /** Trusted execution controls supplied by Scheduler; never persisted as task input. */
 export interface ScheduleWakeupControl {
   readonly signal: AbortSignal;

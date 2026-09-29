@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
-import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
+import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/src/plugin-builder/catalog.js';
 
 const schema = { type: 'object', properties: {}, additionalProperties: false };
@@ -23,6 +23,8 @@ function project() {
   const unregister = registerPlatformCapabilities(actions, { generate: async (pluginId, input) => { generated.push(pluginId + ':' + input.input); return { text: '真实回答' }; } });
   service.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: 'p' },
     definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers('p', { add: () => ({ reminderId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
+  service.registerProvider({ provider: { provider_id: SCHEDULE_OPERATION_PROVIDER_ID, title: 'Schedule 定时操作', kind: 'system', project_id: 'p' },
+    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers('p', { add: () => ({ scheduleId: 'fixture' }), cancel: () => ({ cancelled: true }) }) });
   return { actions, calls, generated, unregister };
 }
 
@@ -40,6 +42,7 @@ test('the capability board is the project\'s action directory: platform, install
   unregister();
   assert.equal((await capabilityCatalog(actions, 'web-user')).some(entry => entry.id === 'model.generate'), false, 'withdrawn with the studio');
   assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'reminders.add')?.provider_id, SCHEDULE_REMINDER_PROVIDER_ID, 'Schedule remains available after the Studio withdraws');
+  assert.equal((await capabilityCatalog(actions, 'web-user')).find(entry => entry.id === 'schedules.add')?.provider_id, SCHEDULE_OPERATION_PROVIDER_ID, 'scheduled operations belong to Schedule too');
 });
 
 test('MCP tools show as MCP on the board whether a plugin or 服务连接 registered them', async () => {

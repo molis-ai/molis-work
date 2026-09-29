@@ -6,8 +6,9 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ArtifactsModule } from '@molis-ai/molis-work-module-artifacts';
 import { AgentBuilderStore, type AgentDesign, type AgentRelease, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import { goalsActions } from '@molis-ai/molis-work-plugin-goals';
-import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
-import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
+  SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
+import { SqlitePluginPrivateStorage, pluginInstallationGeneration } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { LocalProjectDatabase } from './project-database.js';
@@ -18,7 +19,7 @@ import { scheduleServiceFor } from './schedule-runtime.js';
 import { studioStorage } from './plugin-builder/storage.js';
 import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
 import { exposeInstalledPlugin } from './plugin-builder/exposed-actions.js';
-import { bindScheduledRuns, createScheduledRuns, registerInstalledCaller } from './plugin-builder/schedules.js';
+import { bindInstalledOperationCaller } from './schedule-operations.js';
 import { hostCapabilities, type CapabilityImplementations } from './plugin-builder/capabilities.js';
 import { CATALOG_VERSION, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, type ProjectActions } from './plugin-builder/catalog.js';
 import { hostNetwork } from './plugin-builder/network.js';
@@ -116,13 +117,19 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   const schedule = scheduleServiceFor(store.db);
   const reminders = hostScheduleReminders({ db: store.db, boardId, projectId: actions.project_id, schedule, routePrefix: options.routePrefix ?? '' });
-  bindScheduledRuns();
-  const scheduledRuns = createScheduledRuns({ boardId, schedule, storage,
-    installed: pluginId => { const release = releaseFor(pluginId); return release && { title: release.design.title, operations: release.design.contract.operations }; },
+  const scheduledInstallation = (pluginId: string) => {
+    const record = recordFor(pluginId), release = releaseFor(pluginId);
+    return record?.state === 'running' && release && approvedFor(pluginId)
+      ? { installationId: record.install_id, generation: pluginInstallationGeneration(record), version: record.version, title: release.design.title, operations: release.design.contract.operations } : null;
+  };
+  const scheduledRuns = createScheduledOperations({ db: store.db, boardId, projectId: actions.project_id, schedule,
+    describe: identity => { const current = scheduledInstallation(identity.pluginId); return current?.installationId === identity.installationId ? current : null; },
     link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
-  const disposePlatform = registerPlatformCapabilities(actions, { generate, schedules: scheduledRuns });
+  const disposePlatform = registerPlatformCapabilities(actions, { generate });
+  const disposeScheduledOperations = actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_OPERATION_PROVIDER_ID, title: 'Schedule 定时操作', kind: 'system', project_id: actions.project_id },
+    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers(actions.project_id, scheduledRuns) });
   const disposeReminders = !options.actions ? actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: actions.project_id },
     definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers(actions.project_id, reminders) }) : undefined;
   const exposed = new Map<string, () => void>(), recoveryErrors = new Map<string, string>();
@@ -193,7 +200,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     }
     if (action === 'uninstall') {
       withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId);
-      reminders.cancelInstallation(release.pluginId, record.install_id); scheduledRuns.cancelAll(release.pluginId); secrets.remove(release.pluginId);
+      reminders.cancelInstallation(release.pluginId, record.install_id); scheduledRuns.cancelInstallation(release.pluginId, record.install_id); secrets.remove(release.pluginId);
       const keepData = (grants as { keepData?: unknown } | undefined)?.keepData === true;
       await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
       if (!keepData) privateStorage.deleteInstallationData(record.install_id);
@@ -203,7 +210,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   let stopScheduledRuns: (() => void) | undefined;
   const close = async () => {
     if (closed) return;
-    closed = true; stopScheduledRuns?.(); disposePlatform(); disposeReminders?.();
+    closed = true; stopScheduledRuns?.(); disposePlatform(); disposeScheduledOperations(); disposeReminders?.();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];
     for (const pluginId of platform.supervisor.enabledPluginIds()) {
@@ -225,10 +232,13 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         else throw new Error(report.failed[0]?.message ?? report.blocked[0]?.message ?? '安装插件未能恢复');
       } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
     }
-    stopScheduledRuns = await registerInstalledCaller(store.db, boardId, async (pluginId, operation, input, control) =>
-      await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: 'scheduled-plugin:' + pluginId,
-        execution: { signal: control.signal, beforeEffect: async () => control.beforeEffect() }, body: { operation, input } })
-      ?? { status: 409, body: { error: recoveryErrors.get(pluginId) ?? '这个插件当前没有运行（可能已停用）' } });
+    stopScheduledRuns = bindInstalledOperationCaller(store.db, boardId, { describe: scheduledInstallation, async call(run, control) {
+      const response = await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + run.pluginId + '/call', actor_id: 'scheduled-plugin:' + run.pluginId,
+        execution: { signal: control.signal, beforeEffect: async () => control.beforeEffect() }, body: { operation: run.operationId, input: run.input } });
+      const body = response?.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
+      return { state: response?.status === 200 ? 'succeeded' : body?.outcome === 'unknown' ? 'unknown' : 'failed',
+        value: response?.status === 200 ? body?.value : body?.error ?? recoveryErrors.get(run.pluginId) ?? '这个插件当前没有运行（可能已停用）' };
+    } });
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.slice(SIGNATURE.length), version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };

@@ -41,7 +41,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
-Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定新旧唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库、旧数据迁移和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。旧 job 身份和收据保持，归属不明的记录保留并暂停。定时 operation 的已安装运行生命周期仍是后续迁移项。
+Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定新旧唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库、旧数据迁移和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。旧 job 身份和收据保持，归属不明的记录保留并暂停。`schedule-operations.ts` 同样只装配安装执行器、Inbox 和旧定时 operation 的单向迁移；计划与 occurrence、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。长驻 timer 在旧 lease 结束后继续迁移，避免未导入的旧 job 被提前消费。
 
 ## 公共搜索与证据
 

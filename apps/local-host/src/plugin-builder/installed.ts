@@ -80,6 +80,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       return {
         kind: 'app',
         routes: [{ route_id: 'studio.call', async handle(request) {
+          let outcomeUnknown = false;
           try {
             const body = (request.body ?? {}) as { componentId?: unknown; binding?: unknown; payload?: unknown; operation?: unknown; input?: unknown };
             // The platform (its scheduler, or the action directory) runs an operation by id; people reach operations through parts.
@@ -92,10 +93,10 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
             try { return { status: 200, body: { value: await active.call(call.operationId, call.input as SandboxJson, request.execution) } }; }
             catch (error) {
               // A dead process restarts on the next call; the failed call itself is not replayed, so nothing is written twice.
-              if (GONE.has((error as { code?: string }).code ?? '')) { if (lanes.get(lane) === pending) lanes.delete(lane); throw new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
+              if (GONE.has((error as { code?: string }).code ?? '')) { outcomeUnknown = true; if (lanes.get(lane) === pending) lanes.delete(lane); throw new Error('本次插件调用已停止，结果可能尚未确认；请先检查结果，再决定是否重新执行'); }
               throw error;
             }
-          } catch (error) { return { status: 400, body: { error: message(error) } }; }
+          } catch (error) { return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } }; }
         } }],
         views: [{ descriptor: { contribution_id: uiId, plugin_id: release.pluginId, kind: 'primary-page', label: release.design.title, slots: [] },
           render: () => '<main data-installed-plugin="' + release.pluginId + '"></main>' }],

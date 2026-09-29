@@ -34,7 +34,9 @@ Codex / Claude Code / OpenCode 把目标目录改成各自的 `skills/molis-plug
 - 安装授权分"它自己的数据 / 会读取 / 会替你改动"列出；不可撤销的动作不开放。
 - 安装后，生成插件的每项功能登记为统一目录里的动作：提供方是 `plugin:<插件 id>`，能力 id 是 `generated.<构建号前 8 位>.<功能 id>`，受众为用户、agent、workflow、MCP 和插件。停用或卸载时撤回，升级时换成新版本的。调用在插件自己的沙箱里运行，身份是插件本身。
 - 生成式动作声明 `concurrent`，由各自沙箱的有界队列串行执行；不能占住项目动作队列再反向调用平台能力。Host 通过独立的 `execution` 参数把原调用的 signal/beforeEffect 传到 route、Runner、Broker 和服务适配器。它不是 JSON 字段或 actor 名称授权；页面仍只调用声明的组件绑定。存储 CAS、嵌套 Action、DNS/密钥解析后的网络派出均须复查。排队取消不影响别人的执行，执行中取消终止该通道；结果可能已产生的调用不自动重试。任务自己的持久授权由任务 owner 重建，不能保存当前回调供下次运行。
-- 到点提醒（`reminders.*`）由 Schedule 在公共目录提供，按项目和安装实例隔离；到点将文字放入收件箱，不运行插件代码，也不依赖打开创作台。定时执行（`schedules.*`）运行插件自己的沙箱 operation，结果可以进收件箱；Host 的安装运行入口在项目恢复和发现时接通它，关闭 Studio 不影响已安装插件。旧定时记录与 pending 的独立持久管理仍在迁移。
+- 到点提醒（`reminders.*`）由 Schedule 在公共目录提供，按项目和安装实例隔离；到点将文字放入收件箱，不运行插件代码，也不依赖打开创作台。定时执行（`schedules.*`）同样由 Schedule 保存计划和每次执行记录，实际 operation 由当前安装的沙箱执行，结果可进收件箱。Host 在项目恢复和发现时登记执行入口，关闭 Studio 不影响安装运行；登记本身不清空队列或补跑，真正派出必须取得新的 Scheduler lease。
+- `schedules.add` 的插件/安装身份来自调用上下文，每个安装世代最多 20 个未完成计划；daily/weekly 保持固定 24 小时/7 天。尚未派出的 pending 可以等待执行入口，running 中断后的未知结果停止后续排期，不能当普通失败自动重放。输入、计划、结果与 Inbox 的事务规则属于 Schedule；Scheduler 只管排期和 lease，插件仍拥有实际业务实现。
+- 旧记录和整个 pending 队列一次性迁入 Schedule，保留任务、job、时间、输入、链接和收据；归属不明的旧任务先暂停，丢失定义的引用留作不可执行历史。管理者先通过 `schedule.tasks.list` 或页面核对，再用 `schedule.operations.recover` 明确恢复、重试或跳过未知结果。Action 拒绝过期的任务/历史 revision 与安装世代/版本，声明 `plugin: false`，新插件不能借此继承旧任务。重试可能重复外部副作用，决定及原说明保留；确认只调整计划，不在管理请求中运行插件代码。
 - `installed-plugin-host.ts` 复用原发布版本、批准记录、Manifest 指纹和 Action id，恢复已安装插件不初始化创作 Workflow。正常 Host 关闭使用 Runtime.stop 的 `preserve_enabled`，保留 startable 的 installed 状态；显式停用留下 disabled，重启不自动启用。批准或发布记录缺失会报告恢复失败，不能改用 release.permissions 自动补权；缺少批准记录时可卸载并保留数据，再重新确认安装。
 - 通用提醒的提供方是 Host 装配的 `schedule.reminders`，不要求启用可选的 Schedule 对话页面；调用仍检查真实安装身份与原能力授权。不要把可发现误当成已授权。
 - 联网（`networkDomains`）：只能 https、访问批准的确切域名、公网地址；安装前只读，写入用替身。本机代理用 fake-IP 模式时，域名会解析到 198.18.0.0/15；按用户决定，这一段放行（插件只能按批准的域名访问，不能直接写地址）。

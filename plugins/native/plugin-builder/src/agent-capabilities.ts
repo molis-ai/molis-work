@@ -103,7 +103,7 @@ export const STUDIO_CAPABILITIES: readonly StudioCapability[] = [
     title: '定时执行',
     consent: '按设定的时间自动运行它自己的一项功能（结果可以放进收件箱）',
     description: '请平台按时间自动运行这个插件自己的一项功能：input {"operation": 这个插件自己的一项功能 id, "at": 第一次运行的带时区时间（new Date(...).toISOString()）, "repeat"?: "none"|"daily"|"weekly", "input"?: 给那项功能的输入（对象）, "inbox"?: true 时把结果放进收件箱}，返回 {"scheduleId"}。'
-      + '到点时平台在隔离环境里运行那项功能，权限和用户点按钮时一样；inbox 为 true 时，结果里的 text（没有就用 summary）作为一条收件箱事项，点开回到这个插件。项目当时没打开的，打开后补跑。时间要在一年以内；每个插件最多同时有 20 个定时。要能取消就把 scheduleId 存下来。'
+      + '到点时平台在隔离环境里运行那项功能，权限和用户点按钮时一样；inbox 为 true 时，结果里的 text（没有就用 summary）作为一条收件箱事项，点开回到这个插件。尚未派出的任务在执行入口就绪后由新唤醒继续；已派出但结果未知时暂停，请在 Schedule 核对后决定重试或跳过。时间要在一年以内；每个安装最多同时有 20 个定时。要能取消就把 scheduleId 存下来。'
       + '检查、示例、界面验收和创作台试用里由替身代答 {"scheduleId": "schedule-demo"}，安装后才真正设置。',
     input: { type: 'object', additionalProperties: false, required: ['operation', 'at'], properties: {
       operation: { type: 'string', minLength: 1, maxLength: 120, description: '这个插件自己的功能 id' }, at: { type: 'string', format: 'date-time', description: '第一次运行的时间' },

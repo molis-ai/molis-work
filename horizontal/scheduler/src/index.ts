@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createExecutionLifetime } from "@molis-ai/molis-work-kernel";
 
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
   SCHEDULE_LEASE_MS,
@@ -14,6 +15,7 @@ import {
   type ScheduleWakeupInput,
   type ScheduleWakeupControl,
   type ScheduleWakeupRecord,
+  type ScheduleWakeupReply,
   type ScheduleWakeupStatus,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
 
@@ -44,6 +46,7 @@ export type {
   ScheduleWakeupInput,
   ScheduleWakeupControl,
   ScheduleWakeupRecord,
+  ScheduleWakeupReply,
 };
 
 type Statement = {
@@ -58,16 +61,21 @@ export interface ScheduleSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export type ScheduleWakeupHandler = (input: ScheduleWakeupInput, control: ScheduleWakeupControl) => Promise<{ detail?: string } | void>;
+export type ScheduleWakeupHandler = (input: ScheduleWakeupInput, control: ScheduleWakeupControl) => Promise<ScheduleWakeupReply | void>;
+export interface ScheduleWakeupPreparation {
+  /** Same-db persistence only, inside the claim transaction. Never dispatch external work or await here. */
+  prepare(input: ScheduleWakeupInput): void;
+}
 
 export class PluginWakeupIndex {
-  private readonly handlers = new Map<string, ScheduleWakeupHandler>();
+  private readonly handlers = new Map<string, { handle: ScheduleWakeupHandler; preparation?: ScheduleWakeupPreparation }>();
 
-  register(pluginId: string, capabilityId: string, handler: ScheduleWakeupHandler): () => void {
+  register(pluginId: string, capabilityId: string, handler: ScheduleWakeupHandler, preparation?: ScheduleWakeupPreparation): () => void {
     const key = wakeupKey(pluginId, capabilityId);
-    this.handlers.set(key, handler);
+    const entry = { handle: handler, preparation };
+    this.handlers.set(key, entry);
     return () => {
-      if (this.handlers.get(key) === handler) this.handlers.delete(key);
+      if (this.handlers.get(key) === entry) this.handlers.delete(key);
     };
   }
 
@@ -75,13 +83,17 @@ export class PluginWakeupIndex {
     return this.handlers.has(wakeupKey(pluginId, capabilityId));
   }
 
-  async invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl): Promise<{ detail?: string } | void> {
+  prepare(input: ScheduleWakeupInput): void {
+    requireSynchronous(this.handlers.get(wakeupKey(input.plugin_id, input.capability_id))?.preparation?.prepare(input), "Scheduler prepare must be synchronous");
+  }
+
+  async invoke(input: ScheduleWakeupInput, control: ScheduleWakeupControl): Promise<ScheduleWakeupReply | void> {
     const handler = this.handlers.get(wakeupKey(input.plugin_id, input.capability_id));
     if (!handler) {
       throw new ScheduleError("schedule_handler_missing", "叫醒对象还没有提供执行接口");
     }
     control.beforeEffect();
-    return handler(input, control);
+    return handler.handle(input, control);
   }
 }
 
@@ -323,6 +335,8 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
           AND (lease_until IS NULL OR lease_until <= ?)
       `).run(leaseUntil, token, clock, jobId, clock, clock);
       if (Number(updated.changes) !== 1) return null;
+      wakeupIndex.prepare({ job_id: row.job_id, plugin_id: row.plugin_id, capability_id: row.capability_id,
+        object_ref: row.object_ref, due_at: row.next_due_at });
       return { ...row, lease_until: leaseUntil, lease_token: token, updated_at: clock };
     }).immediate();
   }
@@ -374,6 +388,7 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
         const reply = await wakeupIndex.invoke(input, control);
         control.beforeEffect();
         detail = reply?.detail?.slice(0, 500) ?? null;
+        status = reply?.status ?? "ok";
       } catch (error) {
         const code = error instanceof ScheduleError ? error.code : "";
         status = code === "schedule_handler_missing" ? "plugin_unavailable" : "failed";

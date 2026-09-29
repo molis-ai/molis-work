@@ -16,11 +16,6 @@ export interface CapabilityImplementations {
     list(identity: Readonly<SandboxIdentity>, control?: SandboxServiceContext): Promise<Array<{ id: string; title: string; status: string }>>;
     note(identity: Readonly<SandboxIdentity>, input: { goalId: string; text: string }, control?: SandboxServiceContext): Promise<{ recorded: boolean }>;
   };
-  /** Runs of the plugin's own operations at set times; only designs made against the catalog reach them. */
-  schedules?: {
-    add(identity: Readonly<SandboxIdentity>, input: { operation: string; at: string; repeat?: 'none' | 'daily' | 'weekly'; input?: SandboxJson; inbox?: boolean }): { scheduleId: string } | Promise<{ scheduleId: string }>;
-    cancel(identity: Readonly<SandboxIdentity>, input: { scheduleId: string }): { cancelled: boolean } | Promise<{ cancelled: boolean }>;
-  };
 }
 type CapabilityService = NonNullable<SandboxServices['capability']>;
 

@@ -43,6 +43,11 @@ export function createScheduleRouteHandlers(options: ScheduleRouteHandlerPorts):
       expected_installation_id: typeof request.body.expected_installation_id === "string" ? request.body.expected_installation_id : "",
       expected_generation: typeof request.body.expected_generation === "string" ? request.body.expected_generation : "",
     }),
+    "schedule.operation.recover": ({ params, request }) => run(scheduleActions.recoverOperation, {
+      operation_id: params.operation_id ?? "", decision: request.body.decision as "resume" | "retry" | "skip",
+      expected_revision: request.body.expected_revision as string, expected_installation_id: request.body.expected_installation_id as string,
+      expected_generation: request.body.expected_generation as string, expected_version: request.body.expected_version as string,
+    }),
     "schedule.task.create": ({ request }) => run(scheduleActions.createTask, task(request.body), 201),
     "schedule.task.update": ({ params, request }) => run(scheduleActions.updateTask, { ...task(request.body), task_id: params.task_id ?? "" }),
     "schedule.task.archive": ({ params }) => run(scheduleActions.archiveTask, { task_id: params.task_id ?? "" }),

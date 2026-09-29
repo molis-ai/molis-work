@@ -19,6 +19,8 @@ Host 把任务和 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/
 | [src/wakeup.ts](src/wakeup.ts) | 到点执行与次日重排 |
 | [src/reminders.ts](src/reminders.ts)、[src/reminder-actions.ts](src/reminder-actions.ts) | 按安装隔离的提醒、事务投递与公共动作 |
 | [src/reminder-management.ts](src/reminder-management.ts) | 提醒管理投影、旧提醒的归属确认与原子恢复 |
+| [src/operations.ts](src/operations.ts)、[src/operation-actions.ts](src/operation-actions.ts) | 安装插件的定时操作、持久单次执行记录及公共动作 |
+| [src/operation-management.ts](src/operation-management.ts)、[src/operation-ui.ts](src/operation-ui.ts) | 原输入与执行历史、当前安装复查、未知结果的明确重试或跳过 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
 | [src/route-handlers.ts](src/route-handlers.ts) | 创建、打开、暂停用例 |
 | [src/client.ts](src/client.ts) | 工作台选择、创建与暂停 |
@@ -50,7 +52,7 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 
 ## 开发要求
 
-- 负责：对话式定时任务、安装级通用提醒、其他插件登记的闹钟列表、收据与暂停。
+- 负责：对话式定时任务、安装级通用提醒和定时操作、单次执行状态、其他插件登记的闹钟列表、收据与暂停。
 - 不负责：Feed 与 Goal 事实、cron 表达式、闹钟主人的执行实现。
 - 公开入口：`@molis-ai/molis-work-plugin-schedule`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
@@ -61,8 +63,11 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
   - 提醒的 daily/weekly 是固定 24 小时/7 天间隔；创建、取消与 Scheduler job 同库事务，Inbox 投递与一次性消费也在同一事务内复查 lease。
   - Host 启动时迁移旧 Builder 提醒并保留 job、时间、收据和链接；无法证明原安装归属则保留并暂停，不绑定重装实例。
   - 对话任务到点在自己的对话里跑一轮只读 Agent；提示词正文随目录条目声明。
+  - `schedules.add/cancel` 由 Schedule 的 `schedule.operations` 系统提供方拥有，实际 operation 仍由当前安装执行。首次派出前持久化 pending/running；只有尚未派出的 pending 能自动等待新唤醒，已派出结果未知时暂停，不能自动重放。
+  - 执行入口注册不补跑任务。每次派出使用本次 Scheduler lease 和当前安装世代；结果、Inbox 与单次执行终态同事务提交。失败/未知不能报告成功；撤销后的迟到结果不能写业务状态或 Inbox。
+  - `schedule.operations.recover` 只供具有管理权限的调用方使用，显式 `plugin: false`。确认校验原输入/历史 revision 和当前安装 ID、世代、版本；未知结果不能用普通恢复隐式重跑。retry/skip 保留核对历史，确认本身不运行插件；一次性任务跳过后结束。
   - 本地 Web 宿主没运行时闹钟不响。
-- 改动后必跑：`node scripts/run-tests.mjs tests/schedule-plugin.test.ts tests/schedule-actions.test.ts tests/schedule-conversation-tasks.test.ts tests/schedule-task-runner.test.ts tests/agent-built-plugins-reminders.test.ts tests/schedule-reminder-recovery.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/schedule-plugin.test.ts tests/schedule-actions.test.ts tests/schedule-conversation-tasks.test.ts tests/schedule-task-runner.test.ts tests/agent-built-plugins-reminders.test.ts tests/schedule-reminder-recovery.test.ts tests/schedule-operations.test.ts tests/schedule-operation-recovery.test.ts`
 - 相关手册：[docs/horizontal/scheduler.md](../../../docs/horizontal/scheduler.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

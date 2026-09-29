@@ -6,6 +6,9 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ScheduleConversationTaskView } from "./tasks.js";
 import type { ScheduleJobView } from "./reminder-management.js";
+import type { ScheduledOperationView } from "./operation-management.js";
+import type { ScheduledOperationOccurrence } from "./operations.js";
+import { renderOperationRow, renderOperationDetail, renderOrphanedOperations, renderOperationRecoveryDialog } from "./operation-ui.js";
 
 export const SCHEDULE_UI_CONTRIBUTION_ID = "io.molis.work.native.schedule.ui.v1";
 
@@ -22,6 +25,8 @@ export interface ScheduleUiModel {
   readonly route_prefix: string;
   readonly jobs: readonly ScheduleJobView[];
   readonly tasks: readonly ScheduleConversationTaskView[];
+  readonly operations?: readonly ScheduledOperationView[];
+  readonly orphaned_occurrences?: readonly ScheduledOperationOccurrence[];
   readonly primitives: ScheduleUiPrimitives;
 }
 
@@ -55,14 +60,16 @@ export const scheduleUiContribution: UiContribution<ScheduleUiModel> = {
 export function renderScheduleWorkbench(model: ScheduleUiModel): string {
   const { primitives: p } = model;
   const taskRows = model.tasks.map((task) => renderTaskRow(task, p)).join("");
-  const jobRows = model.jobs.map((job) => renderScheduleRow(job, p)).join("");
-  const jobFold = model.jobs.length === 0
+  const operations = model.operations ?? [], operationJobs = new Set(operations.map(run => run.jobId));
+  const jobs = model.jobs.filter(job => !operationJobs.has(job.job_id));
+  const jobRows = jobs.map((job) => renderScheduleRow(job, p)).join("") + operations.map(run => renderOperationRow(run, p)).join("");
+  const jobFold = jobs.length + operations.length === 0
     ? ""
-    : `<details class="goal-collection-fold" open><summary><span class="goal-collection-caret">${p.icon("chevron-right")}</span><strong>${p.text("其他插件的闹钟")}</strong><small>${model.jobs.length}</small></summary>${jobRows}</details>`;
-  const empty = model.tasks.length === 0 && model.jobs.length === 0;
+    : `<details class="goal-collection-fold" open><summary><span class="goal-collection-caret">${p.icon("chevron-right")}</span><strong>${p.text("其他插件的闹钟")}</strong><small>${jobs.length + operations.length}</small></summary>${jobRows}</details>`;
+  const empty = model.tasks.length === 0 && jobs.length === 0 && operations.length === 0 && !model.orphaned_occurrences?.length;
   const listBody = empty
     ? `<div class="mw-empty" data-schedule-empty>${p.icon("timer")}<h1>${p.text("还没有定时任务")}</h1><p>${p.text("新建一条之后，到点会在它自己的对话里跑一轮只读 Agent。其他插件登记的闹钟也会出现在这里。")}</p></div>`
-    : `${taskRows}${jobFold}`;
+    : `${taskRows}${jobFold}${renderOrphanedOperations(model.orphaned_occurrences ?? [], p)}`;
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="schedule" data-work-surface-label="Schedule" hidden data-schedule-workbench data-schedule-stage-shell data-expanded="false">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-schedule-list>
       <header class="plugin-stage-chrome schedule-stage-chrome">
@@ -72,11 +79,13 @@ export function renderScheduleWorkbench(model: ScheduleUiModel): string {
     </div>
     <div class="plugin-stage-workspace" data-schedule-stage-workspace hidden>
       ${model.tasks.map((task) => renderTaskDetail(task, p)).join("")}
-      ${model.jobs.map((job) => renderScheduleDetail(job, p)).join("")}
+      ${jobs.map((job) => renderScheduleDetail(job, p)).join("")}
+      ${operations.map(run => renderOperationDetail(run, p)).join("")}
       <div class="feed-detail-empty mw-empty" data-schedule-detail-empty>${p.icon("timer")}<h1>${p.text("选择一条定时任务")}</h1></div>
     </div>
     ${renderCreateDialog(p)}
     ${renderReminderRecoveryDialog(p)}
+    ${renderOperationRecoveryDialog(p)}
   </section>`;
 }
 

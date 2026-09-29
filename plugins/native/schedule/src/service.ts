@@ -1,6 +1,8 @@
 import { ScheduleTaskError } from "./task-error.js";
 import type { ScheduleActionPorts } from "./actions.js";
 import type { ScheduleReminderManagement } from "./reminder-management.js";
+import type { ScheduledOperationManagement } from "./operation-management.js";
+import { migrateScheduledOperations, setScheduledOperationEnabled } from "./operations.js";
 import {
   archiveScheduleConversationTask,
   bindScheduleConversationJob,
@@ -27,8 +29,10 @@ export function createScheduleActionPorts(options: {
   db: ScheduleTaskDatabase;
   schedule: ScheduleJobPort;
   reminders?: ScheduleReminderManagement;
+  operations?: ScheduledOperationManagement;
   now?: () => Date;
 }): ScheduleActionPorts {
+  migrateScheduledOperations(options.db);
   const now = options.now ?? (() => new Date());
   const viewOf = (task: ScheduleConversationTaskRecord): ScheduleConversationTaskView => {
     const job = task.job_id ? options.schedule.get(task.job_id) : null;
@@ -47,11 +51,19 @@ export function createScheduleActionPorts(options: {
         throw new ScheduleTaskError("schedule_task_invalid", "对话任务请用任务自己的开关");
       }
       if (job && enabled) options.reminders?.assertCanEnable(job);
+      const operation = setScheduledOperationEnabled(options.db, options.schedule, jobId, enabled);
+      if (operation) return operation;
       return options.schedule.setEnabled(jobId, enabled);
     },
     recoverReminder: input => {
       if (!options.reminders) throw new ScheduleTaskError("schedule_task_invalid", "当前宿主未提供提醒恢复入口");
       return options.reminders.recover(input);
+    },
+    listOperations: () => options.operations?.list() ?? [],
+    orphanedOccurrences: () => options.operations?.orphanedOccurrences() ?? [],
+    recoverOperation: input => {
+      if (!options.operations) throw new ScheduleTaskError("schedule_task_invalid", "当前宿主未提供定时操作恢复入口");
+      return options.operations.recover(input);
     },
     listTasks: () => listScheduleConversationTasks(options.db).map(viewOf),
     createTask(input) {

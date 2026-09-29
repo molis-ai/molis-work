@@ -7,17 +7,22 @@ import {
   type ScheduleService,
   type ScheduleSqliteDatabase,
   type ScheduleWakeupControl,
+  type ScheduleWakeupReply,
 } from "@molis-ai/molis-work-service-scheduler";
 import {
   SCHEDULE_PLUGIN_ID,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
   SCHEDULE_REMINDER_WAKEUP,
+  SCHEDULE_OPERATION_WAKEUP,
+  prepareScheduledOperation,
+  reconcileScheduledOperations,
   handleScheduleTaskWakeup,
   migrateScheduleConversationTasks,
   rescheduleEnabledConversationTasks,
   type ScheduledTaskRunner,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { deliverHostReminder, LEGACY_REMINDER_OWNER, LEGACY_REMINDER_WAKEUP, migrateLegacyReminders } from "./schedule-reminders.js";
+import { LEGACY_OPERATION_OWNER, LEGACY_OPERATION_WAKEUP, migrateLegacyScheduledOperations, runHostScheduledOperation } from "./schedule-operations.js";
 
 const wakeupIndex = new PluginWakeupIndex();
 const tickContext = new AsyncLocalStorage<{
@@ -48,6 +53,17 @@ function ensureHostWakeups(): void {
       return deliverHostReminder(ctx.db, input, control);
     });
   }
+  for (const [owner, capability] of [[SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP], [LEGACY_OPERATION_OWNER, LEGACY_OPERATION_WAKEUP]] as const) {
+    wakeupIndex.register(owner, capability, async (input, control) => {
+      const ctx = tickContext.getStore();
+      if (!ctx) throw new Error("定时操作没有项目现场");
+      return runHostScheduledOperation(ctx.db, input, control);
+    }, { prepare(input) {
+      const ctx = tickContext.getStore();
+      if (!ctx) throw new Error("定时操作没有项目现场");
+      prepareScheduledOperation(ctx.db, input);
+    } });
+  }
 }
 
 /**
@@ -55,7 +71,7 @@ function ensureHostWakeups(): void {
  * Registering twice for the same plugin and capability replaces the handler.
  */
 export function registerHostWakeup(pluginId: string, capabilityId: string,
-  handler: (db: ScheduleSqliteDatabase, input: Parameters<Parameters<PluginWakeupIndex["register"]>[2]>[0], control: ScheduleWakeupControl) => Promise<{ detail?: string } | void>): () => void {
+  handler: (db: ScheduleSqliteDatabase, input: Parameters<Parameters<PluginWakeupIndex["register"]>[2]>[0], control: ScheduleWakeupControl) => Promise<ScheduleWakeupReply | void>): () => void {
   return wakeupIndex.register(pluginId, capabilityId, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("闹钟叫醒没有项目现场");
@@ -75,13 +91,19 @@ export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date)
     ...(now ? { now } : {}),
   });
   migrateLegacyReminders(db, inner);
+  migrateLegacyScheduledOperations(db, inner);
   return {
     ...inner,
     async tick(at) {
       const runner = runners.get(db) ?? missingRunner;
       const when = at ?? now?.() ?? new Date();
       return tickContext.run({ db, runner }, async () => {
+        // A long-lived timer may have first opened while an old process still held a lease.
+        // Retry the one-way import before claiming any newly available legacy wakeup.
+        migrateLegacyScheduledOperations(db, inner);
+        reconcileScheduledOperations(db, inner);
         const result = await inner.tick(when);
+        reconcileScheduledOperations(db, inner);
         await rescheduleEnabledConversationTasks(db, inner, () => when);
         return result;
       });

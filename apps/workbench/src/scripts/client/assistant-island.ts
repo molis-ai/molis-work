@@ -308,8 +308,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
   const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新待办", "lookup-tools": "查找工具",
+    delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
+    "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆",
     "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做" };
-  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行" };
+  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
     const what = item.target ? " " + item.target : "";
@@ -570,7 +572,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const state = work ? work.state : "idle";
     island.querySelector('[data-assistant-control="pause"]').hidden = state !== "running";
     island.querySelector('[data-assistant-control="resume"]').hidden = state !== "paused";
-    island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state);
+    /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
+    const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
+    island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state) && !liveChildren;
   };
   const showProblem = (next) => { problem = next; render(); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
@@ -618,10 +622,131 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     details.append(list);
     objectsBox.replaceChildren(details);
   };
+  /* What this work used (its sub-tasks with it) and the cap the person gave it; a sub-task shows its delegating work's. */
+  const usageBox = island.querySelector("[data-assistant-usage]");
+  const renderUsage = (work) => {
+    if (!usageBox) return;
+    const usage = work && view && view.usage ? view.usage : null;
+    const signature = JSON.stringify([work && work.work_id, usage]);
+    if (usageBox.dataset.signature === signature) return;
+    const wasOpen = usageBox.querySelector("details")?.open;
+    usageBox.dataset.signature = signature;
+    usageBox.hidden = !usage;
+    if (!usage) { usageBox.replaceChildren(); return; }
+    const number = (value) => Number(value).toLocaleString("en-US");
+    const over = usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens;
+    const details = el("details", "assistant-objects-list");
+    details.open = wasOpen === undefined ? over : wasOpen;
+    details.append(el("summary", "", L("用量") + " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + L("上限") + " " + number(usage.budget_tokens) : "") + (over ? " · " + L("已到上限") : "")));
+    if (usage.budget_of) {
+      details.append(el("p", "assistant-material-origin", L("子任务按委托它的工作计算") + "：「" + usage.budget_of.title + "」"));
+    } else {
+      const form = el("form", "assistant-usage-form");
+      const field = el("input", "assistant-usage-input"); field.type = "number"; field.min = "1000"; field.step = "1000"; field.inputMode = "numeric";
+      field.placeholder = L("不单独设限"); field.value = usage.budget_tokens !== null ? String(usage.budget_tokens) : "";
+      field.setAttribute("aria-label", L("这项工作的用量上限（tokens，含子任务）"));
+      const save = el("button", "assistant-material-add", L("保存上限")); save.type = "submit";
+      form.append(el("span", "assistant-material-origin", L("上限（tokens，含子任务）")), field, save);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault(); save.disabled = true;
+        try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/budget", "POST", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) }); render(); }
+        catch (error) { host.showToast?.(error.message); }
+        finally { save.disabled = false; }
+      });
+      details.append(form);
+    }
+    usageBox.replaceChildren(details);
+  };
+  /* The work's task board: sub-tasks it handed to works of their own, and for a delegated work, who asked for it. */
+  const delegatedBox = island.querySelector("[data-assistant-delegated]");
+  const renderDelegated = (work) => {
+    if (!delegatedBox) return;
+    const children = work && view && view.delegated ? view.delegated : [];
+    const parent = work && work.delegated_by ? work.delegated_by : null;
+    const scheduled = work && view && view.scheduled ? view.scheduled : [];
+    const unsettled = work && view && view.unsettled ? view.unsettled : [];
+    const jobs = work && view && view.jobs ? view.jobs : [];
+    const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id,
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state]), jobs.map((j) => [j.job_id, j.state, j.last_state])]);
+    if (delegatedBox.dataset.signature === signature) return;
+    delegatedBox.dataset.signature = signature;
+    delegatedBox.hidden = !children.length && !parent && !scheduled.length && !unsettled.length && !jobs.length;
+    delegatedBox.replaceChildren();
+    /* Background work this work started in plugins, followed until it ends. */
+    const JOB = { running: "后台进行中", completed: "后台已完成", failed: "后台没有完成", unknown: "不再跟进，请到原处查看" };
+    jobs.forEach((job) => {
+      const row = el("p", "assistant-object");
+      row.append(el("span", "assistant-object-relation", L("后台任务")), el("span", "assistant-object-title", job.title),
+        el("span", "assistant-object-state", L(JOB[job.state] || job.state) + (job.last_state ? "（" + job.last_state + "）" : "")));
+      delegatedBox.append(row);
+    });
+    /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
+    const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
+    unsettled.forEach((change) => {
+      const row = el("p", "assistant-object");
+      row.append(el("span", "assistant-object-relation", L("停止时仍在执行")), el("span", "assistant-object-title", change.title),
+        el("span", "assistant-object-state", L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "")));
+      delegatedBox.append(row);
+    });
+    const REPEAT = { none: "一次", daily: "每天", weekly: "每周" }, OUTCOME = { started: "已开始", missed: "错过（当时没在运行）", skipped: "跳过（上一轮未结束）", failed: "没有完成" };
+    scheduled.forEach((followUp) => {
+      const row = el("p", "assistant-object");
+      const when = followUp.enabled && followUp.next_at ? L("下一次") + " " + new Date(followUp.next_at).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : L("已结束");
+      row.append(el("span", "assistant-object-relation", L("定时")), el("span", "assistant-object-title", followUp.label),
+        el("span", "assistant-object-state", L(REPEAT[followUp.repeat] || followUp.repeat) + " · " + when
+          + (followUp.last ? " · " + L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) : "")
+          + (followUp.enabled ? " · " + L(view.schedule_survives_close ? "关闭窗口后仍会执行" : "需要 Molis Work 在运行") : "")));
+      if (followUp.enabled) {
+        const cancel = el("button", "assistant-object-open", L("取消")); cancel.type = "button";
+        cancel.addEventListener("click", async () => { try { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await refresh(); } catch (error) { showProblem({ message: error.message }); } });
+        row.append(cancel);
+      }
+      delegatedBox.append(row);
+    });
+    if (parent) {
+      const row = el("p", "assistant-object");
+      row.append(el("span", "assistant-object-relation", L("受托于")), el("span", "assistant-object-title", parent.title), el("span", "assistant-object-state", L("验收") + "：" + parent.acceptance));
+      const back = el("button", "assistant-object-open", L("打开")); back.type = "button";
+      back.addEventListener("click", () => switchTo(parent.work_id));
+      row.append(back);
+      delegatedBox.append(row);
+    }
+    if (children.length) {
+      const details = el("details", "assistant-objects-list"); details.open = true;
+      const waiting = children.filter((c) => c.state === "waiting-review" || c.state === "waiting-input").length;
+      details.append(el("summary", "", L("分工") + " · " + children.length + (waiting ? " · " + waiting + " " + L("个在等你") : "")));
+      const list = el("ul", "assistant-objects-items");
+      children.forEach((child) => {
+        const row = el("li", "assistant-object");
+        row.append(el("span", "assistant-object-relation", L("子任务")), el("span", "assistant-object-title", child.title),
+          el("span", "assistant-object-state", stateLabel(child.state) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
+        const open = el("button", "assistant-object-open", L("打开")); open.type = "button";
+        open.setAttribute("aria-label", L("打开") + "：" + child.title);
+        open.addEventListener("click", () => switchTo(child.work_id));
+        row.append(open);
+        /* Stop one sub-task from the board, without opening it; what it already did stays. */
+        if (["running", "paused", "waiting-input", "waiting-review"].includes(child.state)) {
+          const stop = el("button", "assistant-object-open", L("停止")); stop.type = "button";
+          stop.setAttribute("aria-label", L("停止") + "：" + child.title);
+          stop.addEventListener("click", async () => {
+            stop.disabled = true;
+            try { await api("/works/" + encodeURIComponent(child.work_id) + "/control", "POST", { kind: "stop" }); await refresh(); }
+            catch (error) { stop.disabled = false; showProblem({ message: error.message }); }
+          });
+          row.append(stop);
+        }
+        list.append(row);
+      });
+      details.append(list);
+      delegatedBox.append(details);
+    }
+  };
   const render = () => {
     const stick = nearBottom();
     const work = view && view.work.work_id === currentId ? view.work : null;
     renderObjects(work);
+    renderDelegated(work);
+    renderUsage(work);
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
@@ -674,6 +799,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (shown.action) {
         if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; box.append(link); }
+        // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
+        else if (/这项工作的上限/.test(shown.action) && usageBox) {
+          const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); raise.type = "button";
+          raise.addEventListener("click", () => { const details = usageBox.querySelector("details"); if (details) details.open = true; usageBox.querySelector("input")?.focus(); });
+          box.append(raise);
+        }
+        else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L("打开助理设置")); link.href = "/settings/assistant"; box.append(link); }
         else box.append(el("p", "assistant-muted", L(shown.action)));
       }
       thread.append(box);
@@ -741,6 +873,83 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   window.addEventListener("focus", () => { if (!document.hidden && currentId) refresh().then(schedule); });
   const listTimer = setInterval(() => { if (!document.hidden && panel && !panel.hidden) loadWorks(); }, 15000);
 
+  /* ─── What deserves the person's attention (their rules decide where it stays quiet) ─────────────────────── */
+  const attentionButton = island.querySelector("[data-assistant-attention]");
+  const attentionCount = island.querySelector("[data-assistant-attention-count]");
+  const noticesPop = island.querySelector("[data-assistant-notices]");
+  let notices = [];
+  const shownSurface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
+  const paintNotices = (force) => {
+    if (!noticesPop) return;
+    // Polling repaints only what changed, and keeps focus on the same button: a list rebuilt under the person's
+    // finger or keyboard focus loses the tap or drops focus to the page.
+    const signature = JSON.stringify(notices.map((notice) => [notice.notice_id, notice.text, notice.held && notice.held.reason]));
+    if (!force && noticesPop.dataset.signature === signature) return;
+    noticesPop.dataset.signature = signature;
+    const focused = noticesPop.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused ? [focused.dataset.noticeId, focused.dataset.noticeAction] : null;
+    noticesPop.replaceChildren(el("p", "assistant-popover-title", L("需要你看看")));
+    const open = notices.filter((notice) => !notice.held), held = notices.filter((notice) => notice.held);
+    const row = (notice) => {
+      const item = el("div", "assistant-notice");
+      item.append(el("p", "assistant-notice-text", notice.text));
+      if (notice.held) item.append(el("p", "assistant-material-origin", L("按你的规则暂不提醒") + "：" + notice.held.reason));
+      const actions = el("div", "assistant-offer-actions");
+      const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开")); go.type = "button";
+      go.dataset.noticeId = notice.notice_id; go.dataset.noticeAction = "open";
+      go.setAttribute("aria-label", L("打开") + "：" + notice.text);
+      go.addEventListener("click", async () => { setNotices(false); await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen"); });
+      const done = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("知道了")); done.type = "button";
+      done.dataset.noticeId = notice.notice_id; done.dataset.noticeAction = "dismiss";
+      done.setAttribute("aria-label", L("知道了") + "：" + notice.text);
+      done.addEventListener("click", () => settleNotice({ notice_id: notice.notice_id }, "dismissed"));
+      actions.append(go, done);
+      item.append(actions);
+      return item;
+    };
+    open.forEach((notice) => noticesPop.append(row(notice)));
+    if (held.length) {
+      const quiet = el("details", "assistant-notices-held");
+      quiet.append(el("summary", "", L("按你的规则暂不提醒") + " · " + held.length));
+      held.forEach((notice) => quiet.append(row(notice)));
+      noticesPop.append(quiet);
+    }
+    if (!notices.length) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
+    if (focusKey) (noticesPop.querySelector('[data-notice-id="' + focusKey[0] + '"][data-notice-action="' + focusKey[1] + '"]') || noticesPop.querySelector("button"))?.focus();
+  };
+  const paintAttention = () => {
+    const open = notices.filter((notice) => !notice.held).length;
+    if (attentionButton) {
+      attentionButton.hidden = !open;
+      if (attentionCount) attentionCount.textContent = open ? String(open) : "";
+      attentionButton.setAttribute("aria-label", L("需要你看看") + " · " + open);
+    }
+    if (noticesPop && !noticesPop.hidden) paintNotices();
+  };
+  const setNotices = (open) => {
+    if (!noticesPop) return;
+    noticesPop.hidden = !open;
+    attentionButton?.setAttribute("aria-expanded", String(open));
+    if (open) { paintNotices(true); noticesPop.querySelector("button")?.focus(); }
+  };
+  const loadNotices = async () => {
+    try { notices = (await api("/notices?surface=" + encodeURIComponent(shownSurface()))).notices || []; }
+    catch { return; }
+    // A work the person has open in front of them is being seen: its notices need no badge.
+    if (panel && !panel.hidden && currentId && notices.some((notice) => notice.work_id === currentId && !notice.held)) { void settleNotice({ work_id: currentId }, "seen"); return; }
+    paintAttention();
+  };
+  const settleNotice = async (target, state) => {
+    try { await api("/notices", "POST", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
+    await loadNotices();
+  };
+  attentionButton?.addEventListener("click", () => setNotices(noticesPop.hidden));
+  setInterval(() => { if (!document.hidden) void loadNotices(); }, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadNotices(); });
+  // The rules depend on where the person is: moving to another plugin reads them again.
+  document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(() => void loadNotices(), 300));
+  void loadNotices();
+
   /* ─── Sending ──────────────────────────────────────────────────────────── */
   /* ─── What the person is looking at, and what goes with this Send ──────── */
   const materialsButton = island.querySelector("[data-assistant-materials]");
@@ -774,15 +983,24 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   /** Official surfaces whose tab item is an object with a shared context reader; a plugin that declares its own context wins. */
   const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", sessions: "session", artifacts: "artifact" };
+  // What plugins declare for their searchable objects (kind and the surface it opens in) extends and corrects the list.
+  const declaredKinds = {};
+  api("/surface-kinds").then((result) => Object.assign(declaredKinds, result.kinds || {})).catch(() => undefined);
+  // The last background a plugin page sent (purpose "background"), used while that plugin is the one on show.
+  let background = null;
   const surfaceContext = () => {
     const surface = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find(visible);
     if (surface) {
       try { return JSON.parse(surface.getAttribute("data-assistant-context") || "null"); } catch { return null; }
     }
+    const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
+    if (background && background.object && shown && shown.dataset.pluginId === background.source.surface) {
+      return { plugin_id: background.source.surface, surface_title: background.source.title, object: background.object };
+    }
     // No declaration: the open tab still says which object the person is on.
     const tab = document.querySelector(".tab-item[aria-current='page'][data-item-id]");
     if (!tab) return null;
-    const kind = TAB_KINDS[tab.dataset.plugin];
+    const kind = declaredKinds[tab.dataset.plugin] || TAB_KINDS[tab.dataset.plugin];
     const title = tab.getAttribute("title") || "";
     return { plugin_id: tab.dataset.plugin, surface_title: title, ...(kind ? { object: { kind, id: tab.dataset.itemId, title } } : {}) };
   };
@@ -824,7 +1042,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== currentId).slice(0, 2)
       .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
     if (selection && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(selection.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: file.title, auto: false }));
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, thumb: file.preview }));
     return items;
   };
   function paintMaterials() {
@@ -853,6 +1071,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         add.addEventListener("click", () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMaterials(); materialsList.querySelector("button")?.focus(); });
         row.append(add); materialsList.append(row); return;
       }
+      if (item.thumb) { row.classList.add("assistant-material--image"); const thumb = el("img", "assistant-material-thumb"); thumb.src = item.thumb; thumb.alt = ""; row.append(thumb); }
       row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", item.note || (item.auto ? L("来自当前页面") : L("你添加的"))));
       const drop = el("button", "assistant-material-remove", "×"); drop.type = "button";
       drop.setAttribute("aria-label", L("不带上") + "：" + item.label);
@@ -883,8 +1102,117 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     ((context && context.starters) || []).forEach((starter) => { if (starter && starter.label && starter.prompt) list.push(starter); });
     return list.slice(0, 5);
   };
+  /* “/”: pick a capability this work may really use now (or one of this page's starters); nothing runs by picking. */
+  let capabilityRows = null;
+  const loadCapabilityRows = async () => {
+    if (capabilityRows) return capabilityRows;
+    try { capabilityRows = ((await api("/capabilities")).capabilities || []).filter((row) => row.enabled); } catch { capabilityRows = []; }
+    return capabilityRows;
+  };
+  let methodRows = null;
+  const loadMethodRows = async () => {
+    if (methodRows) return methodRows;
+    try { methodRows = (await api("/methods")).methods || []; } catch { methodRows = []; }
+    return methodRows;
+  };
+  const slashOpen = () => startersPop && !startersPop.hidden && startersPop.dataset.mode === "slash";
+  async function setSlash(query) {
+    if (!startersPop) return;
+    const q = String(query || "").trim().toLowerCase();
+    const starters = startersFor().filter((starter) => !q || starter.label.toLowerCase().includes(q));
+    const rows = (await loadCapabilityRows()).filter((row) => !q || [row.title, row.provider, row.description].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 8);
+    const methods = (await loadMethodRows()).filter((row) => !q || [row.name, row.plugin_title, row.summary].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 5);
+    if (!String(input.value || "").startsWith("/")) return;
+    startersPop.dataset.mode = "slash";
+    startersPop.hidden = false;
+    startersPop.replaceChildren(el("p", "assistant-popover-title", L("用一个方法或能力，或这样开始")));
+    starters.forEach((starter) => {
+      const button = el("button", "assistant-starter", starter.label); button.type = "button";
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); closeSlash(); input.focus(); });
+      startersPop.append(button);
+    });
+    // A method is how to do it: chosen here, its steps go with this round only.
+    methods.forEach((row) => {
+      const button = el("button", "assistant-starter", L("方法") + "：" + row.name + " · " + row.plugin_title); button.type = "button";
+      button.title = row.summary || row.name;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => {
+        if (!files.some((file) => file.kind === "method" && file.method.method_id === row.method_id)) {
+          files.push({ material_id: "method-" + crypto.randomUUID(), kind: "method", title: L("方法") + "：" + row.name, explicit: true, method: { method_id: row.method_id } });
+        }
+        input.value = ""; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
+      });
+      startersPop.append(button);
+    });
+    rows.forEach((row) => {
+      const title = row.provider + " · " + row.title;
+      const button = el("button", "assistant-starter", L("用") + "：" + title); button.type = "button";
+      button.title = row.description || title;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => {
+        if (!files.some((file) => file.kind === "capability" && file.capability.capability_id === row.capability_id)) {
+          files.push({ material_id: "cap-" + crypto.randomUUID(), kind: "capability", title: L("用") + "：" + title, explicit: true,
+            capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
+        }
+        input.value = ""; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
+      });
+      startersPop.append(button);
+    });
+    if (!starters.length && !rows.length && !methods.length) startersPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
+  }
+  function closeSlash() { if (startersPop && startersPop.dataset.mode === "slash") { delete startersPop.dataset.mode; startersPop.hidden = true; } }
+  /* “@”: find something in this project or the person's own content through the system search and bring it along.
+     A hit is only a pointer: the Host checks it with its owner and reads it before the round. */
+  const mentionOpen = () => startersPop && !startersPop.hidden && startersPop.dataset.mode === "mention";
+  const mentionAt = () => {
+    const before = String(input.value || "").slice(0, input.selectionStart ?? String(input.value || "").length);
+    const match = /(^|\s)@([^\s@]{0,40})$/.exec(before);
+    return match ? { query: match[2], start: before.length - match[2].length - 1 } : null;
+  };
+  let mentionSeq = 0, mentionTimer = null;
+  function closeMention() { clearTimeout(mentionTimer); if (startersPop && startersPop.dataset.mode === "mention") { delete startersPop.dataset.mode; startersPop.hidden = true; } }
+  function setMention(found) {
+    if (!startersPop) return;
+    clearTimeout(mentionTimer);
+    startersPop.dataset.mode = "mention";
+    startersPop.hidden = false;
+    const head = el("p", "assistant-popover-title", L("引用内容"));
+    if (!found.query) { startersPop.replaceChildren(head, el("p", "assistant-material-origin", L("输入关键词，从本项目和你个人的内容里找"))); return; }
+    const seq = ++mentionSeq;
+    mentionTimer = setTimeout(async () => {
+      let result;
+      try {
+        const response = await fetch(host.route("/api/search/query"), { method: "POST", cache: "no-store", headers: { "content-type": "application/json", ...host.headers() }, body: JSON.stringify({ query: found.query, scope: "all", limit: 8 }) });
+        result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || L("搜索暂时不可用，请稍后重试"));
+      } catch (error) { if (seq === mentionSeq && mentionOpen()) startersPop.replaceChildren(head, el("p", "assistant-material-origin", error.message)); return; }
+      if (seq !== mentionSeq || !mentionOpen()) return;
+      startersPop.replaceChildren(head);
+      (result.hits || []).forEach((hit) => {
+        const button = el("button", "assistant-starter assistant-mention", ""); button.type = "button";
+        button.append(el("span", "assistant-mention-title", hit.plugin_title + " · " + hit.title), el("span", "assistant-mention-snippet", hit.snippet || ""));
+        button.setAttribute("aria-label", L("引用") + "：" + hit.plugin_title + " · " + hit.title);
+        button.addEventListener("mousedown", (event) => event.preventDefault());
+        button.addEventListener("click", () => {
+          const at = mentionAt() || found;
+          const value = String(input.value || "");
+          input.value = value.slice(0, at.start) + "「" + hit.title + "」" + value.slice(at.start + 1 + at.query.length);
+          if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
+            files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
+              object: { kind: hit.subject.kind, id: hit.subject.id, title: hit.title }, source: { surface: (hit.open && hit.open.surface) || hit.plugin_id, plugin_id: hit.plugin_id, title: hit.plugin_title },
+              text: hit.snippet || "" });
+          }
+          typed = true; syncSend(); saveDraft(false); closeMention(); paintMaterials(); input.focus();
+        });
+        startersPop.append(button);
+      });
+      if (!(result.hits || []).length) startersPop.append(el("p", "assistant-material-origin", result.status === "indexing" ? L("内容还在建立索引，稍后再试") : L("没有找到；换个词试试")));
+    }, 180);
+  }
   function setStarters(open) {
     if (!startersPop) return;
+    delete startersPop.dataset.mode;
     const list = open ? startersFor() : [];
     startersPop.hidden = !list.length;
     if (!list.length) return;
@@ -900,7 +1228,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
   document.addEventListener("pointerdown", (event) => {
     if (!(event.target instanceof Element) || island.contains(event.target)) return;
-    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false);
+    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false); if (noticesPop && !noticesPop.hidden) setNotices(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
@@ -909,20 +1237,71 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (executorsPop && !executorsPop.hidden) { event.preventDefault(); event.stopPropagation(); setExecutors(false); executorButton?.focus(); }
     if (modesPop && !modesPop.hidden) { event.preventDefault(); event.stopPropagation(); setModes(false); modeButton?.focus(); }
     if (charactersPop && !charactersPop.hidden) { event.preventDefault(); event.stopPropagation(); setCharacters(false); characterButton?.focus(); }
+    if (noticesPop && !noticesPop.hidden) { event.preventDefault(); event.stopPropagation(); setNotices(false); attentionButton?.focus(); }
   }, true);
   /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
-  attach?.addEventListener("click", () => fileInput?.click());
-  fileInput?.addEventListener("change", async () => {
-    const chosen = [...(fileInput.files || [])];
-    fileInput.value = "";
+  const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+  async function addFiles(chosen) {
     for (const file of chosen) {
       if (files.length >= 5) { host.showToast?.(L("一次最多带 5 个文件")); break; }
-      if (/^image\//.test(file.type)) { host.showToast?.(L("暂时不能读取图片：当前模型与运行方式还没有接通图片")); continue; }
+      // A picture is taken in by the Agent runtime and shown to the model in the round it is sent with.
+      if (/^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(file.name)) {
+        if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) { host.showToast?.(L("只能带 PNG、JPEG、GIF 或 WebP 图片") + "：" + file.name); continue; }
+        if (files.filter((item) => item.kind === "image").length >= 4) { host.showToast?.(L("一次最多带 4 张图片")); continue; }
+        if (file.size > 5 * 1024 * 1024) { host.showToast?.(L("图片超过 5 MB，请压缩或截取需要的部分") + "：" + file.name); continue; }
+        try {
+          const data = await readBase64(file);
+          const { material } = await api("/attachments", "POST", { name: file.name, data });
+          // The preview is a data URL: the page's policy shows data images, not blob URLs.
+          files.push({ material_id: material.material_id, kind: "image", title: material.title, image: material.image, explicit: true, preview: "data:" + file.type + ";base64," + data });
+        } catch (error) { host.showToast?.(file.name + "：" + error.message); }
+        continue;
+      }
+      // A PDF is read by the Agent runtime's own parser (text layer only); what cannot be read says why.
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        if (file.size > 8 * 1024 * 1024) { host.showToast?.(L("文件超过 8 MB，请只带需要的部分") + "：" + file.name); continue; }
+        try {
+          const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) });
+          files.push({ material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true });
+        } catch (error) { host.showToast?.(file.name + "：" + error.message); }
+        continue;
+      }
+      // Only text is read here; other binary files would reach the model as noise.
+      if (!/^text\//.test(file.type) && !/\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|h|cpp|sql|sh|log|ini|toml)$/i.test(file.name)) {
+        host.showToast?.(L("暂时只能读取文本文件、PDF 和图片") + "：" + file.name); continue;
+      }
       if (file.size > 400000) { host.showToast?.(L("文件太大，请只带需要的部分") + "：" + file.name); continue; }
       try { files.push({ material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }); }
       catch { host.showToast?.(L("读不了这个文件") + "：" + file.name); }
     }
     paintMaterials();
+  }
+  attach?.addEventListener("click", () => fileInput?.click());
+  fileInput?.addEventListener("change", () => {
+    const chosen = [...(fileInput.files || [])];
+    fileInput.value = "";
+    void addFiles(chosen);
+  });
+  // A picture pasted or dropped on the composer is added the same way; pasted text stays text.
+  const pastedName = (file) => file.name && file.name !== "image.png" ? file
+    : new File([file], L("粘贴的图片") + "." + ((file.type.split("/")[1] || "png").replace("jpeg", "jpg")), { type: file.type });
+  input.addEventListener("paste", (event) => {
+    const pasted = [...(event.clipboardData?.files || [])];
+    if (!pasted.length) return;
+    event.preventDefault();
+    void addFiles(pasted.map(pastedName));
+  });
+  composer?.addEventListener("dragover", (event) => {
+    if (![...(event.dataTransfer?.types || [])].includes("Files")) return;
+    event.preventDefault(); composer.dataset.dropping = "true";
+  });
+  composer?.addEventListener("dragleave", (event) => { if (!composer.contains(event.relatedTarget)) delete composer.dataset.dropping; });
+  composer?.addEventListener("drop", (event) => {
+    delete composer.dataset.dropping;
+    const dropped = [...(event.dataTransfer?.files || [])];
+    if (!dropped.length) return;
+    event.preventDefault();
+    void addFiles(dropped);
   });
   /** The page, what is selected on it and the materials the person kept: all data for this Send, nothing more. */
   const pageContext = () => {
@@ -940,7 +1319,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const sendMaterials = () => {
     const context = surfaceContext();
-    const list = files.map((file) => Object.assign({}, file));
+    // The picture's preview stays on this page; the Send names the runtime's reference only.
+    const list = files.map(({ preview: _preview, ...file }) => file);
     const page = pageObject();
     if (page && currentId && joined.has(objectKey(page.object))) {
       list.push({ material_id: "object", kind: "object", title: page.object.title || page.object.id, explicit: true, object: page.object,
@@ -953,11 +1333,114 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return list;
   };
   const consumeMaterials = () => { files = []; selection = null; removed.clear(); joined.clear(); paintMaterials(); };
+
+  /* ─── What plugin pages tell the Assistant (spec 8.3): by purpose, never by wording ───────────────────────── */
+  const offerBar = island.querySelector("[data-assistant-offer]");
+  const heard = new Set();
+  // A delegated Send reuses its message id, so the same message twice starts one work.
+  let requestOverride = null;
+  const tidyMessage = (raw) => {
+    if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;
+    if (!["background", "change", "suggest", "delegate", "reply"].includes(raw.purpose)) return null;
+    if (!raw.source || typeof raw.source.surface !== "string" || !raw.source.surface) return null;
+    const source = { surface: raw.source.surface.slice(0, 80), title: typeof raw.source.title === "string" && raw.source.title ? raw.source.title.slice(0, 80) : raw.source.surface.slice(0, 80) };
+    const object = raw.object && typeof raw.object.kind === "string" && typeof raw.object.id === "string" && raw.object.kind && raw.object.id
+      ? Object.assign({ kind: raw.object.kind.slice(0, 80), id: raw.object.id.slice(0, 200) }, typeof raw.object.title === "string" ? { title: raw.object.title.slice(0, 200) } : {},
+        typeof raw.object.version === "number" || typeof raw.object.version === "string" ? { version: raw.object.version } : {}) : null;
+    const materials = Array.isArray(raw.materials) ? raw.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text)
+      .slice(0, 4).map((item) => ({ title: item.title.slice(0, 200), text: item.text.slice(0, 20000) })) : [];
+    return { message_id: raw.message_id, purpose: raw.purpose, source, object, text: typeof raw.text === "string" ? raw.text.trim().slice(0, 8000) : "", materials,
+      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null };
+  };
+  /** What a request brings becomes this Send's materials, marked as from that page; its words go into the input. */
+  const bring = (message) => {
+    message.materials.forEach((item, index) => files.push(Object.assign({ material_id: "msg-" + message.message_id.slice(0, 40) + "-" + index, kind: "text", title: item.title, text: item.text,
+      explicit: true, source: { surface: message.source.surface, title: message.source.title } }, message.object ? { object: message.object } : {})));
+    if (message.text) input.value = message.text;
+    syncSend(); paintMaterials();
+  };
+  const hideOffer = () => { if (!offerBar) return; offerBar.hidden = true; offerBar.replaceChildren(); };
+  /** A suggestion waits for the person: shown with where it came from, put into the input only if they say so. */
+  const showOffer = (message, unconfirmed) => {
+    if (!offerBar) return;
+    offerBar.replaceChildren();
+    const copy = el("p", "assistant-offer-copy");
+    copy.append(el("strong", "", message.source.title), document.createTextNode(" " + (unconfirmed ? L("想交给助理处理") : L("建议")) + "：" + (message.text || L("带上这些材料发起一项工作"))
+      + (message.materials.length ? "（" + L("材料") + " " + message.materials.length + "）" : "")));
+    offerBar.append(copy);
+    if (unconfirmed) offerBar.append(el("p", "assistant-material-origin", L("没有确认是你刚才在那里发起的：放进输入框后，请你确认再发送。")));
+    const actions = el("div", "assistant-offer-actions");
+    const put = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("放进输入框")); put.type = "button";
+    put.addEventListener("click", async () => { hideOffer(); if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); input.focus(); });
+    const skip = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("忽略")); skip.type = "button";
+    skip.addEventListener("click", hideOffer);
+    actions.append(put, skip);
+    offerBar.append(actions);
+    offerBar.hidden = false;
+  };
+  /** The person just asked that page to hand this over: continue the work it names, or start a new one, right away. */
+  const delegate = async (message) => {
+    if (busy) { showOffer(message, false); return; }
+    if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
+    else if (message.work_id || currentId) await switchTo(null);
+    bring(message);
+    if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
+    requestOverride = "msg-" + message.message_id;
+    composer.requestSubmit(send);
+  };
+  window.addEventListener("molis:assistant-message", (event) => {
+    const message = tidyMessage(event.detail);
+    if (!message || heard.has(message.message_id)) return;
+    heard.add(message.message_id);
+    if (message.purpose === "background") {
+      // Context only: it shapes what the next Send carries from this page; nothing is sent and no model runs.
+      background = message; paintMaterials(); return;
+    }
+    if (message.purpose === "change") {
+      if (!message.object) return;
+      relatedCache.delete(objectKey(message.object));
+      if (view && belongsToWork(message.object)) void refresh().then(schedule).catch(() => {});
+      return;
+    }
+    if (message.purpose === "suggest") { showOffer(message, false); return; }
+    if (message.purpose === "delegate") {
+      // Only a real gesture on the page counts as the person asking; a script alone gets a suggestion instead.
+      const asked = Boolean(navigator.userActivation && navigator.userActivation.isActive);
+      if (asked) void delegate(message); else showOffer(message, true);
+      return;
+    }
+    if (message.purpose === "reply") {
+      if (!message.work_id || !message.object) return;
+      void api("/works/" + encodeURIComponent(message.work_id) + "/results", "POST", { object: message.object, source: message.source })
+        .then((result) => { if (currentId === message.work_id) { view = result; render(); } })
+        .catch((error) => showProblem({ message: error.message }));
+    }
+  });
   let typed = false;
-  input.addEventListener("input", () => { typed = true; syncSend(); saveDraft(false); if (String(input.value || "").trim()) setStarters(false); });
+  input.addEventListener("input", () => {
+    typed = true; syncSend(); saveDraft(false);
+    const value = String(input.value || "");
+    if (value.startsWith("/")) { void setSlash(value.slice(1)); return; }
+    closeSlash();
+    const mention = mentionAt();
+    if (mention) { setMention(mention); return; }
+    closeMention();
+    if (value.trim()) setStarters(false);
+  });
   input.addEventListener("keydown", (event) => {
+    // In the “/” list: down moves into it, Enter takes the first match; a “/…” is never sent as words.
+    if (slashOpen() && event.key === "ArrowDown") { event.preventDefault(); startersPop.querySelector("button")?.focus(); return; }
+    if (slashOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSlash(); return; }
+    // In the “@” list the same way: down moves into it, Enter takes the first hit, Escape leaves the words as typed.
+    if (mentionOpen() && event.key === "ArrowDown") { event.preventDefault(); startersPop.querySelector("button")?.focus(); return; }
+    if (mentionOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMention(); return; }
+    if (mentionOpen() && event.key === "Enter" && !event.isComposing && event.keyCode !== 229 && startersPop.querySelector("button")) { event.preventDefault(); startersPop.querySelector("button").click(); return; }
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     event.preventDefault();
+    if (String(input.value || "").startsWith("/")) { if (slashOpen()) startersPop.querySelector("button")?.click(); return; }
+    // Nothing typed: Enter opens the work the next Send goes to — the way in from the keyboard, and on a phone,
+    // where the work chip steps aside while the input has focus.
+    if (!String(input.value || "").trim()) { if (currentWork()) { setPanel(true); refresh().then(schedule); } return; }
     syncSend();
     if (!send.disabled) composer.requestSubmit(send);
   });
@@ -966,7 +1449,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const text = String(input.value || "").trim();
     if (!text || busy) return;
     busy = true; syncSend(); problem = null; setPanel(true);
-    const requestId = unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID();
+    const requestId = requestOverride || (unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID());
+    requestOverride = null;
     const materials = sendMaterials();
     setStarters(false); if (materialsList) setMaterials(false);
     // A draft save still waiting to go out would land after the send and bring the sent text back: cancel it, and let

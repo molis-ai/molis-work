@@ -23,7 +23,7 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest } from "@molis-ai/molis-work-plu
 import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest } from "@molis-ai/molis-work-plugin-characters";
-import { PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods } from "@molis-ai/molis-work-plugin-pages";
 import { FORM_PROJECT_PLUGIN_ID, formManifest } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_PROJECT_PLUGIN_ID, pptManifest } from "@molis-ai/molis-work-plugin-ppt";
@@ -47,6 +47,8 @@ export interface BuiltinPluginEntry {
   summary?: string;
   /** Prompt bodies and methods for the Manifest's `agent` block; the package ships them, never the Manifest. */
   agent?: { readonly prompts: readonly AgentPromptText[]; readonly skills?: readonly AgentSkillDefinition[] };
+  /** Bodies of the Manifest's `methods` (offered to other Agents); the package ships them. */
+  methods?: readonly AgentSkillDefinition[];
 }
 
 export interface PluginMarketCard {
@@ -72,7 +74,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true, summary: "把文件放到置物架，处理副本，原件不动。" },
   { project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, manifest: lingguangManifest, personal: true, summary: "先记下还没想清楚的想法，再决定留下或丢掉。" },
   { project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID, manifest: charactersManifest, personal: true, summary: "编辑角色的做事方式，发布固定版本供 AI 任务选择。" },
-  { project_plugin_id: PAGES_PROJECT_PLUGIN_ID, manifest: pagesManifest, personal: true, summary: "写文档，用块和格式，保存在这台电脑。" },
+  { project_plugin_id: PAGES_PROJECT_PLUGIN_ID, manifest: pagesManifest, personal: true, summary: "写文档，用块和格式，保存在这台电脑。", methods: pagesMethods },
   { project_plugin_id: FORM_PROJECT_PLUGIN_ID, manifest: formManifest, personal: true, summary: "建问卷，预览填写，看结果。" },
   { project_plugin_id: DATASET_PROJECT_PLUGIN_ID, manifest: datasetManifest, personal: true, summary: "改表格，导入 CSV，留下版本。" },
   { project_plugin_id: PPT_PROJECT_PLUGIN_ID, manifest: pptManifest, personal: true, summary: "写幻灯片大纲，预览并导出 JSON。" },

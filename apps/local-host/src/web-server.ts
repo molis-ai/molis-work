@@ -24,6 +24,7 @@ import { fixtureWebBoardOptions, resolveWebRequest } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
+import { assistantServiceFor } from "./assistant/assistant-http.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -188,7 +189,27 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       }
     }), 30_000);
     schedulerTimer.unref();
+    // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
+    // running is reported, never replayed late.
+    const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
+      projectTitle: async projectId => platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
+    // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
+    // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the
+    // runtime (a server start then costs no runtime until it is needed). It may be busy for a moment at start (another
+    // process releasing it): keep trying for a while.
+    void runWithMolisWorkHome(storageHome, async () => {
+      if (!assistant().hasTimedWork()) await agents.started;
+      for (let attempt = 0; attempt < 40; attempt++) {
+        try { await agents.ready; if (await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
+        await new Promise(resolve => setTimeout(resolve, 15_000).unref());
+      }
+    });
+    // New material that shares a Goal with a live work: looked for every five minutes.
+    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => { await assistant().scanNewMaterial(); })
+      .catch(error => console.warn("[assistant] 新资料没有读到", error)), 300_000);
+    assistantTimer.unref();
     server.once("close", () => {
+      clearInterval(assistantTimer);
       im.close();
       void closeExperiments(storageHome);
       clearInterval(schedulerTimer);

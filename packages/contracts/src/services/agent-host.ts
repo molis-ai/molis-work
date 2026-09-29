@@ -134,6 +134,17 @@ export interface AgentTextMaterial {
   source_version: number;
 }
 
+/**
+ * An image the person brought, already taken in by the runtime (its bytes stay with the runtime; this is only the
+ * reference). The model sees it in the Run it is attached to, and only there.
+ */
+export interface AgentImageMaterial {
+  material_id: string;
+  title: string;
+  resource: { id: string; revision: number };
+  media_type: string;
+}
+
 /** Metadata and verbatim body share one data resource, never a role/system prompt. */
 export function agentTextMaterialContent(material: AgentTextMaterial): string {
   if (!material || typeof material.title !== "string" || material.title.length > 2000
@@ -460,6 +471,8 @@ interface AgentFrozenStartFields {
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
   text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
+  /** Images the model was shown in this Run (references only). */
+  image_materials?: Array<{ material_id: string; title: string; media_type: string }>;
   budget: AgentRunBudget | null;
 }
 export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
@@ -511,8 +524,49 @@ export interface AgentActionOffer {
   missing?: Array<{ field: string; question: string }>;
 }
 
+/**
+ * Sub-tasks a business round hands to separate works of the same person and scope (the Host's delegation, where the
+ * runtime has no sub-agents of its own). Each delegated work is a real work with its own session: its changes still
+ * wait for the person's confirmation, and it cannot delegate further.
+ */
+export interface AgentDelegatedWork {
+  work_id: string;
+  title: string;
+  /** The work's state: running, waiting-input/-review (on the person), completed, failed, stopped… */
+  state: string;
+  /** Its latest reply, shortened. */
+  reply?: string;
+  /** Objects it produced or changed, as their owners name them. */
+  results?: Array<{ kind: string; id: string; revision: string | null }>;
+  /** Follow-ups sent to it so far; the Host refuses more than the limit. */
+  follow_ups: number;
+}
+export interface AgentDelegation {
+  /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */
+  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string }): Promise<AgentDelegatedWork>;
+  /** The delegated works (all, or the given ones), waiting up to `wait_ms` for them to finish or need the person. */
+  status(input: { work_ids?: string[]; wait_ms?: number }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
+  /** Tell a delegated work what to fix or add (its next round); bounded per work. */
+  follow_up(workId: string, text: string): Promise<AgentDelegatedWork>;
+  stop(workId: string): Promise<AgentDelegatedWork>;
+}
+
+/**
+ * A round's own memory tools: remember what the person explicitly asked to keep, list and forget. Absent when forming
+ * memories is switched off. Never used to infer preferences from behaviour.
+ */
+export interface AgentMemoryTools {
+  remember(input: { text: string; scope: "personal" | "project"; said: string }): Promise<{ memory_id: string; scope: "personal" | "project"; applies: string }>;
+  list(): Promise<Array<{ memory_id: string; scope: "personal" | "project"; text: string; origin: string }>>;
+  forget(memoryId: string): Promise<{ forgotten: boolean }>;
+}
+
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
+  /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */
+  delegate?: AgentDelegation;
+  /** Remember, list and forget for the person (see AgentMemoryTools). Absent: this round forms no memories. */
+  memory?: AgentMemoryTools;
   /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */
   offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
   /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
@@ -589,6 +643,8 @@ interface AgentStartRequestFields {
    */
   role?: AgentFrozenRole;
   text_materials?: AgentTextMaterial[];
+  /** Images for the model to see in this Run; refused when the selected model is marked as not seeing images. */
+  image_materials?: AgentImageMaterial[];
   skills?: AgentSkillRef[];
   mcp_tools?: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
@@ -1075,6 +1131,72 @@ export interface AgentRecoveryReport {
 }
 
 /** Inspect authoritative receipts; closing records an interruption and never replays work. */
+/** One remembered item in the runtime's memory store (Prologue Memory), in one scope and owner. */
+export interface AgentMemoryEntry {
+  memory_id: string;
+  scope: "user" | "project" | "character";
+  owner: string;
+  text: string;
+  /** Where it came from, as recorded when it was written. */
+  origin: string;
+  tags: string[];
+  version: number;
+}
+
+/** A document parser the App supplies to the runtime (the SDK ships none): bounded text, or a failure — never empty text. */
+export interface AgentDocumentParser {
+  mediaTypes: readonly string[];
+  parse(input: { bytes: Uint8Array; mediaType: string; maxChars: number }): Promise<{ text: string; pages?: number }>;
+}
+
+/** Documents the person brings, read through the runtime's own resources and parsers (Prologue `parseResource`). */
+export interface AgentDocumentCapability {
+  parse(input: { bytes: Uint8Array; name: string }): Promise<{ text: string; truncated: boolean; pages?: number }>;
+  /**
+   * An image taken in by the runtime (PNG, JPEG, GIF or WebP, recognised by its bytes) so a Run can show it to the
+   * model. The reference holds while this runtime process lives.
+   */
+  intakeImage?(input: { bytes: Uint8Array; name: string }): Promise<{ resource: { id: string; revision: number }; media_type: string; byte_length: number }>;
+}
+
+/** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */
+export interface AgentMemoryCapability {
+  list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
+  write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[] }): Promise<AgentMemoryEntry>;
+  update(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string; text: string }): Promise<AgentMemoryEntry>;
+  /** Removed for good: purged from the store, never recalled again. */
+  remove(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string }): Promise<boolean>;
+  recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
+}
+
+/** Timed work the runtime keeps across restarts: the Host names what to do; its runner does it when due. */
+export interface AgentScheduledTask {
+  task_id: string;
+  /** Idempotency: the same key scheduled twice is one task. */
+  key: string;
+  session_id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  due_at: string;
+  state: "queued" | "running" | "done" | "failed" | "reconcile-required" | "cancelled";
+  attempts: number;
+  runs: number;
+  last_failure?: string;
+}
+
+/** The runtime's durable local queue (Prologue `LocalQueue`), not a timer of the Host's own. */
+export interface AgentScheduleCapability {
+  /** Whether queued work still runs with the window closed, and why — from the Host's own handshake. */
+  claim(): { survives_window_close: boolean; why: string };
+  enqueue(input: { key: string; session_id: string; kind: string; payload: Record<string, unknown>; due_at: string; max_attempts?: number }): Promise<AgentScheduledTask>;
+  /** Cancels a task not yet started; null when there is none under that key. A running one cannot be cancelled. */
+  cancel(key: string): Promise<AgentScheduledTask | null>;
+  find(key: string): AgentScheduledTask | null;
+  list(kind?: string): AgentScheduledTask[];
+  /** The one runner for a kind. Tasks that fall due before it attaches wait for it (briefly), then count a failed attempt. */
+  handle(kind: string, run: (task: AgentScheduledTask) => Promise<void>): () => void;
+}
+
 export interface AgentRecoveryCapability {
   inspect(session: AgentSessionRef): Promise<AgentRecoveryReport>;
   close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
@@ -1089,6 +1211,9 @@ export interface AgentStartExecution {
 
 export interface AgentRuntimeAdapter {
   readonly recovery?: AgentRecoveryCapability;
+  readonly schedule?: AgentScheduleCapability;
+  readonly memory?: AgentMemoryCapability;
+  readonly documents?: AgentDocumentCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;

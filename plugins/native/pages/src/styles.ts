@@ -614,6 +614,8 @@ export const PAGES_STYLES = `
   .pages-pop { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
   .pages-pop label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .pages-pop textarea, .pages-pop input, .pages-pop select { width: 100%; }
+  .pages-ask-assistant { display: flex; gap: 6px; align-items: center; }
+  .pages-ask-assistant input { flex: 1; min-width: 0; }
   .pages-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .pages-pop .pages-pop-error { color: var(--red); }
   .pages-pop [hidden] { display: none; }

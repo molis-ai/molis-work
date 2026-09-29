@@ -101,3 +101,71 @@ test("an unavailable Character is refused with why, never swapped for another; p
     assert.equal((await f.service.read(sent.work.work_id)).work.draft, "第二轮", "what the person typed is kept");
   } finally { await f.close(); }
 });
+
+test("a plugin handing a result back links it to the work as a result; a reply without an object or source is refused", { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  try {
+    const sent = await f.service.send({ text: "起草一份说明", request_id: "req-reply-1" }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "round");
+    await f.service.receiveResult(sent.work.work_id, { object: { kind: "pages_document", id: "doc-7", title: "说明", version: 3 }, source: { surface: "pages", title: "Pages" } });
+    const relations = f.store.relations.forWork({ work_id: sent.work.work_id, project_id: "project" });
+    const result = relations.find(row => row.relation === "result");
+    assert.deepEqual([result?.object.kind, result?.object.id, result?.object.revision, result?.cause], ["pages_document", "doc-7", "3", "Pages 交回"]);
+    await assert.rejects(f.service.receiveResult(sent.work.work_id, { object: { kind: "pages_document" }, source: { surface: "pages" } }), /对象种类、标识和来自哪里/);
+    await assert.rejects(f.service.receiveResult(sent.work.work_id, { object: { kind: "pages_document", id: "x" } }), /对象种类、标识和来自哪里/);
+    assert.equal((await f.service.read(sent.work.work_id)).work.state, "completed", "receiving a result does not reopen or finish the work by itself");
+  } finally { await f.close(); }
+});
+
+function toolReply(name: string, input: unknown): Response {
+  const events: string[] = [];
+  const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+  emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
+  emit("content_block_start", { index: 0, content_block: { type: "tool_use", id: `call-${Math.random().toString(36).slice(2)}`, name, input: {} } });
+  emit("content_block_delta", { index: 0, delta: { type: "input_json_delta", partial_json: JSON.stringify(input) } });
+  emit("content_block_stop", { index: 0 });
+  emit("message_delta", { delta: { stop_reason: "tool_use", stop_sequence: null }, usage: { output_tokens: 10 } });
+  emit("message_stop", {});
+  return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+}
+
+test("with no role chosen, the Assistant hands a part to a professional role by id: the sub-task runs as exactly that role; a role not on offer is refused, never swapped", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-role-delegation-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const parentRequests: any[] = [], childRequests: any[] = [];
+  let step = 0;
+  const script: Array<(body: any) => Response> = [
+    body => { assert.match(JSON.stringify(body.messages), /可委托的专业角色[\s\S]*严格的编辑」 v2（id：character:board:editor）/); return toolReply("delegate-work", { title: "润色开头", brief: "把这句周报开头改得更精炼。", acceptance: "给出一版改写", character: "character:board:editor" }); },
+    () => toolReply("delegate-work", { title: "法务审阅", brief: "审一下。", acceptance: "有结论", character: "法务专员" }),
+    body => { assert.match(JSON.stringify(body.messages), /没有叫「法务专员」的专业角色/); return reply("一部分交给了严格的编辑；没有法务角色，法务那部分没有委托。"); },
+  ];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    if (JSON.stringify(body.messages).includes("委托给你的子任务")) { childRequests.push(body); return reply("改写：本周完成三项交付。"); }
+    parentRequests.push(body);
+    return (script[step++] ?? (() => reply()))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-role-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)),
+      resolveCharacter: reference => { if (reference.version !== 2) throw new Error("所选 Character 版本不可用"); return structuredClone(EDITOR); } }),
+    characters: async () => [{ reference: { artifact_id: EDITOR.reference.artifact_id, version: 2 }, title: EDITOR.title, available: true },
+      { reference: { artifact_id: EDITOR.reference.artifact_id, version: 1 }, title: EDITOR.title, available: false, reason: "这个版本已停用" }],
+    projectTitle: async () => "项目" }, "web-user");
+  try {
+    const sent = await service.send({ text: "帮我改改周报开头，再找法务看一下", request_id: "req-role-delegation" }, { project_ref: project });
+    const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "parent and child");
+    assert.equal(done.work.character, undefined, "the parent itself carries no role");
+    const child = await service.read(done.delegated![0]!.work_id);
+    assert.deepEqual(child.work.character, { artifact_id: EDITOR.reference.artifact_id, version: 2, title: "严格的编辑" });
+    assert.deepEqual(child.rounds[0]!.character, { artifact_id: EDITOR.reference.artifact_id, version: 2, title: "严格的编辑" }, "the sub-task's round says who carried it");
+    assert.ok(JSON.stringify(childRequests[0]).includes("每次回答先列出三处可改进的地方"), "the role's instructions reach the sub-task's model");
+    assert.deepEqual(child.work.delegated_by?.work_id, sent.work.work_id, "where it came from stays visible");
+    assert.equal(done.delegated!.length, 1, "the role not on offer started nothing");
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

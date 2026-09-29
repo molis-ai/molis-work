@@ -1,4 +1,4 @@
-import { inspectAgentDeclaration } from "./plugin-agent.js";
+import { inspectAgentDeclaration, inspectMethodDeclarations } from "./plugin-agent.js";
 import { inspectActionDeclarations } from "./actions.js";
 import { inspectEventDeclarations } from "./plugin-events.js";
 import { inspectMcpExports } from "./plugin-mcp.js";
@@ -213,6 +213,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
     parsed.agent,
     (parsed.ports?.inputs ?? []).map((input) => input.port),
   ));
+  problems.push(...inspectMethodDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
   problems.push(...inspectCommandDeclarations(parsed));
   problems.push(...inspectRouteDeclarations(parsed));

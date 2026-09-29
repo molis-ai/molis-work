@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ALCHEMIST_COPILOT } from "@molis-ai/molis-work-plugin-alchemist";
 import test from "node:test";
 import http from "node:http";
 import https from "node:https";
@@ -117,16 +118,16 @@ test("Alchemist packed Prologue borrows the shared Home owner and fixed model, a
     const port = createAlchemistProloguePort({ homeDirectory: home, projectId: "p", withCatalog, search: ai.search,
       resolveInference: async requestedHome => { assert.equal(requestedHome, home); borrowed++; const client = await resolvePrologueInference(requestedHome); assert.equal(client, shared); return client; } });
     assert.equal((await port.listModels())[0]?.id, "fixture/model");
-    const generated = await port.generate({ operationId: "copilot-1", actorId: "external-author", purpose: "解释当前访谈", systemPrompt: "只讨论提供的原文", userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
+    const generated = await port.generate({ operationId: "copilot-1", actorId: "external-author", purpose: "解释当前访谈", systemPrompt: ALCHEMIST_COPILOT, userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
     assert.equal(JSON.parse(generated.text).reply, "原文可追溯"); assert.match(generated.runtimeLabel, /Prologue/); assert.equal(requests.length, 1);
     assert.match(JSON.stringify(requests[0].messages), /不愿每天重新整理/);
     assert.equal(requests[0].model, "model"); assert.equal(requests[0].max_tokens, 4_096);
     assert.deepEqual(generated.usage, { inputTokens: 20, outputTokens: 12 });
     assert.equal(requests[0].tools?.length ?? 0, 0);
-    await assert.rejects(port.generate({ operationId: "missing", purpose: "test", systemPrompt: "", userPrompt: "", jsonSchema: {}, modelId: "fixture/missing" }), /没有可用模型/);
+    await assert.rejects(port.generate({ operationId: "missing", purpose: "test", systemPrompt: ALCHEMIST_COPILOT, userPrompt: "", jsonSchema: {}, modelId: "fixture/missing" }), /没有可用模型/);
     assert.equal(requests.length, 1, "a missing fixed model must not trigger fallback or a paid request");
     changeConfiguration = true;
-    await assert.rejects(port.generate({ operationId: "changed-config", actorId: "external-author", purpose: "检查配置变更", systemPrompt: "只输出 JSON", userPrompt: "返回一句回复",
+    await assert.rejects(port.generate({ operationId: "changed-config", actorId: "external-author", purpose: "检查配置变更", systemPrompt: ALCHEMIST_COPILOT, userPrompt: "返回一句回复",
       jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" }), /RUNTIME_CONFIGURATION_CHANGED/);
     assert.equal(requests.length, 2); assert.equal(borrowed, 2);
     await assert.rejects(access(join(home, "alchemist", "projects", "p", "runtime")), { code: "ENOENT" });
@@ -290,7 +291,7 @@ const cancellationCatalog: LocalWebCatalogRunner = async (_options, read) => rea
   resolveConfiguration: () => ({ provider: cancellationProvider, model: cancellationProvider.models[0], api_key: "explicit-cancel-test-secret" }),
 } } as unknown as MolisWorkProjectCatalog);
 function cancellableInput(signal: AbortSignal) {
-  return { operationId: "cancelled-operation", purpose: "test", systemPrompt: "Only JSON", userPrompt: "Return a reply", jsonSchema: { type: "object" }, modelId: "cancel-test/MiniMax-M3", signal };
+  return { operationId: "cancelled-operation", purpose: "test", systemPrompt: ALCHEMIST_COPILOT, userPrompt: "Return a reply", jsonSchema: { type: "object" }, modelId: "cancel-test/MiniMax-M3", signal };
 }
 
 function textInference(completeTextResult: PrologueInferenceClient["completeTextResult"]): PrologueInferenceClient {

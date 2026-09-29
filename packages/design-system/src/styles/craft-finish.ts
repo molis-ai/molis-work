@@ -278,7 +278,7 @@ const CRAFT_BASE_STYLES = `
   }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
   ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
-  ${SHELL} .bar-center { position: relative; min-width: 0; }
+  ${SHELL} .bar-center { position: relative; min-width: 0; container: assistant-bar / inline-size; }
   html ${SHELL} .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
   ${SHELL} :is(.bar-start .account-global-trigger, .dock-pins, .bar-composer, .bar-resident, .bar-chat) { background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
 
@@ -494,6 +494,8 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} :is(.assistant-object-open, .assistant-material-add):hover { background: var(--nav-hover); }
   ${ASSIST} :is(.assistant-object-open, .assistant-material-add):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-material--optional .assistant-material-label { color: var(--muted); }
+  ${ASSIST} .assistant-usage-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 4px 2px; }
+  ${ASSIST} .assistant-usage-input { width: 9em; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface, transparent); color: var(--ink); font: inherit; font-size: 12px; }
   ${ASSIST} .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
   /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
   ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
@@ -595,10 +597,38 @@ const CRAFT_BASE_STYLES = `
     max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
   }
   ${ASSIST} .assistant-popover[hidden] { display: none; }
+  /* A plugin's suggestion waits above the bar until the person puts it in the input or ignores it. */
+  ${ASSIST} .assistant-offer {
+    position: absolute; z-index: 55; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 6px; width: min(420px, 100%);
+    padding: 10px 12px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
+  }
+  ${ASSIST} .assistant-offer[hidden] { display: none; }
+  ${ASSIST} .assistant-offer-copy { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-offer-copy strong { margin-right: 4px; }
+  ${ASSIST} .assistant-offer-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
+  ${ASSIST} .assistant-attention {
+    display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  ${ASSIST} .assistant-attention[hidden] { display: none; }
+  ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
+  ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-notices { left: auto; right: 0; gap: 8px; }
+  ${ASSIST} .assistant-notice { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 8px; background: var(--nav-hover); }
+  ${ASSIST} .assistant-notice-text { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 2px; }
+  ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 6px; font-size: 11px; color: var(--faint); }
   ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
   ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }
   ${ASSIST} .assistant-material-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+  ${ASSIST} .assistant-material--image { grid-template-columns: 28px minmax(0, 1fr) auto auto; }
+  ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; }
+  ${ASSIST} .assistant-mention-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-mention-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
+  ${ASSIST} .assistant-material-thumb { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; background: var(--nav-hover); }
+  ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
   ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
   ${ASSIST} .assistant-material-remove { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
   ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
@@ -732,6 +762,19 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .dock-window-body { flex: 1; min-height: 0; overflow: hidden; }
   ${SHELL} .dock-window-body iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--paper); }
 
+  /* A narrow Assistant column (a 640–900px window, a side-by-side layout) keeps one chooser beside a usable input, as on
+     a phone: unchosen Character and executor chips fold away while the panel is closed, the plugin chip narrows. */
+  @container assistant-bar (max-width: 460px) {
+    ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
+    ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
+    ${SHELL} .bar-composer { gap: 4px; }
+    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 80px; }
+    ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    ${SHELL} .bar-composer .bar-composer-search { flex: none; gap: 0; padding: 0 6px; }
+    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
+    /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention, .bar-composer-search) { display: none; }
+  }
   /* A phone keeps the bar at the foot of the page: menu, the Assistant with its switcher, the project. */
   @media (max-width: 600px) {
     ${SHELL} .immersive-workspace,
@@ -743,6 +786,14 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
     ${ASSIST} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
     ${ASSIST} .assistant-target { max-width: 30%; }
+    /* The panel's head on a phone: the work's title keeps the room; the scope chip steps aside and the head's
+       buttons show their icons only (their names stay as accessible labels). */
+    ${ASSIST} .assistant-head { gap: 4px; }
+    ${ASSIST} .assistant-work-switch { flex: 1 1 auto; min-width: 0; max-width: none; }
+    ${ASSIST} .assistant-work-scope { display: none; }
+    ${ASSIST} .assistant-work-executor { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+    ${ASSIST} .assistant-head-actions .dock-window-action > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    ${ASSIST} .assistant-head-actions .dock-window-action { white-space: nowrap; }
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 24px; min-width: 24px; }
@@ -760,6 +811,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     ${SHELL} [data-assistant-island]:has(.assistant-panel:not([hidden])) .bar-composer .bar-composer-search { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-attention:not([hidden])) .bar-composer-search { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
     ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .bar-composer-search) { display: none; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
@@ -779,6 +831,11 @@ const CRAFT_BASE_STYLES = `
   .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
   .prompt-role-focus p { margin: 2px 0 0; color: var(--muted); }
   .prompt-diagnostics { margin-top: 20px; }
+  .assistant-rules { margin-bottom: 18px; }
+  .assistant-rule-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; font-size: 13px; }
+  .assistant-rule-form > strong { flex-basis: 100%; font-weight: 500; }
+  .assistant-rule-surfaces { display: flex; flex-wrap: wrap; gap: 6px 14px; flex-basis: 100%; }
+  .assistant-rule-form select { width: auto; }
   .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
   .prompt-diagnostics-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }

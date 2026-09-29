@@ -46,4 +46,11 @@ export const LINGGUANG_EN: Record<string, string> = {
   "转成文档": "Turn into page",
   "在这个位置建一个 Goal，这条灵光作为它的来源": "Create a Goal here with this spark as its source",
   "建成 Goal": "Make it a Goal",
+  "交给助理": "Hand to the Assistant",
+  "要助理做什么？": "What should the Assistant do?",
+  "只带过去，我自己发": "Just bring it; I'll send",
+  "助理只拿到这条灵光和最近几句头脑风暴，不会合并整段对话；它做的修改仍会请你确认。": "The Assistant gets this spark and the last few brainstorm lines, never the whole conversation; its changes still ask you first.",
+  "头脑风暴 · 最近": "Brainstorm · last",
+  "句": "lines",
+  "我": "Me",
 };

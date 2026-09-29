@@ -4,6 +4,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { PAGES_MCP_EXPORTS } from "./mcp.js";
+import { pagesMethods } from "./methods.js";
 
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
@@ -13,6 +14,8 @@ export const pagesManifest: PluginManifest = {
   plugin_id: PAGES_PLUGIN_ID,
   version: "1.0.0",
   name: "Pages",
+  // Offered to other Agents for business work; bodies in ./methods.ts.
+  methods: pagesMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

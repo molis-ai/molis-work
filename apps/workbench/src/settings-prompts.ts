@@ -87,6 +87,8 @@ export const PROMPT_SETTINGS_CLIENT_SCRIPT = String.raw`
     cancel.addEventListener("click", () => { open = null; paint(); });
     actions.append(save, cancel, reset, count);
     box.append(area, actions, error);
+    // A call that reads a fixed format back (JSON) breaks if the edit asks for text around it: say so where it is edited.
+    if (/JSON|Schema|格式/.test(prompt.default_body)) box.insertBefore(el("p", "settings-muted prompt-editor-format", L("这段要求模型按固定格式输出，程序会读取这个格式：修改时保留格式要求，只调整内容；要加前缀等，请写明加在哪个字段里。")), actions);
     if (prompt.effective === "user") {
       // The shipped text stays readable beside the person's, so a newer default can be compared and taken over by hand.
       const shipped = el("details", "prompt-default");

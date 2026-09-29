@@ -66,8 +66,33 @@ export interface AgentDefinitionRegistration {
   source: AgentDefinitionSource;
   prompts: AgentPromptRegistration[];
   roles: AgentRoleRegistration[];
+  /** Methods this owner offers to other Agents for business work, with their bodies (the Manifest's `methods`). */
+  methods?: AgentMethodRegistration[];
   /** What the Host knows is not registered for this owner, and why (shown in developer diagnostics). */
   notes?: string[];
+}
+
+export interface AgentMethodRegistration {
+  skill_id: string;
+  version: number;
+  name: string;
+  /** When it applies. */
+  summary: string;
+  tools: string[];
+  body: string;
+}
+
+/** A registered method as a round finds it: its owner, identity and when it applies (the body is read by id). */
+export interface AgentMethodView {
+  /** `<owner_id>/<skill_id>`. */
+  key: string;
+  owner_id: string;
+  source: AgentDefinitionSource;
+  skill_id: string;
+  version: number;
+  name: string;
+  summary: string;
+  tools: string[];
 }
 
 export interface AgentPromptView {
@@ -139,6 +164,7 @@ export interface AgentDefinitionsDiagnostics {
     prompts: number;
     instructions: number;
     roles: number;
+    methods?: number;
     edited: number;
     issues: Array<{ level: "warning" | "info"; text: string }>;
   }>;

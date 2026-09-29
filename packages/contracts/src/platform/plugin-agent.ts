@@ -22,6 +22,30 @@ export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" |
  */
 export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
 
+/**
+ * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a
+ * Plugin offers to other Agents (the Assistant, a Character) is text that says how to use these; it grants nothing.
+ */
+export const METHOD_TOOLS = ["find-capabilities", "read-capability", "change-capability", "suggest-action", ...BUSINESS_HOST_TOOLS] as const;
+
+/** A Plugin's methods for other Agents (Manifest `methods`): each a declared, versioned method for business work. */
+export function inspectMethodDeclarations(methods: unknown): string[] {
+  if (methods === undefined) return [];
+  if (!Array.isArray(methods)) return ["方法声明必须是列表"];
+  const problems: string[] = [], seen = new Set<string>();
+  for (const method of methods as AgentSkillDeclaration[]) {
+    if (!method || !validToken(method.skill_id) || !validVersion(method.version)) { problems.push("方法声明不合法"); continue; }
+    if (seen.has(method.skill_id)) problems.push(`方法重复：${method.skill_id}`);
+    seen.add(method.skill_id);
+    if (typeof method.name !== "string" || !method.name.trim() || method.name.length > 80) problems.push(`方法 ${method.skill_id} 需要名称（80 字以内）`);
+    if (typeof method.summary !== "string" || !method.summary.trim() || method.summary.length > 300) problems.push(`方法 ${method.skill_id} 需要适用说明（300 字以内）`);
+    if (!Array.isArray(method.tools) || !method.tools.length || method.tools.some(tool => !(METHOD_TOOLS as readonly string[]).includes(tool))) {
+      problems.push(`方法 ${method.skill_id} 只能使用业务工具：${METHOD_TOOLS.join("、")}`);
+    }
+  }
+  return problems;
+}
+
 export interface AgentRoleDeclaration {
   role_id: string;
   version: number;

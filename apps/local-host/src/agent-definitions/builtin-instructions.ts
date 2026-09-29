@@ -9,6 +9,7 @@ import { DATASET_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-dataset";
 import { LINGGUANG_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { WORKFLOWS_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-workflows";
 import { COGNIA_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { ALCHEMIST_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-alchemist";
 
 /**
  * Every instruction a built-in model call uses. A Plugin's live in its package and are listed here once; the Host's own
@@ -16,7 +17,7 @@ import { COGNIA_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-cognia";
  * not in this list, or when a call sends a raw prompt string.
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [...PAGES_INSTRUCTIONS, ...JELLY_INSTRUCTIONS, ...FORM_INSTRUCTIONS, ...DATASET_INSTRUCTIONS,
-  ...LINGGUANG_INSTRUCTIONS, ...WORKFLOWS_INSTRUCTIONS, ...COGNIA_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER];
+  ...LINGGUANG_INSTRUCTIONS, ...WORKFLOWS_INSTRUCTIONS, ...COGNIA_INSTRUCTIONS, ...ALCHEMIST_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER];
 
 /**
  * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Cognia's knowledge answers), with the
@@ -42,9 +43,7 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
  * Model calls that still send text nobody can see in “Prompt 与 Character”, shown in developer diagnostics. Keep in
  * step with the transitional list in `tests/prompt-registration.test.ts`.
  */
-export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [
-  { owner_id: "io.molis.work.alchemist", title: "炼金术士", reason: "工作室按每个任务在插件内拼出 systemPrompt，还没有拆成可登记的固定指令；迁移单列" },
-];
+export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [];
 
 /** Built-in Plugins whose manifest Agent block is not what their runs use; their real prompts are registered above instead. */
 export const UNUSED_MANIFEST_AGENTS: ReadonlySet<string> = new Set([BUILDER_PLUGIN_ID]);

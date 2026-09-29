@@ -1,3 +1,4 @@
+import { ALCHEMIST_COPILOT } from "../../../prompts.js";
 import { z } from "zod";
 import type { AlchemistOperationInput } from "../../shared/contracts/actions.js";
 import type { ConversationContext } from "../../domain/conversation/context.js";
@@ -29,8 +30,7 @@ export async function sendConversationMessage(dependencies: ApiDependencies, inp
         const result = await dependencies.runtimeSettings.generateStructured({
           operationId: dependencies.idFactory.next("conversation_generation"),
           purpose: "围绕当前 Direction、Idea 或报告与创始人继续讨论",
-          systemPrompt:
-            "你是炼金术士的 Founder Copilot。围绕给定对象正文与此前讨论直接回应用户，区分证据、推断与未知。Founder Taste 是有适用范围与例外的个人偏好，不是市场证据。不要静默修改业务对象或长期 Memory。",
+          systemPrompt: ALCHEMIST_COPILOT,
           userPrompt: JSON.stringify({ context: input.context, object, history, message: input.body,
             founderTaste: dependencies.memory.listTasteRules(dependencies.workspaceId).filter(rule => rule.status === "active")
               .map(rule => ({ title: rule.title, statement: rule.statement, appliesTo: rule.appliesTo, exceptions: rule.exceptions })) }),

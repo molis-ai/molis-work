@@ -288,7 +288,8 @@ test("plugin stores move with the same id, copy independently and receive handed
   const pages = openPagesStore(home);
   const page = pages.create({ project_id: "personal", title: "上线前检查清单" });
   const moved = pages.relocate(page.id, "personal", "q4");
-  assert.deepEqual([moved.id, moved.project_id, moved.version], [page.id, "q4", page.version + 1]);
+  // A move is not an edit: same id, same version and time, so work that recorded this version still matches.
+  assert.deepEqual([moved.id, moved.project_id, moved.version, moved.updated_at], [page.id, "q4", page.version, page.updated_at]);
   assert.throws(() => pages.get(page.id, "personal"), /找不到/);
   const pageCopy = pages.duplicate(page.id, "q4", "personal", "r1");
   assert.equal(pages.duplicate(page.id, "q4", "personal", "r1").id, pageCopy.id);
@@ -297,7 +298,8 @@ test("plugin stores move with the same id, copy independently and receive handed
 
   const ppt = openPptStore(home);
   const deck = ppt.create({ project_id: "personal", title: "评审" });
-  assert.equal(ppt.relocate(deck.id, "personal", "q4").project_id, "q4");
+  const movedDeck = ppt.relocate(deck.id, "personal", "q4");
+  assert.deepEqual([movedDeck.project_id, movedDeck.version], ["q4", deck.version]);
   const deckCopy = ppt.duplicate(deck.id, "q4", "personal", "c1");
   assert.equal(ppt.duplicate(deck.id, "q4", "personal", "c1").id, deckCopy.id);
   const outline = slidesFromMarkdown("# Q4 新版发布评审\n\n## 做成了什么\n- 计费重构\n- 团队空间 Beta\n> 数字来自周报\n\n## 风险\n- 价格变化", "备用标题");
@@ -311,7 +313,8 @@ test("plugin stores move with the same id, copy independently and receive handed
   const table = datasets.receiveCsv("personal", "d-1", "答卷", "提交时间,整体满意度\n2026-09-28,4\n2026-09-28,5");
   assert.deepEqual([table.columns.length, table.rows.length], [2, 2]);
   assert.equal(datasets.receiveCsv("personal", "d-1", "答卷", "x").id, table.id);
-  assert.equal(datasets.relocate(table.id, "personal", "q4").project_id, "q4");
+  const movedTable = datasets.relocate(table.id, "personal", "q4");
+  assert.deepEqual([movedTable.project_id, movedTable.version], ["q4", table.version]);
   datasets.close();
 
   const sparks = openLingguangStore(home);
@@ -321,7 +324,9 @@ test("plugin stores move with the same id, copy independently and receive handed
   assert.throws(() => sparks.relocate(alone.id, "q4", "personal"), /同一场头脑风暴/);
   const single = sparks.create({ project_id: "q4", title: "独自一条" });
   sparks.openConversation([single.id], "q4");
-  assert.equal(sparks.relocate(single.id, "q4", "personal").project_id, "personal");
+  const beforeMove = sparks.get(single.id, "q4");
+  const movedSpark = sparks.relocate(single.id, "q4", "personal");
+  assert.deepEqual([movedSpark.project_id, movedSpark.updated_at], ["personal", beforeMove.updated_at], "a spark keeps its time: its revision is its content");
   sparks.close();
 });
 
@@ -335,11 +340,14 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
   const todos = new Map([["t1", { title: "发布后回访五位用户", belongs: "personal" }]]);
   const calls: string[] = [];
   f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
-    handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
-      if (!todo) throw new ActionError("todos.not_found", "待办不存在");
+    // Like Todo: a project's todos are not visible from outside that project.
+    handlers: [{ ...todoReader, handle: (caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
+      if (!todo || todo.belongs !== "personal" && caller.project_id !== todo.belongs) throw new ActionError("todos.not_found", "待办不存在");
       return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], session_id: null, open: { surface: "todo", id },
         project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
-      bindHomeObjectMoveHandler(homeMover, input => { calls.push(input.to_project_id); todos.get(input.subject.id)!.belongs = input.to_project_id;
+      bindHomeObjectMoveHandler(homeMover, (input, caller) => { const found = todos.get(input.subject.id)!;
+        if (found.belongs !== "personal" && caller.project_id !== found.belongs) throw new ActionError("todos.not_found", "待办不存在");
+        calls.push(input.to_project_id); found.belongs = input.to_project_id;
         return { subject: input.subject, project_id: input.to_project_id, revision: input.to_project_id }; })] });
   const todo = { kind: "todo_item", id: "t1", project_id: null };
   const before = await f.service.describe(todo);
@@ -352,8 +360,13 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
   assert.deepEqual(after.associations.filter(item => item.type === "used_in"), [], "used in the project it now belongs to says nothing more");
   // Its reader says where it belongs now; where it was is remembered.
   assert.deepEqual([after.location?.title, after.location?.access, after.moved_from?.title], ["项目「Q4 新版发布」", "home", "个人空间"]);
+  assert.deepEqual(moved.open, { project_id: "q4", surface: "todo", id: "t1" }, "opened in the project it now belongs to");
   await assert.rejects(f.service.move(todo, "q4"), { code: "placement.same_location" });
   await assert.rejects(f.service.link(todo, "q4"), { code: "placement.already_here" });
+  // Read and moved again from where it belongs now, although the plugin hides it outside that project.
+  assert.equal(after.state, "ok");
+  const back = await f.service.move(todo, "personal");
+  assert.deepEqual([calls.at(-1), back.location.title, (await f.service.describe(todo)).moved_from?.title], ["personal", "个人空间", "项目「Q4 新版发布」"]);
   // Home content without a mover (a clip) still cannot be moved.
   await assert.rejects(f.service.move({ kind: "clip", id: "clip-1", project_id: null }, "q4"), { code: "placement.not_movable" });
 });
@@ -441,7 +454,9 @@ test("a form collects on this computer and through answer files, honestly", asyn
   assert.ok(!page.includes("Beta </script> 满意度\","), "the title cannot end the data script");
   assert.match(page, /\\u003c\/script>/u);
   assert.match(page, /这个页面不会上传任何内容/);
+  const formBefore = forms.get(form.id, "personal");
   const moved = forms.relocate(form.id, "personal", "q4");
+  assert.equal(moved.version, formBefore.version, "a move is not an edit");
   assert.equal(forms.listSubmissions(moved.id, "q4").length, 2, "answers go with the form");
   forms.close();
 });

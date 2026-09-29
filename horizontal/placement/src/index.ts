@@ -38,7 +38,7 @@ const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "pe
 /** Ledger-only marker for Home-level content (Shelf, Jelly, Cognia…): always personal, never moved. */
 const HOME = "home";
 const TYPES = { location: "placement.location", used: "placement.used_in", derived: "placement.derived_from", copied: "placement.copied_from", goal: "placement.goal_in",
-  belonging: "placement.belonged_to" } as const;
+  belonging: "placement.belonged_to", belongs: "placement.belongs_to" } as const;
 
 const identity = (kind: string, id: string): ObjectRef => ({ module: "plugins", object_type: kind, id, version: null, scope: ACCESS.scope, project_id: null });
 const projectRef = (projectId: string): ObjectRef => ({ module: "projects", id: projectId, version: null, scope: ACCESS.scope, project_id: null });
@@ -127,6 +127,7 @@ export class PlacementService {
     }
     const tools = read.state === "ok" ? await this.tools(object) : { mover: null, copier: null };
     const here = object.project_id ?? this.belongsOf(read);
+    if (object.project_id === null && read.state === "ok") this.rememberBelonging(object, here);
     // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
     const belonged = object.project_id === null ? this.ports.ledger.query.get(ACCESS, key("belonged_to", object.kind, object.id)) : null;
     const before = belonged && belonged.target.id !== (here ?? PERSONAL_SPACE_PROJECT_ID) ? belonged.target.id : null;
@@ -135,7 +136,7 @@ export class PlacementService {
       moved_from: located.moved ? this.location(input.project_id, spaces) : before ? this.homeLocation(before, spaces) : null,
       associations,
       can: { move: !!tools.mover, copy: !!tools.copier, use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
-      open: read.context?.open ? { project_id: object.project_id, surface: read.context.open.surface, id: read.context.open.id } : null,
+      open: read.context?.open ? { project_id: this.openIn(object, read), surface: read.context.open.surface, id: read.context.open.id } : null,
     };
   }
 
@@ -148,7 +149,7 @@ export class PlacementService {
       const read = await this.read(object);
       items.push({ key: edge.key, object, title: read.context?.title || this.ports.titles.get(object.kind, object.id) || this.t("未命名"),
         state: read.state, reason: read.reason, location: read.state === "ok" ? this.location(object.project_id, spaces) : null, plugin: read.plugin,
-        since: edge.recorded_at, open: read.context?.open ? { project_id: object.project_id, surface: read.context.open.surface, id: read.context.open.id } : null });
+        since: edge.recorded_at, open: read.context?.open ? { project_id: this.openIn(object, read), surface: read.context.open.surface, id: read.context.open.id } : null });
     }
     return items.sort((a, b) => b.since.localeCompare(a.since));
   }
@@ -288,7 +289,8 @@ export class PlacementService {
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? this.t("暂时读不到这个对象"));
     const from = this.belongsOf(read) ?? PERSONAL_SPACE_PROJECT_ID;
     if (from === to) throw new ActionError("placement.same_location", this.t("它已经在这个位置"));
-    const scope = await this.ports.scope(null);
+    // Called from where it belongs now, so a plugin that scopes its objects by project finds it.
+    const scope = await this.ports.scope(from === PERSONAL_SPACE_PROJECT_ID ? null : from);
     const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", this.t("插件返回的移动结果与请求不一致，请刷新后核对"));
@@ -297,6 +299,7 @@ export class PlacementService {
     this.ports.ledger.commands.put(ACCESS, { key: key("belonged_to", object.kind, object.id), type: TYPES.belonging,
       source: identity(object.kind, object.id), target: projectRef(from), cause: `placement.move:${to}` });
     this.ports.ledger.commands.remove(ACCESS, key("used_in", object.kind, object.id, to), "placement.moved_into_project");
+    this.rememberBelonging(object, to === PERSONAL_SPACE_PROJECT_ID ? null : to);
     return { object, location: this.homeLocation(to, spaces), open: await this.openOf(object) };
   }
 
@@ -359,9 +362,31 @@ export class PlacementService {
   }
 
   /** Read one object from its owner in its own partition. Deleted and unreadable stay distinct. */
+  /**
+   * A Home-kept object is read at Home; a plugin that scopes its readers by project (a todo list) may answer “not found”
+   * there for one that belongs to a project, so it is read again inside the project it was last known to belong to.
+   */
   private async read(object: PlacedObject): Promise<Read> {
+    const first = await this.readIn(object, object.project_id);
+    if (object.project_id !== null || first.state !== "missing") return first;
+    const known = this.ports.ledger.query.get(ACCESS, key("belongs_to", object.kind, object.id))?.target.id;
+    if (!known || known === PERSONAL_SPACE_PROJECT_ID) return first;
+    const again = await this.readIn(object, known);
+    return again.state === "ok" ? again : first;
+  }
+
+  /** Where a Home-kept object belongs now, remembered so it can be read again there (see read). */
+  private rememberBelonging(object: PlacedObject, belongs: string | null): void {
+    const target = belongs ?? PERSONAL_SPACE_PROJECT_ID;
+    const current = this.ports.ledger.query.get(ACCESS, key("belongs_to", object.kind, object.id));
+    if (current?.target.id === target) return;
+    this.ports.ledger.commands.put(ACCESS, { key: key("belongs_to", object.kind, object.id), type: TYPES.belongs,
+      source: identity(object.kind, object.id), target: projectRef(target), cause: "placement.seen" });
+  }
+
+  private async readIn(object: PlacedObject, projectId: string | null): Promise<Read> {
     let scope: PlacementScope;
-    try { scope = await this.ports.scope(object.project_id); }
+    try { scope = await this.ports.scope(projectId); }
     catch (error) {
       if (error instanceof ActionError && error.code === "placement.project_missing") return { state: "missing", reason: this.t(PROJECT_GONE), context: null, plugin: null };
       return { state: "unavailable", reason: error instanceof Error ? error.message : this.t("暂时打不开它所在的位置"), context: null, plugin: null };
@@ -399,9 +424,14 @@ export class PlacementService {
     } catch { return { mover: null, copier: null }; }
   }
 
+  /** Opened where it is: its partition, or the project a Home-kept object belongs to (null: wherever the person is). */
+  private openIn(object: PlacedObject, read: Read): string | null {
+    return object.project_id ?? this.belongsOf(read);
+  }
+
   private async openOf(object: PlacedObject): Promise<PlacementOpen | null> {
     const read = await this.read(object);
-    return read.context?.open ? { project_id: object.project_id, surface: read.context.open.surface, id: read.context.open.id } : null;
+    return read.context?.open ? { project_id: this.openIn(object, read), surface: read.context.open.surface, id: read.context.open.id } : null;
   }
 
   private async goalTitle(projectId: string, goalId: string): Promise<string | null> {

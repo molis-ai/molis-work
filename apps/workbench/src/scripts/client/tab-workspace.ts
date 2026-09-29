@@ -943,13 +943,21 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const pane = ops.focused(state), key = paneFrameKey(pane);
     const frame = key && panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(key) + '"]');
     const current = () => !state.exclusive && ops.focused(state) === pane && pane.viewPlugin === plugin && !pane.activeTabId && (!frame || (frame.isConnected && !frame.hidden && frame.dataset.paneOwner === pane.id));
-    let observer = null, timer = null, done = false;
-    const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
+    let observer = null, timer = null, asked = null, done = false;
+    const finish = () => { done = true; observer?.disconnect(); clearTimeout(timer); clearTimeout(asked); frame?.removeEventListener('load', watch); if (cancelRecordJump === finish) cancelRecordJump = null; };
+    const surfaceIn = (doc) => doc?.querySelector('[data-work-surface="' + plugin + '"]') || null;
+    // The plugin says it has the record open (its current object), however it got there.
+    const showsIt = (doc) => {
+      const node = surfaceIn(doc);
+      const holder = node && (node.hasAttribute('data-assistant-context') ? node : node.querySelector('[data-assistant-context]'));
+      try { const context = JSON.parse(holder?.getAttribute('data-assistant-context') || '{}'); return Boolean(context.object && context.object.id === itemId); } catch { return false; }
+    };
     const check = () => {
       if (done) return;
       if (!current()) { finish(); return; }
       const doc = frame ? frame.contentDocument : document;
       if (!doc || (frame && !doc.body?.hasAttribute('data-pane-embedded'))) return;
+      if (showsIt(doc)) { finish(); return; }
       const row = [...doc.querySelectorAll(spec[1])].find(el => el.dataset[spec[2]] === itemId);
       if (!row) return;
       finish(); row.click(); row.scrollIntoView({block:'nearest', behavior:'instant'});
@@ -961,7 +969,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       check();
     };
     cancelRecordJump = finish;
-    timer = setTimeout(() => { const stillCurrent = current(); finish(); if (stillCurrent) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true); }, 10000);
+    // Not among the rows shown now (another view or filter): a plugin that opens records by id is asked directly.
+    asked = setTimeout(() => { if (!done) surfaceIn(frame ? frame.contentDocument : document)?.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { itemId } })); }, 1500);
+    timer = setTimeout(() => { const stillCurrent = current(); const opened = showsIt(frame ? frame.contentDocument : document); finish(); if (stillCurrent && !opened) showToast?.(L('未能打开这条内容，请重试或从列表中选择。'), true); }, 10000);
     frame?.addEventListener('load', watch); watch();
   };
   const openItem = (plugin, itemId, title, goalView) => {

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { preparePagesImport, pagesSchema, nodesToMarkdown } from "@molis-ai/molis-work-plugin-pages";
+import { pagesSchema, nodesToMarkdown } from "@molis-ai/molis-work-plugin-pages";
+import { preparePagesFileImport } from "./pages-import.js";
 import { extractMaterial } from "./material-extraction.js";
 import type { ContextReference, ContextSourceKind, ImportFile } from "./context-onboarding-store.js";
 
@@ -15,7 +16,7 @@ export async function prepareContextDocuments(kind: ContextSourceKind, files: Im
       let body = "", title = filename.replace(/\.[^.]+$/u, ""), mime = "text/plain";
       if (/\.docx$/iu.test(filename)) {
         mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        const result = await preparePagesImport([{ name: filename, data: file.data }]);
+        const result = await preparePagesFileImport([{ name: filename, data: file.data }], { signal });
         const doc = result.documents[0]!;
         body = nodesToMarkdown(pagesSchema.nodeFromJSON(doc.body).content.content);
         title = doc.title || title;

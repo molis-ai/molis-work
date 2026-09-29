@@ -483,6 +483,12 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
+      mammoth:
+        specifier: 1.11.0
+        version: 1.11.0
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
@@ -1071,9 +1077,6 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
-      fflate:
-        specifier: 0.8.2
-        version: 0.8.2
       highlight.js:
         specifier: ^11.11.2
         version: 11.11.2
@@ -1083,9 +1086,6 @@ importers:
       lowlight:
         specifier: ^3.3.0
         version: 3.3.0
-      mammoth:
-        specifier: 1.11.0
-        version: 1.11.0
       marked:
         specifier: 18.0.11
         version: 18.0.11

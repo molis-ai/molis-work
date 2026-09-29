@@ -1,3 +1,4 @@
+import { preparePagesFileImport } from "./pages-import.js";
 import { migrateLegacyPagesProject } from "./pages-legacy-project.js";
 import { ActionError, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesManifest, createPagesActionHandlers, createPagesContentHandlers, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -21,6 +22,7 @@ export function pagesActionProvider(home: string, runtime: MolisWorkProjectRunti
     definitions: pagesManifest.actions!,
     handlers: [...createPagesActionHandlers({
       withStore,
+      prepareImport: (files, caller) => preparePagesFileImport(files, { signal: caller.signal }),
       publishArtifact: (input, caller) => registerPagesArtifactVersion(runtime.coordinator, runtime.board_id, runtime.project_id, caller.actor_id)(input),
       readArtifact: (input, caller) => readPagesArtifactVersion(runtime.coordinator, runtime.board_id, runtime.project_id, caller.actor_id)(input),
       modelAvailability: () => {

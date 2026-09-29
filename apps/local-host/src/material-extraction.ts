@@ -1,5 +1,5 @@
 import path from "node:path";
-import { Worker } from "node:worker_threads";
+import { runMaterialWorker } from "./material-worker.js";
 import type { MaterialExtraction, MaterialExtractionOptions, MaterialExtractor, MaterialLimits, MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 import { extractNativeMaterial, materialImageExtensions, materialMediaExtensions, type NativeMaterialOptions } from "./material-native.js";
 import { extractMaterialText, MaterialExtractionError } from "./material-text.js";
@@ -18,30 +18,8 @@ function checkedLimits(options: MaterialExtractionOptions): MaterialLimits {
   if (options.timeoutMs !== undefined && (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0 || options.timeoutMs > 30 * 60_000)) throw new MaterialExtractionError("invalid_limits", "提取超时设置无效");
   return limits;
 }
-async function extractPdf(source: MaterialSource, options: MaterialExtractionOptions, limits: MaterialLimits): Promise<MaterialExtraction> {
-  options.signal?.throwIfAborted();
-  // Use the packaged worker for both source consumers and installed Host; build is a prerequisite.
-  const worker = new Worker(new URL("./material-pdf-worker.js", import.meta.resolve("@molis-ai/molis-work-app-local-host")),
-    { workerData: { bytes: new Uint8Array(source.bytes), limits }, resourceLimits: { maxOldGenerationSizeMb: 256 } });
-  let timer: ReturnType<typeof setTimeout> | undefined, abort: (() => void) | undefined;
-  try {
-    return await new Promise<MaterialExtraction>((resolve, reject) => {
-      abort = () => reject(options.signal!.reason);
-      worker.once("message", (message: { result?: MaterialExtraction; error?: string }) => {
-        if (options.signal?.aborted) { reject(options.signal.reason); return; }
-        if (message.result) resolve(message.result);
-        else reject(new MaterialExtractionError("extraction_failed", message.error ?? "PDF 提取失败", 422));
-      });
-      worker.once("error", reject);
-      worker.once("exit", () => reject(new MaterialExtractionError("extraction_failed", "PDF 提取进程已退出", 502)));
-      options.signal?.addEventListener("abort", abort, { once: true });
-      timer = setTimeout(() => reject(new MaterialExtractionError("timeout", "PDF 提取超时", 502)), options.timeoutMs ?? 120_000);
-      if (options.signal?.aborted) abort();
-    });
-  } finally {
-    clearTimeout(timer); if (abort) options.signal?.removeEventListener("abort", abort);
-    await worker.terminate();
-  }
+function extractPdf(source: MaterialSource, options: MaterialExtractionOptions, limits: MaterialLimits): Promise<MaterialExtraction> {
+  return runMaterialWorker("material-pdf-worker.js", { bytes: new Uint8Array(source.bytes), limits }, options, "PDF");
 }
 
 export function createMaterialExtractor(native: NativeMaterialOptions = {}): MaterialExtractor {

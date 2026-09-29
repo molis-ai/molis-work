@@ -100,7 +100,9 @@
     "@molis-ai/molis-work-plugin-sandbox": "workspace:*",
     "typescript": "^5.8.0",
     "@molis-ai/molis-work-server": "workspace:*",
-    "@molis-ai/molis-work-im-ui": "workspace:*"
+    "@molis-ai/molis-work-im-ui": "workspace:*",
+    "fflate": "0.8.2",
+    "mammoth": "1.11.0"
   },
   "molis-work": {
     "path": "apps/local-host",

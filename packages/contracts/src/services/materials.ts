@@ -35,3 +35,16 @@ export interface MaterialExtractionOptions {
 }
 /** Source identity, saved originals, business conversions and citation rules remain with consumers. */
 export type MaterialExtractor = (source: MaterialSource, options?: MaterialExtractionOptions) => Promise<MaterialExtraction>;
+
+/** Transport form; the Host validates and decodes it before parsing. */
+export interface MaterialUpload { file_name: string; data_base64: string }
+export interface MaterialDocument {
+  name: string;
+  format: "markdown" | "html" | "text" | "csv";
+  content: string;
+  /** Semantic content has no stable page number; do not invent one for DOCX or archive entries. */
+  coverage: Pick<MaterialExtraction["coverage"], "status" | "issues" | "truncated">;
+}
+export interface MaterialDocumentBatch { documents: MaterialDocument[]; warnings: string[] }
+export interface MaterialDocumentOptions { signal?: AbortSignal; timeoutMs?: number }
+export type MaterialDocumentReader = (sources: readonly MaterialSource[], options?: MaterialDocumentOptions) => Promise<MaterialDocumentBatch>;

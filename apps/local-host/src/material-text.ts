@@ -48,11 +48,18 @@ export function extractMaterialHtml(source: string, markdown: boolean): { text: 
   return { text: entities(stripTags(text)).replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim(), ...(title ? { title } : {}) };
 }
 
-export function extractMaterialText(bytes: Uint8Array, extension: string, markdown: boolean, limits: MaterialLimits): MaterialExtraction {
+export function decodeMaterialText(bytes: Uint8Array, options: { allowUtf16Bom?: boolean } = {}): string {
   let source: string;
-  try { source = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
-  catch { throw new MaterialExtractionError("encoding", "文字文件需使用 UTF-8 编码"); }
+  const encoding = options.allowUtf16Bom && bytes[0] === 0xff && bytes[1] === 0xfe ? "utf-16le"
+    : options.allowUtf16Bom && bytes[0] === 0xfe && bytes[1] === 0xff ? "utf-16be" : "utf-8";
+  try { source = new TextDecoder(encoding, { fatal: true }).decode(bytes); }
+  catch { throw new MaterialExtractionError("encoding", "文本编码无效，请另存为 UTF-8 后导入"); }
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(source)) throw new MaterialExtractionError("encoding", "文件包含二进制内容，不能按文字提取");
+  return source;
+}
+
+export function extractMaterialText(bytes: Uint8Array, extension: string, markdown: boolean, limits: MaterialLimits): MaterialExtraction {
+  const source = decodeMaterialText(bytes);
   const html = extension === ".html" || extension === ".htm";
   const parsed = html ? extractMaterialHtml(source, markdown) : { text: source.trim(),
     title: [".md", ".markdown"].includes(extension) ? /^# ([^\r\n]+)/mu.exec(source)?.[1] : undefined };

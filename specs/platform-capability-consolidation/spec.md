@@ -22,7 +22,7 @@
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
-| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Shelf、Pages/DOCX/ZIP、Cognia、Artifacts 和旧解析删除继续实施 |
+| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Shelf、Cognia、Artifacts 和其余旧解析删除继续实施 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
 | 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
@@ -370,3 +370,27 @@ Jelly 的上传与重新读取改为调用公共 Host 提取口；保留旧错�
   日志 `/tmp/platform-materials-final-build.log`、`/tmp/platform-materials-final-regression.log`。原件与数据库均为隔离测试材料；未调用付费模型、下载语音模型或验收真实音频转写质量，也不代表用户本人验收。09 仍需其余消费者的迁移，01 仍需 Shelf AI 归位，最终跨消费者复核保持未完成。
 
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过，日志 `/tmp/platform-materials-boundary.log`。本切片只作本地提交；主检出与其他会话的修改保持原状，没有推送。
+
+
+### Pages 文档导入的解析边界
+
+当前 `plugins/native/pages/src/import-files.ts` 同时持有 ZIP 目录/CRC/有界解压、Mammoth DOCX、字符解码，以及 PagesBody 转换与预览键。Host onboarding 也通过该插件调用这些系统解析。将 ZIP/DOCX 及 UTF-8/UTF-16 BOM 解码归 Local Host；`contracts/services/materials` 增加通用文档正文批次（原名、格式、内容、提取覆盖和问题），不带 PagesBody、页面 ID 或业务存储。Pages 仅将解析结果转换为既有 ProseMirror 正文、标题、warnings 与稳定 document-N 预览键。
+
+Host 注入 Pages 的 prepareImport 端口，预览和正式导入共用同一生产装配；onboarding 复用该 Host 装配，保留原附件、标题与现有 Markdown 转换结果。Mammoth/fflate 依赖同步移到 Host 并删除插件内旧解析。解析放在独立 worker，复用已有 PDF 的终止/超时机制；取消或撤权后不进入 Pages 存储。导入解析可并发等待，最终原有 importDocuments 单事务仍是提交边界；保持请求 hash、选中键、项目身份、目录归属和幂等语义。
+
+保留现有上传合计 10 MiB、解压合计 20 MiB、单 entry 5 MiB、最多 100 文档/1000 entry、压缩比 200 和 DOCX 外部文件访问禁止；坏的受支持文件拒绝整个批次，普通不支持附件与嵌套 ZIP 明确提示跳过。Pages 的单篇正文 1 MB、编辑器节点/深度限制、图片支持和格式降级由插件继续校验，不能移成所有材料消费者的业务约束。Word 转换的图片缺失/提示有明确 coverage；不把原生页码和语义 HTML 文档混为同一种定位。
+
+验证保留真实 DOCX/ZIP、CRC/路径/编码/压缩炸弹、外链图片不读取等现有负例，再覆盖 worker 取消/超时、预览零写入、解析等待后撤权/取消零写入、相同 request 重试不覆盖编辑及其他项目隔离。整个 build 后按 Contracts、Host、Pages 要求回归及 boundary。没有持久格式迁移；回滚保留原附件和 Pages 数据。此步骤仍不代表 Shelf、Cognia、Artifacts 迁移或整个 09 完成。
+
+公共文档 worker 另外将解析后的正文合计限制为 20 MiB，防止 DOCX 到 HTML/字符解码后的输出扩大；超限拒绝整批，不静默截断或提交部分页面。该容量约束在 Host 文档与回归中明确，原始上传不因解析而修改。
+
+
+- Pages 文档导入归位：ZIP 目录/CRC/有界解压、Mammoth DOCX、BOM 解码及两个解析依赖归 Host，通用文档批次不含 PagesBody/页面键；Pages 保留 HTML/Markdown 到自身编辑器节点的领域转换、标题、1 MB/节点/深度限制和产品降级规则。预览、正式导入及 onboarding 使用同一 Host 装配，删除插件旧系统解析；PDF 和文档共用可终止 worker 生命周期。Pages 将 concurrent 明确写在等待解析/模型的能力声明里，不再由 helper 根据能力名称推断。
+
+  依赖版本未升级，离线更新 lockfile 并按 frozen-lockfile 安装通过。整体 build 通过，最终 26 文件 208/208，无跳过，包含真实 DOCX/ZIP/UTF-16、外部图片不读取、所有原 CRC/路径/条目/压缩比负例、解析输出合计 20 MiB 限制、worker 取消/超时/释放、真实 SQLite 批次事务与旧请求恢复，以及 Chrome 桌面/窄屏的 Pages 真实创建、编辑、候选和冲突动线。新增延期边界使用真实解析结果后再暂停，取消/撤权/更换注册时零页面与零导入收据，恢复后同请求只创建一次，且重试保留用户编辑和项目隔离。
+
+  首轮 5 文件 39 项中 33 通过，6 个新增权限用例因测试装配漏掉 Pages content 处理器而被真实注册校验拒绝。按生产方式补齐处理器后，新增 10 项全部通过，再执行最终 208 项回归；没有放宽注册/权限或业务断言。日志 `/tmp/platform-document-import-final-build.log`、`/tmp/platform-document-import-authority.log`、`/tmp/platform-document-import-regression.log`。回归期间没有改源码、脚本、package.json 或 Skill，也未并发构建。未调用真实付费模型、外部服务或代表用户验收。
+
+接续：先整合远端主分支已完成的提示词登记/新功能约定，再迁移 Shelf 的材料/AI recipe 和 Cognia、Artifacts 剩余材料调用，最后对 01–12 按实际新代码总验收。已核对 `origin/main` 对本次材料路径没有重复解析迁移；仅 `bdf417c3` 改了 Pages 的 Host 模型提示词解析，属于后续必须合入的 AI 协议。相关 onboarding 会话当前已完成且是产品需求讨论，不在修改本次解析实现。继续保护主检出未提交内容；以上仍仅为本地改造。
+
+  Pages 切片最终 69 包 boundary errors 为空，diff whitespace 检查通过，日志 `/tmp/platform-document-import-boundary.log`。未推送，工作继续在同一隔离分支。

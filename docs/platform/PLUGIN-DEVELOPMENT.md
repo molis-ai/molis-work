@@ -223,3 +223,5 @@ Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstr
 Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Files/Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。
 
 公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。Jelly 和 onboarding 已共用提取口，媒体模型下载仍需显式选择；生成摘要继续走 Prologue。
+
+Pages 的 prepareImport 是 Host 注入端口：公共 MaterialDocumentReader 负责 UTF 编码、ZIP/DOCX 和容量限制，插件的 preparePagesImport 只将公共正文转换为编辑器文档。预览和提交共用装配，解析等待后复核权限与取消，再沿原事务提交；批次损坏不能导致部分写入。

@@ -157,3 +157,5 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 ### 已授权材料的提取
 
 插件需要文字/HTML/PDF/OCR/媒体材料时，由 Host 注入 `contracts/services/materials` 端口。输入已授权字节，系统解析器/原生进程归 Host；原件、SHA 引用、业务转换和引用规则留给消费者。检查 coverage 和 truncated，不能把扫描空页或截断当作全文。传递取消，异步返回后与业务写入前复查 beforeEffect；媒体模型下载必须显式选择。Jelly 的 Host 适配与 onboarding 是当前接入示例，不在插件复制解析器或绕过 Prologue 生成摘要。
+
+文档/ZIP 导入使用同一契约的 MaterialDocumentReader：Host 产出原名、格式、内容与 coverage，插件再执行编辑器/领域转换；不把 PagesBody 或产品的图片支持写入解析器。预览与提交使用同一注入端口，解析异步等待可声明 concurrent，写入仍走领域事务、幂等键和 beforeEffect。ZIP/DOCX 依赖仅归 Host，禁止插件再解析一遍或自行启动 worker。

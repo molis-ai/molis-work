@@ -65,7 +65,7 @@
 
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
-| 上下文整理（compaction） | `runtime.compaction`，按清单声明 | 已开：历史超过 16,000 tokens 时按 `assistant-compaction`（登记在 Prompt 设置里，可改）挑选保留原文，整理失败时照常继续 | ✅ | ✅ 真实触发（§9 第二片：灵光交来的工作里“上下文整理 · 保留历史原文”） |
+| 上下文整理（compaction） | `runtime.compaction`，按清单声明 | 已开：上下文估计超过 48,000 tokens 时按（2026-09-29 由 16,000 调高：运行时按整个上下文计，含本轮查找与读取，16,000 让几乎每个首轮都整理一次） `assistant-compaction`（登记在 Prompt 设置里，可改）挑选保留原文，整理失败时照常继续 | ✅ | ✅ 真实触发（§9 第二片：灵光交来的工作里“上下文整理 · 保留历史原文”） |
 | 每轮预算（`maxTurns/maxTokens/maxWallClockMs`） | `startAgentRun` 的 budget | 每轮 24 步，到上限说人话、可继续 | 同 | ✅ `assistant-business-gateway`（步数上限）；§12 第二片 |
 | 用量（run 用量回执） | 轮次视图带 run 用量；Host 按轮记账 | 今天用量与每日上限，到上限不开新轮 | — | ✅ `assistant-business-gateway`；§12 第三片（实测）。SDK 自己的 `UsageBudget` 未用（上限由 Host 在开跑前判断） |
 

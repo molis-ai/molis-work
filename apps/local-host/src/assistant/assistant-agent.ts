@@ -75,7 +75,9 @@ export const ASSISTANT_PROMPTS: AgentPromptText[] = [
 export const ASSISTANT_AGENT: AgentManifest = {
   prompts: [{ prompt_id: "assistant-base", version: 14, layer: "base" }, { prompt_id: "assistant-compaction", version: 1 }],
   // A long work keeps what it needs when its history grows past the window: the runtime picks passages, it never rewrites them.
-  compaction: { prompt_id: "assistant-compaction", above_tokens: 16_000 },
+  // The runtime counts the whole context, this round's lookups and readings included: at 16,000 almost every first round
+  // (25–33k with its capability lookups) paid for a compaction it did not need.
+  compaction: { prompt_id: "assistant-compaction", above_tokens: 48_000 },
   roles: [{
     role_id: ASSISTANT_ROLE_ID, version: 1, name: "个人工作助理", workspace: "business", execution: "operate",
     prompts: ["assistant-base"], host_tools: [...BUSINESS_HOST_TOOLS],

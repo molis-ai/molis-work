@@ -1,6 +1,16 @@
 # Prologue SDK 构建来源
 
-## 当前依赖：有界结果与 Assistant
+## 当前依赖：原图摄取与资源限额
+
+`prologue-sdk-0.0.0-rc.1-resource-intake.tgz` 保留此前有界结果、Assistant、网络授权等全部改动，修复原图输入所用的 Runtime → Node Host intake → ResourceStore：采用当前 App 限额、整批容量/引用原子发布、取消后不复活、在途清理和内存资源竞争容量。没有新增模型循环或业务状态。
+
+- 源码：`/Users/yijunwang/code/prologue-dispatch-denied`，分支 `feature/molis-bounded-results`，提交 `18a1c827c933eb22624a6904b71d704945567682`，基于 `93bbe1db`。完整补丁 [resource-intake.patch](resource-intake.patch) 相对 `af7375c7`，包括源码、合同与测试；旧补丁仅用于历史重建，不叠加应用。
+- 重建：检出 `af7375c7`，应用完整补丁，`pnpm install --frozen-lockfile`、`pnpm build`，在 `packages/sdk` 执行 `pnpm pack --out /absolute/path/to/prologue-sdk-0.0.0-rc.1-resource-intake.tgz`。
+- SHA-256：`2f7c0eb3eda0d748079d628d1260eac1a812afd50d08153483ff502ceb707974`。
+- SDK build 与根 `tsconfig.typecheck.json` 通过；资源/配置/持久恢复 8 文件 96 项及整理/结构/派出授权/app 模式 5 文件 41 项通过，无跳过。类型检查中发现旧整理测试夹具参数类型过期，现引用实际 Runtime 类型，生产整理行为和测试断言不变。
+- Molis 整体构建与 70 包边界检查通过；原图/配置/推理 4 文件 33 项通过，Host/Actions/Review/Images/安装等 16 文件 110 项通过、1 项真实 MiniMax 因无凭据未运行。520 个 dist 文件与源码构建、tarball、实际安装逐字节一致。结果记录在本次 spec，Shelf 消费者迁移仍继续。尚未使用付费供应商或代表用户验收；源码与包仅本地提交，不发布 npm。
+
+## 历史依赖：有界结果与 Assistant
 
 `prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz` 合并下面两条已消费的能力线：collectRun、有界文本/结构校验/真实用量与网络派出授权，以及 app 模式和 session-stop。公开调用继续由同一 Runtime 执行，不恢复应用侧临时 Runtime 或轮询。
 
@@ -9,7 +19,7 @@
 - SHA-256：`32201e9e8d3ea6bb8de7cd74b155c1e31677b4b61d9bdd431506ac88419b024f`。
 - SDK build 通过；结果收集、结构校验、函数引擎、app 模式、session-stop、网络授权与取消 10 文件 70 项通过，1 项真实 MiniMax 因无凭据跳过。包含真实 Node Host 和本地 HTTP 路径，未运行真实付费模型。源码与包仅本地提交，未发布 npm。
 
-**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-bounded-results-assistant.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
+**本目录只放两份包**（2026-09-28 起，仓库防腐整理 D-03）：当前依赖 `prologue-sdk-0.0.0-rc.1-resource-intake.tgz`，以及 Codex 分支 `feature/personal-work-assistant` 仍在用的 `prologue-sdk-0.0.0-rc.1-compaction-growth.tgz`。下文各历史包的 tgz 已删除（发布包本就不含它们），各节的 `.patch` 与重建步骤保留。需要旧包时从删除前的提交取出，例如：
 
 ```bash
 git show d9fe0a5e:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz > vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-claims.tgz

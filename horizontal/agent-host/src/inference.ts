@@ -19,9 +19,16 @@ export interface PrologueTextInput extends PrologueCredentialInput {
   protocol: string; endpoint: string; model: string; prompt: string;
   system?: string;
   structured?: PrologueStructuredRequest;
+  /** Original images selected by the trusted Host; never roots supplied by a model or serialized action. */
+  images?: readonly PrologueInputImage[];
   onProgress?(event: PrologueTextProgress): void;
   prompt_cache?: "off" | "best-effort" | "required";
   signal?: AbortSignal; max_output_tokens: number; timeout_ms: number;
+}
+export interface PrologueInputImage {
+  root_path: string;
+  relative_path: string;
+  label?: string;
 }
 export interface PrologueExecutionReceipt {
   run_ref: PrologueRunRef;

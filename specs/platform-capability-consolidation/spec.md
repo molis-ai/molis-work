@@ -512,3 +512,25 @@ Host 注入提取与可用性端口。文件 Action 经异步 `admitFile` 提取
 整体 `pnpm build` 通过（`/tmp/platform-alchemist-instructions-build.log`）。本段定向及包要求共 22 文件 112/112，无跳过（`/tmp/platform-alchemist-instructions-regression.log`）；包含实际共享 Home 的 SDK/本地 HTTP、六份用户覆盖与动态参数、未知引用/错误 owner 零请求、配置变化、初次授权等待撤权零登记/零派出、取消/晚返回，以及原方向→研究→决策、预算、格式纠正、状态恢复、HTTP/MCP、权限与消费者回归。70 包 boundary errors 为空（`/tmp/platform-alchemist-instructions-boundary.log`），diff whitespace 通过。构建与测试串行，测试期间未改源码/Skill。未调用付费模型，也不代表商业模型质量或用户本人验收。
 
 后续只按当前同一 Goal 推进：Shelf 自动 AI recipe 仍在 `modules/shelf/src/store.ts` 调 `job-runner.ts` 直启 CLI，人工终端交接和九类 CLI 偏好必须保留。已核实全部内置 recipe 的成果是文字/Markdown/JSON，但输入还含图片、PDF、folder/file；不能把图片静默降为 OCR 文本便宣称等价迁移。SDK Model 的 `StartRunInput.attachments`/ResourceBinding 和两类协议已有图像请求支持，Molis 的 `PrologueTextInput`/`hostTextGeneration` 尚未暴露附件；模型目录已有 vision 声明。下一步先核对真实 Session 附件/资源生命周期与模型能力，补齐必要的公共输入端口，或复用现有 Agent 执行能力，保留图片和文件语义、明确模型选择、大小/时限/取消/预算及结果回执；不要再包装旧写文件 CLI。之后完成 01–12 总验收。SDK 本轮仅只读调查，没有改源码或产物。
+
+### Shelf 自动生成与原图输入
+
+已核实 SDK 的模型附件必须来自 Node Host intake：普通 `resources.stage().publishDurable()` 不是 Host 持有的字节，不能用于模型附件。复用现有只读 workspace 授权、intake 与 Session attachments，不再新增 SDK 模型路径。共享推理端口接收可信 Host 选定的根目录和相对图像路径；SDK 校验越界、符号链接、原件变化及真实媒体类型。附件不授予模型文件工具权限；完成、失败、取消后撤销资源并销毁 Host 暂存字节。单图支持 Shelf 原有 32 MiB，批次最多 30 张、合计 128 MiB，并仍受共享 Runtime 总资源限额约束；不静默截断或转成 OCR。只接受 SDK 已支持的 PNG/JPEG/GIF/WebP，其他格式明确报告不能视觉读取，原件保留。
+
+`hostTextGeneration` 仅在所选目录模型明确声明 `vision: true` 时接受图片；环境变量旧模型没有能力声明，须先在模型设置配置，不能猜测或偷偷换模型。模型、连接、凭据和 vision 变化沿现有快照及派出检查失效。材料读取也纳入原时限、取消与持续授权，不在失权后继续下一份读取或派出。共享端口返回原有类型化执行回执，不增加模型调用次数。
+
+Shelf 自动任务使用模型目录选择；终端 engine/custom runtimes 只影响人工对话。材料副本、source hash、job/result 身份和历史读取保留。PDF/网页/文字使用公共材料提取，目录逐项准备且明确不完整覆盖；图片原件走上述视觉附件。业务指令登记到 Shelf 提示词目录，快捷动作的用户指令与材料单独传递。成功正文经原提交检查后写入 output；固定 JSON 选项用共享 SDK 解码并由 Shelf 验业务，其他选项保留 Markdown。删除自动 CLI 派出/结果猜测路径及过期可用性、网络隔离描述，保留人工终端交接。
+
+先验证真实打包 SDK/本地 HTTP 的两类图像协议、原始字节、超限与伪装类型拒绝、越界/符号链接拒绝、取消/撤权零晚派出及清理；再验证真实 Shelf Action 的模型选择、所有 recipe/快捷动作、混合材料、提交防线和 UI 可用性。按包要求整体构建后跑定向回归、Chrome 与边界检查。未使用付费供应商不声称模型质量验收。无历史材料或任务数据重写，新增可选设置与回执保持旧记录可读；本段完成不代表 01–12 总验收完成。
+
+原图真实边界验证发现 SDK 装配根给 intake 传的是 `DEFAULT_RESOURCE_LIMITS`，即使 App 声明 32 MiB 仍在默认 8 MiB 拒绝；ResourceStore 的 Host 发布还缺共享容量复查，异步 publish/cancel 可复活已取消批次。按资源模块现有合同，在源码工作树修复为当前配置、整批容量/引用原子提交、同批单一操作及取消等待清理；同时补齐早已 stage 的内存资源在实际发布时的容量复查，防止它与原图共同越过 Home 总上限。不新增 SDK 模块、业务规则或重试。SDK 短合同为 `docs/slices/resource-intake-limits.md`，验证后重新打包，不仅改安装目录。
+
+公共原图端口已实现：输入路径仅由可信 Host 注入；同一 Home 的 Prologue 使用真实 intake 原件，跨目录图片仍保持请求顺序，清理不删除原件。视觉声明在目录模型选择及原模型配置快照中生效，旧环境模型拒绝原图；停止调用可立即返回，但关闭推理 owner 等实际任务及资源清理结束。成功和失败沿用原 typed receipt。SDK 源码已本地提交 `18a1c827`，build/typecheck 通过，13 文件 137 项资源/配置/恢复/派出/整理/结构回归通过、无跳过；修正了旧整理测试夹具复制的过期参数类型，不改生产整理逻辑。
+
+已更新来源补丁、包、锁文件与工作区清单，520 个 SDK dist 文件在源码构建、tarball 和实际安装中逐字节相同。Molis 整体构建通过（`/tmp/platform-original-images-integrated-build.log`）；4 文件定向 33/33（`/tmp/platform-original-images-final-targeted.log`），覆盖真实 SDK/本地 HTTP 两类协议、原始字节与顺序、32 MiB 上界及超限/假类型/越根/符号链接拒绝、取消/撤权/关闭期间的零派出和磁盘清理、结构失败的用量回执、视觉能力失效。首次新夹具因 appVersion 写为非法的 `1` 初始化失败，修正为合法版本并补初始化清理；随后真实 32 MiB 失败促成上述 SDK 修复，没有降低验收上限。
+
+此处只完成 Shelf 所需的公共原图前置能力；ShelfStore 自动任务、模型设置 UI、固定提示词登记及旧 CLI 派出删除尚未实施，不能算 Shelf 已迁移。01–12 全消费者验收继续，Goal 保持 active，仍仅本地改造。
+
+本段最终回归：Host/Actions/Review/Images/安装及系统搜索 16 文件 110/111 通过，唯一未运行项是缺 `MINIMAX_API_KEY` 的真实商业模型（`/tmp/platform-original-images-regression.log`）。70 包边界 errors 为空（`/tmp/platform-original-images-boundary.log`）；SDK 累计补丁反向检查、Molis diff whitespace 检查通过。定向与包回归合计 20 文件 143 通过、1 跳过；未把跳过算作成功，也不代表 UI 或用户本人验收。测试期间无源码/Skill 修改或并发构建，主检出保持未动。
+
+接续从 Shelf 消费者开始，不重建 Goal 或重复 Prompt。当前 `ShelfStore.runJob` 仍调用 `runAgentProcess`，`ShelfMaterialPorts` 只有解析端口；应新增其业务 AI 端口，由 Host 接共享配置、登记指令和原图输入，Module 继续拥有副本/任务/结果及 beforeCommit。`ShelfDeviceSettings.engine` 与 9 类 CLI/custom runtimes 留给人工终端，自动模型另设选择；snapshot/设置页/确认文案同步，不能再以 CLI headless 能力表示模型可用性。还须对齐 `shelf.jobs.run` 当前仅有 shelf:write、无模型费用元数据的合同，保留本机 extract_text 的离线路径。Prompt 的固定 recipe 指令归插件登记，用户快捷指令与材料作数据，JSON 仅 json 选项并用 SDK 解码；删除自动 job-runner/结果猜测与无消费者的 headless 参数构造，保留真实手动终端所需探测。PDF/目录/普通文件仍需逐项准备并如实表达覆盖，不静默漏文件。SDK 新包已验证，无需再造图像协议；之后完成 01–12 总验收。

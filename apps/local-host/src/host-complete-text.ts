@@ -1,7 +1,7 @@
 import { createFileSecretStore, peekSealedEntry, resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
+import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openConfiguredModels, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
@@ -9,6 +9,8 @@ export interface HostTextRequestOptions {
   signal?: AbortSignal;
   beforeDispatch?(): void | Promise<void>;
   system?: string;
+  /** Trusted Host sources, accepted only by a configured model declaring vision. */
+  images?: readonly PrologueInputImage[];
   structured?: PrologueStructuredRequest;
   onProgress?(event: PrologueTextProgress): void;
   timeoutMs?: number;
@@ -47,6 +49,7 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
           validatePrompt(prompt); request?.signal?.throwIfAborted();
           const before = current();
           if (!before) throw unavailable();
+          assertVisionInput(request, before.model.vision === true);
           const config = { ...before.provider, model_id: before.model.model_id };
           const apiKey = runWithMolisWorkHome(home, () => createFileSecretStore().get(before.provider.credential_ref))?.trim();
           if (!apiKey) throw unavailable();
@@ -91,6 +94,7 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
   if (!legacyState()) return undefined;
   return async (prompt, request) => {
     validatePrompt(prompt); request?.signal?.throwIfAborted();
+    assertVisionInput(request, false);
     const before = legacyState();
     if (!before || JSON.stringify(before.config) !== JSON.stringify(config)) throw unavailable();
     const key = before.environmentKey || (options.env ? undefined : runWithMolisWorkHome(home, () => createFileSecretStore().get(legacyRef))?.trim());
@@ -103,6 +107,10 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
     if (JSON.stringify(legacyState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
     return result;
   };
+}
+
+function assertVisionInput(request: HostTextRequestOptions | undefined, vision: boolean): void {
+  if (request?.images?.length && !vision) throw new ActionError("actions.connection_required", "请在模型设置中选择已声明支持图片的模型，原图未发送");
 }
 
 function validatePrompt(prompt: string): void {
@@ -142,6 +150,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
         resolveCredential: (ref: string) => { boundedSignal.throwIfAborted(); return ref === credentialRef ? credential() : null; },
         prompt, signal: boundedSignal, max_output_tokens: maxOutputTokens, timeout_ms: timeoutMs,
         ...(request.system === undefined ? {} : { system: request.system }),
+        ...(request.images === undefined ? {} : { images: request.images }),
         ...(request.structured === undefined ? {} : { structured: request.structured }),
         ...(request.onProgress === undefined ? {} : { onProgress: request.onProgress }),
         ...(config.prompt_cache === undefined || config.prompt_cache === "off" ? {} : { prompt_cache: config.prompt_cache }),
@@ -161,6 +170,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
     const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
     const message = typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599
       ? `模型返回 ${status}，请检查模型配置后重试` : "模型请求失败或超时，材料已保留，可重试";
+    if (error instanceof PrologueInferenceError && error.code.startsWith("inference.image_")) throw error;
     if (error instanceof PrologueInferenceError) throw new PrologueInferenceError(error.code,
       error.code === "MODEL_STRUCTURED_INVALID" ? "模型返回的结构不符合要求，材料已保留" : message, error.status, error.execution);
     throw new Error(message);

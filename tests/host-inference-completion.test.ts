@@ -8,6 +8,11 @@ type Client = Awaited<ReturnType<Resolver>>;
 const resolver = (completeText: Client["completeText"]): Resolver => async () => ({ completeTextResult: async input => ({ value: await completeText(input), configuredModel: input.model,
   state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, reportedModels: [], usage: [] }) } as Client);
 
+test("legacy environment models do not imply vision or initialize inference for original images", async () => {
+  const complete = hostCompleteText({ env: env(), resolveInference: async () => assert.fail("vision was not declared") })!;
+  await assert.rejects(complete("image", { images: [{ root_path: "/unread", relative_path: "image.png" }] }), /已声明支持图片/);
+});
+
 test("bounded text uses Prologue's native protocol, fixed model, endpoint and credential reference", async () => {
   let calls = 0;
   const complete = hostCompleteText({ env: env(), resolveInference: resolver(async input => {

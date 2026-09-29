@@ -1,0 +1,2044 @@
+diff --git a/docs/slices/bounded-run-results.md b/docs/slices/bounded-run-results.md
+new file mode 100644
+index 00000000..0d8431e9
+--- /dev/null
++++ b/docs/slices/bounded-run-results.md
+@@ -0,0 +1,13 @@
++# Bounded Run results for embedding applications
++
++Status: implementing. Consumer: Molis Work shared inference (Cognia, Coding drafts, Alchemist and Jelly). This slice implements the user's explicit cross-repository consolidation request against `03c6ba0b`; it does not upgrade unrelated SDK features.
++
++Session owns Run state and the committed event stream. Add a public `collectRun` consumer of that stream, returning the exact Run reference, terminal event/state, text, reported models and typed usage receipts. It creates no Runtime, execution loop, billing ledger or durable state. The caller supplies an abort signal (including its deadline), text/event bounds and optional progress observer. Abort, exceeded bounds or a throwing observer detach and cancel the original Run; a terminal failure remains a failure with its collected receipts. Synchronous replay must clean up just like live delivery. Collection never infers a reported model or reported usage.
++
++Model already declares local structure validation but ordinary Session Run completion does not invoke it. Wire the existing model validation port before publishing successful completion, preserving already-recorded usage. Unsupported schemas still fail before dispatch, native never silently falls back, and none does not validate. Expand only constraints used by current callers (nullable alternatives, string/array length and numeric bounds); unsupported keywords remain explicit failures. Domain validation and correction policy stay with callers; no automatic paid retry is introduced.
++
++Module contracts: `packages/sdk/src/session/README.md`, `packages/sdk/src/model/README.md`; requirements: `kernel/model/structured-output.md` and `kernel/session.md`. Modifiable paths: these contracts, Session/Model public/core exports, the Function output-decoding call site and their tests. Host authorization, credentials, state machine ownership, publication ordering and existing dispatch checks are immutable boundaries. Limits are per collection, supplied by App; underlying protocol is replaceable through the existing model slot. Product prompts, model selection and user controls remain the App's.
++
++Validation: SDK build; structured-output and bounded-results behavior tests; real Node Host + local HTTP model verifies success/invalid structure/reported usage/cancellation and original Run terminal state. Consumer installation/build and production inference integration follow. No live commercial provider claim without an actual run. Rollback restores prior dependency and consumer code; no data migration or SDK commit/push is required.
++
++The same consumer consolidation exposes Model `decodeJsonOutput(text, { allowCodeFence? })`, a pure syntax decoder with a tagged success/failure result. The default is strict JSON; Function explicitly retains its historical whole-response code-fence tolerance. Local schema checks and Function reuse this decoder, while Function's attached external validators and App domain parsers remain their owners. No second execution engine, automatic retry or schema fallback is introduced. Molis Host uses the decoder for Alchemist/Jelly and deletes their private JSON/fence parsing. Raw invalid text stays only in the caller's bounded result for its explicit correction, never in SDK error messages.
+diff --git a/docs/slices/network-dispatch-authority.md b/docs/slices/network-dispatch-authority.md
+new file mode 100644
+index 00000000..70afb9d4
+--- /dev/null
++++ b/docs/slices/network-dispatch-authority.md
+@@ -0,0 +1,11 @@
++# Node Host 网络派发前复核
++
++消费方：Molis 的系统动作服务调用 Prologue MCP HTTP 工具时，调用已获授权，但 SDK 的准备、凭据或 DNS 等待期间授权可能撤回。现有 model-only 回调无法覆盖 MCP 的最后一次 fetch。
++
++保持 Host 模块的网络、凭据、目标策略与派发记录所有权（`packages/sdk/src/host/README.md`、`docs/product/requirements/modules/host.md`）。新增 Node 装配选项 `beforeNetworkDispatch?: () => void | Promise<void>`，在每次真实 fetch（含重定向）前执行，可拒绝而不能放宽 Host policy；现有 beforeModelDispatch 保持只在 model 通道执行。两者同时提供时均执行。无新 Runtime 槽、存储、网络实现或公共凭据读口。App 选择可信回调，终端用户仍通过消费 App 撤权，没有用户可关闭的 Host 硬边界。Native Tauri 不承诺支持此 Node 装配回调。
++
++拒绝沿用基线 03c6ba0b 的 EFFECT_NOT_AUTHORIZED，保留真实 dispatched 状态，不重试、换目标或伪造网络故障；取消和超时保留现有含义。修改范围为 Node Host、模块合同、本切片及定向真实 HTTP 测试。Molis 通过已有调用级异步上下文接入该回调，独立验证已发布包和消费 App 生产链路。
++
++验收：真实 MCP HTTP 的 prepare 结束后撤权，tools/call 为零且 Host inspect 表示未派发；重新授权能执行一次；等待最终复核时取消不发请求；并发调用只拒绝自己的上下文；model-only 回调不会影响 MCP。测试使用真实 Node Host 和本地 HTTP 服务，构建及相关模型/MCP 回归通过。源码基线是已提交的 03c6ba0b，不包含其他工作树未提交内容。
++
++取消测试发现原 MCP HTTP 将“调用了 Host execute”当成“已上线”，在尚未通过最终检查时发送多余取消通知，并错误进入需对账。沿已有 inspect 口修复：先停止 Host stream，再查询该 handle 的实际派发事实；仅 Host 明确 dispatched=false 时不发远端取消通知、返回 CANCELLED。已派发或 inspect 失败仍保守地保持需对账。无新增状态存储或派发判定主人；本切片范围因此包含 `mcp/plugin/http.ts` 的取消收尾。
+diff --git a/docs/slices/resource-intake-limits.md b/docs/slices/resource-intake-limits.md
+new file mode 100644
+index 00000000..ed3f72f2
+--- /dev/null
++++ b/docs/slices/resource-intake-limits.md
+@@ -0,0 +1,15 @@
++# 本机吸入采用当前资源限额
++
++状态：SDK 实现与工程验证通过，Molis 更新包及消费者验证继续。原缺陷：消费方 Molis 的共享图片推理接入 Node Host intake 后，真实 32 MiB 输入因装配根硬编码默认 8 MiB 而失败。`publishHostBytes` 未检查共享总量，异步 Host 发布与取消/另一批发布交错时可能越过限额或恢复已取消批次。
++
++对齐 [本机吸入合同](../product/requirements/kernel/resource/intake.md) 与 [资源模块](../../packages/sdk/src/resource/README.md)。修复公开 Runtime → intake → ResourceStore → Host 的现有调用链；消费方继续选择材料、模型及展示。只改 composition/core/runtime、resource/core/intake/publish、资源合同及对应测试，不新增模块或执行器。
++
++App 配置继续来自 config.resource.publish/intake，单份同时满足两者较小上限；批次还受共享当前总容量约束。原子发布、已取消批次不复活、越根拒绝、Host 持有字节属于不可关闭的硬边界。Host 可替换，限額由 App 决定，用户界面归 App。默认值和公开批次状态不变。
++
++一批只允许一个 add/publish 在途，冲突调用明确失败；cancel 可以中断其后续推进并等在途操作收尾后清理。发布前及 Host 等待后复核整批共享容量，失败不得留下部分正式资源；资源发布本身也检查容量并保持重复标记幂等。不自动重试读取或发布。原有持久格式不迁移，源码回滚不会改历史引用。
++
++验证真实 Node Host 的自定义大于 8 MiB 输入、小于默认的限额、两批发布交错与内存资源竞争、发布等待中取消和暂存销毁、原件保持。SDK build、typecheck 及 resource intake/publish/lineage/gc 和本地模型附件相关回归；重新打包后由 Molis 的真实共享推理/HTTP 验 32 MiB、图片顺序、取消和撤权。商业模型质量与 UI 验收不在此 SDK 修复中冒称完成。
++
++初次完整类型检查暴露原有 compaction 测试夹具复制了旧 context 类型，现有用例已传 continueWhenCompactionFails/windowTokens。夹具改为引用 Runtime.startAgentRun 的实际 context 类型，行为与断言不变，并复验原 compaction 测试；不改生产整理逻辑。
++
++验证：`pnpm build` 与根 `tsconfig.typecheck.json` 通过。资源/配置/持久恢复 8 文件 96 项通过，整理夹具、现役结构、app 模式和网络派出授权 5 文件 41 项通过，均无跳过。日志 `/tmp/platform-intake-sdk-build.log`、`/tmp/platform-intake-sdk-typecheck.log`、`/tmp/platform-intake-sdk-test.log`、`/tmp/platform-intake-sdk-regression.log`。仅本地源码改造与包，不发布 npm，不声称付费模型或终端用户验收。
+diff --git a/packages/sdk/src/agent/core/loop.ts b/packages/sdk/src/agent/core/loop.ts
+index c1dbee76..8d5f885b 100644
+--- a/packages/sdk/src/agent/core/loop.ts
++++ b/packages/sdk/src/agent/core/loop.ts
+@@ -235,6 +235,15 @@ export interface AgentLoopInput {
+      *
+      * 只是一个窄口：循环不认识证据账，也不认识 Session。判在外面做。
+      */
++    /**
++     * 自然收工前问一次 `session-stop` 钩子。**不给就是没装钩子**，照常收工。
++     *
++     * 挡住（`blocked`）时，理由作为运行时提示放回历史，循环接着跑——
++     * 例如这一轮只宣布了「现在去改」却一个工具都没调：收工的话，人看到的
++     * 是一句承诺，什么都没发生。放不放、放几次由 App 的钩子判；循环自己
++     * 另有上限，一个总说「不许停」的钩子不会让它转到轮次预算耗尽。
++     */
++    readonly fireStop?: (answer: { readonly text: string }) => Promise<{ readonly blocked: boolean; readonly why: string | undefined }>;
+     readonly objective?: {
+       check(): Promise<{
+         readonly mayFinish: boolean;
+@@ -380,6 +389,9 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+    */
+   let continuations = 0;
+   const MAX_CONTINUATIONS = 8;
++  // 收工钩子一次 Run 里最多挡这么多次；之后照常收工，不再问。
++  const MAX_STOP_HOLDS = 2;
++  let stopHolds = 0;
+   /** 这一段回答里之前几次续写已经说出的正文。收工时和最后一段拼成完整回答再过护栏。 */
+   let continuedText = "";
+   /**
+@@ -1138,8 +1150,10 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+            * 这个目标不再试了。还有备选、而且这一次**还动得**（见
+            * `readRetrySignal`），就换下一个——换目标是**新的一次调用**：
+            * 新请求体、新回执、新用量条目，不是这一次的续跑。
++           *
++           * App 拒绝派出的不换：拒的是这一跑的授权，不是这个目标，换了也一样被拒。
+            */
+-          if (next !== undefined && signal !== undefined && canSendAgain(signal)) {
++          if (next !== undefined && signal !== undefined && canSendAgain(signal) && errorFromUnknown(error).code !== "EFFECT_NOT_AUTHORIZED") {
+             if (signal.dispatched) await recordUsage();
+             input.run.emit({
+               type: "fallback",
+@@ -1370,6 +1384,25 @@ async function driveAgentLoop(input: AgentLoopInput): Promise<void> {
+         );
+         continue;
+       }
++      /*
++       * **收工钩子。** 放在目标判断之后：目标管「证据够不够」，钩子管
++       * App 自己的收工条件。挡住就把这段回答留在历史里（模型要看得见
++       * 自己刚说了什么），再放入钩子的理由，接着跑；这一轮不扣轮次预算
++       * 以外的东西，也不提记忆候选——还没收工。
++       */
++      if (input.guards.fireStop !== undefined && stopHolds < MAX_STOP_HOLDS) {
++        const held = await input.guards.fireStop({ text: answerText });
++        if (held.blocked) {
++          stopHolds += 1;
++          history.push({ kind: "text", role: "assistant", text: turnText, source: "assistant" });
++          history.push(runtimePromptRecord(
++            held.why ?? "Not done yet. If the task needs actions, call the tools now; if it is finished or blocked, say so plainly.",
++            "runtime:stop-hook",
++          ));
++          input.run.emit({ type: "model-response-repair", reason: "stop-held" });
++          continue;
++        }
++      }
+       /*
+        * **收工那一刻提一次候选。**
+        *
+@@ -1560,7 +1593,9 @@ function mapNetworkError(error: unknown): import("../../kernel/core/index.js").P
+   if (
+     mapped.code === "CANCELLED" ||
+     mapped.code === "MODEL_HTTP_ERROR" ||
+-    mapped.code === "MODEL_NETWORK_FAILED"
++    mapped.code === "MODEL_NETWORK_FAILED" ||
++    // App 在派出前拒绝：什么都没发出去，不是网络问题。
++    mapped.code === "EFFECT_NOT_AUTHORIZED"
+   ) {
+     return mapped;
+   }
+diff --git a/packages/sdk/src/agent/core/start-input.ts b/packages/sdk/src/agent/core/start-input.ts
+index bf56f06f..748fc894 100644
+--- a/packages/sdk/src/agent/core/start-input.ts
++++ b/packages/sdk/src/agent/core/start-input.ts
+@@ -121,7 +121,7 @@ function narrowNames(
+ 
+ /** 冻住的这一轮配方。转向和续跑都改不了它。 */
+ export interface FrozenStart {
+-  readonly workspace?: "none";
++  readonly workspace?: "none" | "app";
+   readonly idempotencyKey: string;
+   readonly limits: ModeLimits;
+   /** 有效工具名单。`undefined` 表示不额外收窄。 */
+@@ -264,7 +264,7 @@ function intersectNetwork(wanted: NetworkAllowance | undefined, ceiling: Network
+  */
+ export function freezeStart(input: {
+   readonly start: AgentStartInput;
+-  readonly workspace?: "none";
++  readonly workspace?: "none" | "app";
+   readonly posture: Posture;
+   readonly assembled: ModeCapabilities;
+   /** Runtime 的出网上限。 */
+diff --git a/packages/sdk/src/composition/api/index.ts b/packages/sdk/src/composition/api/index.ts
+index da408b14..8de6ab5f 100644
+--- a/packages/sdk/src/composition/api/index.ts
++++ b/packages/sdk/src/composition/api/index.ts
+@@ -5,6 +5,7 @@ export type { AssembleAgentContext } from "../core/index.js";
+ export type { SlotImplementations, SlotInput } from "../core/index.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type CreateRuntimeInput,
+   type Runtime,
+   type RuntimeState,
+diff --git a/packages/sdk/src/composition/core/index.ts b/packages/sdk/src/composition/core/index.ts
+index dbba51a5..c0557dd3 100644
+--- a/packages/sdk/src/composition/core/index.ts
++++ b/packages/sdk/src/composition/core/index.ts
+@@ -3,6 +3,7 @@ export type { AssembleAgentContext } from "./agent-context.js";
+ export type { SlotImplementations, SlotInput } from "./runtime.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type CreateRuntimeInput,
+   type Runtime,
+   type RuntimeState,
+diff --git a/packages/sdk/src/composition/core/runtime.ts b/packages/sdk/src/composition/core/runtime.ts
+index 84722258..266584ee 100644
+--- a/packages/sdk/src/composition/core/runtime.ts
++++ b/packages/sdk/src/composition/core/runtime.ts
+@@ -308,7 +308,6 @@ import {
+   type BoundAttachments,
+   createResourceStore,
+   createStoredPublishedResources,
+-  DEFAULT_RESOURCE_LIMITS,
+   type LineageEdge,
+   type IntakeBatch,
+   type ResourceStore,
+@@ -404,6 +403,12 @@ import {
+   type PolicySnapshotStore,
+ } from "../../effect-policy/core/index.js";
+ 
++/**
++ * The system tools an App-tools run (`workspace: "app"`) may name: none of them reads or writes a workspace.
++ * Asking the person, the run's todo list, looking up deferred tool schemas and the context room left.
++ */
++export const APP_MODE_SYSTEM_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
++
+ export type RuntimeState = "starting" | "ready" | "failed" | "stopped";
+ 
+ export interface Runtime {
+@@ -919,6 +924,14 @@ export interface Runtime {
+     /** Pure inference on this Session: no workspace capability or tools. */
+     readonly workspace: "none";
+     readonly rootRef?: never;
++  } | {
++    /**
++     * No authorized root, but the App's own tools: the Session pack's tools and the system tools that touch no
++     * workspace (`APP_MODE_SYSTEM_TOOLS`). File and command tools are never available. The App's business
++     * authority is separate from a code directory; this is where it runs.
++     */
++    readonly workspace: "app";
++    readonly rootRef?: never;
+   }) & {
+     readonly session: Session;
+     /** Trusted App grants, frozen for this exact Session/Run/root; never global or inherited. */
+@@ -1780,7 +1793,8 @@ export async function createRuntime(
+    * 要冻住的配方和当前 Session，公开入口拿不到。
+    */
+   const sharedSystemToolDeps = (at: {
+-    readonly rootRef: ExactRef<"authorized-root">;
++    /** Absent for an App-tools run: its file and command tools then fail as unavailable. */
++    readonly rootRef?: ExactRef<"authorized-root"> | undefined;
+     readonly ignore: IgnoreRules;
+     /**
+      * 报进展时**这一跑是谁**。不给就是没有人——那时它报不了任何写着
+@@ -1873,7 +1887,7 @@ export async function createRuntime(
+       ...(at.name === undefined ? {} : { name: at.name }),
+       now: async () => (await runtime.readClock()).wallTimeMs,
+     }),
+-    mutator: runtime.createMutator({
++    mutator: at.rootRef === undefined ? undefined : runtime.createMutator({
+       rootRef: at.rootRef,
+       mode: "build" as const,
+     }),
+@@ -1990,8 +2004,10 @@ export async function createRuntime(
+      * 回执里。
+      */
+     readImage: async (path: string) => {
++      const rootRef = at.rootRef;
++      if (rootRef === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "This run has no authorized workspace to read an image from.");
+       const head = await input.host.readBytes({
+-        rootRef: at.rootRef,
++        rootRef,
+         path,
+         offset: 0,
+         length: 1,
+@@ -2014,7 +2030,7 @@ export async function createRuntime(
+       const ref = resources.adoptHostBytes(
+         {
+           // 字节在 Host 里，这里只记它在哪、多大、是什么。
+-          stageId: `image:${at.rootRef.id}:${path}`,
++          stageId: `image:${rootRef.id}:${path}`,
+           byteLength: head.totalBytes,
+           digest: head.digest,
+           label: path,
+@@ -2022,7 +2038,7 @@ export async function createRuntime(
+         },
+         async (offset: number, length: number) => {
+           const part = await input.host.readBytes({
+-            rootRef: at.rootRef,
++            rootRef,
+             path,
+             offset,
+             length,
+@@ -2162,7 +2178,7 @@ export async function createRuntime(
+    * 钩子仍然只能加严：说 `deny` 就是挡住。
+    */
+   const fireObserved = async (
+-    event: "prompt-submit" | "compaction-before" | "compaction-after" | "subagent-start" | "subagent-end",
++    event: "prompt-submit" | "compaction-before" | "compaction-after" | "subagent-start" | "subagent-end" | "session-stop",
+     payload: unknown,
+     /**
+      * 这一次是谁的。**每个触发点都要给**——给不出来的那几项留空，
+@@ -2979,7 +2995,7 @@ export async function createRuntime(
+           return `stage-${nextId.toString(36)}-${random.nextBelow(0xffffff).toString(36)}`;
+         },
+         limits: runtimeConfig.resource.intake,
+-        resourceLimits: DEFAULT_RESOURCE_LIMITS,
++        resourceLimits: runtimeConfig.resource.publish,
+       });
+     },
+ 
+@@ -4077,12 +4093,24 @@ export async function createRuntime(
+       assertReady(state);
+       assertAssembled(assembled, "agent", "Running an Agent");
+       const noWorkspace = workspaceMode === "none";
++      // No root, but the App's own tools. Everything that needs a root stays out, exactly as for "none".
++      const appMode = workspaceMode === "app";
++      const rootless = noWorkspace || appMode;
+       const grants = freezeAgentGrants(requestedGrants);
+       if (rootRef !== undefined) rootRef = Object.freeze({ ...rootRef });
+-      if (workspaceMode !== undefined && workspaceMode !== "required" && !noWorkspace) {
++      if (workspaceMode !== undefined && workspaceMode !== "required" && !rootless) {
+         throw createPrologueError("AGENT_START_INVALID", "Unknown Agent workspace mode.");
+       }
+-      if (noWorkspace) {
++      if (appMode) {
++        if (grants !== undefined || rootRef !== undefined || start.rootRef !== undefined || runTool !== undefined ||
++            subagentOptions !== undefined || agent.toolNames === undefined ||
++            agent.workingDirectory !== undefined || (agent.skillNames?.length ?? 0) > 0 ||
++            (agent.mcpConnections?.length ?? 0) > 0 || (agent.mount?.sources?.length ?? 0) > 0 ||
++            (agent.mount?.artifacts?.length ?? 0) > 0 ||
++            Object.keys(input_context ?? {}).some((key) => !["windowTokens", "compactAboveTokens", "continueWhenCompactionFails"].includes(key))) {
++          throw createPrologueError("AGENT_START_INVALID", "An App-tools Agent names its tools explicitly and cannot carry a root, runner, subagents, skills, MCP, mounts, or workspace context.");
++        }
++      } else if (noWorkspace) {
+         if (grants !== undefined || rootRef !== undefined || start.rootRef !== undefined || runTool !== undefined ||
+             subagentOptions !== undefined || agent.toolNames === undefined || agent.toolNames.length !== 0 ||
+             agent.workingDirectory !== undefined || (agent.skillNames?.length ?? 0) > 0 ||
+@@ -4163,6 +4191,15 @@ export async function createRuntime(
+       if (noWorkspace && (installed?.pack.tools.length ?? 0) > 0) {
+         throw createPrologueError("AGENT_START_INVALID", "A workspace-free Agent cannot use a Session pack that contributes tools.");
+       }
++      if (appMode) {
++        // Only this Session's own pack tools and the root-free system tools. A name outside both is refused here,
++        // before anything is frozen, rather than surfacing later as a tool that cannot run.
++        const own = new Set(installed?.pack.tools.map((one) => one.registration.name) ?? []);
++        const outside = (agent.toolNames ?? []).filter((name) => !own.has(name) && !(APP_MODE_SYSTEM_TOOLS as readonly string[]).includes(name));
++        if (outside.length > 0) {
++          throw createPrologueError("AGENT_START_INVALID", `An App-tools Agent cannot use ${outside.sort().join(", ")}: only this Session's pack tools and ${APP_MODE_SYSTEM_TOOLS.join(", ")}.`);
++        }
++      }
+       /*
+        * 包的配置作为**一层**进来，在 App 显式之下、模块默认之上。
+        *
+@@ -4244,6 +4281,13 @@ export async function createRuntime(
+           (profile?.input.skills?.length ?? 0) > 0 || (profile?.input.mcp?.length ?? 0) > 0)) {
+         throw createPrologueError("AGENT_START_INVALID", "A workspace-free Character cannot bind tools, skills, or MCP.");
+       }
++      if (appMode) {
++        const own = new Set(installed?.pack.tools.map((one) => one.registration.name) ?? []);
++        if ((profile?.input.skills?.length ?? 0) > 0 || (profile?.input.mcp?.length ?? 0) > 0 ||
++            (profile?.input.tools ?? []).some((name) => !own.has(name) && !(APP_MODE_SYSTEM_TOOLS as readonly string[]).includes(name))) {
++          throw createPrologueError("AGENT_START_INVALID", "An App-tools Character may bind only this Session's pack tools and the root-free system tools, and no skills or MCP.");
++        }
++      }
+       const skillSnapshot = skills.snapshot();
+       const frozenWorkspaces =
+         subagentOptions === undefined || rootRef === undefined
+@@ -4256,8 +4300,8 @@ export async function createRuntime(
+               lookup: (ref) => workspace.get(ref),
+             });
+       const startSnapshot = freezeStart({
+-        start: noWorkspace ? { ...agent, skillNames: [], mcpConnections: [] } : agent,
+-        ...(noWorkspace ? { workspace: "none" as const } : {}),
++        start: rootless ? { ...agent, skillNames: [], mcpConnections: [] } : agent,
++        ...(noWorkspace ? { workspace: "none" as const } : appMode ? { workspace: "app" as const } : {}),
+         posture,
+         assembled,
+         defaultMaxTurns: config.agent.maxTurns,
+@@ -4574,7 +4618,7 @@ export async function createRuntime(
+        * 还要再过一次本轮名单：开跑时点了 `skillNames`，目录里也只能
+        * 有那几条，否则模型看得见却调不动。
+        */
+-      const visibleSkills = !noWorkspace && config.skill.autoSelect
++      const visibleSkills = !rootless && config.skill.autoSelect
+         ? skillSnapshot
+             .catalog({ capabilities: available, forAutoSelection: true })
+             .entries.filter(
+@@ -4807,8 +4851,9 @@ export async function createRuntime(
+         }
+         return undefined;
+       };
+-      const dispatchChild = () => {
+-        if (rootRef === undefined) throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent cannot dispatch tools or subagents.");
++      const dispatchChild = (): ReturnType<typeof subagentDispatcher> => {
++        // A rootless run (App tools) builds its tool runner too; a child it cannot have fails when asked for, not before.
++        if (rootRef === undefined) return async () => { throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent cannot dispatch tools or subagents."); };
+         return subagentDispatcher({
+           subagents: runSubagents,
+           registry: subagentRegistry,
+@@ -4892,7 +4937,7 @@ export async function createRuntime(
+        * 没法被引用。
+        */
+       const runSignal: { current: AbortSignal | undefined } = { current: undefined };
+-      const builtinRunner: ToolRunner = rootRef === undefined || mutator === undefined
++      const builtinRunner: ToolRunner = noWorkspace || !appMode && (rootRef === undefined || mutator === undefined)
+         ? async () => { throw createPrologueError("TOOL_UNAVAILABLE", "A workspace-free Agent has no tools."); }
+         : createSystemToolRunner({
+           ...sharedSystemToolDeps({
+@@ -5075,7 +5120,8 @@ export async function createRuntime(
+               });
+             },
+           },
+-          dispatchSubagent: dispatchChild(),
++          // No root, no child to dispatch: the tool then reports itself unavailable, as for any unwired system tool.
++          ...(rootRef === undefined ? {} : { dispatchSubagent: dispatchChild() }),
+           /**
+            * 编排入口。**每一个都委托给已有主人**——这一层不另存一份
+            * 消息账。操作别人的 Session 要经策略，所以这些工具的
+@@ -5278,14 +5324,16 @@ export async function createRuntime(
+        * 闭集里那三样有主人的名字轮不到它们答。内置提问者同样：丢掉
+        * `asksUser` 会把普通提问重新变成一笔虚构 Effect。
+        */
+-      const handsOff = noWorkspace ? builtinRunner : runTool ?? runtimeToolRunner ?? builtinRunner;
++      // An App-tools run never reaches the Runtime-wide executor slot: that one may be bound to a workspace. Its pack
++      // tools go to this Session's own executors and everything else to the root-free built-in runner.
++      const handsOff = rootless ? builtinRunner : runTool ?? runtimeToolRunner ?? builtinRunner;
+ 
+       const handOff: ToolRunner = async (callInput) => {
+         if (noWorkspace) return builtinRunner(callInput);
+-        if (runTool !== undefined) {
++        if (!appMode && runTool !== undefined) {
+           return runTool(callInput);
+         }
+-        if (runtimeToolRunner !== undefined) {
++        if (!appMode && runtimeToolRunner !== undefined) {
+           return runtimeToolRunner(callInput);
+         }
+         const contributed = installed?.pack.tools.find(
+@@ -5482,7 +5530,7 @@ export async function createRuntime(
+                 });
+               },
+               skills: () => {
+-                if (noWorkspace) return [];
++                if (rootless) return [];
+                 const seen = new Set(remindedSkills);
+                 const fresh = skillSnapshot
+                   .catalog({ capabilities: [] })
+@@ -5544,6 +5592,17 @@ export async function createRuntime(
+             ...(continueWhenCompactionFails ? { continueWhenCompactionFails } : {}),
+             windowTokens,
+             objective: { check: judgeAgainstObjective },
++            fireStop: async ({ text }) => {
++              const held = await fireObserved(
++                "session-stop",
++                { session: session.ref.id, run: currentRunId, text },
++                {
++                  session: session.ref.id,
++                  ...(currentRunId === undefined ? {} : { run: currentRunId }),
++                },
++              );
++              return { blocked: held.blocked, why: held.why };
++            },
+             fireCompaction: async (when) => {
+               const held = await fireObserved(
+                 `compaction-${when}`,
+diff --git a/packages/sdk/src/composition/core/system-tools.ts b/packages/sdk/src/composition/core/system-tools.ts
+index 6e2474b4..0b01cd77 100644
+--- a/packages/sdk/src/composition/core/system-tools.ts
++++ b/packages/sdk/src/composition/core/system-tools.ts
+@@ -365,8 +365,12 @@ function describeNode(
+ 
+ export function createSystemToolRunner(input: {
+   readonly workspace: Workspace;
+-  readonly rootRef: ExactRef<"authorized-root">;
+-  readonly mutator: WorkspaceMutator;
++  /**
++   * The run's authorized root. Absent for an App-tools run (`workspace: "app"`): every file and command tool then
++   * fails as unavailable, and the tools that touch no workspace (asking the person, the todo list, …) still work.
++   */
++  readonly rootRef?: ExactRef<"authorized-root"> | undefined;
++  readonly mutator?: WorkspaceMutator | undefined;
+   readonly pendings: PendingLedger;
+   /**
+    * 普通提问能等多久。开跑冻结。不给沿用现有 10 分钟。
+@@ -677,11 +681,20 @@ export function createSystemToolRunner(input: {
+   const started = new Map<string, "background" | "interactive">();
+ 
+   // 忽略规则跟着这一次的装配走——**读也要拦**，不只是列表过滤。
+-  const reader = input.workspace.reader(input.rootRef, input.ignore);
++  const noRoot = () => createPrologueError("TOOL_UNAVAILABLE", "This run has no authorized workspace; file and command tools are not available here.");
++  const rootReader = input.rootRef === undefined ? undefined : input.workspace.reader(input.rootRef, input.ignore);
++  const ownReader = (): WorkspaceReader => {
++    if (rootReader === undefined) throw noRoot();
++    return rootReader;
++  };
++  const mutatorOf = (): WorkspaceMutator => {
++    if (input.mutator === undefined) throw noRoot();
++    return input.mutator;
++  };
+   const readRoots = new Map((input.readRoots ?? []).map((one) => [one.id, input.workspace.reader(one.rootRef, input.ignore, { observe: false })]));
+   /** The reader a read-only tool call names: this run's own root, or one of the roots it may read. */
+   const readerFor = (args: Record<string, unknown>): WorkspaceReader => {
+-    if (args.workspace === undefined) return reader;
++    if (args.workspace === undefined) return ownReader();
+     const named = typeof args.workspace === "string" ? readRoots.get(args.workspace) : undefined;
+     if (named === undefined) {
+       throw createPrologueError(
+@@ -741,7 +754,7 @@ export function createSystemToolRunner(input: {
+       approvalReceived = args[0].pending?.kind === "effect-approval" && result.state === "authorized";
+       return result;
+     } } : gate;
+-    const receipt = await input.mutator.applyPatch(plan, await input.now(), observedGate);
++    const receipt = await mutatorOf().applyPatch(plan, await input.now(), observedGate);
+     input.evidence?.noteChange(receipt);
+     return `${name === "write" ? "wrote" : "edited"} ${receipt.path} (${name === "write" ? `${receipt.byteLength} bytes, ` : ""}checkpoint ${receipt.checkpointId})\n`
+       + (approvalReceived ? "Authorization: approval was received through the host review while this tool waited.\n"
+@@ -810,7 +823,7 @@ export function createSystemToolRunner(input: {
+          * 门在工作区那边：它送进链的是**这条路径**，而不是「叫 write
+          * 的工具」。工具那一层递下来的加严和「怎么等人」跟着 `gate` 走。
+          */
+-        const plan = await input.mutator.preparePatch({
++        const plan = await mutatorOf().preparePatch({
+           path: text(args.path, "path"),
+           nextText: typeof args.text === "string" ? args.text : text(args.text, "text"),
+         });
+@@ -820,11 +833,11 @@ export function createSystemToolRunner(input: {
+         const path = text(args.path, "path");
+         const find = text(args.find, "find");
+         // The whole file is read to make the change, not to show it: a file over 64 KB can still be edited.
+-        const current = (await reader.read({ path, forEdit: true })).text;
++        const current = (await ownReader().read({ path, forEdit: true })).text;
+         if (!current.includes(find)) {
+           throw createPrologueError("TOOL_ARGUMENTS_INVALID", "That exact text is not in the file.");
+         }
+-        const plan = await input.mutator.preparePatch({
++        const plan = await mutatorOf().preparePatch({
+           path,
+           nextText: current.replace(
+             find,
+@@ -852,7 +865,7 @@ export function createSystemToolRunner(input: {
+           );
+         }
+         commandInvocations += 1;
+-        const plan = input.mutator.prepareCommand({
++        const plan = mutatorOf().prepareCommand({
+           executable,
+           argv,
+           operationKey: `run-command:${commandInvocations}`,
+@@ -877,7 +890,7 @@ export function createSystemToolRunner(input: {
+             if (callId !== undefined && input.onCommandReceipt !== undefined) {
+               try {
+                 await input.onCommandReceipt(callId, { kind: "workspace-command-receipt", version: 1,
+-                  rootRef: input.rootRef, executable, argv, receipt });
++                  rootRef: input.rootRef!, executable, argv, receipt });
+               } catch {
+                 // The process already ran. A storage failure must not invite
+                 // a new command; preserve the existing effect for reconciliation.
+@@ -890,7 +903,7 @@ export function createSystemToolRunner(input: {
+         };
+         const stop = abort?.subscribe(async () => {
+           try {
+-            await input.mutator.cancelCommand(plan.commandId, "timed-out");
++            await mutatorOf().cancelCommand(plan.commandId, "timed-out");
+           } catch {
+             // 取消没送成，仍要等到这次执行有个真实结局。
+           }
+@@ -904,7 +917,7 @@ export function createSystemToolRunner(input: {
+           }
+         });
+         try {
+-          running = input.mutator.runCommand(plan, await input.now(), gate);
++          running = mutatorOf().runCommand(plan, await input.now(), gate);
+           opened();
+           const receipt = await running;
+           await record(receipt);
+@@ -938,7 +951,7 @@ export function createSystemToolRunner(input: {
+           );
+         }
+         commandInvocations += 1;
+-        const plan = input.mutator.prepareCommand({
++        const plan = mutatorOf().prepareCommand({
+           executable,
+           argv,
+           operationKey: `start-command:${String(commandInvocations)}`,
+@@ -946,12 +959,12 @@ export function createSystemToolRunner(input: {
+         const interactive = args["interactive"] === true;
+         const now = await input.now();
+         if (interactive) {
+-          const opened = await input.mutator.openInteractive(plan, now);
++          const opened = await mutatorOf().openInteractive(plan, now);
+           started.set(opened.sessionId, "interactive");
+           return `started interactive session ${opened.sessionId}; send input with command-input, read with command-output`;
+         }
+         input.background?.admit();
+-        const running = await input.mutator.startBackground(plan, now, { outlive: input.background?.outlive === true, ...(gate === undefined ? {} : { gate }) });
++        const running = await mutatorOf().startBackground(plan, now, { outlive: input.background?.outlive === true, ...(gate === undefined ? {} : { gate }) });
+         started.set(running.commandId, "background");
+         await input.background?.started(running.commandId, `${executable} ${argv.join(" ")}`.trim());
+         return `started ${running.commandId} in the background; read it with command-output, or wait for it with await-commands` +
+@@ -963,8 +976,8 @@ export function createSystemToolRunner(input: {
+         const cursor = typeof args["cursor"] === "number" ? args["cursor"] : undefined;
+         const out =
+           kind === "interactive"
+-            ? await input.mutator.readInteractive(handle, cursor)
+-            : await input.mutator.backgroundOutput(handle, cursor);
++            ? await mutatorOf().readInteractive(handle, cursor)
++            : await mutatorOf().backgroundOutput(handle, cursor);
+         return [
+           // 游标先给：模型下一次要用它，而它在长输出末尾就找不着了。
+           `cursor ${String(out.cursor)}`,
+@@ -989,7 +1002,7 @@ export function createSystemToolRunner(input: {
+             `${handle} was not started with interactive: true, so nothing can be sent to it.`,
+           );
+         }
+-        await input.mutator.writeInteractive(
++        await mutatorOf().writeInteractive(
+           { sessionId: handle, text: text(args["text"], "text") },
+           await input.now(),
+         );
+@@ -1013,9 +1026,9 @@ export function createSystemToolRunner(input: {
+          * Runtime 上会越积越多。
+          */
+         if (kind === "interactive") {
+-          await input.mutator.closeInteractive(handle);
++          await mutatorOf().closeInteractive(handle);
+         } else {
+-          await input.mutator.cancelCommand(handle, "cancelled");
++          await mutatorOf().cancelCommand(handle, "cancelled");
+         }
+         // 已经停了的再停一次**不是错误**。
+         started.delete(handle);
+diff --git a/packages/sdk/src/function/core/execute.ts b/packages/sdk/src/function/core/execute.ts
+index d948480f..e2407835 100644
+--- a/packages/sdk/src/function/core/execute.ts
++++ b/packages/sdk/src/function/core/execute.ts
+@@ -3,7 +3,7 @@ import {
+   stableStringify,
+   type ExactRef,
+ } from "../../kernel/core/index.js";
+-import type { ModelEvent, ModelParams, ModelProtocol } from "../../model/core/index.js";
++import { decodeJsonOutput, type ModelEvent, type ModelParams, type ModelProtocol } from "../../model/core/index.js";
+ import type { FunctionRegistry } from "./contract.js";
+ 
+ /** 一次函数执行的终态回执。**大正文只留引用**，不塞整篇进来。 */
+@@ -119,18 +119,12 @@ function defaultPrompt(input: unknown): string {
+  * 那正是这块要挡住的事。
+  */
+ function parseOutput(text: string): unknown {
+-  const trimmed = text.trim();
+-  // 模型常把 JSON 包在代码围栏里。剥掉围栏是格式问题，不是内容让步。
+-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(trimmed);
+-  const body = fenced?.[1] ?? trimmed;
+-  try {
+-    return JSON.parse(body);
+-  } catch {
+-    throw createPrologueError(
+-      "FUNCTION_OUTPUT_INVALID",
+-      "The model's reply was not a JSON object; it was not turned into a typed result.",
+-    );
+-  }
++  const decoded = decodeJsonOutput(text, { allowCodeFence: true });
++  if (decoded.ok) return decoded.value;
++  throw createPrologueError(
++    "FUNCTION_OUTPUT_INVALID",
++    "The model's reply was not a JSON object; it was not turned into a typed result.",
++  );
+ }
+ 
+ export function createFunctionEngine(deps: {
+diff --git a/packages/sdk/src/hooks/core/bus.ts b/packages/sdk/src/hooks/core/bus.ts
+index fdab7c5e..07d27553 100644
+--- a/packages/sdk/src/hooks/core/bus.ts
++++ b/packages/sdk/src/hooks/core/bus.ts
+@@ -13,6 +13,12 @@ export type HookEvent =
+   | "tool-failed"
+   | "session-start"
+   | "session-end"
++  /**
++   * 一次 Run **正要自然收工**：模型这一轮只写了回答、没有调用工具，目标判断也放行了。
++   *
++   * `deny` 表示「还不能停」：理由作为运行时提示放回历史，循环接着跑（一次 Run 最多挡两次）。
++   * 载荷是 `{ session, run, text }`，`text` 是这次要收工的整段回答。
++   */
+   | "session-stop"
+   | "session-stop-failed"
+   /**
+diff --git a/packages/sdk/src/host/README.md b/packages/sdk/src/host/README.md
+index d42ead7c..0ae2f4cb 100644
+--- a/packages/sdk/src/host/README.md
++++ b/packages/sdk/src/host/README.md
+@@ -60,6 +60,10 @@ Current authorization and durable directory identity have separate lifetimes. Th
+ 
+ ## MCP HTTP 网络合同
+ 
++Node 装配允许可信 App 通过 `beforeNetworkDispatch` 在每次 fetch 前收紧当前调用的授权（含 MCP HTTP 与重定向）；异步复核受原请求的取消/超时约束。拒绝为 `EFFECT_NOT_AUTHORIZED`，Host 继续独占派发事实，原网络和凭据政策不可被回调放宽。旧 `beforeModelDispatch` 只检查 model 通道，若两者都有则都执行。没有新增 Runtime 配置或存储；见 [本次合同](../../../../docs/slices/network-dispatch-authority.md)。
++
++MCP 取消先停止 Host 执行再读取其派发事实。Host 明确从未派发时保持 CANCELLED，不向远端发送无对应请求的取消通知；已派发或无法核实时保留需对账语义。
++
+ 既有 network 准备口可选 POST/DELETE，只有 mcp 通道可 DELETE；现有 model/web 的通道、目标、重定向和凭据约束继续生效。可选 onResponse 只提供有限的 status/contentType/mcpSessionId，先于正文，非成功状态同样可见；不暴露任意头。无认证 web/mcp 仍签发一次性派出许可；model 仍要凭据。Native/Node 必须同义，取消与真实派出状态只由 Host 回答，UTF-8 跨块不损坏。四层、精确口形状和本次实施边界见 [HTTP 合同](../../../../docs/slices/mcp-http-standard.md)，未装配仍零外发。
+ 
+ For optional network response metadata, supplying `onResponse` opts into status handling: a fully consumed non-2xx response may complete and the consumer handles its status. Omitting the callback preserves the existing MODEL_HTTP_ERROR behavior. Unrequested metadata is not parsed; MCP session ids are read and exposed only for the MCP channel. Native model requests cannot use authScheme=none. Rejected handle reuse preserves the original terminal inspect status.
+diff --git a/packages/sdk/src/host/plugin/node.ts b/packages/sdk/src/host/plugin/node.ts
+index 56d7d09a..c88f0715 100644
+--- a/packages/sdk/src/host/plugin/node.ts
++++ b/packages/sdk/src/host/plugin/node.ts
+@@ -8,6 +8,7 @@ import {
+   zeroize,
+   type AppIdentity,
+   type ClockReading,
++  type PrologueError,
+ } from "../../kernel/core/index.js";
+ import type {
+   CredentialSnapshot,
+@@ -203,6 +204,8 @@ function parseRetryAfter(header: string | null, nowMs: number): number | undefin
+ }
+ 
+ export interface NodeHostOptions {
++  /** Trusted App revocation check after preparation, before every network dispatch (including MCP and redirect hops). Can deny, never bypass Host policy. */
++  readonly beforeNetworkDispatch?: () => void | Promise<void>;
+   /** Trusted App revocation check after preparation, immediately before model bytes leave. Can deny, never bypass Host policy. */
+   readonly beforeModelDispatch?: () => void | Promise<void>;
+   /**
+@@ -734,7 +737,17 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+          * 之后任何一种挂法——连接被拒、读到一半断线、进程被杀——都不该
+          * 让引擎以为它没出去过。下面的 `catch` 只在能确定没上线时翻回来。
+          */
+-        if (record.channel === "model" && options.beforeModelDispatch) await awaitDispatchGuard(options.beforeModelDispatch(), signal);
++        if (options.beforeNetworkDispatch || (record.channel === "model" && options.beforeModelDispatch)) {
++          try {
++            if (options.beforeNetworkDispatch) await awaitDispatchGuard(options.beforeNetworkDispatch(), signal);
++            if (record.channel === "model" && options.beforeModelDispatch) await awaitDispatchGuard(options.beforeModelDispatch(), signal);
++          } catch (error) {
++            // 等到超时或被取消的，保留原来的意思；只有 App 说「不行」才算拒绝。
++            if (isCancelled() || signal.aborted) throw error;
++            setStatus("failed");
++            throw dispatchDenied(error);
++          }
++        }
+         if (isCancelled()) return "cancelled";
+         record.dispatched = true;
+         response = await fetch(target.url, {
+@@ -1114,6 +1127,18 @@ export function createNodeHost(options: NodeHostOptions = {}): PrologueHost {
+   };
+ }
+ 
++/**
++ * App 的撤权复核拒绝了这一次派出（授权被收回、Character 被停用）。
++ *
++ * **不是网络失败**：一个字节都没出本机，重发或换备选得到的还是同一个答复。
++ * 报成 `MODEL_NETWORK_FAILED` 会让人去查网络。App 给的原因保留在消息里。
++ */
++function dispatchDenied(error: unknown): PrologueError {
++  const mapped = errorFromUnknown(error);
++  if (mapped.code === "CANCELLED" || mapped.code === "EFFECT_NOT_AUTHORIZED") return mapped;
++  return createPrologueError("EFFECT_NOT_AUTHORIZED", `The App refused this network dispatch before sending: ${mapped.safeMessage}`);
++}
++
+ async function awaitDispatchGuard(work: void | Promise<void>, signal: AbortSignal): Promise<void> {
+   signal.throwIfAborted();
+   let abort: (() => void) | undefined;
+diff --git a/packages/sdk/src/index.ts b/packages/sdk/src/index.ts
+index bec555df..a6225443 100644
+--- a/packages/sdk/src/index.ts
++++ b/packages/sdk/src/index.ts
+@@ -106,6 +106,7 @@ export {
+ } from "./runtime/api/index.js";
+ export {
+   createRuntime,
++  APP_MODE_SYSTEM_TOOLS,
+   type AgentContextOptions,
+   type CreateRuntimeInput,
+   type Runtime,
+@@ -150,7 +151,7 @@ export type {
+   PrologueHost,
+   WorkspaceGrant,
+ } from "./host/api/index.js";
+-export { isTerminalEventType, isTerminalRunState } from "./session/api/index.js";
++export { collectRun, isTerminalEventType, isTerminalRunState, type RunCompletion } from "./session/api/index.js";
+ export type {
+   Injection,
+   InjectionReceipt,
+@@ -808,6 +809,8 @@ export {
+   assertSchemaSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
++  type JsonOutput,
+   validateAgainst,
+   type JsonSchema,
+   type SchemaViolation,
+diff --git a/packages/sdk/src/mcp/plugin/http.ts b/packages/sdk/src/mcp/plugin/http.ts
+index 0658e849..4325a772 100644
+--- a/packages/sdk/src/mcp/plugin/http.ts
++++ b/packages/sdk/src/mcp/plugin/http.ts
+@@ -355,13 +355,18 @@ export async function openMcpHttp(input: {
+         await stopHostStream();
+         return;
+       }
+-      abortError ??=
+-        dispatched && ready && inputPost.rpcMethod !== "initialize"
+-          ? unknownMcpResult(inputPost.rpcMethod)
+-          : cancelledBeforeSend(inputPost.rpcMethod);
+       sealed = true;
+       if (cancelJob === undefined) {
+-        cancelJob = Promise.all([sendCancelled(), stopHostStream()]).then(() => undefined);
++        cancelJob = (async () => {
++          // Entering execute is not proof of dispatch: the Host may still be awaiting the App's final authority check.
++          await stopHostStream();
++          if (handle !== undefined) {
++            const inspected = await input.port.inspectModelNetwork(handle).catch(() => undefined);
++            if (inspected?.dispatched === false) dispatched = false;
++          }
++          abortError = unknownOrCancel();
++          await sendCancelled();
++        })();
+         watch(cancelJob);
+       }
+       await cancelJob;
+diff --git a/packages/sdk/src/model/README.md b/packages/sdk/src/model/README.md
+index c2fd8099..94b06e07 100644
+--- a/packages/sdk/src/model/README.md
++++ b/packages/sdk/src/model/README.md
+@@ -18,6 +18,10 @@
+ 
+ ## 可配与可换
+ 
++`decodeJsonOutput` 只解码 JSON 语法；围栏容忍由调用方显式选择。它返回可区分的成功/失败，不能代替 schema 或领域校验。Function 和 Model 使用同一格式解码入口，外部领域校验继续由 Function validators 或消费 App 执行。
++
++普通 Session Run 在发布 completed 前执行所声明的结构校验；失败保持本次已发生的用量，终态为 failed，不自动纠正或重试。schema 档位与约束由 App 按次传入，领域有效性不属于 Model。详见 [有界结果合同](../../../../docs/slices/bounded-run-results.md)。
++
+ - **槽（可换执行逻辑）：** `model-protocol`——协议翻译：请求体与流解析。内置实现在 `plugin/`。
+   - **可用性：** `model-protocol` ✅ 已建（`slots["model-protocol"].impl`，自带的盖掉同名内置）。**别读成「今天就能换」**——判据和整张表见 [AGENTS.md §3.7.1](../../../../AGENTS.md)。
+ - **可配（`config.<模块>`）：** `defaults.retry`、超时三档、`config.model.tokenBudget`、备选链。
+diff --git a/packages/sdk/src/model/api/index.ts b/packages/sdk/src/model/api/index.ts
+index a94a6353..60303a05 100644
+--- a/packages/sdk/src/model/api/index.ts
++++ b/packages/sdk/src/model/api/index.ts
+@@ -63,6 +63,8 @@ export {
+   assertSchemaSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
++  type JsonOutput,
+   validateAgainst,
+   type JsonSchema,
+   type SchemaViolation,
+diff --git a/packages/sdk/src/model/core/index.ts b/packages/sdk/src/model/core/index.ts
+index efb1f2c7..3622c5cb 100644
+--- a/packages/sdk/src/model/core/index.ts
++++ b/packages/sdk/src/model/core/index.ts
+@@ -74,6 +74,8 @@ export {
+   assertSchemaSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
++  type JsonOutput,
+   validateAgainst,
+   type JsonSchema,
+   type SchemaViolation,
+diff --git a/packages/sdk/src/model/core/structured.ts b/packages/sdk/src/model/core/structured.ts
+index 50ce92c9..4aa7144e 100644
+--- a/packages/sdk/src/model/core/structured.ts
++++ b/packages/sdk/src/model/core/structured.ts
+@@ -30,13 +30,24 @@ export interface StructuredRequest {
+  * 「拿回来的东西对不对得上」。用不了的关键字**明确拒**，不是当它不存在
+  * ——静默忽略一条 `pattern`，调用方会以为验过了。
+  */
++type SchemaType = "object" | "array" | "string" | "number" | "integer" | "boolean" | "null";
+ export interface JsonSchema {
+-  readonly type: "object" | "array" | "string" | "number" | "integer" | "boolean";
++  readonly type?: SchemaType | readonly SchemaType[];
++  readonly anyOf?: readonly JsonSchema[];
+   readonly properties?: Readonly<Record<string, JsonSchema>>;
+   readonly required?: readonly string[];
+   readonly items?: JsonSchema;
+-  readonly enum?: readonly (string | number | boolean)[];
++  readonly enum?: readonly (string | number | boolean | null)[];
+   readonly additionalProperties?: boolean;
++  readonly minLength?: number;
++  readonly maxLength?: number;
++  readonly minItems?: number;
++  readonly maxItems?: number;
++  readonly minimum?: number;
++  readonly maximum?: number;
++  readonly description?: string;
++  readonly title?: string;
++  readonly $schema?: string;
+ }
+ 
+ const KNOWN_KEYWORDS = [
+@@ -46,6 +57,7 @@ const KNOWN_KEYWORDS = [
+   "items",
+   "enum",
+   "additionalProperties",
++  "anyOf", "minLength", "maxLength", "minItems", "maxItems", "minimum", "maximum", "$schema",
+   // 说明性的，带着不影响判定。
+   "description",
+   "title",
+@@ -57,7 +69,9 @@ const KNOWN_KEYWORDS = [
+  * 在**发出之前**问一次：验不了的 schema 要在这里说清楚，而不是等
+  * 结果回来才发现「其实那条约束一直没生效」。
+  */
+-export function assertSchemaSupported(schema: JsonSchema, at = "$"): void {
++export function assertSchemaSupported(schema: JsonSchema, at = "$", depth = 0): void {
++  const invalid = () => { throw createPrologueError("MODEL_STRUCTURED_UNSUPPORTED", `The schema at ${at} is malformed or exceeds supported nesting.`); };
++  if (!schema || typeof schema !== "object" || Array.isArray(schema) || depth > 64) invalid();
+   const seen = Object.keys(schema as unknown as Record<string, unknown>);
+   const unknown = seen.filter((key) => !(KNOWN_KEYWORDS as readonly string[]).includes(key));
+   if (unknown.length > 0) {
+@@ -66,11 +80,30 @@ export function assertSchemaSupported(schema: JsonSchema, at = "$"): void {
+       `The schema at ${at} uses keywords this build cannot check: ${unknown.sort().join(", ")}.`,
+     );
+   }
++  const types = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
++  if ((!types.length && !schema.anyOf) || types.some(type => !["object", "array", "string", "number", "integer", "boolean", "null"].includes(type))) invalid();
++  if (schema.type !== undefined && !types.length) invalid();
++  for (const name of ["minLength", "maxLength", "minItems", "maxItems"] as const) {
++    const value = schema[name];
++    if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) invalid();
++  }
++  for (const name of ["minimum", "maximum"] as const) if (schema[name] !== undefined && !Number.isFinite(schema[name])) invalid();
++  for (const [min, max] of [[schema.minLength, schema.maxLength], [schema.minItems, schema.maxItems], [schema.minimum, schema.maximum]]) {
++    if (min !== undefined && max !== undefined && min > max) invalid();
++  }
++  if (schema.required !== undefined && (!Array.isArray(schema.required) || schema.required.some(key => typeof key !== "string"))) invalid();
++  if (schema.enum !== undefined && (!Array.isArray(schema.enum) || !schema.enum.length || schema.enum.some(value => value !== null && !["string", "number", "boolean"].includes(typeof value)))) invalid();
++  if (schema.additionalProperties !== undefined && typeof schema.additionalProperties !== "boolean") invalid();
++  if (schema.properties !== undefined && (!schema.properties || typeof schema.properties !== "object" || Array.isArray(schema.properties))) invalid();
++  if (schema.anyOf !== undefined) {
++    if (!Array.isArray(schema.anyOf) || !schema.anyOf.length) invalid();
++    schema.anyOf.forEach((child, index) => assertSchemaSupported(child, `${at}.anyOf[${index}]`, depth + 1));
++  }
+   for (const [name, child] of Object.entries(schema.properties ?? {})) {
+-    assertSchemaSupported(child, `${at}.${name}`);
++    assertSchemaSupported(child, `${at}.${name}`, depth + 1);
+   }
+   if (schema.items !== undefined) {
+-    assertSchemaSupported(schema.items, `${at}[]`);
++    assertSchemaSupported(schema.items, `${at}[]`, depth + 1);
+   }
+ }
+ 
+@@ -94,17 +127,21 @@ export function validateAgainst(value: unknown, schema: JsonSchema, at = "$"): r
+     if (!schema.enum.includes(value as string | number | boolean)) {
+       bad.push({ path: at, why: `must be one of ${schema.enum.map(String).join(", ")}` });
+     }
+-    return Object.freeze(bad);
++  }
++
++  if (schema.anyOf && !schema.anyOf.some(child => validateAgainst(value, child, at).length === 0)) {
++    bad.push({ path: at, why: "must match one of the declared alternatives" });
+   }
+ 
+   const actual = kindOf(value);
+-  if (!matchesType(actual, schema.type, value)) {
++  const types = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
++  if (types.length && !types.some(type => matchesType(actual, type, value))) {
+     // **只说类型，不抄正文。** 正文可能带着密钥或者一整页网页。
+     bad.push({ path: at, why: `must be ${schema.type}, got ${actual}` });
+     return Object.freeze(bad);
+   }
+ 
+-  if (schema.type === "object") {
++  if (actual === "object") {
+     const object = value as Record<string, unknown>;
+     for (const name of schema.required ?? []) {
+       if (object[name] === undefined) {
+@@ -126,10 +163,20 @@ export function validateAgainst(value: unknown, schema: JsonSchema, at = "$"): r
+     }
+   }
+ 
+-  if (schema.type === "array" && schema.items !== undefined) {
+-    (value as readonly unknown[]).forEach((one, index) => {
+-      bad.push(...validateAgainst(one, schema.items as JsonSchema, `${at}[${index}]`));
+-    });
++  if (typeof value === "string") {
++    const length = Array.from(value).length;
++    if (schema.minLength !== undefined && length < schema.minLength) bad.push({ path: at, why: `must have at least ${schema.minLength} characters` });
++    if (schema.maxLength !== undefined && length > schema.maxLength) bad.push({ path: at, why: `must have at most ${schema.maxLength} characters` });
++  }
++  if (typeof value === "number") {
++    if (!Number.isFinite(value)) bad.push({ path: at, why: "must be a finite number" });
++    if (schema.minimum !== undefined && value < schema.minimum) bad.push({ path: at, why: `must be at least ${schema.minimum}` });
++    if (schema.maximum !== undefined && value > schema.maximum) bad.push({ path: at, why: `must be at most ${schema.maximum}` });
++  }
++  if (Array.isArray(value)) {
++    if (schema.minItems !== undefined && value.length < schema.minItems) bad.push({ path: at, why: `must have at least ${schema.minItems} items` });
++    if (schema.maxItems !== undefined && value.length > schema.maxItems) bad.push({ path: at, why: `must have at most ${schema.maxItems} items` });
++    if (schema.items !== undefined) value.forEach((one, index) => bad.push(...validateAgainst(one, schema.items!, `${at}[${index}]`)));
+   }
+ 
+   return Object.freeze(bad);
+@@ -145,7 +192,7 @@ function kindOf(value: unknown): string {
+   return typeof value;
+ }
+ 
+-function matchesType(actual: string, wanted: JsonSchema["type"], value: unknown): boolean {
++function matchesType(actual: string, wanted: SchemaType, value: unknown): boolean {
+   // `integer` 是 `number` 的一种，但反过来不成立——一个 `1.5` 不该
+   // 悄悄通过一条要整数的约束。**只比 JS 类型是不够的**：`typeof 1.5`
+   // 就是 `"number"`。
+@@ -155,6 +202,16 @@ function matchesType(actual: string, wanted: JsonSchema["type"], value: unknown)
+   return actual === wanted;
+ }
+ 
++export type JsonOutput = { readonly ok: true; readonly value: unknown } | { readonly ok: false };
++
++/** Syntax only. Whole-response code fences require explicit opt-in; domain validation stays with the caller. */
++export function decodeJsonOutput(text: string, options: { readonly allowCodeFence?: boolean } = {}): JsonOutput {
++  const trimmed = text.trim();
++  const fenced = options.allowCodeFence ? /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(trimmed) : null;
++  try { return { ok: true, value: JSON.parse(fenced?.[1] ?? trimmed) as unknown }; }
++  catch { return { ok: false }; }
++}
++
+ /**
+  * 拿回文本，按 `local` 那一档验。
+  *
+@@ -165,15 +222,14 @@ export function checkLocalStructure(
+   text: string,
+   schema: JsonSchema,
+ ): { readonly value: unknown } {
+-  let parsed: unknown;
+-  try {
+-    parsed = JSON.parse(text) as unknown;
+-  } catch {
++  const decoded = decodeJsonOutput(text);
++  if (!decoded.ok) {
+     throw createPrologueError(
+       "MODEL_STRUCTURED_INVALID",
+       "The model's answer is not JSON, so it cannot be checked against the schema.",
+     );
+   }
++  const parsed = decoded.value;
+   const violations = validateAgainst(parsed, schema);
+   if (violations.length > 0) {
+     throw createPrologueError(
+diff --git a/packages/sdk/src/model/core/types.ts b/packages/sdk/src/model/core/types.ts
+index 72232007..083a2f5a 100644
+--- a/packages/sdk/src/model/core/types.ts
++++ b/packages/sdk/src/model/core/types.ts
+@@ -353,7 +353,7 @@ export type ModelEvent =
+    */
+   | Readonly<{ type: "agent-control"; state: "running" | "pausing" | "paused" }>
+   /** 整批工具未执行，已请求模型纠正；不代表纠正成功，不含原始工具名或参数。 */
+-  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" }>
++  | Readonly<{ type: "model-response-repair"; reason: "tool-not-declared" | "output-truncated" | "stop-held" }>
+   /** Explicit recovery of an interrupted Run, never a reconstructed tool transcript. */
+   | Readonly<{ type: "run-recovered"; atMs: number; transcript: "opening-only" | "durable-prefix";
+       questions?: readonly { ref: ExactRef<"pending">; kind: string; prompt: string }[];
+diff --git a/packages/sdk/src/resource/README.md b/packages/sdk/src/resource/README.md
+index 3ecc3524..1a1a80ff 100644
+--- a/packages/sdk/src/resource/README.md
++++ b/packages/sdk/src/resource/README.md
+@@ -18,6 +18,7 @@
+   - **可用性：** ✅ 已建（`slots["document-parser"].impl` 收一组 `DocumentParser`，合同在 `core/parse.ts`）。**没装就明确不可用**，解析次数为零——SDK 不内置任何一个解析器，内置一个就等于替 App 选了依赖。 **OCR 走的就是这个槽**：它的合同本来就是「字节+类型→文字」，而合同上早写着「扫描件（没有文本层）是失败」——装一份认得 `image/png` 的解析器，那句话就不再是失败。不新开一个 OCR 缝。
+ - **可配（`config.<模块>`）：** `config.resource.publish`（条数、体积、暂存块）、`config.resource.intake`（一批的数量与体积）。
+ - **不可配（硬边界）：** 未发布的暂存块读不成正式资源。
++- 本机吸入的单份上限取当前 publish/intake 配置较小者；共享总容量在整批发布前和 Host 等待后复核，取消不会被晚发布复活。同批 add/publish 不并发，取消等待在途操作后清理。见 [消费修复合同](../../../../docs/slices/resource-intake-limits.md)。
+ 
+ 判据见 [AGENTS.md §3.7](../../../../AGENTS.md)。**换一个场景这个数会不会变？会变就该配。**
+ 
+diff --git a/packages/sdk/src/resource/core/intake.ts b/packages/sdk/src/resource/core/intake.ts
+index 8e87fb2e..9b5b62b1 100644
+--- a/packages/sdk/src/resource/core/intake.ts
++++ b/packages/sdk/src/resource/core/intake.ts
+@@ -68,6 +68,7 @@ export function beginIntake(deps: IntakeDeps): IntakeBatch {
+   const stageIds: string[] = [];
+   let state: IntakeBatchState = "open";
+   let batchBytes = 0;
++  let pending: Promise<unknown> | undefined;
+ 
+   const assertOpen = (what: string): void => {
+     if (state !== "open") {
+@@ -78,6 +79,27 @@ export function beginIntake(deps: IntakeDeps): IntakeBatch {
+     }
+   };
+ 
++  const perform = <T>(what: string, operation: () => Promise<T>): Promise<T> => {
++    assertOpen(what);
++    if (pending) throw createPrologueError("RESOURCE_BATCH_FAILED", "This intake batch already has an operation in progress.");
++    const task = operation(); pending = task;
++    void task.then(() => { pending = undefined; }, () => { pending = undefined; });
++    return task;
++  };
++  const assertCapacity = (): void => {
++    if (deps.store.publishedBytes + batchBytes > deps.resourceLimits.maxTotalBytes) {
++      throw createPrologueError("RESOURCE_LIMIT_EXCEEDED", "Publishing this batch would pass the total resource capacity limit.");
++    }
++  };
++  const discard = async (): Promise<void> => {
++    const cleanup = await Promise.allSettled([
++      host.discard({ stageIds }),
++      ...items.map(item => deps.store.revoke(item.ref)),
++    ]);
++    const failed = cleanup.find(result => result.status === "rejected");
++    if (failed?.status === "rejected") throw failed.reason;
++  };
++
+   return {
+     get state() {
+       return state;
+@@ -87,25 +109,26 @@ export function beginIntake(deps: IntakeDeps): IntakeBatch {
+     },
+ 
+     async add(path: string, label?: string): Promise<IntakeItem> {
+-      assertOpen("added to");
+-      if (items.length >= deps.limits.maxItemsPerBatch) {
+-        throw createPrologueError(
+-          "RESOURCE_LIMIT_EXCEEDED",
+-          `An intake batch may hold at most ${deps.limits.maxItemsPerBatch} items.`,
+-        );
+-      }
++      return perform("added to", async () => {
++        if (items.length >= deps.limits.maxItemsPerBatch) {
++          throw createPrologueError(
++            "RESOURCE_LIMIT_EXCEEDED",
++            `An intake batch may hold at most ${deps.limits.maxItemsPerBatch} items.`,
++          );
++        }
+ 
+-      // 签发来源。越根、符号链接逃逸和单份超限都在这一步失败，
+-      // **一个字节都还没读**——上限交给 Host，让它在 fstat 那一刻就判。
+-      // 两个上限都得过：一批的单份上限，和资源库自己的单份上限。
+-      // 取更严的那个交给 Host——**这样 `adoptHostBytes` 就不可能在字节
+-      // 已经搬完之后才拒绝**，否则那份暂存会被发布出去而没人引用它。
+-      const source = await host.open({
+-        rootRef: deps.rootRef,
+-        path,
+-        maxBytes: Math.min(deps.limits.maxItemBytes, deps.resourceLimits.maxBytes),
++        // 签发来源。越根、符号链接逃逸和单份超限都在这一步失败，
++        // **一个字节都还没读**——上限交给 Host，让它在 fstat 那一刻就判。
++        // 两个上限都得过：一批的单份上限，和资源库自己的单份上限。
++        // 取更严的那个交给 Host——**这样 `adoptHostBytes` 就不可能在字节
++        // 已经搬完之后才拒绝**，否则那份暂存会被发布出去而没人引用它。
++        const source = await host.open({
++          rootRef: deps.rootRef,
++          path,
++          maxBytes: Math.min(deps.limits.maxItemBytes, deps.resourceLimits.maxBytes),
+       });
+ 
++      assertOpen("added to");
+       if (batchBytes + source.byteLength > deps.limits.maxBatchBytes) {
+         throw createPrologueError(
+           "RESOURCE_LIMIT_EXCEEDED",
+@@ -114,8 +137,9 @@ export function beginIntake(deps: IntakeDeps): IntakeBatch {
+       }
+ 
+       const stageId = deps.newId();
+-      const receipt = await host.stage({ source: source.ref, stageId });
+       stageIds.push(stageId);
++      const receipt = await host.stage({ source: source.ref, stageId });
++      assertOpen("added to");
+       batchBytes += receipt.byteLength;
+       const item: IntakeItem = {
+         ref: deps.store.adoptHostBytes(
+@@ -140,26 +164,38 @@ export function beginIntake(deps: IntakeDeps): IntakeBatch {
+       };
+       items.push(item);
+       return item;
++      });
+     },
+ 
+     async publish(): Promise<readonly ResourceHandle[]> {
+-      assertOpen("published");
+-      if (items.length === 0) {
+-        throw createPrologueError("RESOURCE_BATCH_FAILED", "There is nothing in this batch to publish.");
+-      }
+-      // Host 那边是整批原子的。它失败了这里就一个都不标已发布。
+-      await host.publish({ stageIds });
+-      state = "published";
+-      return items.map((item) => deps.store.publishHostBytes(item.ref));
++      return perform("published", async () => {
++        if (items.length === 0) {
++          throw createPrologueError("RESOURCE_BATCH_FAILED", "There is nothing in this batch to publish.");
++        }
++        // Host 那边是整批原子的。它失败了这里就一个都不标已发布。
++        assertCapacity();
++        try {
++          await host.publish({ stageIds });
++          assertOpen("published");
++          // Another batch or a memory-backed resource may have consumed capacity during Host I/O.
++          assertCapacity();
++          const handles = deps.store.publishHostBatch(items.map(item => item.ref));
++          state = "published";
++          return handles;
++        } catch (error) {
++          state = "cancelled";
++          await discard();
++          throw error;
++        }
++      });
+     },
+ 
+     async cancel(): Promise<void> {
+-      if (state !== "open") {
+-        return;
+-      }
++      if (state === "published") return;
+       state = "cancelled";
+       // 先改状态再丢弃：丢弃失败也不能让这批回到「还能发布」。
+-      await host.discard({ stageIds });
++      await pending?.catch(() => {});
++      await discard();
+     },
+   };
+ }
+diff --git a/packages/sdk/src/resource/core/publish.ts b/packages/sdk/src/resource/core/publish.ts
+index f385d671..94ee5147 100644
+--- a/packages/sdk/src/resource/core/publish.ts
++++ b/packages/sdk/src/resource/core/publish.ts
+@@ -180,8 +180,10 @@ export interface ResourceStore {
+     /** 作废这一份的 Host 侧字节和密钥。撤销与回收都会调它。 */
+     destroy: () => Promise<void>,
+   ): ExactRef<"resource">;
+-  /** 把已收下的 Host 资源标成已发布。整批原子由吸入侧保证。 */
++  /** 把已收下的 Host 资源标成已发布，遵守共享容量；重复标记不重复计数。整批原子由吸入侧保证。 */
+   publishHostBytes(ref: ExactRef<"resource">): ResourceHandle;
++  /** 验证整批当前引用与共享容量后，一次性标成正式资源。 */
++  publishHostBatch(refs: readonly ExactRef<"resource">[]): readonly ResourceHandle[];
+   /**
+    * 分块读，**两种背书都走这一条**。
+    *
+@@ -404,6 +406,9 @@ export function createResourceStore(
+   };
+ 
+   const installPublished = (ref: ExactRef<"resource">, handle: ResourceHandle, bytes: Uint8Array): ResourceHandle => {
++    if (publishedBytes + bytes.byteLength > limits.maxTotalBytes) {
++      throw createPrologueError("RESOURCE_LIMIT_EXCEEDED", "Publishing this resource would pass the total capacity limit.");
++    }
+     published.set(ref.id, { handle, bytes });
+     const from = pendingParent.get(ref.id);
+     if (from === undefined) {
+@@ -527,8 +532,9 @@ export function createResourceStore(
+                 "That resource was discarded or revoked before durable publication finished.",
+               );
+             }
++            try { installPublished(ref, handle, bytes); }
++            catch (error) { await publishedRecords.destroy(ref.id); throw error; }
+             storedPublished.set(ref.id, handle);
+-            installPublished(ref, handle, bytes);
+             entry.published = true;
+             staged.delete(ref.id);
+             return handle;
+@@ -577,18 +583,31 @@ export function createResourceStore(
+     },
+ 
+     publishHostBytes(ref: ExactRef<"resource">): ResourceHandle {
+-      const held = hostBacked.get(ref.id);
+-      if (held === undefined) {
+-        throw createPrologueError("RESOURCE_NOT_PUBLISHED", "That resource was not taken in from a Host.");
++      return store.publishHostBatch([ref])[0]!;
++    },
++
++    publishHostBatch(refs): readonly ResourceHandle[] {
++      const entries = refs.map(ref => {
++        const held = hostBacked.get(ref.id);
++        if (held === undefined || blocked.has(ref.id)) {
++          throw createPrologueError("RESOURCE_NOT_PUBLISHED", "That resource was not taken in from a Host.");
++        }
++        return held;
++      });
++      const fresh = [...new Set(entries)].filter(held => !held.published);
++      const bytes = fresh.reduce((sum, held) => sum + held.handle.byteLength, 0);
++      if (publishedBytes + bytes > limits.maxTotalBytes) {
++        throw createPrologueError("RESOURCE_LIMIT_EXCEEDED", "Publishing these resources would pass the total capacity limit.");
+       }
+-      held.published = true;
+-      // 吸进来的是原件。它可以被指向。
+-      lineage.recordOriginal(ref);
+-      originals.push(ref.id);
+-      life.track(ref);
++      for (const held of fresh) {
++        held.published = true;
++        lineage.recordOriginal(held.handle.ref);
++        originals.push(held.handle.ref.id);
++        life.track(held.handle.ref);
++      }
++      publishedBytes += bytes;
+       flush();
+-      publishedBytes += held.handle.byteLength;
+-      return held.handle;
++      return entries.map(held => held.handle);
+     },
+ 
+     async readChunk(ref, offset, length): Promise<ResourceChunk> {
+diff --git a/packages/sdk/src/session/README.md b/packages/sdk/src/session/README.md
+index 30b5f085..016da40c 100644
+--- a/packages/sdk/src/session/README.md
++++ b/packages/sdk/src/session/README.md
+@@ -18,6 +18,8 @@ Run 启动将端点形状交给 Model 的同一预检窄口，避免与目录登
+ 
+ ## 可配与可换
+ 
++`collectRun` 从原 Run 的已提交事件收集有界文本、模型与用量回执，保留原终态与引用；调用方提供取消/截止 signal、正文与事件数量上限及可选观察器。取消或超限只取消原 Run，不产生第二执行或自动重试。同步回放与实时订阅使用同样清理语义。详见 [有界结果合同](../../../../docs/slices/bounded-run-results.md)。
++
+ - **槽（可换执行逻辑）：** 无。这个模块没有第二家 App 一定要换的执行逻辑。
+ - **可配（`config.<模块>`）：** `config.session.branchSummaryChars`（默认 2000）、列表分页。
+ - **不可配（硬边界）：** 导出脱敏正则；事件顺序与游标。
+diff --git a/packages/sdk/src/session/api/index.ts b/packages/sdk/src/session/api/index.ts
+index a69e34ed..1559a471 100644
+--- a/packages/sdk/src/session/api/index.ts
++++ b/packages/sdk/src/session/api/index.ts
+@@ -78,3 +78,4 @@ export {
+ } from "../core/index.js";
+ 
+ export type { InterruptedRun, RunRecoveryOperation, RunRecoveryView, SessionRecoveryReport } from "../core/recovery.js";
++export { collectRun, type RunCompletion } from "../core/collect-run.js";
+diff --git a/packages/sdk/src/session/core/collect-run.ts b/packages/sdk/src/session/core/collect-run.ts
+new file mode 100644
+index 00000000..7cc53be1
+--- /dev/null
++++ b/packages/sdk/src/session/core/collect-run.ts
+@@ -0,0 +1,64 @@
++import { createPrologueError, type ExactRef } from "../../kernel/core/index.js";
++import type { ModelEvent, UsageReceipt } from "../../model/core/index.js";
++import { isTerminalEventType, type Run, type TerminalRunState } from "./run.js";
++
++export interface RunCompletion {
++  readonly ref: ExactRef<"run">;
++  readonly state: TerminalRunState;
++  readonly terminal: Extract<ModelEvent, { type: TerminalRunState }>;
++  readonly text: string;
++  readonly reportedModels: readonly string[];
++  readonly usage: readonly UsageReceipt[];
++}
++
++/** Observe one original Run, including committed replay. Does not start, retry or bill a model call. */
++export function collectRun(run: Run, options: {
++  readonly signal: AbortSignal;
++  readonly maxTextChars: number;
++  readonly maxEvents: number;
++  readonly onEvent?: (event: ModelEvent) => void;
++}): Promise<RunCompletion> {
++  for (const limit of [options.maxTextChars, options.maxEvents]) {
++    if (!Number.isSafeInteger(limit) || limit < 1) {
++      throw createPrologueError("RUNTIME_OPTIONS_INVALID", "Run collection bounds must be positive safe integers.");
++    }
++  }
++  return new Promise((resolve, reject) => {
++    let settled = false, detach: (() => void) | undefined, text = "", count = 0;
++    const models = new Set<string>(), usage: UsageReceipt[] = [];
++    const cleanup = () => { settled = true; options.signal.removeEventListener("abort", abort); detach?.(); };
++    const stop = (error: unknown) => {
++      if (settled) return;
++      cleanup();
++      void run.cancel().catch(() => undefined);
++      reject(error);
++    };
++    const abort = () => stop(options.signal.reason);
++    options.signal.addEventListener("abort", abort, { once: true });
++    if (options.signal.aborted) { abort(); return; }
++    try {
++      detach = run.subscribe(event => {
++        if (settled) return;
++        try {
++          if (++count > options.maxEvents || event.type === "text-delta" && text.length + event.text.length > options.maxTextChars) {
++            stop(createPrologueError("MODEL_RESPONSE_INVALID", "Run result exceeds the caller's collection bounds."));
++            return;
++          }
++          if (event.type === "text-delta") text += event.text;
++          if (event.type === "model-reported") models.add(event.model);
++          if (event.type === "usage-recorded") usage.push(event.receipt);
++          options.onEvent?.(event);
++          // The observer may synchronously abort; never turn that cancellation into completion.
++          if (settled) return;
++          if (isTerminalEventType(event.type)) {
++            cleanup();
++            resolve({ ref: run.ref, state: event.type, terminal: event as RunCompletion["terminal"], text,
++              reportedModels: [...models], usage });
++          }
++        } catch (error) { stop(error); }
++      });
++      // subscribe may synchronously replay a terminal event before returning its disposer.
++      if (settled) detach();
++    } catch (error) { stop(error); }
++  });
++}
+diff --git a/packages/sdk/src/session/core/index.ts b/packages/sdk/src/session/core/index.ts
+index 9b82d48e..5645b8c3 100644
+--- a/packages/sdk/src/session/core/index.ts
++++ b/packages/sdk/src/session/core/index.ts
+@@ -106,3 +106,4 @@ export {
+ } from "./intervene.js";
+ 
+ export { interruptedRuns, closeInterruptedRun, type InterruptedRun, type RunRecoveryOperation, type RunRecoveryView, type SessionRecoveryReport } from "./recovery.js";
++export { collectRun, type RunCompletion } from "./collect-run.js";
+diff --git a/packages/sdk/src/session/core/run.ts b/packages/sdk/src/session/core/run.ts
+index eaf0e597..7dfffa00 100644
+--- a/packages/sdk/src/session/core/run.ts
++++ b/packages/sdk/src/session/core/run.ts
+@@ -10,6 +10,7 @@ import { visibleUnderPrivacy } from "./metadata.js";
+ import type { BoundAttachments } from "../../resource/core/index.js";
+ import {
+   assertParamsSupported,
++  checkLocalStructure,
+   assertModelEndpoint,
+   decidePromptCache,
+   estimateTokens,
+@@ -376,7 +377,9 @@ export function startRun(input: {
+     // 订阅者等一辈子。
+     let reportedUsage: UsageReceipt | undefined;
+     let terminalEvent: ModelEvent | undefined;
++    let structuredText = "";
+     const parserEmit = (event: ModelEvent): void => {
++      if (event.type === "text-delta" && input.start.params?.structured?.schema) structuredText += event.text;
+       if (event.type === "usage") reportedUsage = mergeUsageSnapshot(reportedUsage, event.receipt);
+       // 只暂存终态，正文和原 usage 更新仍即时发布。
+       if (isTerminalEventType(event.type)) terminalEvent = event;
+@@ -471,6 +474,10 @@ export function startRun(input: {
+       else wired.parser.fail(mapNetworkError(error));
+     } finally {
+       handleId = undefined;
++      if (terminalEvent?.type === "completed" && input.start.params?.structured?.schema) {
++        try { checkLocalStructure(structuredText, input.start.params.structured.schema); }
++        catch (error) { terminalEvent = { type: "failed", error: errorFromUnknown(error) }; }
++      }
+       if (terminalEvent !== undefined) emit(terminalEvent);
+     }
+   })();
+@@ -536,7 +543,8 @@ function mapNetworkError(error: unknown): PrologueError {
+   if (mapped.code === "CANCELLED") {
+     return mapped;
+   }
+-  if (mapped.code === "MODEL_HTTP_ERROR" || mapped.code === "MODEL_NETWORK_FAILED") {
++  // App 在派出前拒绝（`EFFECT_NOT_AUTHORIZED`）：什么都没发出去，不是网络问题。
++  if (mapped.code === "MODEL_HTTP_ERROR" || mapped.code === "MODEL_NETWORK_FAILED" || mapped.code === "EFFECT_NOT_AUTHORIZED") {
+     return mapped;
+   }
+   return createPrologueError("MODEL_NETWORK_FAILED", mapped.safeMessage);
+diff --git a/packages/sdk/test/agent-compaction-public.test.ts b/packages/sdk/test/agent-compaction-public.test.ts
+index 2f796ece..36615648 100644
+--- a/packages/sdk/test/agent-compaction-public.test.ts
++++ b/packages/sdk/test/agent-compaction-public.test.ts
+@@ -185,7 +185,7 @@ async function beginCompactRun(input: {
+   readonly grant: Awaited<ReturnType<typeof agentRuntime>>["grant"];
+   readonly key: string;
+   readonly maxTokens?: number;
+-  readonly context?: { readonly compactAboveTokens?: number; readonly projectTrusted?: boolean };
++  readonly context?: Parameters<Awaited<ReturnType<typeof createRuntime>>["startAgentRun"]>[0]["context"];
+   readonly compactor?: ContextCompactor;
+   readonly model?: string;
+   readonly probe?: MemoryHostPrepareProbe;
+diff --git a/packages/sdk/test/app-mode.live.test.ts b/packages/sdk/test/app-mode.live.test.ts
+new file mode 100644
+index 00000000..f001b458
+--- /dev/null
++++ b/packages/sdk/test/app-mode.live.test.ts
+@@ -0,0 +1,169 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { createServer, type ServerResponse } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { APP_MODE_SYSTEM_TOOLS, createRuntime, type ModelEvent, type Run, type ScenarioPack, type ToolRunner } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++function watch(run: Run) {
++  const events: ModelEvent[] = [];
++  run.subscribe(event => { events.push(event); });
++  const until = (type: ModelEvent["type"] | "terminal") => new Promise<ModelEvent>((resolve, reject) => {
++    const timer = setInterval(() => {
++      const found = events.find(event => type === "terminal" ? ["completed", "failed", "cancelled"].includes(event.type) : event.type === type);
++      if (found) { clearInterval(timer); clearTimeout(limit); resolve(found); }
++    }, 5);
++    const limit = setTimeout(() => { clearInterval(timer); reject(new Error(`no ${type}: ${events.map(e => e.type + (e.type === "failed" ? JSON.stringify((e as any).error) : e.type === "tool-result" ? JSON.stringify((e as any).text ?? (e as any).error ?? e) : "")).join(",")}`)); }, 4000);
++  });
++  return { events, until };
++}
++function say(response: ServerResponse, text = "done") {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ model: "m", choices: [{ delta: { content: text } }], usage: { prompt_tokens: 7, completion_tokens: 3 } })}\n\ndata: [DONE]\n\n`);
++}
++function call(response: ServerResponse, name: string, args: object) {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ usage: { prompt_tokens: 7, completion_tokens: 3 }, choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", type: "function", function: { name, arguments: JSON.stringify(args) } }] } }] })}\n\ndata: [DONE]\n\n`);
++}
++
++/** A pack like an App's business actions: one read and one write, each with its own executor. */
++function businessPack(executors: { lookup: ToolRunner; save: ToolRunner }): { pack: ScenarioPack; executors: Record<string, ToolRunner> } {
++  const tool = (name: string, effectKind: "safe-read" | "mutate-external") => ({ executor: name, registration: { name, version: "1", description: `${name} a business record`,
++    parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false }, effectKind, gate: "broker" as const, timeoutMs: 5000, idempotency: "none" as const } });
++  return { executors, pack: { id: "business-actions", version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: ["lookup", "save"] },
++    permissions: { tools: ["lookup", "save"], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
++    roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {},
++    tools: [tool("lookup", "safe-read"), tool("save", "mutate-external")] } };
++}
++
++async function fixture(handler: (body: any, response: ServerResponse, turn: number) => void) {
++  const home = mkdtempSync(join(tmpdir(), "prologue-app-mode-"));
++  const workspaceCalls: string[] = [], requests: any[] = [];
++  let turn = 0;
++  const server = createServer(async (request, response) => {
++    let raw = ""; for await (const chunk of request) raw += chunk;
++    const body = JSON.parse(raw); requests.push(body); handler(body, response, turn++);
++  });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address(); if (!address || typeof address === "string") throw new Error("missing endpoint");
++  const actual = createNodeHost({ storageRoot: join(home, "store") });
++  const methods = new Set(["authorizeRoot", "listDirectory", "searchFiles", "readFile", "readBinary", "readBytes", "writeFile", "applyPatch", "prepareCommand", "runCommand"]);
++  const host = new Proxy(actual, { get(target, key, receiver) { const value = Reflect.get(target, key, receiver); return typeof value !== "function" ? value : (...args: unknown[]) => { if (methods.has(String(key))) workspaceCalls.push(String(key)); return value.apply(target, args); }; } });
++  const runtime = await createRuntime({ app: { appId: "prologue.app-mode", appVersion: "1.0.0" }, host, preset: "local-agent",
++    network: { model: true, loopback: true }, posture: { sandbox: "workspace-write", approval: "untrusted" }, permissionMode: { mode: "ask-always" } });
++  const credentialRef = (await runtime.credentials.write({ label: "test", secret: { plaintext: new TextEncoder().encode("synthetic") } })).ref;
++  const start = (text = "task") => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/chat`, credentialRef, model: "m", messages: [{ role: "user" as const, text }] });
++  return { runtime, workspaceCalls, requests, start, async close() { await runtime.shutdown(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(home, { recursive: true, force: true }); } };
++}
++
++it("workspace:app runs the Session pack's own tools and asks the person, with zero workspace calls", async () => {
++  const looked: unknown[] = [];
++  const f = await fixture((_body, response, turn) => turn === 0 ? call(response, "lookup", { id: "plan-7" }) : turn === 1 ? call(response, "ask-user", { why: "Which week?" }) : say(response, "added"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async input => { looked.push(input.args); return "plan-7: three items"; }, save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "a1", mode: "build", toolNames: ["lookup", "save", "ask-user"] } });
++    const run = watch(started.run);
++    const asked = await run.until("awaiting-input") as Extract<ModelEvent, { type: "awaiting-input" }>;
++    await f.runtime.effects.pendings.answer(asked.pendingRef, { kind: "text", text: "week 42" }, await f.runtime.readClock());
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(looked).toEqual([{ id: "plan-7" }]);
++    // The model saw exactly the named tools: the pack's and asking, never a file tool.
++    const offered = f.requests[0].tools.map((one: any) => one.function.name).sort();
++    expect(offered).toEqual(["ask-user", "lookup", "save"]);
++    expect(JSON.stringify(f.requests[2])).toContain("week 42");
++    expect(f.workspaceCalls).toEqual([]);
++  } finally { await f.close(); }
++});
++
++it("workspace:app holds a writing pack tool for approval like any other effect", async () => {
++  const saved: unknown[] = [];
++  const f = await fixture((_body, response, turn) => turn === 0 ? call(response, "save", { id: "plan-7" }) : say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async input => { saved.push(input.args); return "saved"; } });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "a2", mode: "build", toolNames: ["save"] } });
++    const run = watch(started.run);
++    const asked = await run.until("awaiting-approval") as Extract<ModelEvent, { type: "awaiting-approval" }>;
++    expect(saved).toEqual([]);
++    await f.runtime.effects.pendings.answer(asked.pendingRef, { kind: "effect-approval", answer: "allow" }, await f.runtime.readClock());
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(saved).toEqual([{ id: "plan-7" }]);
++    expect(f.workspaceCalls).toEqual([]);
++  } finally { await f.close(); }
++});
++
++it("workspace:app refuses file tools, roots, runners, subagents, skills and workspace context before the network", async () => {
++  const f = await fixture((_body, response) => say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async () => "" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const base = { session, workspace: "app" as const, start: f.start(), agent: { idempotencyKey: "r", mode: "build" as const, toolNames: ["lookup"] } };
++    for (const change of [
++      { agent: { idempotencyKey: "missing" } },
++      ...["read", "write", "run-command", "list", "dispatch-subagent", "session-send"].map(name => ({ agent: { idempotencyKey: name, toolNames: ["lookup", name] } })),
++      { rootRef: { kind: "authorized-root", id: "fake", revision: 1 } }, { runTool: async () => "forbidden" }, { subagents: {} },
++      { grants: { toolNames: ["lookup"], paths: ["."] } }, { context: { projectTrusted: true } },
++      { agent: { idempotencyKey: "skills", toolNames: ["lookup"], skillNames: ["anything"] } },
++      { agent: { idempotencyKey: "directory", toolNames: ["lookup"], workingDirectory: "." } },
++    ]) {
++      await expect(f.runtime.startAgentRun({ ...base, ...change } as never)).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++    }
++    // Another Session's pack tools are not this one's.
++    const bare = await f.runtime.sessions.create();
++    await expect(f.runtime.startAgentRun({ ...base, session: bare })).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++    expect(f.requests).toEqual([]);
++    expect(f.workspaceCalls).toEqual([]);
++    expect(APP_MODE_SYSTEM_TOOLS).toEqual(["ask-user", "update-todo", "find-tools", "context-remaining"]);
++  } finally { await f.close(); }
++});
++
++it("workspace:none keeps refusing every tool, including a pack's", async () => {
++  const f = await fixture((_body, response) => say(response));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "", save: async () => "" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    await expect(f.runtime.startAgentRun({ session, workspace: "none", start: f.start(), agent: { idempotencyKey: "n", toolNames: [] } })).rejects.toMatchObject({ code: "AGENT_START_INVALID" });
++  } finally { await f.close(); }
++});
++
++it("a session-stop hook can hold a run that only announced what it would do; the loop continues with the hook's reason, at most twice", async () => {
++  const f = await fixture((_body, response, turn) => turn === 0 ? say(response, "现在去保存。") : turn === 1 ? call(response, "lookup", { id: "plan-7" }) : say(response, turn === 2 ? "Now saving." : turn === 3 ? "Saving now." : "all done"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "plan-7", save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const seen: Array<{ text: unknown; run: unknown }> = [];
++    // Holds every stop: the loop's own limit must still end the run.
++    f.runtime.hooks.register({ id: "announce-guard", event: "session-stop", forSession: session.ref.id, handler: async context => {
++      seen.push({ text: (context.input as { text?: unknown }).text, run: context.origin?.run });
++      return { kind: "deny" as const, why: "You only announced the next step; call the tool now or say you are done." };
++    } });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "s1", mode: "build", toolNames: ["lookup", "save"] } });
++    const run = watch(started.run);
++    expect((await run.until("terminal")).type).toBe("completed");
++    const repairs = run.events.filter(event => event.type === "model-response-repair");
++    expect(repairs).toEqual([{ type: "model-response-repair", reason: "stop-held" }, { type: "model-response-repair", reason: "stop-held" }]);
++    expect(seen.map(one => one.text)).toEqual(["现在去保存。", "Now saving."]);
++    expect(seen.every(one => typeof one.run === "string")).toBe(true);
++    // The held answer stays in the model's view, followed by the hook's reason.
++    const second = JSON.stringify(f.requests[1]);
++    expect(second).toContain("现在去保存。");
++    expect(second).toContain("You only announced the next step");
++    // Two holds, then it finishes on the third plain answer without asking again.
++    expect(f.requests).toHaveLength(4);
++  } finally { await f.close(); }
++});
++
++it("without a session-stop hook a plain answer completes the run as before", async () => {
++  const f = await fixture((_body, response) => say(response, "现在去保存。"));
++  try {
++    const { pack, executors } = businessPack({ lookup: async () => "plan-7", save: async () => "saved" });
++    const session = await f.runtime.sessions.create({ pack, executors });
++    const started = await f.runtime.startAgentRun({ session, workspace: "app", start: f.start(), agent: { idempotencyKey: "s2", mode: "build", toolNames: ["lookup"] } });
++    const run = watch(started.run);
++    expect((await run.until("terminal")).type).toBe("completed");
++    expect(run.events.some(event => event.type === "model-response-repair")).toBe(false);
++    expect(f.requests).toHaveLength(1);
++  } finally { await f.close(); }
++});
+diff --git a/packages/sdk/test/bounded-run-results.live.test.ts b/packages/sdk/test/bounded-run-results.live.test.ts
+new file mode 100644
+index 00000000..23ae4465
+--- /dev/null
++++ b/packages/sdk/test/bounded-run-results.live.test.ts
+@@ -0,0 +1,58 @@
++import { mkdtemp, rm } from "node:fs/promises";
++import { createServer } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { collectRun, createRuntime, type JsonSchema } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++it("real Node Host validates local structured output before terminal publication, keeps receipts and cancels the original request", async () => {
++  const home = await mkdtemp(join(tmpdir(), "prologue-collected-"));
++  let text = '{"title":"ok"}', requests = 0, hold = false;
++  const entered = Promise.withResolvers<void>();
++  const server = createServer(async (request, response) => {
++    for await (const _ of request) { /* consume request */ }
++    requests++;
++    if (hold) { entered.resolve(); return; }
++    response.writeHead(200, { "content-type": "text/event-stream" });
++    response.end(`data: ${JSON.stringify({ model: "reported-model", choices: [{ index: 0, delta: { content: text }, finish_reason: null }] })}\n\n` +
++      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 12, completion_tokens: 3 } })}\n\ndata: [DONE]\n\n`);
++  });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address(); if (!address || typeof address === "string") throw new Error("no endpoint");
++  const runtime = await createRuntime({ app: { appId: "prologue.collected", appVersion: "1.0.0" },
++    host: createNodeHost({ storageRoot: home }), network: { model: true, loopback: true } });
++  try {
++    const credentialRef = (await runtime.credentials.write({ label: "fixture", secret: { plaintext: new TextEncoder().encode("synthetic-key") } })).ref;
++    const session = await runtime.sessions.create({ ephemeral: true });
++    const schema: JsonSchema = { type: "object", required: ["title"], properties: { title: { type: "string", minLength: 1 } }, additionalProperties: false };
++    const start = (shape = schema) => session.startRun({ protocol: "openai-compatible", model: "configured-model",
++      endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, credentialRef,
++      messages: [{ role: "user", text: "return JSON" }], params: { structured: { mode: "local", schema: shape } } });
++    const options = () => ({ signal: AbortSignal.timeout(10_000), maxTextChars: 1000, maxEvents: 100 });
++    const successful = await start();
++    const result = await collectRun(successful, options());
++    expect(result).toMatchObject({ ref: successful.ref, state: "completed", text, reportedModels: ["reported-model"], usage: [{ input: { source: "reported", tokens: 12 }, output: { source: "reported", tokens: 3 } }] });
++    expect(await collectRun(successful, options())).toEqual(result);
++    expect(requests).toBe(1);
++    text = '{"title":""}';
++    const invalid = await start(), failed = await collectRun(invalid, options());
++    expect(invalid.state).toBe("failed");
++    expect(failed.terminal).toMatchObject({ type: "failed", error: { code: "MODEL_STRUCTURED_INVALID" } });
++    expect(failed.usage).toHaveLength(1);
++    expect(requests).toBe(2);
++    await expect(start({ type: "string", pattern: "secret" } as unknown as JsonSchema)).rejects.toMatchObject({ code: "MODEL_STRUCTURED_UNSUPPORTED" });
++    expect(requests).toBe(2);
++    hold = true;
++    const cancelled = await start(), controller = new AbortController();
++    const pending = collectRun(cancelled, { ...options(), signal: controller.signal });
++    const rejection = expect(pending).rejects.toMatchObject({ name: "AbortError" });
++    await entered.promise; controller.abort(); await rejection;
++    await cancelled.cancel();
++    expect(cancelled.state).toBe("cancelled");
++    expect(requests).toBe(3);
++  } finally {
++    await runtime.shutdown(); server.closeAllConnections();
++    await new Promise<void>(resolve => server.close(() => resolve())); await rm(home, { recursive: true, force: true });
++  }
++});
+diff --git a/packages/sdk/test/bounded-run-results.test.ts b/packages/sdk/test/bounded-run-results.test.ts
+new file mode 100644
+index 00000000..011ebde1
+--- /dev/null
++++ b/packages/sdk/test/bounded-run-results.test.ts
+@@ -0,0 +1,65 @@
++import { expect, it } from "vitest";
++import { collectRun, validateAgainst, assertSchemaSupported, unknownUsage, type ModelEvent, type Run, type JsonSchema } from "../src/index.js";
++
++function replay(events: ModelEvent[]) {
++  let detached = 0, cancelled = 0;
++  const run: Run = { ref: { kind: "run", id: "test-run", revision: 1 }, state: "completed",
++    subscribe(listener) { for (const event of events) listener(event); return () => { detached++; }; },
++    async cancel() { cancelled++; } };
++  return { run, get detached() { return detached; }, get cancelled() { return cancelled; } };
++}
++const options = () => ({ signal: AbortSignal.timeout(5_000), maxTextChars: 100, maxEvents: 20 });
++
++it("collects committed synchronous replay once, preserving unknown usage and the original terminal", async () => {
++  const receipt = unknownUsage();
++  const f = replay([{ type: "text-delta", text: "answer" }, { type: "model-reported", model: "actual" },
++    { type: "usage-recorded", callId: "c", receipt }, { type: "completed" }]);
++  const seen: string[] = [];
++  const result = await collectRun(f.run, { ...options(), onEvent: event => seen.push(event.type) });
++  expect(result).toMatchObject({ ref: f.run.ref, state: "completed", text: "answer", reportedModels: ["actual"], usage: [receipt] });
++  expect(result.usage[0]!.input.tokens).toBeUndefined();
++  expect(seen).toHaveLength(4);
++  expect(f.detached).toBe(1); expect(f.cancelled).toBe(0);
++});
++
++it.each(["cancelled", "tripped", "circuit-tripped", "failed"] as const)("retains %s instead of returning apparent success", async state => {
++  const terminal = { type: state } as ModelEvent;
++  const f = replay([terminal]);
++  expect((await collectRun(f.run, options())).state).toBe(state);
++  expect(f.detached).toBe(1);
++});
++
++it("bounds both content and events, cancels and detaches without accepting late completion", async () => {
++  for (const limits of [{ maxTextChars: 2, maxEvents: 20 }, { maxTextChars: 100, maxEvents: 1 }]) {
++    const f = replay([{ type: "text-delta", text: "long" }, { type: "completed" }]);
++    await expect(collectRun(f.run, { ...options(), ...limits })).rejects.toMatchObject({ code: "MODEL_RESPONSE_INVALID" });
++    expect(f.cancelled).toBe(1); expect(f.detached).toBe(1);
++  }
++});
++
++it("an observer failure or synchronous cancellation releases the subscription and original Run", async () => {
++  for (const kind of ["throw", "abort"] as const) {
++    const controller = new AbortController(), error = new Error("stop");
++    const f = replay([{ type: "completed" }]);
++    await expect(collectRun(f.run, { ...options(), signal: controller.signal, onEvent() {
++      if (kind === "throw") throw error;
++      controller.abort(error);
++    } })).rejects.toBe(error);
++    expect(f.cancelled).toBe(1); expect(f.detached).toBe(1);
++  }
++});
++
++it("validates nullable alternatives, length/number bounds and enum together with type", () => {
++  const schema: JsonSchema = { type: "object", properties: {
++    title: { type: ["string", "null"], minLength: 1, maxLength: 2 },
++    values: { type: "array", minItems: 1, maxItems: 2, items: { type: "number", minimum: 0, maximum: 1 } },
++    extra: { anyOf: [{ type: "null" }, { type: "integer", minimum: 1 }] },
++  }, required: ["title", "values", "extra"], additionalProperties: false };
++  assertSchemaSupported(schema);
++  expect(validateAgainst({ title: "😀", values: [0, 1], extra: null }, schema)).toEqual([]);
++  expect(validateAgainst({ title: "", values: [2], extra: 0.5 }, schema).map(v => v.path)).toEqual(["$.title", "$.values[0]", "$.extra"]);
++  expect(validateAgainst(1, { type: "string", enum: [1] })).not.toEqual([]);
++  for (const malformed of [{ type: "string", minLength: -1 }, { type: "number", minimum: "0" }, { anyOf: [] }, { type: "mystery" }]) {
++    expect(() => assertSchemaSupported(malformed as JsonSchema)).toThrow(expect.objectContaining({ code: "MODEL_STRUCTURED_UNSUPPORTED" }));
++  }
++});
+diff --git a/packages/sdk/test/dispatch-denied.live.test.ts b/packages/sdk/test/dispatch-denied.live.test.ts
+new file mode 100644
+index 00000000..5d80ae7c
+--- /dev/null
++++ b/packages/sdk/test/dispatch-denied.live.test.ts
+@@ -0,0 +1,83 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { createServer, type ServerResponse } from "node:http";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { createRuntime, type ModelEvent, type Run } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++/**
++ * The App's last check before model bytes leave (`beforeModelDispatch`) said no: a Character was disabled, a grant
++ * withdrawn. That is a denial, not a network failure — nothing was sent, and sending again or to a fallback target
++ * gets the same answer. It used to surface as `MODEL_NETWORK_FAILED`, which sent people off to check their network.
++ */
++function end(run: Run) {
++  return new Promise<ModelEvent[]>((resolve, reject) => {
++    const events: ModelEvent[] = [];
++    const timer = setTimeout(() => reject(new Error(`Run did not finish: ${events.map(e => e.type).join(",")}`)), 8000);
++    run.subscribe(event => { events.push(event); if (["completed", "failed", "cancelled"].includes(event.type)) { clearTimeout(timer); resolve(events); } });
++  });
++}
++function say(response: ServerResponse) {
++  response.writeHead(200, { "content-type": "text/event-stream" });
++  response.end(`data: ${JSON.stringify({ model: "provider-model", choices: [{ delta: { content: "answered" } }], usage: { prompt_tokens: 7, completion_tokens: 3 } })}\n\ndata: [DONE]\n\n`);
++}
++async function fixture(guard: () => Promise<void>) {
++  const home = mkdtempSync(join(tmpdir(), "prologue-dispatch-denied-"));
++  const requests: unknown[] = [];
++  const server = createServer(async (request, response) => { let raw = ""; for await (const chunk of request) raw += chunk; requests.push(JSON.parse(raw)); say(response); });
++  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
++  const address = server.address(); if (!address || typeof address === "string") throw new Error("missing endpoint");
++  const host = createNodeHost({ storageRoot: join(home, "store"), beforeModelDispatch: guard });
++  const runtime = await createRuntime({ app: { appId: "prologue.dispatch-denied", appVersion: "1.0.0" }, host, preset: "local-agent",
++    network: { model: true, loopback: true }, posture: { sandbox: "workspace-write" }, permissionMode: { mode: "ask-always" } });
++  const credentialRef = (await runtime.credentials.write({ label: "test", secret: { plaintext: new TextEncoder().encode("synthetic") } })).ref;
++  const target = (model: string) => ({ protocol: "openai-compatible" as const, endpoint: `http://127.0.0.1:${address.port}/chat`, credentialRef, model });
++  return { runtime, requests, target, async close() { await runtime.shutdown(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(home, { recursive: true, force: true }); } };
++}
++
++it("an agent round the App refuses fails as a denial with the App's reason, sends nothing and does not fall back", async () => {
++  const f = await fixture(async () => { throw new Error("Character disabled"); });
++  try {
++    const session = await f.runtime.sessions.create();
++    const { run } = await f.runtime.startAgentRun({ session, workspace: "none", history: "session",
++      start: { ...f.target("primary"), fallback: [f.target("backup")], messages: [{ role: "user", text: "task" }] },
++      agent: { idempotencyKey: "denied", toolNames: [] } });
++    const events = await end(run);
++    const last = events.at(-1);
++    expect(last?.type).toBe("failed");
++    if (last?.type !== "failed") return;
++    expect(last.error.code).toBe("EFFECT_NOT_AUTHORIZED");
++    expect(last.error.safeMessage).toMatch(/Character disabled/);
++    expect(events.some(event => event.type === "fallback")).toBe(false);
++    expect(f.requests).toHaveLength(0);
++  } finally { await f.close(); }
++});
++
++it("a one-shot run the App refuses fails as a denial, not a network failure", async () => {
++  const f = await fixture(async () => { throw new Error("grant withdrawn"); });
++  try {
++    const session = await f.runtime.sessions.create({ ephemeral: true });
++    const run = await session.startRun({ ...f.target("primary"), messages: [{ role: "user", text: "hello" }], timeoutMs: 5000 });
++    const last = (await end(run)).at(-1);
++    expect(last?.type).toBe("failed");
++    if (last?.type !== "failed") return;
++    expect(last.error.code).toBe("EFFECT_NOT_AUTHORIZED");
++    expect(last.error.safeMessage).toMatch(/grant withdrawn/);
++    expect(f.requests).toHaveLength(0);
++  } finally { await f.close(); }
++});
++
++it("cancelling while the App is still deciding stays a cancellation", async () => {
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
++  const f = await fixture(async () => { entered.resolve(); await release.promise; });
++  try {
++    const session = await f.runtime.sessions.create({ ephemeral: true });
++    const run = await session.startRun({ ...f.target("primary"), messages: [{ role: "user", text: "hello" }], timeoutMs: 5000 });
++    const ended = end(run);
++    await entered.promise;
++    await run.cancel();
++    expect((await ended).at(-1)?.type).toBe("cancelled");
++    expect(f.requests).toHaveLength(0);
++  } finally { release.resolve(); await f.close(); }
++});
+diff --git a/packages/sdk/test/network-dispatch-authority.live.test.ts b/packages/sdk/test/network-dispatch-authority.live.test.ts
+new file mode 100644
+index 00000000..1f06710e
+--- /dev/null
++++ b/packages/sdk/test/network-dispatch-authority.live.test.ts
+@@ -0,0 +1,70 @@
++import { AsyncLocalStorage } from "node:async_hooks";
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++import { createNodeHost } from "../src/node.js";
++import { createRuntime, openMcpHttp, type McpHttpPort } from "../src/index.js";
++import { startMcpHttpServer } from "./fixtures/mcp-http-server.mjs";
++
++async function fixture(guard: () => void | Promise<void>, prepare?: () => Promise<void>) {
++  const root = mkdtempSync(join(tmpdir(), "sdk-network-authority-"));
++  let modelChecks = 0;
++  const host = createNodeHost({ storageRoot: root, beforeNetworkDispatch: guard, beforeModelDispatch: () => { modelChecks++; } });
++  const runtime = await createRuntime({ app: { appId: "prologue.network-authority", appVersion: "1.0.0" }, host, network: { mcp: true, loopback: true } });
++  const server = await startMcpHttpServer();
++  let callHandle: Awaited<ReturnType<typeof host.prepareModelNetwork>> | undefined;
++  const port: McpHttpPort = { prepareModelNetwork: async input => {
++    const handle = await host.prepareModelNetwork(input);
++    if (JSON.parse(new TextDecoder().decode(input.body)).method === "tools/call") { callHandle = handle; await prepare?.(); }
++    return handle;
++  }, executeModelNetwork: input => host.executeModelNetwork(input), cancelModelNetwork: handle => host.cancelModelNetwork(handle), inspectModelNetwork: handle => host.inspectModelNetwork(handle) };
++  const session = await openMcpHttp({ port, spec: { endpoint: `http://127.0.0.1:${server.port}/mcp`, requestTimeoutMs: 5000 }, clientName: "authority-test" });
++  const call = (control?: Parameters<typeof session.request>[1]) => session.request(id => ({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "lookup", arguments: { q: "one" } } }), control);
++  return { call, seen: server.seen, inspect: () => host.inspectModelNetwork(callHandle!), modelChecks: () => modelChecks, async close() {
++    await session.close(); await runtime.shutdown(); server.server.closeAllConnections(); await new Promise<void>(resolve => server.server.close(() => resolve())); rmSync(root, { recursive: true, force: true });
++  } };
++}
++
++it("MCP authority revoked after real preparation prevents dispatch and remains a denial; a fresh authorized call works", async () => {
++  let allowed = true, pause = true;
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
++  const f = await fixture(() => { if (!allowed) throw new Error("MCP grant withdrawn"); }, async () => { if (pause) { entered.resolve(); await release.promise; } });
++  try {
++    const pending = f.call(), rejected = expect(pending).rejects.toMatchObject({ code: "EFFECT_NOT_AUTHORIZED" });
++    await entered.promise; allowed = false; release.resolve(); await rejected;
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(0);
++    expect(await f.inspect()).toMatchObject({ dispatched: false, retryable: false, status: "failed" });
++    allowed = true; pause = false;
++    expect(JSON.stringify(await f.call())).toContain("found it");
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(1);
++    expect(f.modelChecks()).toBe(0);
++  } finally { allowed = true; release.resolve(); await f.close(); }
++});
++
++it("cancellation while the final MCP guard waits sends no tool bytes and does not hang on the guard", async () => {
++  let hold = false;
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), abort = new AbortController();
++  const f = await fixture(async () => { if (hold) { entered.resolve(); await release.promise; } });
++  try {
++    hold = true;
++    const pending = f.call({ signal: abort.signal }), rejected = expect(pending).rejects.toMatchObject({ code: "CANCELLED" });
++    await entered.promise; abort.abort(); await rejected;
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(0);
++    expect(await f.inspect()).toMatchObject({ dispatched: false, status: "cancelled" });
++  } finally { hold = false; release.resolve(); await f.close(); }
++});
++
++it("concurrent MCP callers keep separate authority and a denied caller does not contaminate a later call", async () => {
++  const guards = new AsyncLocalStorage<() => void | Promise<void>>();
++  const f = await fixture(async () => { await guards.getStore()?.(); });
++  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
++  try {
++    const rejected = expect(guards.run(async () => { entered.resolve(); await release.promise; throw new Error("Only this caller is revoked"); }, () => f.call())).rejects.toMatchObject({ code: "EFFECT_NOT_AUTHORIZED" });
++    await entered.promise;
++    expect(JSON.stringify(await guards.run(() => {}, () => f.call()))).toContain("found it");
++    release.resolve(); await rejected;
++    expect(JSON.stringify(await f.call())).toContain("found it");
++    expect(f.seen.methods.filter(method => method === "tools/call")).toHaveLength(2);
++  } finally { release.resolve(); await f.close(); }
++});
+diff --git a/packages/sdk/test/resource-intake-limits.live.test.ts b/packages/sdk/test/resource-intake-limits.live.test.ts
+new file mode 100644
+index 00000000..94f70714
+--- /dev/null
++++ b/packages/sdk/test/resource-intake-limits.live.test.ts
+@@ -0,0 +1,93 @@
++import { mkdtempSync, writeFileSync, readdirSync, rmSync } from "node:fs";
++import { join } from "node:path";
++import { tmpdir } from "node:os";
++import { expect, it } from "vitest";
++import { createRuntime, type Runtime, type ModuleConfig } from "../src/index.js";
++import { createNodeHost } from "../src/node.js";
++
++async function fixture(config: ModuleConfig, run: (f: {
++  runtime: Runtime; root: Parameters<Runtime["beginIntake"]>[0]; directory: string; store: string;
++  hold: (boundary: "stage" | "publish", after?: boolean) => { entered: Promise<void>; release(): void };
++}) => Promise<void>) {
++  const directory = mkdtempSync(join(tmpdir(), "intake-limits-")), store = join(directory, "store");
++  writeFileSync(join(directory, "a.txt"), "aaaa"); writeFileSync(join(directory, "b.txt"), "bbbb");
++  const host = createNodeHost({ storageRoot: store });
++  let gate: { boundary: string; after: boolean; entered: ReturnType<typeof Promise.withResolvers<void>>; release: ReturnType<typeof Promise.withResolvers<void>> } | undefined;
++  const intake = new Proxy(host.intake!, { get(target, key) {
++    if (key === "stage" || key === "publish") return async (input: never) => {
++      const latch = gate?.boundary === key ? gate : undefined;
++      if (latch) {
++        gate = undefined;
++        if (latch.after) { const result = await target[key](input); latch.entered.resolve(); await latch.release.promise; return result; }
++        latch.entered.resolve(); await latch.release.promise;
++      }
++      return target[key](input);
++    };
++    const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
++  } });
++  const runtime = await createRuntime({ app: { appId: "prologue.intake.limits", appVersion: "1.0.0" }, host: { ...host, intake }, preset: "local-agent", config });
++  try {
++    const root = (await runtime.workspace.authorize({ path: directory })).ref;
++    await run({ runtime, root, directory, store, hold: (boundary, after = false) => {
++      const latch = { boundary, after, entered: Promise.withResolvers<void>(), release: Promise.withResolvers<void>() }; gate = latch;
++      return { entered: latch.entered.promise, release: () => latch.release.resolve() };
++    } });
++  } finally { await runtime.shutdown(); rmSync(directory, { recursive: true, force: true }); }
++}
++
++it("intake follows configured publish limits above and below the module default", async () => {
++  await fixture({ resource: { publish: { maxBytes: 9 * 1024 * 1024 }, intake: { maxItemBytes: 10 * 1024 * 1024 } } }, async f => {
++    writeFileSync(join(f.directory, "large.bin"), new Uint8Array(9 * 1024 * 1024));
++    const batch = f.runtime.beginIntake(f.root), item = await batch.add("large.bin");
++    await batch.publish(); expect(f.runtime.resources.inspect(item.ref)?.byteLength).toBe(9 * 1024 * 1024);
++    await f.runtime.resources.revoke(item.ref);
++  });
++  await fixture({ resource: { publish: { maxBytes: 3 }, intake: { maxItemBytes: 10 } } }, async f => {
++    const batch = f.runtime.beginIntake(f.root);
++    await expect(batch.add("a.txt")).rejects.toMatchObject({ code: "RESOURCE_LIMIT_EXCEEDED" });
++    expect(batch.items).toEqual([]); await batch.cancel();
++  });
++});
++
++it("concurrent batches recheck shared capacity after real Host publication and cannot partly publish", async () => fixture({ resource: { publish: { maxBytes: 16, maxTotalBytes: 8 } } }, async f => {
++  const first = f.runtime.beginIntake(f.root); const a = await first.add("a.txt"), b = await first.add("b.txt");
++  const other = f.runtime.beginIntake(f.root); const c = await other.add("a.txt");
++  const latch = f.hold("publish"), pending = first.publish();
++  const rejected = expect(pending).rejects.toMatchObject({ code: "RESOURCE_LIMIT_EXCEEDED" });
++  await latch.entered; await other.publish(); latch.release(); await rejected;
++  expect(first.state).toBe("cancelled"); expect(f.runtime.resources.publishedBytes).toBe(4);
++  expect(f.runtime.resources.inspect(a.ref)).toBeUndefined(); expect(f.runtime.resources.inspect(b.ref)).toBeUndefined();
++  expect(readdirSync(join(f.store, "intake", "published"))).toHaveLength(1);
++  await f.runtime.resources.revoke(c.ref); expect(f.runtime.resources.publishedBytes).toBe(0);
++}));
++
++it("a revoked item cannot cause a partly published batch", async () => fixture({}, async f => {
++  const batch = f.runtime.beginIntake(f.root), a = await batch.add("a.txt"), b = await batch.add("b.txt");
++  const latch = f.hold("publish", true), pending = batch.publish();
++  const rejected = expect(pending).rejects.toBeDefined();
++  await latch.entered; await f.runtime.resources.revoke(b.ref); latch.release(); await rejected;
++  expect(f.runtime.resources.inspect(a.ref)).toBeUndefined(); expect(f.runtime.resources.publishedBytes).toBe(0);
++  expect(readdirSync(join(f.store, "intake", "published"))).toHaveLength(0);
++}));
++
++for (const boundary of ["stage", "publish"] as const) it(`cancel during ${boundary} waits for real I/O and never revives a batch`, async () => fixture({}, async f => {
++  const batch = f.runtime.beginIntake(f.root); if (boundary === "publish") await batch.add("a.txt");
++  const latch = f.hold(boundary), pending = boundary === "stage" ? batch.add("b.txt") : batch.publish();
++  const rejected = expect(pending).rejects.toMatchObject({ code: "RESOURCE_BATCH_FAILED" });
++  await latch.entered;
++  await expect(batch.add("a.txt")).rejects.toMatchObject({ code: "RESOURCE_BATCH_FAILED" });
++  const cancelled = batch.cancel(); latch.release(); await Promise.all([rejected, cancelled]);
++  expect(batch.state).toBe("cancelled"); expect(f.runtime.resources.publishedBytes).toBe(0);
++  expect(readdirSync(join(f.store, "intake", "staged"))).toEqual([]);
++  expect(readdirSync(join(f.store, "intake", "published"))).toEqual([]);
++  for (const item of batch.items) await expect(f.runtime.resources.readChunk(item.ref, 0)).rejects.toBeDefined();
++}));
++
++it("a previously staged memory resource also rechecks capacity consumed by intake", async () => fixture({ resource: { publish: { maxBytes: 8, maxTotalBytes: 4 } } }, async f => {
++  const memory = f.runtime.resources.stage({ mediaKind: "text", byteLength: 4, label: "pending" }); memory.write(new Uint8Array(4));
++  const batch = f.runtime.beginIntake(f.root), item = await batch.add("a.txt"); await batch.publish();
++  expect(() => memory.publish()).toThrowError(expect.objectContaining({ code: "RESOURCE_LIMIT_EXCEEDED" }));
++  await expect(memory.publishDurable()).rejects.toMatchObject({ code: "RESOURCE_LIMIT_EXCEEDED" });
++  expect(f.runtime.resources.publishedBytes).toBe(4);
++  await f.runtime.resources.revoke(item.ref); memory.discard();
++}));
+diff --git a/packages/sdk/test/resource-publish.test.ts b/packages/sdk/test/resource-publish.test.ts
+index fd434ded..80a2e1bc 100644
+--- a/packages/sdk/test/resource-publish.test.ts
++++ b/packages/sdk/test/resource-publish.test.ts
+@@ -528,6 +528,8 @@ describe("持久发布：提交成功才可读", () => {
+       },
+     );
+     s.publishHostBytes(ref);
++    s.publishHostBytes(ref);
++    expect(s.publishedBytes).toBe(3);
+     expect((await asyncFailure(() => s.revoke(ref))).code).toBe("STORAGE_CONFLICT");
+     expect(calls).toBe(1);
+     expect(s.inspect(ref)).toBeUndefined();
+diff --git a/packages/sdk/test/structured-output.test.ts b/packages/sdk/test/structured-output.test.ts
+index cfb95065..5bdb54ea 100644
+--- a/packages/sdk/test/structured-output.test.ts
++++ b/packages/sdk/test/structured-output.test.ts
+@@ -4,6 +4,7 @@ import {
+   assertParamsSupported,
+   assertStructuredSupported,
+   checkLocalStructure,
++  decodeJsonOutput,
+   prepareWire,
+   BUILT_IN_ADAPTERS,
+   validateAgainst,
+@@ -216,3 +217,22 @@ describe("类型判定", () => {
+     expect(validateAgainst(["ok", 2], schema)[0]?.path).toBe("$[1]");
+   });
+ });
++
++
++describe("shared JSON syntax decoder", () => {
++  it("keeps strict schema parsing and makes whole-response fence tolerance explicit", () => {
++    const fenced = '```json\n{"title":"source"}\n```';
++    expect(decodeJsonOutput(fenced)).toEqual({ ok: false });
++    expect(decodeJsonOutput(fenced, { allowCodeFence: true })).toEqual({ ok: true, value: { title: "source" } });
++    expect(decodeJsonOutput('```\n[1,2]\n```', { allowCodeFence: true })).toEqual({ ok: true, value: [1, 2] });
++    expect(failure(() => checkLocalStructure(fenced, { type: "object" })).code).toBe("MODEL_STRUCTURED_INVALID");
++    expect(decodeJsonOutput('before ' + fenced, { allowCodeFence: true })).toEqual({ ok: false });
++    expect(decodeJsonOutput(fenced + ' after', { allowCodeFence: true })).toEqual({ ok: false });
++    expect(decodeJsonOutput('{"secret":"invalid', { allowCodeFence: true })).toEqual({ ok: false });
++  });
++  it("does not mistake JSON syntax for domain validation", () => {
++    expect(decodeJsonOutput('null')).toEqual({ ok: true, value: null });
++    expect(decodeJsonOutput('{"title":3}')).toEqual({ ok: true, value: { title: 3 } });
++    expect(failure(() => checkLocalStructure('{"title":3}', { type: "object", properties: { title: { type: "string" } } })).code).toBe("MODEL_STRUCTURED_INVALID");
++  });
++});

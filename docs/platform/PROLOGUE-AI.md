@@ -146,6 +146,14 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 - 业务插件只拿 Host 注入的函数端口；Host 到 Agent Host 的输入才使用 `credential_ref` + `resolveCredential`。插件不拿凭据解析器或明文；日志、事件、错误和产物里不出现密钥。
 - 一次调用只带这次需要的材料，不隐式读整个项目；用户正文是数据不是指令。
 
+### 原图输入
+
+可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量兼容模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
+
+Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Session attachments，按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 32 MiB，每次最多 30 张、合计 128 MiB，还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
+
+读取前、异步等待后及网络派出前保留原授权检查，成功、失败、取消都撤销附件并销毁 Host 暂存字节，输入原件不变。取消可先释放调用方，关闭执行 owner 仍等待资源清理。任务材料如何选择、PDF/目录如何组织、结果何时写入仍归消费者；SDK 支持附件并不代表某个插件已完成迁移。真实协议和字节回归见 `tests/prologue-inference-images.test.ts`，模型视觉声明与变更见 `tests/host-configured-text.test.ts`。
+
 ## 6. 工具、权限、审批、预算、用量
 
 - **角色执行等级**（`packages/contracts/src/platform/plugin-agent.ts`）：`read-only`（缺省）、`text-edit`、`workspace-write`（要求 Runtime 支持 text-edit 与 command）。角色不能在启动时自行加宽；`workspace: "none"` 的纯推理角色不能带目录、工具或子任务。

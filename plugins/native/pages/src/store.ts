@@ -375,6 +375,28 @@ export class PagesStore {
     this.db.prepare("DELETE FROM pages WHERE id = ?").run(id);
   }
 
+  /** Keep what an edit replaced, so it can be taken back while nothing changed since; returns the change's id. */
+  keepChange(before: PagesRecord, after: PagesRecord): string {
+    const changeId = crypto.randomUUID();
+    const now = new Date();
+    this.db.prepare("DELETE FROM page_changes WHERE created_at < ?").run(new Date(now.getTime() - 14 * 24 * 3600_000).toISOString());
+    this.db.prepare("INSERT INTO page_changes(change_id, page_id, to_version, before_json, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(changeId, after.id, after.version, JSON.stringify({ title: before.title, body: before.body, folder_id: before.folder_id, starred: before.starred, goal_id: before.goal_id }), now.toISOString());
+    return changeId;
+  }
+
+  /** Take one kept edit back: the document returns to what it was before, only if no one changed it since. */
+  revertChange(changeId: string, projectId?: string): PagesRecord {
+    const row = this.db.prepare("SELECT page_id, to_version, before_json FROM page_changes WHERE change_id = ?").get(changeId) as { page_id: string; to_version: number; before_json: string } | undefined;
+    if (!row) throw new PagesError("pages.not_found", "这次修改已经撤销过，或记录已过期（保留 14 天）");
+    const current = this.get(row.page_id, projectId);
+    if (current.version !== row.to_version) throw new PagesError("pages.conflict", `《${current.title || "未命名"}》在这次修改之后又改过（现在是第 ${current.version} 版），没有撤销；需要时请在 Pages 里自己改回`);
+    const before = JSON.parse(row.before_json) as Pick<PagesRecord, "title" | "body" | "folder_id" | "starred" | "goal_id">;
+    const restored = this.update(row.page_id, { ...before, expected_version: current.version }, projectId);
+    this.db.prepare("DELETE FROM page_changes WHERE change_id = ?").run(changeId);
+    return restored;
+  }
+
   /** Take back a document just created: removed only while it is still the version it was created at, so no later edit is lost. */
   discard(id: string, expectedVersion: number, projectId?: string): void {
     const current = this.get(id, projectId);
@@ -474,6 +496,8 @@ export function openPagesStore(homeDirectory: string): PagesStore {
   ensureSqliteColumn(db, "pages", "artifact_version", "INTEGER NOT NULL DEFAULT 0");
   ensureSqliteColumn(db, "pages", "publication_pending_json", "TEXT");
   db.exec("CREATE TABLE IF NOT EXISTS page_generations (project_id TEXT NOT NULL, request_id TEXT NOT NULL, updated_at TEXT NOT NULL, record_json TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
+  // What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
+  db.exec("CREATE TABLE IF NOT EXISTS page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL)");
   db.exec("CREATE TABLE IF NOT EXISTS page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id))");
   const database = realpathSync(homeSqlitePath(homeDirectory, "pages"));
   let attempts = attemptsByDatabase.get(database);

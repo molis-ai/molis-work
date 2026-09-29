@@ -54,7 +54,10 @@ export const pagesActions = {
   // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
   discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
     { effect: "irreversible" }),
-  update: define<Fields & { id: string; expected_version?: number }, { document: PagesRecord }>("update", "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑", "command", object({ id, ...fields, expected_version: version }, ["id"]), object({ document: page }), write),
+  // An edit by an agent or a workflow keeps what it replaced (change_id), so the person can take it back while nothing changed since.
+  update: withAction(define<Fields & { id: string; expected_version?: number }, { document: PagesRecord; change_id?: string | null }>("update", "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑", "command", object({ id, ...fields, expected_version: version }, ["id"]), { type: "object", properties: { document: page, change_id: { type: ["string", "null"] } }, required: ["document"], additionalProperties: false }, write),
+    { undo: { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } } }),
+  revert: define<{ change_id: string }, { document: PagesRecord }>("revert", "撤销对文档的修改", "把一次由助理或流程做的修改撤回到修改前；之后又被改过就不撤并说明", "command", object({ change_id: id }), object({ document: page }), write),
   delete: define<{ id: string }, { ok: true }>("delete", "删除文档", "永久删除当前项目的一篇文档", "command", object({ id }), object({ ok: { const: true } }), write),
   createFolder: define<{ title?: string }, { folder: PagesFolder }>("folders.create", "新建文件夹", "在当前项目创建文档文件夹", "command", object({ title: { type: "string", maxLength: 40 } }, []), object({ folder }), write),
   updateFolder: define<{ id: string; title?: string }, { folder: PagesFolder }>("folders.update", "修改文件夹", "修改当前项目文件夹名称", "command", object({ id, title: { type: "string", maxLength: 40 } }, ["id"]), object({ folder }), write),
@@ -121,7 +124,14 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
     bind(pagesActions.get, (input, caller) => ports.withStore(store => ({ document: store.get(input.id, project(caller)) }))),
     bind(pagesActions.create, (input, caller) => ports.withStore(store => ({ document: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(pagesActions.update, (input, caller) => ports.withStore(store => ({ document: store.update(input.id, input, project(caller)) }))),
+    bind(pagesActions.update, (input, caller) => ports.withStore(store => {
+      // The person's own editing (the Pages page, autosave) needs no taking back; what an agent or workflow changed does.
+      if (caller.audience === "user") return { document: store.update(input.id, input, project(caller)), change_id: null };
+      const before = store.get(input.id, project(caller));
+      const document = store.update(input.id, input, project(caller));
+      return { document, change_id: store.keepChange(before, document) };
+    })),
+    bind(pagesActions.revert, (input, caller) => ports.withStore(store => ({ document: store.revertChange(input.change_id, project(caller)) }))),
     bind(pagesActions.delete, (input, caller) => ports.withStore(store => { store.delete(input.id, project(caller)); return { ok: true }; })),
     bind(pagesActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.id, input.expected_version, project(caller)); return { ok: true }; })),
     bind(pagesActions.createFolder, (input, caller) => ports.withStore(store => ({ folder: store.createFolder({ ...input, project_id: project(caller) }) }))),

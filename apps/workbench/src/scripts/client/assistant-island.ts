@@ -307,7 +307,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
-  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新待办", "lookup-tools": "查找工具",
+  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新工作步骤", "lookup-tools": "查找工具",
     delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
     "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆", "memory-suggest": "建议记住一条",
     "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做" };
@@ -435,7 +435,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (card.outcome || CARD_STATUS[card.status]) {
       const status = el("p", "assistant-card-status", L(CARD_STATUS[card.status] || "") + (card.outcome ? "：" + card.outcome : ""));
-      status.setAttribute("role", "status"); node.append(status);
+      status.setAttribute("role", "status"); status.tabIndex = -1; node.append(status);
     }
     if (card.status === "stale") {
       // Only an explicit request: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
@@ -455,6 +455,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const runButton = el("button", "mw-btn mw-btn--primary mw-btn--sm", card.status === "failed" ? L("再试一次") + "：" + card.title : card.title); runButton.type = "button";
     const dismiss = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("忽略")); dismiss.type = "button";
     runButton.addEventListener("click", async () => {
+      // Keyboard use keeps its place: after the card redraws, focus lands on its result rather than the page.
+      const hadFocus = node.contains(document.activeElement);
       row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
       const values = {};
       Object.entries(inputs).forEach(([key, control]) => { values[key] = control.value; });
@@ -463,11 +465,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
         render();
-      } catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
+        if (hadFocus) (node.querySelector(".assistant-card-status") || node.querySelector("button"))?.focus();
+      } catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); if (hadFocus) runButton.focus(); }
     });
     dismiss.addEventListener("click", async () => {
+      // The card leaves the list: focus moves to the next card, or back to the input when none is left.
+      const neighbour = node.nextElementSibling || node.previousElementSibling;
       try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/dismiss", "POST", {});
-        if (view) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one); render(); }
+        if (view) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one); render();
+        if (!node.isConnected) ((neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus(); }
       catch (error) { showProblem({ message: error.message }); }
     });
     row.append(runButton, dismiss); node.append(row);

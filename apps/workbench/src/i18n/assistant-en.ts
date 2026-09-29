@@ -39,7 +39,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "读取": "read",
   "修改": "change",
   "向你提问": "ask you",
-  "更新待办": "update the to-do list",
+  "更新工作步骤": "update the work steps",
   "未获授权，没有执行": "not authorized, nothing done",
   "你拒绝了，没有执行": "you declined, nothing done",
   "这项能力已关闭或不再可用，没有执行": "switched off or no longer available, nothing done",

@@ -150,3 +150,27 @@ test("a new document can be taken back only while unchanged: create names its un
     assert.equal((await bound.invoke(actions.get, { id: edited.id })).document.version, edited.version + 1, "the edited document stays");
   });
 });
+
+test("an edit an agent made can be taken back while nothing changed since; the person's own edits keep no record", async () => {
+  const { inspectActionDeclarations } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  assert.deepEqual(actions.update.action.undo, { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } });
+  assert.deepEqual(inspectActionDeclarations([actions.update, actions.revert], undefined), []);
+  await fixture(async ({ bound, client, caller }) => {
+    const agent = { ...caller, audience: "agent" as const };
+    const { document } = await bound.invoke(actions.create, { title: "Plan", body: body("v1") });
+    // The person's edit (the Pages page): nothing kept.
+    const own = await bound.invoke(actions.update, { id: document.id, body: body("v2 by the person"), expected_version: document.version });
+    assert.equal(own.change_id, null);
+    // An agent's edit keeps what it replaced; taking it back restores the person's version.
+    const edited = await client.invoke(agent, actions.update, { id: document.id, body: body("v3 by the assistant"), expected_version: own.document.version }) as { document: { version: number }; change_id: string };
+    assert.equal(typeof edited.change_id, "string");
+    const back = await bound.invoke(actions.revert, { change_id: edited.change_id });
+    assert.match(JSON.stringify(back.document.body), /v2 by the person/);
+    await assert.rejects(bound.invoke(actions.revert, { change_id: edited.change_id }), { code: "pages.not_found" }, "taken back once");
+    // Edited again after the agent's change: the revert refuses and the newer text stays.
+    const again = await client.invoke(agent, actions.update, { id: document.id, body: body("v5 by the assistant"), expected_version: back.document.version }) as { document: { version: number }; change_id: string };
+    await bound.invoke(actions.update, { id: document.id, body: body("v6 by the person"), expected_version: again.document.version });
+    await assert.rejects(bound.invoke(actions.revert, { change_id: again.change_id }), { code: "pages.conflict" });
+    assert.match(JSON.stringify((await bound.invoke(actions.get, { id: document.id })).document.body), /v6 by the person/);
+  });
+});

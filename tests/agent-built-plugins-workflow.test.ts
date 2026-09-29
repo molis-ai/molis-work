@@ -11,6 +11,8 @@ import { join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
 import { builderPrompts } from '../apps/local-host/src/plugin-builder/agent-surface.js';
+import { builderSkill } from '../apps/local-host/src/plugin-builder/skill.js';
+import { acceptExperience } from '../plugins/native/plugin-builder/src/agent-experience.js';
 
 /** In-memory storage with the atomic replacement the Builder store requires. */
 function memoryStorage(): PluginPrivateStorage {
@@ -50,6 +52,15 @@ function detail(title: string) {
       { id: 'notes', intent: 'collection', purpose: '浏览笔记', props: { idField: 'id', titleField: 'text' }, read: 'notes.list' },
     ] }],
     acceptance: [{ id: 'add-note', description: '添加后能在列表里看到', steps: ['fill editor.text = hello', 'submit editor', 'expect notes hello'] }] } });
+}
+
+function experience() {
+  const sketch = proposal('quick', '快记');
+  return JSON.stringify({ summary: '以浏览已有内容为主，随手录入不中断浏览', journey: sketch.journey, pages: sketch.pages,
+    scenarios: [{ task: '写入后继续浏览', content: '先读《理解媒介》，再记下一个问题。', expected: '保存后能找到记录并继续新建' }] });
+}
+function finding(change = '调整密度', screenshot = 'sample') {
+  return { scope: 'presentation', screenshot, pageId: 'home', partId: 'notes', evidence: '正文排列过密', impact: '难以连续阅读', property: 'appearance.density', change };
 }
 
 interface Harness { ports: AgentBuilderPorts; requests: BuilderAgentRequest[]; implemented: Set<string>; choices: number }
@@ -179,6 +190,34 @@ test('a designer that keeps failing validation stops after three repairs with th
     assert.match(build.error ?? '', /2–3 个/);
     assert.equal(h.requests.length, 4, 'first answer plus three repairs, never more');
   } finally { await workflow.close(); }
+});
+
+test('experience, UI and screenshot review use the registered user prompts and record their revisions', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'molis-builder-visual-prompts-'));
+  const stages = ['experience', 'ui', 'review'] as const;
+  const registry = agentDefinitionsFor(home, builtinRegistrations);
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), JSON.stringify({ issues: [] })]);
+  h.ports.presentation = true; h.ports.selectionAvailable = () => false;
+  h.ports.visionAvailable = () => true;
+  h.ports.inspectPresentation = async () => ({ structural: true, issues: [], images: [] });
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), { ...h.ports, prompt: builderPrompts(home) });
+  try {
+    for (const stage of stages) registry.save('io.molis.work.plugin-builder/builder-' + stage, BUILDER_PROMPTS[stage].text + '\n已登记的用户修改：' + stage, null, 'person');
+    const { id } = workflow.create('阅读并记录');
+    let build = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
+    assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.visualResult?.status, 'reviewed');
+    for (const stage of stages) {
+      const version = BUILDER_PROMPTS[stage].version + '+user.1';
+      const request = h.requests.find(request => request.promptVersion === version);
+      assert.ok(request, stage + ' must resolve the registered prompt');
+      assert.ok(request.instruction.endsWith('已登记的用户修改：' + stage));
+      assert.ok(build.runs.some(run => run.promptVersion === version));
+      assert.equal(registry.uses('io.molis.work.plugin-builder/builder-' + stage)[0]?.user_revision, 1);
+    }
+  } finally { await workflow.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
 test('clarification is one round; asking again is sent back as a repair and the step waits for the person', async () => {
@@ -724,5 +763,272 @@ test('a dropped connection to the model is asked again rather than failing the d
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed', 15_000);
     assert.equal(build.phase, 'ready', build.error ?? '');
     assert.ok(build.steps.some(step => /网络中断，重新请求/.test(step.label)));
+  } finally { await workflow.close(); }
+});
+
+function composition(gap = 'roomy') {
+  return JSON.stringify({ summary: '先浏览内容，新建收进侧栏', presentation: { version: 1, pages: [{ pageId: 'home', layout: { layout: 'stack', gap, children: [{ part: 'title' }, { part: 'notes' }, { part: 'editor' }] } }], parts: { notes: { kind: 'directory', density: 'reading', detail: true }, editor: { kind: 'sheet', emphasis: 'primary' } } } });
+}
+
+for (const structural of [true, false]) test('a failed visual suggestion keeps a working version only when structure was sound: ' + structural, async () => {
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), JSON.stringify({ issues: [finding()] }), composition('tight')]);
+  h.ports.presentation = true; h.ports.selectionAvailable = () => false; h.ports.visionAvailable = () => true;
+  h.ports.inspectPresentation = async () => ({ structural, issues: structural ? [] : ['主操作被遮挡'], images: [{ label: 'sample', bytes: new Uint8Array([1]) }] });
+  let acceptances = 0;
+  h.ports.browserAcceptance = async () => ({ passed: ++acceptances === 1, cases: [{ id: 'add-note', passed: acceptances === 1, detail: '交互结果' }], at: '' });
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('阅读'); let build = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
+    assert.equal(build.phase, structural ? 'ready' : 'failed');
+    if (structural) {
+      assert.equal(build.browserResult?.passed, true);
+      assert.equal((build.design!.presentation!.pages[0]!.layout as {gap:string}).gap, 'roomy');
+      assert.ok(build.visualResult?.issues.some(issue => issue.includes('保留通过验收')));
+    } else assert.match(build.error ?? '', /交互验收未通过/);
+    assert.equal(acceptances, 2);
+  } finally { await workflow.close(); }
+});
+
+test('whole-page design survives Jev failure; visual revision and undo keep the checked backend and release the exact presentation', async () => {
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), composition('tight')], { jev: new Error('offline') });
+  h.ports.presentation = true;
+  // Capability selection is irrelevant to this local-only design.
+  h.ports.inspectPresentation = async () => ({ structural: true, issues: [], images: [] });
+  let prepared = 0, checked = 0;
+  const prepare = h.ports.prepareBuild, check = h.ports.check;
+  h.ports.prepareBuild = async (...args) => { prepared++; return prepare(...args); };
+  h.ports.check = async (...args) => { checked++; return check(...args); };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('阅读摘记'); let build = await until(workflow, id, b => b.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(build.nodes.find(n => n.id === 'editor')?.kind, 'sheet');
+    assert.equal(build.steps.find(s => s.target === 'editor' && s.action === 'place')?.selection?.source, 'design');
+    assert.equal(build.visualResult?.status, 'unavailable');
+    assert.equal(build.visualResult?.structural, true);
+    const original = structuredClone(build), counts = [prepared, checked, h.requests.filter(r => r.role === 'coder').length];
+    await workflow.action(id, { action: 'publish', revision: build.revision });
+    await workflow.action(id, { action: 'visual', revision: workflow.store.require(id).revision, message: '收紧间距' });
+    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.deepEqual([prepared, checked, h.requests.filter(r => r.role === 'coder').length], counts, 'no new backend directory, build or coder');
+    assert.deepEqual(build.design!.contract, original.design!.contract);
+    assert.deepEqual(build.connected, original.connected);
+    assert.notDeepEqual(build.design!.presentation, original.design!.presentation);
+    await workflow.action(id, { action: 'publish', revision: build.revision });
+    assert.deepEqual(workflow.store.versions(id)[0]!.design.presentation, build.design!.presentation);
+    await workflow.action(id, { action: 'undo', revision: workflow.store.require(id).revision });
+    assert.deepEqual(workflow.store.require(id).design!.presentation, original.design!.presentation);
+    assert.deepEqual([prepared, checked, h.requests.filter(r => r.role === 'coder').length], counts);
+    await workflow.action(id, { action: 'visual', message: '本次模拟模型没有给出可用结果' });
+    const failed = await until(workflow, id, value => value.phase === 'failed');
+    assert.ok(failed.error);
+    await workflow.action(id, { action: 'undo', revision: failed.revision });
+    assert.equal(workflow.store.require(id).phase, 'ready');
+    assert.equal(workflow.store.require(id).error, null);
+    assert.deepEqual(workflow.store.require(id).design!.presentation, original.design!.presentation);
+  } finally { await workflow.close(); }
+});
+
+test('visual model review has one repair and one confirmation; a stale cancelled visual result cannot commit', async () => {
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), JSON.stringify({ issues: [finding('增大间距', 'synthetic-1'), { ...finding('需要键盘操作证据', 'synthetic-1'), scope: 'unverified' }] }), '{}', composition('normal'), JSON.stringify({ issues: [] }), composition('tight')]);
+  h.ports.presentation = true; h.ports.selectionAvailable = () => false; h.ports.visionAvailable = () => true;
+  h.ports.skill = builderSkill;
+  const inspectedBuilds: AgentBuild[] = [];
+  h.ports.inspectPresentation = async build => { inspectedBuilds.push(structuredClone(build)); return { structural: true, issues: [], images: [{ label: 'synthetic-' + inspectedBuilds.length, bytes: new Uint8Array([inspectedBuilds.length]) }] }; };
+  const storage = memoryStorage(), workflow = new AgentBuilderWorkflow(storage, h.ports);
+  try {
+    const { id } = workflow.create('阅读'); let build = await until(workflow, id, b => b.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(inspectedBuilds.length, 2); assert.equal(build.visualResult?.status, 'reviewed');
+    assert.ok(build.visualResult?.issues.some(issue => issue.includes('需要键盘操作证据')), 'deferred observations survive the confirmation review');
+    const reviews = h.requests.filter(request => request.promptVersion.startsWith('ui-review/')); assert.equal(reviews.length, 2);
+    for (const [index, request] of reviews.entries()) {
+      const task = JSON.parse(request.task), inspected = inspectedBuilds[index]!;
+      assert.deepEqual(task.rendered, inspected.nodes.map(node => ({ ...node, detail: node.id === 'notes' })), 'review uses actual nodes with explicit detail state, including false');
+      assert.deepEqual(task.parts.map(({ id, purpose, props, read, submit }: any) => ({ id, purpose, props, read, submit })), inspected.design!.parts.map(({ id, purpose, props, read, submit }) => ({ id, purpose, props, read, submit })), 'field roles and bindings remain available to distinguish summaries from full text');
+      assert.ok(task.parts.every((part: any) => Array.isArray(part.choices) && part.choices.length), 'review changes must use current legal choices');
+      assert.deepEqual(task.parts.find((part: any) => part.id === 'notes').readOutput, inspected.design!.contract.operations.find(operation => operation.id === 'notes.list')!.output, 'review can distinguish the actual data returned from display labels');
+      assert.deepEqual(task.screenshots, ['synthetic-' + (index + 1)]);
+      assert.match(task.vocabulary.controls.recordActions, /先选中被点击的记录/);
+      assert.match(task.vocabulary.controls.overlayLabels, /editor.title=写一条摘记/);
+      assert.match(task.vocabulary.controls.feedback, /减少动效时也清除/);
+      assert.match(request.instruction, /静态图不能判断/);
+      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.review');
+    }
+    for (const request of h.requests) {
+      const stage = request.role === 'coder' ? 'code' : request.promptVersion.startsWith('ui-review/') ? 'review' : JSON.parse(request.task).mode === 'compose' ? 'ui' : JSON.parse(request.task).mode === 'experience' ? 'experience' : 'design';
+      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.' + stage, 'every generation and review stage mounts its own standard');
+      if (stage !== 'code') assert.match(request.skills![0]!.body, /生成插件：体验与审美标准/);
+      if (stage === 'ui' || stage === 'review') assert.equal(JSON.parse(request.task).brief, build.brief, 'original user intent reaches every visual task');
+    }
+    const corrections = h.requests.filter(request => request.promptVersion.startsWith('ui/') && JSON.parse(request.task).reviewSuggestions);
+    assert.equal(corrections.length, 2, 'one visual correction, including its JSON validation retry');
+    for (const request of corrections) {
+      assert.deepEqual(request.images, reviews[0]!.images, 'correction and JSON retry see the same screenshots as the review');
+      assert.deepEqual(JSON.parse(request.task).reviewSuggestions, ['synthetic-1 · home/notes：正文排列过密 → 难以连续阅读 → 增大间距']);
+      assert.doesNotMatch(JSON.parse(request.task).request, /正文过密/, 'model suggestions are not promoted to user instructions');
+    }
+    const original = structuredClone(build.design);
+    let release!: () => void, entered!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; }), started = new Promise<void>(resolve => { entered = resolve; });
+    const agent = h.ports.agent;
+    h.ports.agent = async (...args) => { const inner = await agent(...args); return { ...inner, async run(request) { entered(); await held; return { id: 'late', role: 'designer', promptVersion: request.promptVersion, contractRevision: request.contractRevision, instruction: '', input: '', output: composition('tight'), configuredModel: '', reportedModels: [], phase: 'completed', startedAt: '', activity: [], usage: [] } as BuilderAgentRecord; } }; };
+    await workflow.action(id, { action: 'visual', revision: build.revision, message: '调整密度' }); await started;
+    const pausing = workflow.pause(id); release(); await pausing;
+    assert.deepEqual(workflow.store.require(id).design, original);
+    assert.equal(workflow.store.require(id).phase, 'paused');
+    assert.equal(workflow.store.require(id).pendingVisual, '调整密度');
+    await workflow.close();
+    h.ports.agent = agent; h.ports.visionAvailable = () => false;
+    const beforeRestart = h.requests.filter(request => request.role === 'coder').length;
+    const beforeResume = h.requests.length;
+    const resumed = new AgentBuilderWorkflow(storage, h.ports);
+    try {
+      const paused = resumed.store.require(id);
+      assert.deepEqual(paused.design, original);
+      await resumed.action(id, { action: 'resume', revision: paused.revision });
+      const restored = await until(resumed, id, value => ['ready', 'failed'].includes(value.phase));
+      assert.equal(restored.phase, 'ready', restored.error ?? '');
+      assert.equal(restored.pendingVisual, undefined);
+      assert.equal(h.requests.filter(request => request.role === 'coder').length, beforeRestart);
+      assert.ok(h.requests.slice(beforeResume).every(request => !request.images), 'a model without vision receives no image requests');
+    } finally { await resumed.close(); }
+  } finally { await workflow.close(); }
+});
+
+test('experience planning reshapes parts before detail and freeze, preserving selected operations and passing real content downstream', async () => {
+  const plan = JSON.parse(experience()); plan.pages[0].parts = plan.pages[0].parts.filter((part: any) => part.id !== 'title');
+  plan.pages[0].parts[0].id = 'capture'; plan.summary = '从内容开始，录入与浏览相邻';
+  plan.scenarios[0].content = '先读完整段落。\n\n结尾提出一个可继续思考的问题。';
+  const full = JSON.parse(detail('快记')); full.design.pages[0].parts = full.design.pages[0].parts.filter((part: any) => part.id !== 'title');
+  full.design.pages[0].parts[0].id = 'capture'; full.design.acceptance[0].steps = ['fill capture.text = ' + plan.scenarios[0].content, 'submit capture', 'expect notes 结尾提出一个可继续思考的问题。'];
+  const layout = JSON.parse(composition()); layout.presentation.pages[0].layout.children = [{ part: 'notes' }, { part: 'capture' }];
+  layout.presentation.parts.capture = layout.presentation.parts.editor; delete layout.presentation.parts.editor;
+  const h = harness([PROPOSALS, JSON.stringify(plan), JSON.stringify(full), JSON.stringify(layout)]);
+  h.ports.presentation = true; h.ports.skill = builderSkill; h.ports.selectionAvailable = () => false;
+  let preparations = 0;
+  h.ports.prepareBuild = async (_before, design) => {
+    preparations++;
+    assert.deepEqual(h.requests.map(request => JSON.parse(request.task).mode), ['propose', 'experience', 'detail']);
+    assert.deepEqual(design.parts.map(part => part.id), ['capture', 'notes']);
+    assert.equal(h.implemented.size, 0, 'no code is written against the earlier sketch');
+    return '/tmp/molis-build-fixture';
+  };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('完整阅读并记录问题'); let build = await until(workflow, id, value => value.phase === 'choosing');
+    const original = structuredClone(build.candidates[0]!);
+    const planned = acceptExperience(JSON.stringify(plan), original);
+    assert.deepEqual(planned.proposal.preview.contract.operations, original.preview.contract.operations);
+    assert.deepEqual(planned.proposal.effects, original.effects);
+    for (const content of [{ title: '读书摘记', body: '首段。\n\n末段。' }, [{ amount: 120 }, { amount: 35 }], []]) {
+      const structured = structuredClone(plan); structured.scenarios[0].content = content;
+      assert.deepEqual(acceptExperience(JSON.stringify(structured), original).experience.scenarios[0]!.content, content, 'structured and empty-state example data remain intact');
+    }
+    for (const uses of ['', null]) {
+      const withHeading = structuredClone(plan); withHeading.pages[0].parts.unshift({ id: 'heading', intent: 'heading', purpose: '页面说明', uses });
+      assert.equal(acceptExperience(JSON.stringify(withHeading), original).sketch.pages[0]!.parts[0]!.uses, undefined, 'an empty optional use is not an invented operation');
+    }
+    const grouped = structuredClone(plan); grouped.pages[0].parts = [{ id: 'workspace', intent: 'collection', purpose: '浏览并就地录入', uses: ['notes.list', 'notes.add'] }];
+    assert.deepEqual(acceptExperience(JSON.stringify(grouped), original).sketch.pages[0]!.parts[0]!.uses, ['notes.list', 'notes.add'], 'experience groups reach detail without prematurely forcing one operation per runtime part');
+    const invented = structuredClone(plan); invented.pages[0].parts[0].uses = 'network.send';
+    assert.throws(() => acceptExperience(JSON.stringify(invented), original), /不存在的操作/);
+    const dropped = structuredClone(plan); dropped.pages[0].parts.shift();
+    assert.throws(() => acceptExperience(JSON.stringify(dropped), original), /不能丢掉已选功能/);
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(preparations, 1); assert.deepEqual(build.candidates[0], original, 'the user-selected proposal is not overwritten');
+    const detailTask = JSON.parse(h.requests.find(request => JSON.parse(request.task).mode === 'detail')!.task);
+    assert.deepEqual(detailTask.proposal.pages[0].parts.map((part: any) => part.id), ['capture', 'notes']);
+    assert.deepEqual(detailTask.experience.scenarios, plan.scenarios);
+    const uiTask = JSON.parse(h.requests.find(request => JSON.parse(request.task).mode === 'compose')!.task);
+    assert.deepEqual(uiTask.experience, build.design!.experience);
+    assert.equal(uiTask.experience.scenarios[0].content, plan.scenarios[0].content);
+    assert.equal(build.design!.acceptance[0]!.steps[0]!.action, 'fill');
+    assert.equal(h.requests.find(request => JSON.parse(request.task).mode === 'experience')!.skills?.[0]?.id, 'molis-plugin-dev.experience');
+    assert.equal(h.requests.filter(request => JSON.parse(request.task).mode === 'experience').length, 1);
+  } finally { await workflow.close(); }
+});
+
+test('an impossible partial query example returns to the designer before any build preparation or code', async () => {
+  const bad = JSON.parse(detail('快记')); bad.design.operations[0].examples = [{ input: {}, includes: { text: 'not stored' } }];
+  const h = harness([PROPOSALS, JSON.stringify(bad), detail('快记')]); let prepared = 0;
+  h.ports.prepareBuild = async () => { prepared++; assert.equal(h.requests.filter(request => request.role === 'designer').length, 3); return '/tmp/molis-build-fixture'; };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('快记'); let build = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    const repair = JSON.parse(h.requests[2]!.task);
+    assert.match(repair.repair.validationError, /空存储/);
+    assert.equal(prepared, 1); assert.equal(h.requests.filter(request => request.promptVersion.startsWith('repair/')).length, 0);
+    assert.deepEqual(build.design!.contract.operations[0]!.examples, [{ input: {}, output: [] }]);
+  } finally { await workflow.close(); }
+});
+
+test('unsupported, unlocated and uncertain review findings remain visible without triggering generation', async () => {
+  const issues = [
+    { ...finding(), scope: 'host', change: '调整宿主动画' },
+    { ...finding(), scope: 'unverified', change: '需要观察键盘路径' },
+    { ...finding(), property: 'appearance.hideButtons' },
+    { ...finding(), screenshot: 'not-captured' },
+    { ...finding(), partId: 'not-a-part' },
+  ];
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), JSON.stringify({ issues })]);
+  h.ports.presentation = true; h.ports.selectionAvailable = () => false; h.ports.visionAvailable = () => true;
+  let inspections = 0;
+  h.ports.inspectPresentation = async () => { inspections++; return { structural: true, issues: [], images: [{ label: 'sample', bytes: new Uint8Array([1]) }] }; };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('阅读'); let build = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(build.phase, 'ready', build.error ?? '');
+    assert.equal(inspections, 1); assert.equal(build.visualResult?.status, 'reviewed');
+    assert.equal(build.visualResult?.issues.length, 5); assert.ok(build.visualResult!.issues.every(issue => issue.includes('未自动修改')));
+    assert.equal(h.requests.filter(request => JSON.parse(request.task).mode === 'compose').length, 1);
+  } finally { await workflow.close(); }
+});
+
+test('a cancelled experience answer cannot freeze a design or launch code', async () => {
+  const h = harness([PROPOSALS, experience()]); h.ports.presentation = true;
+  let entered!: () => void, release!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+  const agent = h.ports.agent;
+  h.ports.agent = async (...args) => { const inner = await agent(...args); return { ...inner, async run(request) {
+    if (JSON.parse(request.task).mode === 'experience') { entered(); await held; }
+    return inner.run(request);
+  } }; };
+  h.ports.prepareBuild = async () => { throw new Error('must not prepare a cancelled design'); };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('快记'); const build = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' }); await started;
+    const pausing = workflow.pause(id); release(); await pausing;
+    assert.equal(workflow.store.require(id).phase, 'paused'); assert.equal(workflow.store.require(id).design, null);
+    assert.equal(h.requests.filter(request => request.role === 'coder').length, 0);
+  } finally { release(); await workflow.close(); }
+});
+
+test('a missing enum choice in acceptance goes to design, preserving the implemented operations', async () => {
+  const full = JSON.parse(detail('待办'));
+  full.design.operations[0].input = { 'status?': 'pending|done' };
+  full.design.pages[0].parts.find((part: any) => part.id === 'notes').read = { op: 'notes.list', input: { status: 'form' } };
+  full.design.acceptance[0].steps.splice(2, 0, 'fill notes.status = 待办');
+  const fixed = structuredClone(full); fixed.design.acceptance[0].steps[2] = 'fill notes.status = pending';
+  const h = harness([PROPOSALS, JSON.stringify(full), JSON.stringify(fixed)]); let rounds = 0;
+  h.ports.browserAcceptance = async () => ({ passed: ++rounds > 1, cases: [{ id: 'add-note', passed: rounds > 1, detail: rounds === 1 ? JSON.stringify({ step: 3, action: 'fill', componentId: 'notes', reason: '「status」没有「待办」这个选项（可选：全部、pending、done）', visible: 'pending done' }) : 'ok' }], at: '' });
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('待办'); let state = await until(workflow, id, value => value.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: state.revision, candidateId: 'quick' });
+    state = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase)); assert.equal(state.phase, 'ready', state.error ?? '');
+    assert.equal(rounds, 2); assert.equal(h.requests.filter(request => request.role === 'coder').length, 2, 'the same working backend is reused');
+    const revision = h.requests.find(request => JSON.parse(request.task).mode === 'revise')!;
+    assert.match(JSON.parse(revision.task).request, /枚举不一致/);
+    assert.deepEqual(state.design!.acceptance[0]!.steps[2], { action: 'fill', componentId: 'notes', field: 'status', value: 'pending' });
   } finally { await workflow.close(); }
 });

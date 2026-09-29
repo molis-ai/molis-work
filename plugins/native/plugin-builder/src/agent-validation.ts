@@ -1,5 +1,6 @@
-import { pluginSchemaAt, validatePluginComponentPlans } from '@molis-ai/molis-work-design-system';
+import { pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
+import { validateExperience } from './agent-experience.js';
 import type { SandboxEffects, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 export function parseBuilderJson(text: string): unknown { const clean = text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, ''); return JSON.parse(clean); }
@@ -29,7 +30,8 @@ function explainContract(error: unknown, contract: unknown): string {
   return '功能合同不成立：' + message;
 }
 export function validateAgentDesign(input: unknown, capabilities: readonly string[], resources: readonly string[], validateContract: (contract: unknown) => void): AgentDesign {
-  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance'].includes(key))) throw new Error('方案包含未知属性');
+  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience'].includes(key))) throw new Error('方案包含未知属性');
+  if (input.experience !== undefined) input.experience = validateExperience(input.experience);
   for (const field of ['id', 'title', 'description', 'rationale']) if (typeof input[field] !== 'string' || !input[field] || (input[field] as string).length > 4000) throw new Error('方案缺少有效的' + field);
   if (!Array.isArray(input.journey) || input.journey.length < 1 || input.journey.length > 20 || input.journey.some(item => typeof item !== 'string' || item.length > 1000)) throw new Error('用户旅程不完整');
   // A site is named by its exact host; the person approves each one at installation.
@@ -48,6 +50,7 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
       throw new Error('操作 ' + operation.id + ' 的 effects 里不要写 events 或 artifacts：写文档用能力清单里的 pages.create / pages.update，存成果用 pages.promote，读成果用 artifacts.read，放进 Feed 用 feed.content.receive，到点提醒用 reminders.add');
   }
   design.parts = validatePluginComponentPlans(design.parts, design.contract);
+  if (design.presentation !== undefined) design.presentation = validatePluginPresentation(design.presentation, design.parts, design.contract);
   // "今天已经喝了 {{count}} 杯": a sentence filled from the part's own query result, so the field must be in it.
   for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of (text ?? '').matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {
     const query = part.read && design.contract.operations.find(item => item.id === part.read!.operationId), shown = query ? pluginSchemaAt(query.output, part.read!.outputPath) : undefined;

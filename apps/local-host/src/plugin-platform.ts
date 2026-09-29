@@ -7,6 +7,7 @@ import type {
   PluginUpgradeContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import {
   PluginEventBus,
   PluginInputGraph,
@@ -100,6 +101,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     { actions: options.actions });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
+    hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
   const wiring = new PluginInputGraph({
     boardId: options.board_id,

@@ -6,7 +6,7 @@
 import type { PluginDefinition, PluginManifest, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
+import { resolvePluginComponentCall, validatePluginPresentation, PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
 
@@ -43,6 +43,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
 export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {}): PluginDefinition {
+  if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
   const uiId = release.pluginId + '.ui.v1';
   const manifest: PluginManifest = {
     schema_version: 2, host_api_version: 2, plugin_id: release.pluginId, version: releaseVersion(release.version), name: release.design.title, kind: 'app',
@@ -50,7 +51,8 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(compatibleFrom.length ? { upgrade_compatibility: { compatible_from_versions: compatibleFrom.map(releaseVersion) } } : {}),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
+    capabilities: { provides: [], consumes: release.design.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
+    ...(release.design.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
     ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: release.design.title, contribution_id: uiId }] },
   };

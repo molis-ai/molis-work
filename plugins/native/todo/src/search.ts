@@ -42,8 +42,12 @@ export function createTodoSearchHandlers(withStore: <T>(run: (store: TodoStore) 
       summary: searchText(item.notes, 1000), updated_at: item.updated_at, content: "context", open: open(item.id),
     })))),
     { ...todoSearchActions.subject, handle: (caller, input) => withStore(store => {
+      // The person reading from their own Home or personal space (the placement panel after a move) reaches every todo
+      // of theirs and learns its project; anyone in a project, and any agent, workflow or client outside one, keeps the
+      // usual scope, so another project's todo still reads as not there.
+      const own = caller.audience === "user" && !todoCallerProject(caller);
       let item: TodoItem;
-      try { item = store.get((input as { subject_id: string }).subject_id, access(caller)); }
+      try { item = store.get((input as { subject_id: string }).subject_id, own ? { ...access(caller), everything: true } : access(caller)); }
       catch { throw new ActionError("todo.not_found", "这件待办已删除，或不在当前范围内"); }
       // Readers treat an archived object as gone from use (the shared convention); Todo itself still lists it under 已归档.
       if (item.archived_at) throw new ActionError("todo.not_found", "这件待办已归档");

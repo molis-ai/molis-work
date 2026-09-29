@@ -200,6 +200,12 @@ test("search entries and the object reader follow the caller's scope", async t =
   const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" })).item;
   assert.equal((await f.agentA.invoke(todoSearchActions.subject, { subject_id: inA.id })).project_id, "project-a", "项目待办说明属于哪个项目");
   await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
+  // The person at Home (the placement panel after a move) reads a project's todo and learns where it is; an agent at Home does not.
+  assert.equal((await f.me.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
+  await assert.rejects(f.agentHome.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
+  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
+  assert.equal((await personalSpace.invoke(todoSearchActions.subject, { subject_id: inB.id })).project_id, "project-b");
+  assert.deepEqual(titles(await personalSpace.invoke(actions.list, { view: "all" })), ["个人的事"], "列表仍只列个人空间的");
   // Archived reads as gone from use (the readers' shared convention), though Todo still lists it under 已归档.
   const done = await f.me.invoke(actions.status, { id: mine.id, status: "done", expected_revision: mine.revision });
   await f.me.invoke(actions.archive, { id: mine.id, archived: true, expected_revision: done.item.revision });

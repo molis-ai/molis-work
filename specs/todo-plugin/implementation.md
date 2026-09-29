@@ -45,6 +45,15 @@
 
 ## 4. 证据记录
 
+### 与助理分支的试合并（2026-09-29，助理 e4457666 ＋ Todo 5299a16e，只在临时工作树）
+
+- **冲突只有一处**：`apps/local-host/src/agent-definitions/builtin-instructions.ts` 两边都在登记列表里加了一行（助理加 Alchemist，Todo 加 Todo）；两行都保留即可。后合并的一方照此解决。
+- **合并后**：构建通过；Todo、Inbox、灵光、Onboarding 草稿以及助理的 Agent 定义、方法、Prompt 登记、Manifest 合同、Characters 等单元测试 99 项通过；Todo 浏览器测试 8 项通过（一次失败只是测试结束后删除临时 Chrome 目录出错，重跑通过）。
+- **助理合入 main 后 Todo 要做的**（T3 与 T5 收尾）：
+  1. 助理新增了 Manifest `methods`（插件给其他 Agent 的方法，工具限 find-capabilities、read-capability、change-capability、suggest-action 及业务工具），与 `agent.skills`（插件自己 Agent 的方法）分开。“待办整理”是给助理和待办整理师用的，要在 `methods` 里声明，工具改用 find-capabilities／read-capability／change-capability／ask-user；方法正文里写明写入用户的 Todo 走 Todo 的动作，不是 Agent 自己的 `update-todo` 清单。
+  2. D08 落地后用真实模型走通“记一下”（直接新增、回复里给撤销）和“帮我推进这件事”（同一项工作、结果挂回待办）。
+  3. 助理的插件提醒推送入口可用后，Todo 到期提醒改经它送达底栏，页面内提醒保留为查看入口。
+
 ### 全量回归与基线比对（2026-09-29，分支到 59d1003c）
 
 全量 `node scripts/run-tests.mjs` 去重后 11 项失败，逐项比对 main 基线（22f383cb，临时工作树构建后单独跑）：

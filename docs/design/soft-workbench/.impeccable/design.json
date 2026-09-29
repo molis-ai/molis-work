@@ -1,0 +1,547 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-28T17:21:38.967753+00:00",
+  "title": "Design System: Molis Work · Soft Workbench Prototype",
+  "extensions": {
+    "colorMeta": {
+      "page": {
+        "role": "neutral",
+        "displayName": "Page",
+        "tonalRamp": [
+          "oklch(15.000% 0.00107 197.14)",
+          "oklch(26.429% 0.00107 197.14)",
+          "oklch(37.857% 0.00107 197.14)",
+          "oklch(49.286% 0.00107 197.14)",
+          "oklch(60.714% 0.00107 197.14)",
+          "oklch(72.143% 0.00107 197.14)",
+          "oklch(83.571% 0.00107 197.14)",
+          "oklch(95.000% 0.00107 197.14)"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "tonalRamp": [
+          "oklch(15.000% 0.00000 0.00)",
+          "oklch(26.429% 0.00000 0.00)",
+          "oklch(37.857% 0.00000 0.00)",
+          "oklch(49.286% 0.00000 0.00)",
+          "oklch(60.714% 0.00000 0.00)",
+          "oklch(72.143% 0.00000 0.00)",
+          "oklch(83.571% 0.00000 0.00)",
+          "oklch(95.000% 0.00000 0.00)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "tonalRamp": [
+          "oklch(15.000% 0.00132 106.42)",
+          "oklch(26.429% 0.00132 106.42)",
+          "oklch(37.857% 0.00132 106.42)",
+          "oklch(49.286% 0.00132 106.42)",
+          "oklch(60.714% 0.00132 106.42)",
+          "oklch(72.143% 0.00132 106.42)",
+          "oklch(83.571% 0.00132 106.42)",
+          "oklch(95.000% 0.00132 106.42)"
+        ]
+      },
+      "wash": {
+        "role": "neutral",
+        "displayName": "Wash",
+        "tonalRamp": [
+          "oklch(15.000% 0.00265 106.45)",
+          "oklch(26.429% 0.00265 106.45)",
+          "oklch(37.857% 0.00265 106.45)",
+          "oklch(49.286% 0.00265 106.45)",
+          "oklch(60.714% 0.00265 106.45)",
+          "oklch(72.143% 0.00265 106.45)",
+          "oklch(83.571% 0.00265 106.45)",
+          "oklch(95.000% 0.00265 106.45)"
+        ]
+      },
+      "hover": {
+        "role": "neutral",
+        "displayName": "Hover",
+        "tonalRamp": [
+          "oklch(15.000% 0.00171 145.56)",
+          "oklch(26.429% 0.00171 145.56)",
+          "oklch(37.857% 0.00171 145.56)",
+          "oklch(49.286% 0.00171 145.56)",
+          "oklch(60.714% 0.00171 145.56)",
+          "oklch(72.143% 0.00171 145.56)",
+          "oklch(83.571% 0.00171 145.56)",
+          "oklch(95.000% 0.00171 145.56)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "tonalRamp": [
+          "oklch(15.000% 0.00391 264.50)",
+          "oklch(26.429% 0.00391 264.50)",
+          "oklch(37.857% 0.00391 264.50)",
+          "oklch(49.286% 0.00391 264.50)",
+          "oklch(60.714% 0.00391 264.50)",
+          "oklch(72.143% 0.00391 264.50)",
+          "oklch(83.571% 0.00391 264.50)",
+          "oklch(95.000% 0.00391 264.50)"
+        ]
+      },
+      "secondary": {
+        "role": "neutral",
+        "displayName": "Secondary",
+        "tonalRamp": [
+          "oklch(15.000% 0.00494 271.31)",
+          "oklch(26.429% 0.00494 271.31)",
+          "oklch(37.857% 0.00494 271.31)",
+          "oklch(49.286% 0.00494 271.31)",
+          "oklch(60.714% 0.00494 271.31)",
+          "oklch(72.143% 0.00494 271.31)",
+          "oklch(83.571% 0.00494 271.31)",
+          "oklch(95.000% 0.00494 271.31)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted",
+        "tonalRamp": [
+          "oklch(15.000% 0.00667 264.51)",
+          "oklch(26.429% 0.00667 264.51)",
+          "oklch(37.857% 0.00667 264.51)",
+          "oklch(49.286% 0.00667 264.51)",
+          "oklch(60.714% 0.00667 264.51)",
+          "oklch(72.143% 0.00667 264.51)",
+          "oklch(83.571% 0.00667 264.51)",
+          "oklch(95.000% 0.00667 264.51)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Line",
+        "tonalRamp": [
+          "oklch(15.000% 0.00267 106.45)",
+          "oklch(26.429% 0.00267 106.45)",
+          "oklch(37.857% 0.00267 106.45)",
+          "oklch(49.286% 0.00267 106.45)",
+          "oklch(60.714% 0.00267 106.45)",
+          "oklch(72.143% 0.00267 106.45)",
+          "oklch(83.571% 0.00267 106.45)",
+          "oklch(95.000% 0.00267 106.45)"
+        ]
+      },
+      "strong-line": {
+        "role": "neutral",
+        "displayName": "Strong Line",
+        "tonalRamp": [
+          "oklch(15.000% 0.00292 128.50)",
+          "oklch(26.429% 0.00292 128.50)",
+          "oklch(37.857% 0.00292 128.50)",
+          "oklch(49.286% 0.00292 128.50)",
+          "oklch(60.714% 0.00292 128.50)",
+          "oklch(72.143% 0.00292 128.50)",
+          "oklch(83.571% 0.00292 128.50)",
+          "oklch(95.000% 0.00292 128.50)"
+        ]
+      },
+      "action": {
+        "role": "primary",
+        "displayName": "Action",
+        "tonalRamp": [
+          "oklch(15.000% 0.00391 264.50)",
+          "oklch(26.429% 0.00391 264.50)",
+          "oklch(37.857% 0.00391 264.50)",
+          "oklch(49.286% 0.00391 264.50)",
+          "oklch(60.714% 0.00391 264.50)",
+          "oklch(72.143% 0.00391 264.50)",
+          "oklch(83.571% 0.00391 264.50)",
+          "oklch(95.000% 0.00391 264.50)"
+        ]
+      },
+      "on-action": {
+        "role": "neutral",
+        "displayName": "On Action",
+        "tonalRamp": [
+          "oklch(15.000% 0.00000 0.00)",
+          "oklch(26.429% 0.00000 0.00)",
+          "oklch(37.857% 0.00000 0.00)",
+          "oklch(49.286% 0.00000 0.00)",
+          "oklch(60.714% 0.00000 0.00)",
+          "oklch(72.143% 0.00000 0.00)",
+          "oklch(83.571% 0.00000 0.00)",
+          "oklch(95.000% 0.00000 0.00)"
+        ]
+      },
+      "copper": {
+        "role": "primary",
+        "displayName": "Copper",
+        "tonalRamp": [
+          "oklch(15.000% 0.07444 44.08)",
+          "oklch(26.429% 0.07444 44.08)",
+          "oklch(37.857% 0.07444 44.08)",
+          "oklch(49.286% 0.07444 44.08)",
+          "oklch(60.714% 0.07444 44.08)",
+          "oklch(72.143% 0.07444 44.08)",
+          "oklch(83.571% 0.07444 44.08)",
+          "oklch(95.000% 0.07444 44.08)"
+        ]
+      },
+      "copper-wash": {
+        "role": "neutral",
+        "displayName": "Copper Wash",
+        "tonalRamp": [
+          "oklch(15.000% 0.01182 59.56)",
+          "oklch(26.429% 0.01182 59.56)",
+          "oklch(37.857% 0.01182 59.56)",
+          "oklch(49.286% 0.01182 59.56)",
+          "oklch(60.714% 0.01182 59.56)",
+          "oklch(72.143% 0.01182 59.56)",
+          "oklch(83.571% 0.01182 59.56)",
+          "oklch(95.000% 0.01182 59.56)"
+        ]
+      },
+      "green": {
+        "role": "secondary",
+        "displayName": "Green",
+        "tonalRamp": [
+          "oklch(15.000% 0.06179 159.59)",
+          "oklch(26.429% 0.06179 159.59)",
+          "oklch(37.857% 0.06179 159.59)",
+          "oklch(49.286% 0.06179 159.59)",
+          "oklch(60.714% 0.06179 159.59)",
+          "oklch(72.143% 0.06179 159.59)",
+          "oklch(83.571% 0.06179 159.59)",
+          "oklch(95.000% 0.06179 159.59)"
+        ]
+      },
+      "amber": {
+        "role": "secondary",
+        "displayName": "Amber",
+        "tonalRamp": [
+          "oklch(15.000% 0.09269 74.27)",
+          "oklch(26.429% 0.09269 74.27)",
+          "oklch(37.857% 0.09269 74.27)",
+          "oklch(49.286% 0.09269 74.27)",
+          "oklch(60.714% 0.09269 74.27)",
+          "oklch(72.143% 0.09269 74.27)",
+          "oklch(83.571% 0.09269 74.27)",
+          "oklch(95.000% 0.09269 74.27)"
+        ]
+      },
+      "ob-ink": {
+        "role": "neutral",
+        "displayName": "Ob Ink",
+        "tonalRamp": [
+          "oklch(15.000% 0.00563 301.16)",
+          "oklch(26.429% 0.00563 301.16)",
+          "oklch(37.857% 0.00563 301.16)",
+          "oklch(49.286% 0.00563 301.16)",
+          "oklch(60.714% 0.00563 301.16)",
+          "oklch(72.143% 0.00563 301.16)",
+          "oklch(83.571% 0.00563 301.16)",
+          "oklch(95.000% 0.00563 301.16)"
+        ]
+      },
+      "ob-muted": {
+        "role": "neutral",
+        "displayName": "Ob Muted",
+        "tonalRamp": [
+          "oklch(15.000% 0.00491 337.47)",
+          "oklch(26.429% 0.00491 337.47)",
+          "oklch(37.857% 0.00491 337.47)",
+          "oklch(49.286% 0.00491 337.47)",
+          "oklch(60.714% 0.00491 337.47)",
+          "oklch(72.143% 0.00491 337.47)",
+          "oklch(83.571% 0.00491 337.47)",
+          "oklch(95.000% 0.00491 337.47)"
+        ]
+      },
+      "ob-outside": {
+        "role": "neutral",
+        "displayName": "Ob Outside",
+        "tonalRamp": [
+          "oklch(15.000% 0.01272 256.74)",
+          "oklch(26.429% 0.01272 256.74)",
+          "oklch(37.857% 0.01272 256.74)",
+          "oklch(49.286% 0.01272 256.74)",
+          "oklch(60.714% 0.01272 256.74)",
+          "oklch(72.143% 0.01272 256.74)",
+          "oklch(83.571% 0.01272 256.74)",
+          "oklch(95.000% 0.01272 256.74)"
+        ]
+      },
+      "ob-surface": {
+        "role": "neutral",
+        "displayName": "Ob Surface",
+        "tonalRamp": [
+          "oklch(15.000% 0.00000 0.00)",
+          "oklch(26.429% 0.00000 0.00)",
+          "oklch(37.857% 0.00000 0.00)",
+          "oklch(49.286% 0.00000 0.00)",
+          "oklch(60.714% 0.00000 0.00)",
+          "oklch(72.143% 0.00000 0.00)",
+          "oklch(83.571% 0.00000 0.00)",
+          "oklch(95.000% 0.00000 0.00)"
+        ]
+      },
+      "ob-secondary": {
+        "role": "neutral",
+        "displayName": "Ob Secondary",
+        "tonalRamp": [
+          "oklch(15.000% 0.00000 0.00)",
+          "oklch(26.429% 0.00000 0.00)",
+          "oklch(37.857% 0.00000 0.00)",
+          "oklch(49.286% 0.00000 0.00)",
+          "oklch(60.714% 0.00000 0.00)",
+          "oklch(72.143% 0.00000 0.00)",
+          "oklch(83.571% 0.00000 0.00)",
+          "oklch(95.000% 0.00000 0.00)"
+        ]
+      },
+      "ob-action": {
+        "role": "primary",
+        "displayName": "Ob Action",
+        "tonalRamp": [
+          "oklch(15.000% 0.00563 301.16)",
+          "oklch(26.429% 0.00563 301.16)",
+          "oklch(37.857% 0.00563 301.16)",
+          "oklch(49.286% 0.00563 301.16)",
+          "oklch(60.714% 0.00563 301.16)",
+          "oklch(72.143% 0.00563 301.16)",
+          "oklch(83.571% 0.00563 301.16)",
+          "oklch(95.000% 0.00563 301.16)"
+        ]
+      },
+      "ob-on": {
+        "role": "neutral",
+        "displayName": "Ob On",
+        "tonalRamp": [
+          "oklch(15.000% 0.00000 0.00)",
+          "oklch(26.429% 0.00000 0.00)",
+          "oklch(37.857% 0.00000 0.00)",
+          "oklch(49.286% 0.00000 0.00)",
+          "oklch(60.714% 0.00000 0.00)",
+          "oklch(72.143% 0.00000 0.00)",
+          "oklch(83.571% 0.00000 0.00)",
+          "oklch(95.000% 0.00000 0.00)"
+        ]
+      },
+      "ob-line": {
+        "role": "neutral",
+        "displayName": "Ob Line",
+        "tonalRamp": [
+          "oklch(15.000% 0.00134 106.43)",
+          "oklch(26.429% 0.00134 106.43)",
+          "oklch(37.857% 0.00134 106.43)",
+          "oklch(49.286% 0.00134 106.43)",
+          "oklch(60.714% 0.00134 106.43)",
+          "oklch(72.143% 0.00134 106.43)",
+          "oklch(83.571% 0.00134 106.43)",
+          "oklch(95.000% 0.00134 106.43)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "System heading",
+        "purpose": "System sans/PingFang approximates the user-pinned reference; the exact video face is unconfirmed."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default text; local controls and reading surfaces specify their actual compact sizes."
+      },
+      "prose": {
+        "displayName": "Reading prose",
+        "purpose": "Long-form source reading with a generous line height."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shared-surface",
+        "value": "0 14px 42px -12px #1c223323,0 3px 8px #1c223309",
+        "purpose": "Layered document surfaces."
+      },
+      {
+        "name": "overlay",
+        "value": "0 20px 70px -15px #1c223333,0 3px 9px #1c22330b",
+        "purpose": "Menus, dialogs, Assistant and feedback."
+      },
+      {
+        "name": "miniature-window",
+        "value": "0 22px 38px -15px #41475926,0 4px 12px #41475908",
+        "purpose": "Shared onboarding miniature windows."
+      }
+    ],
+    "motion": [
+      {
+        "name": "press",
+        "value": "130ms",
+        "purpose": "Shared tactile press response."
+      },
+      {
+        "name": "move",
+        "value": "250ms",
+        "purpose": "Shared state changes and sliders."
+      },
+      {
+        "name": "arrive",
+        "value": "420ms",
+        "purpose": "Workbench content arrivals."
+      },
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.22,1,.36,1)",
+        "purpose": "Shared settling curve."
+      },
+      {
+        "name": "spring",
+        "value": "cubic-bezier(.2,1.35,.4,1)",
+        "purpose": "Small control presses and selected checks."
+      },
+      {
+        "name": "onboarding-exit",
+        "value": "140ms ease-in",
+        "purpose": "Outgoing onboarding step."
+      },
+      {
+        "name": "onboarding-enter",
+        "value": "480ms cubic-bezier(.22,1,.36,1)",
+        "purpose": "Incoming onboarding step."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "600px"
+      },
+      {
+        "name": "dock-stack",
+        "value": "720px"
+      },
+      {
+        "name": "single-pane",
+        "value": "850px"
+      },
+      {
+        "name": "home-stack",
+        "value": "1050px"
+      },
+      {
+        "name": "onboarding-medium",
+        "value": "1150px"
+      },
+      {
+        "name": "workbench-medium",
+        "value": "1250px"
+      },
+      {
+        "name": "wide",
+        "value": "1500px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Implemented compact primary action; keyboard focus and press states preserved.",
+      "html": "<button type=\"button\" class=\"ds-button-primary\"><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m9 12 2 2 4-4\"/></svg>保存记录</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:8px;min-height:34px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);transition:background var(--press,130ms),box-shadow var(--move,250ms),transform var(--press,130ms) var(--spring,cubic-bezier(.2,1.35,.4,1)),color var(--press,130ms);background:var(--action,#292a2c);color:var(--on-action,#fff);box-shadow:0 2px 4px #00000010;}.ds-button-primary:hover{filter:brightness(1.15);box-shadow:0 3px 8px #0002;}.ds-button-primary:focus-visible{outline:2px solid var(--copper,#95624c);outline-offset:3px;}.ds-button-primary:active{transform:scale(.97)}@media(max-width:600px){.ds-button-primary{min-height:38px}}@media(prefers-reduced-motion:reduce){.ds-button-primary{transition:none}}"
+    },
+    {
+      "name": "Quiet button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Implemented compact quiet action; keyboard focus and press states preserved.",
+      "html": "<button type=\"button\" class=\"ds-button-quiet\">取消</button>",
+      "css": ".ds-button-quiet{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:8px;min-height:34px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);transition:background var(--press,130ms),box-shadow var(--move,250ms),transform var(--press,130ms) var(--spring,cubic-bezier(.2,1.35,.4,1)),color var(--press,130ms);background:transparent;color:var(--secondary,#5c5d60);}.ds-button-quiet:hover{background:var(--hover,#e7e8e7);}.ds-button-quiet:focus-visible{outline:2px solid var(--copper,#95624c);outline-offset:3px;}.ds-button-quiet:active{transform:scale(.97)}@media(max-width:600px){.ds-button-quiet{min-height:38px}}@media(prefers-reduced-motion:reduce){.ds-button-quiet{transition:none}}"
+    },
+    {
+      "name": "Soft button",
+      "kind": "button",
+      "refersTo": "button-soft",
+      "description": "Implemented compact soft action; keyboard focus and press states preserved.",
+      "html": "<button type=\"button\" class=\"ds-button-soft\">留下这篇</button>",
+      "css": ".ds-button-soft{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:8px;min-height:34px;padding:0 12px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);transition:background var(--press,130ms),box-shadow var(--move,250ms),transform var(--press,130ms) var(--spring,cubic-bezier(.2,1.35,.4,1)),color var(--press,130ms);background:var(--wash,#f5f5f3);color:var(--ink,#292a2c);}.ds-button-soft:hover{background:var(--hover,#e7e8e7);}.ds-button-soft:focus-visible{outline:2px solid var(--copper,#95624c);outline-offset:3px;}.ds-button-soft:active{transform:scale(.97)}@media(max-width:600px){.ds-button-soft{min-height:38px}}@media(prefers-reduced-motion:reduce){.ds-button-soft{transition:none}}"
+    },
+    {
+      "name": "Search field",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "Washed local plugin search with a copper focus boundary.",
+      "html": "<label class=\"ds-search\"><span>搜索</span><input aria-label=\"搜索资料\" placeholder=\"搜索资料\"></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:7px;background:var(--wash,#f5f5f3);color:var(--muted,#6c6e72);border-radius:7px;padding:0 10px;height:34px;font-size:11px;font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);}.ds-search input{background:transparent;border:0;outline:0;width:100%;min-width:0;font-size:11px;color:var(--ink,#292a2c);font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);}.ds-search input::placeholder{color:var(--muted,#6c6e72)}.ds-search:focus-within{outline:1px solid var(--copper,#95624c)}@media(max-width:600px){.ds-search input{font-size:16px}}"
+    },
+    {
+      "name": "Resident plugin navigation",
+      "kind": "nav",
+      "description": "The plugin region of the bottom bar, with surface selection and a copper location dot.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"常驻插件\"><a href=\"#home\" aria-current=\"page\" aria-label=\"项目首页\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z\"/><path d=\"M9 21v-8h6v8\"/></svg></a><a href=\"#goals\" aria-label=\"目标\"><svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/></svg></a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:5px;padding:8px;background:var(--page,#eeefef)}.ds-nav a{position:relative;display:grid;place-items:center;width:37px;height:37px;border-radius:11px;color:var(--secondary,#5c5d60);transition:background var(--move,250ms),transform var(--press,130ms)}.ds-nav a:hover{background:var(--hover,#e7e8e7);transform:translateY(-2px)}.ds-nav a[aria-current]{background:var(--surface,#fff);color:var(--ink,#292a2c);box-shadow:0 2px 8px #0000000a}.ds-nav a[aria-current]:after{content:\"\";width:3px;height:3px;border-radius:50%;background:var(--copper,#95624c);position:absolute;bottom:3px}.ds-nav a:focus-visible{outline:2px solid var(--copper,#95624c);outline-offset:3px;}@media(max-width:720px){.ds-nav a{width:40px;height:38px}}@media(prefers-reduced-motion:reduce){.ds-nav a{transition:none}}"
+    },
+    {
+      "name": "Unboxed status",
+      "kind": "chip",
+      "description": "A readable status label with a dot; intentionally no enclosing pill.",
+      "html": "<span class=\"ds-status\"><span aria-hidden=\"true\"></span>进行中</span>",
+      "css": ".ds-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--copper,#95624c);white-space:nowrap;font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);}.ds-status>span{display:block;width:6px;height:6px;border-radius:50%;background:currentColor}"
+    },
+    {
+      "name": "Focused work container",
+      "kind": "card",
+      "refersTo": "focus-work",
+      "description": "A paper-toned local focus block within the continuous workspace.",
+      "html": "<section class=\"ds-focus-work\"><h2>让工作流自然一点。</h2><p>从正在进行的目标开始，留下具体进展。</p></section>",
+      "css": ".ds-focus-work{position:relative;isolation:isolate;overflow:hidden;background:var(--paper,#fafaf9);color:var(--ink,#292a2c);border-radius:14px;padding:24px 28px 26px;font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);}.ds-focus-work:before{content:\"\";position:absolute;inset:0;background:radial-gradient(ellipse at 96% 4%,#dcc9b227,transparent 75%);pointer-events:none;z-index:-1}.ds-focus-work h2{margin:0;font-size:28px;line-height:1.45;letter-spacing:-.025em;font-weight:600}.ds-focus-work p{margin:13px 0 0;color:var(--secondary,#5c5d60);font-size:12px;line-height:1.9}@media(max-width:600px){.ds-focus-work{padding:20px}.ds-focus-work h2{font-size:25px}.ds-focus-work p{font-size:11px}}"
+    },
+    {
+      "name": "Selected onboarding choice",
+      "kind": "button",
+      "refersTo": "onboarding-option-selected",
+      "description": "Compact graphite choice with a persistent check; the application links it to a miniature preview.",
+      "html": "<button type=\"button\" class=\"ds-ob-option\" aria-pressed=\"true\"><span>浅色</span><svg viewBox=\"0 0 24 24\" width=\"15\" height=\"15\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m9 12 2 2 4-4\"/></svg></button>",
+      "css": ".ds-ob-option{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--ob-action,#28272a);color:var(--ob-on,#fff);border:0;border-radius:7px;min-height:34px;min-width:100px;padding:0 11px;font-size:10px;line-height:1.2;font-weight:400;text-align:left;box-shadow:0 4px 9px #24262f20;cursor:pointer;font-family:var(--font,-apple-system,BlinkMacSystemFont,\"SF Pro Text\",Inter,\"PingFang SC\",sans-serif);transition:background 200ms,color 200ms,box-shadow 200ms,transform 140ms var(--spring,cubic-bezier(.2,1.35,.4,1))}.ds-ob-option svg{width:10px;height:10px;stroke-width:2}.ds-ob-option:hover{background:var(--ob-action,#28272a)}.ds-ob-option:focus-visible{outline:2px solid var(--copper,#95624c);outline-offset:3px;}.ds-ob-option:active{transform:scale(.97)}@media(max-width:600px){.ds-ob-option{min-height:38px;font-size:9px;padding:0 9px}}@media(prefers-reduced-motion:reduce){.ds-ob-option{transition:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A personal work surface with room to think",
+    "overview": "This document records the implemented prototype in this directory. It does not replace the repository design system or authorize production adoption. The user-pinned Orvia Mail onboarding video supplies the visual reference: pearl surfaces, small graphite choices, warm and cool ambient light, and miniature previews that respond immediately to a choice. The exact typeface in the reference video is unknown.\n\nThe workbench keeps one continuous content surface above the existing bottom menu and unified conversation bar. Content, status and available actions remain legible; depth identifies temporary or layered surfaces. System sans and PingFang are this prototype's chosen approximation of the reference typography, including for headings; the user requested the reference's appearance rather than naming these font families.",
+    "keyCharacteristics": [
+      "Continuous content, restrained dividers and compact graphite controls.",
+      "A resident three-zone bottom bar, with plugin directories inside the content area.",
+      "A choice visibly changes its adjacent miniature preview.",
+      "Soft lighting and diffuse shadows concentrated around onboarding and raised layers."
+    ],
+    "rules": [
+      {
+        "name": "The Graphite Choice Rule",
+        "body": "Use a filled graphite control and a visible check for selected onboarding options; do not communicate selection through lighting alone.",
+        "section": "colors"
+      },
+      {
+        "name": "The Weight Before Decoration Rule",
+        "body": "Distinguish headings, item titles and explanatory copy through size and 600/500/400 weight before adding a new color or container.",
+        "section": "typography"
+      },
+      {
+        "name": "The Resident Bar Rule",
+        "body": "Keep global navigation and the unified conversation entry in the bottom bar; plugin lists belong to the content they navigate.",
+        "section": "layout"
+      }
+    ],
+    "dos": [
+      "**Do** preserve the prototype's system sans/PingFang approximation and deliberate 400/500/600 hierarchy.",
+      "**Do** keep one continuous work surface above the resident bottom menu and conversation bar.",
+      "**Do** show selected states with a check or label and update the miniature preview immediately.",
+      "**Do** preserve visible keyboard focus, readable supporting text and reduced-motion behavior.",
+      "**Do** keep example data, local-only settings and simulated Assistant behavior clearly identified."
+    ],
+    "donts": [
+      "**Don't** introduce a global sidebar or a second global conversation entry.",
+      "**Don't** reduce caption opacity on top of muted onboarding text.",
+      "**Don't** promote miniature illustration text sizes or the placeholder “m” into production typography or identity rules.",
+      "**Don't** treat this prototype as an adopted global design system or evidence of real AI/Runtime integration."
+    ]
+  }
+}

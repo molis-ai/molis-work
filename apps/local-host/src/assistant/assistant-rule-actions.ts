@@ -12,7 +12,7 @@ export const ASSISTANT_RULES_PROVIDER = "io.molis.work.assistant.rules";
 /** Where a rule can apply: the plugin pages people know, by the ids the Host matches. */
 const SURFACES: ReadonlyArray<[string, string]> = [["pages", "Pages"], ["coding", "Coding"], ["goals", "Goals"], ["jelly", "Jelly"], ["cognia", "Cognia"],
   ["dataset", "Dataset"], ["form", "Forms"], ["workflows", "工作流程"], ["lingguang", "灵光"], ["home", "项目首页"]];
-const KINDS: ReadonlyArray<[string, string]> = [["failed", "一轮失败"], ["needs-decision", "需要你确认或回答"], ["completed", "你不在时做完"], ["result", "插件交回结果"]];
+const KINDS: ReadonlyArray<[string, string]> = [["failed", "一轮失败"], ["needs-decision", "需要你确认或回答"], ["completed", "你不在时做完"], ["result", "插件交回结果"], ["material", "与工作目标相关的新资料"]];
 
 const rulesOutput: ActionSchema = { type: "object", properties: { rules: { type: "array", title: "现在的提醒规则", items: { type: "object" } } }, required: ["rules"] };
 

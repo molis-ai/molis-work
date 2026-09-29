@@ -10,6 +10,7 @@ import {
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
+import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -249,6 +250,20 @@ export function stopInWords(reason: string): string {
   return reason;
 }
 
+/**
+ * The one object a suggested change is about, when its action names a single kind and its input points at one:
+ * `<kind>_id`, `subject_id` or `id` (the convention for change actions on an existing object).
+ */
+export function cardSubject(view: Pick<ActionView, "action" | "operation">, input: unknown): { kind: string; id: string } | null {
+  if (view.operation !== "command" || view.action.subject_kinds.length !== 1 || !input || typeof input !== "object" || Array.isArray(input)) return null;
+  const kind = view.action.subject_kinds[0]!, record = input as Record<string, unknown>;
+  for (const key of [`${kind.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}_id`, "subject_id", "id"]) {
+    const value = record[key];
+    if (typeof value === "string" && value) return { kind, id: value };
+  }
+  return null;
+}
+
 /** The modes a Coding round can run in, as Coding's own page offers them. */
 const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"];
 
@@ -342,17 +357,102 @@ export class AssistantService {
     const now = this.now();
     const rules = this.store.rules(this.actorId).filter(rule => rule.enabled && (!rule.until || new Date(rule.until) > now));
     const stale = now.getTime() - NOTICE_TTL_MS;
-    return this.store.openNotices(this.actorId).flatMap(notice => {
+    const shownMaterial = new Map<string, number>();
+    const open = this.store.openNotices(this.actorId);
+    return open.flatMap(notice => {
       // What waited too long is no longer news: it goes quietly instead of arriving in a burst.
       if (Date.parse(notice.created_at) < stale) { this.store.settleNotices(this.actorId, { notice_id: notice.notice_id }, "resolved"); return []; }
+      // New material for one work is one notice, however many items arrived (newest first).
+      if (notice.kind === "material") {
+        if (shownMaterial.has(notice.work_id)) return [];
+        shownMaterial.set(notice.work_id, 1);
+      }
       const { state: _state, ...view } = notice;
+      const count = notice.kind === "material" ? open.filter(item => item.kind === "material" && item.work_id === notice.work_id && Date.parse(item.created_at) >= stale).length : 1;
+      const shown = count > 1 ? { ...view, text: `${view.text}（另有 ${count - 1} 条）` } : view;
       const rule = holdingRule(rules, notice.kind, surface);
-      return [rule ? { ...view, held: { rule_id: rule.rule_id, reason: rule.label } } : view];
+      return [rule ? { ...shown, held: { rule_id: rule.rule_id, reason: rule.label } } : shown];
     });
   }
 
   settleNotices(target: { notice_id?: string; work_id?: string }, state: "seen" | "dismissed"): number {
+    // The merged new-material notice stands for all of that work's: settling it settles them together.
+    const material = target.notice_id ? this.store.openNotices(this.actorId).find(item => item.notice_id === target.notice_id && item.kind === "material") : undefined;
+    if (material) return this.store.openNotices(this.actorId).filter(item => item.kind === "material" && item.work_id === material.work_id)
+      .reduce((sum, item) => sum + this.store.settleNotices(this.actorId, { notice_id: item.notice_id }, state), 0);
     return this.store.settleNotices(this.actorId, target, state);
+  }
+
+  /**
+   * New items elsewhere that matter to a live work: they share a Goal with it (read from the items' owners, never
+   * guessed). Items the Assistant produced itself, items already seen and works that are idle for a week are left
+   * out; nothing here starts a round, so a notice cannot feed itself. Looks from where it last stopped.
+   */
+  async scanNewMaterial(): Promise<number> {
+    const now = this.now();
+    // Items are dated by their source, so one may turn up after its date: what matters is whether it was seen before.
+    // The first look only learns what is already there; nothing older than a notice's life is considered.
+    const known = this.store.setting(this.actorId, "material_seen");
+    const seen = new Set<string>(known ? JSON.parse(known) as string[] : []), firstLook = known === null;
+    const from = new Date(now.getTime() - NOTICE_TTL_MS);
+    const week = now.getTime() - 7 * 24 * 3600_000;
+    const works = this.store.list(this.actorId).filter(work => !work.archived && work.project_ref && !work.delegated_by && Date.parse(work.updated_at) >= week).slice(0, 12);
+    const byProject = new Map<string, StoredWork[]>();
+    for (const work of works) byProject.set(work.project_ref!.project_id, [...byProject.get(work.project_ref!.project_id) ?? [], work]);
+    let raised = 0;
+    for (const [projectId, group] of byProject) {
+      let actions: PersonActions | null = null;
+      try { actions = await this.ports.scopeActions?.(group[0]!) ?? null; } catch { actions = null; }
+      if (!actions) continue;
+      const views = await actions.discover().catch(() => [] as ActionView[]);
+      const providers = views.filter(view => view.action.input_type === HOME_EVENTS_INPUT_TYPE && view.action.output_type === HOME_EVENTS_OUTPUT_TYPE && view.availability.available);
+      const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
+      const read = async (subject: { kind: string; id: string }): Promise<ActionSubjectContext | null> => {
+        const reader = readers.find(view => view.action.subject_kinds.includes(subject.kind));
+        if (!reader) return null;
+        try { return await actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id }) as ActionSubjectContext; }
+        catch { return null; }
+      };
+      // What each live work is about: the Goals of the objects it relates to.
+      const goals = new Map<string, Set<string>>();
+      for (const work of group) {
+        const ids = new Set<string>();
+        for (const relation of this.store.relations.forWork(identity(work)).slice(-20)) {
+          if (relation.object.kind === "goal") { ids.add(relation.object.id); continue; }
+          for (const goal of (await read(relation.object))?.goal_ids ?? []) ids.add(goal);
+        }
+        if (ids.size) goals.set(work.work_id, ids);
+      }
+      if (!goals.size && !firstLook) continue;
+      const window = { from: from.toISOString(), to: new Date(now.getTime() + 1).toISOString(), now: now.toISOString() };
+      for (const provider of providers) {
+        let collection: HomeEventCollection;
+        try { collection = await actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window) as HomeEventCollection; }
+        catch { continue; }
+        // New items (occurred) and newly open attention items (active); standing status lines (today) are not material.
+        for (const event of collection.events.filter(item => item.placement === "occurred" || item.placement === "active").slice(0, 100)) {
+          const key = `${projectId}:${provider.capability_id}:${event.event_id}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          if (firstLook) continue;
+          // What the Assistant made itself is not news to the work that made it.
+          if (this.store.relations.forObject(projectId, event.subject).some(row => row.relation === "result")) continue;
+          const context = event.subject.kind === "goal" ? null : await read(event.subject);
+          const eventGoals = event.subject.kind === "goal" ? [event.subject.id] : context?.goal_ids ?? [];
+          for (const [workId, ids] of goals) {
+            const shared = eventGoals.find(goal => ids.has(goal));
+            if (!shared) continue;
+            const work = group.find(item => item.work_id === workId)!;
+            const goalTitle = (await read({ kind: "goal", id: shared }))?.title || "相关目标";
+            const stored = this.store.raiseNotice(this.actorId, { kind: "material", work_id: work.work_id, work_title: work.title,
+              text: `${collection.source.title} 有新内容「${event.title.slice(0, 60)}」，和这项工作的目标「${goalTitle.slice(0, 40)}」有关` }, `material:${work.work_id}:${event.event_id}`);
+            if (stored) raised += 1;
+          }
+        }
+      }
+    }
+    this.store.setSetting(this.actorId, "material_seen", JSON.stringify([...seen].slice(-2000)));
+    return raised;
   }
 
   rules(): AssistantRule[] { return this.store.rules(this.actorId); }
@@ -467,6 +567,11 @@ export class AssistantService {
     const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0 }))) : [];
     const scheduled = this.store.followUps(this.actorId, work.work_id);
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
+    // A suggestion about an object the person has since changed or removed by hand is not offered any more.
+    for (const card of this.store.cards(work.work_id).filter(item => item.target && (item.status === "ready" || item.status === "needs-input"))) {
+      const moved = await this.targetMoved(work, card);
+      if (moved) { try { this.store.updateCard(card, card.revision, { status: "stale", outcome: moved }); } catch { /* Clicked meanwhile: that click decides. */ } }
+    }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
       ...(scheduled.length ? { scheduled } : {}), ...(unsettled.length ? { unsettled } : {}), ...(problem ? { problem } : {}) };
@@ -785,6 +890,43 @@ export class AssistantService {
     }));
   }
 
+  /** One object as its owner has it now: its context, "missing" when the owner says it is gone, null when unreadable. */
+  private async readSubject(work: StoredWork, subject: { kind: string; id: string }): Promise<ActionSubjectContext | "missing" | null> {
+    let actions: PersonActions | null = null;
+    try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { return null; }
+    if (!actions) return null;
+    const reader = (await actions.discover().catch(() => [] as ActionView[])).find(view => isSubjectReader(view.action) && view.availability.available && view.action.subject_kinds.includes(subject.kind));
+    if (!reader) return null;
+    try { return await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id }) as ActionSubjectContext; }
+    catch (error) { return /not_found|missing|deleted/.test((error as { code?: string }).code ?? "") ? "missing" : null; }
+  }
+
+  /** Why a card no longer fits its object (changed or removed since it was suggested), or null while it still does. */
+  private async targetMoved(work: StoredWork, card: StoredCard): Promise<string | null> {
+    if (!card.target) return null;
+    const now = await this.readSubject(work, card.target);
+    if (now === "missing") return `「${card.target.title}」已在原处删除，这张建议不再执行`;
+    if (now && now.revision !== card.target.revision) return `你在原处改过「${card.target.title}」，这张建议基于改之前的内容，不再执行；需要时让助理按现在的内容重新准备`;
+    return null;
+  }
+
+  /**
+   * A “做完了” or “交回结果” notice about a result the person has since changed or removed in its plugin is no longer
+   * news: they already acted on it. Only works with such open notices are read, a few at a time.
+   */
+  async settleHandledNotices(): Promise<number> {
+    const open = this.store.openNotices(this.actorId).filter(notice => notice.kind === "completed" || notice.kind === "result");
+    let settled = 0;
+    for (const workId of [...new Set(open.map(notice => notice.work_id))].slice(0, 5)) {
+      let work: StoredWork;
+      try { work = this.store.get(this.actorId, workId); } catch { continue; }
+      const objects = await this.workObjects(work).catch(() => [] as AssistantWorkObject[]);
+      if (!objects.some(object => object.relation === "result" && (object.state === "changed" || object.state === "missing"))) continue;
+      for (const notice of open.filter(item => item.work_id === workId)) settled += this.store.settleNotices(this.actorId, { notice_id: notice.notice_id }, "seen");
+    }
+    return settled;
+  }
+
   /** One object as its owner has it now, with the Goals and other works it belongs to; null when it cannot be read. */
   private async objectBackground(work: StoredWork, object: { kind: string; id: string; version?: string | number }): Promise<string | null> {
     let actions: PersonActions | null = null;
@@ -901,6 +1043,9 @@ export class AssistantService {
       reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: structuredClone(offer.input),
       input_schema: view.action.input_schema as Record<string, unknown>, editable: [...new Set(offer.editable ?? [])], missing,
       status: missing.length ? "needs-input" : "ready", created_at: at, updated_at: at };
+    const subject = cardSubject(view, offer.input);
+    const read = subject ? await this.readSubject(work, subject) : null;
+    if (subject && read && read !== "missing") card.target = { ...subject, revision: read.revision, title: read.title || subject.id };
     this.store.addCard(card);
     return { offer_id: card.card_id };
   }
@@ -934,6 +1079,8 @@ export class AssistantService {
         } else (prepared as Record<string, unknown>)[key] = value;
       }
     }
+    const moved = await this.targetMoved(work, card);
+    if (moved) return cardView(this.store.updateCard(card, card.revision, { status: "stale", outcome: moved }));
     const stillMissing = card.missing.filter(item => { const value = (prepared as Record<string, unknown> | null)?.[item.field]; return value === undefined || value === null || value === ""; });
     if (stillMissing.length) throw new AssistantError("assistant.invalid", `还需要填写：${stillMissing.map(item => item.question).join("；")}`);
     const authority = await this.ports.authority(work);

@@ -160,6 +160,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "需要决定": "decision needed",
   "做完": "done",
   "交回结果": "result returned",
+  "相关新资料": "related new material",
   "在": "In",
   "不提醒": "stay quiet",
   "任何地方都不提醒": "Stay quiet everywhere",

@@ -191,10 +191,13 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     schedulerTimer.unref();
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
+    let assistantTicks = 0;
     const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => {
       const { service } = assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
         projectTitle: async projectId => platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) });
       await service.runDueFollowUps();
+      // New material that shares a Goal with a live work: looked for every five minutes, from where it last stopped.
+      if (assistantTicks++ % 10 === 0) await service.scanNewMaterial();
     }).catch(error => console.warn("[assistant] 定时没有执行", error)), 30_000);
     assistantTimer.unref();
     server.once("close", () => {

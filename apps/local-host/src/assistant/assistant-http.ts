@@ -131,6 +131,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "notices") {
         // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
         await service.list();
+        // What the person already acted on in its plugin is not news any more.
+        await service.settleHandledNotices().catch(() => 0);
         return { status: 200, body: { notices: service.notices(url.searchParams.get("surface") || null) } };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "notices") {

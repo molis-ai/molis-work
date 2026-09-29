@@ -95,6 +95,8 @@ export interface StoredCard {
   outcome?: string;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
+  /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */
+  target?: { kind: string; id: string; revision: string; title: string };
   created_at: string;
   updated_at: string;
 }
@@ -280,6 +282,17 @@ export class AssistantStore {
 
   removeFollowUp(actorId: string, followupId: string): boolean {
     return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
+  }
+
+  /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */
+  setting(actorId: string, key: string): string | null {
+    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key=?").get(actorId, key);
+    return row ? String(row.value) : null;
+  }
+
+  setSetting(actorId: string, key: string, value: string): void {
+    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
+      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
   }
 
   rules(actorId: string): AssistantRule[] {

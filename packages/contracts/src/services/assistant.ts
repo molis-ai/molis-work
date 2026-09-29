@@ -426,7 +426,8 @@ export interface AssistantContribution {
  * failed, a decision it waits on, a round that finished while they were elsewhere, a result a plugin handed back. It
  * never starts anything, so a notice cannot cause another notice.
  */
-export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result";
+/** `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work. */
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material";
 export interface AssistantNotice {
   notice_id: string;
   kind: AssistantNoticeKind;

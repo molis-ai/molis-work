@@ -836,7 +836,12 @@ test("revoke withdraws enablement until enable, including delivery, routes, and 
     pathname: `/api/plugins/${consumerId}/ping`,
     actor_id: "actor",
   });
-  assert.deepEqual(received.at(-1), { path: "src/restored.ts" });
+  assert.deepEqual(received, [
+    { path: "src/a.ts" },
+    { path: "src/queued.ts" },
+    { path: "src/after.ts" },
+    { path: "src/restored.ts" },
+  ], "新启用世代按序接回同一安装尚未派出的事件，不能越过或卡住旧队列");
   assert.equal(delivered.length, 2);
   assert.equal(allowed?.status, 200);
   assert.equal(routes, 2);

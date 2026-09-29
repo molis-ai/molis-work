@@ -130,8 +130,9 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 - **事件 id 放合同**，不放发布者插件包。Coding 的 `file-changed` 在 `workspace-artifacts` 合同里，Files 只点名 id，不 import Coding 实现。
 - `PluginDefinition.event_types` 的 `validate` 必须覆盖自己 publishes 的每一种；Host 只存校验通过的。
 - 发布：`context.services.events.publish({ event_type_id, type_version, payload })`。没声明 publishes 就没有 `services.events`。
-- 接收：`start()` 返回的 contribution 上写 `onEvent`（Files/Git 用来刷工作区）。
-- 落项目库，按 (订阅者, 来源) 串行，重启从游标续。
+- 接收：`start()` 返回的 contribution 上写 `onEvent(event, delivery)`（Files/Git 用来刷工作区）。使用订阅安装自己的身份及 `delivery.signal`，每次异步等待后、写入前调用 `delivery.beforeEffect()`；传给 Host 端口时继续传该控制，不能长期保留原发布 Action 的临时授权。
+- 落项目库，按 (订阅者, 来源) 串行，游标绑定 install_id 与安装世代。同一安装重启续接未派出的工作，重装建立新订阅，不继承旧游标或重放历史。无可信身份的旧游标保留原数据，仅作为历史。
+- 处理前持久记录 delivering，确认前重查实例、版本和订阅。处理器已开始但崩溃或被撤销，结果未知则隔离，不能自动重试；启动失败且没有派出处理器时可以恢复。普通处理器异常记录后不自动重投，不能声称任意副作用 exactly-once。Host 关闭先 `await events.close()` 再关闭数据库。
 
 **今天只有 Coding 族这条 `createPluginPlatform` 真的在跑总线。** Feed / Inbox / Pages 这类构建期 Native 没有。给 Native 抄 Coding 的 `events:` 块，运行时不会投递。
 

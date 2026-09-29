@@ -57,6 +57,7 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, boardId
 
 async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   const failures: unknown[] = [];
+  await platform.events.close();
   for (const pluginId of platform.supervisor.enabledPluginIds()) {
     const active = platform.supervisor.state(pluginId);
     platform.supervisor.revoke(pluginId);
@@ -208,4 +209,3 @@ function currentWorkspaceId(ports: ProjectPluginPorts): string | null {
   const workspaces = ports.workspaces ?? [];
   return workspaces.length === 1 ? workspaces[0]!.workspace_id : null;
 }
-

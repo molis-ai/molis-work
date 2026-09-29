@@ -239,6 +239,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const close = async () => {
     if (closed) return;
     closed = true; stopScheduledRuns?.(); disposePlatform(); disposeScheduledOperations(); disposeReminders?.();
+    await platform.events.close();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];
     for (const pluginId of platform.supervisor.enabledPluginIds()) {

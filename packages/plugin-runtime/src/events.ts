@@ -18,6 +18,8 @@ import {
   type PluginEventRef,
   type PluginEventsClient,
   type PluginEventsRepository,
+  type PluginEventSubscriberIdentity,
+  type PluginEventSubscribeSource,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
@@ -26,6 +28,8 @@ interface Envelope {
   generation: number;
   subscriber_plugin_id: string;
   record: PluginEventRecord;
+  identity: PluginEventSubscriberIdentity;
+  version: string;
 }
 
 function isolatePayload(payload: unknown): unknown {
@@ -68,6 +72,7 @@ export class PluginEventBus implements PluginEventBusApi {
   readonly #tails = new Map<string, Promise<void>>();
   readonly #queued = new Set<string>();
   readonly #controllers = new Map<string, Set<AbortController>>();
+  #closed = false;
 
   constructor(input: {
     boardId: string;
@@ -84,9 +89,9 @@ export class PluginEventBus implements PluginEventBusApi {
   }
 
   /** Author surface bound to one activation. A Plugin publishes; it never reads the log. */
-  clientFor(identity: PluginEventPublisherIdentity): PluginEventsClient {
+  clientFor(identity: PluginEventPublisherIdentity, assertActive: () => void): PluginEventsClient {
     return {
-      publish: (input) => this.publish(identity, input),
+      publish: (input) => { assertActive(); return this.publish(identity, input); },
     };
   }
 
@@ -94,6 +99,10 @@ export class PluginEventBus implements PluginEventBusApi {
     identity: PluginEventPublisherIdentity,
     input: PluginEventPublishInput,
   ): PluginEventPublishResult {
+    const installation = this.#lifecycle.installation(identity.plugin_id);
+    if (this.#closed || identity.board_id !== this.#boardId || !installation?.running || installation.install_id !== identity.install_id) {
+      throw new PluginEventError("event_identity_invalid", "事件发布者的项目或安装身份已失效");
+    }
     const contract = this.#lifecycle.contract(identity.plugin_id);
     if (!contract) {
       throw new PluginEventError("event_not_declared", `插件 ${identity.plugin_id} 没有登记`);
@@ -137,8 +146,14 @@ export class PluginEventBus implements PluginEventBusApi {
 
     for (const subscriberPluginId of this.#match(record)) {
       const generation = this.#lifecycle.generation(subscriberPluginId);
-      if (generation === undefined) continue;
-      this.#enqueue({ generation, subscriber_plugin_id: subscriberPluginId, record });
+      const subscriber = this.#lifecycle.installation(subscriberPluginId);
+      if (generation === undefined || !subscriber) continue;
+      this.#cursor(subscriberPluginId, record, subscriber, record.sequence - 1);
+      // A prior enablement may have left work queued but never dispatched. Wake
+      // the pending source in order instead of stranding it behind this event.
+      for (const pending of this.#pending(subscriberPluginId, subscriber, record.source_plugin_id)) {
+        this.#enqueue({ generation, subscriber_plugin_id: subscriberPluginId, record: pending, identity: subscriber, version: subscriber.version });
+      }
     }
 
     const ref: PluginEventRef = {
@@ -162,46 +177,48 @@ export class PluginEventBus implements PluginEventBusApi {
       }
       this.#controllers.delete(pluginId);
     }
-    for (const key of [...this.#tails.keys()]) {
-      if (key.startsWith(`${pluginId}\u0000`)) this.#tails.delete(key);
-    }
+    // Keep the queue until its aborted delivery settles; deleting it permits overlapping deliveries.
+  }
+
+  /** Stop accepting work before the database owner closes its connection. */
+  async close(): Promise<void> {
+    this.#closed = true;
+    for (const pluginId of [...this.#controllers.keys()]) this.revoke(this.#boardId, pluginId);
+    await this.drain();
   }
 
   /** Replay everything a subscriber has not acknowledged. Safe to call repeatedly. */
   async resume(boardId: string): Promise<number> {
-    if (boardId !== this.#boardId) return 0;
+    if (this.#closed || boardId !== this.#boardId) return 0;
     let queued = 0;
     for (const subscriberPluginId of this.#lifecycle.enabledPluginIds()) {
-      const contract = this.#lifecycle.contract(subscriberPluginId);
       const generation = this.#lifecycle.generation(subscriberPluginId);
-      if (!contract || generation === undefined) continue;
-      const records = new Map<string, PluginEventRecord>();
-      for (const subscription of contract.subscribes) {
-        for (const sourcePluginId of subscription.from_plugin_ids) {
-          const cursor = this.#repository.cursor(this.#boardId, subscriberPluginId, {
-            source_plugin_id: sourcePluginId,
-            event_type_id: subscription.event_type_id,
-            type_version: subscription.type_version,
-          });
-          const pending = this.#repository.list(this.#boardId, {
-            event_type_id: subscription.event_type_id,
-            type_version: subscription.type_version,
-            source_plugin_id: sourcePluginId,
-            since_sequence: cursor?.delivered_sequence ?? 0,
-          });
-          for (const record of pending) {
-            records.set(record.event_id, record);
-          }
-        }
-      }
-      for (const record of [...records.values()].sort((a, b) => a.sequence - b.sequence)) {
-        this.#enqueue({ generation, subscriber_plugin_id: subscriberPluginId, record });
+      const identity = this.#lifecycle.installation(subscriberPluginId);
+      if (generation === undefined || !identity) continue;
+      for (const record of this.#pending(subscriberPluginId, identity)) {
+        this.#enqueue({ generation, subscriber_plugin_id: subscriberPluginId, record, identity, version: identity.version });
         queued += 1;
       }
     }
     // Deliberately does not drain: an activation hook may call this from inside a
     // delivery, and waiting on the queue that contains it would deadlock.
     return queued;
+  }
+
+  #pending(pluginId: string, identity: PluginEventSubscriberIdentity, onlySource?: string): PluginEventRecord[] {
+    const records = new Map<string, PluginEventRecord>();
+    for (const subscription of this.#lifecycle.contract(pluginId)?.subscribes ?? []) {
+      for (const sourcePluginId of subscription.from_plugin_ids) {
+        if (onlySource !== undefined && sourcePluginId !== onlySource) continue;
+        const source = { source_plugin_id: sourcePluginId, event_type_id: subscription.event_type_id, type_version: subscription.type_version };
+        const cursor = this.#cursor(pluginId, source, identity, this.#repository.latestSequence(this.#boardId));
+        if (cursor.state === "quarantined") continue;
+        for (const record of this.#repository.list(this.#boardId, { ...source, since_sequence: cursor.delivered_sequence })) {
+          records.set(record.event_id, record);
+        }
+      }
+    }
+    return [...records.values()].sort((left, right) => left.sequence - right.sequence);
   }
 
   /** Wait for currently queued deliveries. Test and shutdown seam, not a Plugin API. */
@@ -246,9 +263,10 @@ export class PluginEventBus implements PluginEventBusApi {
 
   /** One chain per (subscriber, source) so a source's events stay in order. */
   #enqueue(envelope: Envelope): void {
+    if (this.#closed) return;
     // Queued and in-flight events are deduplicated, so `resume` is idempotent and an
     // activation hook firing mid-delivery cannot deliver the same event twice.
-    const pendingKey = `${envelope.subscriber_plugin_id}\u0000${envelope.record.event_id}`;
+    const pendingKey = JSON.stringify([envelope.subscriber_plugin_id, envelope.identity.install_id, envelope.identity.installation_generation, envelope.version, envelope.generation, envelope.record.event_id]);
     if (this.#queued.has(pendingKey)) return;
     this.#queued.add(pendingKey);
     const key = `${envelope.subscriber_plugin_id}\u0000${envelope.record.source_plugin_id}`;
@@ -267,20 +285,22 @@ export class PluginEventBus implements PluginEventBusApi {
 
   async #deliver(envelope: Envelope): Promise<void> {
     const { subscriber_plugin_id: pluginId, record } = envelope;
-    if (this.#lifecycle.generation(pluginId) !== envelope.generation) return;
-    if (this.#alreadyDelivered(pluginId, record)) return;
-    const cursor = this.#repository.cursor(this.#boardId, pluginId, record);
-    if (cursor?.state === "retry_wait") {
-      const [first] = this.#repository.list(this.#boardId, {
+    if (!this.#current(envelope)) return;
+    const cursor = this.#repository.cursor(this.#boardId, pluginId, record, envelope.identity);
+    if (!cursor || cursor.delivered_sequence >= record.sequence || cursor.state === "quarantined") return;
+    if (cursor.state === "delivering") {
+      this.#saveCursor(envelope, { advance: false, state: "quarantined", code: "subscriber_outcome_unknown" });
+      return;
+    }
+    const [first] = this.#repository.list(this.#boardId, {
         source_plugin_id: record.source_plugin_id,
         event_type_id: record.event_type_id,
         type_version: record.type_version,
         since_sequence: cursor.delivered_sequence,
         limit: 1,
-      });
-      // Advancing past an activation failure would acknowledge an event never delivered.
-      if (first?.event_id !== record.event_id) return;
-    }
+    });
+    // Never acknowledge past a gap, including a queue handoff during an upgrade.
+    if (first?.event_id !== record.event_id) return;
 
     let subscriber: PluginActiveInstance | undefined;
     let readyError: unknown;
@@ -290,11 +310,11 @@ export class PluginEventBus implements PluginEventBusApi {
       readyError = error;
     }
 
-    if (this.#lifecycle.generation(pluginId) !== envelope.generation) return;
+    if (!this.#current(envelope)) return;
     if (subscriber === undefined) {
       // The cursor does not advance: the event stays pending until the subscriber is
       // healthy again and `resume` replays it.
-      this.#saveCursor(pluginId, record, {
+      this.#saveCursor(envelope, {
         advance: false,
         state: "retry_wait",
         code: readyError === undefined ? "subscriber_start_failed" : safeErrorCode(readyError),
@@ -303,7 +323,7 @@ export class PluginEventBus implements PluginEventBusApi {
       return;
     }
     if (!subscriber.active()) {
-      this.#saveCursor(pluginId, record, {
+      this.#saveCursor(envelope, {
         advance: false,
         state: "retry_wait",
         code: "subscriber_revoked",
@@ -316,7 +336,7 @@ export class PluginEventBus implements PluginEventBusApi {
     if (!onEvent) {
       // The redemption check already refuses this shape at start; treat a missing
       // handler as an unusable subscriber rather than a silently dropped event.
-      this.#saveCursor(pluginId, record, {
+      this.#saveCursor(envelope, {
         advance: false,
         state: "retry_wait",
         code: "subscriber_start_failed",
@@ -327,49 +347,73 @@ export class PluginEventBus implements PluginEventBusApi {
 
     const controller = new AbortController();
     this.#track(pluginId, controller);
+    const beforeEffect = () => {
+      if (controller.signal.aborted || !this.#current(envelope) || !subscriber!.active()) throw new PluginEventError("event_delivery_revoked", "事件订阅的安装或执行身份已失效");
+    };
     const context: PluginEventDeliveryContext = {
       board_id: this.#boardId,
       plugin_id: pluginId,
       install_id: subscriber.install_id,
+      installation_generation: envelope.identity.installation_generation,
+      actor_id: `plugin:${pluginId}`,
       signal: controller.signal,
+      beforeEffect,
     };
+    let abort = () => {};
     try {
-      await onEvent.call(subscriber.contribution, { ...record }, context);
-      this.#saveCursor(pluginId, record, { advance: true, state: "idle", code: null });
+      beforeEffect();
+      this.#saveCursor(envelope, { advance: false, state: "delivering", code: null });
+      const aborted = new Promise<never>((_, reject) => { abort = () => reject(new PluginEventError("event_delivery_revoked", "事件投递已停止，处理结果可能尚未确认")); controller.signal.addEventListener("abort", abort, { once: true }); });
+      await Promise.race([Promise.resolve().then(() => { beforeEffect(); return onEvent.call(subscriber.contribution, structuredClone(record), context); }), aborted]);
+      beforeEffect();
+      this.#saveCursor(envelope, { advance: true, state: "idle", code: null });
     } catch (error) {
-      this.#saveCursor(pluginId, record, {
-        advance: true,
-        state: "idle",
+      const revoked = controller.signal.aborted || !this.#current(envelope) || !subscriber.active();
+      this.#saveCursor(envelope, {
+        advance: !revoked,
+        state: revoked ? "quarantined" : "idle",
         code: safeErrorCode(error),
       });
-      this.#fail("subscriber_handler_failed", pluginId, record, "订阅者处理事件时失败；该事件不再重投");
+      this.#fail(revoked ? "subscriber_revoked" : "subscriber_handler_failed", pluginId, record, revoked ? "订阅者已撤销，未确认的处理保留隔离且不自动重投" : "订阅者处理事件时失败；该事件不再重投");
     } finally {
+      controller.signal.removeEventListener("abort", abort);
       this.#untrack(pluginId, controller);
     }
   }
 
-  #alreadyDelivered(pluginId: string, record: PluginEventRecord): boolean {
-    const cursor = this.#repository.cursor(this.#boardId, pluginId, {
-      source_plugin_id: record.source_plugin_id,
-      event_type_id: record.event_type_id,
-      type_version: record.type_version,
-    });
-    return cursor !== null && cursor.delivered_sequence >= record.sequence;
+  #current(envelope: Envelope): boolean {
+    const current = this.#lifecycle.installation(envelope.subscriber_plugin_id);
+    return !this.#closed && this.#lifecycle.generation(envelope.subscriber_plugin_id) === envelope.generation
+      && current?.install_id === envelope.identity.install_id && current.installation_generation === envelope.identity.installation_generation
+      && current.version === envelope.version && this.#match(envelope.record).includes(envelope.subscriber_plugin_id);
+  }
+
+  #cursor(pluginId: string, source: PluginEventSubscribeSource, identity: PluginEventSubscriberIdentity, start: number): PluginEventCursorRecord {
+    const existing = this.#repository.cursor(this.#boardId, pluginId, source, identity);
+    if (existing) return existing;
+    const created: PluginEventCursorRecord = { board_id: this.#boardId, subscriber_plugin_id: pluginId,
+      subscriber_install_id: identity.install_id, subscriber_generation: identity.installation_generation,
+      source_plugin_id: source.source_plugin_id, event_type_id: source.event_type_id, type_version: source.type_version,
+      delivered_sequence: start, state: "idle", retry_at: null, last_error_code: null, updated_at: this.#now().toISOString() };
+    this.#repository.saveCursor(created);
+    return created;
   }
 
   #saveCursor(
-    pluginId: string,
-    record: PluginEventRecord,
+    envelope: Envelope,
     outcome: { advance: boolean; state: PluginEventCursorRecord["state"]; code: string | null },
   ): void {
+    const { subscriber_plugin_id: pluginId, record, identity } = envelope;
     const existing = this.#repository.cursor(this.#boardId, pluginId, {
       source_plugin_id: record.source_plugin_id,
       event_type_id: record.event_type_id,
       type_version: record.type_version,
-    });
+    }, identity);
     this.#repository.saveCursor({
       board_id: this.#boardId,
       subscriber_plugin_id: pluginId,
+      subscriber_install_id: identity.install_id,
+      subscriber_generation: identity.installation_generation,
       source_plugin_id: record.source_plugin_id,
       event_type_id: record.event_type_id,
       type_version: record.type_version,

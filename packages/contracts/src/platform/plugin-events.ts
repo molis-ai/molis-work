@@ -24,6 +24,8 @@ export type PluginEventErrorCode =
   | "event_not_declared"
   | "event_payload_invalid"
   | "event_payload_too_large"
+  | "event_identity_invalid"
+  | "event_delivery_revoked"
   | "event_subscription_invalid";
 
 export class PluginEventError extends Error {
@@ -100,7 +102,16 @@ export interface PluginEventDeliveryContext {
   board_id: string;
   plugin_id: string;
   install_id: string;
+  installation_generation: string;
+  /** The subscriber's own installation identity, never the original publisher's caller. */
+  actor_id: string;
   signal: AbortSignal;
+  beforeEffect(): void;
+}
+
+export interface PluginEventSubscriberIdentity {
+  install_id: string;
+  installation_generation: string;
 }
 
 export type PluginEventCursorState = "idle" | "delivering" | "retry_wait" | "quarantined";
@@ -108,6 +119,9 @@ export type PluginEventCursorState = "idle" | "delivering" | "retry_wait" | "qua
 export interface PluginEventCursorRecord {
   board_id: string;
   subscriber_plugin_id: string;
+  /** Empty only for unbound legacy cursors whose installation cannot be proven. */
+  subscriber_install_id: string;
+  subscriber_generation: string;
   source_plugin_id: string;
   event_type_id: string;
   type_version: number;
@@ -152,6 +166,7 @@ export interface PluginEventsRepository {
     boardId: string,
     subscriberPluginId: string,
     source: PluginEventSubscribeSource,
+    identity: PluginEventSubscriberIdentity,
   ): PluginEventCursorRecord | null;
   listCursors(boardId: string, subscriberPluginId?: string): PluginEventCursorRecord[];
   saveCursor(record: PluginEventCursorRecord): void;

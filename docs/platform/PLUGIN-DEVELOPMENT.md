@@ -174,6 +174,8 @@ Host 侧改哪里、调用链怎么走，见 [CLI 与开发 · 对外 MCP](../cl
 
 ## 事件去向的动作名单
 
+Runtime 插件的持久事件总线与这里的判断场景不同。订阅声明和权限属于安装实例；处理器使用 `delivery.signal/beforeEffect()`，等待后写入前复查，不保存发布者的临时调用上下文。游标绑定安装世代，旧发布 client 停止后失效；重装不重放旧工作，处理中断的未知结果隔离而不自动重试。事件处理与外部副作用不能凭游标宣称 exactly-once。具体协议见 [插件平台](PLUGIN-PLATFORM.md) 与 [事件 Skill](../../skills/molis-plugin-dev/elements.md#插件事件总线不是判断场景)。
+
 Functions「用在哪」里，首页 / Inbox / Feed 是事件去向：判断本身不改数据，也不在现场长出新按钮。默认建议人点击已有处置。Feed 来源规则另有用户显式配置的 `admission: "inbox"`：Feed 用例消费判断后加入 Inbox（失败或不确定进入待复核），不改变 Functions 的只判断职责，也不授权其他自动动作。旧规则默认 `suggest`。Agent 去向才放「能调、但不长在这张卡片上」的动作（含 MCP 写工具）。
 
 Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等收据归 Pages，Attention 仍归 Inbox 对应 Module。Workbench 助手复用这些 HTTP 动作；未新增对外 MCP 或 Native 事件总线。标签对象恢复与调用约定见 [Host 接线](../../skills/molis-plugin-dev/host.md#信息整理的-host-组合)。

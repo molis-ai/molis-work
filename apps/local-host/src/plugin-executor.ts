@@ -131,7 +131,7 @@ export class PluginHostExecutor implements PluginExecutor {
               board_id: this.options.board_id,
               plugin_id: manifest.plugin_id,
               install_id: context.install_id,
-            }) }
+            }, pluginCaller.assertActive) }
             : {}),
           ...(declaresInputs && wiringInput !== undefined
             ? { inputs: createPluginInputsClient(wiringInput) }
@@ -157,6 +157,7 @@ export class PluginHostExecutor implements PluginExecutor {
     // The plugin owns its cleanup hook, so it may yield indefinitely. Revoke
     // invocation authority before waiting for it, while retaining cleanup data.
     session?.revoke();
+    this.options.events?.revoke(this.options.board_id, definition.manifest.plugin_id);
     try {
       await definition.stop?.(session?.context ?? context);
     } finally {

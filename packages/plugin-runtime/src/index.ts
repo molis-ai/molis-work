@@ -510,6 +510,9 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     const definition = this.requireDefinition(current);
     const live = this.liveContext(installId);
+    // Cleanup may await user code; withdraw the activation before yielding to it.
+    this.revokeContext(installId);
+    this.contributions.delete(installId);
     try {
       if (live) await this.executor.stop(definition, live);
     } catch (error) {
@@ -631,6 +634,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     if (current.state === "running" && this.hasLiveInstance(installId)) {
       const definition = this.requireDefinition(current);
       const live = this.liveContext(installId);
+      this.revokeContext(installId);
+      this.contributions.delete(installId);
       try {
         if (live) await this.executor.stop(definition, live);
       } catch (error) {

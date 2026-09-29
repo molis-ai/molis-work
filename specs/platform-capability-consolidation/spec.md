@@ -21,7 +21,7 @@
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
-| 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 相关架构 Session 已完成，合并基线已在本分支；待实现 |
+| 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭已实现并验证；领域 journal 桥接、实际领域消费者及 unknown 显式恢复仍待完成 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已完成实现与工程/浏览器验证：Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板 |
@@ -166,6 +166,20 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
 
 验证生产 Sandbox 的同进程逐次时限、队列内各调用预算互不污染、服务超时取消；真实安装版本/策略变化后读最新限额，query 的收费/写入变化零派出，等待期间变化导致零晚写入，合法新调用恢复且不重复旧工作。无关提供方注册不取消调用；同一描述的重新注册由 Kernel 原 registration token 拒绝旧提交。按受影响包要求整体构建后跑回归与边界检查。
 
+### 插件事件身份、持久游标与提交检查
+
+08 代码证据：总线发布没有检查 board/当前安装，Executor 交出的旧 events client 在 stop 后仍能 append；游标只按插件名和来源保存，重装会继承旧进度；投递不在调用前持久记录 delivering，崩溃可能重跑已提交处理器，处理器等待后撤权仍推进游标。现有运行订阅来自安装 Manifest，而非用户请求，保留这一授权来源；不复制某次 Action 的回调作为持久身份。
+
+先修复现有总线的完整执行边界：Supervisor 提供来自 Runtime 安装事实的 install_id/generation/version，持久游标绑定订阅安装及世代；发布客户端绑定本次 activation 并检查当前实例、项目及发布声明。新订阅只接收绑定后的事件，重启同一安装续接，重装不消费旧世代工作。已有无身份游标保留为隔离的历史，不能补成当前安装；当前订阅从当前日志尾建立自己的游标，不擅自重放历史。迁移原表保留所有数据并改变复合主键；代码回滚前须先停止事件投递并做明确数据库回迁，不能直接运行旧版忽略身份。
+
+投递开始前持久写 delivering；完成前再次验证实例、订阅声明、取消及版本，提供独立的 beforeEffect 给订阅处理器。进程中断/撤权后未确认的处理保留 quarantined，不自动重试可能已提交的工作；尚未进入处理器的启动失败仍可恢复。游标按安装隔离，旧回调不能覆盖新安装状态。各消费者拿到独立 payload 快照。Files/Git 的真实处理入口接入新的 delivery guard，Host 关闭先撤销并等待事件结束再关数据库。普通命令和查询不改走总线。
+
+验证真实 Runtime、SQLite 持久游标与重启：旧客户端发布拒绝、项目和安装隔离、异步撤权零后续效果/零错误确认、重装旧工作不串入、并发 resume 不重复、崩溃后 unknown 零重放、旧表迁移保留历史与事务失败回滚。该步骤完成后继续领域 journal 到总线的提交桥接及实际消费者，不以仅加接口标记 08 完成。
+
+进一步检查 stop/uninstall 的 await 边界发现 Runtime 在等待插件清理后才撤销 contribution/context；现改为先撤销再等待，Supervisor 的活实例检查同时比较当前 contribution。避免清理钩子未返回时，旧发布者或订阅者仍被当作活动实例。升级排队交接按版本/启用世代去重，游标不能越过首条未处理事件；未知投递的显式恢复管理仍随后续 08 完成。
+
+同一安装重新启用后，新发布沿同一来源补齐仍未派出的持久队列，并按序投递，不依赖调用者额外 resume 才能解开缺口；已经进入处理器但结果未知的游标继续隔离。重启回归同时持久化 Runtime 安装与事件，不能用新建内存安装冒充同一安装重启。
+
 ### 内置插件装配与生成式公开声明
 
 07 当前证据：普通 Runtime 插件已由 Manifest.actions 与实际 contribution 注册，停用撤销，MCP/Agent/Workflow 复用目录，不需再造发现层。内置插件仍在 Workbench 的 catalog、workbench packs 和 Host 历史 MCP handler 表重复绑定同一个身份；Coding 设置还在 composition 单独注册。不同 Native Host 工厂携带各自领域依赖，显式注入这些端口是必要的装配，不以动态反射替代。
@@ -240,7 +254,7 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
 
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-scheduled-operations-boundary.log。源码与构建完成后再回归，回归期间没有改源码、脚本、package.json 或 Skill。
 
-接续位置：05 的调度归位、安装运行独立与恢复链路，06 的执行策略及依赖复核，07 的 Native 装配与生成式公开声明均已实现相应链路；生成式费用与版本回滚已完成本轮工程验证。后续继续 08：持久订阅的独立身份、世代及领域事件提交桥接；09：材料提取/资源契约；再完成 01–03 及其余实际消费者、文档与 Skill 的最终总验收。仍只交付本地改造，不以已完成切片替代整个任务。
+接续位置：05 的调度归位、安装运行独立与恢复链路，06 的执行策略及依赖复核，07 的 Native 装配与生成式公开声明均已实现相应链路；08 的订阅身份、安装世代与处理中断隔离已实现。后续继续 08 的领域 journal 提交桥接、实际消费者及 unknown 显式恢复；09 的材料提取/资源契约；再完成 01–03 及其余实际消费者、文档与 Skill 的最终总验收。仍只交付本地改造，不以已完成切片替代整个任务。
 
 - 安装调用策略更新：删除启动时固定依赖目录、通道和时限的旧路径，每次 operation 使用当前依赖事实，经可信 beforeEffect 复核。query 动态拒绝 metered/写入/停用依赖；无关目录变化不影响本次调用。Sandbox 的单次时限在排队前复制，不进入 worker JSON，也不改 CPU、内存、频率或 grants。嵌套 Action/服务超时的 unknown 贯穿 HTTP 与公开 Action；插件捕获错误后不能继续写入或伪装成功。返回值违反 schema 也保留可能已提交的效果，撤下死进程，下一次明确调用可重新执行。手册、Skill 与包约定同步。
 
@@ -262,3 +276,11 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
   实际升级→回滚暴露了同版本执行对象冲突，安装 owner 现复用不可变发布定义，版本切换核对批准、仅授予发布所需集合，卸载清理并允许新安装重建；未放宽 Runtime 冲突与发布版本校验。手册和能力 Skill 同步。最初定向检查发现新增夹具括号/未声明操作两处错误及上述真实回滚问题；修复后 5 文件 32/32，通过前没有放宽断言。最终整体构建通过，22 文件 135/135，无跳过，包含真实 SQLite/Seatbelt 执行与数据提交、Host 自动恢复、升级回滚、启停卸载重装、MCP 精确授权、Runtime 任意新插件 HTTP 发现及原发布流水线。
 
   69 包边界检查 errors 为空，diff whitespace 检查通过；回归期间未改源码、脚本、package.json 或 Skill。日志 /tmp/platform-generated-costs-final-build.log、/tmp/platform-generated-costs-targeted.log、/tmp/platform-generated-costs-regression.log、/tmp/platform-generated-costs-boundary.log。均使用隔离测试数据，未调用真实付费模型或外部服务，不代表用户本人验收。事件/材料契约与最终全消费者复核仍未完成。
+
+- 事件身份与投递边界：发布检查当前项目/安装，Host client 绑定 activation；订阅游标绑定安装及世代，旧无身份游标原样保存为历史。投递前持久写 delivering，处理器得到独立 actor/安装与 beforeEffect，完成后再复查；撤权、关闭及进程中断的未知处理隔离，不能自动重跑。Runtime stop/uninstall 在等待清理前撤销执行权限，Files/Git 的处理端口传递 delivery 控制，Host 关数据库前等待总线停止。升级交接和同一安装重新启用不能越过尚未派出的事件。
+
+  整体构建通过。首轮 32 文件 219/221：一个测试只持久化事件却创建了新安装，改为真实 SQLite Runtime 后验证同一安装世代跨重启不变；另一个捕获重新启用后旧队列缺口导致后续投递卡住，已在发布路径按来源接回未派出的队列，并增强完整顺序断言。修复后重新整体构建，受影响的 13 文件 85/85，无跳过；其余首轮通过证据仍有效。覆盖真实 Host、SQLite 旧表迁移/故障回滚、旧 client 失效、重装隔离、重复 resume、慢清理期间零晚写入，以及业务提交后 SIGKILL 的未知工作零自动重放。日志 /tmp/platform-event-identity-final-build.log、/tmp/platform-event-identity-regression.log、/tmp/platform-event-identity-recheck-build.log、/tmp/platform-event-identity-recheck.log。
+
+  全部使用隔离数据；未运行付费模型或外部服务。以上是事件基础边界的工程证据，领域提交桥接、实际领域消费者和显式 unknown 恢复尚未完成，不能计为 08 或整个 Goal 完成。
+
+  最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-event-identity-boundary.log。回归期间未改源码、脚本、package.json 或 Skill。

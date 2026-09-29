@@ -3,6 +3,7 @@ import type {
   PluginCommandInput,
   PluginDefinition,
   PluginStartContext,
+  PluginEventDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { gitEventTypes } from "./events.js";
@@ -27,7 +28,7 @@ export interface GitPluginPorts {
   /** The change currently selected, for the `current` command input. */
   selectedPath?(): readonly string[] | null;
   /** The Host re-reads status; the Plugin only says when it should. */
-  onWorkingTreeChanged?(reason: "upstream" | "event" | "unavailable"): void | Promise<void>;
+  onWorkingTreeChanged?(reason: "upstream" | "event" | "unavailable", delivery?: PluginEventDeliveryContext): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
 
@@ -81,10 +82,12 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
           repositoryReady = false;
           await ports.onWorkingTreeChanged?.("unavailable");
         },
-        onEvent: async () => {
+        onEvent: async (_event, delivery) => {
           // A Run wrote, or invalidated what it had prepared. Either way the
           // working tree on screen may no longer be the one on disk.
-          await ports.onWorkingTreeChanged?.("event");
+          delivery.beforeEffect();
+          await ports.onWorkingTreeChanged?.("event", delivery);
+          delivery.beforeEffect();
         },
       };
     },

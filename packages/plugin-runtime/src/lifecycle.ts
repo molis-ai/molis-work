@@ -28,6 +28,8 @@ export interface PluginHostLifecycle {
    * `undefined` means the Plugin is not enabled and must receive nothing.
    */
   generation(pluginId: string): number | undefined;
+  /** Durable identity from Runtime; unlike generation(), it survives Host restart. */
+  installation(pluginId: string): { install_id: string; installation_generation: string; version: string; running: boolean } | undefined;
   enabledPluginIds(): readonly string[];
   ensureStarted(pluginId: string): Promise<PluginActiveInstance | undefined>;
 }

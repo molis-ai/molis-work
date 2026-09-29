@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import Database from "better-sqlite3";
+import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { eventCrashDefinition, EVENT_BOARD, EVENT_SOURCE, EVENT_SUBSCRIBER } from './fixtures/plugin-event-crash.js';
 import type {
   PluginAppContribution,
   PluginDefinition,
@@ -15,6 +22,8 @@ import {
   PluginEventBus,
   PluginRuntime,
   PluginSupervisor,
+  SqlitePluginEventsRepository,
+  SqlitePluginRuntimeRepository,
 } from "@molis-ai/molis-work-plugin-runtime";
 
 const BOARD = "board-events";
@@ -393,4 +402,146 @@ test("revoking a Plugin drops what was queued for its old enablement", async () 
 
   assert.deepEqual(received, [], "已撤销启用的插件不应再收到旧世代的事件");
   assert.equal(rig.bus.log(BOARD).length, 1, "事件本身仍然留在日志里");
+});
+
+test("publish refuses foreign boards, stale installs and stopped publishers", async () => {
+  const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const rig = harness([coding.definition]); await rig.start();
+  const install = rig.supervisor.installation(CODING)!;
+  const input = { event_type_id: CHANGED, type_version: 1, payload: {} };
+  for (const identity of [ { board_id: 'elsewhere', plugin_id: CODING, install_id: install.install_id }, { board_id: BOARD, plugin_id: CODING, install_id: 'old' } ]) {
+    assert.throws(() => rig.bus.publish(identity, input), { code: 'event_identity_invalid' });
+  }
+  await rig.runtime.stop(install.install_id);
+  assert.throws(() => rig.publish(CODING, CHANGED, 1, {}), { code: 'event_identity_invalid' });
+  assert.deepEqual(rig.bus.log(BOARD), []);
+});
+
+test("a revoked delivery has its own identity, refuses late effects and never acknowledges success", async () => {
+  const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(); let writes = 0;
+  const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const files = eventPlugin({ id: FILES, subscribes: [{ type: CHANGED, version: 1, from: [CODING] }], onEvent: async (_event, context) => {
+    assert.equal(context.actor_id, 'plugin:' + FILES);
+    assert.equal(context.installation_generation, rig.supervisor.installation(FILES)!.installation_generation);
+    entered.resolve(); await finish.promise; context.beforeEffect(); writes++;
+  } });
+  const rig = harness([coding.definition, files.definition]); await rig.start();
+  rig.publish(CODING, CHANGED, 1, {}); await entered.promise;
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.state, 'delivering');
+  rig.supervisor.revoke(FILES); finish.resolve(); await rig.bus.drain();
+  assert.equal(writes, 0);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.delivered_sequence, 0);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.state, 'quarantined');
+  await rig.supervisor.enable(FILES); await rig.bus.resume(BOARD); await rig.bus.drain();
+  assert.equal(writes, 0, 'enable cannot automatically retry an uncertain delivery');
+});
+
+test('stop withdraws an activation before awaiting its cleanup hook', async () => {
+  const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(), stopping = Promise.withResolvers<void>(), stopped = Promise.withResolvers<void>();
+  let writes = 0;
+  const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const files = eventPlugin({ id: FILES, publishes: [{ type: FILES + '.changed', version: 1 }], subscribes: [{ type: CHANGED, version: 1, from: [CODING] }],
+    onEvent: async (_event, context) => { entered.resolve(); await finish.promise; context.beforeEffect(); writes++; } });
+  files.definition.stop = async () => { stopping.resolve(); await stopped.promise; };
+  const rig = harness([coding.definition, files.definition]); await rig.start();
+  rig.publish(CODING, CHANGED, 1, {}); await entered.promise;
+  const stop = rig.runtime.stop(rig.supervisor.installation(FILES)!.install_id); await stopping.promise;
+  assert.throws(() => rig.publish(FILES, FILES + '.changed', 1, {}), { code: 'event_identity_invalid' });
+  finish.resolve(); await rig.bus.drain(); assert.equal(writes, 0);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.state, 'quarantined');
+  stopped.resolve(); await stop;
+});
+
+test("reinstall binds a new cursor and cannot inherit pending work or late acknowledgements", async () => {
+  const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(); const seen: string[] = [];
+  const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const files = eventPlugin({ id: FILES, subscribes: [{ type: CHANGED, version: 1, from: [CODING] }], onEvent: async (event, context) => {
+    if (event.payload === 'old') { entered.resolve(); await finish.promise; }
+    context.beforeEffect(); seen.push(event.payload as string);
+  } });
+  const rig = harness([coding.definition, files.definition]); await rig.start();
+  const old = rig.supervisor.installation(FILES)!;
+  rig.publish(CODING, CHANGED, 1, 'old'); await entered.promise;
+  rig.supervisor.revoke(FILES); await rig.runtime.uninstall(old.install_id);
+  rig.runtime.install({ definition: files.definition, deployment: 'local', grants: [] });
+  await rig.start(); await rig.supervisor.enable(FILES);
+  const current = rig.supervisor.installation(FILES)!;
+  assert.notEqual(current.installation_generation, old.installation_generation);
+  await rig.bus.resume(BOARD); finish.resolve(); await rig.bus.drain();
+  rig.publish(CODING, CHANGED, 1, 'new'); await rig.bus.drain();
+  assert.deepEqual(seen, ['new']);
+  const cursors = rig.bus.cursors(BOARD, FILES);
+  assert.equal(cursors.find(cursor => cursor.subscriber_generation === old.installation_generation)!.delivered_sequence, 0);
+  assert.equal(cursors.find(cursor => cursor.subscriber_generation === current.installation_generation)!.delivered_sequence, 2);
+});
+
+test("subscriber and log readers cannot mutate another subscriber's durable payload", async () => {
+  const seen: unknown[] = [], coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const first = eventPlugin({ id: FILES, subscribes: [{ type: CHANGED, version: 1, from: [CODING] }], onEvent: event => { (event.payload as { nested: { value: string } }).nested.value = 'changed'; } });
+  const second = eventPlugin({ id: BYSTANDER, subscribes: [{ type: CHANGED, version: 1, from: [CODING] }], onEvent: event => { seen.push(event.payload); } });
+  const rig = harness([coding.definition, first.definition, second.definition]); await rig.start();
+  rig.publish(CODING, CHANGED, 1, { nested: { value: 'original' } });
+  (rig.bus.log(BOARD)[0]!.payload as { nested: { value: string } }).nested.value = 'reader';
+  await Promise.all([rig.bus.resume(BOARD), rig.bus.resume(BOARD)]); await rig.bus.drain();
+  assert.deepEqual(seen, [{ nested: { value: 'original' } }]);
+  assert.deepEqual(rig.bus.log(BOARD)[0]!.payload, { nested: { value: 'original' } });
+});
+
+test('an upgrade during subscriber activation hands pending events to the new version without gaps', async () => {
+  const seen: unknown[] = [], entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>();
+  const coding = eventPlugin({ id: CODING, publishes: [{ type: CHANGED, version: 1 }] });
+  const files = eventPlugin({ id: FILES, subscribes: [{ type: CHANGED, version: 1, from: [CODING] }], onEvent: (event, context) => { context.beforeEffect(); seen.push(event.payload); } });
+  const rig = harness([coding.definition, files.definition]); await rig.start();
+  const ensure = rig.supervisor.ensureStarted.bind(rig.supervisor); let hold = true;
+  rig.supervisor.ensureStarted = async id => { if (id === FILES && hold) { hold = false; entered.resolve(); await finish.promise; } return ensure(id); };
+  rig.publish(CODING, CHANGED, 1, 'first'); await entered.promise;
+  const upgraded = { ...files.definition, manifest: { ...files.definition.manifest, version: '2.0.0', upgrade_compatibility: { compatible_from_versions: ['1.0.0'] } } };
+  assert.equal((await rig.supervisor.upgrade(FILES, upgraded))?.status, 'running');
+  await rig.bus.resume(BOARD); rig.publish(CODING, CHANGED, 1, 'second'); finish.resolve(); await rig.bus.drain();
+  assert.deepEqual(seen, ['first', 'second']);
+  assert.equal(rig.bus.cursors(BOARD, FILES)[0]!.delivered_sequence, 2);
+});
+
+test("legacy SQLite cursors remain unbound history and migration rolls back as a unit", () => {
+  const db = new Database(':memory:');
+  const oldTable = `CREATE TABLE plugin_event_cursors (board_id TEXT, subscriber_plugin_id TEXT, source_plugin_id TEXT, event_type_id TEXT, type_version INTEGER,
+    delivered_sequence INTEGER, state TEXT, retry_at TEXT, last_error_code TEXT, updated_at TEXT, PRIMARY KEY(board_id,subscriber_plugin_id,source_plugin_id,event_type_id,type_version))`;
+  try {
+    db.exec(oldTable);
+    db.prepare('INSERT INTO plugin_event_cursors VALUES(?,?,?,?,?,?,?,?,?,?)').run(BOARD, FILES, CODING, CHANGED, 1, 4, 'retry_wait', null, 'old-error', 'old-time');
+    assert.throws(() => new SqlitePluginEventsRepository({ prepare: sql => db.prepare(sql), exec: sql => {
+      if (sql.startsWith('DROP TABLE plugin_event_cursors_legacy')) throw new Error('migration interrupted'); return db.exec(sql);
+    } }), /migration interrupted/);
+    assert.equal((db.prepare('SELECT * FROM plugin_event_cursors').get() as { last_error_code: string }).last_error_code, 'old-error');
+    const repository = new SqlitePluginEventsRepository(db), current = { install_id: 'install', installation_generation: 'new' };
+    assert.equal(repository.cursor(BOARD, FILES, { source_plugin_id: CODING, event_type_id: CHANGED, type_version: 1 }, current), null);
+    assert.deepEqual(repository.listCursors(BOARD), [{ board_id: BOARD, subscriber_plugin_id: FILES, subscriber_install_id: '', subscriber_generation: '', source_plugin_id: CODING,
+      event_type_id: CHANGED, type_version: 1, delivered_sequence: 4, state: 'retry_wait', retry_at: null, last_error_code: 'old-error', updated_at: 'old-time' }]);
+    assert.deepEqual(new SqlitePluginEventsRepository(db).listCursors(BOARD), repository.listCursors(BOARD));
+  } finally { db.close(); }
+});
+
+test('a real process killed after subscriber commit leaves an uncertain delivery that restart never replays', { timeout: 15_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'plugin-event-crash-')), file = join(directory, 'events.db');
+  const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('./fixtures/plugin-event-crash.ts', import.meta.url)), file], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const committed = Promise.withResolvers<void>(), ended = Promise.withResolvers<void>(); let output = '', errors = '';
+  child.stdout.on('data', chunk => { output += String(chunk); if (output.includes('committed\n')) committed.resolve(); });
+  child.stderr.on('data', chunk => { errors += String(chunk); });
+  child.once('error', error => { committed.reject(error); ended.resolve(); });
+  child.once('exit', () => { if (!output.includes('committed\n')) committed.reject(new Error(errors || 'child exited before commit')); ended.resolve(); });
+  t.after(async () => { child.kill('SIGKILL'); await ended.promise; rmSync(directory, { recursive: true, force: true }); });
+  await committed.promise; child.kill('SIGKILL'); await ended.promise;
+  const db = new Database(file), repository = new SqlitePluginEventsRepository(db), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db)), supervisor = new PluginSupervisor(runtime);
+  const bus = new PluginEventBus({ boardId: EVENT_BOARD, lifecycle: supervisor, repository });
+  try {
+    assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.state, 'delivering');
+    await supervisor.start([{ definition: eventCrashDefinition(EVENT_SOURCE) }, { definition: eventCrashDefinition(EVENT_SUBSCRIBER, context => {
+      context.beforeEffect(); db.prepare('INSERT INTO effects VALUES (?)').run('repeated');
+    }) }]);
+    await bus.resume(EVENT_BOARD); await bus.drain(); await bus.resume(EVENT_BOARD); await bus.drain();
+    assert.deepEqual(db.prepare('SELECT * FROM effects').all(), [{ value: 'committed' }]);
+    assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.state, 'quarantined');
+    assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.last_error_code, 'subscriber_outcome_unknown');
+    assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.delivered_sequence, 0);
+  } finally { await bus.close(); for (const record of runtime.list()) if (record.state === 'running') await runtime.stop(record.install_id); db.close(); }
 });

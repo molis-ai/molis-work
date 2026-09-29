@@ -8,6 +8,7 @@ import type {
   PluginAppContribution,
   PluginDefinition,
   PluginManifest,
+  PluginEventsClient,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_ROUTE_PREFIX } from "@molis-ai/molis-work-plugin-runtime";
@@ -159,6 +160,33 @@ function project(directory: string) {
   });
   return { store, platform };
 }
+
+test('stopped activation event clients remain revoked after restart and bus close releases a waiting subscriber', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'plugin-event-lifetime-')), { store, platform } = project(directory);
+  const clients: PluginEventsClient[] = [], recorder: Recorder = { received: [], delivered: [] };
+  const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(); let writes = 0;
+  const producer = definitionFor(manifestFor({ id: PRODUCER, publishes: true }), recorder, services => clients.push((services as { events: PluginEventsClient }).events));
+  const base = definitionFor(manifestFor({ id: CONSUMER, subscribes: true }), recorder);
+  const consumer: PluginDefinition = { ...base, async start(context) { return { ...await base.start(context) as PluginAppContribution,
+    onEvent: async (_event, delivery) => { entered.resolve(); await finish.promise; delivery.beforeEffect(); writes++; } }; } };
+  try {
+    await platform.start([{ definition: producer }, { definition: consumer }]);
+    await platform.supervisor.restart(PRODUCER);
+    const input = { event_type_id: EVENT, type_version: 1, payload: {} };
+    assert.throws(() => clients[0]!.publish(input), { code: 'actions.forbidden' });
+    clients.at(-1)!.publish(input); await entered.promise;
+    await platform.events.close();
+    assert.throws(() => clients.at(-1)!.publish(input), { code: 'event_identity_invalid' });
+    finish.resolve(); await new Promise(resolve => setImmediate(resolve));
+    assert.equal(writes, 0);
+    assert.equal(platform.events.cursors(DEMO_BOARD_ID, CONSUMER)[0]!.state, 'quarantined');
+    assert.equal(platform.events.cursors(DEMO_BOARD_ID, CONSUMER)[0]!.delivered_sequence, 0);
+  } finally {
+    finish.resolve(); await platform.events.close();
+    for (const record of platform.runtime.list()) if (record.state === 'running') await platform.runtime.stop(record.install_id);
+    store.close(); rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 test("one factory composes the whole v2 platform and it works end to end", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-platform-"));

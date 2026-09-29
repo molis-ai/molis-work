@@ -109,3 +109,9 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
 `changes` 对照原基线读取净变化，同时包含未忽略的新文件，并保留特殊路径。`remove` 只移除已核对来源的干净工作目录，拒绝未提交、未跟踪和忽略内容，保留分支及来源以免丢失未整合提交。清理不代表整合或验收，已移除目录的 slot 不自动复用。真实 Git 验证见 `tests/git-worktrees.test.ts`；后续须接 SDK 子目录授权、原审查和成果整合。
 
 Coding/Git 生产通知接到当前项目的 Files/Git 视图 revision；Host receipt observer 可晚于 headless 插件装配接入，项目关闭先注销，插件停用撤销发布身份。revision 是进程内 UI 提示，重启更换 epoch，不能当作可靠业务 outbox。
+
+### 公共材料提取
+
+`material-extraction.ts` 实现 `contracts/services/materials`：输入已授权字节，返回正文、页/时间定位、覆盖及截断信息；不产生附件身份或业务材料记录。UTF-8/HTML 只做本地解析，PDF 文本在有界 worker 中执行，取消/超时会终止 worker。原生 PDF/OCR/音视频和许可证归 `native/materials`，构建随 Host 打包。模型下载必须显式允许，临时文件在子进程关闭后清理。
+
+Jelly 保留上传 SHA、历史路径和领域引用，只委托解析；onboarding 复用文字/HTML/PDF 文本提取，保留原始附件并拒绝截断或缺失文本层的 PDF。DOCX/ZIP、Shelf 和其他消费者仍在迁移中。相关回归：`tests/material-extraction.test.ts`、`tests/jelly-native-material.test.ts`、`tests/context-onboarding-documents.test.ts`。

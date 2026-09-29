@@ -27,3 +27,5 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
   - `delete_preview` 只保存确认凭证（显式声明为写），真正删除是另一个动作。
 - 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/jelly-plugin.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+素材解析通过 Host 的公共 `materials` 契约执行；原生源代码、构建、二进制与许可证归 `apps/local-host/native/materials`。Jelly 不再构建解析组件；历史 `jelly/imports` 与 `jelly/models` 路径保持不变。等待后和上传保存/派出前复核当前调用，取消不能提交晚结果。

@@ -28,12 +28,12 @@ export function jellyActionProvider(home: string, completion?: HostCompleteText 
           if (!decoded.ok) throw new ActionError("jelly.ai_invalid", "模型没有返回有效计划，原文未修改，请重试或手工拆解");
           return decoded.value;
         },
-        readSource: url => readJellyMaterialSource(home, url, { signal: caller.signal, onProgress: caller.on_progress }),
+        readSource: url => readJellyMaterialSource(home, url, { signal: caller.signal, beforeEffect: caller.beforeEffect, onProgress: caller.on_progress }),
       }),
     }), ...createJellyServiceHandlers({
-      material: (input, caller) => extractJellyMaterial(home, input, { signal: caller.signal, onProgress: caller.on_progress }),
-      reread: (input, caller) => readStoredJellyMaterial(home, input, { signal: caller.signal, onProgress: caller.on_progress }),
-      source: (input, caller) => readJellyMaterialSource(home, input.url, { allow_model_download: input.allow_model_download, signal: caller.signal, onProgress: caller.on_progress }),
+      material: (input, caller) => extractJellyMaterial(home, input, { signal: caller.signal, beforeEffect: caller.beforeEffect, onProgress: caller.on_progress }),
+      reread: (input, caller) => readStoredJellyMaterial(home, input, { signal: caller.signal, beforeEffect: caller.beforeEffect, onProgress: caller.on_progress }),
+      source: (input, caller) => readJellyMaterialSource(home, input.url, { allow_model_download: input.allow_model_download, signal: caller.signal, beforeEffect: caller.beforeEffect, onProgress: caller.on_progress }),
       modelSettings: () => readJellyModelSettings(home),
       saveModelSettings: input => saveJellyModelSettings(home, input),
     })],

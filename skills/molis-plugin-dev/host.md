@@ -153,3 +153,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 ## 异步提交
 
 等待模型/网络的动作按 `scheduling: "concurrent"` 执行，读快照 → 等待 → `await caller.beforeEffect()` → 版本比较提交。嵌套调用使用 `retainActionAuthority(caller, originReference, caller.beforeEffect)`，同时保留外层注册、权限和生命周期约束。来源拉取还需逐来源独占，不能只把串行标记改掉。被撤权或取消后，不写失败记账；此前已发出的外部操作保留未确认状态供恢复。
+
+### 已授权材料的提取
+
+插件需要文字/HTML/PDF/OCR/媒体材料时，由 Host 注入 `contracts/services/materials` 端口。输入已授权字节，系统解析器/原生进程归 Host；原件、SHA 引用、业务转换和引用规则留给消费者。检查 coverage 和 truncated，不能把扫描空页或截断当作全文。传递取消，异步返回后与业务写入前复查 beforeEffect；媒体模型下载必须显式选择。Jelly 的 Host 适配与 onboarding 是当前接入示例，不在插件复制解析器或绕过 Prologue 生成摘要。

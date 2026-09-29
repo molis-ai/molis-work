@@ -27,6 +27,10 @@ export async function computeBuildSourceDigest(packageRoot: string): Promise<str
       const relative = path.join(directory, entry);
       if (await exists(path.join(packageRoot, relative))) inputs.push(relative);
     }
+    // Native Host tools are compiled inputs too; SwiftPM caches and generated binaries are not.
+    for await (const native of fs.glob(["native/**/*.swift", "native/**/*.sh", "native/**/*.mjs", "native/**/Package.resolved"], {
+      cwd: path.join(packageRoot, directory), exclude: ["**/.build/**", "**/.swiftpm/**", "**/bin/**"],
+    })) inputs.push(path.join(directory, native));
   }
   return digestPaths(packageRoot, inputs);
 }

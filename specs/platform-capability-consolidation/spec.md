@@ -22,7 +22,7 @@
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
-| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
+| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Shelf、Pages/DOCX/ZIP、Cognia、Artifacts 和旧解析删除继续实施 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
 | 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
@@ -344,3 +344,29 @@ Git 刷新原本在 summary/operations 尚未读取完时解除 busy，随后插
   整体构建通过；最终 43 文件 271/271，无跳过，69 包 boundary errors 为空，diff whitespace 检查通过。包含真实 SDK + SQLite + HTTP 的生产桥接、成功/失败/未知区分、坏监听不改变 Effect、停止与重启、当前插件启用限制，以及真实 Chrome 的变更刷新、断线恢复、隐藏零轮询、卸载和重挂。初次定向 26/28：新 SDK fixture appVersion 误写为非 semver；Files 重挂后的初始 revision 请求期间旧 DOM 可点，和首次刷新重复。分别修正 fixture 与产品的初始化忙碌状态，保留原“一次点击一条刷新链”断言，最终全部通过。日志 `/tmp/platform-workspace-events-final-build.log`、`/tmp/platform-workspace-events-regression.log`、`/tmp/platform-workspace-events-boundary.log`。回归期间未改源码/脚本/package.json/Skill、未并发构建；未调用付费模型或外部服务，不代表用户本人验收。
 
   下一步材料归位的新增证据：ShelfStore.runRecipe 仍直接调用 Module 的 CLI job-runner、同步 OCR；PDF 提取和同步 admit/read preview 仍使用私有正则解析器。Jelly 已在 Host 调 native helper，但 helper/build/licenses 仍放插件目录，HTML/UTF-8 解析与 onboarding 重复。迁移须保留 Shelf 原始副本、job/result 身份及预览行为；不能只把解析器换名，或静默删掉 PDF 预览。Shelf 的 AI recipe 还须纳入 01 的最终消费者迁移，不能以“没有 createRuntime”扫描结果当作全部 AI 调用已收敛。
+
+
+### 公共材料提取口与原生工具归属
+
+09 的实现顺序先从现有 Host 生产调用消除重复，再迁移 Shelf/Pages 的模块内解析及执行。公共 `contracts/services/materials` 定义字节输入、页/时间定位、覆盖信息、容量/取消和提取端口；不新增材料库或第二份附件身份。Local Host 持有 UTF-8/HTML、PDF 文本层及 macOS OCR/音视频实现，原生 Swift 源码、构建与许可证一并迁入 Host 包。Jelly 继续保存同一路径的上传副本与 SHA 引用，旧模型缓存也保留在原路径；通用提取器只消费已授予的字节和受控缓存目录，不接收业务输入任意指定本地文件。
+
+Jelly 的上传与重新读取改为调用公共 Host 提取口；保留旧错误码和显式模型下载选项。onboarding 的 TXT/Markdown/HTML/PDF 改用相同提取口，DOCX/ZIP 的解析与 Pages 领域转换下一步一并迁移，不以此宣称 09 完成。PDF 文本解析放独立 worker，结束、取消、超时和 worker 故障均释放；页数、正文字符/字节和输入大小有上限，扫描页/截断明确表示不完整，onboarding 的非 OCR 路径遇到不完整 PDF 返回问题而非冒充全文。Jelly 允许业务已支持的部分材料，但保持原定位与 coverage。
+
+提取前及每个异步边界检查取消，原生子进程结束后仍检查；上传保存前复核 caller.beforeEffect，取消不触发模型下载或新的原始副本写入。原附件保存成功后发生解析失败仍保留原副本，错误不伪装取消。公共解析不调用模型，不下载远端资源；媒体模型下载只在明确允许时走既有原生路径。验证真实 PDF（含多页/空页）、UTF-8、HTML、真实 native OCR/音视频与缺模型行为、取消及资源释放、历史副本重读、打包路径和现有消费者回归。之后继续 Shelf/Pages/Cognia/Artifacts 调用方迁移和旧实现删除。
+
+原生组件另外保留着没有任何生产调用方的 Apple Foundation Models summarize 命令，与 Jelly 已接入的 Prologue AI 链路重复。迁移时删除这一不可达生成路径及能力宣称，保留 PDF/OCR/转写；生成能力继续经 Agent Host/Prologue。提取契约用 coverage.truncated 明确容量截断，消费方不根据中文错误消息推断完整性。
+
+原生构建输入还需进入现有安装器源码检查：跟踪 Swift、构建脚本和 Package.resolved，排除 SwiftPM 缓存与生成二进制；避免只更新原生源文件时仍把旧构建判为有效。不增加另一套构建状态或材料身份。普通 TXT 的标题继续使用文件名，仅 Markdown 从 H1 取标题，保持 onboarding 原行为。
+
+验证捕获 Node execFile 的 signal 终止路径未传入 killSignal，忽略 SIGTERM 的子进程不会退出。Host 显式监听取消并 SIGKILL，等待 close 后清理资源；进程超时保持有界终止。另外上传 Action 本身 concurrent，不能先创建可被并发重读的空 SHA 文件；先写受控临时副本，在最后一次 beforeEffect 后原子链接到既有 SHA 路径，并发相同内容复用已提交副本，取消清理未提交临时副本。
+
+
+- 公共材料提取首批消费者：Host 持有公共契约实现、UTF-8/HTML、可终止的 PDF 文本 worker 和原生 PDF/OCR/媒体工具；Jelly 保留 SHA 身份、原始副本/模型路径、旧公开结果形状与错误码，onboarding 保留附件原文、身份和标题规则。删除 Jelly/导入里的重复解析、插件内原生构建和无生产调用方的 Apple 摘要分支，手册与开发 Skill 同步。上传以临时副本和原子 link 提交，并发同内容复用完整文件；取消/撤权不提交尚未保存的副本，已保存原件仍可重读。原生源码进入已有安装器构建输入检查，不跟踪 SwiftPM 缓存或二进制。
+
+  整体构建通过；最终 22 文件 176/176，无跳过。包含真实 PDF 多页/空页与完整性、字节/字符容量及 Unicode 边界、worker 取消/超时及资源释放、并发上传/撤权、旧 SHA 重读、真实 macOS PNG OCR/混合 PDF/静音视频、缺模型不下载、实际 native 子进程与临时目录清理、可执行发布资产和许可证，以及真实 MCP 与 onboarding/Artifact 持久化。回归过程中没有改源码、脚本、package.json 或 Skill，也没有并发构建。
+
+  定向验证抓到 execFile 的 AbortSignal 终止路径未沿用 killSignal：忽略 SIGTERM 的测试子进程挂起，手工终止后该轮不算取消证据。改为 Host 显式 SIGKILL 并等待 close，最终用例在任何兜底清理之前断言进程已不存在、真实临时目录已删除；超时看门狗仅用于失败清理。构建迁址遇到旧 Swift PCH 的绝对缓存路径，清理本工作树的构建缓存后真实重建通过，没有改依赖版本或绕开原生构建。
+
+  日志 `/tmp/platform-materials-final-build.log`、`/tmp/platform-materials-final-regression.log`。原件与数据库均为隔离测试材料；未调用付费模型、下载语音模型或验收真实音频转写质量，也不代表用户本人验收。09 仍需其余消费者的迁移，01 仍需 Shelf AI 归位，最终跨消费者复核保持未完成。
+
+  最终 69 包边界检查 errors 为空，diff whitespace 检查通过，日志 `/tmp/platform-materials-boundary.log`。本切片只作本地提交；主检出与其他会话的修改保持原状，没有推送。

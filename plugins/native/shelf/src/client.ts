@@ -8,6 +8,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   if (!directory || !workbench) return;
   const lifetime=host.mountPluginClient(workbench);if(!lifetime)return;
   let loadVersion=0;
+  // The item a link or tab asked for: whichever load lands next selects it, even one started later (e.g. on becoming visible).
+  let wantedId=null;
   const stage = workbench.querySelector("[data-shelf-stage]");
   const preview = workbench.querySelector("[data-shelf-preview]");
   const bar = workbench.querySelector("[data-shelf-bar]");
@@ -693,6 +695,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       clipSelection = new Set();
       selected = items().find((item) => item.item_id === selectId) || null;
       selection = selected ? new Set([selected.item_id]) : new Set();
+      if (selectId === wantedId) {
+        wantedId = null;
+        if (!selected) stickyHint = L("这份材料已不在 Shelf 中，请从列表选择其他材料。");
+      }
       pending = null;
       compare = false;
       compareSourceId = null;
@@ -719,7 +725,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const response = await lifetime.fetch("/api/shelf", { cache: "no-store", signal });
     if (!response.ok) throw new Error(L("无法读取置物架"));
     const next=await response.json();lifetime.assertCurrent(signal);
-    if(version===loadVersion)applySnapshot(next, selectId);
+    if(version===loadVersion)applySnapshot(next, selectId || wantedId || undefined);
   };
 
   const readEntries = (reader) => new Promise((resolve, reject) => {
@@ -1646,9 +1652,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       if (editing) await stopEdit();
       if (!lifetime.alive || stageBusy()) return;
+      wantedId = id;
       await load(id);
       if (!lifetime.alive) return;
-      if (!selected) { stickyHint = L("这份材料已不在 Shelf 中，请从列表选择其他材料。"); renderBar(lastBarKind); }
+      renderBar(lastBarKind);
     } catch (error) { if (!lifetime.alive) return; stickyHint = error.message; renderBar(lastBarKind); }
   });
   lifetime.listen(window,"molis-shelf-notice", (event) => {

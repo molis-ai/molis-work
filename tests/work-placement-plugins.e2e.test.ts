@@ -53,6 +53,13 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const describe = (object: { kind: string; id: string; project_id: string | null }) => evaluate<Description>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
+  // The project home is its own tab; a plugin tab restored from before may be in front of it.
+  const projectHome = async (project: string) => {
+    await go(`/projects/${project}/`);
+    await waitFor("document.querySelector('.tab-item[data-tab-kind=home]')", 15_000);
+    if (!await evaluate<boolean>("Boolean(document.querySelector('.tab-item[data-tab-kind=home][aria-current]'))")) await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
+    await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')", 15_000);
+  };
   const typeInto = (selector: string, value: string) => evaluate(`(() => { const input = ${visible(selector)}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -151,14 +158,15 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const used = await describe(shelfItem);
   assert.equal(used.location?.title, "个人空间", "using it in projects does not move or copy it");
   assert.equal(used.associations.filter(link => link.type === "used_in").length, 2);
+  // From the project, “打开” lands on that very item in the Shelf (a link load, not a list to search through).
+  await projectHome(projectId!);
+  await press(`[data-placement-related] [data-placement-open="${item.item_id}"]`);
+  await waitFor(`document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
+  assert.equal((await current())?.id, item.item_id, "the Shelf names the opened item");
   await press(`[data-shelf-list=materials] [data-shelf-item="${item.item_id}"] [data-shelf-row-action="delete"]`);
   await waitFor(`!document.querySelector('[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]')`, 15_000);
   for (const [project, name] of [[other.project_id, "other"], [projectId!, "first"]] as const) {
-    await go(`/projects/${project}/`);
-    // A plugin tab restored from before may be in front; the project home is its own tab.
-    await waitFor("document.querySelector('.tab-item[data-tab-kind=home]')", 15_000);
-    if (!await evaluate<boolean>("Boolean(document.querySelector('.tab-item[data-tab-kind=home][aria-current]'))")) await click(".tab-item[data-tab-kind=home] .tab-item-trigger");
-    await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')", 15_000);
+    await projectHome(project);
     await waitFor(`[...document.querySelectorAll('[data-placement-related] .placement-related-row.is-gone')].some(row => row.innerText.includes('竞品价格表') && row.innerText.includes('原对象已删除'))`, 15_000);
     await screenshot(`shelf-deleted-${name}`);
     await press("[data-placement-related] .placement-related-row.is-gone button", "清理");

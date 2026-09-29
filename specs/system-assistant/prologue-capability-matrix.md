@@ -94,14 +94,15 @@
 | --- | --- | --- | --- | --- |
 | `resources.inspect/readChunk/revoke` | 本轮材料 | 文本附件、选区、对象材料 | ✅ | ✅ §5 P2 |
 | `parseResource` ＋ `document-parser` 槽（App 提供 pdfjs 解析器） | Agent Host `documents` 能力 | PDF 附件读成有界文本材料 | — | ✅ `assistant-attachments`；§5 P2（MiniMax 实测） |
-| `parseDocument`（授权根里的文件）、`beginIntake`、`collectResources`、`resourceLeases` | — | 助理无目录，不适用于 `parseDocument`；图片附件未做 | — | 🟡 图片输入未接（当前模型不支持看图时应如实说明） |
+| `beginIntake` ＋ 运行 `start.attachments` | Agent Host `documents.intakeImage`；开跑请求 `image_materials` | 图片经 Host 私有目录吸入，随那一轮交给模型；标注不能看图时拒绝 | — | ✅ `assistant-attachments`；§5 P2（MiniMax 实测） |
+| `parseDocument`（授权根里的文件）、`collectResources`、`resourceLeases` | — | 助理无目录，不适用于 `parseDocument`；吸入的临时文件发布后即删，资源回收暂按运行时默认 | — | 🟡 |
 | `sources/extractFromSource/ingestWebPage/ingestSourceFrom`、`collections`、`webSearch` | — | 新资料由插件首页事项提供；网页检索未接 | — | ⛔ 助理自带网页检索与来源摄取未接；业务来源归 Feed/Inbox |
 
 ## 12. 多模态；13. 界面观察与计算机操作
 
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
-| `images` | 推理客户端 `images.generate` | 插件出图经 Host；助理的图片输入未做 | — | 🟡 |
+| `images` | 推理客户端 `images.generate` | 插件出图经 Host；助理的图片输入走 `beginIntake` ＋ `start.attachments`（见上） | — | ✅ |
 | `speech` | — | — | — | ⛔ 语音输入／转录未接 |
 | `surfaces`（UiControl） | — | 助理读页面经插件上下文协议，不直接看屏幕 | — | ⛔ 未接（目前以插件声明的上下文代替界面观察；计算机操作不在当前范围） |
 
@@ -167,7 +168,7 @@
 1. 记忆的候选提炼（memoryInbox）与 Character 维度（明确要求的个人／项目记忆已接通）。
 2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；分别对应 P5 余项与 P9 的替代实现。
 3. 按工作的预算（每日上限已接通）。
-4. 图片输入（`images`）、语音（PDF 附件已接通）。
+4. 语音（PDF 附件与图片输入已接通）。
 5. 会话分支、受控导出、跨会话搜索（后者待“系统级搜索”合入）。
 6. SDK Refine 与真实“评审—补改—复查”循环。
 7. MCP 资源／Prompt、MCP Elicitation、SDK Functions、网页检索与来源摄取。

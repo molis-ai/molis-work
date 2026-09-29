@@ -134,6 +134,17 @@ export interface AgentTextMaterial {
   source_version: number;
 }
 
+/**
+ * An image the person brought, already taken in by the runtime (its bytes stay with the runtime; this is only the
+ * reference). The model sees it in the Run it is attached to, and only there.
+ */
+export interface AgentImageMaterial {
+  material_id: string;
+  title: string;
+  resource: { id: string; revision: number };
+  media_type: string;
+}
+
 /** Metadata and verbatim body share one data resource, never a role/system prompt. */
 export function agentTextMaterialContent(material: AgentTextMaterial): string {
   if (!material || typeof material.title !== "string" || material.title.length > 2000
@@ -460,6 +471,8 @@ interface AgentFrozenStartFields {
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
   text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
+  /** Images the model was shown in this Run (references only). */
+  image_materials?: Array<{ material_id: string; title: string; media_type: string }>;
   budget: AgentRunBudget | null;
 }
 export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace;
@@ -630,6 +643,8 @@ interface AgentStartRequestFields {
    */
   role?: AgentFrozenRole;
   text_materials?: AgentTextMaterial[];
+  /** Images for the model to see in this Run; refused when the selected model is marked as not seeing images. */
+  image_materials?: AgentImageMaterial[];
   skills?: AgentSkillRef[];
   mcp_tools?: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
@@ -1137,6 +1152,11 @@ export interface AgentDocumentParser {
 /** Documents the person brings, read through the runtime's own resources and parsers (Prologue `parseResource`). */
 export interface AgentDocumentCapability {
   parse(input: { bytes: Uint8Array; name: string }): Promise<{ text: string; truncated: boolean; pages?: number }>;
+  /**
+   * An image taken in by the runtime (PNG, JPEG, GIF or WebP, recognised by its bytes) so a Run can show it to the
+   * model. The reference holds while this runtime process lives.
+   */
+  intakeImage?(input: { bytes: Uint8Array; name: string }): Promise<{ resource: { id: string; revision: number }; media_type: string; byte_length: number }>;
 }
 
 /** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */

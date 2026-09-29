@@ -14,6 +14,8 @@ import { createNodeHost } from "@prologue/sdk/node";
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
 const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD", "EFFECT_RECONCILE_REQUIRED"]);
 import path from "node:path";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 
 import {
@@ -115,6 +117,8 @@ export const THINKING_OUTPUT_TOKENS = 32_768;
 export const SUBAGENT_DEFAULT_TURNS = 20;
 /** Turns a round started without a budget may take: the SDK's own default, unchanged. */
 const ROUND_DEFAULT_TURNS = 8;
+/** Images a model call can carry, as recognised from their bytes. */
+const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 /**
  * Build the Prologue Runtime on the Node host.
@@ -152,6 +156,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
   // Timed work the runtime keeps across restarts. Its runner is attached here, once; the Host registers what each kind
   // does later, so a task that falls due while the Host is still starting waits for its runner instead of failing.
+  // The Host's private directory images are taken in from (authorized once, on first use).
+  let intakeRoot: Promise<{ path: string; ref: ExactRef<"authorized-root"> }> | undefined;
   const scheduleRunners = new Map<string, (task: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask) => Promise<void>>();
   const scheduledView = (task: import("@prologue/sdk").QueuedTask): import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduledTask => ({
     task_id: task.ref.id, key: task.key, session_id: task.sessionRef.id, kind: task.work.kind, payload: { ...task.work.payload },
@@ -755,6 +761,26 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
     },
     documents: {
+      intakeImage: async input => {
+        // The runtime takes files in only from an authorized directory: a private one of the Host's, emptied at once.
+        const dir = await (intakeRoot ??= (async () => {
+          const where = options.storageRoot ? path.join(options.storageRoot, "image-intake") : await mkdtemp(path.join(tmpdir(), "molis-image-intake-"));
+          await mkdir(where, { recursive: true, mode: 0o700 });
+          const canonical = await realpath(where);
+          return { path: canonical, ref: (await runtime.workspace.authorize({ path: canonical })).ref };
+        })());
+        const file = `${randomUUID()}.img`;
+        await writeFile(path.join(dir.path, file), input.bytes, { mode: 0o600 });
+        try {
+          const batch = runtime.beginIntake(dir.ref);
+          try {
+            const item = await batch.add(file, input.name.slice(0, 120) || "image");
+            if (!item.mediaType || !IMAGE_MEDIA_TYPES.includes(item.mediaType)) throw new PrologueAdapterError("agent.capability_unavailable", "只能带 PNG、JPEG、GIF 或 WebP 图片");
+            await batch.publish();
+            return { resource: { id: item.ref.id, revision: item.ref.revision }, media_type: item.mediaType, byte_length: item.byteLength };
+          } catch (error) { await batch.cancel(); throw error; }
+        } finally { await rm(path.join(dir.path, file), { force: true }); }
+      },
       parse: async input => {
         const stage = runtime.resources.stage({ mediaKind: "binary", byteLength: input.bytes.byteLength, label: input.name.slice(0, 120) || "attachment" });
         let ref;
@@ -830,6 +856,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     workspaceNone: true,
     workspaceBusiness: true,
     inlineMethods: true,
+    imageAttachments: true,
     compaction: true,
     ...(checkpoints ? { checkpoints } : {}),
     async saveRunTiming(run, timing) {
@@ -1201,6 +1228,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           ...(input.provenance.frozen.budget?.max_output_tokens === undefined ? {} : { params: { maxOutputTokens: input.provenance.frozen.budget.max_output_tokens } }),
           ...(input.provenance.frozen.budget?.max_duration_ms === undefined ? {} : { timeoutMs: input.provenance.frozen.budget.max_duration_ms }),
           messages: [{ role: "user", text: input.task }],
+          // Images the person brought ride on every model call of this Run; their bytes are spliced in by the Host.
+          ...(input.image_materials?.length ? { attachments: input.image_materials.map(image => ({ ref: { kind: "resource" as const, id: image.resource.id, revision: image.resource.revision }, as: "original" as const })) } : {}),
           // `off` sends no field, so a Run with caching turned off is byte for
           // byte the request it would have been before caching existed.
           ...(input.model.prompt_cache === undefined || input.model.prompt_cache === "off"

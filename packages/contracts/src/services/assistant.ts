@@ -153,6 +153,8 @@ export interface AssistantMaterial {
   title: string;
   /** For `capability`: the one the person picked with “/” to be used this round (its exact identity). */
   capability?: { capability_id: string; version: number; provider_id: string; title: string };
+  /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
+  image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
   explicit: boolean;
   source?: AssistantSurfaceRef;

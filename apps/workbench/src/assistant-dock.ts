@@ -47,7 +47,7 @@ ${picker}        <span class="assistant-target" data-assistant-target-wrap><butt
         <button class="assistant-materials-button" type="button" data-assistant-materials aria-expanded="false" aria-controls="assistant-materials" title="${L("本次发送带上的材料")}" hidden>${icon("paperclip")}<span data-assistant-materials-count></span></button>
         <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("让助理做点什么…")}" aria-label="${L("发给助理")}">
         <button class="bar-composer-attach" type="button" data-assistant-attach aria-label="${L("添加文件")}" title="${L("添加文件")}">${icon("plus")}</button>
-        <input type="file" data-assistant-file multiple hidden tabindex="-1" accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,text/*">
+        <input type="file" data-assistant-file multiple hidden tabindex="-1" accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,text/*,image/png,image/jpeg,image/gif,image/webp">
 ${options.search ? `        <button class="bar-composer-search" type="button" data-global-search-open aria-label="${L("打开搜索")}" title="${L("打开搜索")}">${icon("search")}<kbd>⌘K</kbd></button>\n` : ""}        <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${L("发送")}" title="${L("发送")}" disabled>${icon("send")}</button>
       </form>
     </div>`;

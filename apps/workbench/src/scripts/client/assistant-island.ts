@@ -996,7 +996,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== currentId).slice(0, 2)
       .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
     if (selection && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(selection.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: file.title, auto: false }));
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.kind === "image" ? L("图片") + "：" : "") + file.title, auto: false, thumb: file.preview }));
     return items;
   };
   function paintMaterials() {
@@ -1025,6 +1025,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         add.addEventListener("click", () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMaterials(); materialsList.querySelector("button")?.focus(); });
         row.append(add); materialsList.append(row); return;
       }
+      if (item.thumb) { row.classList.add("assistant-material--image"); const thumb = el("img", "assistant-material-thumb"); thumb.src = item.thumb; thumb.alt = ""; row.append(thumb); }
       row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", item.note || (item.auto ? L("来自当前页面") : L("你添加的"))));
       const drop = el("button", "assistant-material-remove", "×"); drop.type = "button";
       drop.setAttribute("aria-label", L("不带上") + "：" + item.label);
@@ -1125,32 +1126,68 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (noticesPop && !noticesPop.hidden) { event.preventDefault(); event.stopPropagation(); setNotices(false); attentionButton?.focus(); }
   }, true);
   /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
-  attach?.addEventListener("click", () => fileInput?.click());
-  fileInput?.addEventListener("change", async () => {
-    const chosen = [...(fileInput.files || [])];
-    fileInput.value = "";
+  const readBase64 = (file) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+  async function addFiles(chosen) {
     for (const file of chosen) {
       if (files.length >= 5) { host.showToast?.(L("一次最多带 5 个文件")); break; }
-      if (/^image\//.test(file.type)) { host.showToast?.(L("暂时不能读取图片：当前模型与运行方式还没有接通图片")); continue; }
+      // A picture is taken in by the Agent runtime and shown to the model in the round it is sent with.
+      if (/^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(file.name)) {
+        if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) { host.showToast?.(L("只能带 PNG、JPEG、GIF 或 WebP 图片") + "：" + file.name); continue; }
+        if (files.filter((item) => item.kind === "image").length >= 4) { host.showToast?.(L("一次最多带 4 张图片")); continue; }
+        if (file.size > 5 * 1024 * 1024) { host.showToast?.(L("图片超过 5 MB，请压缩或截取需要的部分") + "：" + file.name); continue; }
+        try {
+          const data = await readBase64(file);
+          const { material } = await api("/attachments", "POST", { name: file.name, data });
+          // The preview is a data URL: the page's policy shows data images, not blob URLs.
+          files.push({ material_id: material.material_id, kind: "image", title: material.title, image: material.image, explicit: true, preview: "data:" + file.type + ";base64," + data });
+        } catch (error) { host.showToast?.(file.name + "：" + error.message); }
+        continue;
+      }
       // A PDF is read by the Agent runtime's own parser (text layer only); what cannot be read says why.
       if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
         if (file.size > 8 * 1024 * 1024) { host.showToast?.(L("文件超过 8 MB，请只带需要的部分") + "：" + file.name); continue; }
         try {
-          const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
-          const { material } = await api("/attachments", "POST", { name: file.name, data });
+          const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) });
           files.push({ material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true });
         } catch (error) { host.showToast?.(file.name + "：" + error.message); }
         continue;
       }
       // Only text is read here; other binary files would reach the model as noise.
       if (!/^text\//.test(file.type) && !/\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|h|cpp|sql|sh|log|ini|toml)$/i.test(file.name)) {
-        host.showToast?.(L("暂时只能读取文本文件和 PDF") + "：" + file.name); continue;
+        host.showToast?.(L("暂时只能读取文本文件、PDF 和图片") + "：" + file.name); continue;
       }
       if (file.size > 400000) { host.showToast?.(L("文件太大，请只带需要的部分") + "：" + file.name); continue; }
       try { files.push({ material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }); }
       catch { host.showToast?.(L("读不了这个文件") + "：" + file.name); }
     }
     paintMaterials();
+  }
+  attach?.addEventListener("click", () => fileInput?.click());
+  fileInput?.addEventListener("change", () => {
+    const chosen = [...(fileInput.files || [])];
+    fileInput.value = "";
+    void addFiles(chosen);
+  });
+  // A picture pasted or dropped on the composer is added the same way; pasted text stays text.
+  const pastedName = (file) => file.name && file.name !== "image.png" ? file
+    : new File([file], L("粘贴的图片") + "." + ((file.type.split("/")[1] || "png").replace("jpeg", "jpg")), { type: file.type });
+  input.addEventListener("paste", (event) => {
+    const pasted = [...(event.clipboardData?.files || [])];
+    if (!pasted.length) return;
+    event.preventDefault();
+    void addFiles(pasted.map(pastedName));
+  });
+  composer?.addEventListener("dragover", (event) => {
+    if (![...(event.dataTransfer?.types || [])].includes("Files")) return;
+    event.preventDefault(); composer.dataset.dropping = "true";
+  });
+  composer?.addEventListener("dragleave", (event) => { if (!composer.contains(event.relatedTarget)) delete composer.dataset.dropping; });
+  composer?.addEventListener("drop", (event) => {
+    delete composer.dataset.dropping;
+    const dropped = [...(event.dataTransfer?.files || [])];
+    if (!dropped.length) return;
+    event.preventDefault();
+    void addFiles(dropped);
   });
   /** The page, what is selected on it and the materials the person kept: all data for this Send, nothing more. */
   const pageContext = () => {
@@ -1168,7 +1205,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const sendMaterials = () => {
     const context = surfaceContext();
-    const list = files.map((file) => Object.assign({}, file));
+    // The picture's preview stays on this page; the Send names the runtime's reference only.
+    const list = files.map(({ preview: _preview, ...file }) => file);
     const page = pageObject();
     if (page && currentId && joined.has(objectKey(page.object))) {
       list.push({ material_id: "object", kind: "object", title: page.object.title || page.object.id, explicit: true, object: page.object,

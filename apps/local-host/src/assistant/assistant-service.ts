@@ -1,5 +1,5 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegatedWork, AgentDelegation, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -21,6 +21,9 @@ const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
 const MAX_MATERIALS = 20;
 const MAX_MATERIAL_TEXT = 60_000;
+/** Images per Send and per image, within what the model providers take. */
+const MAX_IMAGES = 4;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Enough for a real piece of business work with its lookups; a round never runs unbounded. */
 const ROUND_TURNS = 24;
 /** The directory lists at most this many; the gateway itself searches all of them. */
@@ -118,6 +121,16 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
       return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "capability" as const, title: `用：${capability.title}`, explicit: true, capability,
         text: `用户指定这一轮用这个能力：「${capability.title}」（capability_id ${capability.capability_id}，version ${capability.version}，provider_id ${capability.provider_id}）。先用 find-capabilities 核对它的参数再用；会改变数据的照常请用户确认；它现在不可用就如实说明，不要换别的能力。` };
     }
+    // An image the person added: only the reference the runtime gave when it took the picture in.
+    if (item.kind === "image") {
+      const image = item.image;
+      if (!image || typeof image.resource_id !== "string" || !Number.isSafeInteger(image.revision) || typeof image.media_type !== "string" || !Number.isSafeInteger(image.byte_length)) {
+        throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+      }
+      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "image" as const, title: item.title.slice(0, 200), explicit: true,
+        image: { resource_id: image.resource_id.slice(0, 200), revision: image.revision, media_type: image.media_type.slice(0, 40), byte_length: image.byte_length },
+        text: "这张图片随本轮一起发给你，只在这一轮能看到（之后的轮次看不到原图）。看不到图片内容就直接说看不到，不要猜测图里有什么。" };
+    }
     total += item.text?.length ?? 0;
     if (total > MAX_MATERIAL_TEXT) throw new AssistantError("assistant.invalid", "材料正文合计过长，请只带需要的片段");
     return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: item.kind, title: item.title.slice(0, 200), explicit: item.explicit,
@@ -125,6 +138,12 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
       ...(item.object ? { object: { kind: String(item.object.kind).slice(0, 80), id: String(item.object.id).slice(0, 200), ...(item.object.version !== undefined ? { version: item.object.version } : {}), ...(item.object.title ? { title: String(item.object.title).slice(0, 200) } : {}) } } : {}),
       ...(item.text !== undefined ? { text: item.text } : {}), ...(item.draft ? { draft: true } : {}) };
   });
+}
+
+/** PNG, JPEG, GIF or WebP, by the bytes themselves. */
+function looksLikeImage(bytes: Buffer): boolean {
+  const head = bytes.subarray(0, 12).toString("latin1");
+  return head.startsWith("\x89PNG\r\n\x1a\n") || bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff || head.startsWith("GIF8") || head.startsWith("RIFF") && head.slice(8, 12) === "WEBP";
 }
 
 function checkContext(value: unknown): AssistantContextSnapshot | null {
@@ -354,6 +373,8 @@ export function sameLocalTimeLater(at: number, days: number, timeZone: string | 
 
 export class AssistantService {
   private readonly titles = new Map<string, CapabilityTitles>();
+  /** Images this person brought while this runtime lives: a Send may only name one of these. */
+  private readonly images = new Map<string, { revision: number; media_type: string }>();
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {}
 
@@ -783,6 +804,12 @@ export class AssistantService {
   async send(input: AssistantSendInput, caller: AssistantCaller): Promise<AssistantSendResult> {
     const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
     const materials = checkMaterials(input.materials);
+    const images = materials.filter(item => item.kind === "image");
+    if (images.length > MAX_IMAGES) throw new AssistantError("assistant.invalid", `一次最多带 ${MAX_IMAGES} 张图片`);
+    for (const image of images) {
+      const held = this.images.get(image.image!.resource_id);
+      if (!held || held.revision !== image.image!.revision) throw new AssistantError("assistant.invalid", `图片「${image.title}」已失效（应用重启过），请重新添加`);
+    }
     const context = checkContext(input.context);
     if (input.mode !== undefined && (input.work_id || input.executor !== "coding" || !CODING_MODES.includes(input.mode))) throw new AssistantError("assistant.invalid", "只有新的 Coding 工作可以在这里选择第一轮的方式");
     if (input.coding_session_id !== undefined && (input.work_id || input.executor !== "coding" || typeof input.coding_session_id !== "string" || !input.coding_session_id)) {
@@ -1319,6 +1346,7 @@ export class AssistantService {
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
   private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string): Promise<AssistantSendResult> {
+    if (materials.some(item => item.kind === "image")) throw new AssistantError("assistant.unsupported", "Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
     const coding = await this.coding(work);
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
     if (!sessionId) {
@@ -1369,6 +1397,8 @@ export class AssistantService {
         await adapter.control(latest.ref, { kind: "answer", pending_id: question.pending_id, ...(question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}), text });
         return this.result(work, "answered", latest.ref.run_id);
       }
+      // A running round cannot be shown a picture any more; it goes with the next round.
+      if (materials.some(item => item.kind === "image")) throw new AssistantError("assistant.state", "这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮");
       await adapter.control(latest.ref, { kind: "steer", text: this.steerText(text, materials, context) });
       return this.result(work, "steered", latest.ref.run_id);
     }
@@ -1380,6 +1410,9 @@ export class AssistantService {
       session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,
       action_gateway: true,
       text_materials: await this.roundMaterials(work, materials, context, offered, text),
+      // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
+      ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
+        .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
       history: "session", budget: { max_turns: ROUND_TURNS }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
       // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
       ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
@@ -1424,8 +1457,11 @@ export class AssistantService {
     const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
     const where = work.scope.kind === "personal" ? "个人工作（不属于任何项目，使用个人范围的能力）"
       : `项目「${(await this.ports.projectTitle?.(work.scope.project_id).catch(() => null)) ?? work.scope.project_id}」中的工作（只使用这个项目的能力与资料）`;
+    // Pictures ride only on the round they came with; history keeps the words, so say what the model saw back then.
+    const pictured = [...new Set(this.store.rounds(work.work_id).flatMap(round => round.materials.filter(item => item.kind === "image").map(item => item.title)))];
     const situation = [`现在是 ${local}（时区 ${zone}，${now.toISOString()}）。`, `这项工作：「${work.title}」，${where}。`,
-      work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : ""].filter(Boolean).join("\n");
+      work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : "",
+      pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到，需要再看就请用户重新附上。` : ""].filter(Boolean).join("\n");
     const base = { source_artifact_id: work.work_id, source_version: 1 };
     const out: AgentTextMaterial[] = [{ ...base, material_id: "situation", title: "本轮情况", text: situation }];
     // What the person did with earlier suggestions since the last round: the next round goes on from there.
@@ -1588,7 +1624,8 @@ export class AssistantService {
   }
 
   /**
-   * A document the person brings (PDF), read by the runtime's own parser into bounded text for this Send's materials.
+   * A document the person brings (PDF), read by the runtime's own parser into bounded text for this Send's materials;
+   * a picture (PNG, JPEG, GIF, WebP) is taken in by the runtime instead, for the model to see in the round it goes with.
    * What cannot be read says why (scanned, encrypted, damaged); nothing is guessed.
    */
   async readAttachment(input: { name: string; data: string }): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
@@ -1598,14 +1635,28 @@ export class AssistantService {
     if (bytes.byteLength > 8 * 1024 * 1024) throw new AssistantError("assistant.invalid", "文件超过 8 MB，请只带需要的部分");
     const documents = (await this.ports.host()).adapter(RUNTIME).documents;
     if (!documents) throw new AssistantError("assistant.unsupported", "当前运行时不能读取这类文件");
+    if (looksLikeImage(bytes) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(name)) return this.takeImage(name, bytes, documents);
     let parsed: { text: string; truncated: boolean; pages?: number };
     try { parsed = await documents.parse({ bytes: new Uint8Array(bytes), name }); }
     catch (error) {
       const code = (error as { code?: string }).code ?? "";
-      throw new AssistantError("assistant.invalid", code === "RESOURCE_PARSER_UNAVAILABLE" ? "暂时只能读取文本文件和 PDF" : (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, ""));
+      throw new AssistantError("assistant.invalid", code === "RESOURCE_PARSER_UNAVAILABLE" ? "暂时只能读取文本文件、PDF 和图片" : (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, ""));
     }
     return { material_id: `file-${randomUUID()}`, kind: "file", title: name + (parsed.pages ? `（${parsed.pages} 页${parsed.truncated ? "，只取了前面一部分" : ""}）` : ""),
       text: parsed.text, explicit: true, ...(parsed.pages ? { pages: parsed.pages } : {}), ...(parsed.truncated ? { truncated: true } : {}) };
+  }
+
+  /** A picture the person brings: taken in by the runtime (its bytes stay there) and named by reference in the Send. */
+  private async takeImage(name: string, bytes: Buffer, documents: AgentDocumentCapability): Promise<AssistantMaterial> {
+    if (!looksLikeImage(bytes)) throw new AssistantError("assistant.invalid", "只能带 PNG、JPEG、GIF 或 WebP 图片");
+    if (bytes.byteLength > MAX_IMAGE_BYTES) throw new AssistantError("assistant.invalid", "图片超过 5 MB，请压缩或截取需要的部分");
+    if (!documents.intakeImage) throw new AssistantError("assistant.unsupported", "当前运行时还不能接收图片");
+    let taken: Awaited<ReturnType<NonNullable<AgentDocumentCapability["intakeImage"]>>>;
+    try { taken = await documents.intakeImage({ bytes: new Uint8Array(bytes), name }); }
+    catch (error) { throw new AssistantError("assistant.invalid", (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, "")); }
+    this.images.set(taken.resource.id, { revision: taken.resource.revision, media_type: taken.media_type });
+    return { material_id: `image-${randomUUID()}`, kind: "image", title: name, explicit: true,
+      image: { resource_id: taken.resource.id, revision: taken.resource.revision, media_type: taken.media_type, byte_length: taken.byte_length } };
   }
 
   private async memoryStore(): Promise<AgentMemoryCapability> {

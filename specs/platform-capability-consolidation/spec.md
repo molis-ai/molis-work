@@ -480,3 +480,19 @@ Host 注入提取与可用性端口。文件 Action 经异步 `admitFile` 提取
 验证：整体构建通过，最后补齐工作区依赖登记后的构建为 `/tmp/platform-shelf-materials-inventory-build.log`；Desktop `cargo check --offline --manifest-path apps/desktop/src-tauri/Cargo.toml --bin molis-work-desktop` 通过（22 条 warning，`/tmp/platform-shelf-materials-desktop-check.log`）。最终材料/设置定向 3 文件 31/31（`/tmp/platform-shelf-materials-final-targeted.log`）；首轮其余未变化的 Shelf plugin/recipes/actions 22 项通过证据保留。Host/Desktop/Contracts/Kernel 及消费者 24 文件 157/157，无跳过（`/tmp/platform-shelf-materials-regression.log`）。依赖清单补齐后安装收集 2/2 复验通过，70 包 boundary errors 为空（`/tmp/platform-shelf-materials-inventory-test.log`、`/tmp/platform-shelf-materials-boundary.log`），diff whitespace 通过。
 
 首轮失败原因分别是旧网页测试未注入已迁移的 Host 端口，以及新增小图双语言 OCR 断言不符合本机识别结果。用改造前 Swift 源码编译实测同图，旧版同样返回 SHELP、置信度 0.3，确认不是此次迁移退化；保留原有英文回归，新增清晰中英原生图片逐语言验证，同时经真实子进程验证语言参数、逐行结果及非法置信度拒绝。没有改识别结果或放宽权限断言来使测试通过。源码/Skill 编辑、构建与测试串行；本地 PDF、Vision、Chrome、HTTP 路径已验证，未调用付费模型或代表用户本人验收。AI recipe 与 01–12 最终消费者复核继续实施，本段仅本地提交。
+
+
+### Coding 短草稿提示词的消费者闭环
+
+实际调用链已使用共享 Home Prologue，但 `commit-draft.ts` 和 `history-digest.ts` 把固定正文作为 `agent.draft-text.v1.instructions` 发送，未出现在提示词登记与用户覆盖中。将两份指令归 Coding 的 `src/prompts.ts`，共同插件目录声明 `CODING_INSTRUCTIONS`；材料裁剪、摘要降级、用户编辑后提交和业务用量继续归 Coding。
+
+公共草稿请求增加命名 `prompt` 引用，Host 按原 invocation.plugin.plugin_id 解析所属插件已登记的指令，不接受业务输入声明 owner，也不使用请求提供的默认正文。旧 instructions 字符串仅保留现有调用兼容，命名引用和 inline 二者只能选一；新的 Coding 调用只传引用。使用现有 AgentDefinitions 的用户覆盖、版本和使用记录，不新增表。初次异步授权复查、Prompt 使用记录及共享模型派出纳入同一个 120 秒 Kernel 生命周期，取消/撤权后零使用记录和零派出；后续派出和返回仍保留原 beforeEffect，未知用量保持 null。
+
+验证两份指令在设置目录可见且真实 SDK/本地 HTTP 使用用户修改正文、材料单独传递；未知引用、缺可信身份、双重输入、取消及异步撤权零派出/零使用记录；不同 Home 不共享覆盖。保留旧 inline SDK 用例、Coding 摘要 HTTP 路径与提交材料/SDK 验证，更新手册/Skill 和过期测试例外。先整体 build，再定向及包要求回归、boundary；不改变提示词内容、计费模型选择、摘要降级或 Git 执行授权。
+
+
+本段已实现并删除 Coding 两个调用方的内联正文及 Host 门禁旧例外；指令按原文迁到唯一声明，注册、用户覆盖、可信身份和模型请求形成完整链。生产 PluginHostExecutor 覆盖调用选项中的 plugin_caller，LocalHost 交给 composition 的 invocation，命名引用的 owner 不来自请求。旧 inline 输入继续可用，双重输入拒绝；超出旧 4,000 字但仍在 Prompt 设置上限内的用户指令可以生效，材料没有进入系统指令。
+
+整体构建通过（`/tmp/platform-coding-instructions-build.log`）。定向 6 文件 18/18（`/tmp/platform-coding-instructions-targeted.log`），包含真实打包 SDK/本地 HTTP、两份用户覆盖/版本使用记录、跨 Home 默认隔离、未知 id/错误 owner/缺身份/混合输入，以及异步授权期间取消/撤权零使用记录和零模型派出；原摘要 HTTP 行为、记录降级和用量继续通过。包要求及消费者回归 23 文件 119/119（`/tmp/platform-coding-instructions-regression.log`），70 包 boundary errors 为空（`/tmp/platform-coding-instructions-boundary.log`），diff whitespace 通过。测试期间未编辑源码/Skill 或并发构建；没有调用付费供应商或代表用户本人验收。
+
+接续交接：本次已连续完成 Shelf PDF/OCR 和 Coding 短草稿登记两个切片，仅本地提交。下一个明确剩余项是 Alchemist：当前仍有六类固定指令（方向生成、Founder Copilot、证据交叉检查、研究综合、成果复用适用性、一次格式纠正），只有交叉检查的研究维度属于动态参数。应使用现有 InstructedPrompt 分离正文与数据并登记，保留 Host SDK JSON 解码、插件领域 parse 和一次纠正的预算/授权机制；不能把现有提示词中的 schema 声称为原生 SDK 强约束。之后完成 Shelf 自动 AI recipe 经 Prologue 的迁移，保留人工 CLI 交接、材料/结果身份及明确模型选择，再完成 01–12 最终验收。上述剩余项继续实施，Goal 保持 active，不重建或重复 Goal Prompt。

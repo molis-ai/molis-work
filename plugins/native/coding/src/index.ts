@@ -1,11 +1,12 @@
+export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
 export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";
 export { codeTokens, codeLanguage, diffRowTokens } from "./highlight.js";
-export { commitDraftMaterial, commitMessageFrom, COMMIT_DRAFT_INSTRUCTIONS } from "./commit-draft.js";
+export { commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 export { planTask } from "./plans.js";
 export { mentionedPaths, attachMentions, workspaceFileIndex, symbolsIn, symbolBlock } from "./mentions.js";
-export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, HISTORY_SUMMARY_INSTRUCTIONS, MODEL_DIGEST_HEAD } from "./history-digest.js";
+export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, MODEL_DIGEST_HEAD } from "./history-digest.js";
 export { CodingCooperationStore, MAX_DELEGATION_HOPS, DELEGATION_STATE_LABEL, type CodingDelegation, type CodingDelivery, type DelegationState } from "./cooperation.js";
 export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";
 

@@ -6,7 +6,7 @@ import { experimentsManifest, EXPERIMENTS_CLIENT_FACTORY_SCRIPT, EXPERIMENTS_STY
 import { type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
-import { CODING_PROJECT_PLUGIN_ID, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
@@ -323,6 +323,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: CODING_PROJECT_PLUGIN_ID,
     manifest: codingManifest,
+    instructions: CODING_INSTRUCTIONS,
     summary: "围绕代码讨论、执行和审查，保留连续的任务记录。",
     agent: { prompts: codingPrompts, skills: codingMethods },
     workbench: {

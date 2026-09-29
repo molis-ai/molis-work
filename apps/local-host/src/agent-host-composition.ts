@@ -176,7 +176,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     if (!options.prologue) throw new Error("模型执行方尚未接通，不能起草");
     return draftText({ homeDirectory: options.homeDirectory ?? resolveConfiguredHome(),
       resolveInference: async () => { await initialize(); if (!prologue) throw new Error("模型执行方尚未接通"); return prologue.inference; },
-    }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect() });
+    }, input, { signal: invocation.signal, beforeDispatch: () => invocation.beforeEffect(), pluginId: invocation.plugin?.plugin_id });
   });
   const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
     await initialize();

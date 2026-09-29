@@ -1176,7 +1176,10 @@ export interface AgentHostApi {
 /** What to draft: the purpose in a few words, how to write it, and the material it is drawn from. */
 export interface AgentDraftTextRequest {
   purpose: string;
-  instructions: string;
+  /** Registered instruction owned by the trusted calling Plugin. Use this for new calls. */
+  prompt?: string;
+  /** Legacy inline instruction; cannot be combined with prompt. */
+  instructions?: string;
   material: string;
   model_selection?: { provider_id: string; model_id: string };
 }

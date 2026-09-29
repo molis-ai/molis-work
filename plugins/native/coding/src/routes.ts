@@ -1,3 +1,4 @@
+import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { bindOwnerPluginAction, parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingRouteActions } from "./route-actions.js";
 import { codingReportSteps } from "./report-steps.js";
@@ -17,8 +18,8 @@ import { codingReportPreview, codingReportReference, createCodingExecutionReport
 import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
 import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
-import { COMMIT_DRAFT_INSTRUCTIONS, COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
-import { codingHistoryDigest, historySummaryMaterial, HISTORY_SUMMARY_INSTRUCTIONS, nextHistoryMode, summaryDigest } from "./history-digest.js";
+import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
+import { codingHistoryDigest, historySummaryMaterial, nextHistoryMode, summaryDigest } from "./history-digest.js";
 import { asAttachment, delegationViewOf, isDelegation } from "./delegation-view.js";
 import { OPEN_WAIT, appData, holdReason, waitViewOf, wakeBodyOf } from "./waits.js";
 import { CodingCooperationStore, DELEGATION_ENDED, DELEGATION_STATE_LABEL, MAX_DELEGATION_HOPS, type CodingDelegation } from "./cooperation.js";
@@ -483,7 +484,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const digestFor = async () => digest ??= await (async () => {
   const runs = await earlierRuns();
   try {
-    const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", instructions: HISTORY_SUMMARY_INSTRUCTIONS,
+    const draft = await api!.invoke(agent.draftText, { purpose: "整理前面的对话", prompt: CODING_HISTORY_SUMMARY.prompt_id,
       material: historySummaryMaterial(runs), model_selection: { provider_id: model.provider_id, model_id: model.model_id } });
     if (draft.usage) {
       const spent = savedDigestUsage(record.session_id) ?? { calls: 0, tokens: { input: 0, output: 0 } };
@@ -1546,7 +1547,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (!rounds.length) throw new Error("这一轮之前没有已落盘的改动可以起草");
       const plan = execution.sessions.plan(boardId, record.session_id);
       const selection = typeof body.provider_id === "string" && typeof body.model_id === "string" ? { provider_id: body.provider_id, model_id: body.model_id } : undefined;
-      const draft = await api!.invoke(agent.draftText, { purpose: "起草 git 提交说明", instructions: COMMIT_DRAFT_INSTRUCTIONS,
+      const draft = await api!.invoke(agent.draftText, { purpose: "起草 git 提交说明", prompt: CODING_COMMIT_DRAFT.prompt_id,
         material: commitDraftMaterial({ ...(plan?.confirmed ? { planTitle: plan.content.title } : {}), rounds }), ...(selection ? { model_selection: selection } : {}) });
       return { message: commitMessageFrom(draft.text), usage: draft.usage, rounds: rounds.map(round => round.number) };
     }),

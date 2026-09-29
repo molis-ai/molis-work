@@ -37,8 +37,6 @@ const TRANSITIONAL: Readonly<Record<string, string>> = {
 /** Modules that only build a Host text model and hand it to a caller that resolves its instructions. */
 const FACTORIES = new Set([
   "apps/local-host/src/jelly-model.ts",
-  // Capability transport: receives the calling plugin's instructions as input, not a Host-owned business prompt.
-  "apps/local-host/src/model-draft.ts",
 ]);
 
 test("every instruction a built-in model call defines is registered where the person can see and edit it", () => {
@@ -67,7 +65,7 @@ test("Host modules reach a model only through the register, apart from the trans
   const offenders = HOST.filter(path => {
     const text = read(path);
     if (!direct.test(text)) return false;
-    return !/resolveModelPrompt|withRegisteredPrompts|resolvePluginPrompt/.test(text) && !TRANSITIONAL[path] && !FACTORIES.has(path);
+    return !/resolveModelPrompt|resolveInstructionPrompt|withRegisteredPrompts|resolvePluginPrompt/.test(text) && !TRANSITIONAL[path] && !FACTORIES.has(path);
   });
   assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
   for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);

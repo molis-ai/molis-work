@@ -46,6 +46,8 @@
 
 Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draft.ts` → `hostTextGeneration` → 当前 composition 的 inference。正文和写法由 Coding 提供，无工具、不建每次起草的 workspace 或 Runtime；用量仅在 input/output 都为 reported 时提供，否则为 null。调用的 signal 与 beforeEffect 经 Host Capability 合同传入，调用方可以取消自身操作而不能改变身份。
 
+Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。旧 `instructions` 字符串仅兼容旧调用，不能与 `prompt` 并用。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
+
 Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
 
 Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密、比对配置或管理取消等待；固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。

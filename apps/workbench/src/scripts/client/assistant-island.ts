@@ -622,6 +622,41 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     details.append(list);
     objectsBox.replaceChildren(details);
   };
+  /* What this work used (its sub-tasks with it) and the cap the person gave it; a sub-task shows its delegating work's. */
+  const usageBox = island.querySelector("[data-assistant-usage]");
+  const renderUsage = (work) => {
+    if (!usageBox) return;
+    const usage = work && view && view.usage ? view.usage : null;
+    const signature = JSON.stringify([work && work.work_id, usage]);
+    if (usageBox.dataset.signature === signature) return;
+    const wasOpen = usageBox.querySelector("details")?.open;
+    usageBox.dataset.signature = signature;
+    usageBox.hidden = !usage;
+    if (!usage) { usageBox.replaceChildren(); return; }
+    const number = (value) => Number(value).toLocaleString("en-US");
+    const over = usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens;
+    const details = el("details", "assistant-objects-list");
+    details.open = wasOpen === undefined ? over : wasOpen;
+    details.append(el("summary", "", L("用量") + " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + L("上限") + " " + number(usage.budget_tokens) : "") + (over ? " · " + L("已到上限") : "")));
+    if (usage.budget_of) {
+      details.append(el("p", "assistant-material-origin", L("子任务按委托它的工作计算") + "：「" + usage.budget_of.title + "」"));
+    } else {
+      const form = el("form", "assistant-usage-form");
+      const field = el("input", "assistant-usage-input"); field.type = "number"; field.min = "1000"; field.step = "1000"; field.inputMode = "numeric";
+      field.placeholder = L("不单独设限"); field.value = usage.budget_tokens !== null ? String(usage.budget_tokens) : "";
+      field.setAttribute("aria-label", L("这项工作的用量上限（tokens，含子任务）"));
+      const save = el("button", "assistant-material-add", L("保存上限")); save.type = "submit";
+      form.append(el("span", "assistant-material-origin", L("上限（tokens，含子任务）")), field, save);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault(); save.disabled = true;
+        try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/budget", "POST", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) }); render(); }
+        catch (error) { host.showToast?.(error.message); }
+        finally { save.disabled = false; }
+      });
+      details.append(form);
+    }
+    usageBox.replaceChildren(details);
+  };
   /* The work's task board: sub-tasks it handed to works of their own, and for a delegated work, who asked for it. */
   const delegatedBox = island.querySelector("[data-assistant-delegated]");
   const renderDelegated = (work) => {
@@ -711,6 +746,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const work = view && view.work.work_id === currentId ? view.work : null;
     renderObjects(work);
     renderDelegated(work);
+    renderUsage(work);
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
@@ -763,6 +799,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (shown.action) {
         if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; box.append(link); }
+        // A work's own cap is raised right here, in its usage box; the daily cap lives in the Assistant's settings.
+        else if (/这项工作的上限/.test(shown.action) && usageBox) {
+          const raise = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); raise.type = "button";
+          raise.addEventListener("click", () => { const details = usageBox.querySelector("details"); if (details) details.open = true; usageBox.querySelector("input")?.focus(); });
+          box.append(raise);
+        }
+        else if (shown.action === "打开设置") { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L("打开助理设置")); link.href = "/settings/assistant"; box.append(link); }
         else box.append(el("p", "assistant-muted", L(shown.action)));
       }
       thread.append(box);

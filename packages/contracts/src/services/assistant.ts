@@ -200,6 +200,8 @@ export interface AssistantWork {
   character?: AssistantCharacter;
   /** Set on a work another work delegated: which one, and what it was asked to deliver. */
   delegated_by?: { work_id: string; title: string; acceptance: string };
+  /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
+  budget_tokens?: number;
 }
 
 /** An exact published Character version, as the person chose it. */
@@ -353,6 +355,11 @@ export interface AssistantWorkView {
   unsettled?: AssistantUnsettledChange[];
   /** Background work this work started in plugins, and how each stands. */
   jobs?: AssistantBackgroundJob[];
+  /**
+   * What this work used, as the runtime reported its finished rounds (input plus output tokens; its sub-tasks counted
+   * with it, and a sub-task shows its delegating work's total), and the cap that applies.
+   */
+  usage?: { tokens: number; rounds: number; budget_tokens: number | null; budget_of?: { work_id: string; title: string } };
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }

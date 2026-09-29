@@ -272,9 +272,13 @@ function describeObjects(objects: readonly AssistantWorkObject[]): string {
  * Why a round stopped, in the person's words. A limit is a boundary the round kept, not a crash: what it did stays,
  * and the person can let it go on.
  */
-export function stopInWords(reason: string): string {
-  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns/i.test(reason)) return `到了这一轮的步数上限（${ROUND_TURNS} 步），停在这里；已完成的修改都保留。说“继续”可以接着做`;
-  if (/MODEL_BUDGET_EXCEEDED|token/i.test(reason) && /budget|limit|exceed/i.test(reason)) return "到了这一轮的用量上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
+export function stopInWords(reason: string, workBudget?: number): string {
+  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns|of its \d+ turns/i.test(reason)) return `到了这一轮的步数上限（${ROUND_TURNS} 步），停在这里；已完成的修改都保留。说“继续”可以接着做`;
+  if (/MODEL_BUDGET_EXCEEDED|of its \d+ tokens|token/i.test(reason) && /budget|limit|exceed|of its \d+ tokens/i.test(reason)) {
+    // A round whose work has a cap was given only what was left of it: this stop is that cap.
+    return workBudget ? `到了这项工作的用量上限（${workBudget.toLocaleString("en-US")} tokens），停在这里；已完成的修改都保留。要继续，先在“用量”里调高这项工作的上限`
+      : "到了这一轮的用量上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
+  }
   if (/wall.?clock|duration|timed.?out/i.test(reason)) return "到了这一轮的时间上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
   return reason;
 }
@@ -690,6 +694,7 @@ export class AssistantService {
     const claim = scheduled.length ? await this.scheduleClaim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
+    const usage = work.executor.kind === "coding" ? null : await this.workUsage(work).catch(() => null);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
     for (const card of this.store.cards(work.work_id).filter(item => item.target && (item.status === "ready" || item.status === "needs-input"))) {
       const moved = await this.targetMoved(work, card);
@@ -697,7 +702,8 @@ export class AssistantService {
     }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(problem ? { problem } : {}) };
+      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}),
+      ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}) };
   }
 
   /** The rounds run in the Assistant's own session. */
@@ -1403,6 +1409,12 @@ export class AssistantService {
       return this.result(work, "steered", latest.ref.run_id);
     }
     await this.assertBudget();
+    // The work's own cap: none left means no round; otherwise the round may spend only what is left.
+    const spent = await this.workUsage(work);
+    if (spent.budget_tokens !== null && spent.tokens >= spent.budget_tokens) {
+      throw new AssistantError("assistant.budget", `${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, undefined, "调高这项工作的上限");
+    }
+    const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     const offered = await this.actionTools(authority);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     const handle = await host.start(RUNTIME, {
@@ -1413,11 +1425,12 @@ export class AssistantService {
       // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
       ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
         .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
-      history: "session", budget: { max_turns: ROUND_TURNS }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
+      history: "session", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
       // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
       ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
     }, authority);
-    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(work.character ? { character: { ...work.character } } : {}) });
+    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(work.character ? { character: { ...work.character } } : {}),
+      ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }) });
     return this.result(work, "started", handle.ref.run_id);
   }
 
@@ -1587,22 +1600,54 @@ export class AssistantService {
    */
   async usage(): Promise<AssistantUsage> {
     const since = this.startOfToday();
-    const host = await this.ports.host().catch(() => null);
-    if (host) {
-      const adapter = host.adapter(RUNTIME);
-      for (const { work_id, round } of this.store.roundsSince(this.actorId, since)) {
-        if (round.executor === "coding") continue;
-        let work: StoredWork;
-        try { work = this.store.get(this.actorId, work_id); } catch { continue; }
-        if (!work.session_id) continue;
-        const view = await adapter.read({ session_id: work.session_id, run_id: round.run_id }).catch(() => null);
-        if (!view || !isTerminalAgentPhase(view.phase) || !view.usage) continue;
-        this.store.recordUsage(this.actorId, { work_id, run_id: round.run_id, ended_at: view.ended_at ?? this.now().toISOString(),
-          input: view.usage.tokens.input ?? 0, output: view.usage.tokens.output ?? 0, cached: view.usage.tokens.cached_input ?? 0 });
-      }
-    }
+    await this.settleUsage(this.store.roundsSince(this.actorId, since));
     const saved = this.store.setting(this.actorId, "daily_tokens");
     return { today: this.store.usageSince(this.actorId, since), daily_tokens: saved ? Number(saved) || null : null };
+  }
+
+  /** Finished rounds' reported usage, kept once per round; running rounds are counted when they end. */
+  private async settleUsage(rounds: Array<{ work_id: string; round: StoredRound }>): Promise<void> {
+    const own = rounds.filter(item => item.round.executor !== "coding");
+    const kept = this.store.recordedRuns(own.map(item => item.round.run_id));
+    const open = own.filter(item => !kept.has(item.round.run_id));
+    if (!open.length) return;
+    const host = await this.ports.host().catch(() => null);
+    if (!host) return;
+    const adapter = host.adapter(RUNTIME);
+    for (const { work_id, round } of open) {
+      let work: StoredWork;
+      try { work = this.store.get(this.actorId, work_id); } catch { continue; }
+      if (!work.session_id) continue;
+      const view = await adapter.read({ session_id: work.session_id, run_id: round.run_id }).catch(() => null);
+      if (!view || !isTerminalAgentPhase(view.phase) || !view.usage) continue;
+      this.store.recordUsage(this.actorId, { work_id, run_id: round.run_id, ended_at: view.ended_at ?? this.now().toISOString(),
+        input: view.usage.tokens.input ?? 0, output: view.usage.tokens.output ?? 0, cached: view.usage.tokens.cached_input ?? 0 });
+    }
+  }
+
+  /**
+   * What a work and the sub-tasks it handed out have used, against the cap the person set on it. A sub-task counts
+   * toward the work that delegated it and is held to that work's cap.
+   */
+  private async workUsage(work: StoredWork): Promise<NonNullable<AssistantWorkView["usage"]>> {
+    let owner = work;
+    if (work.delegated_by) { try { owner = this.store.get(this.actorId, work.delegated_by.work_id); } catch { owner = work; } }
+    const ids = [owner.work_id, ...this.store.delegatedBy(this.actorId, owner.work_id).map(child => child.work_id)];
+    await this.settleUsage(ids.flatMap(id => this.store.rounds(id).map(round => ({ work_id: id, round }))));
+    const used = this.store.usageOf(this.actorId, ids);
+    return { tokens: used.input + used.output, rounds: used.rounds, budget_tokens: owner.budget_tokens ?? null,
+      ...(owner.work_id !== work.work_id ? { budget_of: { work_id: owner.work_id, title: owner.title } } : {}) };
+  }
+
+  /** The person's cap on one work (its sub-tasks included), or none. A sub-task is held to its delegating work's cap. */
+  async saveWorkBudget(workId: string, tokens: unknown): Promise<AssistantWorkView> {
+    const work = this.store.get(this.actorId, workId);
+    if (work.delegated_by) throw new AssistantError("assistant.invalid", `子任务按委托它的工作「${work.delegated_by.title}」的上限计算，请在那项工作里设置`);
+    if (work.executor.kind === "coding") throw new AssistantError("assistant.invalid", "这项工作由 Coding 负责，它的用量在 Coding 会话里管理");
+    const value = tokens === null || tokens === "" || tokens === undefined ? null : Number(tokens);
+    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw new AssistantError("assistant.invalid", "这项工作的上限至少 1000 tokens，或留空表示不单独设限");
+    this.store.update(this.actorId, workId, null, { budget_tokens: value ?? undefined }, false);
+    return this.read(workId);
   }
 
   /** The person's daily cap on the Assistant's own rounds (input plus output tokens), or none. */
@@ -1845,7 +1890,7 @@ export class AssistantService {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest),
       phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
-      ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason) } : {}), ended_at: view?.ended_at ?? null };
+      ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}), ended_at: view?.ended_at ?? null };
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {

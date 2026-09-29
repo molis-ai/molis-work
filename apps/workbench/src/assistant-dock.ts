@@ -27,6 +27,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
         <nav class="assistant-works" id="assistant-works" data-assistant-works aria-label="${L("我的工作")}" hidden></nav>
         <div class="assistant-objects" data-assistant-objects hidden></div>
         <div class="assistant-objects" data-assistant-delegated hidden></div>
+        <div class="assistant-objects" data-assistant-usage hidden></div>
         <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">
           <div class="assistant-empty" data-assistant-empty><strong>${L("你的个人工作助理")}</strong><p>${L("说出要做的事：整理资料、起草、查询、安排后续……它会使用你已授权的能力推进，改动数据前先请你确认。")}</p></div>
         </div>

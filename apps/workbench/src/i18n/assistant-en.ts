@@ -341,4 +341,13 @@ export const ASSISTANT_EN: Record<string, string> = {
   "用一个能力，或这样开始": "Use a capability, or start like this",
   "用": "Use",
   "没有匹配的能力；换个词，或直接说要做什么": "No matching capability; try other words, or just say what to do",
+  "用量": "Usage",
+  "打开助理设置": "Open Assistant settings",
+  "调高这项工作的上限": "Raise this work's cap",
+  "已到上限": "cap reached",
+  "子任务按委托它的工作计算": "A sub-task counts toward the work that delegated it",
+  "不单独设限": "No cap of its own",
+  "这项工作的用量上限（tokens，含子任务）": "This work's usage cap (tokens, sub-tasks included)",
+  "保存上限": "Save cap",
+  "上限（tokens，含子任务）": "Cap (tokens, sub-tasks included)",
 };

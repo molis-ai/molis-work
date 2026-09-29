@@ -92,6 +92,8 @@ export interface StoredRound {
   materials: AssistantMaterial[];
   context: AssistantContextSnapshot | null;
   started_at: string;
+  /** The work's cap in force when the round started, when there was one: a stop at its token limit is that cap. */
+  work_budget?: number;
 }
 
 /** A card as stored: the public view's facts plus the exact reference and input it runs. */
@@ -164,7 +166,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw new AssistantStoreError("assistant.conflict", "这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
@@ -334,6 +336,20 @@ export class AssistantStore {
   recordUsage(actorId: string, usage: { work_id: string; run_id: string; ended_at: string; input: number; output: number; cached: number }): void {
     this.db.prepare("INSERT OR IGNORE INTO assistant_usage(run_id,actor_id,work_id,ended_at,input,output,cached) VALUES (?,?,?,?,?,?,?)")
       .run(usage.run_id, actorId, usage.work_id, usage.ended_at, usage.input, usage.output, usage.cached);
+  }
+
+  /** Runs whose usage is already kept, among these. */
+  recordedRuns(runIds: readonly string[]): Set<string> {
+    if (!runIds.length) return new Set();
+    return new Set(this.db.prepare(`SELECT run_id FROM assistant_usage WHERE run_id IN (${runIds.map(() => "?").join(",")})`).all(...runIds).map(row => String(row.run_id)));
+  }
+
+  /** Kept usage of these works' rounds. */
+  usageOf(actorId: string, workIds: readonly string[]): { input: number; output: number; cached_input: number; rounds: number } {
+    if (!workIds.length) return { input: 0, output: 0, cached_input: 0, rounds: 0 };
+    const row = this.db.prepare(`SELECT COALESCE(SUM(input),0) AS input, COALESCE(SUM(output),0) AS output, COALESCE(SUM(cached),0) AS cached, COUNT(*) AS rounds FROM assistant_usage WHERE actor_id=? AND work_id IN (${workIds.map(() => "?").join(",")})`)
+      .get(actorId, ...workIds) as { input: number; output: number; cached: number; rounds: number };
+    return { input: Number(row.input), output: Number(row.output), cached_input: Number(row.cached), rounds: Number(row.rounds) };
   }
 
   usageSince(actorId: string, since: string): { input: number; output: number; cached_input: number; rounds: number } {

@@ -1,3 +1,4 @@
+import { observeGitOperations } from "./git-operation-notifications.js";
 import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
@@ -169,8 +170,9 @@ export async function handleMolisWorkWebRequest(
           return;
         }
 
-        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn"> = {
+        const codingServices: Pick<CodingSurfacePorts, "capabilities" | "actions" | "execution" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations"> = {
           actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id },
+          observeGitOperations: listener => observeGitOperations(agentHost.reviews, options.boardId, listener),
           characterSpawn: request => ptyHost.spawn(request),
           characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
           homeDirectory: serverOptions.homeDirectory,

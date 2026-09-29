@@ -31,6 +31,8 @@ import { confirmedPlan, executionSteps, parseCodingPlan, planFromRun, planMateri
 import { CODING_PLAN_TYPE } from "./artifacts.js";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
+import { CODING_RUN_UPDATED_EVENT } from "./events.js";
+
 export const DEFAULT_SESSION_TITLE = "新编码会话";
 /** First meaningful line of a task, without Markdown decoration, short enough for a list row. */
 export function codingSessionTitleFrom(task: string): string {
@@ -298,29 +300,36 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   // replaces it, and a Host that stops answering (the plugin closing) ends it.
   const following = new Map<string, symbol>();
   const follow = (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts,
-    sessionId: string, session: { runtime_id: string; session_id: string }, run: { session_id: string; run_id: string }) => {
+    sessionId: string, session: { runtime_id: string; session_id: string }, run: { session_id: string; run_id: string }, workspaceId: string) => {
     const token = Symbol(sessionId);
     following.set(sessionId, token);
-    const current = () => following.get(sessionId) === token;
+    const current = () => !stopped.signal.aborted && following.get(sessionId) === token;
     void (async () => {
       let since: string | null = null;
       while (current()) {
-        const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000]);
+        const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: stopped.signal });
         if (!current()) return;
         const view = waited.view;
         since = waited.version;
         const record = execution.sessions.get(boardId, sessionId), next = sessionState(view);
         if (next !== record.state) execution.sessions.setState(boardId, sessionId, next, record.updated_at);
         if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) {
+          // Notification only: terminal does not mean every tool succeeded or that a file changed.
+          // The activation-owned events client rejects publication after stop/revocation.
+          try { context.services?.events?.publish({ event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1,
+            payload: { workspace_id: workspaceId, session_id: session.session_id, run_id: run.run_id, phase: view.phase } }); }
+          catch { /* A missed UI hint must never retry or reclassify an already executed Run. */ }
+          if (!current()) return;
           // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.
           if (view.phase !== "reconcile-required" && await openWaitOf(api, execution.sessions.get(boardId, sessionId)).catch(() => undefined)) {
+            if (!current()) return;
             execution.sessions.setState(boardId, sessionId, "queued", new Date().toISOString());
             wakeLoop(api, execution, session.runtime_id);
           }
           break;
         }
       }
-    })().catch(() => undefined).finally(() => { if (current()) following.delete(sessionId); });
+    })().catch(() => undefined).finally(() => { if (following.get(sessionId) === token) following.delete(sessionId); });
   };
   // The directory a page shows: every session's current state, with what a new round needs. Read by coding.state.
   let stateRead: Promise<unknown> | null = null, stateNext: Promise<unknown> | null = null;
@@ -519,7 +528,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       workspace_id: body.workspace_id, actor_id: actorId,
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
-    follow(api!, execution, record.session_id, session, run.ref);
+    follow(api!, execution, record.session_id, session, run.ref, workspace.workspace_id);
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
   ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   };

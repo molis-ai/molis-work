@@ -172,3 +172,5 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 从 `contracts/modules/projects` 导入 `projectSettingsCapabilities`：`workspaces` 返回当前项目已关联目录，`browsingWorkspace` 返回 Files/Git 的当前浏览目录或 null。逐项将完整 `capability_id` 写入 Manifest consumes，然后调用 `invoke(capability, [])`。不可传 project_id，不支持 key 袋或通配读取。Host 裁剪其他项目关联字段。工作目录在项目设置中维护，不再接 Workspace 输出。Coding 会话执行目录独立；`projects.workspace.read.v1` 只保留旧执行默认值兼容。
 
 `settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
+
+生产事件要从事实 owner 的提交或回执接出，不能从审批通过或一次历史查询推断新执行。Coding `run-updated`、Git `operation-updated` 是刷新提示，包含失败/未知状态；不冒充旧的 review 失效或 file-changed 协议。Host 按项目和 activation 装配、停止时注销；提示到 Files/Git 后只失效视图 revision。可靠业务副作用仍需要自己的提交一致性，不能由 UI revision 冒充持久 outbox。

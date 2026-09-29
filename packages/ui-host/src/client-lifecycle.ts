@@ -100,6 +100,28 @@ export const UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT = String.raw`() => {
         const response = await fetch(input, { ...init, signal });
         assertCurrent(signal); return response;
       },
+      watchRevision(read, refresh) {
+        let revision, initial = true;
+        const reset = whenVisible(() => { revision = undefined; initial = true; });
+        const stop = scope.poll(async signal => {
+          let next;
+          try {
+            next = (await read(signal)).revision;assertCurrent(signal);
+            if (typeof next !== 'string') throw new Error('Missing view revision');
+          } catch (error) {
+            if (signal.aborted) throw error;
+            revision = undefined;
+            if (initial) { initial = false; await refresh(signal); }
+            return;
+          }
+          if (revision !== next) {
+            // A busy consumer returns false so a concurrent change is read again.
+            if (await refresh(signal) === false) return;
+            assertCurrent(signal);revision = next;initial = false;
+          }
+        }, 2000, () => { revision = undefined; });
+        return () => { stop();reset(); };
+      },
       poll(read, delay, onError = error => console.error(error)) {
         return whenVisible(signal => {
           let timer = 0;

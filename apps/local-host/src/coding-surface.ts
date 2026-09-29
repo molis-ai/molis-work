@@ -196,6 +196,11 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   }
   const router = record.platform.router();
   if (active.status !== "running") { sendLocalWebJson(response, 503, { error: active.message ?? "插件未能启动" }); return true; }
+  if (operation === "view-revision" && request.method === "GET") {
+    response.setHeader("cache-control", "no-store");
+    sendLocalWebJson(response, 200, { revision: record.platform.viewRevision(pluginId) });
+    return true;
+  }
   if (!router.match(request.method ?? "GET", url.pathname)) return false;
   // Existing workspace outputs need a settings refresh before their consumers
   // read them. Unrelated plugins must not cause Files reads or publications.

@@ -658,6 +658,8 @@ export function mayHaveChangedFiles(outcome: GitResultOutcome): boolean {
  * Validators stay with the publisher: only it knows what its payload means.
  */
 export const WORKSPACE_SELECTED_EVENT = "io.molis.work.workspace.selected";
+export const CODING_RUN_UPDATED_EVENT = "io.molis.work.coding.run-updated";
+export const GIT_OPERATION_UPDATED_EVENT = "io.molis.work.git.operation-updated";
 export const GIT_FILE_CHANGED_EVENT = "io.molis.work.git.file-changed";
 export const CODING_FILE_CHANGED_EVENT = "io.molis.work.coding.file-changed";
 export const CODING_WORKSPACE_INVALIDATED_EVENT = "io.molis.work.coding.workspace-invalidated";

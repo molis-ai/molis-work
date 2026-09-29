@@ -219,3 +219,5 @@ Coding 草稿、Cognia 知识生成等工具为空的调用使用 Home 共享推
 Host Capability 可选调用参数 `signal` 由 Plugin SDK 传递给 Host invocation；取消只收紧本次操作，不授予任何身份/权限。`before_effect` 与原调用持续授权检查仍保留，不能用成功收到模型文字代替提交前检查。
 
 Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstreamReady(inputs, context)` 接到完整固定版本；异步读取后、更新投影前调用 `context.beforeEffect()`，并把 `context.signal` 传给可取消操作。Host 从领域已提交 journal 发现失效/归档并重新计算已有输入图；不可用版本不再投递，旧实例和旧输入的晚结果拒绝提交。新实例重新读取当前输入，不能把重启通知当成再次执行外部操作的授权。
+
+Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Files/Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。

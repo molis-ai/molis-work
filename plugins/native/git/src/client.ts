@@ -4,7 +4,7 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   const directory=scope.querySelector('[data-git-browser]'),result=scope.querySelector('[data-git-results]');
   if(!directory || !result)return null;
   const lifetime=host.mountPluginClient(directory);if(!lifetime)return null;
-  let viewSignal;
+  let viewSignal,initialRead=true;
   const q=selector=>result.querySelector(selector),list=directory.querySelector('[data-git-list]'),notice=directory.querySelector('[data-git-status]'),reopen=directory.querySelector('[data-git-reopen]'),history=directory.querySelector('[data-git-history]');
   const refreshButton=directory.querySelector('[data-git-refresh]');let opener=null;
   let workspace='',generation=0,ticket=0,selected=null,displayed=null,preparing=false;
@@ -243,8 +243,12 @@ export const GIT_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(sc.querySelector('[data-git-branch-create]'),'click',event=>{const field=sc.querySelector('[data-git-branch-name]'),name=field.value.trim();if(!name){scStatus.textContent='请写新分支的名字。';field.focus();return;}void prepare({action:'branch-create',name,checkout:sc.querySelector('[data-git-branch-checkout]').checked},'新建分支「'+name+'」',event.currentTarget);});
   lifetime.listen(sc.querySelector('[data-git-pr-create]'),'click',event=>void prepare({action:'pr-create',base:sc.querySelector('[data-git-pr-base]').value,title:sc.querySelector('[data-git-pr-title]').value,body:sc.querySelector('[data-git-pr-body]').value,draft:sc.querySelector('[data-git-pr-draft]').checked},'建 PR',event.currentTarget));
   lifetime.whenVisible(signal=>{
-    viewSignal=signal;void refresh();
+    viewSignal=signal;initialRead=true;refreshButton.disabled=true;refreshButton.toggleAttribute('data-loading',true);refreshButton.querySelector('.mw-spinner').hidden=false;list.setAttribute('aria-busy','true');notice.textContent='正在读取 Git 工作区…';
     return ()=>{generation++;ticket++;resultsTicket++;conflictTicket++;result.setAttribute('aria-busy','false');refreshButton.disabled=false;refreshButton.removeAttribute('data-loading');refreshButton.querySelector('.mw-spinner').hidden=true;list.setAttribute('aria-busy','false');};
+  });
+  lifetime.watchRevision(signal=>host.request('git','/view-revision','GET',undefined,signal),async()=>{
+    if(preparing || refreshButton.disabled && !initialRead)return false;
+    initialRead=false;await refresh();
   });
   return {refresh,afterDecision,show(face){directory.hidden=face!=='files';if(face!=='files'){ticket++;result.hidden=true;}}};
 }`;

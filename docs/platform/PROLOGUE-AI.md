@@ -186,3 +186,5 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 - Coding 专属：会话/轮次/计划/委派、子代理并行、跨轮摘要、Git 提交说明起草（`agent.draft-text.v1`）、协同与等待——见 `specs/coding-plugin/spec.md`，不要照搬到单次调用场景。
 - 插件创作台：专用代码 Agent 与沙箱，见 `specs/plugin-builder/work-items/studio-v3/spec.md`。
 - 判断函数（Jev/TypeSafe）：系统级 `modules/functions`，场景绑定与消费见 `specs/action-architecture/spec.md`「函数调用与 Jev 判断」。
+
+Coding 的后台 follower 按 activation 观察 Run，停止后取消等待并拒绝晚结果；Run 停止或待核对时发 `run-updated` 刷新提示。Git 从 Prologue Effect 与 dispatch 回执核对后的 ReviewQueue 新结果发 `operation-updated`，恢复历史保持静默。两者触发 Files/Git 重新读取现状，不声称一定改了文件，也不因通知失败重试原执行。

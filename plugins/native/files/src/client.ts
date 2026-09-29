@@ -4,7 +4,7 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const directory=scope.querySelector('[data-files-browser]'), result=scope.querySelector('[data-files-results]');
   if(!directory || !result)return null;
   const lifetime=host.mountPluginClient(directory);if(!lifetime)return null;
-  let viewSignal;
+  let viewSignal,initialRead=true;
   const q=selector=>result.querySelector(selector), tree=directory.querySelector('[data-files-tree]');
   const notice=message=>{directory.querySelector('[data-files-status]').textContent=message;};
   let opener=null,selectedPath=null;
@@ -105,8 +105,12 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   }));
   function resetLoading(){refresh.disabled=false;refresh.removeAttribute('data-loading');refresh.querySelector('.mw-spinner').hidden=true;tree.setAttribute('aria-busy','false');}
   lifetime.whenVisible(signal=>{
-    viewSignal=signal;q('[data-files-copy]').textContent='复制全文';resetLoading();void load();
+    viewSignal=signal;initialRead=true;q('[data-files-copy]').textContent='复制全文';refresh.disabled=true;refresh.toggleAttribute('data-loading',true);refresh.querySelector('.mw-spinner').hidden=false;tree.setAttribute('aria-busy','true');notice('正在读取工作区…');
     return ()=>{generation++;readTicket++;loadingTicket++;result.setAttribute('aria-busy','false');resetLoading();};
+  });
+  lifetime.watchRevision(signal=>host.request('files','/view-revision','GET',undefined,signal),async()=>{
+    if(captureBusy || refresh.disabled && !initialRead)return false;
+    initialRead=false;resetLoading();await load();
   });
   return {refresh:load,show(face){
     if(!['files','sessions'].includes(face))return false;

@@ -67,6 +67,7 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
         request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});return response.json();}};
       window.root=document.querySelector('[data-companion]');window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
     `, path => {
+      if (path.endsWith("/view-revision")) return { revision: "initial" };
       if (path.endsWith("/directory")) return { result: { outcome: "directory", entries: [{ name: "note.txt", kind: "file", path: ["note.txt"] }] } };
       if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
       if (path.endsWith("/reviews")) return { reviews: [], html: "", omitted: 0 };
@@ -158,4 +159,34 @@ test("Host reviews retain decisions across hiding without rendering stale result
   await page.click("[data-agent-review-approve]");await page.wait("decisions===2");await pause(100);
   assert.equal(count("POST /api/agent/reviews/decide")-before,1);
   assert.deepEqual(await page.evaluate("errors"), []);
+});
+
+for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
+  let revision = 1;
+  const markup = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult() : renderGitBrowserDirectory() + renderGitBrowserResult();
+  const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
+    const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),
+      request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});if(!response.ok)throw new Error('offline');return response.json();}};
+    window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
+  `, path => {
+    if(path.endsWith('/view-revision'))return {revision:String(revision)};
+    if(path.endsWith('/directory'))return {result:{outcome:'directory',entries:[{name:'version-'+revision,kind:'file',path:['version-'+revision]}]}};
+    if(path.endsWith('/summary'))return {summary:null,workspace:{workspace_id:'ws'}};
+    if(path.endsWith('/reviews'))return {reviews:[],html:'',omitted:0};
+    const value=state(path.split('/')[1]!);return name==='git' && path==='/git/state'?{...value,view:{...value.view,head:'version-'+revision}}:value;
+  });if(!f)return;
+  const {page,count,blocked,pending,aborted}=f, key=`GET /${name}/view-revision`;
+  const visible=(n:number)=>name==='files'?`!!document.querySelector('[data-file-path]')?.textContent.includes('version-${n}')`:`document.querySelector('[data-git-status]').textContent==='version-${n}'`;
+  await page.evaluate('parentView.hidden=false');await page.wait(visible(1));
+  const before=count(`GET /${name}/state`);await pause(2200);
+  assert.equal(count(`GET /${name}/state`),before,'unchanged revision makes no expensive state reads');
+  revision=2;await page.wait(visible(2));
+  blocked.add(key);await until(()=>pending.has(key));
+  pending.get(key)![0]!.writeHead(503);pending.get(key)![0]!.end('{}');blocked.delete(key);
+  revision=3;await page.wait(visible(3));
+  blocked.add(key);await until(()=>(pending.get(key)?.length??0)===2);
+  await page.evaluate('parentView.hidden=true');await until(()=>aborted.includes(key));
+  const hidden=f.requests.length;await pause(2200);assert.equal(f.requests.length,hidden,'no hidden polling or business writes');
+  blocked.delete(key);revision=4;await page.evaluate('parentView.hidden=false');await page.wait(visible(4));
+  assert.deepEqual(await page.evaluate('errors'),[]);
 });

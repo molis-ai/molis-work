@@ -54,3 +54,5 @@ description: How to add or change an AI capability in Molis Work — anything th
 - 真实模型实测用用户配置的 MiniMax（anthropic-messages）；图片、TypeSafe 需要各自服务，做不到就写「未验证」。
 - 界面有变：浏览器里把主路径点一遍（加载、成功、失败、取消、未配置模型）。
 - 交付时分清：源码审查、替身、真实 SDK、真实模型、产品实操、用户验收。
+
+执行结果驱动通知时，从 Agent Host 的 Run 投影或 Prologue Effect/dispatch 回执读取真实结果；批准不等于执行成功，reconcile-required/unknown 也不是成功。Coding/Git 的刷新通知不重试模型或副作用，SDK 重启恢复历史回执时不重新发布“新执行”。订阅使用当前插件 activation 的独立身份，等待后复查，停止时释放。

@@ -1,3 +1,4 @@
+import { observeGitOperations } from "./git-operation-notifications.js";
 import { informationActionProvider } from "./information-actions.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
 import { createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
@@ -347,6 +348,7 @@ export class MolisWorkLocalHost {
       actions: { registry: this.host.actionRegistry(reference), client: { ...this.host.actionClient(reference), ...this.host.syncActionClient(reference) }, project_id: reference.project_id },
       characterWorkspaces: async () => this.options.workspacesFor ? await this.options.workspacesFor(reference.project_id)
         : this.options.workspaceFor ? [await this.options.workspaceFor(reference.project_id)].filter((value): value is ProjectWorkspaceRef => !!value) : [],
+      ...(this.agents ? { observeGitOperations: listener => observeGitOperations(this.agents!.service.agentHost.reviews, runtime.board_id, listener) } : {}),
       // Headless callers reach Coding's actions through the Host's own Agent service; page adapters may still attach theirs.
       ...(this.agents && this.options.homeDirectory ? { execution: { ready: () => this.agents!.service.ready,
         models: async () => configuredModelChoices(this.options.homeDirectory!) } } : {}),

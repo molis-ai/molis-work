@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDefinition,
@@ -70,6 +71,9 @@ export interface PluginPlatform {
   readonly supervisor: PluginSupervisor;
   readonly events: PluginEventBus;
   readonly wiring: PluginInputGraph;
+  /** Ephemeral projection hints, never business delivery acknowledgements. */
+  invalidateView(pluginId: string): void;
+  viewRevision(pluginId: string): string;
   /** Stop input refresh/delivery and events before stopping plugins or closing storage. */
   closeCoordination(): Promise<void>;
   /** Built after `start`, from the Manifests that actually activated. */
@@ -118,6 +122,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     scopeKey: options.scopeKey ?? options.board_id,
   });
 
+  const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
+  let closed = false;
   // Work queued for a Plugin survives a restart of that Plugin, so replay what
   // it never acknowledged once it is running again.
   let stopArtifactRefresh: (() => void) | undefined;
@@ -135,7 +141,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     supervisor,
     events,
     wiring,
+    invalidateView(pluginId) {
+      if (!closed && supervisor.state(pluginId)?.status === "running") viewRevisions.set(pluginId, (viewRevisions.get(pluginId) ?? 0) + 1);
+    },
+    viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
     async closeCoordination() {
+      closed = true;
       stopArtifactRefresh?.();
       detachActivation();
       await wiring.close();

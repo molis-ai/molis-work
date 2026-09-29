@@ -76,3 +76,5 @@ node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.t
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`, `goal-reorg-ap3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+`scope.watchRevision(read, refresh)` 复用可见轮询，每两秒核对不透明 revision；首次进入、变更和断线恢复后重新读取事实。refresh 返回 false 表示当前忙，下一轮保留变更继续尝试；隐藏和卸载释放请求与定时器。真实消费者是 Files/Git。

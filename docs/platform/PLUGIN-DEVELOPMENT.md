@@ -6,6 +6,8 @@ Native 新工作面除 catalog / Workbench pack 外，还需 `ui-composition.ts`
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
+内置 build 的组合声明在 `apps/workbench/src/builtin-plugins.ts`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。目录、Workbench UI 注册/样式/客户端和历史 MCP 适配从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。维护旧 MCP 名称时同条目绑定 `legacyMcp` 与 Manifest 的 `mcp_exports`，不再修改 Host handler 白名单；新能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+
 ## 安装 Skill
 
 正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；那条链路只接 Runtime 工作协议 `goal-advance`。

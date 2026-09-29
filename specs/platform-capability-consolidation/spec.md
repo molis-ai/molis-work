@@ -20,8 +20,8 @@
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开动作的声明与发现一致性随 07 收尾 |
-| 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
-| 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
+| 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留，生成式公开声明与策略待完成 |
+| 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 相关架构 Session 已完成，合并基线已在本分支；待实现 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已完成实现与工程/浏览器验证：Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板 |
@@ -166,6 +166,18 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
 
 验证生产 Sandbox 的同进程逐次时限、队列内各调用预算互不污染、服务超时取消；真实安装版本/策略变化后读最新限额，query 的收费/写入变化零派出，等待期间变化导致零晚写入，合法新调用恢复且不重复旧工作。无关提供方注册不取消调用；同一描述的重新注册由 Kernel 原 registration token 拒绝旧提交。按受影响包要求整体构建后跑回归与边界检查。
 
+### 内置插件装配与生成式公开声明
+
+07 当前证据：普通 Runtime 插件已由 Manifest.actions 与实际 contribution 注册，停用撤销，MCP/Agent/Workflow 复用目录，不需再造发现层。内置插件仍在 Workbench 的 catalog、workbench packs 和 Host 历史 MCP handler 表重复绑定同一个身份；Coding 设置还在 composition 单独注册。不同 Native Host 工厂携带各自领域依赖，显式注入这些端口是必要的装配，不以动态反射替代。
+
+本切片将内置 build 的 Manifest、产品目录信息、Agent 正文、UI 贡献/静态资源和可选历史 MCP 适配入口放在 Workbench 同一份 `builtin-plugins.ts` 装配声明。catalog、workbench pack 和 Host 的旧名称 MCP 适配从它派生；原包继续拥有 Manifest、实现和资源，Host 保留权限、配置与真实端口。保留全部导航/市场条目、CSS/客户端加载顺序、旧 MCP 名称和授权引用；UI 资源顺序是明确的装配顺序，不能借本次整理改变页面设计。删除三份重复名单和 Coding 设置特例。新普通插件仍走现有 Runtime；仅新增内置打包项时在一个条目绑定它的已导出实现，不自动加载文件系统中的任意代码。
+
+Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内部面板不是 Runtime 兑现的 contribution；Goals/Work/Feed 等 UI 的 `io.molis.work.native.*` 身份与 Manifest 全局插件身份长期并存。本次保留全部现有贡献身份和挂载合同，不强加 Runtime 的身份相等/全部内部面板声明规则。普通 Runtime 插件的 manifest/contribution 兑现校验保持严格。
+
+验证实际 UI Host 挂载、客户端初始化和资源组合，未知内置条目无需增加 Host 名单即可提供 UI 与历史别名。通过真实 MCP 的原用例验证旧别名及新 Action 发现/调用保持权限、版本和项目隔离。源码归属门禁改为跟随唯一声明，并保留删除贡献、断开派生或未注册时必失败的负例。构建前记录原产物，比较导航/Manifest/静态资源/MCP 描述无语义变化；不把该比较单独当成业务验证。
+
+生成式安装目前用独立公开 Action 注册，原 Manifest.actions 为空且 provider_id 为旧稳定插件标识；直接改用 Runtime 的 installation provider 会改变保存的授权和指纹。后续须保留既有安装身份与不可变 Manifest，完成明确的迁移路径，并使公开费用等策略与实际依赖一致；本切片不以原地改指纹或放宽版本校验掩盖兼容问题。上述 07 整体仍为进行中。
+
 ### 当前验证记录
 
 - 第一批 AI 公共契约及 Cognia/Coding 迁移：整体 `pnpm build` 通过；16 个定向回归文件、105 项测试通过，含真实 Node Runtime 对本机 HTTP 模型替身的调用。后续源码改动需重新构建并运行相关回归。
@@ -229,3 +241,11 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
   首轮 6 文件 61/61 通过；补齐输出协议错误后重新整体构建，最终 17 文件 135 项通过、1 项可选真实公网 HTTPS 未启用而跳过，零失败。覆盖真实 Seatbelt 复用进程/独立排队时限、当前版本和策略变化、同描述重新注册、晚写入拒绝、未知状态不可伪造或清除，以及真实 SQLite 提交、Schedule 进程中断/恢复、Chrome 明确恢复入口。没有运行付费模型，数据来自隔离 Home/SQLite，不代表用户本人验收。日志 /tmp/platform-installed-policy-final-build.log、/tmp/platform-installed-policy-regression.log；首轮 /tmp/platform-installed-policy-targeted.log。
 
   最终边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-installed-policy-boundary.log。回归期间未改源码、脚本、package.json 或 Skill。06 的生成式公开声明、07–09 及最终全消费者复核仍未完成，不以本切片替代整体交付。
+
+- 内置 build 声明收敛：新增唯一 builtin-plugins 装配表，catalog 和 workbench packs 只做派生；删除 Host 六插件 legacy handler 表，历史适配从同一条目读取，缺声明/处理器时拒绝装配。Coding 设置改走公共贡献循环。插件包仍拥有 Manifest/实现/资源，Host 保留领域端口与权限；没有改变 Native 与 Runtime 的运行模式。开发手册、主 Skill 及 host/ui 指南同步，纠正 Agent 正文手工名单和“给 Agent 再另加 MCP”的过期接入描述。
+
+  改造前后实际产物比较：25 个 catalog/Manifest 条目、原 19 组 UI pack、CSS/设置 CSS/客户端 bootstrap、搜索行和 6 组历史 MCP 源逐项相同；Coding 设置为原特例移入公共 pack，身份保持。基线 /tmp/platform-builtin-composition-before.json；该比较仅证明保留行为，还验证实际挂载、初始化、授权与撤销。
+
+  首轮 4 文件 15/16，唯一失败是新增检查错误要求静态 Native UI 必须遵守 Runtime 的 owner/全部面板声明规则。依据 Goals Manifest 的明确分层与真实挂载路径修正测试契约，保留旧贡献身份检查；未放宽 Runtime 校验。最终整体构建通过，23 文件 126/126，无跳过，包含真实 MCP stdio 到常驻 Host 的六族旧工具/精确授权/撤权/项目隔离，未知条目 UI 挂载与客户端初始化、原 Action 的缺权拒绝/授权成功/注销拒绝，以及 Chrome 标签/分屏。没有付费模型和真实用户数据改动，不代表用户本人验收。日志 /tmp/platform-builtin-composition-final-build.log、/tmp/platform-builtin-composition-regression.log；首轮 /tmp/platform-builtin-composition-targeted.log。
+
+  69 包边界检查 errors 为空、diff whitespace 检查通过，日志 /tmp/platform-builtin-composition-boundary.log。门禁沿唯一声明追踪，删除贡献、断开派生或取消 UiHost 注册都会被负例拒绝。回归期间未改源码、脚本、package.json 或 Skill。生成式公开声明与策略、事件与材料契约、最终全消费者复核继续保持未完成状态。

@@ -35,7 +35,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 1. **人在看什么对象？** 一条消息、一份文档、一个来源、一个 Goal。不是「整个系统」。
 2. **什么时刻？** 点开插件、一条新进来、点开一行、Agent 要动手。
 3. **点下去发生什么？** 改状态、打开、写出 Artifact、调外部。事实归 Module，不要插件第二张业务表。私人库（本机文档）可以。
-4. **还要给谁用？** 只给人点 → UI + HTTP + 客户端。也要给 Agent → 再加 MCP。要消费判断 → 声明 `action_scenes` 并兑现触发、绑定与消费；建议按钮仍需真实点击实现。要通知别的插件 → 事件。要拉外部世界 → integration。
+4. **还要给谁用？** 只给人点 → UI + 动作/HTTP + 客户端。也要给 Agent 或外部 MCP → 公共动作声明对应 audience，经统一目录与真实授权发现，不重复实现工具。要消费判断 → 声明 `action_scenes` 并兑现触发、绑定与消费；建议按钮仍需真实点击实现。要通知别的插件 → 事件。要拉外部世界 → integration。
 
 答不出就停在方案，不要先铺 Manifest 空字段。行为或 UI 有变先写 `specs/{slug}/spec.md`。
 

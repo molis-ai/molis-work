@@ -3,7 +3,6 @@ import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-w
 import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
 import { EXPERIMENTS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-experiments";
 import { THEME_BOOTSTRAP_SCRIPT, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
-import { codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
@@ -69,7 +68,7 @@ import {
 } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_TERMINAL_UI_CONTRIBUTION_ID, type WorkTerminalUiModel } from "@molis-ai/molis-work-plugin-work";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
+import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 import { createArtifactWorkbenchRenderer, type ArtifactImportWorkbenchRequest, type ArtifactWorkbenchRequest } from "./artifact-ui.js";
 import { createGoalsContextWorkbenchRenderer } from "./goals-context-ui.js";
 import { createGoalsDecisionResultsWorkbenchRenderer } from "./goals-decision-results-ui.js";
@@ -154,12 +153,11 @@ const FEED_SURFACE_SLOTS: Readonly<Record<FeedUiSurface, UiSlotDescriptor>> = {
 
 
 /** Shared Workbench composition root. Product renderers never import a Plugin implementation directly. */
-export function createWorkbenchUiHost(): UiHost {
+export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): UiHost {
   const host = new UiHost();
-  for (const pack of BUILTIN_PLUGIN_WORKBENCH) {
+  for (const pack of packs) {
     for (const contribution of pack.contributions) host.register(contribution);
   }
-  host.register(codingSettingsContribution);
   return host;
 }
 

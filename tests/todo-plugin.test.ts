@@ -129,7 +129,11 @@ test("待办整理师 and both organizing methods are registered with the Host, 
   assert.deepEqual(todo[0]!.roles!.map(role => [role.name, role.workspace, role.execution]), [["待办整理师", "business", "operate"]]);
   assert.deepEqual(todo[0]!.prompts!.map(prompt => prompt.prompt_id).sort(), ["todo-organizer", "todo.organize.basic", "todo.organize.organizer"]);
   // “整理待办” is offered to other Agents (the Assistant, 待办整理师 as a Character) with business tools only.
-  assert.deepEqual(todo[0]!.methods!.map(method => [method.skill_id, method.version, method.tools]), [["todo-organize", 1, ["find-capabilities", "read-capability", "change-capability", "ask-user"]]]);
+  assert.deepEqual(todo[0]!.methods!.map(method => [method.skill_id, method.version, method.tools]), [
+    ["todo-organize", 1, ["find-capabilities", "read-capability", "change-capability", "ask-user"]],
+    ["todo-advance", 1, ["find-capabilities", "read-capability", "change-capability", "ask-user"]],
+  ]);
+  assert.match(todo[0]!.methods![1]!.body, /状态不擅改/u);
   assert.match(todo[0]!.methods![0]!.body, /todo\.organize\.extract/u);
   assert.deepEqual(inspectMethodDeclarations(todoManifest.methods), []);
 });

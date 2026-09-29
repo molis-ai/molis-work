@@ -38,7 +38,6 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "你打算哪天做": "The day you plan to do it",
   "提醒时间": "Reminder",
   "什么时候提醒你": "When to remind you",
-  "提醒只在 Molis Work 打开时出现；关着应用时不会按时提醒，打开后会补一条。": "Reminders appear only while Molis Work is open. While it is closed nothing fires on time; you get one catch-up reminder when you open it.",
   "重要": "Important",
   "说明": "Notes",
   "补充细节、背景、下一步": "Details, background, next step",
@@ -255,4 +254,7 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "来源": "Source",
   "帮我推进「{title}」": "Help me move “{title}” forward",
   "继续推进「{title}」": "Continue moving “{title}” forward",
+  "到时间会在底栏提醒你，并受你设的提醒规则约束；Molis Work 关着时不会按时提醒，打开后会补上。": "You are reminded in the bottom bar when it is time, following your own reminder rules. Nothing arrives while Molis Work is closed; missed ones show when you open it.",
+  "个人空间": "Personal space",
+  "项目「{name}」": "Project “{name}”",
 };

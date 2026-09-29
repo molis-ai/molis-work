@@ -33,7 +33,13 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const field = (name) => workbench.querySelector('[data-todo-field="' + name + '"]');
 
   const STATUS = { open: L("待处理"), doing: L("进行中"), waiting: L("等待他人"), done: L("已完成"), cancelled: L("已取消") };
-  const PLACEMENT = { personal: L("个人"), project: L("这个项目"), unassigned: L("暂未归类") };
+  // Where a todo sits, in the workbench's words: 个人空间, 项目「名称」 (暂未归类 is the personal space, not sorted yet).
+  const hereName = () => {
+    const title = typeof host.projectTitle === "function" ? host.projectTitle() : host.projectTitle;
+    return title ? L("项目「{name}」").replace("{name}", title) : L("这个项目");
+  };
+  const PLACEMENT = { personal: L("个人空间"), project: L("这个项目"), unassigned: L("暂未归类") };
+  const placeName = (value) => value === "project" ? hereName() : PLACEMENT[value];
   const FLAG = { overdue: L("已逾期"), due_today: L("今天截止"), planned_past: L("计划日已过"), stale: L("很久没动") };
   const EMPTY = {
     today: [L("今天没有要处理的事"), L("有截止日期、计划今天做或正在做的事会出现在这里。")],
@@ -56,6 +62,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let selected = null;
   // The Assistant's works that relate to the open todo (read from the Assistant; empty when it is not there).
   let works = [];
+  let worksTimer = 0;
+  // Just after handing a todo over, its work may not have started yet: keep looking for a minute.
+  let watchWorksUntil = 0;
   let history = [];
   let backlinks = [];
   let linkPool = [];
@@ -74,6 +83,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const current = (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
     return current === ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? "" : current;
   };
+  // The batch menu is drawn without the project's name, and in the personal space there is no project to move into.
+  const batchProject = workbench.querySelector('[data-todo-batch-placement="project"]');
+  if (batchProject) { batchProject.textContent = hereName(); batchProject.hidden = !projectId(); }
   try { placementChoice = window.localStorage.getItem("molis.todo.quick-placement") || ""; } catch { placementChoice = ""; }
 
   const headers = () => typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
@@ -192,12 +204,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     workbench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
 
-  const placementLabel = (item) => item.placement === "project" ? (item.project_id === projectId() ? L("这个项目") : L("其他项目")) : PLACEMENT[item.placement];
+  const placementLabel = (item) => item.placement === "project" ? (item.project_id === projectId() ? hereName() : L("其他项目")) : placeName(item.placement);
   const renderPlacementChoices = (container, current, attribute) => {
     container.replaceChildren();
     ["personal", ...(projectId() ? ["project"] : []), "unassigned"].forEach((value) => {
       const on = value === current;
-      const button = make("button", "mw-toggle" + (on ? " is-current" : ""), PLACEMENT[value]);
+      const button = make("button", "mw-toggle" + (on ? " is-current" : ""), placeName(value));
       button.type = "button";
       button.setAttribute(attribute, value);
       button.setAttribute("role", "radio");
@@ -315,7 +327,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       return [...byDay.entries()].map(([key, group]) => ({ key, title: dayLabel(key), items: group }));
     }
     const keyOf = (item) => item.placement === "project" ? (item.project_id === projectId() ? "project-here" : "project-other") : item.placement;
-    const titles = { personal: L("个人"), "project-here": L("这个项目"), "project-other": L("其他项目"), unassigned: L("暂未归类") };
+    const titles = { personal: L("个人空间"), "project-here": hereName(), "project-other": L("其他项目"), unassigned: L("暂未归类") };
     return ["personal", "project-here", "project-other", "unassigned"].map((key) => ({ key, title: titles[key], items: items.filter((item) => keyOf(item) === key) })).filter((group) => group.items.length);
   };
   const metaFor = (item) => {
@@ -753,6 +765,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     // One work can relate to the todo more than once (where it started, and as material): list it once.
     works = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);
     renderWorks();
+    // A round has no “finished” message for pages, so while one runs, look again now and then (only while this todo is open).
+    clearTimeout(worksTimer);
+    if (works.some((work) => work.state === "running") || Date.now() < watchWorksUntil) worksTimer = setTimeout(() => { if (selected && selected.id === item.id && !document.hidden) void loadWorks(item); }, 4000);
   };
   const RELATION = { blocked_by: L("要等它先完成"), blocks: L("它在等这件"), split_from: L("拆分自"), merged: L("合并自"), related: L("相关") };
   const renderLinks = (item) => {
@@ -1053,12 +1068,16 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         const going = works.find((work) => !["completed", "failed", "stopped"].includes(work.state));
         tellAssistant("delegate", selected, { text: L("帮我推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], ...(going ? { work_id: going.work_id } : {}) });
         const asked = selected;
+        watchWorksUntil = Date.now() + 60000;
         setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500);
         return;
       }
       if (button.matches("[data-todo-continue-work]") && selected) {
         await flush();
         tellAssistant("delegate", selected, { text: L("继续推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], work_id: button.dataset.todoContinueWork });
+        const asked = selected;
+        watchWorksUntil = Date.now() + 60000;
+        setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500);
         return;
       }
       if (button.matches("[data-todo-back]")) { await closeDetail(); return; }
@@ -1074,7 +1093,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (button.matches("[data-todo-batch-placement]")) {
         button.closest("details").open = false;
-        await runBatch({ placement: button.dataset.todoBatchPlacement }, L("已把 {count} 件移到") + PLACEMENT[button.dataset.todoBatchPlacement]);
+        await runBatch({ placement: button.dataset.todoBatchPlacement }, L("已把 {count} 件移到") + placeName(button.dataset.todoBatchPlacement));
         return;
       }
       if (!selected) return;
@@ -1087,7 +1106,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         await flush();
         const payload = await request("POST", "/api/todo/" + encodeURIComponent(selected.id), { placement: button.dataset.todoPlacement, expected_revision: selected.revision });
         await load(); await openDetail(payload.item.id);
-        showNote(L("已移到") + PLACEMENT[button.dataset.todoPlacement], { undo: payload.change_id ? { change_id: payload.change_id } : null });
+        showNote(L("已移到") + placeName(button.dataset.todoPlacement), { undo: payload.change_id ? { change_id: payload.change_id } : null });
         return;
       }
       if (button.matches("[data-todo-revert]")) {

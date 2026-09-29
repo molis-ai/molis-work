@@ -1,5 +1,5 @@
-import { ActionError, PERSONAL_SPACE_PROJECT_ID, bindHomeObjectMoveHandler, defineObjectMoveAction, withActionEffect, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
+import { ActionError, PERSONAL_SPACE_PROJECT_ID, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, localDate } from "./dates.js";
 import { todoCallerProject } from "./caller.js";
 import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStore } from "./store.js";
@@ -101,7 +101,7 @@ export const todoActions = {
     object({ item, change_id: id, replayed: { type: "boolean" } }), { result_subject: resultSubject, result_view: { summary: "已加入待办", title_pointer: "/item/title" }, undo: undoChange }),
   update: define<TodoFields & Identity, { item: TodoItem; change_id: string | null }>("items.update", "修改待办", "只改给出的字段；带上读取时的 expected_revision，别处改过时拒绝而不覆盖", "command",
     object({ id, ...expected, ...fieldInput }, ["id"]), changed, { result_subject: resultSubject, result_view: { summary: "已修改待办", title_pointer: "/item/title" }, undo: undoChange }),
-  status: define<Identity & { status: TodoStatus }, { item: TodoItem; change_id: string | null }>("items.status", "改待办状态", "改为待处理、进行中、等待他人、已完成或已取消。只在用户确认这件事做完时才标为已完成", "command",
+  status: define<Identity & { status: TodoStatus }, { item: TodoItem; change_id: string | null }>("items.status", "改待办状态", "改为待处理、进行中、等待他人、已完成或已取消。只在用户明确要求改状态时调用：“推进”“跟进”“帮我做”不等于改状态，需要时先提议、由用户决定；只在用户确认这件事做完时才标为已完成", "command",
     object({ id, ...expected, status }, ["id", "status"]), changed, { result_subject: resultSubject, result_view: { summary: "已改状态", title_pointer: "/item/title" }, undo: undoChange }),
   archive: define<Identity & { archived: boolean }, { item: TodoItem; change_id: string | null }>("items.archive", "归档或取回待办", "把已完成或已取消的待办收起，或取回；不改变状态", "command",
     object({ id, ...expected, archived: { type: "boolean" } }, ["id", "archived"]), changed, { result_subject: resultSubject, undo: undoChange }),
@@ -119,6 +119,9 @@ export const todoActions = {
     object({}), object({ reminders: array(object({ item, late: { type: "boolean" } })) })),
   acknowledgeReminder: define<{ id: string }, { item: TodoItem }>("reminders.acknowledge", "知道了", "这次提醒不再显示；不改变待办本身，也不改提醒时间", "command",
     object({ id }), object({ item }), { result_subject: resultSubject }),
+  // The Assistant asks about once a minute which of the person's own reminders fall due, and tells each one once under
+  // their rules. Todo keeps no timer and marks nothing; its own page still shows due reminders for looking back.
+  dueWindow: defineDueRemindersAction("todo.reminders.window", [TODO_SUBJECT_KIND], "到期提醒", [...TODO_READ]),
   // The placement panel's “移到…”: Todo keeps where each todo belongs, so the move is Todo's own (only the person, at Home).
   move: defineObjectMoveAction("todo.placement.move", [TODO_SUBJECT_KIND], "待办", TODO_WRITE, "home"),
   homeEvents: todoHomeEventsAction,
@@ -188,6 +191,18 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
     bind(todoActions.dueReminders, (_input, caller) => ports.withStore(store => ({
       reminders: store.dueReminders(todoAccess(caller, caller.audience === "user"), ports.now?.()) }))),
     bind(todoActions.acknowledgeReminder, (input, caller) => ports.withStore(store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
+    bind(todoActions.dueWindow, (input, caller) => {
+      assertDueReminderWindow(input);
+      // The person's own reminders from every project and the personal space: reminders are for them, wherever the todo sits.
+      return ports.withStore(store => ({ source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办" },
+        reminders: store.list(todoAccess(caller, true))
+          .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
+            && ["open", "doing", "waiting"].includes(item.status) && withinDueReminderWindow(item.remind_at, input))
+          .sort((a, b) => Date.parse(a.remind_at!) - Date.parse(b.remind_at!)).slice(0, 100)
+          .map(item => ({ reminder_id: `${item.id}@${item.remind_at}`, due_at: item.remind_at!, title: item.title.slice(0, 300),
+            subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.placement === "project" ? item.project_id : null,
+            open: { surface: TODO_PROJECT_PLUGIN_ID, id: item.id } })) }));
+    }),
     bindHomeObjectMoveHandler(todoActions.move, (input, caller) => ports.withStore(store => {
       if (input.subject.kind !== TODO_SUBJECT_KIND) throw new ActionError("actions.input_invalid", "这里只能移动待办");
       // The person, across projects: the placement service calls at Home with their own authority.

@@ -43,7 +43,7 @@ export const todoUiContribution: UiContribution<TodoUiModel> = {
 
 const VIEWS: readonly [string, string][] = [["today", "今天"], ["waiting", "等待中"], ["unscheduled", "未安排"], ["upcoming", "即将到期"], ["all", "全部"], ["closed", "已完成"]];
 const STATUSES: readonly [string, string][] = [["open", "待处理"], ["doing", "进行中"], ["waiting", "等待他人"], ["done", "已完成"], ["cancelled", "已取消"]];
-const PLACEMENTS: readonly [string, string][] = [["personal", "个人"], ["project", "这个项目"], ["unassigned", "暂未归类"]];
+const PLACEMENTS: readonly [string, string][] = [["personal", "个人空间"], ["project", "这个项目"], ["unassigned", "暂未归类"]];
 
 export function renderTodoWorkbench(model: TodoUiModel): string {
   const { primitives: p } = model;
@@ -141,7 +141,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
           <label class="todo-field"><span>${p.text("计划处理日期")}</span><small>${p.text("你打算哪天做")}</small><input class="mw-input" type="date" data-todo-field="planned_date"></label>
           <label class="todo-field"><span>${p.text("提醒时间")}</span><small>${p.text("什么时候提醒你")}</small><input class="mw-input" type="datetime-local" data-todo-field="remind_at"></label>
         </div>
-        <p class="todo-hint" data-todo-remind-hint hidden>${p.text("提醒只在 Molis Work 打开时出现；关着应用时不会按时提醒，打开后会补一条。")}</p>
+        <p class="todo-hint" data-todo-remind-hint hidden>${p.text("到时间会在底栏提醒你，并受你设的提醒规则约束；Molis Work 关着时不会按时提醒，打开后会补上。")}</p>
         <fieldset class="todo-field">
           <legend>${p.text("放在")}</legend>
           <div class="mw-toggle-group todo-placement-choices" data-slot="toggle-group" role="radiogroup" aria-label="${p.text("放在")}" data-todo-placement-choices></div>

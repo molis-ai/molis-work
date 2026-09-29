@@ -1,5 +1,6 @@
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
 import { renderButton } from "./button.js";
+import { icon, type MolisWorkIcon } from "../icons.js";
 
 export type MwControlSize = "sm" | "md" | "lg";
 
@@ -278,4 +279,26 @@ export function renderToggle(options: {
   attrs?: Record<string, AttrValue>;
 }): string {
   return `<button type="button" class="${cx("mw-toggle", options.pressed && "is-current", options.className)}" data-slot="toggle" aria-pressed="${options.pressed ? "true" : "false"}"${renderAttrs(options.attrs)}>${escapeHtml(options.label)}</button>`;
+}
+
+/**
+ * A choice among a few options, shown side by side: a small white option that turns graphite and shows its
+ * check when chosen. The onboarding steps and preference pickers use it; lists of many items do not.
+ * `current` renders `aria-current` for links (a language, a route); buttons carry `aria-pressed`.
+ */
+export function renderChoice(options: {
+  label: string;
+  icon?: MolisWorkIcon;
+  selected?: boolean;
+  href?: string;
+  className?: string;
+  attrs?: Record<string, AttrValue>;
+}): string {
+  const glyph = options.icon ? icon(options.icon) : "";
+  const body = `<span class="mw-choice__label">${glyph}${escapeHtml(options.label)}</span><span class="mw-choice__check" aria-hidden="true">${icon("check")}</span>`;
+  const className = cx("mw-choice", options.className);
+  if (options.href) {
+    return `<a class="${className}" data-slot="choice" href="${escapeHtml(options.href)}"${options.selected ? ' aria-current="true"' : ""}${renderAttrs(options.attrs)}>${body}</a>`;
+  }
+  return `<button type="button" class="${className}" data-slot="choice" aria-pressed="${options.selected ? "true" : "false"}"${renderAttrs(options.attrs)}>${body}</button>`;
 }

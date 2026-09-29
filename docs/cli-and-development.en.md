@@ -125,6 +125,8 @@ specs/molis-work-architecture-reorganization/spec.md
 
 When changing the workbench, plugin lists, forms, or shared controls, **prefer** opening `/__ui/catalog` and matching an existing specimen before inventing another look. This is not a gate: one-off pages, drafts, and unstable experiments can stay in product UI first.
 
+The visual spec is the Soft Workbench in [DESIGN.md](../DESIGN.md): a pearl desk holding one continuous white work surface, graphite for the primary action and a selected choice, copper for focus, links and work in progress, weights 400 / 500 / 600, motion around 130 / 250 / 420 ms. Take colours, corners, heights and durations from the shared tokens in `packages/design-system/src/palette.ts`; do not hard-code hex values or win over an earlier layer with `!important` or per-plugin overrides. Plugins carry no identity colour, draw no card of their own inside the surface, and have no global sidebar: global entries live in the bottom bar (the Dock and the plugin switcher), and the `navigator` slot id keeps its name. The real bottom bar is at `/__ui/catalog/bar`.
+
 Once a shared control, state variant, or micro-interaction meets the product’s visual bar, **add it** to that board (Catalog specimens in `packages/design-system`) so later work can see and reuse it. Product-specific composition does not need a specimen. Usage and isolated preview: [design-system README](../packages/design-system/README.md). Platform split: [UI Platform](platform/UI-PLATFORM.md).
 
 ## Development verification

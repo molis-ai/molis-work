@@ -111,21 +111,23 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
       button.setAttribute("aria-pressed", String(selected));
     });
   };
-  document.querySelectorAll("[data-theme-option]").forEach((button) => {
-    button.addEventListener("click", () => {
-      applyTheme(button.getAttribute("data-theme-option"), true);
-      button.closest("details")?.removeAttribute("open");
-    });
+  // Delegated, so controls rendered after load (settings panes, onboarding steps) choose the same way.
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const theme = target?.closest("[data-theme-option]");
+    if (theme) {
+      applyTheme(theme.getAttribute("data-theme-option"), true);
+      theme.closest("details")?.removeAttribute("open");
+      return;
+    }
+    const density = target?.closest("[data-density-option]");
+    if (density) { applyDensity(density.getAttribute("data-density-option"), true); return; }
+    const terminal = target?.closest("[data-terminal-theme-option]");
+    if (terminal) applyTerminalTheme(terminal.getAttribute("data-terminal-theme-option"), true);
   });
-  document.querySelectorAll("[data-density-option]").forEach((button) => {
-    button.addEventListener("click", () => {
-      applyDensity(button.getAttribute("data-density-option"), true);
-    });
-  });
-  document.querySelectorAll("[data-terminal-theme-option]").forEach((button) => {
-    button.addEventListener("click", () => {
-      applyTerminalTheme(button.getAttribute("data-terminal-theme-option"), true);
-    });
+  globalThis.molisWorkPreferences = Object.freeze({
+    theme: readTheme, density: readDensity,
+    sync() { applyTheme(readTheme()); applyDensity(readDensity()); },
   });
   media.addEventListener?.("change", () => {
     if (readTheme() === "system") applyTheme("system");

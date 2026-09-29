@@ -14,9 +14,11 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
   await click('[data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  await waitFor("document.querySelectorAll('[data-feed-stage-group]').length>0");
-  const groupedSource = await evaluate<string>("document.querySelector('[data-feed-stage-group] [data-feed-entry-id]')?.dataset.feedEntrySourceId");
-  assert.equal(await evaluate("document.querySelector('[data-feed-stage-group] [data-feed-entry-id]')?.closest('[data-feed-stage-group]')?.dataset.feedStageGroup"), groupedSource);
+  // Soft Workbench: one timeline; each row names its source and the source menu scope it belongs to.
+  await waitFor("document.querySelectorAll('[data-feed-rows] [data-feed-entry-id]').length>0");
+  const firstRow = await evaluate<{ source: string; task: string; label: string }>("(()=>{const row=document.querySelector('[data-feed-rows] [data-feed-entry-id]');return {source:row.dataset.feedEntrySourceId,task:row.dataset.feedEntryTask,label:row.querySelector('.feed-entry-source')?.textContent||''};})()");
+  assert.ok(firstRow.source && firstRow.label);
+  assert.ok(await evaluate(`Boolean(document.querySelector('[data-feed-source-rail] [data-feed-task="${firstRow.task}"]'))`), "the row's scope is a source in the menu");
   const sources = await evaluate<string[]>("[...document.querySelectorAll('[data-feed-task]')].map(x=>x.dataset.feedTask)");
   assert.ok(sources.length >= 1);
   assert.equal(sources.includes("all"), true);
@@ -26,10 +28,12 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.ok(await evaluate<string>(`document.querySelector('[data-feed-source-rail] [data-feed-task="${source}"]')?.dataset.feedSourceState`));
   await click(`[data-feed-source-rail] [data-feed-task="${source}"]`);
   assert.equal(await evaluate("document.querySelector('[data-feed-workbench]')?.dataset.selectedSource"), source);
+  assert.equal(await evaluate("document.querySelector('[data-feed-source-menu]').open"), false, "choosing a source closes its menu");
   assert.equal(await evaluate("document.querySelector('button[data-feed-view=settings]')?.hidden"), false);
+  assert.equal(await evaluate(`[...document.querySelectorAll('[data-feed-rows] [data-feed-entry-id]')].filter(row=>!row.closest('[data-feed-item-wrap]').hidden).every(row=>row.dataset.feedEntryTask==="${source}")`), true, "a chosen source shows only its messages");
   await click('[data-feed-source-rail] [data-feed-task=all]');
-  const bounds = await evaluate<number[]>("[...document.querySelectorAll('[data-feed-stage-group] > summary')].map(x=>x.getBoundingClientRect().top)");
-  assert.equal(new Set(bounds).size, bounds.length, "source tasks must not overlap");
+  const bounds = await evaluate<number[]>("[...document.querySelectorAll('[data-feed-rows] [data-feed-item-wrap]:not([hidden])')].map(x=>x.getBoundingClientRect().top)");
+  assert.equal(new Set(bounds).size, bounds.length, "messages must not overlap");
   const widths = await evaluate<number[]>("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item:not([data-pinned])')].map(x=>Math.round(x.getBoundingClientRect().width))");
   assert.ok(widths.length >= 1 && widths.every((width) => width > 0 && width <= 172), "unpinned tabs hug or share at or below 172px: " + JSON.stringify(widths));
   await click('[data-titlebar-tabs] [data-tab-split]');

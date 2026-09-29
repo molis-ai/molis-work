@@ -76,10 +76,12 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
     return getComputedStyle(name).color === ink;
   })()`), true);
   assert.match(await evaluate("document.querySelector('[data-shelf-chrome-tag]')?.textContent.trim() || ''"), /PDF/);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim()"), "#F5F5F4");
+  // Soft Workbench (DESIGN.md → Plugin identity): Shelf keeps DropAgent's structure on the shared tokens —
+  // the reading side is the soft surface and details are copper.
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim()"), "#fafaf9");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#66709e");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--mark-clay').trim()"), "#B27460");
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#66709e");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--da-accent').trim()"), "#93604b"); // copper, a step darker for 4.5:1 (spec → 第三轮 · 对比度)
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('aria-disabled')"), "true");
   assert.equal(await evaluate("document.querySelector('[data-shelf-act=summarize]')?.getAttribute('title')"), "请在设置中配置 AI 模型，再为置物架选择可用模型");
   // 整合 stays on the bar and greys out until a second material joins.
@@ -119,12 +121,12 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   await writeFile(`${dir}/confirm-light.png`, Buffer.from(confirmLight.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
-  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#111112'");
+  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#292a2d'");
   const confirmDark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/confirm-dark.png`, Buffer.from(confirmDark.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme = 'light'");
-  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#F5F5F4'");
+  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#fafaf9'");
   await click("[data-shelf-run]");
   await waitFor("[...document.querySelectorAll('[data-shelf-list=results] [data-shelf-item]')].some(row => row.dataset.shelfName === 'pdf.md')", 8_000);
   const preview = await evaluate<string>("document.querySelector('[data-shelf-preview]')?.innerText || ''");
@@ -205,7 +207,7 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   await writeFile(`${dir}/drop-light.png`, Buffer.from(dropLight.data, "base64"));
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "dark" }] }, sessionId);
   await evaluate("document.documentElement.dataset.resolvedTheme = 'dark'");
-  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#111112'");
+  await waitFor("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--content-side').trim() === '#292a2d'");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=directory]')).getPropertyValue('--hue-slate').trim()"), "#a6afd5");
   const dropDark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/drop-dark.png`, Buffer.from(dropDark.data, "base64"));
@@ -213,7 +215,7 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
     for (const node of document.querySelectorAll("[data-shelf=workbench], [data-shelf-stage], [data-shelf=directory]")) node.classList.remove("is-drop");
     document.querySelectorAll("[data-shelf-drop]").forEach((node) => node.setAttribute("aria-hidden", "true"));
   })()`);
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=workbench]')).getPropertyValue('--content-paper').trim()"), "#19191B");
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf=workbench]')).getPropertyValue('--content-paper').trim()"), "#242528");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-shelf-search]')).backgroundColor === 'rgb(255, 255, 255)'"), false);
   const dark = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(`${dir}/workbench-dark.png`, Buffer.from(dark.data, "base64"));
@@ -264,9 +266,12 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
     assert.equal(await evaluate("document.querySelectorAll('[data-shelf-model]').length"), 1);
     assert.equal(await evaluate("document.querySelector('[data-shelf-model]')?.value"), "");
     assert.equal(await evaluate("document.querySelector('[data-shelf-settings] a[href=\"/settings/models\"]')?.textContent"), "配置 AI 模型");
-    // The settings surface carries DropAgent's own tokens, not the Coss ones.
+    // Soft Workbench (DESIGN.md → Plugin identity): the settings surface keeps DropAgent's `--da-*` names, now
+    // aliased to the shared press tone of the current theme.
     const press = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--da-press').trim()");
-    assert.equal(press, theme === "light" ? "#E8E9EE" : "#28282F");
+    const shared = await evaluate<string>("getComputedStyle(document.querySelector('[data-shelf=settings]')).getPropertyValue('--nav-press').trim()");
+    assert.equal(press, shared);
+    assert.match(press, theme === "light" ? /#292a2c 11%/ : /#f0efed 15%/);
     await evaluate("document.querySelector('[data-shelf-settings-pane=machine]').scrollIntoView({block: 'start'})");
     // Let the compositor land on the new palette before the shot is taken.
     await evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))");

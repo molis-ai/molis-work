@@ -29,7 +29,8 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
       depths: [...new Set(rows.map(row => Number(row.closest('[data-tree-depth]').dataset.treeDepth)))]
     };
   })()`);
-  assert.equal(listRows.height, 28, "Stage list rows stay a single 28px line");
+  // Soft Workbench gives each Goal one comfortable 34px line at standard density (28px stays for compact).
+  assert.equal(listRows.height, 34, "Stage list rows stay a single 34px line");
   assert.equal(listRows.line, "nowrap");
   assert.ok(listRows.titleRight <= listRows.stateLeft, "Titles do not overlap the status column");
   assert.ok(listRows.depths.length > 1, "Alignment is checked across nested Goals");

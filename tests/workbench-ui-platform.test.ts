@@ -121,7 +121,8 @@ test("Workbench registers Native Plugin surfaces against stable slots", () => {
 
 test("primitive catalog page is a local document with theme controls", () => {
   const html = renderMolisWorkPrimitiveCatalog();
-  assert.match(html, /<title>控件原语/);
+  // Soft Workbench rollout: the catalog is the component board (specs/soft-workbench-rollout).
+  assert.match(html, /<title>组件板/);
   assert.match(html, /class="mw-catalog"/);
   assert.match(html, /href="\/assets\/molis-work-settings.css"/);
   assert.match(html, /data-theme-option="dark"/);

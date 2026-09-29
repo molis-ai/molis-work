@@ -44,13 +44,17 @@ test("Goal workspace keeps details in a sidebar rail; camera and draft survive r
   await evaluate("document.querySelector(" + JSON.stringify('[data-graph-node][data-goal-id="' + goalId + '"] [data-graph-open]') + ").click()");
   await waitFor("!document.querySelector('[data-goal-node-workspace]').hidden && document.querySelector('[data-goal-node-workspace]').dataset.expandedGoal === " + JSON.stringify(goalId));
   await waitFor("document.querySelector('[data-event-timeline] [data-timeline-item]')");
-  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.detailsOpen === 'true' && document.querySelector('[data-goal-details-aside]')?.getBoundingClientRect().width > 280");
+  // Soft Workbench opens a Goal without a terminal session as its document (spec → 第二轮 · 目标); the terminal is the
+  // other view, and the choice is remembered for this Goal, so the rest of this test works in it.
+  await click('[data-goal-node-workspace] [data-goal-view-tab="work"]');
+  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.viewMode === 'work'");
+  await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.detailsOpen === 'true' && document.querySelector('[data-goal-details-aside]')?.getBoundingClientRect().width > 280 && document.querySelector('[data-goal-details-aside]')?.getBoundingClientRect().width <= 330");
   // The workspace fills the Goals paper; the stage around it keeps craft-finish's 8px of desk on the right.
   const paper = await rect("[data-goal-canvas-shell]"), frame = await rect("[data-goal-node-workspace]"), terminal = await rect("[data-tui-pane]"), info = await rect("[data-goal-details-aside]");
   assert.ok(Math.abs(frame.x - paper.x) < 2 && Math.abs(paper.width - frame.width) < 2, JSON.stringify({ paper, frame }));
   assert.equal(await evaluate("document.querySelector('.goal-node-toolbar [data-goal-details-toggle]')"), null);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-goal-details-aside] [data-goal-details-toggle]'))"), true);
-  assert.ok(info.width >= 280 && info.width <= 330 && terminal.x + terminal.width <= info.x + 2);
+  assert.ok(info.width >= 280 && info.width <= 330 && terminal.x + terminal.width <= info.x + 2, JSON.stringify({ info, terminal }));
   assert.ok(terminal.height > 700 && terminal.y >= frame.y);
   assert.equal(await evaluate("document.querySelector('[data-goal-work-mode=conversation]').disabled"), true);
   await screenshot("goal-light");

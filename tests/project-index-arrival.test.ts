@@ -23,7 +23,8 @@ test("project index isolates arrival chrome from workbench directory styles", ()
   assert.match(css, /body\.project-index-page \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(css, /body\.project-index-page > \.project-index \{[\s\S]*display: flex;[\s\S]*align-items: center;[\s\S]*justify-content: flex-start;/);
   assert.match(css, /\.project-index-panel \{[\s\S]*margin-inline: auto;/);
-  assert.match(css, /body\.project-index-page > \.project-index \{ padding: 20px 16px 16px; align-items: stretch; \}/);
+  // Phone inset snapped 20px → 24px on the spacing scale (spec → 第三轮 · 间距与形状).
+  assert.match(css, /body\.project-index-page > \.project-index \{ padding: 24px 16px 16px; align-items: stretch; \}/);
   assert.doesNotMatch(css, /body\.project-index-page > \.project-index \{[\s\S]{0,280}place-items:/);
   assert.match(css, /body\.project-index-page\[data-desktop-shell="true"\]:not\(\.settings-page\) > \.topbar,[\s\S]*grid-column: 1 \/ -1;/);
   assert.match(css, /grid-template-columns: repeat\(auto-fit, minmax\(240px, 1fr\)\)/);

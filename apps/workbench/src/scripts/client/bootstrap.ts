@@ -148,7 +148,9 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let selectedSource = sourceList?.querySelector("[data-source-entry-id].is-selected")?.dataset.sourceEntryId || "";
     let activeSourceFilter = "all";
     let selectedFeedTask = "all";
+    let feedQuickFilter = "all";
     const defaultFeedPresetState = () => ({
+      quick: "all",
       selected: "",
       task: "all",
       query: "",

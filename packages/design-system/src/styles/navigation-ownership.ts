@@ -19,11 +19,11 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       display: grid;
       place-items: center;
       -webkit-app-region: no-drag;
-      transition: color .14s ease, background .14s ease;
+      transition: color 130ms var(--ease-quint), background 130ms var(--ease-quint);
     }
     body[data-desktop-shell="true"] .navigator-directory-toggle:hover {
       color: var(--ink);
-      background: color-mix(in srgb, var(--ink) 6%, transparent);
+      background: var(--nav-hover);
     }
     body[data-desktop-shell="true"] .navigator-directory-toggle:focus-visible,
     body[data-desktop-shell="true"] .goal-mode-switch button:focus-visible,
@@ -45,7 +45,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       width: max(44px, calc(var(--desktop-project-safe-inline-start) + 44px));
       height: var(--desktop-titlebar-height);
       min-height: var(--desktop-titlebar-height);
-      padding-inline: 6px;
+      padding-inline: 8px;
       background: transparent;
       overflow: visible;
       position: absolute;
@@ -83,12 +83,12 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"] .workspace.is-directory-collapsed .navigator-directory-toggle {
       color: var(--ink-soft);
       background: var(--paper);
-      box-shadow: 0 3px 10px color-mix(in srgb, var(--shadow-color) 30%, transparent);
+      box-shadow: var(--lift-1);
     }
 
     body[data-desktop-shell="true"] .goal-mode-switch {
       min-height: 30px;
-      padding: 2px;
+      padding: 4px;
       border-radius: 9px;
       background: color-mix(in srgb, var(--rail) 76%, transparent);
       display: inline-flex;
@@ -104,17 +104,17 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       background: transparent;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      font-size: 9.5px;
+      gap: 4px;
+      font-size: 11px;
       font-weight: 400;
       cursor: pointer;
-      transition: color .14s ease, background .14s ease, box-shadow .14s ease;
+      transition: color 130ms var(--ease-quint), background 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint);
     }
     body[data-desktop-shell="true"] .goal-mode-switch button:hover { color: var(--ink); }
     body[data-desktop-shell="true"] .goal-mode-switch button.is-active {
       color: var(--ink);
       background: var(--paper);
-      box-shadow: 0 2px 7px color-mix(in srgb, var(--shadow-color) 28%, transparent);
+      box-shadow: var(--lift-1);
     }
     body[data-desktop-shell="true"] .goal-mode-switch button svg { width: 12px; height: 12px; }
 
@@ -143,7 +143,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     html[data-resolved-theme="light"] body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) > .topbar .top-action:hover,
     html[data-resolved-theme="light"] body.settings-page[data-desktop-shell="true"] .settings-desktop-heading > a:hover,
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .tui-focus-return:hover {
-      background: color-mix(in srgb, var(--ink) 5%, transparent);
+      background: var(--nav-hover);
       box-shadow: none;
     }
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .personal-account:hover .personal-account-settings {
@@ -151,24 +151,24 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     }
 
     body[data-desktop-shell="true"] .tui-owner {
-      padding-inline: 18px;
+      padding-inline: 16px;
     }
     body[data-desktop-shell="true"] .tui-owner-actions > .goal-status {
       min-height: 28px;
-      padding: 2px 9px;
+      padding: 4px 8px;
       border-radius: 8px;
     }
     body[data-desktop-shell="true"] .tui-focus-return {
       min-height: 28px;
-      padding: 0 9px;
+      padding: 0 8px;
       border-radius: 8px;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       position: static;
-      font-size: 9.5px;
+      font-size: 11px;
       font-weight: 400;
-      transition: color .14s ease, background .14s ease;
+      transition: color 130ms var(--ease-quint), background 130ms var(--ease-quint);
     }
     body[data-desktop-shell="true"] .tui-focus-return:hover { color: var(--ink); background: var(--paper); }
     body[data-desktop-shell="true"] .tui-focus-return svg { width: 12px; height: 12px; }
@@ -178,14 +178,14 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"] .goal-mode-switch,
     body[data-desktop-shell="true"] .tui-focus-return { display: none !important; }
 
-    body[data-desktop-shell="true"] .feed-directory-tools { padding: 8px 10px; }
+    body[data-desktop-shell="true"] .feed-directory-tools { padding: 8px 12px; }
     body[data-desktop-shell="true"] .feed-directory-toolbar {
       min-width: 0;
       position: relative;
       display: grid;
       grid-template-columns: minmax(0, 1fr) 44px;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
     body[data-desktop-shell="true"] .feed-directory-search,
     body[data-desktop-shell="true"] .feed-filter-trigger { height: 44px; min-height: 44px; border-radius: 10px; }
@@ -210,7 +210,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"] .feed-filter-trigger > span {
       min-width: 16px;
       height: 16px;
-      padding: 0 3px;
+      padding: 0 4px;
       border-radius: 8px;
       color: var(--action-ink);
       background: var(--action);
@@ -219,11 +219,11 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       position: absolute;
       top: -4px;
       right: -4px;
-      font-size: 8px;
+      font-size: 11px;
       font-weight: 400;
       font-variant-numeric: tabular-nums;
       line-height: 1;
-      box-shadow: 0 2px 6px color-mix(in srgb, var(--shadow-color) 34%, transparent);
+      box-shadow: var(--lift-1);
     }
     body[data-desktop-shell="true"] .feed-filter-trigger > span[hidden] { display: none; }
     body[data-desktop-shell="true"] .feed-filter-panel {
@@ -234,7 +234,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       border-radius: 12px;
       color: var(--ink);
       background: var(--paper);
-      box-shadow: 0 12px 30px color-mix(in srgb, var(--shadow-color) 56%, transparent);
+      box-shadow: var(--lift-3);
       position: absolute;
       z-index: 18;
       top: calc(100% + 7px);
@@ -245,16 +245,16 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     }
     body[data-desktop-shell="true"] .feed-filter-panel[hidden] { display: none; }
     body[data-desktop-shell="true"] .feed-filter-panel > header { min-height: 44px; display: flex; align-items: center; gap: 8px; }
-    body[data-desktop-shell="true"] .feed-filter-panel > header strong { font-size: 13px; font-weight: 400; }
+    body[data-desktop-shell="true"] .feed-filter-panel > header strong { font-size: 13px; font-weight: var(--weight-control, 500); }
     body[data-desktop-shell="true"] .feed-filter-panel > header .mw-btn { margin-left: auto; }
-    body[data-desktop-shell="true"] .feed-filter-section { padding-top: 8px; border-top: 1px solid var(--line); display: grid; gap: 5px; }
+    body[data-desktop-shell="true"] .feed-filter-section { padding-top: 8px; border-top: 1px solid var(--line); display: grid; gap: 4px; }
     body[data-desktop-shell="true"] .feed-filter-section + .feed-filter-section { margin-top: 8px; }
-    body[data-desktop-shell="true"] .feed-filter-section > span { color: var(--faint); font-size: 10.5px; font-weight: 400; letter-spacing: .03em; }
-    body[data-desktop-shell="true"] .feed-filter-options { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+    body[data-desktop-shell="true"] .feed-filter-section > span { color: var(--faint); font-size: 11px; font-weight: 400; letter-spacing: .03em; }
+    body[data-desktop-shell="true"] .feed-filter-options { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
     body[data-desktop-shell="true"] .feed-filter-option {
       min-width: 0;
       min-height: 44px;
-      padding: 0 9px;
+      padding: 0 8px;
       border: 0;
       border-radius: 8px;
       color: var(--muted);
@@ -262,19 +262,19 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       display: grid;
       grid-template-columns: minmax(0, 1fr) 12px;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       font: inherit;
       font-size: 12px;
       text-align: left;
       cursor: pointer;
     }
-    body[data-desktop-shell="true"] .feed-filter-option:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+    body[data-desktop-shell="true"] .feed-filter-option:hover { color: var(--ink); background: var(--nav-hover); }
     body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); font-weight: 400; }
     body[data-desktop-shell="true"] .feed-filter-option:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
     body[data-desktop-shell="true"] .feed-filter-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    body[data-desktop-shell="true"] .feed-filter-option svg { width: 11px; height: 11px; opacity: 0; }
+    body[data-desktop-shell="true"] .feed-filter-option svg { width: 12px; height: 12px; opacity: 0; }
     body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] svg { opacity: 1; }
-    body[data-desktop-shell="true"] .feed-filter-summary { margin: 8px 1px 0; padding-top: 8px; border-top: 1px solid var(--line); color: var(--faint); font-size: 10.5px; line-height: 1.45; }
+    body[data-desktop-shell="true"] .feed-filter-summary { margin: 8px 1px 0; padding-top: 8px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; line-height: 1.45; }
 
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .app:has(> .mobile-project-bar) {
       grid-template-rows: 48px 44px minmax(0, 1fr);
@@ -282,7 +282,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-bar {
       min-width: 0;
       height: 48px;
-      padding: 7px 10px 5px;
+      padding: 8px 12px 4px;
       border-bottom: 1px solid var(--line);
       grid-column: 1;
       grid-row: 1;
@@ -290,7 +290,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       display: grid;
       grid-template-columns: minmax(0, 1fr) 34px;
       align-items: center;
-      gap: 5px;
+      gap: 4px;
       position: relative;
       overflow: visible;
       z-index: 80;
@@ -302,33 +302,33 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher > .navigator-project-selector {
       width: 100%;
       height: 34px;
-      padding: 0 9px;
+      padding: 0 8px;
       border-radius: 9px;
       color: var(--ink-soft);
       background: color-mix(in srgb, var(--paper) 72%, transparent);
       display: grid;
       grid-template-columns: 16px minmax(0, 1fr) 12px;
       align-items: center;
-      gap: 7px;
+      gap: 8px;
       list-style: none;
       cursor: pointer;
     }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher > .navigator-project-selector::-webkit-details-marker { display: none; }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher > .navigator-project-selector strong {
       overflow: hidden;
-      font-size: 11.5px;
+      font-size: 12px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-menu-popover {
       width: min(310px, calc(100vw - 20px));
       max-height: min(70vh, 540px);
-      padding: 7px;
+      padding: 8px;
       border: 0;
       border-radius: 12px;
       color: var(--ink-soft);
       background: var(--paper);
-      box-shadow: 0 14px 34px color-mix(in srgb, var(--shadow-color) 62%, transparent);
+      box-shadow: var(--lift-3);
       position: absolute;
       top: calc(100% + 6px);
       left: 0;
@@ -341,7 +341,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       color: var(--faint);
       display: flex;
       align-items: center;
-      font-size: 9px;
+      font-size: 11px;
       font-weight: 400;
     }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-menu-popover nav {
@@ -365,7 +365,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-option.is-current,
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-manage:hover {
       color: var(--ink);
-      background: color-mix(in srgb, var(--ink) 6%, transparent);
+      background: var(--nav-hover);
     }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-option > span {
       min-width: 0;
@@ -378,14 +378,14 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
       min-width: 0;
       overflow: hidden;
       font-size: 11px;
-      font-weight: 400;
+      font-weight: var(--weight-control, 500);
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-option svg,
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-manage svg {
-      width: 13px;
-      height: 13px;
+      width: 14px;
+      height: 14px;
       color: var(--muted);
       flex: 0 0 auto;
     }
@@ -393,7 +393,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-switcher .navigator-project-manage {
       margin-top: 4px;
       color: var(--muted);
-      font-size: 10.5px;
+      font-size: 11px;
     }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-project-settings {
       width: 34px;
@@ -436,7 +436,7 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction
     body[data-desktop-shell="true"] .feed-decision-work .risk-decision-details > div,
     body[data-desktop-shell="true"] .feed-decision-work .decision-reason {
       grid-template-columns: minmax(0, 1fr);
-      gap: 3px;
+      gap: 4px;
     }
     body[data-desktop-shell="true"] .feed-decision-work .decision-receipt { grid-template-columns: minmax(0, 1fr); }
   }

@@ -2,10 +2,10 @@ import type { UiHostApi, UiSlotDescriptor, WorkbenchDocumentRenderRequest } from
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_IMPORT_STYLES, artifactDisplayTitle, renderArtifactImportSurface, type ArtifactBrowserUiModel, type ArtifactImportUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
 
 export const ARTIFACT_EMBED_STYLES = `
-  .artifact-embed { padding:20px 0; overflow-wrap:anywhere; }
+  .artifact-embed { padding:24px 0; overflow-wrap:anywhere; }
   .artifact-embed + .artifact-embed { border-top:1px solid var(--line); }
   .artifact-embed header { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 16px; }
-  .artifact-embed h3 { margin:0; font-size:16px; line-height:1.4; }
+  .artifact-embed h3 { margin:0; font-size:15px; line-height:1.4; }
   .artifact-embed header > span, .artifact-embed dt, .artifact-embed .artifact-notice { color:var(--muted); }
   .artifact-embed a { color:var(--blue-dark); text-underline-offset:3px; }
   .artifact-embed a:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
@@ -43,32 +43,32 @@ export const ARTIFACT_WORKBENCH_STYLES = `
   .artifact-page a { color:var(--blue-dark); text-underline-offset:3px; }
   .artifact-back { display:inline-flex; align-items:center; gap:8px; min-height:38px; text-decoration:none; }
   .artifact-back svg { width:16px; height:16px; transform:rotate(180deg); }
-  .artifact-version-list { display:flex; flex-direction:column; gap:2px; }
+  .artifact-version-list { display:flex; flex-direction:column; gap:4px; }
   .artifact-import-entry { text-decoration:none; }
   .artifact-version-list .mw-dir-row,
   .artifact-version-list .feed-stage-entry { width:100%; }
   .artifact-stage { min-width:0; padding:24px clamp(20px,4vw,56px); background:var(--paper); }
   .artifact-detail, .artifact-empty { max-width:72ch; overflow-wrap:anywhere; }
-  .artifact-detail header:not(.plugin-stage-detail-bar) { display:flex; gap:16px; align-items:baseline; margin:20px 0; }
-  .artifact-detail h1 { font-size:clamp(22px,2.25vw,28px); margin:0; line-height:1.25; }
+  .artifact-detail header:not(.plugin-stage-detail-bar) { display:flex; gap:16px; align-items:baseline; margin:24px 0; }
+  .artifact-detail h1 { font-size:24px; margin:0; line-height:1.25; }
   .artifact-detail h2 { font-size:15px; margin:24px 0 8px; }
-  .artifact-document-preview { margin:20px 0 28px; min-width:0; }
-  .artifact-document-preview h2 { font-size:15px; margin:20px 0 10px; }
+  .artifact-document-preview { margin:24px 0 32px; min-width:0; }
+  .artifact-document-preview h2 { font-size:15px; margin:24px 0 12px; }
   .artifact-document-body { white-space:pre-wrap; overflow-wrap:anywhere; font:inherit; line-height:1.75; }
   .artifact-document-source a { color:var(--blue-dark); text-underline-offset:3px; }
   .artifact-document-warnings { padding:12px 16px; border:1px solid var(--line); border-radius:7px; color:var(--muted); }
   .artifact-document-warnings h2 { margin:0 0 8px; }
-  .artifact-document-warnings ul { margin:0; padding-left:20px; }
+  .artifact-document-warnings ul { margin:0; padding-left:24px; }
   .artifact-notice { color:var(--muted); margin:0 0 24px; }
   .artifact-facts { display:grid; gap:12px; margin:24px 0; }
   .artifact-facts div { display:grid; grid-template-columns:100px minmax(0,1fr); gap:12px; }
   .artifact-facts dt { color:var(--muted); }
   .artifact-facts dd { margin:0; }
-  .artifact-actions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:28px 0; }
+  .artifact-actions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:32px 0; }
   .artifact-actions span { color:var(--muted); }
-  .artifact-export { padding:10px 14px; border-radius:8px; background:var(--blue-soft); text-decoration:none; }
+  .artifact-export { padding:12px 16px; border-radius:8px; background:var(--blue-soft); text-decoration:none; }
   .artifact-reference-label { display:grid; gap:8px; }
-  .artifact-page input { box-sizing:border-box; width:100%; padding:10px; font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; }
+  .artifact-page input { box-sizing:border-box; width:100%; padding:12px; font:inherit; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:8px; }
   .artifact-business-preview { max-width:80ch; min-width:0; overflow-wrap:anywhere; }
   .artifact-business-preview pre { overflow:auto; max-width:100%; }
   .artifact-business-preview table { display:block; overflow:auto; max-width:100%; }

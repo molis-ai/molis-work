@@ -27,18 +27,18 @@ export const ARTIFACT_IMPORT_STYLES = `
   .artifact-import-back { display:inline-flex; align-items:center; gap:8px; min-height:44px; text-decoration:none; }
   .artifact-import-back svg { width:16px; height:16px; transform:rotate(180deg); }
   .artifact-import-project { color:var(--muted); margin:24px 0 4px; }
-  .artifact-import-main h1 { margin:0 0 12px; font-size:clamp(24px,4vw,32px); line-height:1.3; }
-  .artifact-import-intro { color:var(--muted); margin:0 0 28px; }
+  .artifact-import-main h1 { margin:0 0 12px; font-size:24px; line-height:1.3; }
+  .artifact-import-intro { color:var(--muted); margin:0 0 32px; }
   .artifact-import-form { padding:24px; background:var(--paper); border:1px solid var(--line); border-radius:12px; }
   .artifact-import-form fieldset { border:0; padding:0; margin:0; min-width:0; }
-  .artifact-import-form label { display:grid; gap:8px; margin-bottom:20px; font-weight:600; }
-  .artifact-import-form input, .artifact-import-form select { width:100%; min-height:44px; padding:10px 12px; font:inherit; font-weight:400; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:7px; }
+  .artifact-import-form label { display:grid; gap:8px; margin-bottom:24px; font-weight:600; }
+  .artifact-import-form input, .artifact-import-form select { width:100%; min-height:44px; padding:12px 12px; font:inherit; font-weight:400; color:var(--ink); background:var(--paper); border:1px solid var(--line); border-radius:7px; }
   .artifact-import-form input[type=file] { padding:8px; }
-  .artifact-import-form input::file-selector-button { min-height:28px; margin-right:10px; }
-  .artifact-import-help, .artifact-import-connection { color:var(--muted); margin:0 0 20px; }
-  .artifact-import-connection { padding:12px 14px; background:var(--rail); border-radius:7px; }
+  .artifact-import-form input::file-selector-button { min-height:28px; margin-right:12px; }
+  .artifact-import-help, .artifact-import-connection { color:var(--muted); margin:0 0 24px; }
+  .artifact-import-connection { padding:12px 16px; background:var(--rail); border-radius:7px; }
   .artifact-import-connection a { display:inline-block; margin:4px 0 0; }
-  .artifact-import-form button, .artifact-import-result-link { display:inline-flex; justify-content:center; align-items:center; min-height:44px; padding:10px 16px; border:1px solid var(--line); border-radius:7px; font:inherit; cursor:pointer; text-decoration:none; }
+  .artifact-import-form button, .artifact-import-result-link { display:inline-flex; justify-content:center; align-items:center; min-height:44px; padding:12px 16px; border:1px solid var(--line); border-radius:7px; font:inherit; cursor:pointer; text-decoration:none; }
   .artifact-import-form button[type=submit] { background:var(--blue-dark); color:var(--paper); border-color:transparent; }
   .artifact-import-form button[type=button] { background:var(--paper); color:var(--ink); }
   .artifact-import-form button:disabled { opacity:.55; cursor:wait; }
@@ -46,12 +46,12 @@ export const ARTIFACT_IMPORT_STYLES = `
   .artifact-import-status { margin:16px 0 0; color:var(--muted); }
   .artifact-import-error { margin:16px 0 0; padding:12px; border-left:3px solid currentColor; color:var(--ink); background:var(--rail); }
   .artifact-import-result h2 { margin:0 0 12px; font-size:20px; }
-  .artifact-import-result-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:20px; }
+  .artifact-import-result-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:24px; }
   .artifact-import-warnings { padding:12px 16px; margin:16px 0; background:var(--rail); border-radius:7px; }
-  .artifact-import-warnings h3 { margin:0 0 8px; font-size:14px; }
-  .artifact-import-warnings ul { margin:0; padding-left:20px; }
+  .artifact-import-warnings h3 { margin:0 0 8px; font-size:15px; }
+  .artifact-import-warnings ul { margin:0; padding-left:24px; }
   .artifact-import-page :focus-visible { outline:var(--focus-stroke); outline-offset:3px; }
-  @media(max-width:600px) { .artifact-import-main { padding-top:16px; } .artifact-import-form { padding:18px; } .artifact-import-form input, .artifact-import-form select { font-size:16px; } }
+  @media(max-width:600px) { .artifact-import-main { padding-top:16px; } .artifact-import-form { padding:16px; } .artifact-import-form input, .artifact-import-form select { font-size:16px; } }
 `;
 
 export function renderArtifactImportSurface(model: ArtifactImportUiModel): string {

@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderPaletteTokens, renderPluginTintBindings } from "../packages/design-system/src/palette.ts";
+import { MW_PLUGINS, renderPaletteTokens, renderPluginTintBindings } from "../packages/design-system/src/palette.ts";
 import { railEntries, pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.ts";
 import { renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
 
-test("Characters uses the purple text color in both light and dark themes", () => {
+// Soft Workbench (DESIGN.md → Plugin identity): plugins carry no identity colour on screen. Characters keeps
+// purple as registered catalog data, while its tint resolves to the neutral secondary ink in both themes.
+test("Characters keeps its registered hue as data and a neutral tint on screen", () => {
   const light = renderPaletteTokens("light");
   const dark = renderPaletteTokens("dark");
-  assert.match(light, /--plugin-characters: var\(--hue-purple\);/);
+  assert.equal(MW_PLUGINS.find((plugin) => plugin.id === "characters")?.hue, "purple");
+  assert.match(light, /--plugin-characters: var\(--ink-soft\);/);
   assert.match(light, /--hue-purple: #7f5eb0;/);
-  assert.match(dark, /--plugin-characters: var\(--hue-purple\);/);
+  assert.match(dark, /--plugin-characters: var\(--ink-soft\);/);
   assert.match(dark, /--hue-purple: #c0a0ea;/);
 });
 

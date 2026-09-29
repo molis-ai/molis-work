@@ -22,18 +22,18 @@
 ## 使用场景
 
 1. 新下一个拉选项：打开是 `mw-menu`，不是 macOS 白底菜单。
-2. 插件空态：对象 Lucide + 该插件 `--plugin-tint`，不是灰字配随机蓝。
+2. 插件空态：对象 Lucide（中性 `--ink-soft`，插件没有身份色），不是灰字配随机蓝。
 3. 切插件、开菜单、舞台到达：走已有位移/到达曲线，不是闪一下。
-4. 点字段：内侧 1px `--ink`，不是系统蓝框。
+4. 点字段：铜色边框加淡铜光晕（Soft Workbench），不是系统蓝框。
 
 ## 方案与关键决策
 
 UI 切片的完成条件包括工艺，不只功能：
 
 1. **不准把操作系统默认控件当成产品 UI。** 禁止可见的系统下拉、系统颜色选择器、系统日期/时间弹出、系统 `alert` / `confirm` / `prompt`、未换肤的 `range`。选择的打开列表必须是 `mw-menu`；原生 `<select>` 可以隐藏当表单值。文件选择可以隐藏原生 `input[type=file]`，按钮必须是 `mw-btn`。原生 `<dialog>` 只保留 Escape 和焦点圈，外观走 `mw-*`。勾选/单选/开关用已换肤的 `mw-check` / `mw-radio` / `mw-switch`。
-2. **图标与色彩成套。** 动作图标只从 Lucide 库取。插件身份用 `--plugin-tint`（轨、目录、空态标记、当前舞台）。状态用 status family，不是再发明一套。靛只给链接、选区、进行中。不要第二套 emoji/Unicode 图标，不要灰图标配随便一个强调色。
-3. **动效成套，而且要做。** 只用 `--motion-*` / `--ease-*` 和已有位移：分段滑块、插件轨、目录 yield、`creative-arrive`。状态变了要看得出走过去或到达，不要硬切。hover / press 是色阶，不是浮起。不为动而动。`prefers-reduced-motion` 去掉位移和到达。
-4. **焦点**继续内侧 1px `--ink`（[neutral-focus-stroke](../archive/neutral-focus-stroke/spec.md)）。
+2. **图标与色彩成套。** 动作图标只从 Lucide 库取。插件没有身份色（`--plugin-*` 都是中性色）。状态用 status family，不是再发明一套。石墨给主操作和选中的选项，铜色只给焦点、链接、进行中。不要第二套 emoji/Unicode 图标，不要灰图标配随便一个强调色。
+3. **动效成套，而且要做。** 只用 `--dur-*` / `--ease-*` 和已有位移：分段滑块、目录 yield、底栏菜单升起、舞台到达。状态变了要看得出走过去或到达，不要硬切。hover / press 是色阶，不是浮起。不为动而动。`prefers-reduced-motion` 去掉位移和到达。
+4. **焦点**用 `--focus-stroke`（2px 铜色、偏移 1px），字段是铜色边框加光晕；2026-09-28 起取代 [neutral-focus-stroke](../archive/neutral-focus-stroke/spec.md) 的内侧 1px ink（见 [DESIGN.md](../../DESIGN.md)）。
 5. **对照 Catalog。** 改共享控件、状态、微动效先看 `/__ui/catalog`；达标的要补标本。一次性草稿可以先写在业务里，进产品主链前换成 `mw-*`，不得带着系统控件进主链。
 
 编译、类型和测试通过不等于视觉通过。改了用户能看见的界面，要在真实页面看过焦点、hover、打开、到达和空态。

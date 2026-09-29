@@ -416,8 +416,22 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     wantedId = event.detail?.itemId || null;
     if (!wantedId) return;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
-    else void loadList().then(openWanted).catch((error) => showNote(error.message, true));
+    else void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
   });
-  void loadList().then(openWanted).catch((error) => showNote(error.message, true));
+  // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
+  const listFailed = (error) => {
+    if (empty) empty.hidden = true;
+    const box = document.createElement("div");
+    box.className = "mw-empty mw-empty--error";
+    box.setAttribute("role", "alert");
+    box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
+    box.querySelector("strong").textContent = L("列表暂时读不到");
+    box.querySelector("p").textContent = error?.message || L("请稍后重试");
+    const retry = box.querySelector("button");
+    retry.textContent = L("重试");
+    retry.addEventListener("click", () => { retry.disabled = true; void loadList().then(() => box.remove(), (next) => { retry.disabled = false; box.querySelector("p").textContent = next?.message || L("请稍后重试"); }); });
+    rowsEl.replaceChildren(box);
+  };
+  void loadList().catch((error) => { listFailed(error); throw error; }).then(openWanted).catch((error) => showNote(error.message, true));
 }
 `;

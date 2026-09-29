@@ -32,6 +32,8 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         return;
       }
       if (target.closest("[data-feed-clear-filters]")) {
+        feedQuickFilter = "all";
+        syncFeedQuickFilter();
         if (feedSearch) feedSearch.value = "";
         if (feedSourceFilter) feedSourceFilter.value = "all";
         if (feedTypeFilter) feedTypeFilter.value = "all";
@@ -61,7 +63,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
       if (openSourceRecord) {
         const sourceId = openSourceRecord.dataset.openSourceRecord;
         if (!sourceId || !document.querySelector('[data-feed-task="' + CSS.escape(sourceId) + '"]')) {
-          showToast(L("这个来源已删除或暂时不可用"));
+          showToast(L("这个来源已删除或暂时不可用"), true);
           return;
         }
         setDesktopDirectory("feed", true, false, openSourceRecord);

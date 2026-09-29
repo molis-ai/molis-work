@@ -14,7 +14,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
       event.preventDefault(); event.stopPropagation();
       const row = inboxList?.querySelector('[data-inbox-entry-id="' + CSS.escape(entryId) + '"]');
       if (row) tabWorkspace?.openItem("inbox", entryId, row.querySelector("strong")?.textContent);
-      else showToast(L("原 Inbox 材料在当前项目中不可用"));
+      else showToast(L("原 Inbox 材料在当前项目中不可用"), true);
     }, true);
 
     const expandInboxStage = (expanded) => {
@@ -120,7 +120,7 @@ export const CLIENT_NAVIGATION_INBOX_SCRIPT = `
         return true;
       } catch {
         // Same as Feed: keep the page, selection and scroll; say so instead of reloading everything.
-        if (seq === inboxStageRefreshSeq) showToast(L("列表更新失败，当前输入已保留，请重试。"));
+        if (seq === inboxStageRefreshSeq) showToast(L("列表更新失败，当前输入已保留，请重试。"), true);
         return false;
       }
     };

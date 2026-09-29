@@ -1,4 +1,4 @@
-import { renderLinearShellTokens, renderPaletteTokens, renderPluginTintBindings } from "../palette.js";
+import { renderPaletteTokens, renderPluginTintBindings, renderShapeTokens, renderShellTokens } from "../palette.js";
 
 /** Linear × Coss interaction texture. Loaded after every page stylesheet so it owns the
  * final colour ramp, elevation, motion and icon calibration without moving any layout.
@@ -19,48 +19,15 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.settings-page,
   body.project-index-page,
   body.project-preferences-page {
-    ${renderLinearShellTokens("light")}
-    --nav-press: color-mix(in srgb, var(--ink) 14%, transparent);
-    --hairline: color-mix(in srgb, var(--ink) 12%, transparent);
-    --edge-highlight: transparent;
+    ${renderShellTokens("light")}
+    ${renderShapeTokens()}
     ${renderPaletteTokens("light")}
-
-    --shadow-color: #131520;
-    --surface-shadow: 0 1px 2px rgba(19, 21, 32, .05), 0 2px 5px rgba(19, 21, 32, .04);
-    --shadow-soft: 0 1px 2px rgba(19, 21, 32, .05), 0 3px 8px rgba(19, 21, 32, .04);
-    --shadow-raised: 0 1px 2px rgba(19, 21, 32, .05), 0 6px 16px rgba(19, 21, 32, .07);
-    --shadow: 0 2px 4px rgba(19, 21, 32, .05), 0 12px 32px rgba(19, 21, 32, .10);
-    --control-shadow: 0 1px 1px rgba(19, 21, 32, .04), 0 6px 14px rgba(19, 21, 32, .07), 0 18px 38px rgba(19, 21, 32, .09);
-    --control-ring: var(--ink);
-    --focus-stroke: 1px solid var(--ink);
-    --focus-stroke-inset: -1px;
-
-    --motion-instant: 90ms; --motion-fast: 130ms; --motion-normal: 190ms;
-    --ease-out: cubic-bezier(.16, 1, .3, 1);
-    --ease-standard: cubic-bezier(.32, .72, 0, 1);
-
-    --icon-sm: 14px; --icon-md: 16px; --icon-lg: 18px;
-    --scrim: rgba(19, 21, 32, .3);
   }
 
   html[data-resolved-theme="dark"],
   html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-index-page, body.project-preferences-page) {
-    ${renderLinearShellTokens("dark")}
-    --nav-press: color-mix(in srgb, var(--ink) 16%, transparent);
-    --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
-    --edge-highlight: rgba(255, 255, 255, .07);
+    ${renderShellTokens("dark")}
     ${renderPaletteTokens("dark")}
-
-    --shadow-color: #000000;
-    --surface-shadow: 0 1px 2px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
-    --shadow-soft: 0 1px 2px rgba(0, 0, 0, .45), 0 4px 10px rgba(0, 0, 0, .32);
-    --shadow-raised: 0 2px 4px rgba(0, 0, 0, .48), 0 10px 24px rgba(0, 0, 0, .38);
-    --shadow: 0 4px 10px rgba(0, 0, 0, .5), 0 20px 48px rgba(0, 0, 0, .46);
-    --control-shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 20px rgba(0, 0, 0, .45), 0 24px 52px rgba(0, 0, 0, .4);
-    --control-ring: var(--ink);
-    --focus-stroke: 1px solid var(--ink);
-    --focus-stroke-inset: -1px;
-    --scrim: rgba(0, 0, 0, .55);
   }
 
   /* Text texture: macOS-grade smoothing and fixed-width digits wherever counts are scanned. */
@@ -79,11 +46,11 @@ export const INTERACTION_TEXTURE_STYLES = `
   /* One shared interaction curve. Rest → hover → press is a tone step, never a lift. */
   :where(button, a, summary, [role="button"], .tree-entry, .tab-item, .desktop-module-item, .immersive-plugin-link) {
     transition:
-      background-color var(--motion-instant) var(--ease-standard),
-      color var(--motion-instant) var(--ease-standard),
-      border-color var(--motion-instant) var(--ease-standard),
-      box-shadow var(--motion-fast) var(--ease-standard),
-      opacity var(--motion-fast) var(--ease-standard);
+      background-color var(--motion-instant) var(--ease-quint),
+      color var(--motion-instant) var(--ease-quint),
+      border-color var(--motion-instant) var(--ease-quint),
+      box-shadow var(--motion-fast) var(--ease-quint),
+      opacity var(--motion-fast) var(--ease-quint);
   }
   body :is(button, [role="button"], summary, a.top-action, a.tree-tool):active:not(:disabled, [aria-disabled="true"], [aria-expanded], [aria-haspopup]) {
     filter: brightness(.96);
@@ -101,7 +68,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body:is(.immersive-workbench, .settings-page, .project-index-page, .project-preferences-page) svg { stroke-width: 2; }
   body.immersive-workbench :is(.tui-empty-mark, .goal-canvas-empty, .work-empty) svg { stroke-width: 1.6; }
   body.immersive-workbench :is(.immersive-plugin-link, .tree-tool, .tab-item-close, .workspace-history-button) svg {
-    transition: color var(--motion-instant) var(--ease-standard), opacity var(--motion-instant) var(--ease-standard);
+    transition: color var(--motion-instant) var(--ease-quint), opacity var(--motion-instant) var(--ease-quint);
   }
   body.immersive-workbench :is(.navigator-project-settings, .navigator-project-search, .navigator-project-notifications, .workspace-history-button, .tab-add-button, .tab-split-button) svg {
     width: var(--icon-md); height: var(--icon-md);
@@ -124,7 +91,7 @@ export const INTERACTION_TEXTURE_STYLES = `
 
   /* Ownership wash follows the current plugin onto its list and empty mark, not onto the paper. */
   body.immersive-workbench :is(.plugin-stage-list, .tree-pane) :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .feed-stage-entry:is(.is-selected, .is-open, [aria-selected="true"])) {
-    background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, transparent);
+    background: var(--nav-active);
   }
   body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has(.is-selected),
   body.immersive-workbench .plugin-stage-list .mw-dir-row-wrap:has([aria-current="page"]),
@@ -132,7 +99,6 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench .tree-pane .mw-dir-row-wrap:has([aria-current="page"]) {
     background: color-mix(in srgb, var(--plugin-tint, var(--ink)) 10%, transparent);
   }
-  body.immersive-workbench .mw-empty__mark,
   body.immersive-workbench .mw-empty > svg { color: var(--plugin-tint, var(--muted)); }
   body.immersive-workbench .plugin-stage-chrome .tree-create svg { color: var(--plugin-tint, var(--muted)); }
 
@@ -161,15 +127,16 @@ export const INTERACTION_TEXTURE_STYLES = `
     background: var(--ink);
     pointer-events: none;
   }
-  body.immersive-workbench .tree-pane .directory-list-row.is-selected :is(.tree-title-line strong, > strong) { color: var(--ink); font-weight: 400; }
+  body.immersive-workbench .tree-pane .directory-list-row.is-selected :is(.tree-title-line strong, > strong) { color: var(--ink); font-weight: var(--weight-control, 500); }
 
-  /* Raised surfaces get a hairline and, in Dark, a top edge highlight so they read as glass.
+  /* Floating surfaces have no outline: the one floating lift separates them in Light, and in Dark that lift is a
+   * light edge (see --shadow) with a top highlight, so they read as the third layer.
    * Repeated at workbench and Dark specificity because several surfaces pin their own shadow there. */
   body ${RAISED_SURFACE},
   body.immersive-workbench ${RAISED_SURFACE},
   html[data-resolved-theme="dark"] body.immersive-workbench ${RAISED_SURFACE} {
-    border: 1px solid var(--hairline);
-    box-shadow: var(--control-shadow), inset 0 1px 0 var(--edge-highlight);
+    border: 0;
+    box-shadow: var(--lift-3, var(--control-shadow)), inset 0 1px 0 var(--edge-highlight);
   }
   /* One scrim for every transient surface, so Dark never washes the app with a light veil. */
   body ${SCRIMMED}::backdrop,
@@ -190,7 +157,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   ${SCROLL_REGION} {
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
-    transition: scrollbar-color var(--motion-normal) var(--ease-standard);
+    transition: scrollbar-color var(--motion-normal) var(--ease-quint);
   }
   ${SCROLL_REGION}:hover {
     scrollbar-color: color-mix(in srgb, var(--ink) 22%, transparent) transparent;
@@ -217,7 +184,7 @@ export const INTERACTION_TEXTURE_STYLES = `
     box-shadow: none;
   }
   body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input), select:not(.mw-select), textarea:not(.mw-textarea)) {
-    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard);
+    transition: border-color var(--motion-fast) var(--ease-quint), box-shadow var(--motion-fast) var(--ease-quint), background-color var(--motion-fast) var(--ease-quint);
   }
   body :is(input, textarea)::placeholder { color: var(--faint); }
 
@@ -284,7 +251,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body[data-desktop-shell="true"] .feed-detail-kicker span,
   body[data-desktop-shell="true"] .feed-detail-kicker span:first-child,
   .feed-detail-kicker > :is(span, .mw-status) {
-    padding: 2px 6px;
+    padding: 4px 8px;
     border-radius: 5px;
     font-size: 11px;
     font-weight: 400;
@@ -315,7 +282,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   .goal-canvas-node {
     border-color: var(--line);
     box-shadow: inset 0 1px 0 var(--edge-highlight);
-    transition: border-color var(--motion-fast) var(--ease-standard), background-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+    transition: border-color var(--motion-fast) var(--ease-quint), background-color var(--motion-fast) var(--ease-quint), box-shadow var(--motion-fast) var(--ease-quint);
   }
   .goal-canvas-node:hover {
     border-color: var(--line-strong);
@@ -333,35 +300,35 @@ export const INTERACTION_TEXTURE_STYLES = `
    * The board switch used to invert that polarity against the settings and locale switches. */
   body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) {
     display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    border: 1px solid var(--hairline);
+    gap: 4px;
+    padding: 4px;
+    border: 0;
     border-radius: 9px;
     background: var(--control-fill);
     box-shadow: none;
   }
   body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a) {
     min-height: 26px;
-    padding: 0 11px;
+    padding: 0 12px;
     border: 0;
     border-radius: 6px;
     background: transparent;
     color: var(--muted);
     font-size: 12px;
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
     box-shadow: none;
+    transition: color var(--motion-normal, 250ms) var(--ease-quint), background-color var(--motion-fast, 130ms) var(--ease-quint), box-shadow var(--motion-normal, 250ms) var(--ease-quint);
   }
-  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a):hover { color: var(--ink); background: var(--nav-hover); }
+  body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is(button, a):hover { color: var(--ink); background: transparent; }
   body :is(.goal-board-switch, .settings-segmented, .locale-switch, .mw-toggle-group) > :is([aria-current="true"], [aria-current="page"], [aria-pressed="true"], .is-current, .is-active) {
     color: var(--ink);
-    font-weight: 400;
-    background: var(--nav-raised);
-    box-shadow: var(--surface-shadow), inset 0 0 0 1px var(--hairline), inset 0 1px 0 var(--edge-highlight);
+    background: var(--paper);
+    box-shadow: var(--shadow-soft), inset 0 1px 0 var(--edge-highlight);
   }
   body .goal-board-switch {
     height: var(--control-h, 28px);
     min-height: var(--control-h, 28px);
-    padding: 2px;
+    padding: 4px;
     box-sizing: border-box;
   }
   body .goal-board-switch > :is(button, a) {
@@ -390,7 +357,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .project-record-empty,
         .artifact-empty, .goal-collection-empty, .tree-filter-empty) {
     margin: 0;
-    padding: 18px 10px;
+    padding: 16px 12px;
     border: 0;
     border-radius: 0;
     background: transparent;
@@ -403,13 +370,13 @@ export const INTERACTION_TEXTURE_STYLES = `
     display: block;
     color: var(--ink-soft);
     font-size: 12px;
-    font-weight: 400;
+    font-weight: var(--weight-control, 500);
   }
   body.immersive-workbench .tree-pane :is(.feed-list-empty, .source-list-empty, .project-record-empty) > svg {
     display: block;
     width: var(--icon-md);
     height: var(--icon-md);
-    margin-bottom: 7px;
+    margin-bottom: 8px;
     color: var(--faint);
   }
   body.immersive-workbench .tree-pane .tree-filter-empty p { margin: 0 0 8px; }
@@ -427,7 +394,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   }
 
   /* Transient surfaces arrive with opacity and a short rise, and leave without a jump. */
-  :where(dialog[open]) { animation: surface-arrive var(--motion-normal) var(--ease-out); }
+  :where(dialog[open]) { animation: surface-arrive var(--motion-normal) var(--ease-quint); }
   @keyframes surface-arrive {
     from { opacity: 0; transform: translateY(6px) scale(.985); }
     to { opacity: 1; transform: none; }

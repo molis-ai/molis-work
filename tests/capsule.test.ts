@@ -524,9 +524,12 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.match(html, /capsule__goal-row/);
   assert.match(html, /aria-selected/);
   assert.match(html, /overflow-x: auto/);
-  assert.match(html, /--accent: #5e6ad2/);
+  // Soft Workbench (DESIGN.md → Colors, Typography): the capsule shares the shell tokens (copper accent) and the
+  // system font stack, with weight roles instead of a forced 400. The visual refinement darkened copper a step
+  // (#95624c → #93604b) so copper links and focus text reach 4.5:1 on paper (spec → 第三轮 · 对比度).
+  assert.match(html, /--accent: #93604b/);
   assert.match(html, /Noto Sans SC/);
-  assert.match(html, /html body \* \{[\s\S]*font-weight: 400 !important/);
+  assert.doesNotMatch(html, /font-weight: 400 !important/);
   assert.doesNotMatch(html, /#4f6ff7/);
   assert.match(html, /event\.key !== "ArrowLeft"/);
   assert.match(html, /event\.key !== "Escape"/);

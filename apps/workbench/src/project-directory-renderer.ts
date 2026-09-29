@@ -64,7 +64,7 @@ function renderMolisWorkProjectIndex(
       <header class="project-index-heading"><div><p class="craft-greeting" data-craft-greeting hidden></p><h1 id="project-index-title">${L("选择一个项目")}</h1><p>${L("把同一项工作的资料、文档和进展放在一起。")}</p></div><div class="project-index-actions">${projects.length ? `<label class="project-index-search">${icon("search")}<input type="search" data-project-search placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}"></label>` : ""}<a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${icon("plus")}${L("新建项目")}</a></div></header>
       <div class="project-index-body">${projects.length
         ? `<div class="project-card-grid" role="list">${projectCards}</div><p class="project-index-search-empty" data-project-search-empty hidden aria-live="polite">${L("没有匹配的项目，换一个关键词。")}</p>`
-        : `<div class="project-index-empty"><h2>${L("从一个真实项目开始")}</h2><p>${L("带入已有资料，整理成项目；也可以直接空白开始。")}</p><div class="project-index-start"><a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${L("开始建立第一个项目")}</a><a class="mw-btn mw-btn--secondary" href="${href("/settings/projects")}">${L("直接进入项目设置")}</a></div></div>`}</div>
+        : `<div class="project-index-empty"><span class="mw-empty__mark">${icon("folder")}</span><h2>${L("从一个真实项目开始")}</h2><p>${L("带入已有资料，整理成项目；也可以直接空白开始。")}</p><div class="project-index-start"><a class="mw-btn mw-btn--primary" href="${href("/onboarding")}">${L("开始建立第一个项目")}</a><a class="mw-btn mw-btn--secondary" href="${href("/settings/projects")}">${L("直接进入项目设置")}</a></div></div>`}</div>
       <p class="project-index-note">${L("项目和文档保存在这台电脑。")}</p>
     </section>
   </main>

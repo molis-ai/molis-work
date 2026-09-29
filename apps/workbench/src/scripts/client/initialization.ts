@@ -144,7 +144,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       if (!entryId) return;
       const row = inboxList?.querySelector('[data-inbox-entry-id="' + CSS.escape(entryId) + '"]');
       if (row) tabWorkspace?.openItem("inbox", entryId, row.querySelector("strong")?.textContent);
-      else showToast(L("原 Inbox 材料在当前项目中不可用"));
+      else showToast(L("原 Inbox 材料在当前项目中不可用"), true);
     });
     const settingsDirectory = (${SETTINGS_DIRECTORY_FACTORY_SCRIPT})({
       translate: L,

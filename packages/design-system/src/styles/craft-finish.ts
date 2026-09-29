@@ -1,29 +1,37 @@
 import { MW_PLUGINS } from "../palette.js";
 
-/** Craft finish: the last layer of every Molis Work page.
+/** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
- * One spatial idea runs through it. The chrome — titlebar, plugin rail, directory — is a quiet
- * desk. The work itself is one sheet of paper lying on it: rounded, edged with one hairline, the
- * same for every plugin, so opening Feed or a Goal never changes what kind of place you are in.
+ * One spatial idea runs through it. The desk is pearl grey; the work is one continuous white surface
+ * lying on it with soft 14px corners and a shadow you feel more than see. Plugin directories are
+ * columns inside that surface, not a second chrome. Global navigation and the unified conversation
+ * live in the resident bar under the surface; there is no global sidebar.
  *
- * Surfaces are flat and solid. Depth is a hairline, never a gradient; only things that truly
- * float — menus, dialogs, tooltips, toasts — cast a shadow. Colour says status or selection and
- * nothing else, so icons and labels stay neutral.
+ * Depth is tonal first. Ordinary content separates by spacing, weight and the occasional hairline;
+ * only raised things — the composer, the current Dock item, menus, dialogs, sheets, toasts — cast a
+ * diffuse shadow, and a floating layer never also draws a heavy outline. Graphite is the primary
+ * action and the selected choice; copper marks focus, links and a selection's small detail.
  *
- * Movement follows three rules. A press answers under the finger (a small give, then a spring
- * back). Arriving content rises a few pixels while it fades in. Only events that finish
- * something — a Goal closing, a new item landing — get a moment of their own.
+ * Movement answers the operation: a 130ms press that gives and springs back, 250ms state changes,
+ * 420ms arrivals that rise a few pixels, menus that grow from their control, sheets from their edge.
+ * `prefers-reduced-motion` and automation remove every movement here.
  *
- * Structure, density and domain ownership stay with the layers before this one; this layer
- * owns tone, depth, corners and motion. `prefers-reduced-motion` removes every movement here.
+ * Structure, density and domain ownership stay with the layers before this one; this layer owns
+ * tone, depth, corners, the resident bar's geometry and motion.
  */
 
 const WORKBENCH = "body.immersive-workbench";
-const SHELL = "body.immersive-workbench:not([data-pane-embedded])";
+/** The shell outside a pane. The component board's bar stage takes the same rules so its specimen is the real bar. */
+const SHELL = ":is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage)";
 /** The resident Assistant lives in the workbench bar and, for personal work without a project, on the project list. */
 const ASSIST = ":is(body.immersive-workbench:not([data-pane-embedded]), body.project-index-page)";
 const RAIL_LINK = ":is(.plugin-rail, .assistant-island, .workspace-chrome) :is(.immersive-plugin-link, .navigator-project-search, .navigator-project-settings, .navigator-directory-toggle, .immersive-show-directory, .personal-account)";
 const PAGES = "body:is(.immersive-workbench, .settings-page, .project-index-page, .project-preferences-page)";
+/** A plugin's list page (not Feed or Coding, which lay out their own columns; not Jelly's calendar). */
+const STAGE_SHELL = "body.immersive-workbench .plugin-stage-shell:not([data-feed-stage-shell], .mw-layout-primitives, [data-work-surface=\"jelly\"])";
+const STAGE_LIST = `${STAGE_SHELL}[data-expanded="false"] > .plugin-stage-list`;
+const STAGE_OPEN = `${STAGE_SHELL}[data-expanded="true"]`;
+const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-expanded=\"true\"])";
 
 /** Dialogs that open in the middle of the viewport. Edge sheets travel in from their edge instead. */
 const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog, dialog.pb-publish-dialog, dialog.pb-record-editor):not(.mw-sheet)";
@@ -39,33 +47,36 @@ const CRAFT_BASE_STYLES = `
   /* ─── Tokens ───────────────────────────────────────────────────────────── */
   :root,
   ${PAGES} {
-    --r-tag: 5px; --r-row: 8px; --r-control: 9px; --r-card: 12px; --r-sheet: 12px; --r-dialog: 16px;
-    --sheet-inset: 8px;
+    --r-tag: 6px; --r-row: 10px; --r-control: 8px; --r-card: 12px; --r-sheet: 14px; --r-dialog: 16px; --r-composer: 15px;
+    --sheet-inset: 14px;
     --desk: var(--page);
     --ease-quint: cubic-bezier(.22, 1, .36, 1);
-    --ease-spring: cubic-bezier(.34, 1.45, .64, 1);
-    --ease-swift: cubic-bezier(.4, 0, .2, 1);
-    --dur-press: 110ms; --dur-hover: 140ms; --dur-move: 220ms; --dur-arrive: 320ms; --dur-moment: 640ms;
-    /* In-page depth is a hairline ring; --lift-3 is the one shadow, kept for overlays that float. */
-    --lift-1: 0 0 0 1px var(--line);
-    --lift-2: 0 0 0 1px var(--line-strong);
-    --lift-3: 0 0 0 1px var(--line), 0 16px 40px -16px rgba(19, 21, 32, .22);
-    --sheet-shadow: 0 0 0 1px var(--line);
+    --ease-spring: cubic-bezier(.2, 1.35, .4, 1);
+    --ease-swift: var(--ease-quint);
+    --dur-press: 130ms; --dur-hover: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms;
+    /* Depth steps: a small raised piece (current tab, segment thumb, Dock item), a raised surface
+       (the composer, an inner sheet), and the one floating layer (menus, dialogs, toasts). */
+    --lift-1: var(--shadow-soft);
+    --lift-2: var(--shadow-raised);
+    --lift-3: var(--shadow);
+    --sheet-shadow: var(--surface-shadow);
     --press-shade: color-mix(in srgb, var(--ink) 5%, transparent);
-    --tip-bg: #1c1d21; --tip-ink: #f4f5f6;
+    --tip-bg: var(--action); --tip-ink: var(--action-ink);
     --celebrate-a: var(--hue-green-fill, #4cb782);
-    --celebrate-b: var(--hue-indigo-fill, #5e6ad2);
+    --celebrate-b: var(--accent, #93604b);
     --celebrate-c: var(--hue-yellow-fill, #e2b203);
   }
   html[data-resolved-theme="dark"],
   html[data-resolved-theme="dark"] ${PAGES} {
-    --lift-1: 0 0 0 1px var(--line);
-    --lift-2: 0 0 0 1px var(--line-strong);
-    --lift-3: 0 0 0 1px var(--line-strong), 0 20px 48px -16px rgba(0, 0, 0, .7);
-    --sheet-shadow: 0 0 0 1px var(--line);
     --press-shade: color-mix(in srgb, var(--ink) 7%, transparent);
-    --tip-bg: #f4f5f6; --tip-ink: #16171a;
   }
+
+  /* ─── Browser defaults: no system blue, purple or yellow anywhere (zero specificity, so any real rule wins) ─── */
+  :where(${PAGES}) { accent-color: var(--action); caret-color: var(--ink); }
+  :where(${PAGES}) ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; }
+  :where(${PAGES}) mark { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; border-radius: 2px; }
+  :where(${PAGES}) ::placeholder { color: var(--faint); opacity: 1; }
+  :where(${PAGES}) :is(input, textarea):-webkit-autofill { -webkit-text-fill-color: var(--ink); box-shadow: inset 0 0 0 40px var(--paper); }
 
   /* ─── Desk and sheet ───────────────────────────────────────────────────── */
   ${WORKBENCH} .immersive-workspace { background: var(--desk); }
@@ -73,47 +84,40 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .plugin-stack { background: var(--desk); border-right: 0; }
   ${SHELL} .tree-pane { background: var(--desk); border-right: 0; box-shadow: none; }
   @media (min-width: 601px) {
-    ${SHELL} .tab-workspace { padding: 0 var(--sheet-inset) var(--sheet-inset) 0; background: var(--desk); box-sizing: border-box; }
+    ${SHELL} .tab-workspace { padding: 0 var(--sheet-inset) 0 0; background: var(--desk); box-sizing: border-box; }
     ${SHELL} .tab-workspace-panes { background: transparent; }
     ${SHELL} .tab-workspace-panes > .tab-pane,
     ${SHELL} .tab-workspace-exclusive {
       border-radius: var(--r-sheet); overflow: clip; background: var(--paper); box-shadow: var(--sheet-shadow);
     }
     ${SHELL} .tab-workspace-panes > .tab-content-frame { border-radius: var(--r-sheet); overflow: clip; }
-    ${SHELL} .tab-workspace[data-exclusive] .tab-workspace-exclusive { inset: 0 var(--sheet-inset) var(--sheet-inset) 0; }
+    ${SHELL} .tab-workspace[data-exclusive] .tab-workspace-exclusive { inset: 0 var(--sheet-inset) 0 0; }
     ${SHELL} .tab-workspace-panes > .tab-pane.is-focused { box-shadow: var(--sheet-shadow); }
+    /* Split panes: the focused one carries a copper hint so typing lands where you expect. */
     ${SHELL} .tab-workspace-panes:has(> .tab-pane + .tab-pane) > .tab-pane.is-focused {
-      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent);
+      box-shadow: var(--sheet-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
     }
     /* The directory sits on the desk; one hair of desk separates it from the sheet. */
     ${SHELL} .tree-pane:not([hidden]) + .tree-resizer { background: transparent; }
   }
   /* Settings documents keep their grouped cards; the sheet under them is a half-step off paper. */
-  ${WORKBENCH} .tab-workspace-exclusive > .settings-stage { background: color-mix(in srgb, var(--desk) 50%, var(--paper)); }
-  /* The sheet is the card now; the home page no longer draws a second one inside it. */
-  ${WORKBENCH} .immersive-home .home-dayview { box-shadow: none; border-radius: 0; background: transparent; }
+  ${WORKBENCH} .tab-workspace-exclusive > .settings-stage { background: var(--surface-soft); }
+  /* The sheet is the card; the home page lays itself out inside it (project-home.ts). */
   ${WORKBENCH} .tab-pane-body > .immersive-home,
   ${WORKBENCH} .immersive-workspace .immersive-plugin-stage > .immersive-home { padding: 0; }
-  @media (min-width: 761px) {
-    ${WORKBENCH} .immersive-home .home-flow { column-gap: 0; grid-template-columns: 112px minmax(0, 1fr) 0px; }
-    ${WORKBENCH} .immersive-home[data-event="on"] .home-flow { grid-template-columns: 112px minmax(0, 1fr) clamp(300px, 26vw, 372px); }
-    ${WORKBENCH} .immersive-home .home-dates { padding: 10px 8px 0; background: var(--paper); box-shadow: inset -1px 0 0 var(--line); }
-    ${WORKBENCH} .immersive-home[data-event="on"] .home-flow { padding-right: 0; }
-    ${WORKBENCH} .immersive-home .home-eventcol { box-shadow: inset 1px 0 0 var(--line); background: var(--paper); }
-  }
 
   /* ─── Titlebar tabs: quiet pills; the current one is a small piece of the sheet ── */
-  ${SHELL} .immersive-titlebar .tab-strip--chrome { gap: 2px; }
+  ${SHELL} .immersive-titlebar .tab-strip--chrome { gap: 4px; }
   ${WORKBENCH} .tab-strip .tab-item {
-    border-radius: 7px; background: transparent; box-shadow: none; color: var(--muted);
-    transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-swift);
+    border-radius: 8px; background: transparent; box-shadow: none; color: var(--muted);
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
   }
   ${WORKBENCH} .tab-strip .tab-item:hover { background: var(--nav-hover); color: var(--ink-soft); }
   ${WORKBENCH} .tab-strip .tab-item[aria-current],
   ${WORKBENCH} .tab-strip .tab-item:has([aria-selected="true"]) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1);
   }
-  ${WORKBENCH} .tab-strip .tab-item svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-swift); }
+  ${WORKBENCH} .tab-strip .tab-item svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-quint); }
   ${WORKBENCH} .tab-strip .tab-item:is(:hover, [aria-current]) svg { color: var(--ink-soft); }
   ${WORKBENCH} .tab-strip .tab-item:active:not(:has(.tab-item-close:active)) { transform: scale(.975); }
   ${WORKBENCH} .tab-strip .tab-item.is-dragging,
@@ -126,9 +130,9 @@ const CRAFT_BASE_STYLES = `
 
   /* Where am I: the plugin whose page this pane shows, ahead of the item tabs. */
   ${PAGES} .tab-view-chip {
-    flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; margin: 0 2px 0 0; padding: 0 10px 0 8px;
+    flex: none; display: inline-flex; align-items: center; gap: 8px; height: 26px; margin: 0 4px 0 0; padding: 0 12px 0 8px;
     border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-swift);
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
   }
   ${PAGES} .tab-view-chip svg { width: 14px; height: 14px; color: var(--ink-soft); }
   ${PAGES} .tab-view-chip:hover { background: var(--nav-hover); color: var(--ink-soft); }
@@ -138,7 +142,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .tab-strip:has(.tab-view-chip.is-exclusive) .tab-item:is([aria-current], :has([aria-selected="true"])) { background: transparent; box-shadow: none; color: var(--muted); }
   ${WORKBENCH} .tab-strip:has(.tab-view-chip.is-exclusive) .tab-item:is([aria-current], :has([aria-selected="true"])):hover { background: var(--nav-hover); color: var(--ink-soft); }
   ${PAGES} .tab-view-chip:active:not([aria-current="page"]) { transform: scale(.97); }
-  ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 2px; background: var(--line-strong); align-self: center; }
+  ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
   ${viewChipTints()}
 
@@ -151,14 +155,14 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .plugin-rail { position: relative; overflow: visible; }
     ${SHELL} .plugin-rail > .personal-sidebar-footer { position: relative; }
     ${SHELL} .plugin-rail > .personal-sidebar-footer::before {
-      content: ""; position: absolute; z-index: 1; top: -4.5px; left: 50%; width: 20px; height: 1px; margin-left: -10px;
+      content: ""; position: absolute; z-index: 1; top: -4.5px; left: 50%; width: 20px; height: 1px; margin-left: -12px;
       background: var(--line); pointer-events: none;
     }
     ${SHELL} .plugin-rail-items { overflow-x: hidden; }
   }
   /* Headings are hairlines in the icon rail and quiet words once names are shown. */
   ${SHELL} :is(.plugin-rail-group, .plugin-rail-subgroup) {
-    flex: none; width: 16px; height: 1px; margin: 6px auto; padding: 0; overflow: hidden;
+    flex: none; width: 16px; height: 1px; margin: 8px auto; padding: 0; overflow: hidden;
     background: var(--line); color: transparent; font-size: 0; line-height: 0; user-select: none;
   }
   /* Plugins: the ones used lately and the current one stay; the rest open in place under 全部插件. */
@@ -171,10 +175,10 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .plugin-rail-toggle > span { color: var(--muted); }
   ${SHELL} ${RAIL_LINK} {
     border-radius: 8px;
-    transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
   /* Icons stay neutral: position and a name say which tool it is, not a colour. */
-  ${SHELL} ${RAIL_LINK} svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-swift); }
+  ${SHELL} ${RAIL_LINK} svg { color: var(--muted); transition: color var(--dur-hover) var(--ease-quint); }
   ${SHELL} ${RAIL_LINK}:hover { background: var(--nav-hover); }
   ${SHELL} ${RAIL_LINK}:is(:hover, [aria-current], [aria-expanded="true"]) svg { color: var(--ink); }
   ${SHELL} :is(.plugin-rail-items, .assistant-island-card)[data-seg-thumb]::before { border-radius: 8px; background: var(--nav-active); }
@@ -185,68 +189,68 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .navigator-project-search :is(.navigator-project-search-label, kbd) { display: none; }
   /* Project settings live in the project's menu; the menu reads as a short list. */
   ${SHELL} .navigator-project-menu-popover :is(.navigator-project-settings, .navigator-project-manage) {
-    display: flex; align-items: center; gap: 8px; width: auto; height: 32px; min-height: 32px; margin: 0; padding: 0 10px; border-radius: 8px;
+    display: flex; align-items: center; gap: 8px; width: auto; height: 32px; min-height: 32px; margin: 0; padding: 0 12px; border-radius: 8px;
     background: transparent; box-shadow: none; color: var(--ink-soft); font-size: 13px; text-decoration: none;
   }
-  ${SHELL} .navigator-project-menu-popover .navigator-project-settings { margin-top: 5px; border-top: 0; }
+  ${SHELL} .navigator-project-menu-popover .navigator-project-settings { margin-top: 4px; border-top: 0; }
   ${SHELL} .navigator-project-menu-popover > .navigator-project-manage + .navigator-project-settings { box-shadow: 0 -3px 0 -2px var(--line); }
   ${SHELL} .navigator-project-menu-popover :is(.navigator-project-settings, .navigator-project-manage):hover { background: var(--nav-hover); color: var(--ink); }
-  ${SHELL} .navigator-project-menu-popover :is(.navigator-project-settings, .navigator-project-manage) svg { width: 15px; height: 15px; color: var(--muted); }
+  ${SHELL} .navigator-project-menu-popover :is(.navigator-project-settings, .navigator-project-manage) svg { width: 16px; height: 16px; color: var(--muted); }
   ${SHELL} .navigator-project-menu-popover > nav + .navigator-project-settings { box-shadow: 0 -5px 0 -4px var(--line); }
 
   /* Names shown: a 208px sidebar — project, search, backbone, tools, then the person. */
   @media (min-width: 761px) {
     ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-primary {
-      display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; align-items: center; gap: 6px; padding: 10px 16px 0;
+      display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; align-items: center; gap: 8px; padding: 12px 16px 0;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-primary > * { grid-column: 1; }
     ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-menu { grid-row: 1; width: auto; min-width: 0; }
     ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-search { grid-row: 2; }
     ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome :is(.desktop-titlebar-drag, .navigator-directory-toggle, .immersive-show-directory) { display: none; }
     ${SHELL}:not([data-navigation-labels="false"]) .immersive-workspace .navigator-project-selector {
-      width: 100%; height: 34px; justify-content: flex-start; gap: 9px; padding: 0 8px 0 6px; border-radius: 8px;
+      width: 100%; height: 34px; justify-content: flex-start; gap: 8px; padding: 0 8px 0 8px; border-radius: 8px;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .navigator-project-selector strong { font-size: 13px; font-weight: 500; color: var(--ink); }
     ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-search {
-      display: flex; align-items: center; width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 8px; padding: 0 8px 0 10px; border-radius: 8px;
+      display: flex; align-items: center; width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 8px; padding: 0 8px 0 12px; border-radius: 8px;
       background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--faint); font-size: 12px;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .workspace-chrome .navigator-project-search:hover { box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--muted); }
     ${SHELL}:not([data-navigation-labels="false"]) .navigator-project-search .navigator-project-search-label { display: inline; flex: 1; text-align: left; }
     ${SHELL}:not([data-navigation-labels="false"]) .navigator-project-search kbd {
-      display: inline; padding: 0 5px; border-radius: 4px; background: transparent; box-shadow: inset 0 0 0 1px var(--line);
-      color: var(--faint); font: inherit; font-size: 10.5px; line-height: 17px;
+      display: inline; padding: 0 4px; border-radius: 4px; background: transparent; box-shadow: inset 0 0 0 1px var(--line);
+      color: var(--faint); font: inherit; font-size: 11px; line-height: 17px;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-items { align-items: stretch; padding: 4px 16px 8px; gap: 1px; }
     ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item {
-      width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 10px; padding: 0 10px; border-radius: 8px;
+      width: 100%; height: 30px; min-height: 30px; justify-content: flex-start; gap: 12px; padding: 0 12px; border-radius: 8px;
     }
     ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item svg { width: 16px; height: 16px; }
     ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail, .assistant-island) .plugin-rail-item > span { font-size: 13px; color: var(--ink-soft); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-item:is([aria-current], [aria-expanded="true"]) > span { color: var(--ink); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-toggle > span { color: var(--muted); }
     ${SHELL}:not([data-navigation-labels="false"]) :is(.plugin-rail-group, .plugin-rail-subgroup) {
-      width: auto; height: auto; margin: 14px 0 3px; padding: 0 10px; background: none; overflow: visible;
+      width: auto; height: auto; margin: 16px 0 4px; padding: 0 12px; background: none; overflow: visible;
       color: var(--faint); font-size: 11px; line-height: 18px; letter-spacing: .02em;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail-subgroup { margin-top: 8px; color: var(--faint); font-size: 11px; }
     /* The account is the first container of the bottom row: the same 36px paper chip and hairline as the Dock beside it. */
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail > .personal-sidebar-footer::before { content: none; }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-sidebar-footer {
-      flex-direction: row; align-items: center; gap: 0; width: auto; height: 36px; min-height: 36px; margin: 0 8px; padding: 0 5px 0 0;
+      flex-direction: row; align-items: center; gap: 0; width: auto; height: 36px; min-height: 36px; margin: 0 8px; padding: 0 4px 0 0;
       border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line);
-      transition: box-shadow var(--dur-hover) var(--ease-swift);
+      transition: box-shadow var(--dur-hover) var(--ease-quint);
     }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-sidebar-footer:hover { box-shadow: 0 0 0 1px var(--line-strong); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account {
-      flex: 1; width: auto; min-width: 0; height: 36px; min-height: 36px; gap: 8px; padding: 0 8px 0 10px;
+      flex: 1; width: auto; min-width: 0; height: 36px; min-height: 36px; gap: 8px; padding: 0 8px 0 12px;
       border-radius: 10px 0 0 10px; background: transparent;
     }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account:hover { background: transparent; }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-avatar { width: 20px; height: 20px; border: 0; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft); box-shadow: none; }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-avatar svg { width: 12px; height: 12px; }
-    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy { display: flex; align-items: baseline; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; }
-    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy strong { font-size: 13px; font-weight: 400; line-height: 18px; color: var(--ink-soft); }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; }
+    ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 18px; color: var(--ink-soft); }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .personal-account-copy small { font-size: 12px; line-height: 18px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
     ${SHELL}:not([data-navigation-labels="false"]) .plugin-rail .account-global-trigger { width: 28px; height: 28px; border-radius: 7px; }
   }
@@ -258,11 +262,13 @@ const CRAFT_BASE_STYLES = `
   }
 
   /* ─── Bottom bar: the Dock, the resident Assistant, the project ────────────── */
-  /* No rail: the work spans the window. The bar under it is the only chrome besides the titlebar. */
-  ${SHELL} { --dock-h: 48px; }
+  /* No global sidebar: the work spans the window and the resident bar under it holds the way around.
+     Controls sit straight on the desk; only the composer and the current Dock item are raised. */
+  ${SHELL} { --dock-h: 76px; --dock-btn: 38px; --composer-h: 50px; }
+  @media (max-height: 560px) and (min-width: 601px) { ${SHELL} { --dock-h: 52px; --dock-btn: 34px; --composer-h: 40px; } }
   ${WORKBENCH}[data-pane-embedded] .workbench-bar { display: none; }
   @media (min-width: 601px) {
-    ${SHELL}, ${SHELL}:not([data-navigation-labels="false"]) { --plugin-rail-width: 8px; }
+    ${SHELL}, ${SHELL}:not([data-navigation-labels="false"]) { --plugin-rail-width: var(--sheet-inset); }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
     ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) var(--dock-h); }
@@ -271,155 +277,152 @@ const CRAFT_BASE_STYLES = `
   }
   ${SHELL} .workbench-bar {
     grid-column: 1 / -1; grid-row: 3; position: relative; z-index: 30; min-width: 0;
-    /* The end column is at least as wide as its fixed buttons (Shelf, 灵光, chat, project); otherwise they were squeezed
-       to 18px or overlapped at ~760px. The Assistant keeps 200px down to the 601px desktop minimum. */
-    display: grid; grid-template-columns: minmax(160px, 1fr) minmax(200px, 600px) minmax(max-content, 1fr); align-items: center; gap: 12px;
-    padding: 0 8px 8px; background: var(--desk);
+    /* The end column is at least as wide as its fixed buttons (Shelf, 灵光, chat, project), so they are never squeezed;
+       the Assistant keeps 200px down to the 601px desktop minimum. */
+    display: grid; grid-template-columns: minmax(150px, 1fr) minmax(200px, 660px) minmax(max-content, 1fr); align-items: center; gap: 24px;
+    padding: 0 var(--sheet-inset); background: var(--desk);
   }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
-  ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+  ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
   ${SHELL} .bar-center { position: relative; min-width: 0; }
   html ${SHELL} .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
-  ${SHELL} :is(.bar-start .account-global-trigger, .dock-pins, .bar-composer, .bar-resident, .bar-chat) { background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
 
-  /* Shelf and 灵光: the person's own, two icon buttons against the right beside the project. */
-  ${SHELL} .bar-residents { display: flex; align-items: center; gap: 6px; min-width: 0; }
-  ${SHELL} .bar-resident {
-    display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
-    color: var(--muted); cursor: pointer;
+  /* One Dock button everywhere in the bar: 38px, soft corners, neutral glyph; hover washes and lifts a hair,
+     the current one becomes a small raised piece of the work surface with a copper point under it. */
+  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger) {
+    position: relative; display: inline-grid; place-items: center; flex: none; width: var(--dock-btn); height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
+    background: transparent; box-shadow: none; color: var(--ink-soft); cursor: pointer; list-style: none;
+    transition: transform var(--dur-move) var(--ease-spring), background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
-  ${SHELL} .bar-resident svg { width: 18px; height: 18px; }
-  ${SHELL} .bar-resident:hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
-  ${SHELL} .bar-resident[aria-current] { background: var(--nav-active); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
-  ${SHELL} .bar-resident:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
-  /* The project's discussion: one button, one click, group and direct chat open beside the work. */
-  ${SHELL} .bar-chat {
-    display: inline-grid; place-items: center; flex: none; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 12px;
-    color: var(--muted); cursor: pointer;
+  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
+  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
+  ${SHELL} :is(.dock-pin[aria-current], .bar-resident[aria-current], .bar-chat[aria-expanded="true"], .account-global-menu[open] > .account-global-trigger) {
+    background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); transform: none;
   }
-  ${SHELL} .bar-chat svg { width: 18px; height: 18px; }
-  ${SHELL} .bar-chat:hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
-  ${SHELL} .bar-chat[aria-expanded="true"] { background: var(--nav-active); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong); }
-  ${SHELL} .bar-chat:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  ${SHELL} :is(.dock-pin[aria-current], .bar-resident[aria-current])::after {
+    content: ""; position: absolute; left: 50%; bottom: 3px; width: 3px; height: 3px; margin-left: 0px; border-radius: 50%; background: var(--accent); pointer-events: none;
+  }
+  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger):focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  ${SHELL} .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector):active { transform: scale(.94); transition-duration: var(--dur-press); }
+
+  /* Shelf and 灵光: the person's own, beside the project at the right. */
+  ${SHELL} .bar-residents { display: flex; align-items: center; gap: 4px; min-width: 0; }
 
   /* The Dock menu: which plugins stay, what is yours everywhere, settings and the account. */
   ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
   ${SHELL} .account-global-menu { position: relative; flex: none; }
-  ${SHELL} .account-global-trigger {
-    position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
-    color: var(--muted); list-style: none; cursor: pointer; transition: box-shadow var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
-  }
   ${SHELL} .account-global-trigger::-webkit-details-marker { display: none; }
-  ${SHELL} .account-global-trigger svg { width: 18px; height: 18px; }
-  ${SHELL} :is(.account-global-trigger:hover, .account-global-menu[open] > .account-global-trigger) { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
-  ${SHELL} .account-global-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${SHELL} .account-global-menu:not([open]):has([data-market-update-count]:not([hidden])) > .account-global-trigger::after {
-    content: ""; position: absolute; top: 7px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent, var(--blue));
+    content: ""; position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
   ${SHELL} .account-global-popover {
-    position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: grid; gap: 1px; width: 264px; max-height: min(70dvh, 620px); overflow: auto; padding: 6px;
-    border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-3);
+    position: absolute; z-index: 60; left: 0; bottom: calc(100% + 10px); display: grid; gap: 1px; width: 264px; max-height: min(70dvh, 620px); overflow: auto; padding: 8px;
+    border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);
   }
-  ${SHELL} .account-global-heading { margin: 6px 8px 2px; color: var(--faint); font-size: 11px; line-height: 18px; }
+  ${SHELL} .account-global-heading { margin: 8px 8px 4px; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px; }
   ${SHELL} :is(.account-global-popover, .navigator-personal) :is(.account-global-item, .dock-choice) {
-    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 32px; min-height: 32px;
-    margin: 0; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; box-shadow: none;
-    color: var(--ink-soft); font: inherit; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer;
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: 34px; min-height: 34px;
+    margin: 0; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; box-shadow: none;
+    color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; text-align: left; text-decoration: none; cursor: pointer;
   }
   ${SHELL} :is(.account-global-popover, .navigator-personal) .account-global-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; }
-  ${SHELL} :is(.account-global-popover, .navigator-personal) :is(.account-global-item, .dock-choice) svg { flex: none; width: 16px; height: 16px; color: var(--muted); }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) :is(.account-global-item, .dock-choice) svg { flex: none; width: 16px; height: 16px; color: var(--ink-soft); }
   ${SHELL} :is(.account-global-popover, .navigator-personal) :is(.account-global-item, .dock-choice):hover { background: var(--nav-hover); color: var(--ink); }
   ${SHELL} :is(.account-global-popover, .navigator-personal) .account-global-item[aria-current] { background: var(--nav-active); color: var(--ink); }
-  ${SHELL} :is(.account-global-popover, .navigator-personal) .account-global-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} :is(.account-global-popover, .navigator-personal) .account-global-item:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   ${SHELL} .account-global-popover .dock-choice > span { flex: 1; min-width: 0; text-align: left; }
   ${SHELL} .account-global-popover .dock-choice[aria-pressed="true"] { color: var(--ink); }
-  ${SHELL} .account-global-popover .dock-choice[aria-pressed="true"] svg { color: var(--ink-soft); }
+  ${SHELL} .account-global-popover .dock-choice[aria-pressed="true"] svg { color: var(--ink); }
+  /* A chosen plugin shows the same graphite check as every other choice. */
   ${SHELL} .account-global-popover .dock-choice[aria-pressed="true"]::after {
-    content: ""; flex: none; width: 9px; height: 5px; margin: -3px 2px 0 0; border-left: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); transform: rotate(-45deg);
+    content: ""; flex: none; width: 9px; height: 5px; margin: -4px 4px 0 0; border-left: 1.6px solid var(--ink); border-bottom: 1.6px solid var(--ink); transform: rotate(-45deg);
   }
-  ${SHELL} .account-global-popover .dock-choice:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .account-global-popover .dock-choice:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   ${SHELL} .account-global-popover .dock-choices { display: grid; gap: 1px; }
   ${SHELL} .account-global-popover .plugin-rail-update-count { position: static; margin-left: auto; }
   ${SHELL} .account-global-popover > .account-global-item:last-of-type { margin-bottom: 4px; }
   /* The person, under the project button: capabilities, settings, then who you are and where — nearest the button. */
-  ${SHELL} .navigator-project-menu-popover .navigator-personal { display: grid; gap: 1px; margin-top: 5px; padding-top: 5px; box-shadow: inset 0 1px 0 var(--line); }
-  /* Same row as the project's own entries above, so the icons and names line up down the menu. */
+  ${SHELL} .navigator-project-menu-popover .navigator-personal { display: grid; gap: 1px; margin-top: 4px; padding-top: 4px; box-shadow: inset 0 1px 0 var(--line); }
   ${SHELL} .navigator-personal .account-global-item { gap: 8px; }
-  ${SHELL} .navigator-personal .account-global-item > svg { width: 15px; height: 15px; }
+  ${SHELL} .navigator-personal .account-global-item > svg { width: 16px; height: 16px; }
   ${SHELL} .navigator-personal .personal-account { height: 44px; margin-top: 4px; box-shadow: 0 -3px 0 -2px var(--line); }
   ${SHELL} .navigator-personal .personal-account-avatar { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft); }
-  ${SHELL} .navigator-personal .personal-account-avatar svg { width: 13px; height: 13px; }
+  ${SHELL} .navigator-personal .personal-account-avatar svg { width: 14px; height: 14px; }
   ${SHELL} .navigator-personal .personal-account-copy { display: grid; gap: 0; min-width: 0; text-align: left; line-height: 16px; }
   ${SHELL} .navigator-personal .personal-account-copy strong { font-weight: 500; font-size: 13px; color: var(--ink); }
-  ${SHELL} .navigator-personal .personal-account-copy small { font-size: 11px; color: var(--faint); }
+  ${SHELL} .navigator-personal .personal-account-copy small { font-size: 11px; color: var(--muted); }
 
-  /* The Dock: 项目首页 first and always, then the plugins chosen to stay. */
-  ${SHELL} .dock-pins { display: flex; flex: 0 1 auto; align-items: center; gap: 2px; min-width: 0; height: 40px; padding: 0 4px; border-radius: 12px; }
+  /* The Dock: 项目首页 first and always, then the plugins chosen to stay. A short rule parts it from the menu. */
+  ${SHELL} .dock-pins { position: relative; display: flex; flex: 0 1 auto; align-items: center; gap: 4px; min-width: 0; height: 44px; margin-left: 12px; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+  ${SHELL} .dock-pins::before { content: ""; position: absolute; left: -9px; top: 12px; width: 1px; height: 20px; background: var(--line-strong); pointer-events: none; }
   ${SHELL} .dock-pin[hidden] { display: none; }
-  ${SHELL} .dock-pin.dock-pin-more { flex: none; width: auto; min-width: 32px; padding: 0 7px; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
-  ${SHELL} .dock-pin.dock-pin-more:is([aria-expanded="true"], .has-current) { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} .dock-pin.dock-pin-more { width: auto; min-width: var(--dock-btn); padding: 0 8px; font: inherit; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+  ${SHELL} .dock-pin.dock-pin-more:is([aria-expanded="true"], .has-current) { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
   ${SHELL} .dock-overflow {
-    position: absolute; z-index: 60; bottom: calc(100% + 8px); display: grid; gap: 1px; width: 208px; max-height: min(60dvh, 480px); overflow: auto; padding: 6px;
-    border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom left; animation: craft-rise-from-bar 180ms var(--ease-quint) both;
+    position: absolute; z-index: 60; bottom: calc(100% + 10px); display: grid; gap: 1px; width: 212px; max-height: min(60dvh, 480px); overflow: auto; padding: 8px;
+    border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom left; animation: craft-rise-from-bar 250ms var(--ease-quint) both;
   }
   ${SHELL} .dock-overflow[hidden] { display: none; }
   ${SHELL} .dock-overflow-item {
-    display: flex; align-items: center; gap: 10px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 7px;
-    background: transparent; color: var(--ink-soft); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    display: flex; align-items: center; gap: 12px; width: 100%; height: 34px; padding: 0 12px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
   }
-  ${SHELL} .dock-overflow-item svg { flex: none; width: 16px; height: 16px; color: var(--muted); }
+  ${SHELL} .dock-overflow-item svg { flex: none; width: 16px; height: 16px; color: var(--ink-soft); }
   ${SHELL} .dock-overflow-item:hover { background: var(--nav-hover); color: var(--ink); }
   ${SHELL} .dock-overflow-item[aria-current] { background: var(--nav-active); color: var(--ink); }
-  ${SHELL} .dock-overflow-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .dock-overflow-item:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   ${SHELL} .dock-pins:empty { display: none; }
-  ${SHELL} .dock-pin {
-    display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px;
-    background: transparent; color: var(--muted); cursor: pointer; transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
-  }
-  ${SHELL} .dock-pin svg { width: 18px; height: 18px; }
-  ${SHELL} .dock-pin:hover { background: var(--nav-hover); color: var(--ink); }
-  ${SHELL} .dock-pin[aria-current] { background: var(--nav-active); color: var(--ink); }
-  ${SHELL} .dock-pin:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   /* 项目首页 stays put; a hairline sets it apart from the plugins you chose. */
-  ${SHELL} .dock-pin.is-fixed { position: relative; margin-right: 5px; }
-  ${SHELL} .dock-pin.is-fixed:not(:only-child)::after { content: ""; position: absolute; right: -4px; top: 7px; width: 1px; height: 18px; background: var(--line); pointer-events: none; }
+  ${SHELL} .dock-pin.is-fixed { margin-right: 8px; }
+  ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { content: ""; position: absolute; right: -7px; top: 12px; width: 1px; height: 14px; background: var(--line); pointer-events: none; }
 
-  /* The resident Assistant, with the plugin switcher in front of it. */
+  /* The resident Assistant: one raised white line with the plugin switcher in front of it. */
   ${SHELL} .bar-composer {
-    position: static; inset: auto; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 6px;
-    width: 100%; height: 40px; min-height: 40px; max-height: none; margin: 0; padding: 0 5px; border: 0; border-radius: 12px; overflow: visible;
-    transition: box-shadow var(--dur-hover) var(--ease-swift);
+    position: static; inset: auto; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 8px;
+    width: 100%; height: var(--composer-h); min-height: var(--composer-h); max-height: none; margin: 0; padding: 0 8px 0 8px; border: 0; border-radius: var(--r-composer); overflow: visible;
+    background: var(--paper); box-shadow: var(--composer-shadow);
+    transition: box-shadow var(--dur-move) var(--ease-quint);
   }
-  ${SHELL} .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong); }
-  ${SHELL} .bar-composer .assistant-composer-input { flex: 1; min-width: 0; }
-  /* Search opens from the same input: a quiet glyph with its shortcut, the one mouse entry to ⌘K. */
+  html[data-resolved-theme="dark"] ${SHELL} .bar-composer { --composer-shadow: 0 0 0 1px var(--edge-highlight), var(--lift-1); }
+  ${SHELL} .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
+  html[data-resolved-theme="dark"] ${SHELL} .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-1); }
+  ${SHELL} .bar-composer .assistant-composer-input { flex: 1; min-width: 0; font-size: 13px; }
+  ${SHELL} .bar-composer .assistant-composer-input::placeholder { color: var(--muted); }
+  /* Search opens from the same line: a quiet glyph with its shortcut, the one mouse entry to ⌘K. */
   ${SHELL} .bar-composer-search {
-    display: inline-flex; flex: none; align-items: center; gap: 5px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
-    background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
-    transition: background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift);
+    display: inline-flex; flex: none; align-items: center; gap: 4px; height: 32px; padding: 0 8px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--ink-soft); font: inherit; font-size: 11px; cursor: pointer;
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
-  ${SHELL} .bar-composer-search svg { width: 15px; height: 15px; }
-  ${SHELL} .bar-composer-search kbd { font: inherit; color: var(--faint); }
+  ${SHELL} .bar-composer-search svg { width: 16px; height: 16px; }
+  ${SHELL} .bar-composer-search kbd { padding: 0 4px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line-strong); font: inherit; font-size: 11px; line-height: 16px; color: var(--muted); }
   ${SHELL} .bar-composer-search:hover { background: var(--nav-hover); color: var(--ink); }
-  ${SHELL} .bar-composer-search:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .bar-composer-search:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  /* Send: graphite when there is something to send, a quiet wash while the line is empty. */
+  ${SHELL} .bar-composer [data-assistant-send] { flex: none; width: 34px; height: 34px; min-height: 34px; padding: 0; border-radius: 10px; }
+  ${SHELL} .bar-composer [data-assistant-send]:disabled { background: var(--rail); color: var(--muted); border-color: transparent; opacity: 1; }
+  ${SHELL} .bar-composer [data-assistant-send] svg { width: 16px; height: 16px; }
   @media (max-width: 900px) { ${SHELL} .bar-composer-search kbd { display: none; } }
-  ${SHELL} .plugin-picker { position: relative; flex: none; min-width: 0; max-width: 46%; }
+  ${SHELL} .plugin-picker { position: relative; flex: none; min-width: 0; max-width: 46%; padding-right: 8px; }
+  ${SHELL} .plugin-picker::after { content: ""; position: absolute; right: 0; top: 50%; width: 1px; height: 18px; margin-top: -8px; background: var(--line); pointer-events: none; }
   ${SHELL} .plugin-picker-trigger {
-    display: flex; align-items: center; gap: 6px; max-width: 100%; height: 30px; padding: 0 8px; border: 0; border-radius: 8px;
-    background: var(--nav-hover); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; max-width: 100%; height: 34px; padding: 0 8px; border: 0; border-radius: 9px;
+    background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
+    transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring);
   }
-  ${SHELL} .plugin-picker-trigger:hover, ${SHELL} .plugin-picker-trigger[aria-expanded="true"] { background: var(--nav-active); }
-  ${SHELL} .plugin-picker-trigger > svg { flex: none; width: 12px; height: 12px; color: var(--muted); }
+  ${SHELL} .plugin-picker-trigger:hover, ${SHELL} .plugin-picker-trigger[aria-expanded="true"] { background: var(--rail); color: var(--ink); }
+  ${SHELL} .plugin-picker-trigger > svg { flex: none; width: 12px; height: 12px; color: var(--muted); transition: transform var(--dur-move) var(--ease-quint); }
+  ${SHELL} .plugin-picker-trigger[aria-expanded="true"] > svg:last-child { transform: rotate(180deg); }
   ${SHELL} .plugin-picker-current { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
-  ${SHELL} .plugin-picker-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; color: var(--ink); }
-  ${SHELL} .plugin-picker-chip svg { flex: none; width: 14px; height: 14px; }
+  ${SHELL} .plugin-picker-chip { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; color: inherit; }
+  ${SHELL} .plugin-picker-chip svg { flex: none; width: 16px; height: 16px; }
   /* Split work area: one chip per pane; the focused pane reads darker. */
-  ${SHELL} .is-split .plugin-picker-chip { padding: 0 6px; border-radius: 6px; color: var(--muted); }
-  ${SHELL} .is-split .plugin-picker-chip.is-focused { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
-  ${SHELL} .plugin-picker-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${SHELL} .is-split .plugin-picker-chip { padding: 0 8px; border-radius: 6px; color: var(--muted); }
+  ${SHELL} .is-split .plugin-picker-chip.is-focused { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
+  ${SHELL} .plugin-picker-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
   html ${SHELL} .workbench-bar .plugin-picker-popover {
-    position: absolute; z-index: 60; left: -5px; bottom: calc(100% + 13px); width: 272px; max-height: min(70dvh, 620px); overflow: auto; padding: 6px;
-    border-radius: var(--r-card); background: var(--paper); box-shadow: var(--lift-3);
+    position: absolute; z-index: 60; left: -8px; bottom: calc(100% + 16px); width: 280px; max-height: min(70dvh, 620px); overflow: auto; padding: 8px;
+    border-radius: 14px; background: var(--paper); box-shadow: var(--lift-3);
   }
   html ${SHELL} .workbench-bar .plugin-picker-popover[hidden] { display: none; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail { position: static; display: block; width: auto; height: auto; overflow: visible; background: transparent; border: 0; padding: 0; }
@@ -429,28 +432,29 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items p[data-rail-zone] { display: block !important; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-toggle { display: none !important; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item {
-    width: 100%; height: 32px; min-height: 32px; justify-content: flex-start; gap: 10px; padding: 0 10px; border-radius: 7px;
+    width: 100%; height: 34px; min-height: 34px; justify-content: flex-start; gap: 12px; padding: 0 12px; border-radius: 8px;
   }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; font-size: 13px; color: var(--ink-soft); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item svg { width: 16px; height: 16px; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item > span { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; font-size: 13px; color: var(--ink); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-item svg { width: 16px; height: 16px; color: var(--ink-soft); }
   html ${SHELL} .workbench-bar .plugin-picker-popover :is(.plugin-rail-group, .plugin-rail-subgroup) {
-    width: auto; height: auto; margin: 8px 0 2px; padding: 0 10px; background: none; overflow: visible; color: var(--faint); font-size: 11px; line-height: 18px;
+    width: auto; height: auto; margin: 12px 0 4px; padding: 0 12px; background: none; overflow: visible; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px;
   }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items[data-seg-thumb]::before { display: none; }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] { background: var(--nav-active); }
-  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] > span { color: var(--ink); font-weight: 500; }
+  html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item[aria-current] svg { color: var(--ink); }
   html ${SHELL} .workbench-bar .plugin-picker-popover .plugin-rail-items .plugin-rail-item:not([aria-current]):hover { background: var(--nav-hover); }
   /* Its answers open above the bar and stay until closed. */
   ${ASSIST} .assistant-panel {
     position: absolute; z-index: 50; left: -40px; right: -40px; bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
-    height: min(600px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
-    border-radius: 12px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise 220ms var(--ease-quint) both;
+    height: min(600px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
+    border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
   ${ASSIST} .assistant-panel[hidden] { display: none; }
   /* Head: which work, its real state, where it belongs, and what can be done to it now. */
-  ${ASSIST} .assistant-head { flex: none; display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 6px 0 6px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${ASSIST} .assistant-head { flex: none; display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 8px 0 8px; box-shadow: inset 0 -1px 0 var(--line); }
   ${ASSIST} .assistant-work-switch {
-    display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 55%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
+    display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 55%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
     background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
   }
   ${ASSIST} .assistant-work-switch:is(:hover, [aria-expanded="true"]) { background: var(--nav-hover); }
@@ -459,17 +463,17 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-work-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-state { flex: none; font-size: 11px; font-weight: 400; color: var(--muted); }
   ${ASSIST} .assistant-state:empty { display: none; }
-  ${ASSIST} .assistant-state[data-state="running"]::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--hue-green-fill); vertical-align: 1px; }
+  ${ASSIST} .assistant-state[data-state="running"]::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 50%; background: var(--hue-green-fill); vertical-align: 1px; }
   ${ASSIST} .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { color: var(--ink); }
   ${ASSIST} .assistant-state[data-state="failed"] { color: var(--danger); }
-  ${ASSIST} .assistant-work-scope { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 6px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; }
-  ${ASSIST} .assistant-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+  ${ASSIST} .assistant-work-scope { flex: none; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); font-size: 11px; }
+  ${ASSIST} .assistant-head-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
   ${ASSIST} .assistant-head-actions .dock-window-action[hidden] { display: none; }
   /* The person's works, newest first. */
-  ${ASSIST} .assistant-works { flex: none; display: flex; flex-direction: column; gap: 1px; max-height: 45%; overflow: auto; padding: 6px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${ASSIST} .assistant-works { flex: none; display: flex; flex-direction: column; gap: 1px; max-height: 45%; overflow: auto; padding: 8px; box-shadow: inset 0 -1px 0 var(--line); }
   ${ASSIST} .assistant-works[hidden] { display: none; }
   ${ASSIST} .assistant-works-item {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 6px 10px; border: 0; border-radius: 7px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 8px 12px; border: 0; border-radius: 7px;
     background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer;
   }
   ${ASSIST} .assistant-works-item:hover { background: var(--nav-hover); color: var(--ink); }
@@ -479,13 +483,13 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-works-meta { font-size: 11px; color: var(--muted); }
   ${ASSIST} .assistant-works-new { flex-direction: row; font-size: 13px; color: var(--muted); }
   /* What the work started from, used, produced and handed to — as the owners have them now. */
-  ${ASSIST} .assistant-objects { flex: none; padding: 4px 10px; box-shadow: inset 0 -1px 0 var(--line); font-size: 12px; }
+  ${ASSIST} .assistant-objects { flex: none; padding: 4px 12px; box-shadow: inset 0 -1px 0 var(--line); font-size: 12px; }
   ${ASSIST} .assistant-objects[hidden] { display: none; }
-  ${ASSIST} .assistant-objects summary { cursor: pointer; color: var(--muted); padding: 2px 0; border-radius: 5px; }
+  ${ASSIST} .assistant-objects summary { cursor: pointer; color: var(--muted); padding: 4px 0; border-radius: 5px; }
   ${ASSIST} .assistant-objects summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
-  ${ASSIST} .assistant-objects-items { list-style: none; margin: 4px 0 2px; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow: auto; }
-  ${ASSIST} .assistant-object { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 6px; }
-  ${ASSIST} .assistant-object-relation { font-size: 11px; color: var(--muted); padding: 0 5px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); white-space: nowrap; }
+  ${ASSIST} .assistant-objects-items { list-style: none; margin: 4px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow: auto; }
+  ${ASSIST} .assistant-object { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 4px; border-radius: 6px; }
+  ${ASSIST} .assistant-object-relation { font-size: 11px; color: var(--muted); padding: 0 4px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); white-space: nowrap; }
   ${ASSIST} .assistant-object-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
   ${ASSIST} .assistant-object-state { font-size: 11px; color: var(--faint); white-space: nowrap; }
   ${ASSIST} .assistant-object--changed .assistant-object-state { color: var(--warning, #b7791f); }
@@ -496,29 +500,29 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-material--optional .assistant-material-label { color: var(--muted); }
   ${ASSIST} .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
   /* The conversation: the person's words on the right, the assistant's answer as text, what it did as quiet lines. */
-  ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
+  ${ASSIST} .assistant-thread { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 16px 16px; font-size: 13px; line-height: 1.6; overscroll-behavior: contain; }
   ${ASSIST} .assistant-empty { color: var(--muted); }
   ${ASSIST} .assistant-empty strong { display: block; margin-bottom: 4px; color: var(--ink); font-weight: 500; }
   ${ASSIST} .assistant-empty p { margin: 0; }
   ${ASSIST} .assistant-empty[hidden] { display: none; }
   ${ASSIST} .assistant-round { display: flex; flex-direction: column; gap: 8px; }
   ${ASSIST} .assistant-msg { max-width: 100%; overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 7px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
+  ${ASSIST} .assistant-msg--user { align-self: flex-end; max-width: 85%; padding: 8px 12px; border-radius: 12px; background: var(--nav-active); color: var(--ink); white-space: pre-wrap; }
   ${ASSIST} .assistant-msg--assistant { color: var(--ink); }
   ${ASSIST} .assistant-msg--note { font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-rich > :last-child { margin-bottom: 0; }
   ${ASSIST} .assistant-rich p { margin: 0 0 8px; }
-  ${ASSIST} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 20px; }
+  ${ASSIST} .assistant-rich :is(ul, ol) { margin: 0 0 8px; padding-left: 24px; }
   ${ASSIST} .assistant-rich .assistant-rich-heading { font-weight: 600; }
-  ${ASSIST} .assistant-rich pre { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); overflow: auto; font-size: 12px; }
-  ${ASSIST} .assistant-rich code { padding: 0 3px; border-radius: 4px; background: var(--wash); font-size: 12px; }
+  ${ASSIST} .assistant-rich pre { margin: 0 0 8px; padding: 8px 12px; border-radius: 8px; background: var(--wash); overflow: auto; font-size: 12px; }
+  ${ASSIST} .assistant-rich code { padding: 0 4px; border-radius: 4px; background: var(--wash); font-size: 12px; }
   ${ASSIST} .assistant-rich pre code { padding: 0; background: none; }
   ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-materials, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-activity[data-state="failed"] { color: var(--danger); }
   ${ASSIST} .assistant-round-status[hidden] { display: none; }
   ${ASSIST} .assistant-round-status[data-phase="failed"] { color: var(--danger); }
   /* What needs the person: a question to answer, or an exact effect to allow. */
-  ${ASSIST} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }
+  ${ASSIST} .assistant-card { display: flex; flex-direction: column; gap: 8px; padding: 12px 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line-strong); }
   ${ASSIST} .assistant-card-title { margin: 0; font-weight: 500; color: var(--ink); }
   ${ASSIST} .assistant-card--action { box-shadow: 0 0 0 1px var(--line-strong); }
   ${ASSIST} .assistant-card--action[data-status="done"] { box-shadow: 0 0 0 1px var(--line); }
@@ -527,62 +531,64 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-card--action[data-status="failed"] .assistant-card-status { color: var(--danger); }
   ${ASSIST} .assistant-card--action[data-status="unknown"] .assistant-card-status { color: var(--ink); }
   ${ASSIST} .assistant-card p { margin: 0; }
-  ${ASSIST} .assistant-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-  ${ASSIST} .assistant-answer { display: flex; gap: 6px; }
+  ${ASSIST} .assistant-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  ${ASSIST} .assistant-answer { display: flex; gap: 8px; }
   ${ASSIST} .assistant-answer .mw-input { flex: 1; min-width: 0; }
   ${ASSIST} .assistant-questionnaire { display: flex; flex-direction: column; gap: 8px; }
   ${ASSIST} .assistant-questionnaire fieldset { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; border: 0; }
-  ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 2px; font-weight: 500; }
+  ${ASSIST} .assistant-questionnaire legend { padding: 0; margin-bottom: 4px; font-weight: 500; }
   ${ASSIST} .assistant-fields { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 12px; }
   ${ASSIST} .assistant-fields dt { color: var(--muted); }
-  ${ASSIST} .assistant-diff { margin: 0; max-height: 280px; overflow: auto; padding: 6px 8px; border-radius: 6px; background: var(--wash); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-diff { margin: 0; max-height: 280px; overflow: auto; padding: 8px 8px; border-radius: 6px; background: var(--wash); font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
   ${ASSIST} .assistant-diff .is-added { color: var(--hue-green-fill); }
   ${ASSIST} .assistant-diff .is-removed { color: var(--danger); }
   ${ASSIST} .assistant-fields dd { margin: 0; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--wash); }
+  ${ASSIST} .assistant-problem { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 12px; border-radius: 10px; background: var(--wash); }
   ${ASSIST} .assistant-problem p { margin: 0; }
-  ${ASSIST} .assistant-recovery { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding-left: 18px; font-size: 12px; }
+  ${ASSIST} .assistant-recovery { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 0; padding-left: 16px; font-size: 12px; }
   /* On the project list the Assistant floats at the foot of the page, in the person's own scope. */
   body.project-index-page .project-index { padding-bottom: 96px; }
   body.project-index-page .project-index-dock { position: fixed; z-index: 40; left: 50%; bottom: 16px; width: min(640px, calc(100vw - 32px)); transform: translateX(-50%); }
   body.project-index-page .project-index-dock .bar-center { position: relative; min-width: 0; }
-  body.project-index-page .project-index-dock .bar-composer { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 6px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-2); }
+  body.project-index-page .project-index-dock .bar-composer { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 8px; border-radius: 12px; background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-2); }
   body.project-index-page .project-index-dock .bar-composer:focus-within { box-shadow: 0 0 0 1px var(--line-strong), var(--lift-2); }
-  body.project-index-page .project-index-dock .assistant-composer-input { flex: 1; min-width: 0; height: 32px; padding: 0 6px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 14px; outline: none; }
+  body.project-index-page .project-index-dock .assistant-composer-input { flex: 1; min-width: 0; height: 32px; padding: 0 8px; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 13px; outline: none; }
   body.project-index-page .project-index-dock .assistant-composer-input::placeholder { color: var(--faint); }
   body.project-index-page .project-index-dock .assistant-panel { left: 0; right: 0; height: min(560px, calc(100dvh - 140px)); }
   body.project-index-page .assistant-head .dock-window-action {
-    display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
   }
   body.project-index-page .assistant-head .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
   body.project-index-page .assistant-head .dock-window-action svg { width: 14px; height: 14px; }
   /* In front of the input: where the next Send goes — a new work (and whose), or the work it continues. */
-  ${ASSIST} .assistant-target { display: inline-flex; flex: 0 1 auto; align-items: center; min-width: 0; max-width: 26%; height: 28px; border-radius: 7px; box-shadow: 0 0 0 1px var(--line); }
+  /* The Assistant's choosers read like the plugin switcher: quiet words with a hover wash, never a row of outlined chips. */
+  ${ASSIST} .assistant-target { display: inline-flex; flex: 0 1 auto; align-items: center; min-width: 0; max-width: 26%; height: 28px; border-radius: 8px; box-shadow: none; transition: background-color var(--dur-hover) var(--ease-quint); }
+  ${ASSIST} .assistant-target:hover { background: var(--nav-hover); }
   ${ASSIST} .assistant-target[data-mode="work"] { background: var(--nav-hover); box-shadow: none; }
   ${ASSIST} .assistant-target-main {
     min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted);
     font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
   }
   ${ASSIST} .assistant-target-main > span { display: block; overflow: hidden; text-overflow: ellipsis; }
-  ${ASSIST} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 2px; }
+  ${ASSIST} .assistant-target[data-mode="work"] .assistant-target-main { color: var(--ink); padding-right: 4px; }
   ${ASSIST} .assistant-target-main:hover { color: var(--ink); }
   ${ASSIST} :is(.assistant-target-main, .assistant-target-clear):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 3px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
+  ${ASSIST} .assistant-target-clear { display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; }
   ${ASSIST} .assistant-target-clear[hidden] { display: none; }
   ${ASSIST} .assistant-target-clear:hover { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} .assistant-target-clear svg { width: 11px; height: 11px; }
+  ${ASSIST} .assistant-target-clear svg { width: 12px; height: 12px; }
   /* What goes with this Send, and ways to begin: small popovers rising from the composer. */
-  ${ASSIST} .assistant-executor { display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  ${ASSIST} .assistant-executor { display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; box-shadow: none; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
   ${ASSIST} .assistant-executor[hidden] { display: none; }
-  ${ASSIST} .assistant-executor svg { width: 11px; height: 11px; color: var(--muted); }
-  ${ASSIST} .assistant-executor:hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  ${ASSIST} .assistant-executor svg { width: 12px; height: 12px; color: var(--muted); }
+  ${ASSIST} .assistant-executor:hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-executor:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-work-executor { flex: none; height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--nav-hover); color: var(--ink-soft); font: inherit; font-size: 11px; cursor: pointer; white-space: nowrap; }
   ${ASSIST} .assistant-work-executor[hidden] { display: none; }
   ${ASSIST} .assistant-work-executor:hover:not(:disabled) { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-starter[aria-current] { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) {
-    display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
   }
   ${ASSIST} .assistant-materials-button { background: var(--nav-hover); color: var(--ink); }
@@ -591,37 +597,53 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-popover {
-    position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 2px; width: min(420px, 100%);
+    position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 4px; width: min(420px, 100%);
     max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
   }
   ${ASSIST} .assistant-popover[hidden] { display: none; }
-  ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 6px; font-size: 11px; color: var(--faint); }
-  ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
+  ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
+  ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 7px; }
   ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }
   ${ASSIST} .assistant-material-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
   ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
   ${ASSIST} .assistant-material-remove { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
   ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} .assistant-starter { width: 100%; padding: 6px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
+  ${ASSIST} .assistant-starter { width: 100%; padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
   ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} :is(.assistant-starter, .assistant-material-remove):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 10px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 12px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  /* The input always keeps room to type; the Assistant's choosers give way first and end in an ellipsis. */
+  ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 120px; min-width: 120px; }
+  ${SHELL} .bar-composer .assistant-target { flex: 0 1 auto; min-width: 72px; max-width: 180px; }
+  ${SHELL} .bar-composer .assistant-executor { flex: 0 1 auto; min-width: 0; max-width: 104px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* A narrower bar compacts the choosers first (short labels, tighter gaps); below 860px it keeps one beside the input,
+     the rule main's phone bar uses: the executor or Character shows once chosen or while the panel is open. */
+  @media (max-width: 1100px) {
+    ${SHELL} .bar-composer { gap: 4px; }
+    ${SHELL} .bar-composer .assistant-target { min-width: 56px; max-width: 96px; }
+    ${SHELL} .bar-composer .assistant-executor { max-width: 72px; }
+    ${SHELL} .bar-composer .assistant-composer-input { min-width: 96px; }
+    ${SHELL} .bar-composer .bar-composer-search kbd { display: none; }
+  }
+  @media (max-width: 860px) and (min-width: 601px) {
+    ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
+    ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
+    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 96px; }
+    ${SHELL} .bar-composer .plugin-picker-trigger { max-width: 96px; }
+  }
   /* ⌘K search opens from the same place: one entry for finding and for asking. */
   @media (min-width: 601px) {
-    ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 8px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
+    ${SHELL} dialog.global-search-dialog[open] { position: fixed; inset: auto 0 calc(var(--dock-h) + 4px) 0; margin: 0 auto; width: min(640px, calc(100vw - 32px)); max-height: min(70dvh, 560px); }
   }
-  @keyframes craft-dock-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes craft-dock-rise { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
   /* Everything that opens from the bar rises from it, anchored at the edge nearest its control. */
-  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
-  html ${SHELL} .workbench-bar :is(.account-global-popover, .plugin-picker-popover:not([hidden])) { transform-origin: bottom left; animation: craft-rise-from-bar 180ms var(--ease-quint) both; }
-  html ${SHELL} .workbench-bar details[open] > .navigator-project-menu-popover { transform-origin: bottom right; animation: craft-rise-from-bar 180ms var(--ease-quint) both; }
-  /* Controls in the bar give under a press like every other button. */
-  ${SHELL} .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector) { transition: transform var(--dur-move) var(--ease-spring), background-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift); }
-  ${SHELL} .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector):active { transform: scale(.94); transition-duration: var(--dur-press); }
+  @keyframes craft-rise-from-bar { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+  html ${SHELL} .workbench-bar :is(.account-global-popover, .plugin-picker-popover:not([hidden])) { transform-origin: bottom left; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
+  html ${SHELL} .workbench-bar details[open] > .navigator-project-menu-popover { transform-origin: bottom right; animation: craft-rise-from-bar 250ms var(--ease-quint) both; }
 
-  /* The project: a round button; its menu switches project, opens settings and group chat. */
-  html ${SHELL} .workbench-bar .bar-end .workspace-chrome { position: static; display: flex; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; grid-area: auto; }
+  /* The project: a round mark at the far right; its menu switches project, opens settings and the person. */
+  html ${SHELL} .workbench-bar .bar-end .workspace-chrome { position: static; display: flex; width: auto; height: auto; min-height: 0; margin: 0 0 0 4px; padding: 0; border: 0; background: transparent; box-shadow: none; grid-area: auto; }
   html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { display: flex; flex-direction: row; align-items: center; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; gap: 0; background: transparent; box-shadow: none; }
   html ${SHELL} .workbench-bar .bar-end :is(.navigator-project-search, .desktop-titlebar-drag, .navigator-directory-toggle, .immersive-show-directory) { display: none !important; }
   html ${SHELL} .workbench-bar .bar-end .navigator-project-menu { position: relative; width: auto; }
@@ -631,57 +653,44 @@ const CRAFT_BASE_STYLES = `
   }
   html ${SHELL} .workbench-bar .bar-end .navigator-project-selector::-webkit-details-marker { display: none; }
   html ${SHELL} .workbench-bar .bar-end .navigator-project-selector > :is(strong, svg:last-child) { display: none; }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector .project-monogram { width: 40px; height: 40px; border-radius: 50%; font-size: 16px; box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); transition: box-shadow var(--dur-hover) var(--ease-swift); }
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector:hover .project-monogram,
-  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu[open] > .navigator-project-selector .project-monogram { box-shadow: 0 0 0 2px var(--desk), 0 0 0 3px var(--line-strong); }
-  /* Between phone and desktop the three columns shrink together: residents drop their names, the Dock folds sooner. */
-  @media (max-width: 760px) {
-    ${SHELL} .workbench-bar { grid-template-columns: minmax(136px, 1fr) minmax(200px, 520px) minmax(max-content, 1fr); }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector .project-monogram {
+    width: 36px; height: 36px; border-radius: 50%; font-size: 13px; font-weight: 600;
+    box-shadow: 0 0 0 2px var(--paper), var(--lift-1); transition: box-shadow var(--dur-move) var(--ease-quint);
   }
-  /* A phone keeps a plugin's own list in a drawer. Its button stands just left of the project, and only when that
-     plugin has a list — navigation itself is the switcher's. The bar stays above the drawer and its scrim. */
-  @media (max-width: 600px) {
-    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; }
-    ${SHELL} .workbench-bar { z-index: 45; }
-    html ${SHELL} .immersive-workspace > .tree-pane,
-    html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: 54px; }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { gap: 8px; }
-    html ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-bar .bar-end .immersive-show-directory,
-    html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .navigator-directory-toggle {
-      display: inline-grid !important; place-items: center; order: -1; width: 40px; min-width: 40px; height: 40px; min-height: 40px; padding: 0; border: 0; border-radius: 12px;
-      background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--muted);
-    }
-    html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .immersive-show-directory { display: none !important; }
-    html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle) svg { width: 16px; height: 16px; }
-    html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle):hover { box-shadow: 0 0 0 1px var(--line-strong); color: var(--ink); }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector:hover .project-monogram,
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-menu[open] > .navigator-project-selector .project-monogram { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--line-strong), var(--lift-1); }
+  html ${SHELL} .workbench-bar .bar-end .navigator-project-selector:focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
+  @media (max-width: 1100px) {
+    ${SHELL} .workbench-bar { grid-template-columns: minmax(120px, 1fr) minmax(200px, 560px) minmax(max-content, 1fr); gap: 12px; }
   }
   html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover {
-    position: absolute; top: auto; left: auto; right: 0; bottom: calc(100% + 8px); width: 272px; min-width: 0; max-height: min(78dvh, 640px); overflow: auto;
+    position: absolute; top: auto; left: auto; right: 0; bottom: calc(100% + 12px); width: 276px; min-width: 0; max-height: min(78dvh, 640px); overflow: auto;
   }
-  /* The switch list keeps one layout at every width; the older sidebar rules only styled it on a desktop. */
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { display: block; padding: 6px 10px 2px; color: var(--faint); font-size: 11px; line-height: 18px; }
+  /* The switch list keeps one layout at every width. */
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { display: block; padding: 8px 12px 4px; color: var(--muted); font-size: 11px; font-weight: 500; line-height: 18px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover nav { display: grid; gap: 1px; }
   html ${SHELL} .workbench-bar .navigator-project-option {
-    display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 0 10px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; padding: 0 12px; border-radius: 8px;
     color: var(--ink); font-size: 13px; text-decoration: none;
   }
   html ${SHELL} .workbench-bar .navigator-project-option > span { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  html ${SHELL} .workbench-bar .navigator-project-option strong { overflow: hidden; font-size: 13px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-  html ${SHELL} .workbench-bar .navigator-project-option > svg { flex: none; width: 14px; height: 14px; color: var(--ink-soft); }
+  html ${SHELL} .workbench-bar .navigator-project-option strong { overflow: hidden; font-size: 13px; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
+  html ${SHELL} .workbench-bar .navigator-project-option.is-current strong { font-weight: 500; }
+  html ${SHELL} .workbench-bar .navigator-project-option > svg { flex: none; width: 14px; height: 14px; color: var(--ink); }
   html ${SHELL} .workbench-bar .navigator-project-option:hover { background: var(--nav-hover); }
   html ${SHELL} .workbench-bar .navigator-project-option.is-current { background: var(--nav-active); }
-  html ${SHELL} .workbench-bar .navigator-project-option:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  /* One row system for the project menu: every row 32px, a 20px leading slot, one text column, and one kind of
+  html ${SHELL} .workbench-bar .navigator-project-option:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  /* One row system for the project menu: every row 34px, a 20px leading slot, one text column, and one kind of
      divider with even space on both sides. */
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 6px; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 10px 4px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover { padding: 8px; border-radius: 14px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover > span { padding: 4px 12px 4px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item, .navigator-personal > .personal-account) {
-    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 32px; min-height: 32px;
-    margin: 0; padding: 0 10px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
-    color: var(--ink-soft); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; height: 34px; min-height: 34px;
+    margin: 0; padding: 0 12px; border: 0; border-radius: 8px; box-shadow: none; background: transparent;
+    color: var(--ink); font: inherit; font-size: 13px; font-weight: 400; line-height: 1; text-align: left; text-decoration: none;
   }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item) > svg:first-child {
-    flex: none; width: 16px; height: 16px; margin: 0 2px; color: var(--muted);
+    flex: none; width: 16px; height: 16px; margin: 0 4px; color: var(--ink-soft);
   }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item) > span:not(.personal-account-avatar):not(.personal-account-copy) {
     position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; white-space: nowrap;
@@ -689,142 +698,168 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option, .navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item):hover { background: var(--nav-hover); color: var(--ink); }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-manage, .navigator-project-settings, .navigator-project-im, .navigator-personal > .account-global-item):hover > svg:first-child { color: var(--ink); }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover :is(.navigator-project-option.is-current, .navigator-project-settings[aria-current], .navigator-personal > .account-global-item[aria-current]) { background: var(--nav-active); color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > span { gap: 10px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > span { gap: 12px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option .project-monogram { flex: none; width: 20px; height: 20px; border-radius: 6px; font-size: 11px; box-shadow: none; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-project-option > svg { margin-left: auto; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar {
     display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft);
   }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar svg { width: 12px; height: 12px; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy { display: flex; align-items: baseline; gap: 6px; min-width: 0; line-height: 1; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy strong { font-size: 13px; font-weight: 400; color: var(--ink); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy small { font-size: 12px; color: var(--faint); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy strong { font-size: 13px; font-weight: 500; color: var(--ink); }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy small { font-size: 12px; color: var(--muted); }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { display: grid; gap: 0; margin: 0; padding: 0; box-shadow: none; }
-  /* Groups: switch projects · this project · you. The divider is drawn in the gap, so it never touches a row. */
-  /* Who you are is shown, not clicked: no hover, no pointer. */
+  /* Groups: switch projects · this project · you. The divider is drawn in the gap, so it never touches a row.
+     Who you are is shown, not clicked: no hover, no pointer. */
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account { cursor: default; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account:hover { background: transparent; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { position: relative; margin-top: 11px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { position: relative; margin-top: 12px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal::before {
-    content: ""; position: absolute; left: 4px; right: 4px; top: -6px; height: 1px; background: var(--line); pointer-events: none;
+    content: ""; position: absolute; left: 5px; right: 5px; top: -6px; height: 1px; background: var(--line); pointer-events: none;
   }
   ${SHELL} .navigator-project-menu-popover .navigator-project-im {
-    display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 8px;
-    background: transparent; color: var(--ink-soft); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; padding: 0 12px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
   }
   ${SHELL} .navigator-project-menu-popover .navigator-project-im:hover { background: var(--nav-hover); color: var(--ink); }
-  ${SHELL} .navigator-project-menu-popover .navigator-project-im svg { width: 15px; height: 15px; color: var(--muted); }
-  /* Group chat grows from the project button. */
+  ${SHELL} .navigator-project-menu-popover .navigator-project-im svg { width: 16px; height: 16px; color: var(--ink-soft); }
+  /* Group chat grows from its button at the right of the bar. */
   ${SHELL} .dock-window {
-    position: absolute; z-index: 50; right: 0; bottom: calc(100% + 8px); width: min(400px, calc(100vw - 16px)); display: flex; flex-direction: column; overflow: hidden;
-    height: min(560px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 32px));
-    border-radius: 12px; background: var(--paper); box-shadow: var(--lift-3); animation: craft-dock-rise 220ms var(--ease-quint) both;
+    position: absolute; z-index: 50; right: 0; bottom: calc(100% + 10px); width: min(400px, calc(100vw - 16px)); display: flex; flex-direction: column; overflow: hidden;
+    height: min(560px, calc(100dvh - var(--desktop-titlebar-height) - var(--dock-h) - 40px));
+    border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom right; animation: craft-dock-rise 250ms var(--ease-quint) both;
   }
   ${SHELL} .dock-window[hidden] { display: none; }
-  ${SHELL} .dock-window-head { flex: none; display: flex; align-items: center; gap: 4px; height: 38px; padding: 0 6px 0 14px; box-shadow: inset 0 -1px 0 var(--line); }
-  ${SHELL} .dock-window-head strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: var(--ink); }
+  ${SHELL} .dock-window-head { flex: none; display: flex; align-items: center; gap: 4px; height: 44px; padding: 0 8px 0 16px; box-shadow: inset 0 -1px 0 var(--line); }
+  ${SHELL} .dock-window-head strong { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
   ${SHELL} .dock-window-action {
-    display: inline-flex; align-items: center; gap: 6px; width: auto; height: 26px; padding: 0 8px; border: 0; border-radius: 7px;
-    background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px; width: auto; height: 28px; padding: 0 8px; border: 0; border-radius: 8px;
+    background: transparent; color: var(--ink-soft); font: inherit; font-size: 12px; cursor: pointer;
   }
   ${SHELL} .dock-window-action:hover { background: var(--nav-hover); color: var(--ink); }
   ${SHELL} .dock-window-action svg { width: 14px; height: 14px; }
   ${SHELL} .dock-window-body { flex: 1; min-height: 0; overflow: hidden; }
   ${SHELL} .dock-window-body iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--paper); }
 
-  /* A phone keeps the bar at the foot of the page: menu, the Assistant with its switcher, the project. */
+  /* A phone: two rows at the foot — the Assistant line first, then the Dock and the project. A plugin's own list
+     opens in a drawer from a button just left of the project, only when that plugin has one. */
   @media (max-width: 600px) {
+    ${SHELL} { --plugin-rail-width: 0px; --workspace-chrome-height: 0px; --assistant-island-row: 0px; --dock-h: 116px; --dock-btn: 40px; --composer-h: 50px; }
     ${SHELL} .immersive-workspace,
     ${SHELL} .immersive-workspace.is-directory-collapsed,
     ${SHELL} .immersive-workspace.is-plugin-directory-empty { grid-template-rows: auto 0 0 minmax(0, 1fr) auto; }
-    ${SHELL} .workbench-bar { grid-row: 5; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 6px 8px 8px; box-shadow: inset 0 1px 0 var(--line); }
-    ${SHELL} .dock-pins, ${SHELL} .bar-residents { display: none; }
-    ${SHELL} .plugin-picker-trigger { max-width: 120px; }
-    html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
-    ${ASSIST} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .workbench-bar {
+      z-index: 45; grid-row: 5; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 58px 50px; gap: 0 8px;
+      padding: 4px 12px max(8px, env(safe-area-inset-bottom));
+    }
+    ${SHELL} .bar-center { grid-column: 1 / -1; grid-row: 1; align-self: center; }
+    ${SHELL} .bar-start { grid-column: 1; grid-row: 2; }
+    html ${SHELL} .workbench-bar .bar-end { grid-column: 2; grid-row: 2; justify-self: end; }
+    /* 4px between the row's 40px targets, so the widest state (a plugin with a directory) still fits 390px. */
+    ${SHELL} .dock-pins { gap: 4px; margin-left: 8px; }
+    ${SHELL} .dock-pins::before { left: -5px; }
+    ${SHELL} .dock-pin.is-fixed { margin-right: 4px; }
+    ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -4px; }
+    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { gap: 4px; }
+    ${SHELL} .bar-composer .assistant-composer-input { font-size: 16px; }
+    ${SHELL} .bar-composer-search { width: 40px; min-width: 40px; height: 40px; padding: 0; justify-content: center; }
+    ${SHELL} .plugin-picker-trigger { max-width: 132px; }
+    html ${SHELL} .immersive-workspace > .tree-pane,
+    html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }
+    html ${SHELL} .workbench-bar .bar-end .navigator-project-primary { gap: 4px; }
+    html ${SHELL} .immersive-workspace:not(.is-plugin-directory-empty) .workbench-bar .bar-end .immersive-show-directory,
+    html ${SHELL} .is-directory-drawer-open .workbench-bar .bar-end .navigator-directory-toggle {
+      display: inline-grid !important; place-items: center; order: -1; width: var(--dock-btn); min-width: var(--dock-btn); height: var(--dock-btn); min-height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
+      background: transparent; box-shadow: none; color: var(--ink-soft);
+    }
+    /* While the drawer is open only its close toggle shows (the same weight as the rule above, so it wins by order). */
+    html ${SHELL} .immersive-workspace.is-directory-drawer-open .workbench-bar .bar-end .immersive-show-directory { display: none !important; }
+    html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle) svg { width: 20px; height: 20px; stroke-width: 1.6; }
+    html ${SHELL} .workbench-bar .bar-end :is(.immersive-show-directory, .navigator-directory-toggle):hover { background: var(--nav-hover); color: var(--ink); }
+    html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; }
+    ${SHELL} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
+    html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
+    /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
     ${ASSIST} .assistant-target { max-width: 30%; }
-    /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
-    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 24px; min-width: 24px; }
-    /* Search stays reachable on a phone: the icon alone. */
-    ${SHELL} .bar-composer .bar-composer-search { flex: none; gap: 0; padding: 0 6px; }
-    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 64px; }
-    ${SHELL} .bar-composer .plugin-picker-trigger > svg { display: none; }
-    ${SHELL} .bar-composer .plugin-picker-trigger { padding: 0 7px; max-width: 64px; }
+    ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 64px; min-width: 64px; }
+    ${SHELL} .bar-composer .plugin-picker { flex: none; max-width: 88px; }
+    ${SHELL} .bar-composer .plugin-picker-trigger { max-width: 88px; padding: 0 8px; }
+    ${SHELL} .bar-composer .plugin-picker-trigger > svg:last-child { display: none; }
     ${SHELL} .bar-composer .plugin-picker-current { min-width: 0; overflow: hidden; }
     ${SHELL} .bar-composer .plugin-picker-current > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
+    ${ASSIST} .assistant-executor { flex: 0 1 auto; min-width: 28px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
     ${ASSIST} .assistant-executor > svg { display: none; }
-    /* A phone bar has room for one chooser beside the input: the Character appears while the panel is open (to choose) or
-       once chosen (then it replaces the executor, which a Character implies); search steps aside while the panel is open. */
+    /* One chooser beside the input: the Character appears while the panel is open (to choose) or once chosen (then it
+       replaces the executor, which a Character implies); search steps aside while the panel is open. */
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     ${SHELL} [data-assistant-island]:has(.assistant-panel:not([hidden])) .bar-composer .bar-composer-search { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
     ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .bar-composer-search) { display: none; }
-    ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
-    html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 8px; left: auto; bottom: 64px; }
+    body.project-index-page .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: 68px; width: auto; height: min(70dvh, 560px); }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */
-  .prompt-settings-notice { margin: 0 0 16px; padding: 10px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; }
-  .prompt-settings-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .prompt-settings-notice { margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); color: var(--ink-soft); font-size: 13px; }
+  .prompt-settings-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
   .prompt-settings-search { flex: 1 1 220px; min-width: 0; }
-  .prompt-group-title { margin: 0 0 8px; font-size: 14px; }
+  .prompt-group-title { margin: 0 0 8px; font-size: 15px; }
   .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
-  .prompt-roles { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
-  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 5px 9px; border: 0; border-radius: 7px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  .prompt-roles { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
   .prompt-role:hover { background: var(--hover); }
   .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
-  .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
-  .prompt-role-focus p { margin: 2px 0 0; color: var(--muted); }
-  .prompt-diagnostics { margin-top: 20px; }
-  .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
-  .prompt-diagnostics-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-  .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
-  .prompt-diagnostics-issues { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
+  .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
+  .prompt-role-focus p { margin: 4px 0 0; color: var(--muted); }
+  .prompt-diagnostics { margin-top: 24px; }
+  .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+  .prompt-diagnostics-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+  .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+  .prompt-diagnostics-issues { margin: 4px 0 0; padding-left: 16px; font-size: 12px; }
   .prompt-diagnostics-issue--warning { color: var(--tone-attention, var(--amber)); }
   .prompt-diagnostics-issue--info { color: var(--muted); }
   .prompt-diagnostics-heading { margin: 16px 0 0; font-size: 13px; font-weight: 500; }
-  .prompt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .prompt-row { padding: 8px 10px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
-  .prompt-row-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
-  .prompt-row-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .prompt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .prompt-row { padding: 8px 12px; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); }
+  .prompt-row-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; }
+  .prompt-row-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .prompt-row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .prompt-row-meta { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
-  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 6px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
+  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 8px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
   .prompt-state--user { color: var(--ink); background: var(--nav-active); }
   .prompt-state--updated { color: var(--warning, #b7791f); }
-  .prompt-editor { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .prompt-editor { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
   .prompt-editor-text { width: 100%; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.55; }
-  .prompt-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .prompt-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .prompt-editor-count { margin-left: auto; font-size: 11px; }
   .prompt-default summary, .prompt-history summary { cursor: pointer; font-size: 12px; color: var(--muted); }
-  .prompt-default-text { max-height: 260px; overflow: auto; margin: 6px 0 0; padding: 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); white-space: pre-wrap; font-size: 12px; }
-  .prompt-history-list { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink-soft); }
+  .prompt-default-text { max-height: 260px; overflow: auto; margin: 8px 0 0; padding: 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); white-space: pre-wrap; font-size: 12px; }
+  .prompt-history-list { margin: 8px 0 0; padding-left: 16px; font-size: 12px; color: var(--ink-soft); }
   @media (max-width: 600px) { .prompt-row-head { grid-template-columns: minmax(0, 1fr); } .prompt-row-meta { justify-content: flex-start; } }
 
-  /* The project is its own mark: a letter on a stable hue, not a generic database glyph. */
+  /* The project is its own mark: a letter on the copper of the brand (one hue for every project; the letter tells them apart). */
   .project-monogram {
-    --mono: var(--hue-indigo-fill, #5e6ad2);
+    --mono: var(--accent);
     display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 6px;
-    background: var(--mono); color: #fff; font-size: 12px; font-weight: 500; line-height: 1; letter-spacing: 0;
+    background: var(--mono); color: var(--on-accent); font-size: 12px; font-weight: 600; line-height: 1; letter-spacing: 0;
   }
-  ${["indigo", "blue", "cyan", "mint", "green", "orange", "pink", "purple", "brown", "slate"].map((hue) => `.project-monogram[data-hue="${hue}"] { --mono: var(--hue-${hue}-fill); }`).join("\n  ")}
+  html[data-resolved-theme="dark"] .project-monogram { --mono: color-mix(in srgb, var(--accent) 62%, var(--desk)); }
   ${SHELL} .workspace-chrome .navigator-project-selector { place-items: center; justify-content: center; }
   ${SHELL} .workspace-chrome .navigator-project-selector > svg:first-child:not(:only-child) { display: none; }
   ${SHELL} .workspace-chrome .navigator-project-selector:hover { background: var(--nav-hover); }
   ${SHELL} .workspace-chrome .navigator-project-menu[open] .navigator-project-selector { background: var(--nav-active); }
-  .navigator-project-option .project-monogram { width: 18px; height: 18px; border-radius: 5px; font-size: 10px; }
+  .navigator-project-option .project-monogram { width: 18px; height: 18px; border-radius: 5px; font-size: 11px; }
 
   /* Rail tooltip, drawn once in the page so scrolling columns cannot clip it. */
   .craft-tip {
     position: fixed; z-index: 2147483000; left: 0; top: 0; pointer-events: none;
-    padding: 5px 9px; border-radius: 7px; background: var(--tip-bg); color: var(--tip-ink);
-    font-size: 12px; line-height: 16px; white-space: nowrap; letter-spacing: .01em;
-    box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .35);
-    opacity: 0; transform: translate(var(--tip-x, 0), var(--tip-y, 0)) translateX(-4px) scale(.96); transform-origin: left center;
-    transition: opacity 120ms var(--ease-swift), transform 180ms var(--ease-quint);
+    padding: 4px 8px; border-radius: 6px; background: var(--tip-bg); color: var(--tip-ink);
+    font-size: 11px; font-weight: 500; line-height: 16px; white-space: nowrap; letter-spacing: 0;
+    box-shadow: var(--lift-1);
+    opacity: 0; transform: translate(var(--tip-x, 0), var(--tip-y, 0)) translateY(4px); transform-origin: bottom center;
+    transition: opacity var(--dur-press) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
   }
   .craft-tip[data-shown] { opacity: 1; transform: translate(var(--tip-x, 0), var(--tip-y, 0)); }
   .craft-tip kbd { margin-left: 8px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--tip-ink) 16%, transparent); color: inherit; font: inherit; font-size: 11px; opacity: .8; }
@@ -832,7 +867,7 @@ const CRAFT_BASE_STYLES = `
   /* ─── Directory: rows on the desk; the selected one takes the neutral selection fill ── */
   ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item) {
     border-radius: var(--r-row);
-    transition: background-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-swift);
+    transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
   ${SHELL} .tree-pane :is(.mw-dir-row, .directory-list-row, .tree-node, .source-list-item):active:not(:disabled) { background: var(--nav-press); }
   ${SHELL} .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .source-list-item.is-selected) {
@@ -844,57 +879,56 @@ const CRAFT_BASE_STYLES = `
   /* A row's leading glyph names what it is, so it stays neutral; status keeps its own mark. */
   ${SHELL} .tree-pane .mw-dir-row__icon { color: var(--muted); }
   ${SHELL} .tree-pane :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"]) .mw-dir-row__icon { color: var(--ink); }
-  ${SHELL} .tree-resizer::after { transition: opacity var(--dur-hover) var(--ease-swift), background-color var(--dur-hover) var(--ease-swift); }
+  ${SHELL} .tree-resizer::after { transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
   ${SHELL} .tree-resizer:is(:hover, :focus-visible, .is-dragging, [data-dragging])::after { background: var(--focus); opacity: .7; }
 
   /* ─── Controls ─────────────────────────────────────────────────────────── */
   ${PAGES} .mw-btn {
     transition:
-      background-color var(--dur-hover) var(--ease-swift), color var(--dur-hover) var(--ease-swift),
-      border-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint),
-      transform var(--dur-move) var(--ease-spring), opacity var(--dur-hover) var(--ease-swift);
+      background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint),
+      border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint),
+      transform var(--dur-move) var(--ease-spring), opacity var(--dur-hover) var(--ease-quint);
     will-change: auto;
   }
   ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .home-shortcut-main, .project-card, .plugin-market-project-trigger):active:not(:disabled, [aria-disabled="true"], [aria-expanded="true"], [aria-haspopup]) {
     transform: scale(.97); filter: none; transition-duration: var(--dur-press);
   }
-  /* Buttons are solid: one fill, one hairline, no sheen. */
-  ${PAGES} .mw-btn--primary { background-image: none; box-shadow: none; }
-  ${PAGES} .mw-btn--primary:hover:not(:disabled) { background-color: color-mix(in srgb, var(--action) 86%, var(--paper)); box-shadow: none; }
-  html[data-resolved-theme="dark"] ${PAGES} .mw-btn--primary:hover:not(:disabled) { background-color: color-mix(in srgb, var(--action) 88%, var(--desk)); }
-  ${PAGES} .mw-btn--secondary:not(:disabled) { box-shadow: none; border-color: var(--line); }
-  ${PAGES} .mw-btn--secondary:hover:not(:disabled) { box-shadow: none; border-color: var(--line-strong); background-color: var(--nav-hover); }
+  /* Buttons: graphite primary with a small soft shadow; secondary is a wash with no outline; quiet is text. */
+  ${PAGES} .mw-btn--primary { background-image: none; }
+  ${PAGES} .mw-btn--secondary:not(:disabled) { box-shadow: none; border-color: transparent; }
+  ${PAGES} .mw-btn--secondary:hover:not(:disabled) { box-shadow: none; border-color: transparent; background-color: var(--nav-hover); }
   ${WORKBENCH} .plugin-stage-chrome .tree-create,
   ${WORKBENCH} .goal-stage-chrome .tree-create {
-    border-color: var(--line); background: var(--paper); box-shadow: none;
+    border-color: transparent; background: var(--control-fill); box-shadow: none;
   }
-  ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create:hover { border-color: var(--line-strong); background: var(--nav-hover); box-shadow: none; }
+  ${WORKBENCH} :is(.plugin-stage-chrome, .goal-stage-chrome) .tree-create:hover { border-color: transparent; background: var(--nav-hover); box-shadow: none; }
   ${PAGES} .mw-btn:disabled, ${PAGES} .mw-btn[aria-disabled="true"] { box-shadow: none; background-image: none; }
 
   /* Segmented controls: the thumb settles on a spring; slots brighten on hover. */
-  ${PAGES} .mw-toggle-group { border-radius: 10px; }
-  ${PAGES} .mw-toggle-group[data-seg-thumb]::before { border-radius: 7px; box-shadow: 0 0 0 1px var(--line); }
+  ${PAGES} .mw-toggle-group { border-radius: 9px; }
+  ${PAGES} .mw-toggle-group[data-seg-thumb]::before { border-radius: 6px; background: var(--paper); box-shadow: var(--lift-1); transition-timing-function: var(--ease-quint); }
   ${PAGES} .mw-toggle-group > .mw-toggle:not(.is-current, [aria-pressed="true"], [aria-current]):hover { color: var(--ink); }
   ${PAGES} .mw-toggle svg { transition: transform var(--dur-move) var(--ease-spring); }
 
-  /* Fields: a hairline that darkens, and a soft accent halo while you write. */
+  /* Fields: the edge darkens and a soft copper halo sits around the one you are writing in. */
   ${PAGES} :is(.mw-input, .mw-textarea, .mw-select, .mw-input-group, .project-index-search) {
-    transition: border-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-hover) var(--ease-swift);
+    transition: border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint);
   }
-  ${PAGES} :is(.mw-input, .mw-textarea):not([data-plain-field]):focus-visible,
+  ${PAGES} :is(.mw-input, .mw-textarea, .mw-select):not([data-plain-field]):focus-visible,
   ${PAGES} :is(.mw-input-group, .project-index-search):focus-within {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink) 7%, transparent);
+    /* The edge is full copper so the focused field reads at 3:1 or better against its surface; the halo only softens it. */
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
   }
   ${PAGES} [data-plain-field]:focus-visible { box-shadow: inset 0 -2px 0 var(--focus); }
 
   /* Check and switch: the tick draws itself; the knob lands on a spring. */
-  ${PAGES} .mw-check, ${PAGES} .mw-radio { transition: background-color var(--dur-hover) var(--ease-swift), border-color var(--dur-hover) var(--ease-swift), transform var(--dur-move) var(--ease-spring); }
+  ${PAGES} .mw-check, ${PAGES} .mw-radio { transition: background-color var(--dur-hover) var(--ease-quint), border-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   ${PAGES} .mw-check:active:not(:disabled), ${PAGES} .mw-radio:active:not(:disabled) { transform: scale(.86); }
-  ${PAGES} .mw-check:checked::after { animation: craft-tick 240ms var(--ease-quint) both; transform-origin: 30% 70%; }
-  ${PAGES} .mw-radio:checked::after { animation: craft-pop 260ms var(--ease-spring) both; }
+  ${PAGES} .mw-check:checked::after { animation: craft-tick 250ms var(--ease-quint) both; transform-origin: 30% 70%; }
+  ${PAGES} .mw-radio:checked::after { animation: craft-pop 250ms var(--ease-spring) both; }
   @keyframes craft-tick { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
   @keyframes craft-pop { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
-  ${PAGES} .mw-switch__track::after { transition: transform 280ms var(--ease-spring), width 160ms var(--ease-swift), background-color var(--dur-hover) var(--ease-swift); }
+  ${PAGES} .mw-switch__track::after { transition: transform 250ms var(--ease-spring), background-color var(--dur-hover) var(--ease-quint); }
   ${PAGES} .mw-switch input:active:not(:disabled) + .mw-switch__track::after { width: 17px; }
   ${PAGES} .mw-switch input:checked:active:not(:disabled) + .mw-switch__track::after { transform: translateX(11px); }
 
@@ -902,38 +936,59 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} :is(.mw-disclosure, details > summary) > svg:is(:first-child, :last-child) { transition: transform var(--dur-move) var(--ease-quint); }
 
   /* ─── Overlays ─────────────────────────────────────────────────────────── */
-  ${PAGES} ${CENTRED_DIALOG}[open] { animation: craft-dialog-in 280ms var(--ease-quint); }
-  ${PAGES} ${CENTRED_DIALOG}[open]::backdrop { animation: craft-fade-in 240ms var(--ease-swift); }
+  ${PAGES} ${CENTRED_DIALOG}[open] { animation: craft-dialog-in 250ms var(--ease-quint); }
+  ${PAGES} ${CENTRED_DIALOG}[open]::backdrop { animation: craft-fade-in 250ms var(--ease-quint); }
   /* Creating a Goal is writing: two borderless lines; focus draws a pen line under the one you are on. */
   :root ${WORKBENCH} dialog[data-create-dialog] .create-compose :is(.create-compose-title, .create-compose-outcome) {
     border: 0; border-radius: 6px 6px 0 0; box-shadow: none; background: transparent;
-    transition: background-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint);
+    transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   :root ${WORKBENCH} dialog[data-create-dialog] .create-compose :is(.create-compose-title, .create-compose-outcome):is(:focus, :focus-visible) {
     background: color-mix(in srgb, var(--ink) 3%, transparent); box-shadow: inset 0 -2px 0 var(--focus); outline: none;
   }
   ${PAGES} dialog.mw-dialog:not(.mw-sheet) { border-radius: var(--r-dialog); box-shadow: var(--lift-3); }
-  ${PAGES} dialog.mw-sheet[open] { animation: craft-sheet-in 300ms var(--ease-quint); }
-  ${PAGES} dialog.mw-sheet[open]::backdrop { animation: craft-fade-in 240ms var(--ease-swift); }
-  @keyframes craft-dialog-in { from { opacity: 0; transform: translateY(10px) scale(.975); } to { opacity: 1; transform: none; } }
-  @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+  ${PAGES} dialog.mw-sheet[open] { animation: craft-sheet-in 420ms var(--ease-quint); }
+  ${PAGES} dialog.mw-sheet[open]::backdrop { animation: craft-fade-in 250ms var(--ease-quint); }
+  /* Leaving mirrors arriving: a closing dialog or sheet fades and settles back instead of vanishing. */
+  ${PAGES} :is(${CENTRED_DIALOG}, dialog.mw-sheet) {
+    transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-quint), overlay var(--dur-move) allow-discrete, display var(--dur-move) allow-discrete;
+  }
+  ${PAGES} ${CENTRED_DIALOG}:not([open]) { opacity: 0; transform: translateY(8px) scale(.98); }
+  ${PAGES} dialog.mw-sheet:not([open]) { opacity: 0; transform: translateX(32px); }
+  ${PAGES} :is(${CENTRED_DIALOG}, dialog.mw-sheet)::backdrop { transition: opacity var(--dur-move) var(--ease-quint), overlay var(--dur-move) allow-discrete, display var(--dur-move) allow-discrete; }
+  ${PAGES} :is(${CENTRED_DIALOG}, dialog.mw-sheet):not([open])::backdrop { opacity: 0; }
+  /* A tab switch: the current tab's paper settles in; the pane's content comes up with a short fade. */
+  ${WORKBENCH} .tab-item { transition: background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint); }
+  ${WORKBENCH} iframe.tab-content-frame:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
+  /* A disclosure the person opens (never one rendered open) lets its content settle in. */
+  ${PAGES} details[data-just-opened] > :not(summary) { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+  ${WORKBENCH} .immersive-home .home-erow__slot[data-just-opened] { animation: craft-rise var(--dur-move) var(--ease-quint) both; }
+  @keyframes craft-dialog-in { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes craft-sheet-in { from { opacity: 0; transform: translateX(48px); } to { opacity: 1; transform: none; } }
   @keyframes craft-fade-in { from { opacity: 0; } to { opacity: 1; } }
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
-  ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop 170ms var(--ease-quint); }
-  ${PAGES} details[open] > .navigator-project-menu-popover { animation: craft-drop 170ms var(--ease-quint); transform-origin: top left; }
-  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tab-menu) { border-radius: var(--r-card); box-shadow: var(--lift-3); }
-  @keyframes craft-drop { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
-  ${PAGES} :is(.mw-menu, .tab-menu) :is([role="menuitem"], [role="option"], button) { transition: background-color 90ms var(--ease-swift), color 90ms var(--ease-swift); }
+  ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop 250ms var(--ease-quint); }
+  ${PAGES} details[open] > .navigator-project-menu-popover { animation: craft-drop 250ms var(--ease-quint); transform-origin: top left; }
+  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tab-menu) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
+  /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
+     work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
+  html[data-resolved-theme="dark"] ${PAGES} :is(.mw-menu, .mw-popover, .navigator-project-menu-popover, .plugin-market-project-popover,
+    .tab-menu, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu,
+    [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, .feed-source-rail, ${CENTRED_DIALOG},
+    dialog.mw-sheet, .assistant-panel, .home-talk) { background-color: var(--popover); }
+  @keyframes craft-drop { from { opacity: 0; transform: translateY(-5px) scale(.97); } to { opacity: 1; transform: none; } }
+  ${PAGES} :is(.mw-menu, .tab-menu) :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
-  /* Toasts: a small capsule that rises on a spring and says, with a mark, how it went. */
+  /* Toasts: a graphite note that rises above the bar and says, with a mark, how it went. */
   ${PAGES} .toast {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 14px 8px 11px; border-radius: 999px; font-size: 13px; line-height: 18px;
+    padding: 12px 16px 12px 12px; border-radius: 12px; font-size: 13px; line-height: 18px;
     background: var(--tip-bg); color: var(--tip-ink);
-    box-shadow: 0 10px 30px -8px rgba(0, 0, 0, .35), 0 0 0 1px rgba(255, 255, 255, .06) inset;
-    transform: translate(-50%, 16px) scale(.96);
-    transition: opacity 180ms var(--ease-swift), transform 380ms var(--ease-spring);
+    box-shadow: var(--shadow);
+    transform: translate(-50%, 12px) scale(.97);
+    transition: opacity 250ms var(--ease-quint), transform 420ms var(--ease-quint);
   }
+  ${SHELL} .toast { bottom: calc(var(--dock-h) + 14px); }
   ${PAGES} .toast::before {
     content: ""; flex: none; width: 16px; height: 16px; border-radius: 50%;
     background: var(--hue-green-fill, #4cb782) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.3l2.2 2.2 4.8-5' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px no-repeat;
@@ -944,14 +999,53 @@ const CRAFT_BASE_STYLES = `
   }
   ${PAGES} .toast:empty::before { display: none; }
   ${PAGES} .toast.is-visible { transform: translate(-50%, 0) scale(1); }
-  ${PAGES} .toast.is-visible.is-error { animation: craft-nudge 360ms var(--ease-swift) 120ms; }
+  ${PAGES} .toast.is-visible.is-error { animation: craft-nudge 420ms var(--ease-quint) 130ms; }
   @keyframes craft-nudge { 0%, 100% { translate: 0; } 25% { translate: -4px; } 50% { translate: 3px; } 75% { translate: -2px; } }
   body.settings-page .toast { transform: translateY(16px) scale(.96); }
   body.settings-page .toast.is-visible { transform: none; }
 
+  /* ─── Plugin stage: an empty plugin is a calm centred invitation, not a note in the corner ── */
+  ${WORKBENCH} .plugin-stage-list > .mw-empty,
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child {
+    display: grid; justify-items: center; align-content: center; gap: 0; box-sizing: border-box;
+    width: 100%; max-width: 440px; min-height: calc(100% - 24px); margin: 0 auto; padding: 48px 24px 64px; text-align: center;
+  }
+  /* Empty states draw one picture everywhere: the plugin's glyph on a sheet of paper lying across another,
+     the Home card's papers in miniature. No plugin draws its own illustration. */
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark) {
+    position: relative; isolation: isolate; display: grid; place-items: center; box-sizing: border-box; flex: none;
+    width: 56px; height: 56px; margin: 0 0 16px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--ink-soft);
+  }
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::before,
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::after {
+    content: ""; position: absolute; left: 9px; top: 4px; width: 36px; height: 46px; border-radius: 6px;
+  }
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::after {
+    z-index: 0; background: var(--surface-soft); box-shadow: 0 0 0 1px var(--line); transform: translate(8px, 2px) rotate(9deg);
+  }
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark)::before {
+    z-index: 1; transform: rotate(-4deg); box-shadow: 0 0 0 1px var(--line), var(--lift-1);
+    background: linear-gradient(var(--line) 0 0) 8px 30px / 18px 2px no-repeat, linear-gradient(var(--line) 0 0) 8px 36px / 12px 2px no-repeat, var(--popover);
+  }
+  ${PAGES} :is(.mw-empty__mark, .tui-empty-mark, .coding-start-mark) > svg {
+    position: relative; z-index: 2; width: 20px; height: 20px; stroke-width: 1.6; transform: translate(-1px, -8px) rotate(-4deg); color: var(--ink-soft);
+  }
+  /* A list that could not be read uses the same picture, marked in the error colour, and always offers Retry. */
+  ${PAGES} .mw-empty--error .mw-empty__mark > svg { color: var(--red); }
+  ${PAGES} .mw-empty--error { padding: 32px 16px; gap: 0; justify-items: center; text-align: center; }
+  ${PAGES} .mw-empty--error > strong { margin: 0 0 4px; font-size: 15px; font-weight: var(--weight-title, 600); color: var(--ink); }
+  ${PAGES} .mw-empty--error > p { margin: 0 0 16px; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+  ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(strong, h1, h2),
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2) { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
+  ${WORKBENCH} .plugin-stage-list > .mw-empty > p,
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
+  ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(.mw-btn, .mw-empty__actions),
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions) { margin: 24px 0 0; justify-content: center; }
+  ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }
+
   /* ─── Lists and rows ───────────────────────────────────────────────────── */
   ${WORKBENCH} :is(.tree-entry, .feed-stage-entry, .plugin-stage-list .mw-dir-row, .home-erow, .inbox-stage-row, .session-stage-row) {
-    transition: background-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint);
+    transition: background-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-stage-list :is(.mw-dir-row, .tree-node):active:not(:disabled) { background: var(--nav-press); }
   /* A selected Goal row is one wash on its entry, not a second fill on the button inside it. */
@@ -961,12 +1055,12 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} [data-craft-new]::after {
     content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
     background: color-mix(in srgb, var(--focus) 12%, transparent);
-    animation: craft-landed 1600ms var(--ease-swift) forwards;
+    animation: craft-landed 640ms var(--ease-quint) forwards;
   }
   @keyframes craft-landed { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
 
   /* Progress bars fill instead of appearing full. */
-  ${WORKBENCH} :is(.goal-progress-bar, .tree-progress, .mw-progress) > :is(i, span, .mw-progress__bar) { transition: width 520ms var(--ease-quint), transform 520ms var(--ease-quint); }
+  ${WORKBENCH} :is(.goal-progress-bar, .tree-progress, .mw-progress) > :is(i, span, .mw-progress__bar) { transition: transform 420ms var(--ease-quint); }
 
   /* ─── Goal canvas ──────────────────────────────────────────────────────── */
   /* The canvas is plain paper: nodes and their links are the only marks on it. */
@@ -975,17 +1069,17 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .goal-canvas-viewport.is-panning { cursor: grabbing; }
   ${WORKBENCH} [data-graph-node] {
     border-radius: var(--r-card); box-shadow: none; border-color: var(--line);
-    transition: border-color var(--dur-hover) var(--ease-swift), box-shadow var(--dur-move) var(--ease-quint), opacity var(--dur-move) var(--ease-swift);
+    transition: border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), opacity var(--dur-move) var(--ease-quint);
   }
   ${WORKBENCH} [data-graph-node]:hover { border-color: var(--line-strong); }
-  /* Selection is neutral like everywhere else: a darker ink ring, not an accent stroke. */
-  ${WORKBENCH} [data-graph-node].is-selected:not(.is-expanded-node) { border-color: var(--ink-soft); box-shadow: 0 0 0 1px var(--ink-soft); }
+  /* Selection: a graphite ring, the same neutral selected state as a chosen option. */
+  ${WORKBENCH} [data-graph-node].is-selected:not(.is-expanded-node) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink), var(--lift-1); }
   ${WORKBENCH} [data-graph-node].is-dragging { box-shadow: var(--lift-3); cursor: grabbing; z-index: 5; }
-  ${WORKBENCH} [data-graph-edge] path { transition: stroke var(--dur-move) var(--ease-swift), stroke-width var(--dur-move) var(--ease-swift), opacity var(--dur-move) var(--ease-swift); }
-  ${WORKBENCH} [data-graph-edge].is-selected-path path { stroke-dasharray: 6 5; animation: craft-flow 900ms linear infinite; }
+  ${WORKBENCH} [data-graph-edge] path { transition: stroke var(--dur-move) var(--ease-quint), stroke-width var(--dur-move) var(--ease-quint), opacity var(--dur-move) var(--ease-quint); }
+  ${WORKBENCH} [data-graph-edge].is-selected-path path { stroke-dasharray: 6 5; animation: none; }
   @keyframes craft-flow { to { stroke-dashoffset: -11; } }
-  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) > div { border-radius: 10px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
-  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-swift), transform var(--dur-move) var(--ease-spring); }
+  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) > div { border-radius: 11px; background: var(--paper); box-shadow: var(--lift-2); }
+  ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   ${WORKBENCH} :is(.goal-canvas-tools, .goal-frame-tools) button:hover { background: var(--nav-hover); }
 
   /* A short window leaves the timeline a sliver; the record menu then opens as a sheet above the bar instead of
@@ -998,8 +1092,8 @@ const CRAFT_BASE_STYLES = `
   }
 
   /* Writing gets the whole height of a short window: while a Goal record form is open the bar steps aside, and it
-     returns when the form closes. */
-  @media (max-height: 560px) and (min-width: 601px) {
+     returns when the form closes. Phones held sideways or with the keyboard up are short windows too. */
+  @media (max-height: 560px) {
     ${SHELL} .immersive-workspace:has(.is-editing-goal) { --dock-h: 0px; }
     ${SHELL} .immersive-workspace:has(.is-editing-goal) > .workbench-bar { display: none; }
   }
@@ -1011,13 +1105,13 @@ const CRAFT_BASE_STYLES = `
   /* ─── Board ────────────────────────────────────────────────────────────── */
   ${WORKBENCH} [data-kanban-card] {
     border-radius: 10px; box-shadow: none; border-color: var(--line);
-    transition: border-color var(--dur-hover) var(--ease-swift), background-color var(--dur-hover) var(--ease-swift);
+    transition: border-color var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint);
   }
   ${WORKBENCH} [data-kanban-card]:hover { border-color: var(--line-strong); }
-  ${WORKBENCH} [data-kanban-card]:is(.is-selected, [aria-current="true"], [aria-selected="true"]) { border-color: var(--ink-soft); box-shadow: 0 0 0 1px var(--ink-soft); }
+  ${WORKBENCH} [data-kanban-card]:is(.is-selected, [aria-current="true"], [aria-selected="true"]) { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 
   /* ─── Goal work area ───────────────────────────────────────────────────── */
-  ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-swift), transform var(--dur-move) var(--ease-spring); }
+  ${WORKBENCH} .goal-node-toolbar .goal-node-back { border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
   ${WORKBENCH} .goal-details-aside { background: var(--paper); box-shadow: inset 1px 0 0 var(--line); }
   ${WORKBENCH} .goal-details-toggle svg { transition: transform var(--dur-move) var(--ease-quint); }
   ${WORKBENCH} .tui-empty, ${WORKBENCH} .goal-tui-empty { border-radius: var(--r-card); }
@@ -1030,87 +1124,157 @@ const CRAFT_BASE_STYLES = `
   }
   ${WORKBENCH}.is-craft-resting .tab-pane-body > [data-work-surface],
   ${WORKBENCH}[data-pane-embedded] .tab-pane-body > [data-work-surface] { animation: none; }
-  @keyframes craft-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes craft-rise { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
   /* Opening a project: the rail settles in from the edge, then the sheet. Once per page. */
   ${SHELL}.is-craft-opening .plugin-stack :is(.immersive-plugin-link, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .personal-account) {
-    animation: craft-rail-in 420ms var(--ease-quint) both; animation-delay: calc(var(--craft-i, 0) * 18ms + 60ms);
+    animation: craft-rail-in 420ms var(--ease-quint) both; animation-delay: calc(var(--craft-i, 0) * 130ms + 130ms);
   }
-  ${SHELL}.is-craft-opening .immersive-plugin-stage { animation: craft-sheet-open 560ms var(--ease-quint) both 80ms; }
-  ${SHELL}.is-craft-opening .immersive-titlebar .tab-strip--chrome { animation: craft-fade-in 400ms var(--ease-swift) both 180ms; }
+  ${SHELL}.is-craft-opening .immersive-plugin-stage { animation: craft-sheet-open 640ms var(--ease-quint) both 130ms; }
+  ${SHELL}.is-craft-opening .immersive-titlebar .tab-strip--chrome { animation: craft-fade-in 420ms var(--ease-quint) both 130ms; }
+  ${SHELL}.is-craft-opening .workbench-bar > * { animation: craft-bar-in 420ms var(--ease-quint) both; }
+  ${SHELL}.is-craft-opening .workbench-bar > .bar-center { animation-delay: 130ms; }
+  ${SHELL}.is-craft-opening .workbench-bar > .bar-end { animation-delay: 130ms; }
+  @keyframes craft-bar-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   @keyframes craft-rail-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
-  @keyframes craft-sheet-open { from { opacity: 0; transform: translateY(12px) scale(.992); } to { opacity: 1; transform: none; } }
+  @keyframes craft-sheet-open { from { opacity: 0; transform: translateY(10px) scale(.994); } to { opacity: 1; transform: none; } }
 
   /* ─── Home ─────────────────────────────────────────────────────────────── */
-  /* One paper surface. The timeline is neutral; colour is kept for what needs you. */
-  ${WORKBENCH} .immersive-home .home-hero { position: relative; max-width: 46rem; padding: 28px 28px 20px; }
-  ${WORKBENCH} .immersive-home .craft-greeting { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted); font-size: 12px; }
-  ${WORKBENCH} .immersive-home .home-hero__date time { font-size: 34px; letter-spacing: -.04em; }
-  ${WORKBENCH} .immersive-home .home-hero__today { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
-  ${WORKBENCH} .immersive-home .home-hero__stats b { color: var(--ink); }
-  ${WORKBENCH} .immersive-home :is(.home-hero__stats i, .home-day__dots i) { background: var(--line-strong) !important; }
-  ${WORKBENCH} .immersive-home .home-tl { border-top-color: var(--line); padding: 0 16px 16px; }
-  ${WORKBENCH} .immersive-home :is(.home-tl__head, .home-tl__rows) { max-width: calc(46rem - 32px); }
-  ${WORKBENCH} .immersive-home .home-tl__now u { background: color-mix(in srgb, var(--accent, var(--blue)) 35%, var(--paper)); }
-  ${WORKBENCH} .immersive-home :is(.home-erow, .home-detail) { --node: var(--muted) !important; }
+  /* The page owns its layout in project-home.ts; this layer adds only the arrival cascade and the press tone. */
   ${WORKBENCH} .immersive-home .home-erow:active { background: var(--nav-press); }
-  ${WORKBENCH} .immersive-home .home-erow.is-on { background: var(--nav-active); }
-  ${WORKBENCH} .immersive-home .home-erow.is-on .home-erow__when { color: var(--ink-soft); }
-  ${WORKBENCH} .immersive-home .home-erow.is-on .home-erow__dot { box-shadow: inset 0 0 0 5px var(--ink); }
-  ${WORKBENCH} .immersive-home :is(.home-erow__src, .home-detail__src) { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
-  ${WORKBENCH} .immersive-home :is(.home-erow__src, .home-detail__src) svg { color: var(--muted); }
+  /* Arrival plays once per surface (\`is-arriving\`, set on its first reveal); showing Home again does not replay it. */
+  ${WORKBENCH} .immersive-home.is-arriving :is(.home-focus, .home-note) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  ${WORKBENCH} .immersive-home.is-arriving .home-note { animation-delay: 130ms; }
   /* The cascade marks arrival — the list's first load or another day — never a background refresh or a click. */
-  ${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > * { animation: craft-rise 320ms var(--ease-quint) both; }
-  ${[...Array(12).keys()].map((index) => `${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > :nth-child(${index + 1}) { animation-delay: ${30 + index * 20}ms; }`).join("\n  ")}
-  /* The detail column is an inspector along the sheet's right edge, not a card floating in it. */
-  ${WORKBENCH} .immersive-home[data-event="on"] .home-eventcol { animation: craft-sheet-in 240ms var(--ease-quint); }
-  ${WORKBENCH} .immersive-home .home-detail { border-radius: 0; box-shadow: none; background: transparent; }
-  ${WORKBENCH} .immersive-home .home-detail__head { padding: 12px 10px 8px 18px; }
-  ${WORKBENCH} .immersive-home .home-detail__act { padding: 10px 12px; background: var(--paper); box-shadow: inset 0 1px 0 var(--line); }
-  ${WORKBENCH} .immersive-home .home-day { transition: background-color var(--dur-hover) var(--ease-swift); }
-  ${WORKBENCH} .immersive-home .home-day.is-on { background: var(--nav-active); box-shadow: none; }
-  ${WORKBENCH} .immersive-home .home-day__n s { background: var(--ink-soft); }
-  ${WORKBENCH} .immersive-home .home-shortcut-icon { box-shadow: none; }
-  ${WORKBENCH} .immersive-home .home-shortcut-add .home-shortcut-icon { transition: border-color var(--dur-hover) var(--ease-swift), background-color var(--dur-hover) var(--ease-swift); }
-  ${WORKBENCH} .immersive-home .home-shortcut:hover .home-shortcut-icon { background: var(--nav-hover); }
+  ${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > * { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  ${[...Array(12).keys()].map((index) => `${WORKBENCH} .immersive-home .home-tl__rows[data-arrive] > :nth-child(${index + 1}) { animation-delay: ${30 + index * 24}ms; }`).join("\n  ")}
 
-  /* ─── Feed reader: one compact heading row; a lone tab is not a choice ───── */
-  ${WORKBENCH} .feed-source-header { padding: 14px 24px 0; }
-  ${WORKBENCH} .feed-source-heading { min-height: 32px; }
-  ${WORKBENCH} .feed-source-heading > div { display: flex; align-items: baseline; gap: 10px; }
-  ${WORKBENCH} .feed-source-heading h2 { font-size: 17px; letter-spacing: -.015em; flex: none; max-width: 60%; }
-  ${WORKBENCH} .feed-source-heading p { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${WORKBENCH} .feed-source-tabs { margin-top: 8px; }
-  ${WORKBENCH} .feed-source-header:not(:has(.feed-source-tabs button:not([hidden]) ~ button:not([hidden]))) { padding-bottom: 12px; }
+  /* ─── Feed: a lone source tab is not a choice (the column itself lives in the Feed plugin stylesheet) ─── */
   ${WORKBENCH} .feed-source-tabs:not(:has(button:not([hidden]) ~ button:not([hidden]))) { display: none; }
-  ${WORKBENCH} .feed-source-tabs button { transition: color var(--dur-hover) var(--ease-swift), border-color var(--dur-move) var(--ease-quint); }
+  ${WORKBENCH} .feed-source-tabs button { transition: color var(--dur-hover) var(--ease-quint), border-color var(--dur-move) var(--ease-quint); }
   ${WORKBENCH} .feed-source-tabs button:hover:not([aria-current]) { color: var(--ink-soft); border-bottom-color: var(--line-strong); }
+
+  /* ─── Plugin list pages (Soft Workbench): a page heading, one centred column, rows that breathe ───
+     The heading is the surface's own label, set once as --stage-title on the shell, so a plugin that re-renders
+     its list keeps it. It is drawn text only (the tab and the surface label already name the page for assistive tech). */
+  @media (min-width: 761px) {
+    ${STAGE_LIST} {
+      padding: 32px max(32px, calc((100% - 960px) / 2)) 56px;
+    }
+    /* One header on every page: the title and one sentence on the left, the page's actions on the right. */
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) {
+      position: relative; inset: auto; z-index: 5; display: grid; grid-auto-flow: column; grid-template-columns: minmax(0, 1fr);
+      grid-auto-columns: auto; grid-template-rows: auto auto; align-items: center; column-gap: 8px; row-gap: 4px;
+      width: auto; max-width: none; height: auto; min-height: 40px; flex: none; margin: 0 0 24px; padding: 0;
+    }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) > * { grid-row: 1 / span 2; }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::before {
+      content: var(--stage-title, "") / ""; grid-row: 1; grid-column: 1; min-width: 0;
+      font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.3; color: var(--ink);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::after {
+      content: var(--stage-desc, "") / ""; grid-row: 2; grid-column: 1; min-width: 0;
+      font-size: 13px; line-height: 1.5; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    ${STAGE_LIST} > .shelf-stage-chrome > .shelf-search { min-width: min(360px, 40vw); }
+    ${STAGE_LIST} > .plugin-stage-chrome .tree-create { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 13px; }
+    ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type { background: var(--action); color: var(--action-ink); }
+    ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type svg { color: currentColor; }
+    ${STAGE_LIST} > .plugin-stage-chrome .tree-create:first-of-type:hover { background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink))); }
+    /* That create is the page's one primary action; an empty state repeating it steps down to secondary. */
+    ${STAGE_LIST}:has(> .plugin-stage-chrome .tree-create) .mw-empty .mw-btn--primary { border-color: transparent; background: var(--control-fill); color: var(--ink); }
+    ${STAGE_LIST}:has(> .plugin-stage-chrome .tree-create) .mw-empty .mw-btn--primary:hover:not(:disabled) { background: var(--nav-hover); }
+    /* Rows: one comfortable line with a wash on hover; groups read as quiet section labels. */
+    ${STAGE_LIST} .feed-stage-entry {
+      height: auto; min-height: 44px; grid-template-rows: auto; padding: 8px 12px; border-radius: 8px;
+    }
+    ${STAGE_LIST} .feed-stage-item { min-height: 0; }
+    ${STAGE_LIST} .feed-stage-entry .feed-stage-leading strong { font-size: 13px; line-height: 20px; }
+    ${STAGE_LIST} :is(.feed-entry-source, .plugin-stage-fact, .plugin-stage-meta, .feed-stage-entry > time) { font-size: 12px; }
+    ${STAGE_LIST} .goal-collection-fold { margin: 0 0 16px; }
+    ${STAGE_LIST} .goal-collection-fold > summary { height: 34px; min-height: 34px; padding: 0 8px; color: var(--muted); }
+    ${STAGE_LIST} .goal-collection-fold > summary strong { font-size: 12px; color: var(--ink-soft); }
+    ${STAGE_LIST} .goal-collection-fold .feed-stage-entry { padding-left: 32px; }
+    ${STAGE_LIST} > .mw-empty,
+    ${STAGE_LIST} > div:only-child > .mw-empty:only-child { min-height: calc(100% - 84px); }
+    /* A plugin that wraps its empty state in its own list still gets the calm centred invitation. */
+    ${STAGE_LIST} > div:not(:only-child) > .mw-empty:only-child {
+      display: grid; justify-items: center; align-content: center; gap: 0; box-sizing: border-box;
+      max-width: 440px; margin: 0 auto; padding: 12vh 24px 64px; text-align: center;
+    }
+    ${STAGE_LIST} > div:not(:only-child) > .mw-empty:only-child > strong { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
+    ${STAGE_LIST} > div:not(:only-child) > .mw-empty:only-child > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
+    /* The open item: the list becomes a soft side column, as in the Feed and Goals columns. */
+    ${STAGE_OPEN} > .plugin-stage-list { background: var(--surface-soft); }
+  }
+  /* Sessions keep their own shell (a fixed header over a scrolling list); the page reads the same way. */
+  @media (min-width: 761px) {
+    ${SESSIONS_LIST}::before {
+      content: var(--stage-title, "") / ""; position: absolute; top: 24px; left: max(32px, calc((100% - 960px) / 2)); z-index: 21;
+      max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none;
+      font-size: 24px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 40px; color: var(--ink);
+    }
+    ${SESSIONS_LIST}::after {
+      content: var(--stage-desc, "") / ""; position: absolute; top: 66px; left: max(32px, calc((100% - 960px) / 2)); z-index: 21;
+      max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; font-size: 13px; line-height: 20px; color: var(--muted);
+    }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] { top: 28px; left: auto; right: max(32px, calc((100% - 960px) / 2)); height: 40px; }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 13px; background: var(--action); color: var(--action-ink); }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create svg { color: currentColor; }
+    /* The header's actions sit on the right, so their filter menus open leftward and stay inside the page. */
+    :is(${STAGE_LIST} > .plugin-stage-chrome, ${SESSIONS_LIST} > [data-session-stage-chrome]) .project-record-filter-menu > div { left: auto; right: 0; transform-origin: top right; }
+    ${SESSIONS_LIST} > [data-session-stage-chrome] .tree-create:hover { background: var(--action-hover, color-mix(in srgb, var(--action) 90%, var(--action-ink))); }
+    ${SESSIONS_LIST} > .session-stage-list { top: 104px; padding: 0 max(32px, calc((100% - 960px) / 2)) 56px; }
+    ${SESSIONS_LIST} .session-stage-row { height: auto; min-height: 44px; padding-block: 8px; border-radius: 8px; }
+    ${SESSIONS_LIST} .goal-collection-fold { margin: 0 0 16px; }
+    ${WORKBENCH} .session-stage-shell[data-expanded="true"] > .session-stage-list { background: var(--surface-soft); }
+  }
+  /* Phones keep the stacked header: the title and its sentence above the actions. */
+  @media (max-width: 760px) {
+    ${STAGE_LIST} { padding-top: 16px; }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome) {
+      position: relative; inset: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+      width: auto; max-width: none; height: auto; min-height: 0; flex: none; margin: 0 0 16px; padding: 0;
+    }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::before {
+      content: var(--stage-title, "") / ""; order: -2; flex: 1 0 100%;
+      font-size: 20px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; line-height: 1.3; color: var(--ink);
+    }
+    ${STAGE_LIST} > :is(.plugin-stage-chrome, .shelf-stage-chrome)::after {
+      content: var(--stage-desc, "") / ""; order: -1; flex: 1 0 100%; margin: -4px 0 4px; font-size: 13px; line-height: 1.5; color: var(--muted);
+    }
+    ${STAGE_LIST} .feed-stage-entry { height: auto; min-height: 48px; grid-template-rows: auto; }
+  }
 
   /* ─── Plugin market ────────────────────────────────────────────────────── */
   ${WORKBENCH} .plugin-market-body .mw-card {
     border-color: var(--line); box-shadow: none; border-radius: var(--r-card);
-    transition: border-color var(--dur-hover) var(--ease-swift);
+    transition: border-color var(--dur-hover) var(--ease-quint);
   }
   ${WORKBENCH} .plugin-market-body .mw-card:hover { border-color: var(--line-strong); }
   /* A card with a third action keeps its description readable and moves the actions to a row of their own. */
   ${WORKBENCH} .plugin-market-body .mw-card:has(> .mw-btn ~ .mw-btn ~ .mw-btn) { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
   ${WORKBENCH} .plugin-market-body .mw-card:has(> .mw-btn ~ .mw-btn ~ .mw-btn) > .plugin-market-copy { flex: 1 1 calc(100% - 64px); }
   ${WORKBENCH} .plugin-market-icon { border-radius: 8px; background: var(--nav-hover); color: var(--ink-soft); }
-  ${WORKBENCH} .plugin-market-installed-row > * { transition: border-color var(--dur-hover) var(--ease-swift); }
-  ${WORKBENCH} .plugin-market-list > * { animation: craft-rise 360ms var(--ease-quint) both; }
-  ${[...Array(10).keys()].map((index) => `${WORKBENCH} .plugin-market-list > :nth-child(${index + 1}) { animation-delay: ${index * 22}ms; }`).join("\n  ")}
+  ${WORKBENCH} .plugin-market-installed-row > * { transition: border-color var(--dur-hover) var(--ease-quint); }
+  ${WORKBENCH} .is-arriving .plugin-market-list > * { animation: craft-rise 420ms var(--ease-quint) both; }
+  ${[...Array(10).keys()].map((index) => `${WORKBENCH} .is-arriving .plugin-market-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
+  /* A plugin's list arrives once, the first rows in order (at most 12); a refresh or a return never replays it. */
+  ${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(-n+12) { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  ${[...Array(12).keys()].map((index) => `${WORKBENCH} .plugin-stage-shell.is-arriving > .plugin-stage-list > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
 
   /* ─── Settings documents ───────────────────────────────────────────────── */
   ${PAGES} :is(.settings-card, .settings-group, .project-settings-card) { border-radius: var(--r-card); }
 
   /* ─── Project index: the arrival page ──────────────────────────────────── */
   body.project-index-page { background: var(--desk); }
-  body.project-index-page .craft-greeting { margin: 0 0 10px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  body.project-index-page .craft-greeting { margin: 0 0 12px; color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 8px; }
   body.project-index-page .project-index-heading h1 { letter-spacing: -.03em; }
   body.project-index-page .project-card {
     position: relative; border-color: var(--line); box-shadow: none; border-radius: 12px; background: var(--paper);
-    transition: border-color var(--dur-hover) var(--ease-swift);
-    animation: craft-rise 360ms var(--ease-quint) both;
+    transition: border-color var(--dur-hover) var(--ease-quint);
+    animation: craft-rise 420ms var(--ease-quint) both;
   }
   ${[...Array(9).keys()].map((index) => `body.project-index-page .project-card-grid > :nth-child(${index + 1}) { animation-delay: ${40 + index * 30}ms; }`).join("\n  ")}
   body.project-index-page .project-card:hover { border-color: var(--line-strong); background: var(--paper); box-shadow: none; transform: none; }
@@ -1122,9 +1286,9 @@ const CRAFT_BASE_STYLES = `
 
   /* ─── Drag and drop ────────────────────────────────────────────────────── */
   ${PAGES} [draggable="true"] { -webkit-user-drag: element; }
-  ${PAGES} [data-craft-drag-source] { opacity: .45; transition: opacity 120ms var(--ease-swift); }
+  ${PAGES} [data-craft-drag-source] { opacity: .45; transition: opacity 130ms var(--ease-quint); }
   body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas], .tab-strip, [data-drop-target], .shelf-drop, .workflow-gap) {
-    transition: box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-swift);
+    transition: box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-move) var(--ease-quint);
   }
   body[data-craft-dragging] :is(.goal-frame-canvas, [data-frame-canvas]) { background-color: color-mix(in srgb, var(--focus) 4%, var(--paper)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent); }
   body[data-craft-dragging] :is([data-drop-target], .tab-strip):hover { background-color: color-mix(in srgb, var(--focus) 6%, transparent); }
@@ -1133,55 +1297,97 @@ const CRAFT_BASE_STYLES = `
   .craft-burst { position: fixed; z-index: 2147482000; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
   .craft-burst i {
     position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 2px; background: var(--c, var(--celebrate-a));
-    animation: craft-spark var(--d, 820ms) var(--ease-quint) forwards;
+    animation: craft-spark var(--d, 640ms) var(--ease-quint) forwards;
   }
   .craft-burst i:nth-child(3n) { border-radius: 50%; }
   .craft-burst i:nth-child(4n) { width: 3px; height: 9px; }
   .craft-burst b {
     position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; border-radius: 50%;
-    border: 2px solid var(--celebrate-a); animation: craft-ring 700ms var(--ease-quint) forwards;
+    border: 2px solid var(--celebrate-a); animation: craft-ring 640ms var(--ease-quint) forwards;
   }
   @keyframes craft-spark {
     0% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
     100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(.4); opacity: 0; }
   }
   @keyframes craft-ring { from { transform: scale(.3); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
-  ${PAGES} [data-craft-celebrate] .goal-status--completed { animation: craft-done 720ms var(--ease-spring); }
-  ${PAGES} [data-craft-celebrate] .goal-status--completed svg { animation: craft-done-mark 720ms var(--ease-spring); }
+  ${PAGES} [data-craft-celebrate] .goal-status--completed { animation: craft-done 640ms var(--ease-spring); }
+  ${PAGES} [data-craft-celebrate] .goal-status--completed svg { animation: craft-done-mark 640ms var(--ease-spring); }
   @keyframes craft-done { 0% { transform: scale(.8); } 45% { transform: scale(1.12); } 100% { transform: none; } }
   @keyframes craft-done-mark { 0% { transform: rotate(-30deg) scale(.4); } 60% { transform: rotate(8deg) scale(1.2); } 100% { transform: none; } }
 
   /* ─── Catalog specimens for this layer ─────────────────────────────────── */
   .mw-catalog .mw-craft-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
   .mw-catalog .mw-craft-lift, .mw-catalog .mw-craft-radius {
-    display: grid; gap: 4px; align-content: end; width: 132px; height: 84px; padding: 10px 12px; background: var(--paper); border-radius: var(--r-card);
+    display: grid; gap: 4px; align-content: end; width: 132px; height: 84px; padding: 12px 12px; background: var(--paper); border-radius: var(--r-card);
   }
   .mw-catalog .mw-craft-radius { width: 96px; height: 64px; box-shadow: var(--lift-1); }
   .mw-catalog :is(.mw-craft-lift, .mw-craft-radius) code { font-size: 11px; color: var(--ink-soft); }
   .mw-catalog :is(.mw-craft-lift, .mw-craft-radius) small { font-size: 11px; color: var(--muted); }
-  .mw-catalog .mw-craft-space { display: grid; grid-template-columns: 22px 64px 1fr; width: min(100%, 420px); height: 180px; padding: 0; border-radius: 12px; background: var(--desk); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
-  .mw-catalog .mw-craft-space__rail { background: repeating-linear-gradient(180deg, transparent 0 10px, color-mix(in srgb, var(--ink) 18%, transparent) 10px 14px, transparent 14px 22px) center 16px / 8px 100% no-repeat; }
-  .mw-catalog .mw-craft-space__dir { margin: 26px 4px 0; background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--ink) 9%, transparent) 0 6px, transparent 6px 14px) top / 100% 100% no-repeat; }
-  .mw-catalog .mw-craft-space__main { display: grid; grid-template-rows: 20px 1fr; padding: 0 6px 6px 0; }
+  /* Component board: the real resident bar on a strip of desk, its overlays opening upward. */
+  .mw-catalog-bar-frame { display: block; width: min(100%, 1100px); height: 440px; border: 0; border-radius: 14px; background: var(--desk); box-shadow: inset 0 0 0 1px var(--hairline); }
+  body.mw-bar-specimen-page { background: var(--desk); }
+  .mw-catalog-bar-stage { box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-end; height: 100dvh; padding: 0 16px; background: var(--desk); }
+  .mw-catalog-bar-stage .workbench-bar { height: var(--dock-h); padding: 0; background: transparent; }
+  .mw-catalog .mw-craft-space { display: grid; grid-template-columns: 70px 1fr; grid-template-rows: 1fr 30px; column-gap: 0; width: min(100%, 440px); height: 200px; padding: 12px 12px 0; border-radius: 14px; background: var(--desk); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
+  .mw-catalog .mw-craft-space__dir { grid-row: 1; margin: 16px 0 0; border-radius: 10px 0 0 10px; background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--ink) 9%, transparent) 0 6px, transparent 6px 14px) 10px 12px / 44px 100% no-repeat, var(--surface-soft); }
+  .mw-catalog .mw-craft-space__main { grid-row: 1; display: grid; grid-template-rows: 18px 1fr; }
   .mw-catalog .mw-craft-space__tabs { align-self: center; width: 64px; height: 10px; border-radius: 4px; background: var(--paper); box-shadow: var(--lift-1); }
-  .mw-catalog .mw-craft-space__sheet { display: grid; align-content: start; gap: 8px; padding: 14px; border-radius: 8px; background: var(--paper); box-shadow: var(--sheet-shadow); }
+  .mw-catalog .mw-craft-space__sheet { display: grid; align-content: start; gap: 8px; padding: 16px; border-radius: 0 10px 10px 0; background: var(--paper); box-shadow: var(--sheet-shadow); }
   .mw-catalog .mw-craft-space__sheet b { display: block; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
-  .mw-catalog .mw-craft-space__sheet b:first-child { width: 40%; height: 9px; background: color-mix(in srgb, var(--ink) 18%, transparent); }
+  .mw-catalog .mw-craft-space__sheet b:first-child { width: 40%; height: 9px; background: color-mix(in srgb, var(--ink) 20%, transparent); }
   .mw-catalog .mw-craft-space__sheet b:last-child { width: 70%; }
+  .mw-catalog .mw-craft-space__bar { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 4px; }
+  .mw-catalog .mw-craft-space__bar i { width: 34px; height: 10px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 12%, transparent); }
+  .mw-catalog .mw-craft-space__bar em { flex: 0 1 180px; height: 16px; border-radius: 6px; background: var(--paper); box-shadow: var(--lift-2); }
   .mw-catalog .mw-craft-motion td:first-child { white-space: nowrap; }
-  .mw-catalog .mw-craft-stage { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: min(100%, 460px); margin-top: 12px; padding: 10px 12px; border-radius: var(--r-row); background: var(--paper); box-shadow: var(--lift-1); }
+  .mw-catalog .mw-craft-stage { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px; width: min(100%, 460px); margin-top: 12px; padding: 12px 12px; border-radius: var(--r-row); background: var(--paper); box-shadow: var(--lift-1); }
   .mw-catalog .mw-craft-stage.is-rising { animation: craft-rise var(--dur-arrive) var(--ease-quint); }
   .mw-catalog .mw-craft-stage__title { font-size: 13px; color: var(--ink); }
   .mw-catalog .mw-craft-mono { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-soft); }
   .mw-catalog .mw-craft-strip { padding: 4px 8px; border-radius: 10px; background: var(--desk); }
-  .mw-catalog .mw-craft-tab { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 7px; color: var(--muted); font-size: 12px; }
+  .mw-catalog .mw-craft-tab { display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; border-radius: 7px; color: var(--muted); font-size: 12px; }
   .mw-catalog .mw-craft-tab svg { width: 14px; height: 14px; }
   .mw-catalog .mw-craft-tip { position: static; opacity: 1; transform: none; margin-left: 12px; }
+  /* Icon inventory and motion specimens. */
+  .mw-catalog .mw-icon-inventory { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
+  .mw-catalog .mw-icon-inventory { width: min(880px, 100%); }
+  .mw-catalog #icon-inventory .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
+  .mw-catalog #icon-inventory .mw-catalog__specimens > * { width: 100%; }
+  .mw-catalog .mw-icon-inventory > li { display: flex; align-items: center; gap: 8px; min-height: 36px; color: var(--ink-soft); font-size: 13px; }
+  .mw-catalog .mw-icon-inventory > li > svg { flex: none; width: 16px; height: 16px; }
+  .mw-catalog .mw-icon-inventory > li > span:last-child, .mw-catalog .mw-icon-inventory > li strong + code { display: grid; }
+  .mw-catalog .mw-icon-inventory strong { font-size: 13px; font-weight: var(--weight-control, 500); color: var(--ink); }
+  .mw-catalog .mw-icon-inventory code, .mw-catalog .mw-icon-inventory small { font-size: 11px; color: var(--muted); }
+  .mw-catalog .mw-icon-inventory--states > li { justify-content: space-between; }
+  .mw-catalog .mw-icon-size { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--surface-soft); color: var(--ink-soft); }
+  .mw-catalog .mw-icon-size svg { width: var(--s); height: var(--s); }
+  .mw-catalog .mw-icon-inventory--sizes > li:last-child .mw-icon-size svg { stroke-width: 1.6; }
+  .mw-catalog .mw-motion-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .mw-catalog .mw-motion-rows { display: grid; gap: 4px; }
+  .mw-catalog .mw-motion-stack { display: grid; justify-items: start; gap: 12px; width: 100%; }
+  .mw-catalog .mw-motion-row { min-height: 36px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; text-align: left; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-catalog .mw-motion-row:hover { background: var(--nav-hover); }
+  .mw-catalog .mw-motion-menu { position: relative; }
+  .mw-catalog .mw-motion-menu > summary { list-style: none; }
+  .mw-catalog .mw-motion-menu > .mw-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; min-width: 160px; padding: 4px; background: var(--popover); }
+  .mw-catalog .mw-motion-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--desk); }
+  .mw-catalog .mw-motion-tabs .tab-item { min-height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; }
+  .mw-catalog .mw-motion-tabs .tab-item[aria-selected="true"] { background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); }
+  .mw-catalog .mw-motion-list { display: grid; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; }
+  .mw-catalog .mw-motion-list > li { padding: 8px 12px; border-radius: 8px; background: var(--surface-soft); font-size: 13px; }
+  .mw-catalog .mw-motion-list.is-arriving > li { animation: craft-rise var(--dur-arrive) var(--ease-quint) both; }
+  ${[...Array(5).keys()].map((index) => `.mw-catalog .mw-motion-list.is-arriving > :nth-child(${index + 1}) { animation-delay: ${index * 24}ms; }`).join("\n  ")}
+  .mw-catalog .mw-motion-row-detail > summary { cursor: pointer; font-size: 13px; }
+  .mw-catalog .mw-motion-row-detail > p { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+  .mw-catalog .mw-motion-pages > section { padding: 16px; border-radius: 12px; background: var(--surface-soft); font-size: 13px; }
+  .mw-catalog .mw-motion-pages > section:not([hidden]) { animation: craft-fade-in var(--dur-hover) var(--ease-quint) both; }
 
   /* ─── Reduced motion: nothing here moves ───────────────────────────────── */
   @media (prefers-reduced-motion: reduce) {
-    ${PAGES} *, ${PAGES} *::before, ${PAGES} *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; }
-    ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .tab-item, .tab-view-chip, .project-card, .home-day, [data-kanban-card], .mw-check, .mw-radio):active { transform: none !important; }
+    /* State still changes and focus still moves; only the movement goes. Transitions stop too, not just animations:
+       a 0s duration (not 1ms) so a new size or position is there the moment the state changes. */
+    ${PAGES} *, ${PAGES} *::before, ${PAGES} *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
+    ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .tab-item, .tab-view-chip, .project-card, .home-day, [data-kanban-card], .mw-check, .mw-radio, .dock-pin, .bar-resident, .bar-chat, .account-global-trigger, .plugin-picker-trigger):is(:active, :hover) { transform: none !important; }
     ${PAGES} :is(.mw-btn, .tab-item, [data-kanban-card], .project-card, .plugin-market-body .mw-card, .plugin-market-installed-row > *):hover { transform: none !important; }
     .craft-burst, .craft-tip { transition: none; }
     .craft-burst { display: none; }
@@ -1190,12 +1396,15 @@ const CRAFT_BASE_STYLES = `
 
 /** Under automation (headless review, e2e) the layer holds still so geometry reads settle at once. */
 const STILL_RESET = `
-  html[data-craft-still] :is(.dock-window, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home[data-event="on"] .home-eventcol, .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
+  html[data-craft-still] :is(.workbench-bar > *, .immersive-plugin-stage, .dock-overflow, .dock-window, .account-global-popover, .assistant-panel, .plugin-picker-popover, .immersive-home :is(.home-focus, .home-note, .home-erow__slot), .tab-pane-body > [data-work-surface], .tab-workspace-exclusive > *, .home-tl__rows > *, .plugin-market-list > *, .project-card,
     dialog[open], ${DROPDOWN}, details[open] > .navigator-project-menu-popover, .toast, .mw-check, .mw-radio, [data-graph-edge] path,
     [data-craft-celebrate] .goal-status--completed, [data-craft-celebrate] .goal-status--completed svg) { animation: none !important; }
   html[data-craft-still] :is(dialog[open], .mw-check:checked, .mw-radio:checked, .plugin-rail-items .immersive-plugin-link[aria-current], [data-craft-new])::after,
   html[data-craft-still] dialog[open]::backdrop,
   html[data-craft-still] :is(.goal-canvas-node, [data-graph-node], [data-kanban-card]) *::after { animation: none !important; }
+  html[data-craft-still] :is(dialog, dialog::backdrop, iframe.tab-content-frame, [data-just-opened], [data-just-opened] > *, .is-arriving, .is-arriving *) { transition: none !important; animation: none !important; }
+  /* Under automation nothing eases either, so a reading taken right after a change sees the settled value. */
+  html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
 export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + STILL_RESET;
@@ -1228,9 +1437,8 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     return ["夜深了", "purple"];
   };
   document.querySelectorAll("[data-craft-greeting]").forEach((node) => {
-    const [text, hue] = daylight();
+    const [text] = daylight();
     node.textContent = T(text);
-    node.style.setProperty("--craft-daylight", "var(--hue-" + hue + "-fill)");
     node.hidden = false;
   });
 
@@ -1242,6 +1450,47 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     body.classList.add("is-craft-opening");
     setTimeout(() => body.classList.remove("is-craft-opening"), 1400);
   }
+
+  /* Arrival plays once per surface: the first time a work surface is revealed it carries \`is-arriving\` for one
+   * arrival's length; showing it again later (a tab switch, a return) never replays the cascade. */
+  const arrived = new WeakSet();
+  const arrive = (surface) => {
+    if (arrived.has(surface) || surface.hidden || reduced()) { arrived.add(surface); return; }
+    arrived.add(surface);
+    surface.classList.add("is-arriving");
+    setTimeout(() => surface.classList.remove("is-arriving"), 900);
+  };
+  if (workbench) {
+    document.querySelectorAll("[data-work-surface]").forEach((surface) => { if (!surface.hidden) arrive(surface); });
+    new MutationObserver((records) => {
+      for (const record of records) {
+        const node = record.target;
+        if (node instanceof HTMLElement && node.hasAttribute("data-work-surface") && !node.hidden) arrive(node);
+      }
+    }).observe(body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+  }
+
+  /* A disclosure lets its content settle in only when a person opened it; rendering one already open stays still. */
+  let userToggleAt = 0;
+  const noteToggle = (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("summary, [data-home-open-event]")) userToggleAt = Date.now();
+  };
+  document.addEventListener("click", noteToggle, true);
+  document.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") noteToggle(event); }, true);
+  const settleOpened = (node) => {
+    if (reduced() || !node) return;
+    node.setAttribute("data-just-opened", "");
+    setTimeout(() => node.removeAttribute("data-just-opened"), 420);
+  };
+  document.addEventListener("toggle", (event) => {
+    const details = event.target;
+    if (details instanceof HTMLDetailsElement && details.open && Date.now() - userToggleAt < 400) settleOpened(details);
+  }, true);
+  document.addEventListener("click", (event) => {
+    const row = event.target instanceof Element ? event.target.closest("[data-home-open-event]") : null;
+    if (row) requestAnimationFrame(() => settleOpened(document.querySelector(".immersive-home .home-erow-wrap.is-open .home-erow__slot")));
+  });
 
   /* ⌥1…⌥9 open the first nine tools of the rail, Home first. Typing, terminals and menus keep their keys. */
   const railShortcuts = () => [...document.querySelectorAll(".dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]")]

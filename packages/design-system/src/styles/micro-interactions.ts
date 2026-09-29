@@ -22,7 +22,7 @@ const RUNNING_STATUS =
 const FOCAL_STATUS = ":is(.tui-owner-actions, .goal-node-toolbar, .reader-header, .frame-goal-heading, .goal-info-popover)";
 
 export const MICRO_INTERACTION_STYLES = `
-  :root, body { --ease-settle: cubic-bezier(.32, 1.22, .52, 1); }
+  :root, body { --ease-settle: var(--ease-spring); }
 
   /* Contained focus sits last in the design-system tail so leftover outer rings cannot win. */
   body.immersive-workbench :focus-visible,
@@ -56,9 +56,7 @@ export const MICRO_INTERACTION_STYLES = `
   }
   body ${SEGMENTED}[data-seg-thumb][data-seg-ready]::before {
     transition:
-      transform 240ms var(--ease-settle),
-      width 240ms var(--ease-settle),
-      height 120ms var(--ease-standard);
+      transform 250ms var(--ease-spring);
   }
   body ${SEGMENTED}[data-seg-thumb] > :is(button, a) { position: relative; z-index: 1; }
   body ${SEGMENTED}[data-seg-thumb] > ${SEGMENT_CURRENT},
@@ -92,7 +90,7 @@ export const MICRO_INTERACTION_STYLES = `
     pointer-events: none;
   }
   body .global-search-body[data-search-glide][data-search-ready]::before {
-    transition: transform 190ms var(--ease-standard), width 190ms var(--ease-standard), height 120ms var(--ease-standard);
+    transition: transform 130ms var(--ease-quint);
   }
   body .global-search-body[data-search-glide] .global-search-hit { position: relative; z-index: 1; }
   body.immersive-workbench .global-search-body[data-search-glide] .global-search-hit[aria-selected="true"],
@@ -102,8 +100,8 @@ export const MICRO_INTERACTION_STYLES = `
   /* Row Yield: list hover is a 180ms tone step. Squeezed titles ellipsize in the title slot; do not mask the row, or trailing status gets cut. */
   body.immersive-workbench :is(.tree-entry, .feed-stage-entry, .source-list-item, .goal-collection-fold > summary) {
     transition:
-      background-color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1)),
-      color 180ms var(--ease-out, cubic-bezier(.16, 1, .3, 1));
+      background-color 130ms var(--ease-quint),
+      color 130ms var(--ease-quint);
   }
 
 
@@ -117,20 +115,7 @@ export const MICRO_INTERACTION_STYLES = `
     background: var(--nav-hover);
   }
 
-  /* Status Mark: a Goal that is running says so with an indeterminate arc, not a still glyph. */
-  body ${FOCAL_STATUS} .goal-status${RUNNING_STATUS} > svg { display: none; }
-  body ${FOCAL_STATUS} .goal-status${RUNNING_STATUS}::before {
-    content: "";
-    flex: none;
-    width: 12px;
-    height: 12px;
-    box-sizing: border-box;
-    border: 1.7px solid color-mix(in srgb, currentColor 26%, transparent);
-    border-top-color: currentColor;
-    border-radius: 50%;
-    animation: mw-status-arc 1150ms linear infinite;
-  }
-  @keyframes mw-status-arc { to { transform: rotate(1turn); } }
+  /* Status Mark: every state keeps its one fixed glyph everywhere; a running Goal does not trade it for a spinning arc. */
 
   /* Stages, menus and the assistant sheet share one 6px rise. Menus stay on the fast clock. */
   @keyframes creative-arrive {
@@ -138,10 +123,10 @@ export const MICRO_INTERACTION_STYLES = `
     to { opacity: 1; transform: none; }
   }
   .plugin-stage-workspace.is-arriving,
-  .is-arriving { animation: creative-arrive var(--motion-normal, 190ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)) both; }
+  .is-arriving { animation: creative-arrive var(--motion-normal, 130ms) var(--ease-quint) both; }
   :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
   .mw-select-picker__menu.is-open {
-    animation: creative-arrive var(--motion-fast, 130ms) var(--ease-out, cubic-bezier(.16, 1, .3, 1)) both;
+    animation: creative-arrive var(--motion-fast, 130ms) var(--ease-quint) both;
   }
 
   @media (prefers-reduced-motion: reduce) {

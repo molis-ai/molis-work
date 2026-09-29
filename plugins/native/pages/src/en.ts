@@ -1,4 +1,7 @@
 export const PAGES_EN: Record<string, string> = {
+  "列表暂时读不到": "The list could not be read",
+  "请稍后重试": "Try again in a moment",
+  "重试": "Retry",
   "保存中": "Saving",
   "文档已改变，请重新生成": "The document changed. Generate again.",
   "此转换无法保留块中的内容": "This conversion cannot preserve the block contents",

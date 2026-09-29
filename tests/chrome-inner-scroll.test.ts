@@ -57,12 +57,14 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.doesNotMatch(workbench, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
   assert.match(workbench, /\[data-shelf-stage-shell\]\[data-expanded="true"\] \{ --tree-width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
-  assert.match(workbench, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 6px 8px 10px 24px;/);
+  // Spacing snapped to the 4/8/12/16 scale in the visual refinement (spec → 第三轮 · 间距与形状); the indent stays 24px.
+  assert.match(workbench, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);
   assert.ok(workbench.includes("scrollbar-width: none"));
   assert.ok(workbench.includes(".directory-content-scroll::-webkit-scrollbar { width: 0; height: 0; }"));
   assert.ok(workbench.includes(":is(.tree-scroll, .project-record-scroll, .feed-directory-list, .source-directory-list, .feed-item-scroll, .source-list) { flex: none; height: auto; min-height: 0; overflow: visible;"));
   assert.doesNotMatch(workbench, /\.directory-shortcuts/);
-  assert.ok(workbench.includes(".immersive-home .home-shortcuts { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-start; gap: 18px; list-style: none; margin: 0; padding: 0; }"));
+  // Soft Workbench home: shortcuts are rows in the margin list, under 回到手边的内容.
+  assert.ok(workbench.includes(".immersive-home :is(.home-quick, .home-shortcuts) { list-style: none; margin: 0; padding: 0; }"));
   assert.doesNotMatch(workbench, /\.directory-list-stage > \.desktop-directory-root:not\(\[hidden\]\) \{ display: block;/);
   assert.match(workbench, /--dir-row-h: 28px;/);
   assert.match(workbench, /--plugin-rail-width: 48px;/);
@@ -96,14 +98,16 @@ test("project index, settings, and workbench keep titles pinned and scroll only 
   assert.match(workbench, /\.session-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-shell\[data-expanded="true"\] \{[\s\S]*grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
   assert.match(workbench, /\.plugin-stage-list \.mw-dir-row-wrap:has\(\.is-selected\)::before,[\s\S]*content: none; display: none; width: 0;/);
-  assert.match(workbench, /\.plugin-stage-detail-bar \{[\s\S]*padding: 8px 16px 8px 20px;/);
+  // Bar insets and the back button's optical pull snapped to the 4/8 scale in the visual refinement
+  // (spec → 第三轮 · 间距与形状): 20px → 24px, -6px → -8px, 10px → 12px. The bars are still pinned the same way.
+  assert.match(workbench, /\.plugin-stage-detail-bar \{[\s\S]*padding: 8px 16px 8px 24px;/);
   assert.match(workbench, /\.plugin-stage-detail-bar\[data-stage-back-only\] \{[\s\S]*position: absolute;/);
   assert.match(workbench, /\.plugin-stage-detail-bar > \.feed-detail-kicker \{[\s\S]*margin: 0;/);
   assert.match(workbench, /\.plugin-stage-detail-bar > h1 \{[\s\S]*font-size: 13px;/);
-  assert.match(workbench, /\.plugin-stage-back \{[\s\S]*margin-left: -6px;/);
-  assert.match(workbench, /\.session-stage-bar \{[\s\S]*padding: 8px 16px 8px 20px;/);
-  assert.match(workbench, /\.session-stage-back \{[\s\S]*margin-left: -6px;/);
-  assert.match(workbench, /body\.immersive-workbench \.goal-node-toolbar,[\s\S]*body\.immersive-workbench \.plugin-stage-detail-bar,[\s\S]*body\.immersive-workbench \.session-stage-bar \{ min-height: 32px; padding: 4px 10px; gap: 8px; \}/);
+  assert.match(workbench, /\.plugin-stage-back \{[\s\S]*margin-left: -8px;/);
+  assert.match(workbench, /\.session-stage-bar \{[\s\S]*padding: 8px 16px 8px 24px;/);
+  assert.match(workbench, /\.session-stage-back \{[\s\S]*margin-left: -8px;/);
+  assert.match(workbench, /body\.immersive-workbench \.goal-node-toolbar,[\s\S]*body\.immersive-workbench \.plugin-stage-detail-bar,[\s\S]*body\.immersive-workbench \.session-stage-bar \{ min-height: 32px; padding: 4px 12px; gap: 8px; \}/);
   assert.match(workbench, /plugin-stage-workspace \.artifact-detail,[\s\S]*plugin-stage-workspace \.artifact-empty \{ max-width: none; margin: 0; \}/);
   assert.doesNotMatch(workbench, /plugin-stage-workspace \.artifact-empty \{ max-width: 800px; margin: 24px auto; \}/);
   assert.match(workbench, /immersive-plugin-stage > \.session-stage-shell[\s\S]*?padding: 0;/);

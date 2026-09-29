@@ -160,7 +160,12 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
           + ' · ' + (EXECUTION[role.execution] || role.execution) + (role.edited ? ' · 含你的修改' : '');
         link.append(name, meta); box.append(link);
       }
-    } catch (error) { box.textContent = '系统与插件角色暂时读不到：' + (error.message || '请稍后重试'); }
+    } catch (error) {
+      box.textContent = '系统与插件角色暂时读不到：' + (error.message || '请稍后重试');
+      const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--secondary mw-btn--sm'; retry.textContent = '重试';
+      retry.addEventListener('click', () => { retry.disabled = true; void renderBuiltin(); });
+      box.append(' ', retry);
+    }
   };
   void renderBuiltin();
   importsView = (${CHARACTER_IMPORT_CLIENT_FACTORY})({root,q,request,current,load,select,act,save,dirty,note});

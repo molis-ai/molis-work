@@ -1,20 +1,22 @@
 # 插件 UI
 
-产品气质：中性、紧凑、连续工作面。不要默认 Dashboard、表格、卡片墙、后台式布局。先找这个插件里「人盯着的那一块」，效率场景再保证信息密度。
+产品气质：Soft Workbench——珍珠灰桌面上一张连续的白色工作面，石墨主操作，安静的层次。不要默认 Dashboard、表格、卡片墙、后台式布局。先找这个插件里「人盯着的那一块」，效率场景再保证信息密度。规范总表：仓库 `DESIGN.md`。
 
 ## 质量线（所有插件）
 
 官方插件和插件创作台生成的插件用同一条线；生成插件由平台渲染器保证其中大部分，设计时仍要按它取舍。
 
-- **只用 UI 目录里的组件**（`/__ui/catalog`，`mw-*`）。目录里没有的控件或交互不要自造；需要新组件先进目录。
-- **三种状态都要有**：还没有内容（空态说下一步能做什么）、正在加载（骨架，不留白）、出错（说原因和下一步，输入保留）。
-- **主操作一处**：一个画面只有一个主按钮（近黑），新建入口放在标题区右侧或列表末尾；危险操作弱化，并在执行前确认。
-- **文案**：按钮说人做的事，不说机制；时间说"今天 14:30"，原值保留；取值用人话（"想读"而不是 `unread`）。
-- **密度与层次**：层次靠字号和 `--ink` / `--muted` / `--faint`；分区用间距和发丝线，不给舞台再画外框、不用渐变；颜色只表达状态和选中，图标保持中性。
+- **只用 UI 目录里的组件**（组件板 `/__ui/catalog`，`mw-*`）。目录里没有的控件或交互不要自造；需要新组件先进目录。
+- **三种状态都要有**：还没有内容（空态居中：图标、一句标题、下一步能做什么、一个主操作）、正在加载（骨架，不留白）、出错（说原因和下一步，输入保留）。
+- **主操作一处**：一个画面只有一个石墨主按钮；次要操作是浅洗色的柔和按钮，不画外框；新建入口放在标题区或工具条右侧、或列表末尾；危险操作弱化，并在执行前确认。
+- **文案**：按钮说人做的事，不说机制；时间说「今天 14:30」，原值保留；取值用人话（「想读」而不是 `unread`）。
+- **层次先靠字**：标题 600、条目与控件 500、正文 400；再靠字号和 `--ink` / `--ink-soft` / `--muted`；最后才用间距和少量分隔线。不给舞台再画外框、不嵌套卡片、不堆装饰性标签。
+- **颜色只表达状态和选中**：选中是中性的浅底（`--nav-active`）或石墨；铜色只给焦点、链接、进行中；插件没有身份色，图标保持中性。业务界面不用渐变；柔和的冷暖光只属于新手引导。
+- **阴影只给抬起的东西**：菜单、弹层、对话框、Toast 用浮层阴影且不再描边；普通内容不加阴影。
 - **位置不重复**：工作台标签条已经写了插件名，舞台里不再放一行插件名大标题；独立打开（预览、试用页）时才显示。
 - **浅色和深色都成立**：颜色一律用 token，不写死；在两种主题下各看一眼。
-- **反馈可见**：保存后新记录可见（进入动画），成功提示短暂出现后淡出，失败提示留下直到下次成功。
-- **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行。
+- **反馈可见**：按下有回弹，保存后新记录可见（上浮进入），成功提示短暂出现后淡出，失败提示留下直到下次成功。
+- **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行；工具条放不下时名称收成图标（名称仍是可访问名称）。
 
 ## 槽：人从哪进来
 
@@ -22,16 +24,18 @@
 
 | 槽 | 放哪 | 例子 |
 | --- | --- | --- |
-| `navigator` | 侧栏一级入口 | Feed、Inbox、Pages、Goals、Sessions |
-| `stage` | 工作区里的工具面，不占侧栏 | Diff、Text stats |
+| `navigator` | 一级入口：出现在底栏的插件切换列表里，可以被人钉进 Dock（技术标识沿用 `navigator`） | Feed、Inbox、Pages、Goals、Sessions |
+| `stage` | 工作区里的工具面，不进插件切换列表 | Diff、Text stats |
 | `settings` | 全局设置目录 | Shelf、Coding 偏好 |
-| `island` | 项目卡片上方 | 灵光 |
+| `island` | 个人常驻入口：底栏右侧，项目圆钮旁 | 灵光 |
+
+全局只有一处导航与对话入口：底部常驻栏（左侧 Dock 菜单与常驻插件，中间插件切换 + Assistant 输入，右侧 Shelf、灵光、项目讨论与项目）。插件不要再做全局侧栏、第二个对话入口或自己的顶栏导航；插件内部的目录、树、列表与详情可以分栏。
 
 Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory`、`workbench.main`、`workbench.overlay`、`workbench.settings`。不能往未声明 Slot 塞 HTML。不要把内部组件实例或 Store handle 传过边界。详情里嵌别人的内容，对方必须显式开放 Slot。
 
 `settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。
 
-不是所有一等入口都是「列表点开详情」：Goals 是树和画布；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
+不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
 
 ## 舞台（列表 + 详情）
 
@@ -52,14 +56,16 @@ renderPluginStageShell({
 
 - `plugin-stage-shell` + `plugin-stage-list`（`feed-stage-list feed-stage-tree`）+ `plugin-stage-workspace`。
 - 点插件条：`is-plugin-directory-empty`，不要 `data-directory-open` 第二栏（来源管理等隐藏 panel 除外）。
-- 默认铺满列表。分组用 `goal-collection-fold`：caret + 状态 mark（勾=安好，三角=要盯）+ 标题 + 计数。点分组头只开合，不自动打开第一行。
-- 宽屏点行：`data-expanded="true"`，列表收成 `--tree-width`，右边详情。窄屏只看正文，`plugin-stage-back` 回列表。
+- 列表页由 Host 画成原型的页：居中 960px 一栏，页标题取自 `label`（Host 写进 `--stage-title`，插件不要自己再画标题），`plugin-stage-chrome` 里的动作排在标题右侧，其中第一个 `tree-create` 是本页唯一的石墨按钮。行至少 44px。分组用 `goal-collection-fold`：caret + 状态 mark（勾=安好，三角=要盯）+ 标题 + 计数。点分组头只开合，不自动打开第一行。
+- `label` 写界面语言的原文（中文），并在插件的英文表里给出对应；Host 用 `L()` 取当前语言的标题。
+- 编辑器是单个表单时，放进全宽滚动容器里的居中一栏（参考 Forms 52rem、Dataset 72rem）；写作类（灵光）是写作页：文档标题 + 阅读字号正文。
+- 宽屏点行：`data-expanded="true"`，列表收成 `--tree-width` 的浅色侧栏（`--surface-soft`），右边详情。窄屏只看正文，`plugin-stage-back` 回列表。
 - 行：`feed-stage-entry directory-list-row`，不要 `mw-dir-row` 当主列表。
 - 舞台根节点带 `data-<id>="workbench"`（如 `data-pages="workbench"`）。测试和客户端靠它认面。
 - 详情底栏放下一步处置；打开原文 / 返回是导航，不是判断池里的动作。
 - 不要自动选中第一条。
 
-对照：`plugins/native/feed/src/ui.ts`、`inbox/src/ui.ts`、`pages/src/ui.ts`。合同：`specs/archive/plugin-stage-master-detail/spec.md`。
+对照：`inbox/src/ui.ts`、`pages/src/ui.ts`、`form/src/ui.ts`（Feed 现在是专门的阅读布局，不再是列表 + 详情的样板）。合同：`specs/archive/plugin-stage-master-detail/spec.md`，版式以根 `DESIGN.md`「Plugin stage lists」为准。
 
 ## 浏览器客户端
 
@@ -79,28 +85,26 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 ## 控件与视觉
 
-从 `@molis-ai/molis-work-design-system` 导入 `renderButton` / `icon` / 已有 `render*`。class 用 `mw-btn`、`mw-input`、`mw-status`。标本：`/__ui/catalog`。
+从 `@molis-ai/molis-work-design-system` 导入 `renderButton` / `renderChoice` / `icon` / 已有 `render*`。class 用 `mw-btn`、`mw-input`、`mw-status`、`mw-choice`。标本与组合：`/__ui/catalog`（含底栏与浮层的真实样例）。
 
-- 字重默认 400。层级靠字号和 `--ink` / `--ink-soft` / `--muted` / `--faint`。
-- 壳层 hover/当前走 `--nav-*`。主操作近黑（`--action`）。靛只给链接、选区、进行中。
-- 焦点：`--focus-stroke` 内侧 1px `--ink`。不要蓝描边。
-- 状态色走 tone/status。禁止系统下拉、系统色盘、`alert` / `confirm` / `prompt`、裸 `<select>`。
+- 字体：系统无衬线 + 平台中文字体（`--font`），代码与终端用 `--font-mono`。字重用角色：`--weight-title` 600、`--weight-control` 500、`--weight-body` 400；不写 700，不用 `!important` 改字重。
+- 面：桌面 `--page`，工作面 `--paper`，插件目录列与内层块 `--surface-soft`，局部分组洗色 `--rail`，分隔 `--line`。面板里的全幅画布用 `--canvas`（与工作面同色）。
+- 动作与强调：主操作石墨 `--action`；选中用 `--nav-active` 或石墨；焦点、链接、进行中用铜色 `--accent`（历史名 `--blue` 同值）。不要蓝色、不要插件色铺底。
+- 焦点：`--focus-stroke`（2px 铜色外描边）；输入框聚焦是加深的边和一圈淡铜色光晕，由 `mw-input` 提供。
+- 状态色走 tone/status（文字 + 圆点或图标，不只靠颜色）。禁止系统下拉、系统色盘、`alert` / `confirm` / `prompt`、裸 `<select>`。
 - 色用 token，组件规则里不要写死 hex。
-- 动效用 `--motion-*` / `--ease-*`。`prefers-reduced-motion` 去掉位移。
-- 窄屏/粗指针可点目标约 44px；桌面控件约 28，表单主操作 36。
+- 尺寸：控件 32px（紧凑密度 28，窄屏/粗指针 44）；圆角 控件 8、行 10、卡片 12、工作面 14、对话框 16。
+- 动效：`--dur-press` 130ms（按下与悬停）、`--dur-move` 250ms（状态移动）、`--dur-arrive` 420ms（到达），曲线 `--ease-quint`、`--ease-spring`。`mw-btn` 回弹、菜单从控件长出、对话框与侧边面板入场、列表到达都由 Host 提供，不要重写。`prefers-reduced-motion` 与自动化下全部静止。
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
-- 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入。
+- 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入；只写本插件的布局，不重画共享控件。
 
-质感层（`craft-finish.ts`，最后加载，标本 `/__ui/catalog#craft`）：
+终层（`packages/design-system/src/styles/craft-finish.ts`，最后加载）：
 
-- 舞台已经在一张圆角纸页上。不要再给自己的舞台画外框、圆角卡片或整页阴影；需要分区用间距和发丝线。
-- 纯色、扁平：任何背景、卡片、按钮、徽标都不用渐变。页面内的层次只用发丝线：`--lift-1`（1px `--line` 线环，静止卡片）/ `--lift-2`（1px `--line-strong`，悬停）；只有真正浮起的菜单、对话框、拖动中的元素用 `--lift-3` 阴影。圆角用 `--r-row` 8、`--r-card` 12、`--r-dialog` 16。
-- 颜色只表达状态和选中。图标、来源标签、时间线圆点保持中性；选中用 `--nav-active`，不要用插件色铺底。
-- 时长用 `--dur-press` / `--dur-hover` / `--dur-move` / `--dur-arrive`，曲线 `--ease-quint`（到达）、`--ease-spring`（回弹）、`--ease-swift`（色调）。`mw-btn` 的按下回弹、对话框和菜单的入场已由 Host 提供，不要重写。
+- 舞台已经在连续的白色工作面上。不要再给自己的舞台画外框、圆角卡片或整页阴影；需要分区用间距、字重和分隔线。
 - 插件自己的「完成」和「新到达」可以调用 `molisCraft.celebrate(元素)` / `molisCraft.land(元素)`（只做呈现，减少动效时自动静止）。只在真实完成或真实到达时调用，首次渲染不要调用。
 - 位置由标签条最前的插件芯片说明，舞台不需要再放一行「插件名」大标题。
 
-意图总表：仓库 `DESIGN.md`。硬规则：`packages/design-system/README.md`。
+硬规则与用法：`packages/design-system/README.md`。
 
 ## 文案与 i18n
 

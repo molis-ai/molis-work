@@ -92,6 +92,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       loading = request;
       const status = document.createElement("p");
       status.dataset.settingsLoading = "1";
+      status.className = "mw-loading";
+      status.setAttribute("role", "status");
       status.textContent = L("正在加载设置");
       showNode(status);
       try {
@@ -102,7 +104,18 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         if (loading !== request) return;
         loadFromHtml(section, html);
       } catch (error) {
-        status.textContent = error.message || L("无法加载设置");
+        // The reason and a way to try again, where the section would be.
+        const failed = document.createElement("div");
+        failed.className = "mw-empty mw-empty--error";
+        failed.dataset.settingsLoading = "1";
+        failed.setAttribute("role", "alert");
+        failed.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
+        failed.querySelector("strong").textContent = L("无法加载设置");
+        failed.querySelector("p").textContent = error.message && error.message !== L("无法加载设置") ? error.message : L("请稍后重试");
+        const retry = failed.querySelector("button");
+        retry.textContent = L("重试");
+        retry.addEventListener("click", () => { retry.disabled = true; if (loading === request) loading = null; void loadSection(section, fetchPath); });
+        showNode(failed);
       } finally {
         if (loading === request) loading = null;
       }

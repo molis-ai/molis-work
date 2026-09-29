@@ -299,7 +299,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["pages", "Pages", "note"],
       ["form", "Forms", "clipboard"],
       ["dataset", "Dataset", "database"],
-      ["ppt", "PPT", "image"],
+      ["ppt", "PPT", "presentation"], // its own glyph; "image" belongs to 图片 (spec → 第三轮 · 图标)
       ["alchemist", "炼金术士", "zap"],
       ["artifacts", "Artifacts", "package"],
     ],

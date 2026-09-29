@@ -88,5 +88,13 @@ export const FEED_EN: Record<string, string> = {
   "恢复来源": "Resume source",
   "移除来源": "Remove source",
   "该来源的全部新消息": "All new messages from this source",
-  "来源资料已保存。": "Source details saved."
+  "来源资料已保存。": "Source details saved.",
+  "选一条消息开始读": "Pick a message to read",
+  "打开后会记为已读。值得留下的，可以保存为资料、加入 Inbox，或升格为 Goal。": "Opening it marks it read. Keep what matters: save it as material, add it to Inbox, or turn it into a Goal.",
+  "搜索标题、来源…": "Search titles and sources…",
+  "信息筛选": "Message filter",
+  "查看全部": "Show all",
+  "未读内容已经读完了": "You're all caught up",
+  "还没有保存的资料": "Nothing saved yet",
+  "这个来源还没有消息，拉取后会出现在这里": "No messages from this source yet. They appear here after a pull."
 };

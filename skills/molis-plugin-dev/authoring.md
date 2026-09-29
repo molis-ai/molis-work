@@ -35,7 +35,7 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 
 ## CLI（第三方 / 本地样例）
 
-今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI），不是 Native 侧栏插件。
+今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI），不是 Native 一级入口插件。
 
 在仓库根、先 `pnpm build`：
 
@@ -77,7 +77,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 | `tests/plugin-sample.e2e.test.ts` | CLI create、SDK tarball、两进程 poll、权限、目录边界 |
 | `tests/plugin-package.test.ts` | 签名与篡改拒绝 |
 | `tests/<plugin>-plugin.test.ts` | 该插件 HTTP/UI/MCP |
-| `tests/plugin-declarative-mounting.test.ts` | 侧栏/岛/个人插件名单 |
+| `tests/plugin-declarative-mounting.test.ts` | 插件切换 / 常驻（island）/ 个人插件名单 |
 | `tests/creative-tools-plugins.test.ts` | `PERSONAL_PLUGIN_IDS` |
 | `tests/uninstall.test.ts` | `{home}` 下私人库名 |
 | `tests/list-silent-refresh.test.ts` | 有列表时的 factory / `loadList` |

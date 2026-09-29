@@ -120,6 +120,7 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "开始研究": "Start research",
   "当前对象讨论与注释": "Discussion and annotations for this item",
   "当前方向": "Current direction",
+  "这里还是空的": "Nothing here yet",
   "当前集合还没有内容。新建方向，或采集一轮市场信号开始。": "This collection is empty. Start with a direction or collect market signals.",
   "待决策": "Awaiting decision",
   "待处理": "Open",

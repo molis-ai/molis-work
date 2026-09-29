@@ -44,6 +44,7 @@ export function renderGoalEventDocument(
       <details class="goal-info-popover" data-goal-info open>
         <summary><span class="goal-info-label">${L("Goal 信息")}</span><span class="goal-info-collapsed-title">${escapeHtml(goal.title)}</span>${renderVisibleGoalStatus(item)}${icon("chevron-down")}</summary>
         <div class="goal-info-body">
+          <span class="goal-doc-mark" aria-hidden="true">${icon("target")}</span>
           <h1 id="goal-title-${goalId}">${escapeHtml(goal.title)}</h1>
           <p class="goal-info-outcome">${escapeHtml((state?.agreement.outcome || goal.outcome) || L("还没有写清预期结果。"))}</p>
           <div class="goal-info-status" data-current-summary><p class="goal-current-fact">${escapeHtml(judgment.lead)}</p>${judgment.action ? `<button type="button" class="mw-btn mw-btn--link" ${judgment.form && owned ? `data-event-form-open="${judgment.form}"` : `data-event-reader="${judgment.reader || "requirements"}"`}>${escapeHtml(judgment.action)}${icon("chevron-right")}</button>` : ""}${state?.progress_summary?.summary && state.progress_summary.summary !== judgment.lead ? `<p class="goal-progress-fact">${escapeHtml(state.progress_summary.summary)}</p>` : ""}${stale}${renderProgressSource(state?.progress_summary?.source, escapeHtml)}${state?.progress_summary?.next_step ? `<p>${L("下一步")}：${escapeHtml(state.progress_summary.next_step)}</p>` : ""}</div>

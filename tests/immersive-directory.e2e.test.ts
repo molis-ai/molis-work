@@ -63,19 +63,22 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
-  assert.equal(create.bg, "rgb(255, 255, 255)", "New Goal uses a white fill");
-  assert.equal(create.color, "rgb(34, 35, 38)");
-  assert.equal(create.icon, "rgb(34, 35, 38)");
-  assert.equal(create.radius, "10px");
-  assert.equal(create.border, "rgb(226, 228, 231)", "New Goal uses a gray outline");
+  // Soft Workbench toolbar (DESIGN.md → Buttons; spec → 实现中定下的口径): a quiet ink-4% wash with no outline,
+  // ink text and glyph, 8px control corners — replacing the old white fill with a grey outline.
+  assert.equal(create.bg, "color(srgb 0.160784 0.164706 0.172549 / 0.04)", "New Goal uses the quiet control wash");
+  assert.equal(create.color, "rgb(41, 42, 44)");
+  assert.equal(create.icon, "rgb(41, 42, 44)");
+  assert.equal(create.radius, "8px");
+  assert.equal(create.border, "rgba(0, 0, 0, 0)", "New Goal has no outline");
   const filter = await evaluate<{ bg: string; color: string; radius: string; icon: string; height: number; width: number; border: string }>("(()=>{const button=document.querySelector('[data-tree-filter-trigger]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,height:Math.round(button.getBoundingClientRect().height),width:Math.round(button.getBoundingClientRect().width),border:s.borderTopColor};})()");
   assert.equal(filter.bg, create.bg, "Filter matches New Goal fill");
   assert.equal(filter.color, create.color);
   assert.equal(filter.icon, create.icon);
   assert.equal(filter.radius, create.radius);
   assert.equal(filter.border, create.border);
-  assert.equal(filter.height, 28);
-  assert.equal(filter.width, 28);
+  // Standard density controls are 32px (DESIGN.md → Density); compact keeps 28px.
+  assert.equal(filter.height, 32);
+  assert.equal(filter.width, 32);
   assert.ok(await evaluate("(()=>{const shell=document.querySelector('[data-goal-canvas-shell]'),list=document.querySelector('[data-goal-stage-list]'),chrome=document.querySelector('[data-goal-stage-chrome]');if(!shell||!list||!chrome)return false;const s=shell.getBoundingClientRect(),l=list.getBoundingClientRect();return Math.abs(s.top-l.top)<2 && getComputedStyle(shell).backgroundColor===getComputedStyle(list).backgroundColor && getComputedStyle(chrome).backgroundColor==='rgba(0, 0, 0, 0)';})()"), "List paper fills the stage top; chrome has no toolbar strip");
   await evaluate("document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]')?.click()");
   await waitFor("document.querySelector('[data-goal-stage-chrome] [data-tree-filter]') && !document.querySelector('[data-goal-stage-chrome] [data-tree-filter]').hidden");
@@ -149,7 +152,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.deepEqual(indent.errors, []);
   assert.ok(indent.depths.includes(0) && indent.depths.some((depth) => depth >= 3), "Demo tree exposes nested child indent");
   for (const row of metrics) {
-    assert.equal(row.height, 28, "Parent and child rows share a single-line height");
+    // One comfortable 34px line per Goal at standard density (spec → 第二轮 · 目标; compact keeps 28px).
+    assert.equal(row.height, 34, "Parent and child rows share a single-line height");
     assert.equal(row.line, "nowrap");
     if (!row.selected) assert.ok(Number(row.weight) <= 500);
     assert.ok(row.titleWidth > 80, "Child titles use the remaining row instead of the 4.5ch ref column, got " + row.titleWidth);
@@ -190,8 +194,9 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=feed]')?.hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=feed]')"), null);
-  assert.ok(await evaluate("document.querySelector('[data-feed-source-rail] [data-feed-add-toggle]')?.getBoundingClientRect().width > 0"));
-  assert.ok(await evaluate("document.querySelector('[data-feed-empty]:not([hidden])') || document.querySelector('[data-feed-stage-group-empty]:not([hidden])')"), "Feed shows a page empty or empty-task folds");
+  // Soft Workbench: adding a source sits in the Feed column heading; the empty list says what to do next.
+  assert.ok(await evaluate("document.querySelector('[data-feed-source-header] [data-feed-add-toggle]')?.getBoundingClientRect().width > 0"));
+  assert.ok(await evaluate("document.querySelector('[data-feed-empty]:not([hidden])')"), "Feed shows a page empty state");
   await capture("directory-feed-empty");
 
   const feed = createLocalFeedApplication(store.db);
@@ -200,12 +205,11 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   const item = feed.ingestItem({ source, externalId: "first", title: "从首次使用观察中找到下一步值得改进的地方", summary: "完整保留消息来源和正文，再决定如何推进。", body: "这条消息用于验证在真实目录中打开和阅读内容。", occurredAt: now, attention: false });
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
-  await waitFor("document.querySelectorAll('[data-feed-stage-group=\"directory-rss\"] [data-feed-entry-id]').length===2");
+  await waitFor("document.querySelectorAll('[data-feed-entry-task=\"directory-rss\"]').length===2");
   const feedRow = await evaluate<{ height: number; size: string; weight: string; titleWidth: number; columns: string; status: boolean; chevron: boolean }>("(()=>{const row=document.querySelector('[data-feed-entry-id]'),title=row.querySelector('strong');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,titleWidth:Math.round(title.getBoundingClientRect().width),columns:getComputedStyle(row).gridTemplateColumns,status:Boolean(row.querySelector('.feed-entry-status')),chevron:Boolean(row.querySelector('.feed-entry-chevron'))};})()");
-  // Feed messages became a reading list in the source workbench (title, then summary; specs/feed-source-workbench),
-  // no longer a single-line directory row like Goals. They still stay compact.
-  assert.ok(feedRow.height > 28 && feedRow.height <= 96, "Feed message rows show title and summary and stay compact, got " + feedRow.height);
-  assert.equal(feedRow.size, "13px");
+  // Soft Workbench prototype: a Feed row is a reading card (source line, title, one-line summary), not a single line.
+  assert.ok(feedRow.height >= 72 && feedRow.height <= 130, "Feed rows are compact reading cards: " + feedRow.height);
+  assert.equal(feedRow.size, "13px"); // on the fixed type scale (spec → 第三轮 · 字号)
   assert.ok(Number(feedRow.weight) <= 500);
   assert.ok(feedRow.titleWidth > 120, "Feed item titles use the row, not a leftover icon column");
   assert.doesNotMatch(feedRow.columns, /^(22px|24px|16px)/);
@@ -229,13 +233,14 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
     const workspace = back?.closest('.plugin-stage-workspace');
     if (!workspace || !back) return { ok: false, dump: 'missing' };
     const inset = back.getBoundingClientRect().left - workspace.getBoundingClientRect().left;
-    return { ok: inset >= 2 && inset <= 6, dump: JSON.stringify({ inset: Math.round(inset * 10) / 10 }) };
+    return { ok: inset >= 10 && inset <= 18, dump: JSON.stringify({ inset: Math.round(inset * 10) / 10 }) };
   })()`);
-  assert.ok(feedBack.ok, "Feed back uses the Goal toolbar inset " + feedBack.dump);
+  assert.ok(feedBack.ok, "Feed close sits in the reading bar's inset " + feedBack.dump);
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.querySelectorAll('[data-operation-row=session]').length===2 && document.querySelector('[data-plugin-strip] [data-plugin-id=sessions]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   const sessionRow = await evaluate<{ height: number; size: string; weight: string; line: string; titleRight: number; stateLeft: number; border: string; subtitle: string; goal: string }>("(()=>{const row=document.querySelector('[data-operation-row=session]'),title=row?.querySelector('strong'),state=row?.querySelector('.mw-dir-row__status, .directory-row-state'),goal=row?.querySelector('.session-stage-row__goal'),small=row?.querySelector('.project-record-select small, .mw-dir-row__copy small');if(!row||!title||!state||!goal)throw new Error('session row missing parts');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,line:getComputedStyle(title).whiteSpace,titleRight:title.getBoundingClientRect().right,stateLeft:state.getBoundingClientRect().left,border:getComputedStyle(state).borderWidth,subtitle:small?getComputedStyle(small).display:'none',goal:goal.textContent.trim()};})()");
-  assert.equal(sessionRow.height, 28, "Session rows share the Goal single-line height");
+  // Sessions is a plugin list page now: one centred column with 44px single-line rows (spec → 第二轮 · 插件列表页).
+  assert.equal(sessionRow.height, 44, "Session rows are single-line list-page rows");
   assert.equal(sessionRow.size, "13px");
   assert.equal(sessionRow.line, "nowrap");
   assert.ok(Number(sessionRow.weight) <= 500);
@@ -254,7 +259,9 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
       && new Set(goals).size === 1
       && new Set(states).size === 1;
   })()`), "Session rows sit one indent step under the runtime caret");
-  assert.ok(await evaluate("(()=>{const add=document.querySelector('[data-session-stage-chrome] [data-open-session-add]'),filter=document.querySelector('[data-session-stage-chrome] .project-record-filter-menu'),list=document.querySelector('[data-session-stage-list]'),shell=document.querySelector('[data-session-stage-shell]');if(!add||!filter||!list||!shell)return false;const a=add.getBoundingClientRect(),f=filter.getBoundingClientRect(),s=shell.getBoundingClientRect();return a.left-s.left<40 && f.left>=a.right && Math.abs(a.top-s.top)<28 && !document.querySelector('[data-operation-search]') && document.querySelector('[data-session-stage-workspace]')?.hidden===true;})()"), "New Session and filter sit on the stage list; detail stays closed");
+  // Sessions is a list page (spec → 第二轮 · 插件列表页): New Session and the filter sit in the page header, with the
+  // title on the left and the actions on the right, instead of at the stage's top-left corner.
+  assert.ok(await evaluate("(()=>{const add=document.querySelector('[data-session-stage-chrome] [data-open-session-add]'),filter=document.querySelector('[data-session-stage-chrome] .project-record-filter-menu'),list=document.querySelector('[data-session-stage-list]'),shell=document.querySelector('[data-session-stage-shell]');if(!add||!filter||!list||!shell)return false;const a=add.getBoundingClientRect(),f=filter.getBoundingClientRect(),s=shell.getBoundingClientRect();return a.top-s.top<96 && a.right<=s.right && f.left>=a.right && !document.querySelector('[data-operation-search]') && document.querySelector('[data-session-stage-workspace]')?.hidden===true;})()"), "New Session and filter sit on the stage list; detail stays closed");
   await capture("directory-sessions-list");
   await click('[data-session-stage-chrome] .project-record-filter-menu > summary');
   await waitFor("document.querySelector('[data-session-stage-chrome] .project-record-filter-menu')?.open===true");

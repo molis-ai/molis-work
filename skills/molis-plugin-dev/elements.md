@@ -53,7 +53,7 @@ Host catalog（`apps/workbench/src/plugin-catalog.ts`）的 `personal: true`：�
 
 - `ui.contributions`：contribution id 列表。
 - `ui.views`：`view_id`、`slot`、`title`、`contribution_id`、`icon`（Host 图标名）、`order`。可选 `accepts_objects`。
-- **槽（合同四选一）**：`navigator` 侧栏、`stage` 工作区工具面、`settings` 全局设置目录、`island` 项目卡片上方。不要发明第五个。
+- **槽（合同四选一）**：`navigator` 一级入口（底栏插件切换与 Dock）、`stage` 工作区工具面、`settings` 全局设置目录、`island` 底栏右侧的个人常驻入口（项目圆钮旁）。不要发明第五个。
 - `ui.commands`：命令菜单。`input_kinds`：`current` / `object` / `artifacts` / `agent-session`。必须写清作用对象。
 - 贡献 descriptor 的 HTML Slot：`workbench.directory` / `workbench.main` / `workbench.overlay` / `workbench.settings`。`settings-page` 只能挂 settings。
 - `kind`：`primary-page` | `embedded` | `overlay` | `settings-page`。

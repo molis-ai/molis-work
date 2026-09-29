@@ -1,6 +1,6 @@
 # 接到本仓库产品
 
-Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方只走 Plugin Runtime 的，看 [authoring.md](authoring.md)，不要抄这一页的短名 HTTP。
+Manifest 写完不等于底栏插件切换里有入口。一等插件还要改 Host。第三方只走 Plugin Runtime 的，看 [authoring.md](authoring.md)，不要抄这一页的短名 HTTP。
 
 ## Native 一等入口
 
@@ -8,7 +8,7 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 
 包：`@molis-ai/molis-work-plugin-<id>`。`pnpm-workspace` 已含 `plugins/**`。还要登记依赖，否则 workbench / local-host 解析不到。
 
-### 必改（侧栏能看见、点得动）
+### 必改（插件切换里能看见、点得动）
 
 1. **合同类型**（有私人记录时）：`packages/contracts/src/modules/<id>.ts`，并在 `packages/contracts/package.json` 加 `./modules/<id>` export。
 2. **插件包**：`package.json` 的 `molis-work` 块（path/kind/ssot），以及 `README.md`、`tsconfig.json`、`src/index.ts`（`workspace-packages.mjs` 缺一个就报错）。`index.ts` 必须再导出 Manifest、contribution、stylesheet、client factory、routes，Workbench / Host 从包根 import。
@@ -19,7 +19,7 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 6. **HTTP**：个人插件（Pages 族、Shelf、灵光）实现 `apps/local-host/src/<id>-native-plugin-http.ts`，再挂进 `personal-native-plugin-http.ts` 的 handler 列表。项目插件（Feed、Inbox、Schedule）挂进 `web-request.ts`。`project_id` 由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 7. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
 8. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
-9. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（侧栏/岛/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
+9. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
 
 导航、设置位置、项目启用由 catalog 和 Manifest 推导。原生 UI 的 HTTP、客户端与 i18n 仍需接线；公共动作注册后可自动导出 MCP，历史兼容 adapter 不属于新插件的必改名单。
 
@@ -33,7 +33,7 @@ Manifest 写完不等于侧栏有入口。一等插件还要改 Host。第三方
 | 插件事件总线 | 下面「接到插件事件总线」；Native 不要抄 |
 | 新 Artifact 类型 | 合同 + Artifacts Module，不要只写在插件里 |
 | 设置页 | contribution + `settings` 槽 + `settingsClient` |
-| 图标名 | 必须是 `packages/design-system/src/icons.ts` 的 `MolisWorkIcon`（灵光用 `idea`）。写了不存在的名字，侧栏那一行还在，图标是空的；不写 `icon` 才落到 `package`。不要往壳层塞 SVG |
+| 图标名 | 必须是 `packages/design-system/src/icons.ts` 的 `MolisWorkIcon`（灵光用 `idea`）。写了不存在的名字，插件切换里那一行还在，图标是空的；不写 `icon` 才落到 `package`。不要往壳层塞 SVG |
 | `agent` | 在 `builtin-plugins.ts` 的同一条目绑定 `agent.prompts/skills` 包正文；`BUILTIN_PLUGIN_AGENTS` 自动派生。Manifest 声明不等于已经提供正文，缺失由现有回归拒绝 |
 | 重编辑器 IIFE | `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，页面再引 script。只打 bundle、不挂路径，浏览器 404 |
 | 项目启用连带 | `PROJECT_PLUGIN_COMPANIONS`（今天只有 Feed→Inbox） |
@@ -135,7 +135,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 - 类型：`pnpm --filter @molis-ai/molis-work-plugin-<id> typecheck`
 - 定向测试：`node --import tsx --test --test-concurrency=1 tests/<id>-*.test.ts`
 - 点名插件名单的测试仍过。
-- 真开 Workbench：侧栏或岛出现、点进主路径、刷新后状态还在、增删后列表自己更新且不整页闪白。
+- 真开 Workbench：插件切换或底栏常驻入口出现、点进主路径、刷新后状态还在、增删后列表自己更新且不整页闪白。
 
 ## 项目设置
 

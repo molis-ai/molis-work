@@ -199,14 +199,15 @@ test("workbench project gear opens a directory of categories and an exclusive se
 test("settings documents use Codex title, card, and row rhythm instead of Linear compression", () => {
   const settings = renderMolisWorkSettingsStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
-  assert.match(settings, /h1 \{ margin: 0; font-size: 28px;/);
+  // The settings title is display type on the fixed scale: 30px, no longer fluid (spec → 第三轮 · 字号).
+  assert.match(settings, /h1 \{ margin: 0; font-size: 30px;/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /:is\(body\.project-preferences-page, \.settings-stage\) \.settings-content \{[^}]*background: var\(--page\)/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /html\[data-resolved-theme="dark"\] :is\(body\.project-preferences-page, \.settings-stage\) \.settings-content \{ box-shadow: none; \}/);
   assert.match(PROJECT_SETTINGS_PAGE_STYLES, /html\[data-resolved-theme="dark"\] :is\(body\.project-preferences-page, \.settings-stage\) \.settings-content > :is\(\.settings-document, \.appearance-document\) \{ background: transparent; \}/);
   assert.match(settings, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: auto;[^}]*background: transparent;/);
   assert.match(workbench, /\.settings-content > :is\([^)]+\) \{[^}]*max-width: 760px;[^}]*margin-inline: auto;[^}]*background: transparent;/);
   assert.match(workbench, /body\.immersive-workbench \.settings-stage :is\([^)]+\) \{ width: 100%; max-width: 760px; margin-inline: auto; padding: 0; \}/);
-  assert.match(settings, /\.settings-setting-row \{ display: flex;[\s\S]*padding: 10px 0;/);
+  assert.match(settings, /\.settings-setting-row \{ display: flex;[\s\S]*padding: 12px 0;/); // 10px → 12px on the spacing scale
   assert.match(settings, /:is\(\.guidance-settings-list, \.guidance-advanced-list\) \{[\s\S]*background: var\(--paper\);/);
   assert.doesNotMatch(settings, /color-mix\(in srgb, var\(--nav-bg\) 82%, var\(--paper\)\)/);
   assert.match(workbench, /settings-directory-nav \.mw-dir-row \{[\s\S]*display: flex; justify-content: flex-start;/);

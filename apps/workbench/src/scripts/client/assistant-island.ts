@@ -741,6 +741,71 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   window.addEventListener("focus", () => { if (!document.hidden && currentId) refresh().then(schedule); });
   const listTimer = setInterval(() => { if (!document.hidden && panel && !panel.hidden) loadWorks(); }, 15000);
 
+  /* ─── What deserves the person's attention (their rules decide where it stays quiet) ─────────────────────── */
+  const attentionButton = island.querySelector("[data-assistant-attention]");
+  const attentionCount = island.querySelector("[data-assistant-attention-count]");
+  const noticesPop = island.querySelector("[data-assistant-notices]");
+  let notices = [];
+  const shownSurface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
+  const paintNotices = () => {
+    if (!noticesPop) return;
+    noticesPop.replaceChildren(el("p", "assistant-popover-title", L("需要你看看")));
+    const open = notices.filter((notice) => !notice.held), held = notices.filter((notice) => notice.held);
+    const row = (notice) => {
+      const item = el("div", "assistant-notice");
+      item.append(el("p", "assistant-notice-text", notice.text));
+      if (notice.held) item.append(el("p", "assistant-material-origin", L("按你的规则暂不提醒") + "：" + notice.held.reason));
+      const actions = el("div", "assistant-offer-actions");
+      const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开")); go.type = "button";
+      go.addEventListener("click", async () => { setNotices(false); await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen"); });
+      const done = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("知道了")); done.type = "button";
+      done.addEventListener("click", () => settleNotice({ notice_id: notice.notice_id }, "dismissed"));
+      actions.append(go, done);
+      item.append(actions);
+      return item;
+    };
+    open.forEach((notice) => noticesPop.append(row(notice)));
+    if (held.length) {
+      const quiet = el("details", "assistant-notices-held");
+      quiet.append(el("summary", "", L("按你的规则暂不提醒") + " · " + held.length));
+      held.forEach((notice) => quiet.append(row(notice)));
+      noticesPop.append(quiet);
+    }
+    if (!notices.length) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
+  };
+  const paintAttention = () => {
+    const open = notices.filter((notice) => !notice.held).length;
+    if (attentionButton) {
+      attentionButton.hidden = !open;
+      if (attentionCount) attentionCount.textContent = open ? String(open) : "";
+      attentionButton.setAttribute("aria-label", L("需要你看看") + " · " + open);
+    }
+    if (noticesPop && !noticesPop.hidden) paintNotices();
+  };
+  const setNotices = (open) => {
+    if (!noticesPop) return;
+    noticesPop.hidden = !open;
+    attentionButton?.setAttribute("aria-expanded", String(open));
+    if (open) { paintNotices(); noticesPop.querySelector("button")?.focus(); }
+  };
+  const loadNotices = async () => {
+    try { notices = (await api("/notices?surface=" + encodeURIComponent(shownSurface()))).notices || []; }
+    catch { return; }
+    // A work the person has open in front of them is being seen: its notices need no badge.
+    if (panel && !panel.hidden && currentId && notices.some((notice) => notice.work_id === currentId && !notice.held)) { void settleNotice({ work_id: currentId }, "seen"); return; }
+    paintAttention();
+  };
+  const settleNotice = async (target, state) => {
+    try { await api("/notices", "POST", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
+    await loadNotices();
+  };
+  attentionButton?.addEventListener("click", () => setNotices(noticesPop.hidden));
+  setInterval(() => { if (!document.hidden) void loadNotices(); }, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadNotices(); });
+  // The rules depend on where the person is: moving to another plugin reads them again.
+  document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(() => void loadNotices(), 300));
+  void loadNotices();
+
   /* ─── Sending ──────────────────────────────────────────────────────────── */
   /* ─── What the person is looking at, and what goes with this Send ──────── */
   const materialsButton = island.querySelector("[data-assistant-materials]");
@@ -906,7 +971,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
   document.addEventListener("pointerdown", (event) => {
     if (!(event.target instanceof Element) || island.contains(event.target)) return;
-    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false);
+    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false); if (noticesPop && !noticesPop.hidden) setNotices(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
@@ -915,6 +980,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (executorsPop && !executorsPop.hidden) { event.preventDefault(); event.stopPropagation(); setExecutors(false); executorButton?.focus(); }
     if (modesPop && !modesPop.hidden) { event.preventDefault(); event.stopPropagation(); setModes(false); modeButton?.focus(); }
     if (charactersPop && !charactersPop.hidden) { event.preventDefault(); event.stopPropagation(); setCharacters(false); characterButton?.focus(); }
+    if (noticesPop && !noticesPop.hidden) { event.preventDefault(); event.stopPropagation(); setNotices(false); attentionButton?.focus(); }
   }, true);
   /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
   attach?.addEventListener("click", () => fileInput?.click());

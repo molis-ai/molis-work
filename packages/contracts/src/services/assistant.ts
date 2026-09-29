@@ -412,3 +412,39 @@ export interface AssistantContribution {
   searchable: boolean;
   gaps: Array<{ area: "context" | "results" | "capabilities"; text: string }>;
 }
+
+/**
+ * Something about a work worth the person's attention, raised by the Host from what really happened — a round that
+ * failed, a decision it waits on, a round that finished while they were elsewhere, a result a plugin handed back. It
+ * never starts anything, so a notice cannot cause another notice.
+ */
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result";
+export interface AssistantNotice {
+  notice_id: string;
+  kind: AssistantNoticeKind;
+  work_id: string;
+  work_title: string;
+  text: string;
+  created_at: string;
+  /** Held by one of the person's rules while its condition holds (shown once it no longer does). */
+  held?: { rule_id: string; reason: string };
+}
+
+/**
+ * The person's own rules for when the Assistant may draw their attention. Evaluated by the Host exactly as written —
+ * never guessed by a model. `quiet` holds notices while one of `surfaces` (plugin rail ids; empty = anywhere) is on
+ * show; `pause` holds them until `until`. `except` still comes through (e.g. a failed round).
+ */
+export interface AssistantRule {
+  rule_id: string;
+  kind: "quiet" | "pause";
+  surfaces: string[];
+  except: AssistantNoticeKind[];
+  /** When it ends (required for a pause; optional for a quiet rule). */
+  until?: string;
+  /** How the person put it, shown back to them. */
+  label: string;
+  enabled: boolean;
+  created_at: string;
+}
+export type AssistantRuleInput = Pick<AssistantRule, "kind" | "surfaces" | "except" | "label"> & { until?: string; enabled?: boolean };

@@ -604,6 +604,19 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-offer-copy { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
   ${ASSIST} .assistant-offer-copy strong { margin-right: 4px; }
   ${ASSIST} .assistant-offer-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
+  ${ASSIST} .assistant-attention {
+    display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
+    background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
+  }
+  ${ASSIST} .assistant-attention[hidden] { display: none; }
+  ${ASSIST} .assistant-attention svg { width: 14px; height: 14px; }
+  ${ASSIST} .assistant-attention:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-notices { left: auto; right: 0; gap: 8px; }
+  ${ASSIST} .assistant-notice { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: 8px; background: var(--nav-hover); }
+  ${ASSIST} .assistant-notice-text { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 4px 2px; }
+  ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 6px; font-size: 11px; color: var(--faint); }
   ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
   ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }
@@ -769,6 +782,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     ${SHELL} [data-assistant-island]:has(.assistant-panel:not([hidden])) .bar-composer .bar-composer-search { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-attention:not([hidden])) .bar-composer-search { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
     ${SHELL} .bar-composer:has(.assistant-composer-input:focus) :is(.plugin-picker, .assistant-target, .assistant-executor, .assistant-materials-button, .bar-composer-search) { display: none; }
     ${SHELL} .account-global-popover { position: fixed; left: 8px; bottom: 64px; width: min(300px, calc(100vw - 16px)); }
@@ -788,6 +802,11 @@ const CRAFT_BASE_STYLES = `
   .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; padding: 10px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
   .prompt-role-focus p { margin: 2px 0 0; color: var(--muted); }
   .prompt-diagnostics { margin-top: 20px; }
+  .assistant-rules { margin-bottom: 18px; }
+  .assistant-rule-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; font-size: 13px; }
+  .assistant-rule-form > strong { flex-basis: 100%; font-weight: 500; }
+  .assistant-rule-surfaces { display: flex; flex-wrap: wrap; gap: 6px 14px; flex-basis: 100%; }
+  .assistant-rule-form select { width: auto; }
   .prompt-diagnostics > summary { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
   .prompt-diagnostics-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .prompt-diagnostics-owner { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }

@@ -122,6 +122,19 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         store.setActionEnabled(WEB_ACTOR, actionKey({ capability_id: body.capability_id, version: body.version as number, provider_id: body.provider_id }), body.enabled);
         return { status: 200, body: { ok: true } };
       }
+      // What deserves the person's attention now, and on which surface (their rules hold some while it matches).
+      if (method === "GET" && parts.length === 1 && parts[0] === "notices") {
+        // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
+        await service.list();
+        return { status: 200, body: { notices: service.notices(url.searchParams.get("surface") || null) } };
+      }
+      if (method === "POST" && parts.length === 1 && parts[0] === "notices") {
+        const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
+        return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
+      }
+      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.rules() } };
+      if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
+      if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.removeRule(String(body.rule_id ?? "")) } };
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };

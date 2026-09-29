@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -30,6 +30,14 @@ CREATE INDEX IF NOT EXISTS assistant_cards_by_work ON assistant_cards(work_id, c
 CREATE TABLE IF NOT EXISTS assistant_settings (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, revision INTEGER NOT NULL, value TEXT NOT NULL, PRIMARY KEY(actor_id, key)
 );
+CREATE TABLE IF NOT EXISTS assistant_notices (
+  notice_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL,
+  dedupe TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL, UNIQUE(actor_id, dedupe)
+);
+CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id, state, created_at);
+CREATE TABLE IF NOT EXISTS assistant_observed (
+  actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, PRIMARY KEY(actor_id, work_id)
+);
 CREATE TABLE IF NOT EXISTS assistant_requests (
   actor_id TEXT NOT NULL, request_id TEXT NOT NULL, work_id TEXT, state TEXT NOT NULL, result TEXT, created_at TEXT NOT NULL,
   PRIMARY KEY(actor_id, request_id)
@@ -43,6 +51,9 @@ export interface StoredWork extends Omit<AssistantWork, "state"> {
   /** Present for project work: the project it was started in, never the page it is later viewed from. */
   project_ref?: LocalHostProjectReference;
 }
+
+/** A notice as stored: the public facts plus whether the person still has to see it. */
+export interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "seen" | "dismissed" | "resolved" }
 
 export interface StoredRound {
   run_id: string;
@@ -197,6 +208,48 @@ export class AssistantStore {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, 'disabled_actions', 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, JSON.stringify([...current].sort()));
     return current;
+  }
+
+  /** Raise a notice once: the same dedupe key never raises a second (a repeated or retried event stays one notice). */
+  raiseNotice(actorId: string, notice: Omit<StoredNotice, "notice_id" | "state" | "created_at">, dedupe: string): StoredNotice | null {
+    const stored: StoredNotice = { ...notice, notice_id: randomUUID(), state: "new", created_at: this.now().toISOString() };
+    const changed = this.db.prepare("INSERT OR IGNORE INTO assistant_notices(notice_id,actor_id,work_id,kind,state,dedupe,created_at,body) VALUES (?,?,?,?,?,?,?,?)")
+      .run(stored.notice_id, actorId, stored.work_id, stored.kind, stored.state, dedupe, stored.created_at, JSON.stringify(stored)).changes;
+    return changed ? stored : null;
+  }
+
+  openNotices(actorId: string): StoredNotice[] {
+    return this.db.prepare("SELECT body, state FROM assistant_notices WHERE actor_id=? AND state='new' ORDER BY created_at DESC LIMIT 50").all(actorId)
+      .map(row => ({ ...JSON.parse(String(row.body)) as StoredNotice, state: String(row.state) as StoredNotice["state"] }));
+  }
+
+  /** Mark notices seen, dismissed or resolved: one, or every open one of a work (optionally only of some kinds). */
+  settleNotices(actorId: string, target: { notice_id?: string; work_id?: string; kinds?: readonly string[] }, state: Exclude<StoredNotice["state"], "new">): number {
+    if (target.notice_id) return Number(this.db.prepare("UPDATE assistant_notices SET state=? WHERE actor_id=? AND notice_id=? AND state='new'").run(state, actorId, target.notice_id).changes);
+    if (!target.work_id) return 0;
+    const kinds = target.kinds?.length ? target.kinds : null;
+    return Number(this.db.prepare(`UPDATE assistant_notices SET state=? WHERE actor_id=? AND work_id=? AND state='new'${kinds ? ` AND kind IN (${kinds.map(() => "?").join(",")})` : ""}`)
+      .run(state, actorId, target.work_id, ...(kinds ?? [])).changes);
+  }
+
+  /** The state the Host last saw a work in (kept apart from the work, so noticing never conflicts with the person's edits). */
+  observed(actorId: string, workId: string): AssistantWorkState | null {
+    const row = this.db.prepare("SELECT state FROM assistant_observed WHERE actor_id=? AND work_id=?").get(actorId, workId);
+    return row ? String(row.state) as AssistantWorkState : null;
+  }
+
+  observe(actorId: string, workId: string, state: AssistantWorkState): void {
+    this.db.prepare("INSERT INTO assistant_observed(actor_id,work_id,state) VALUES (?,?,?) ON CONFLICT(actor_id,work_id) DO UPDATE SET state=excluded.state").run(actorId, workId, state);
+  }
+
+  rules(actorId: string): AssistantRule[] {
+    const row = this.db.prepare("SELECT value FROM assistant_settings WHERE actor_id=? AND key='attention_rules'").get(actorId);
+    return row ? JSON.parse(String(row.value)) as AssistantRule[] : [];
+  }
+
+  setRules(actorId: string, rules: readonly AssistantRule[]): void {
+    this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, 'attention_rules', 1, ?)
+      ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, JSON.stringify(rules));
   }
 
   releaseRequest(actorId: string, requestId: string): void {

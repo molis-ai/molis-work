@@ -6,6 +6,27 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
   return `<section class="settings-document assistant-settings" aria-labelledby="settings-title" data-assistant-settings data-project="${projectId ? projectId.replace(/[^a-zA-Z0-9_.:-]/g, "") : ""}">
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("助理")}</h1>
       <p>${L("助理能用哪些能力，以及每个插件为助理提供了什么。关掉的能力只对助理生效，不影响 Coding、外部 Agent 或你自己在页面里操作。")}</p></div></header>
+    <section class="settings-section assistant-rules" aria-labelledby="assistant-rules-title" data-assistant-rules>
+      <h2 id="assistant-rules-title">${L("提醒规则")}</h2>
+      <p class="settings-muted">${L("助理什么时候可以提醒你。规则按写下的条件执行，不靠猜；暂时不提醒的事会留着，条件结束后再出现，过期的不补发。")}</p>
+      <div data-assistant-rules-list><p class="settings-muted">${L("正在读取…")}</p></div>
+      <form class="assistant-rule-form" data-assistant-rule-quiet>
+        <strong>${L("在这些地方不提醒")}</strong>
+        <div class="assistant-rule-surfaces" data-assistant-rule-surfaces></div>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="needs-decision"> ${L("需要我决定时仍然提醒")}</label>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("添加规则")}</button>
+      </form>
+      <form class="assistant-rule-form" data-assistant-rule-pause>
+        <strong>${L("暂停提醒")}</strong>
+        <select class="mw-input" data-assistant-rule-duration aria-label="${L("暂停多久")}">
+          <option value="30">${L("30 分钟")}</option><option value="60" selected>${L("1 小时")}</option><option value="day">${L("到今天结束")}</option>
+        </select>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("暂停")}</button>
+      </form>
+      <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>
+    </section>
     <p class="prompt-settings-notice" role="note">${L("读取类能力直接使用；修改类每次执行前都会请你确认准确参数；不可撤回的操作每次单独确认。")}</p>
     <div class="prompt-settings-tools">
       <div class="mw-toggle-group settings-segmented" role="group" aria-label="${L("范围")}" data-assistant-scope-group>
@@ -116,6 +137,64 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
     } catch (failure) { delete contributions.dataset.loaded; contributionsBody.replaceChildren(el("p", "settings-form-error", failure.message)); }
   };
   contributions.addEventListener("toggle", () => { if (contributions.open) loadContributions(); });
+  // Attention rules belong to the person, not to a project: always the Home's own route.
+  const rulesApi = async (path, payload) => {
+    const response = await fetch("/api/assistant" + path, payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
+    return data;
+  };
+  const SURFACES = [["pages", "Pages"], ["coding", "Coding"], ["goals", "Goals"], ["jelly", "Jelly"], ["cognia", "Cognia"], ["dataset", "Dataset"], ["form", "Forms"], ["workflows", "工作流程"], ["lingguang", "灵光"], ["home", "项目首页"]];
+  const surfaceName = (id) => (SURFACES.find((row) => row[0] === id) || [id, id])[1];
+  const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果" };
+  const rulesList = root.querySelector("[data-assistant-rules-list]");
+  const rulesError = root.querySelector("[data-assistant-rules-error]");
+  const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");
+  SURFACES.forEach(([id, name]) => { const label = el("label", "settings-check"); const box = el("input"); box.type = "checkbox"; box.value = id; box.dataset.assistantRuleSurface = ""; label.append(box, document.createTextNode(" " + L(name))); surfacesBox.append(label); });
+  const describe = (rule) => (rule.kind === "pause" ? L("暂停提醒") : (rule.surfaces.length ? L("在") + " " + rule.surfaces.map((id) => L(surfaceName(id))).join("、") + " " + L("不提醒") : L("任何地方都不提醒")))
+    + (rule.except.length ? "；" + rule.except.map((kind) => L(KIND[kind] || kind)).join("、") + L("仍提醒") : "")
+    + (rule.until ? "；" + L("到") + " " + new Date(rule.until).toLocaleString() : "");
+  const paintRules = (rules) => {
+    rulesList.replaceChildren();
+    if (!rules.length) { rulesList.append(el("p", "settings-muted", L("还没有规则：出了需要你看的事，助理会在底栏提示。"))); return; }
+    const list = el("ul", "prompt-list");
+    rules.forEach((rule) => {
+      const item = el("li", "prompt-row");
+      const head = el("div", "prompt-row-head");
+      const copy = el("div", "prompt-row-copy");
+      const expired = rule.until && new Date(rule.until) <= new Date();
+      copy.append(el("strong", "", rule.label), el("span", "settings-muted", describe(rule) + (expired ? " · " + L("已到期") : "")));
+      const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = rule.enabled;
+      const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
+      toggle.setAttribute("aria-label", L("启用") + "：" + rule.label);
+      toggle.addEventListener("change", () => run(() => rulesApi("/rules", { rule_id: rule.rule_id, rule: Object.assign({}, rule, { enabled: toggle.checked }) })));
+      const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("删除")); remove.type = "button";
+      remove.addEventListener("click", () => run(() => rulesApi("/rules/remove", { rule_id: rule.rule_id })));
+      head.append(copy, control, remove);
+      item.append(head); list.append(item);
+    });
+    rulesList.append(list);
+  };
+  const run = async (work) => {
+    rulesError.hidden = true;
+    try { paintRules((await work()).rules); } catch (failure) { rulesError.textContent = failure.message; rulesError.hidden = false; }
+  };
+  const exceptOf = (form) => [...form.querySelectorAll("[data-assistant-rule-except]")].filter((box) => box.checked).map((box) => box.dataset.assistantRuleExcept);
+  root.querySelector("[data-assistant-rule-quiet]").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget, surfaces = [...form.querySelectorAll("[data-assistant-rule-surface]")].filter((box) => box.checked).map((box) => box.value);
+    const except = exceptOf(form);
+    const label = (surfaces.length ? L("在") + " " + surfaces.map((id) => L(surfaceName(id))).join("、") + " " + L("时不提醒") : L("任何地方都不提醒")) + (except.length ? "，" + except.map((kind) => L(KIND[kind])).join("、") + L("除外") : "");
+    run(() => rulesApi("/rules", { rule: { kind: "quiet", surfaces, except, label } }));
+  });
+  root.querySelector("[data-assistant-rule-pause]").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = event.currentTarget, choice = form.querySelector("[data-assistant-rule-duration]").value;
+    const until = choice === "day" ? (() => { const end = new Date(); end.setHours(23, 59, 0, 0); return end; })() : new Date(Date.now() + Number(choice) * 60000);
+    const except = exceptOf(form);
+    run(() => rulesApi("/rules", { rule: { kind: "pause", surfaces: [], except, until: until.toISOString(), label: L("暂停提醒到") + " " + until.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) } }));
+  });
+  run(() => rulesApi("/rules"));
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
   load();
 })();

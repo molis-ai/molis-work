@@ -5,7 +5,7 @@ import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -51,6 +51,14 @@ export interface AssistantServicePorts {
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
 export interface AssistantCaller {
   project_ref?: LocalHostProjectReference;
+}
+
+/** Notices older than this are no longer news: resolved quietly rather than shown late. */
+const NOTICE_TTL_MS = 48 * 60 * 60 * 1000;
+
+/** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
+export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
+  return rules.find(rule => !rule.except.includes(kind) && (rule.kind === "pause" || !rule.surfaces.length || (surface !== null && rule.surfaces.includes(surface))));
 }
 
 const sessionRef = (work: StoredWork): AgentSessionRef => ({ session_id: work.session_id!, runtime_id: RUNTIME });
@@ -258,7 +266,78 @@ export class AssistantService {
     const works = this.store.list(this.actorId);
     if (!works.length) return [];
     const host = await this.ports.host();
-    return Promise.all(works.map(async work => this.publicWork(await this.named(work), await this.stateFor(host, work))));
+    return Promise.all(works.map(async work => {
+      const state = await this.stateFor(host, work);
+      this.notice(work, state);
+      return this.publicWork(await this.named(work), state);
+    }));
+  }
+
+  /**
+   * A change of a work's state is what raises a notice — failed, waiting on the person, done — once per round and kind.
+   * The first time a work is seen nothing is raised, so a restart never replays old news; a decision that is no longer
+   * awaited stops asking. Notices never start anything.
+   */
+  private notice(work: StoredWork, state: AssistantWorkState): void {
+    const before = this.store.observed(this.actorId, work.work_id);
+    if (before === state) return;
+    this.store.observe(this.actorId, work.work_id, state);
+    if (before === null) return;
+    if (!["waiting-input", "waiting-review"].includes(state)) this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["needs-decision"] }, "resolved");
+    if (state === "running") this.store.settleNotices(this.actorId, { work_id: work.work_id, kinds: ["failed", "completed"] }, "resolved");
+    const round = this.store.rounds(work.work_id).at(-1)?.run_id ?? "none";
+    const raise = (kind: AssistantNoticeKind, text: string) => this.store.raiseNotice(this.actorId, { kind, work_id: work.work_id, work_title: work.title, text }, `${work.work_id}:${round}:${kind}:${state}`);
+    if (state === "failed") raise("failed", `「${work.title}」这一轮没有完成，打开看看原因`);
+    else if (state === "waiting-review") raise("needs-decision", `「${work.title}」在等你确认一项修改`);
+    else if (state === "waiting-input") raise("needs-decision", `「${work.title}」在等你回答一个问题`);
+    else if (state === "completed" && ["running", "paused", "waiting-input", "waiting-review"].includes(before)) raise("completed", `「${work.title}」做完了`);
+  }
+
+  /** Open notices, each saying whether one of the person's rules holds it here and now (on this surface). */
+  notices(surface: string | null): AssistantNotice[] {
+    const now = this.now();
+    const rules = this.store.rules(this.actorId).filter(rule => rule.enabled && (!rule.until || new Date(rule.until) > now));
+    const stale = now.getTime() - NOTICE_TTL_MS;
+    return this.store.openNotices(this.actorId).flatMap(notice => {
+      // What waited too long is no longer news: it goes quietly instead of arriving in a burst.
+      if (Date.parse(notice.created_at) < stale) { this.store.settleNotices(this.actorId, { notice_id: notice.notice_id }, "resolved"); return []; }
+      const { state: _state, ...view } = notice;
+      const rule = holdingRule(rules, notice.kind, surface);
+      return [rule ? { ...view, held: { rule_id: rule.rule_id, reason: rule.label } } : view];
+    });
+  }
+
+  settleNotices(target: { notice_id?: string; work_id?: string }, state: "seen" | "dismissed"): number {
+    return this.store.settleNotices(this.actorId, target, state);
+  }
+
+  rules(): AssistantRule[] { return this.store.rules(this.actorId); }
+
+  /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
+  saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
+    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result"];
+    if (!input || !["quiet", "pause"].includes(input.kind)) throw new AssistantError("assistant.invalid", "规则只能是“在某处不提醒”或“暂停提醒”");
+    const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
+    const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];
+    const label = typeof input.label === "string" ? input.label.trim().slice(0, 200) : "";
+    if (!label) throw new AssistantError("assistant.invalid", "写一句这条规则的说法，方便以后认出它");
+    const until = input.until === undefined || input.until === null || input.until === "" ? undefined : new Date(String(input.until));
+    if (until && (Number.isNaN(until.getTime()) || until.getTime() <= this.now().getTime())) throw new AssistantError("assistant.invalid", "结束时间要在现在之后");
+    if (input.kind === "pause" && !until) throw new AssistantError("assistant.invalid", "暂停提醒要有结束时间");
+    const rules = this.store.rules(this.actorId);
+    const existing = ruleId ? rules.find(rule => rule.rule_id === ruleId) : undefined;
+    if (ruleId && !existing) throw new AssistantError("assistant.not_found", "没有这条规则");
+    const rule: AssistantRule = { rule_id: existing?.rule_id ?? randomUUID(), kind: input.kind, surfaces: input.kind === "pause" ? [] : surfaces, except, label,
+      ...(until ? { until: until.toISOString() } : {}), enabled: input.enabled ?? true, created_at: existing?.created_at ?? this.now().toISOString() };
+    const next = existing ? rules.map(item => item.rule_id === rule.rule_id ? rule : item) : [...rules, rule].slice(-50);
+    this.store.setRules(this.actorId, next);
+    return next;
+  }
+
+  removeRule(ruleId: string): AssistantRule[] {
+    const next = this.store.rules(this.actorId).filter(rule => rule.rule_id !== ruleId);
+    this.store.setRules(this.actorId, next);
+    return next;
   }
 
   /** Works started before scope titles were kept still show their project's name. */
@@ -523,6 +602,7 @@ export class AssistantService {
     const kind = text(object?.kind), id = text(object?.id), from = text(source?.title) ?? text(source?.surface);
     if (!kind || !id || !from) throw new AssistantError("assistant.invalid", "交回的结果要说明对象种类、标识和来自哪里");
     this.store.relations.link(identity(work), "result", { kind, id, revision: revisionOf(typeof object?.version === "number" || typeof object?.version === "string" ? object.version : undefined) }, `${from} 交回`);
+    this.store.raiseNotice(this.actorId, { kind: "result", work_id: work.work_id, work_title: work.title, text: `${from} 把结果交回了「${work.title}」` }, `${work.work_id}:result:${kind}:${id}:${String(object?.version ?? "")}`);
     return this.read(workId);
   }
 

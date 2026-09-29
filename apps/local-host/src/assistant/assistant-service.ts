@@ -281,12 +281,21 @@ function revisionOf(version: string | number | undefined): string | null {
 const RELATION_WORDS: Record<AssistantWorkObject["relation"], string> = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
 
 /** The work's objects as the model reads them: what each is to the work, and whether it changed since. */
+/**
+ * A Home-kept object that says it belongs to another project (or a project, for personal work): its content is not
+ * this work's to read, whatever the owner's reader allows.
+ */
+function belongsElsewhere(work: StoredWork, context: ActionSubjectContext): boolean {
+  if (typeof context.project_id !== "string" || context.project_id === "personal") return false;
+  return context.project_id !== (work.project_ref?.project_id ?? null);
+}
+
 function describeObjects(objects: readonly AssistantWorkObject[]): string {
   const lines = objects.map(object => {
     const where = `${object.title}（${object.subject.kind}，标识 ${object.subject.id}）`;
     const state = object.state === "changed" ? `已被修改：这项工作记下的是版本 ${object.recorded_revision}，现在是版本 ${object.current_revision}`
       : object.state === "missing" ? "已不存在（被删除或移走）" : object.state === "unavailable" ? "暂时读不到"
-      : object.state === "moved" ? `已被用户移到${object.moved_to?.kind === "personal" ? "个人空间" : "项目"}「${object.moved_to?.title ?? ""}」，这项工作读不到它的正文`
+      : object.state === "moved" ? `${object.moved_to ? `已被用户移到${object.moved_to.kind === "personal" ? "个人空间" : "项目"}「${object.moved_to.title}」` : "现在属于别的项目"}，这项工作读不到它的正文`
       : object.current_revision ? `未变，版本 ${object.current_revision}` : "可用";
     return `- ${RELATION_WORDS[object.relation]}：${where}——${state}`;
   });
@@ -1173,6 +1182,10 @@ export class AssistantService {
       if (!actions || !reader) return { ...base, title: relation.object.id, current_revision: null, state: "unavailable" as const };
       try {
         const context = await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: relation.object.id }) as ActionSubjectContext;
+        if (belongsElsewhere(work, context)) {
+          const moved = await this.whereNow(work, actions, relation.object);
+          return { ...base, title: moved?.title ?? context.title ?? relation.object.id, current_revision: null, state: "moved" as const, ...(moved ? { moved_to: moved.to } : {}) };
+        }
         const changed = relation.object.revision !== null && context.revision !== relation.object.revision;
         return { ...base, title: context.title || relation.object.id, current_revision: context.revision, state: changed ? "changed" as const : "current" as const,
           ...(context.open ? { open: context.open } : {}) };
@@ -1200,8 +1213,10 @@ export class AssistantService {
     try {
       const found = await withinTime(actions.invoke({ capability_id: describe.capability_id, version: describe.version, provider_id: describe.provider.provider_id },
         { object: { kind: subject.kind, id: subject.id, project_id: work.project_ref?.project_id ?? null } })) as
-        { state: string; title: string; object: { project_id: string | null }; location: { title: string; kind: "personal" | "project" } | null; moved_from: unknown };
-      if (found.state !== "ok" || !found.location || !found.moved_from || found.object.project_id === (work.project_ref?.project_id ?? null)) return null;
+        { state: string; title: string; location: { title: string; kind: "personal" | "project"; project_id: string | null } | null };
+      if (found.state !== "ok" || !found.location) return null;
+      const here = work.project_ref?.project_id ?? null;
+      if (found.location.kind === "project" ? found.location.project_id === here : here === null) return null;
       return { title: found.title, to: { title: found.location.title, kind: found.location.kind } };
     } catch { return null; }
   }
@@ -1255,7 +1270,8 @@ export class AssistantService {
       try { return await actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: id }) as ActionSubjectContext; }
       catch { return null; }
     };
-    const context = await read(object.kind, object.id);
+    const found = await read(object.kind, object.id);
+    const context = found && belongsElsewhere(work, found) ? null : found;
     if (!context) {
       const moved = await this.whereNow(work, actions, object);
       return moved ? `「${moved.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」。这项工作的范围读不到它现在的正文；需要时请用户到那里打开，或把它放回这个项目。` : null;

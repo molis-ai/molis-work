@@ -591,7 +591,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const RELATION_LABEL = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
   const objectState = (object) => object.state === "changed" ? L("已被修改") + " · " + L("现为版本") + " " + object.current_revision + " · " + L("这项工作记下版本") + " " + object.recorded_revision
     : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
-    : object.state === "moved" ? L("已移到") + "「" + ((object.moved_to && object.moved_to.title) || "") + "」"
+    : object.state === "moved" ? (object.moved_to ? L("已移到") + "「" + object.moved_to.title + "」" : L("在别的项目里"))
     : object.current_revision ? L("未变") + " · " + L("版本") + " " + object.current_revision : L("可用");
   const renderObjects = (work) => {
     if (!objectsBox) return;

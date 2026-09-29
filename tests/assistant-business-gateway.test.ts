@@ -423,3 +423,12 @@ test("a change its owner has not answered by the gateway's own deadline ends in 
   assert.ok(Date.now() - started < 7_000, "well before the runtime's own limit");
   assert.equal(seen?.aborted, true, "the owner is told to stop");
 });
+
+test("a capability identity the round never found is answered as unknown, not as taken away", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as unknown as ActionView;
+  const { executors } = prologueActionGateway({ client: { discover: async () => [view], invoke: async () => ({}) }, operate: true } as never);
+  // Seen from MiniMax-M3: it guessed "lingguang_spark_read" instead of looking the reader up.
+  await assert.rejects((executors["read-capability"] as any)({ args: { capability_id: "lingguang_spark_read", version: 1, provider_id: "io.molis.work.lingguang", input: {} } }),
+    (error: any) => /No capability with that exact identity/.test(error.message) && /find-capabilities/.test(error.message));
+});

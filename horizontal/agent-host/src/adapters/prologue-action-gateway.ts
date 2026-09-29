@@ -39,9 +39,10 @@ function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (arg
  * Why a named capability cannot run now, and what the round may do about it. Upgraded: the same capability at another
  * version may be used, with a fresh confirmation. Otherwise it was switched off or removed on purpose: no stand-in.
  */
-function notOffered(views: readonly ActionView[], args: Pick<CapabilityArgs, "capability_id" | "version" | "provider_id">): string {
+function notOffered(views: readonly ActionView[], args: Pick<CapabilityArgs, "capability_id" | "version" | "provider_id">, known: ReadonlySet<string>): string {
   const other = views.find(row => row.capability_id === args.capability_id && row.provider.provider_id === args.provider_id && row.version !== args.version && row.action.audiences.includes("agent"));
   if (other) return `That capability is not offered here any more at version ${args.version}; nothing ran. Its provider now offers version ${other.version}: read its input_schema with find-capabilities and, if the person still wants this, submit it again (they will be asked to confirm).`;
+  if (!known.has(args.capability_id)) return "No capability with that exact identity is offered here (this round never found it; it may not exist under that name); nothing ran. Look it up with find-capabilities and use the identity it returns.";
   return "That capability is not offered here any more (switched off for you, removed, or no longer offered to agents); nothing ran. Do not use a different capability to do the same thing: tell the person it was not done and why, and let them decide.";
 }
 
@@ -67,6 +68,8 @@ function parseCapability(args: Record<string, unknown>): CapabilityArgs {
  * a change is a separate tool whose every call is held for the person's review of its exact arguments.
  */
 export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
+  // Capabilities this round has seen offered (found or used): one missing later was taken away, not guessed.
+  const known = new Set<string>();
   const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>): ToolRunner => async call => {
     const abort = new AbortController();
     const stop = () => abort.abort(new ActionError("actions.cancelled", "Agent action cancelled"));
@@ -80,7 +83,8 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
     const views = await gateway.client.discover();
     const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);
-    if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", notOffered(views, args));
+    if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", notOffered(views, args, known));
+    known.add(view.capability_id);
     if (!view.availability.available) throw new ActionError(view.availability.code, view.availability.reason);
     const reads = actionEffect(view.action, view.capability_id) === "read";
     if (write && reads) throw new ActionError("actions.gateway_mismatch", `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`);
@@ -129,6 +133,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
         return { view, score: hits * 10 + terms.filter(term => head.includes(term)).length * 5 };
       }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => b.score - a.score);
       if (!scored.length) return JSON.stringify({ found: 0, note: "Nothing matches; try the provider's name or a shorter word from the capability directory." });
+      for (const row of scored.slice(0, FIND_LIMIT)) known.add(row.view.capability_id);
       return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view)) });
     }),
     [GATEWAY_TOOLS.read]: guarded(async (args, signal) => { const parsed = parseCapability(args); return invoke(parsed, await current(parsed, false), signal); }),
@@ -212,7 +217,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const pack: ScenarioPack = { id: PACK_ID, version: "2.1.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
-  return { pack, executors, names };
+  return { pack, executors, names, known };
 }
 
 /** The delegation tools, each a thin call into the caller's delegation (which owns limits and the works themselves). */
@@ -256,14 +261,15 @@ export function normalizedInput(view: ActionView, input: unknown): unknown {
  * Why a gateway call cannot go ahead, checked before any review: the capability is gone, switched off, unavailable,
  * or asked for through the wrong tool. Null when it may proceed (a change then still waits for the person).
  */
-export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown): Promise<string | null> {
+export async function gatewayProblem(gateway: Gateway, toolName: string, input: unknown, known?: Set<string>): Promise<string | null> {
   if (toolName !== GATEWAY_TOOLS.read && toolName !== GATEWAY_TOOLS.change) return null;
   if (toolName === GATEWAY_TOOLS.change && !gateway.operate) return "This role may only read.";
   let parsed: CapabilityArgs;
   try { parsed = parseCapability((input ?? {}) as Record<string, unknown>); } catch (error) { return (error as Error).message; }
   const views = await gateway.client.discover();
   const view = views.find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
-  if (!view || !view.action.audiences.includes("agent")) return notOffered(views, parsed);
+  if (!view || !view.action.audiences.includes("agent")) return notOffered(views, parsed, known ?? new Set());
+  known?.add(view.capability_id);
   if (!view.availability.available) return `${view.availability.reason}; nothing was done.`;
   const reads = actionEffect(view.action, view.capability_id) === "read";
   if (toolName === GATEWAY_TOOLS.change && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;

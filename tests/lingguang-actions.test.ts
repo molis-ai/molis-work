@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { lingguangActions as actions, lingguangContentActions as content, LINGGUANG_ACTION_PERMISSIONS, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { lingguangSubjectAction } from "../plugins/native/lingguang/src/actions.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import type { HostCompleteText } from "../apps/local-host/src/host-complete-text.js";
@@ -177,4 +178,14 @@ test("a reply waiting on the model does not hold the project's other operations 
     const state = await reply;
     assert.equal(state.messages.at(-1)?.body, "模型的回应");
   }, async () => { entered.resolve(); await release.promise; return "模型的回应"; });
+});
+
+test("a spark reads back by the shared subject protocol: what it says now, its revision and where to open it", async () => {
+  await fixture(async ({ bound }) => {
+    const { spark } = await bound.invoke(actions.create, { title: "周会改到周三", body: "下午两点，线上" });
+    const context = await bound.invoke(lingguangSubjectAction, { subject_id: spark.id });
+    assert.deepEqual([context.subject, context.title, context.content, context.revision, context.open], [{ kind: "lingguang_spark", id: spark.id }, "周会改到周三", "下午两点，线上", spark.updated_at, { surface: "lingguang", id: spark.id }]);
+    const edited = await bound.invoke(actions.update, { id: spark.id, body: "下午三点" });
+    assert.equal((await bound.invoke(lingguangSubjectAction, { subject_id: spark.id })).revision, edited.spark.updated_at, "an edit shows as a new revision");
+  });
 });

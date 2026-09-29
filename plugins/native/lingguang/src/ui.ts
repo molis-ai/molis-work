@@ -81,7 +81,14 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard-current>${p.text("丢掉")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("复制内容")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-brainstorm-current>${p.text("头脑风暴")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-ask-toggle aria-expanded="false" aria-controls="lingguang-ask">${p.text("交给助理")}</button>
       </div>
+      <form class="lingguang-ask" id="lingguang-ask" data-lingguang-ask hidden>
+        <input class="mw-input" data-lingguang-ask-input autocomplete="off" aria-label="${p.text("要助理做什么？")}" placeholder="${p.text("要助理做什么？")}">
+        <button class="mw-btn mw-btn--primary mw-btn--sm" type="submit">${p.text("交给助理")}</button>
+        <button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-lingguang-ask-bring>${p.text("只带过去，我自己发")}</button>
+        <p class="lingguang-note">${p.text("助理只拿到这条灵光和最近几句头脑风暴，不会合并整段对话；它做的修改仍会请你确认。")}</p>
+      </form>
       <div class="lingguang-editor" data-lingguang-pane="editor">
         <input class="mw-input lingguang-title" data-lingguang-title autocomplete="off" aria-label="${p.text("标题")}" placeholder="${p.text("先扔进来，还没归类也没关系。")}">
         <textarea class="mw-textarea lingguang-body" data-lingguang-body rows="12" aria-label="${p.text("正文")}" placeholder="${p.text("再说一点")}"></textarea>

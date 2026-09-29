@@ -65,7 +65,7 @@
 
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
-| 上下文整理（compaction） | `runtime.compaction`，按清单声明 | 已开：历史超过 16,000 tokens 时按 `assistant-compaction`（登记在 Prompt 设置里，可改）挑选保留原文，整理失败时照常继续 | ✅ | 🟡 已接入；长工作里真实触发尚未观察到 |
+| 上下文整理（compaction） | `runtime.compaction`，按清单声明 | 已开：历史超过 16,000 tokens 时按 `assistant-compaction`（登记在 Prompt 设置里，可改）挑选保留原文，整理失败时照常继续 | ✅ | ✅ 真实触发（§9 第二片：灵光交来的工作里“上下文整理 · 保留历史原文”） |
 | 每轮预算（`maxTurns/maxTokens/maxWallClockMs`） | `startAgentRun` 的 budget | 每轮 24 步，到上限说人话、可继续 | 同 | ✅ `assistant-business-gateway`（步数上限）；§12 第二片 |
 | 用量（`usage/usageEntries`、`UsageBudget`） | 轮次视图带 run 用量 | 未汇总、未设上限 | — | ⛔ 用户可设的整体预算（按工作／按天）未做 |
 
@@ -116,7 +116,8 @@
 | --- | --- | --- | --- | --- |
 | `effects`（prepare/dispatch/pendings/inspectDispatch/reconcile/whenSettled） | 审查队列桥 | 每次修改停在确认；拒绝、停止、撤权、升级 | ✅ | ✅ `assistant-business-gateway`；§12 第二片（AC21 实测） |
 | 策略规则（`rules`、`permissionMode`、`posture`） | `createRuntime` 装配 | 网关修改一律 ask | ✅ | ✅ |
-| `hooks.register`（含 session-stop、dispatch 前检查） | 是 | 自动续做一次；网络派发前检查 | ✅ | ✅ `announce-guard`、§2.1 |
+| `hooks.register`（含 session-stop、dispatch 前检查） | 是 | 自动续做一次；声称记住却没记时拦一次；网络派发前检查 | ✅ | ✅ `announce-guard`、§2.1、§14 |
+| 熔断（circuit breaker，`circuit-tripped`） | 运行事件流 | 连续失败被 Prologue 停下时，这一轮按“停下”结束并说明 | ✅ | ✅ `prologue-stream`；§9 第二片（MiniMax 实测撞到后补上） |
 | Guardrails | 未装配自定义 guardrail；运行循环里 guardrail 触发的停止按“停止”而非“失败”显示（`prologue-stream.ts`） | — | — | ⛔ 未配置产品自己的 guardrail |
 | 结果未知需核对（`EFFECT_RECONCILE_REQUIRED`、`settleDispatch`） | 恢复路径 | 助理不用此通道：已派出未回话的修改由 Host 记下结局并告知下一轮 | ✅ | 🟡 SDK 只接受执行回执或“确认没发生”，缺“人已核对它发生了”的收口（Prologue 缺口，§2.1） |
 
@@ -164,7 +165,7 @@
 
 1. 记忆的候选提炼（memoryInbox）与 Character 维度（明确要求的个人／项目记忆已接通）。
 2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；分别对应 P5 余项与 P9 的替代实现。
-3. 用户可设的整体预算（助理长工作的上下文整理已开，待真实长工作里观察）。
+3. 用户可设的整体预算。
 4. PDF／图片等附件（`parseDocument/parseResource`、`images` 输入）、语音。
 5. 会话分支、受控导出、跨会话搜索（后者待“系统级搜索”合入）。
 6. SDK Refine 与真实“评审—补改—复查”循环。

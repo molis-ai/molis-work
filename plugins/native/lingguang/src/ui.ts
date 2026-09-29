@@ -81,7 +81,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-save-retry hidden>${p.text("重试保存")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-discard-current>${p.text("丢掉")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-dispatch-current>${p.text("复制内容")}</button>
-        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="spark" data-make-todo-surface="lingguang" data-make-todo-reason="${p.text("你从灵光转为待办")}">${p.text("转为待办")}</button>
+        <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="lingguang_spark" data-make-todo-surface="lingguang" data-make-todo-reason="${p.text("你从灵光转为待办")}">${p.text("转为待办")}</button>
         <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-brainstorm-current>${p.text("头脑风暴")}</button>
       </div>
       <div class="lingguang-editor" data-lingguang-pane="editor">

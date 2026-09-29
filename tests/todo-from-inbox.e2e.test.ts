@@ -80,7 +80,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   await waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已转为待办')");
   const spark = todos().find(todo => todo.title === "给新人写一页入门");
   assert.ok(spark, "灵光转成的待办");
-  assert.deepEqual([spark.sources[0]!.kind, spark.sources[0]!.excerpt, spark.sources[0]!.subject?.kind], ["lingguang", "先列常见问题，再配截图。", "spark"]);
+  assert.deepEqual([spark.sources[0]!.kind, spark.sources[0]!.excerpt, spark.sources[0]!.subject?.kind], ["lingguang", "先列常见问题，再配截图。", "lingguang_spark"]);
   assert.ok(await evaluate("Boolean(document.querySelector('[data-lingguang-id]'))"), "灵光还在");
   assert.ok(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "不横向滚动");
   await screenshot("lingguang");

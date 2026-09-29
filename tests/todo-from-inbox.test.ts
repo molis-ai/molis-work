@@ -35,7 +35,7 @@ test("an Inbox entry offers 转为待办 whether or not it is handled, carrying 
 test("灵光 offers 转为待办 from its editor; its client script parses (the button is filled from what is on screen)", () => {
   const html = renderLingguangWorkbench({ primitives: { escape, text: value => value } });
   assert.match(html, /data-make-todo-scope/u);
-  assert.match(html, /<button[^>]*data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="spark" data-make-todo-surface="lingguang" data-make-todo-reason="你从灵光转为待办">转为待办<\/button>/u);
+  assert.match(html, /<button[^>]*data-lingguang-todo data-make-todo="lingguang" data-make-todo-subject="lingguang_spark" data-make-todo-surface="lingguang" data-make-todo-reason="你从灵光转为待办">转为待办<\/button>/u);
   assert.match(html, /data-lingguang-note data-make-todo-status/u);
   assert.doesNotThrow(() => new Function(`return (${LINGGUANG_CLIENT_FACTORY_SCRIPT});`));
 });
@@ -56,7 +56,7 @@ test("a todo made from an Inbox entry or a 灵光 keeps it as its source; conver
   const again = await inA.invoke(todoActions.create, fromInbox);
   assert.deepEqual([again.replayed, again.item.id], [true, first.item.id], "同一条再转一次找到原来的待办");
   const spark = await inA.invoke(todoActions.create, { title: "给新人写一页入门", placement: "project", request_id: "lingguang:spark-1",
-    sources: [{ kind: "lingguang", title: "给新人写一页入门", excerpt: "先列常见问题", reason: "你从灵光转为待办", subject: { kind: "spark", id: "spark-1" }, open: { surface: "lingguang", id: "spark-1" } }] });
+    sources: [{ kind: "lingguang", title: "给新人写一页入门", excerpt: "先列常见问题", reason: "你从灵光转为待办", subject: { kind: "lingguang_spark", id: "spark-1" }, open: { surface: "lingguang", id: "spark-1" } }] });
   assert.equal(spark.item.sources[0]!.kind, "lingguang");
   await assert.rejects(inA.invoke(todoActions.create, { title: "x", sources: [{ kind: "mail" as never, title: "x" }] }));
   // Deleting it lets the entry be converted afresh.

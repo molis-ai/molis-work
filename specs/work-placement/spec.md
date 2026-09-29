@@ -336,7 +336,7 @@
 | 项 | 状态 | 原因与下一步 |
 | --- | --- | --- |
 | 助理按移动后的位置读取对象 | 助理会话在做 | 已商定由助理在其对象读取处（`assistant-service.ts` 的 workObjects、objectBackground、readReferences）先调 `placement.locate` 再读；本分支不改这几处 |
-| Todo 在读取里填 `project_id` | 等 Todo 接入 | 合同已定（助理同意）并已加在 `ActionSubjectContext`（可选，旧的两版读取声明仍然有效）；放置服务按它显示位置与“从 … 移来”。Todo 会话在其读取里给项目待办填上、声明 `todo.placement.move` 后，项目待办在位置条里显示为项目「X」 |
+| Todo 待办移到项目后放置读不到 | 等 Todo 修（已报） | Todo 已接入 `project_id` 与 `todo.placement.move`，界面上个人空间的待办能打开位置面板、移到项目（2026-09-29 实测）。但移到项目后，放置服务在 Home 作用域读取时 Todo 读取器按“不在范围内”抛 `todo.not_found`，于是误报“原对象已删除”、没有“在新位置打开”。已请 Todo：无项目或个人范围的读取返回任何待办并填 `project_id`，项目 A 里仍看不到项目 B 的 |
 | 灵光“交给助理” | 由助理分支提供 | 在其分支 34821f7f |
 | Goal 画布（Frame）上的摆放 | 不改 | Frame 是 Goal 页面上的视图组合（本机浏览器存储），不是关联事实；关联以 Goal“资料”为准 |
 | 移动项目库对象（Goals、Feed、Inbox、Artifacts、Schedule、Coding） | 本期不做 | 第 9 节 |

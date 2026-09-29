@@ -327,11 +327,15 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   };
   const moveOrCopy = async (description, mode) => {
     const all = await loadSpaces();
-    const targets = all.filter(space => space.project_id !== description.object.project_id);
+    // Not where it is now: its partition, or where a Home-kept object belongs (the personal space when it belongs nowhere).
+    const current = description.location ? description.location.project_id || "personal" : description.object.project_id;
+    const kept = description.location && description.location.access === "home";
+    const targets = all.filter(space => space.project_id !== current);
     if (!targets.length) { card(L("没有别的位置"), L("建好项目后再移动或复制。"), [], "error"); return; }
     const links = description.associations.length;
     const rows = targets.map((space, index) => choice("to", space.project_id, space.kind === "personal" ? L("个人空间") : L("项目「{name}」", { name: space.title }),
       mode === "copy" ? L("新的一份会写上“复制自 {place}”。", { place: description.location ? description.location.title : "" })
+        : kept ? (space.kind === "personal" ? L("算作你个人的，不再属于哪个项目；谁能读取它仍按你给这个插件的授权。") : L("算作这个项目的，在这个项目里列出；谁能读取它仍按你给这个插件的授权。"))
         : space.kind === "personal" ? L("移到个人空间后，原项目里的助理、Runtime 和工作流将读不到它。") : L("移到项目后，这个项目里的助理、Runtime 和工作流能读取它。"), index === 0));
     const body = [...rows];
     if (mode === "move" && links) body.push(node("p", L("它现在有 {count} 项关联，移动后都保留。", { count: links }), "placement-dialog-note"));

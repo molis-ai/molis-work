@@ -102,6 +102,8 @@ export const PLACEMENT_EN: Record<string, string> = {
   "原位置不再列出它；关联都还在": "It's no longer listed in the old location; all links remain",
   "复制自 {place}": "Copied from {place}",
   "在新位置打开": "Open in new location",
+  "算作你个人的，不再属于哪个项目；谁能读取它仍按你给这个插件的授权。": "It becomes yours alone, no longer part of a project; who can read it still follows the access you gave this plugin.",
+  "算作这个项目的，在这个项目里列出；谁能读取它仍按你给这个插件的授权。": "It becomes part of this project and is listed there; who can read it still follows the access you gave this plugin.",
 
   // Goals
   "读不到目标": "Couldn't read the goals",

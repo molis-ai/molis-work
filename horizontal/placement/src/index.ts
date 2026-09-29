@@ -37,7 +37,8 @@ export interface PlacementPorts {
 const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "personal", id: "placement" } };
 /** Ledger-only marker for Home-level content (Shelf, Jelly, Cognia…): always personal, never moved. */
 const HOME = "home";
-const TYPES = { location: "placement.location", used: "placement.used_in", derived: "placement.derived_from", copied: "placement.copied_from", goal: "placement.goal_in" } as const;
+const TYPES = { location: "placement.location", used: "placement.used_in", derived: "placement.derived_from", copied: "placement.copied_from", goal: "placement.goal_in",
+  belonging: "placement.belonged_to" } as const;
 
 const identity = (kind: string, id: string): ObjectRef => ({ module: "plugins", object_type: kind, id, version: null, scope: ACCESS.scope, project_id: null });
 const projectRef = (projectId: string): ObjectRef => ({ module: "projects", id: projectId, version: null, scope: ACCESS.scope, project_id: null });
@@ -75,7 +76,8 @@ export class PlacementService {
     const object = located.object;
     const read = await this.read(object);
     const title = read.context?.title || this.ports.titles.get(object.kind, object.id) || this.t("未命名");
-    const location = read.state === "missing" && read.reason === PROJECT_GONE ? null : this.location(object.project_id, spaces);
+    const location = read.state === "missing" && read.reason === PROJECT_GONE ? null
+      : object.project_id === null ? this.homeLocation(this.belongsOf(read), spaces) : this.location(object.project_id, spaces);
     const associations: PlacementAssociation[] = [];
     for (const edge of this.edges(TYPES.used).filter(edge => sameObject(edge.source, object.kind, object.id))) {
       const project = spaces.find(space => space.project_id === edge.target.id);
@@ -123,12 +125,16 @@ export class PlacementService {
     for (const edge of this.edges(TYPES.copied).filter(edge => sameObject(edge.target, object.kind, object.id))) {
       await origin(title => this.t("复制到《{title}》", { title }), "copied_into")(edge, edge.source);
     }
-    const tools = read.state === "ok" && object.project_id !== null ? await this.tools(object) : { mover: null, copier: null };
+    const tools = read.state === "ok" ? await this.tools(object) : { mover: null, copier: null };
+    const here = object.project_id ?? this.belongsOf(read);
+    // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
+    const belonged = object.project_id === null ? this.ports.ledger.query.get(ACCESS, key("belonged_to", object.kind, object.id)) : null;
+    const before = belonged && belonged.target.id !== (here ?? PERSONAL_SPACE_PROJECT_ID) ? belonged.target.id : null;
     return {
       state: read.state, reason: read.reason, object, title, plugin: read.plugin, location,
-      moved_from: located.moved ? this.location(input.project_id, spaces) : null,
+      moved_from: located.moved ? this.location(input.project_id, spaces) : before ? this.homeLocation(before, spaces) : null,
       associations,
-      can: { move: !!tools.mover, copy: !!tools.copier, use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== object.project_id) },
+      can: { move: !!tools.mover, copy: !!tools.copier, use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
       open: read.context?.open ? { project_id: object.project_id, surface: read.context.open.surface, id: read.context.open.id } : null,
     };
   }
@@ -156,6 +162,7 @@ export class PlacementService {
     if (object.project_id === projectId) throw new ActionError("placement.already_here", this.t("它就放在这个项目里，不需要再关联"));
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? this.t("暂时读不到这个对象"));
+    if (this.belongsOf(read) === projectId) throw new ActionError("placement.already_here", this.t("它就放在这个项目里，不需要再关联"));
     this.remember(object);
     const linkKey = key("used_in", object.kind, object.id, projectId);
     this.ports.ledger.commands.put(ACCESS, { key: linkKey, type: TYPES.used, source: identity(object.kind, object.id), target: projectRef(projectId),
@@ -251,7 +258,7 @@ export class PlacementService {
   async move(input: PlacedObject, to: string): Promise<PlacementMoveResponse> {
     const spaces = await this.ports.spaces();
     const object = this.locate(input).object;
-    if (object.project_id === null) throw new ActionError("placement.not_movable", this.t("这类内容只放在个人空间；可以用于项目，但不能移动"));
+    if (object.project_id === null) return this.moveHome(object, to, spaces);
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", this.t("找不到要移到的位置"));
     if (object.project_id === to) throw new ActionError("placement.same_location", this.t("它已经在这个位置"));
     const { mover } = await this.tools(object);
@@ -267,6 +274,30 @@ export class PlacementService {
     this.ports.ledger.commands.remove(ACCESS, key("used_in", object.kind, object.id, to), "placement.moved_into_project");
     const moved = { ...object, project_id: to };
     return { object: moved, location: this.location(to, spaces), open: await this.openOf(moved) };
+  }
+
+  /**
+   * A Home-kept object (a todo list) is not moved between partitions: its plugin changes where it belongs, through a
+   * Home-scoped mover, and keeps reading it at Home. Where it belonged before is kept for “从 … 移来”.
+   */
+  private async moveHome(object: PlacedObject, to: string, spaces: readonly PlacementSpaceView[]): Promise<PlacementMoveResponse> {
+    if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", this.t("找不到要移到的位置"));
+    const { mover } = await this.tools(object);
+    if (!mover) throw new ActionError("placement.not_movable", this.t("这类内容只放在个人空间；可以用于项目，但不能移动"));
+    const read = await this.read(object);
+    if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? this.t("暂时读不到这个对象"));
+    const from = this.belongsOf(read) ?? PERSONAL_SPACE_PROJECT_ID;
+    if (from === to) throw new ActionError("placement.same_location", this.t("它已经在这个位置"));
+    const scope = await this.ports.scope(null);
+    const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
+    if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
+      throw new ActionError("placement.result_mismatch", this.t("插件返回的移动结果与请求不一致，请刷新后核对"));
+    }
+    this.remember(object);
+    this.ports.ledger.commands.put(ACCESS, { key: key("belonged_to", object.kind, object.id), type: TYPES.belonging,
+      source: identity(object.kind, object.id), target: projectRef(from), cause: `placement.move:${to}` });
+    this.ports.ledger.commands.remove(ACCESS, key("used_in", object.kind, object.id, to), "placement.moved_into_project");
+    return { object, location: this.homeLocation(to, spaces), open: await this.openOf(object) };
   }
 
   async copy(input: PlacedObject, to: string, requestId: string): Promise<PlacementMoveResponse> {
@@ -387,6 +418,18 @@ export class PlacementService {
   }
 
   private edges(type: string): ContextEdge[] { return this.ports.ledger.query.list(ACCESS, { type }); }
+
+  /** Where a Home-kept object belongs, as its reader says; null for the personal space or when the plugin does not say. */
+  private belongsOf(read: Read): string | null {
+    const value = (read.context as (ActionSubjectContext & { project_id?: string | null }) | null)?.project_id ?? null;
+    return value && value !== PERSONAL_SPACE_PROJECT_ID ? value : null;
+  }
+
+  /** A Home-kept object belonging to a project is shown in it, but still read at Home: its access stays the Home one. */
+  private homeLocation(belongs: string | null, spaces: readonly PlacementSpaceView[]): PlacementLocation {
+    if (!belongs || belongs === PERSONAL_SPACE_PROJECT_ID) return this.location(null, spaces);
+    return { ...this.location(belongs, spaces), access: "home", access_label: this.t("只有你和获授权的助理") };
+  }
 
   private location(projectId: string | null, spaces: readonly PlacementSpaceView[]): PlacementLocation {
     // Home-level plugins answer any project that was granted them, so their content is not “only you”.

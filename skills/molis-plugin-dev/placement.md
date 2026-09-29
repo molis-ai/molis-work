@@ -28,6 +28,8 @@
    ```
 
    移动时放掉只在原项目有意义的东西（文件夹、原项目里的 Goal 挂接、固定版本编号），有进行中的发布就拒绝。不能移动的对象（绑定外部服务、跨库）不声明，界面会写“不能移动”。
+
+   对象存在 Home、自己记“属于哪个项目”的插件（例如 Todo），声明 Home 作用域的移动：`defineObjectMoveAction(id, kinds, title, permissions, "home")` 配 `bindHomeObjectMoveHandler`，`to_project_id` 是新的归属（`personal` 表示个人空间），返回 `{ subject, project_id: to_project_id, revision }`。复制仍只在项目分区里。
 3. **能接收内容的插件，做成工作流内容站**（`defineWorkflowContentActions`，含 `receive`、需要时 `create`）：灵光“转成文档”、问卷“存成数据表”、Goal“新建演示稿”都走它；同一次交付只建一个对象（用 `workflowDeliveryKey`）。内容站的定义放进 manifest 的 `actions`，处理器单独导出（`create<Plugin>ContentHandlers`），由 Host 与插件动作处理器合并注册；不要塞进 `create<Plugin>ActionHandlers`，否则只按 `<plugin>Actions` 注册的调用方会报“处理器未声明”。
 4. **页面声明当前对象**：插件根元素写 `data-assistant-context`（`object: { kind, id, version, title }`、`unsaved`），并在标题行留一个位置槽：
 

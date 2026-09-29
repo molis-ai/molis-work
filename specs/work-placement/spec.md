@@ -169,7 +169,8 @@
 
 - `defineObjectMoveAction(capabilityId, kinds, title, permissions)`：`input_type: molis.placement.move.input.v1`，输入 `{ subject: {kind,id}, to_project_id }`，输出 `PlacementResult = { subject, project_id, revision }`。在对象当前所在项目（调用者项目）执行，`bindObjectMoveHandler` 把调用者项目作为 `from_project_id` 交给处理器；对象改到目标项目分区，身份不变；有进行中的发布等不能移动的情况拒绝并说明原因。只对 `user` 开放，项目作用域。
 - `defineObjectCopyAction(...)` / `bindObjectCopyHandler`：`molis.placement.copy.*.v1`，输入另带 `request_id`，输出新对象；同一 `request_id` 重试返回同一副本。
-- `inspectActionDeclarations` 用 `placementDeclarationProblems` 校验：受众只能是 `user`、作用域必须是项目、schema 与协议一致。
+- `inspectActionDeclarations` 用 `placementDeclarationProblems` 校验：受众只能是 `user`、作用域是项目（移动另可为 Home）、schema 与协议一致。
+- Home 作用域的移动（`defineObjectMoveAction(..., "home")` + `bindHomeObjectMoveHandler`）：给把对象存在 Home、自己记“属于哪个项目”的插件（Todo）。放置服务在 Home 调用它，`to_project_id` 是新的归属（`personal` 为个人空间）；对象身份与存储不变，放置服务记下之前的归属，显示“从 … 移来”。对象属于哪个项目由对象读取告诉放置服务（见第 10 节助理合同项）。
 - Plugin SDK 导出以上定义、处理器绑定与 `PERSONAL_SPACE_PROJECT_ID`。
 
 ### 7.2 放置服务（系统动作）：`packages/contracts/src/services/placement.ts`
@@ -318,18 +319,24 @@
 - 从项目「Q4 新版发布」的搜索面板搜“上线前检查清单”：结果分组写“Pages · 个人空间”“PPT · 个人空间”；点开后跳到个人空间并打开这篇文档，位置条“个人空间”。API 同样查到个人空间里的 Pages、灵光、Goals、PPT 内容，`project_id = personal`。
 - 自动测试（`tests/work-placement.test.ts`）：本人从项目里搜到并能打开个人空间的内容；“本项目”范围不含它；同一项目里的助理（受众 `agent`）搜不到、也打不开；在个人空间里“个人”范围包含它。`system-search*`、灵光、i18n、客户端脚本测试全部通过；调用搜索面板的 e2e 里，失败的“Goals 树”“产品旅程”“UI 审计”在基线上同样失败，“沉浸目录”单独复跑通过。
 
+### 12.6 与助理、Todo 合成一个分支（2026-09-29，用户要求）
+
+- 本分支提交 7069a654（需求书）、62de3994（实现），并入助理 feature/system-assistant 76518a81（合并提交 d039d7ae）：只有灵光 `ui.ts`、`en.ts` 两处冲突，两边保留；合并后 `pnpm build` 通过，交汇处 36 个测试文件 160 项通过。已与助理会话、Todo 会话协调以 feature/system-assistant 为共同分支。Todo（d888347a）在 d039d7ae 上试合只有灵光 `ui.ts`、`scripts/workspace-packages.mjs` 两处冲突。
+- 与 Todo 对齐（双方确认）：Todo 的 personal、unassigned 都在个人空间（unassigned 是“还没整理”），project 在项目「X」；在个人空间里打开 Todo 按“个人”视图；对象读取返回 `open`、不存在或归档抛 `todo.not_found`（Todo 已做）；移动用 Home 作用域的放置移动（本分支已提供），Todo 声明 `todo.placement.move`，不另做一套；位置条与完成提示按 `skills/molis-plugin-dev/placement.md` 接。
+- 炼金术士“建成 Goal”界面验证：用与炼金术士 e2e 相同的方式经正式 API 生成两份研究（模型与搜索为显式测试替身），在 Q4 打开想法 → 决定页“去做”填理由 → “建成 Goal”，完成提示“已建成 Goal《证据墙》 存到 项目「Q4 新版发布」 · 这个想法和决定是它的来源；炼金术士里的记录不变”；Goal 打开后描述里带决定与下一步，关联写“来自《证据墙》”。
+
 ## 13. 未完成与受阻
 
 | 项 | 状态 | 原因与下一步 |
 | --- | --- | --- |
 | 助理按移动后的位置读取对象 | 受阻（依赖助理分支） | 助理分支在进行中，未合入 main；需要它在对象读不到时调用 `placement.locate`（第 10 节）。本分支不改助理代码，避免与其工作重叠 |
+| Home 级对象属于哪个项目（Todo 的项目待办显示为项目「X」） | 等助理定合同 | 需要 `ActionSubjectContext` 增加可选 `project_id`（合同归助理，已提议）；定下后 Todo 在读取里填、放置服务已按它显示位置与“从 … 移来”。未定之前项目待办在位置条里显示为个人空间 |
 | 灵光“交给助理” | 由助理分支提供 | 在其分支 34821f7f |
 | Goal 画布（Frame）上的摆放 | 不改 | Frame 是 Goal 页面上的视图组合（本机浏览器存储），不是关联事实；关联以 Goal“资料”为准 |
 | 移动项目库对象（Goals、Feed、Inbox、Artifacts、Schedule、Coding） | 本期不做 | 第 9 节 |
 | 问卷外网链接 | 不做 | 第 9 节；填写页文件与答卷文件实现他人填写 |
 | 导出的问卷填写页只有中文 | 未做 | 填写页是独立文件，目前按中文生成；需要时按问卷语言生成 |
 | 自动化 Keynote | 不再做 | 核对 PPTX 时 Keynote 首次调用报“连接无效”并崩溃一次，重试成功；之后不再用脚本驱动 Keynote |
-| 炼金术士“建成 Goal”的界面点击 | 未在界面点过 | 按钮只在想法有“去做”决定时出现，决定需要模型完成研究；按钮发出的请求已经 API 验证 |
 | 图片真实厂商生成 | 用本机替身服务验证 | 本机没有配置图像厂商；生成、放进 Shelf 的链路用 127.0.0.1 上的替身服务走通 |
 | onboarding 页面中英混排（如 “Choose a source”“Selected 0 sources”） | 既有问题，未改 | 服务端按中文渲染、页面脚本按浏览器语言取英文；与本任务无关 |
 | 手机宽度下 Pages 标题被截断 | 观察到，未查 | Pages 自己的标题样式，不在本任务改动范围 |

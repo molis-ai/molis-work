@@ -8,7 +8,7 @@ import { inflateRawSync } from "node:zlib";
 
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
-  ActionError, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction,
+  ActionError, bindHomeObjectMoveHandler, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction,
   defineSubjectContextAction, defineWorkflowContentActions, inspectActionDeclarations, subjectContext, type ActionCallContext,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
@@ -121,7 +121,8 @@ test("placement protocol: shipped plugins declare move and copy for the person o
   }
   // Letting an agent move things would change who can read them without the person deciding.
   assert.match(inspectActionDeclarations([{ ...mover, action: { ...mover.action, audiences: ["user", "agent"] } }], undefined).join(), /放置协议/);
-  assert.match(inspectActionDeclarations([{ ...mover, action: { ...mover.action, scope: "home" } }], undefined).join(), /放置协议/);
+  // Copies stay in partitions; only a mover may be Home-scoped (for plugins that keep their objects at Home).
+  assert.match(inspectActionDeclarations([{ ...copier, action: { ...copier.action, scope: "home" } }], undefined).join(), /放置协议/);
 });
 
 test("describe says where an object is and who can see it; deleted and unreadable stay different", async () => {
@@ -322,6 +323,33 @@ test("plugin stores move with the same id, copy independently and receive handed
   sparks.openConversation([single.id], "q4");
   assert.equal(sparks.relocate(single.id, "q4", "personal").project_id, "personal");
   sparks.close();
+});
+
+test("a plugin that keeps its objects at Home moves them through its own Home-scoped mover", async () => {
+  // A home mover is allowed; a home copier is not (copies stay in partitions).
+  const homeMover = defineObjectMoveAction("todos.placement.move", ["todo_item"], "待办", ["notes:write"], "home");
+  assert.deepEqual(inspectActionDeclarations([homeMover], undefined), []);
+  assert.match(inspectActionDeclarations([{ ...copier, action: { ...copier.action, scope: "home" } }], undefined).join(), /放置协议/);
+  const f = fixture();
+  const todoReader = defineSubjectContextAction("todos.subject.read", "todo_item", "待办", ["notes:read"], "home");
+  const todos = new Map([["t1", { title: "发布后回访五位用户", belongs: "personal" }]]);
+  const calls: string[] = [];
+  f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
+    handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
+      if (!todo) throw new ActionError("todos.not_found", "待办不存在");
+      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], session_id: null, open: { surface: "todo", id } }); } },
+      bindHomeObjectMoveHandler(homeMover, input => { calls.push(input.to_project_id); todos.get(input.subject.id)!.belongs = input.to_project_id;
+        return { subject: input.subject, project_id: input.to_project_id, revision: input.to_project_id }; })] });
+  const todo = { kind: "todo_item", id: "t1", project_id: null };
+  const before = await f.service.describe(todo);
+  assert.deepEqual([before.location?.title, before.can.move, before.can.copy], ["个人空间", true, false]);
+  await f.service.link(todo, "q4");
+  const moved = await f.service.move(todo, "q4");
+  assert.deepEqual(calls, ["q4"], "the plugin changes where it belongs; the object stays at Home");
+  assert.deepEqual([moved.object.project_id, moved.location.title, moved.location.access], [null, "项目「Q4 新版发布」", "home"]);
+  assert.deepEqual((await f.service.describe(todo)).associations.filter(item => item.type === "used_in"), [], "used in the project it now belongs to says nothing more");
+  // Home content without a mover (a clip) still cannot be moved.
+  await assert.rejects(f.service.move({ kind: "clip", id: "clip-1", project_id: null }, "q4"), { code: "placement.not_movable" });
 });
 
 test("the person finds what is in their personal space from any project; a project's agents do not", async t => {

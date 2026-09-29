@@ -318,6 +318,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (useBtn) useBtn.hidden = !(selected?.group === "result" && hasFile(selected)) || Boolean(selectedClip);
     const materialBtn = workbench.querySelector("[data-shelf-project-material]");
     if (materialBtn) materialBtn.hidden = !projectPrefix || !selected || Boolean(selectedClip) || !hasFile(selected) || !isEditable(selected) || busy;
+    // Shelf lives in the personal space: in a project it can be used there without being copied.
+    const useBtn2 = workbench.querySelector("[data-shelf-use-in-project]");
+    if (useBtn2) useBtn2.hidden = !projectPrefix || document.body.dataset.projectId === "personal" || !selected || Boolean(selectedClip);
+    const context = { plugin_id: "io.molis.work.shelf", surface_title: "Shelf" };
+    if (selected && !selectedClip) context.object = { kind: "shelf_item", id: selected.item_id, version: selected.status + ":" + (selected.preview_text || "").length, title: selected.name };
+    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
     const original=workbench.querySelector('[data-shelf-original-artifact]'),source=selected?.artifact_source;
     if(original){original.hidden=!source || Boolean(selectedClip);if(source)original.href=source.project_path+'/artifacts/'+encodeURIComponent(source.reference.artifact_id)+'/versions/'+source.reference.version;}
     if (editBtn) {
@@ -759,6 +765,21 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } finally { if (lastId) applySnapshot(snapshot, lastId); }
   };
+  // Another plugin hands a file over (a generated image): it becomes a personal Shelf copy, and the workbench says where.
+  window.addEventListener("molis:shelf-admit", async (event) => {
+    const detail = event.detail || {};
+    if (!detail.bytes_base64 || !detail.filename) return;
+    try {
+      const payload = await post("/api/shelf/items", { filename: detail.filename, mime: detail.mime || "", bytes_base64: detail.bytes_base64 });
+      snapshot = payload.snapshot;
+      if (payload.item) applySnapshot(snapshot, payload.item.item_id);
+      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: payload.item ? payload.item.name : detail.filename,
+        object: payload.item ? { kind: "shelf_item", id: payload.item.item_id, project_id: null } : undefined,
+        note: detail.source ? L("来自 {source}", { source: detail.source }) + " · " + L("可以在 Shelf 里用于项目") : L("可以在 Shelf 里用于项目") } }));
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "failed", title: detail.filename, note: error.message || L("放进 Shelf 失败") } }));
+    }
+  });
   const showAdmissionError = (error) => {
     expandShelfStage(true);
     if (!selected) preview.innerHTML=docHtml("Shelf",L("无法添加材料"),error.message);
@@ -1328,6 +1349,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch (error) { if (ticket === materialTicket) materialStatus.textContent = error.message; }
   };
   workbench.querySelector("[data-shelf-project-material]")?.addEventListener("click", openProjectMaterial);
+  workbench.querySelector("[data-shelf-use-in-project]")?.addEventListener("click", () => {
+    if (!selected) return;
+    window.dispatchEvent(new CustomEvent("molis:placement-request", { detail: { action: "use-in-project", object: { kind: "shelf_item", id: selected.item_id, project_id: null } } }));
+  });
   workbench.querySelector("[data-shelf-material-refresh]")?.addEventListener("click", openProjectMaterial);
   workbench.querySelector("[data-shelf-material-form]")?.addEventListener("submit", async event => {
     event.preventDefault();
@@ -1339,7 +1364,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (ticket !== materialTicket) return;
       materialSaved = result.reference;
       materialOutput.hidden = false; materialOutput.disabled = false;
-      materialStatus.textContent = L("已保存到项目材料") + " · v" + result.reference.version + L("。设为材料输出后，可在 Coding 的「＋ 材料」中选择；已有任务不会自动换版。");
+      materialStatus.textContent = L("已存一份固定版本到项目材料") + " · v" + result.reference.version + L("。设为材料输出后，可在 Coding 的「＋ 材料」中选择；已有任务不会自动换版。");
     } catch (error) { if (ticket === materialTicket) { materialStatus.textContent = error.message; materialSave.disabled = false; } }
   });
   materialOutput?.addEventListener("click", async () => {

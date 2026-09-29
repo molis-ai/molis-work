@@ -60,7 +60,7 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   }
   const refs = references => references.length?'<section class="cognia-relations"><h3>'+tx('固定版本来源')+'</h3>'+references.map(r=>button('['+r.label+'] '+r.title+' · v'+r.revision,'reference','data-id="'+esc(r.material_id)+'" data-revision="'+r.revision+'"')).join('')+'</section>':'';
   async function openMaterial(id,revision) {
-    const data=await api('/materials/'+encodeURIComponent(id)+(revision?'?revision='+revision:'')); current=data.material; if(root.dataset.expanded!=='true'){listFocus=document.activeElement;listScroll=$('[data-cognia=directory]').scrollTop;}root.dataset.expanded='true';$('[data-cognia-workspace]').hidden=false;$('[data-cognia-heading]').textContent=current.title;
+    const data=await api('/materials/'+encodeURIComponent(id)+(revision?'?revision='+revision:'')); current=data.material; root.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.cognia',surface_title:'Cognia',object:{kind:'cognia_material',id:current.id,version:current.revision||current.updated_at||'',title:current.title}})); if(root.dataset.expanded!=='true'){listFocus=document.activeElement;listScroll=$('[data-cognia=directory]').scrollTop;}root.dataset.expanded='true';$('[data-cognia-workspace]').hidden=false;$('[data-cognia-heading]').textContent=current.title;
     $('[data-cognia-download]').href='/api/plugins/cognia/materials/'+encodeURIComponent(id)+'/download?revision='+current.revision;
     $('[data-cognia-action="edit-material"]').hidden=!!revision||!['manual','knowledge'].includes(current.source_id);
     $('[data-cognia-action="delete-material"]').hidden=!!revision||!state.materials.some(m=>m.id===id);

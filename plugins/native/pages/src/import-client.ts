@@ -155,6 +155,8 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
       const payload = await importRequest("", importSubmission);
       importFinished = payload.documents || [];
       importMessage(L("已导入") + " " + importFinished.length + " " + L("篇文档"));
+      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "imported", title: "", note: L("{count} 篇文档，导入后可以继续编辑", { count: importFinished.length }),
+        ...(importFinished.length === 1 && importFinished[0] && importFinished[0].id ? { object: { kind: "pages_document", id: importFinished[0].id } } : {}) } }));
       if (projectId() === importProject && routePrefix() === importPrefix) {
         query = ""; if (searchInput) searchInput.value = "";
         // Keep the successful receipt visible even if refreshing the library fails.

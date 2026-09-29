@@ -342,6 +342,34 @@ export class PagesStore {
     return row?.publication_pending_json ? JSON.parse(row.publication_pending_json) as PagesPublicationIntent : null;
   }
 
+  /**
+   * Move one document to another partition (the personal space or a project). Its id stays, so every link and
+   * reference still finds it. What only meant something in the old project is let go: its folder, its Goal (Goals
+   * belong to one project) and the numbering of fixed versions (those versions stay in the old project's results).
+   */
+  relocate(id: string, from: string, to: string): PagesRecord {
+    const target = normalizeProjectId(to);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = this.get(id, from);
+      if (current.publication_pending) throw new PagesError("pages.publication_pending", "上次成果保存还没完成，请先在原位置继续保存，再移动");
+      const updated_at = new Date().toISOString();
+      const result = this.db.prepare("UPDATE pages SET project_id = ?, folder_id = '', goal_id = '', artifact_id = '', artifact_version = 0, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
+        .run(target, updated_at, id, current.version);
+      if (result.changes !== 1) throw new PagesError("pages.conflict", "文档刚被修改，请重新读取后再移动");
+      const moved = this.get(id, target);
+      this.db.exec("COMMIT");
+      return moved;
+    } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+
+  /** An independent copy in another partition; the same request always returns the same copy. */
+  duplicate(id: string, from: string, to: string, requestId: string): PagesRecord {
+    const source = this.get(id, from);
+    const documents = [{ title: source.title, body: source.body }];
+    return this.importDocuments({ project_id: to, request_id: "copy:" + requestId, request_hash: "copy:" + id + ":" + source.version, documents })[0]!;
+  }
+
   delete(id: string, projectId?: string): void {
     this.get(id, projectId);
     this.db.prepare("DELETE FROM pages WHERE id = ?").run(id);

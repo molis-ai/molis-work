@@ -247,7 +247,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     fillGoalSelect();
     const artifactBar = workbench.querySelector("[data-pages-artifact-bar]");
-    if (artifactBar) artifactBar.textContent = selected.publication_pending ? L("继续保存上次成果") : selected.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    if (artifactBar) artifactBar.textContent = selected.publication_pending ? L("继续保存上次固定版本") : selected.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
     if (selected.publication_pending) showNote("", false);
   };
   const markSelected = (id) => {
@@ -262,7 +262,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     button.type = "button";
     button.className = "creative-artifact-act";
     button.dataset[key] = record.id;
-    const label = record.publication_pending ? L("继续保存上次成果") : record.artifact_version > 0 ? L("再存一版") : L("存成 Artifact");
+    const label = record.publication_pending ? L("继续保存上次固定版本") : record.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
     button.setAttribute("aria-label", label);
     button.innerHTML = ICON("upload") + "<span></span>";
     button.lastElementChild.textContent = label;
@@ -610,19 +610,39 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     })().catch((error) => { if (seq === selectionSeq) showNote(error.message || L("保存失败"), true); })
       .finally(() => { if (seq === selectionSeq) openingId = null; });
   });
-  const exportHtml = () => {
+  /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
+  const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
+  const safeName = (value) => String(value || L("无标题")).replace(/[\\\\/:*?"<>|]/g, "_").slice(0, 80);
+  const htmlDocument = (body) => "<!doctype html><html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\"><title>"
+    + escapeHtml(selected.title) + "</title><style>body{max-width:760px;margin:40px auto;padding:0 20px;font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#222}img{max-width:100%}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1>"
+    + escapeHtml(selected.title) + "</h1>" + Editor.toHTML(body) + "</body></html>";
+  const exportDocument = (format) => {
     if (!selected || !Editor) return;
     const body = editor ? Editor.getDoc(editor) : selected.body;
-    const html = "<!doctype html><html lang=\\"zh-CN\\"><head><meta charset=\\"utf-8\\"><title>"
-      + escapeHtml(selected.title) + "</title></head><body><h1>"
-      + escapeHtml(selected.title) + "</h1>" + Editor.toHTML(body) + "</body></html>";
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const markdown = format === "md";
+    const content = markdown ? "# " + (selected.title || L("无标题")) + "\\n\\n" + Editor.toMarkdown(body) : htmlDocument(body);
+    const blob = new Blob([content], { type: markdown ? "text/markdown;charset=utf-8" : "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = (selected.title || "page") + ".html";
+    link.download = safeName(selected.title) + (markdown ? ".md" : ".html");
     link.click();
     URL.revokeObjectURL(url);
+    placed({ verb: "exported", title: selected.title, file: { name: link.download, format: markdown ? "Markdown" : L("网页") } });
+  };
+  const printDocument = () => {
+    if (!selected || !Editor) return;
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
+    document.body.append(frame);
+    frame.srcdoc = htmlDocument(editor ? Editor.getDoc(editor) : selected.body);
+    frame.addEventListener("load", () => {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+      placed({ verb: "printed", title: selected?.title || "" });
+      setTimeout(() => frame.remove(), 1000);
+    }, { once: true });
   };
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
@@ -635,6 +655,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     const payload = await request("POST", "/api/plugins/pages", body || {});
     await loadList();
     openCreated(payload.document);
+    placed({ verb: "created", title: payload.document.title || L("无标题"), object: { kind: "pages_document", id: payload.document.id } });
     dirty = false;
     editVersion += 1;
     titleInput.focus();
@@ -669,7 +690,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         goal_id: current.publication_pending?.goal_id ?? current.goal_id ?? "", expected_version: current.version,
       });
       if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);
-      showNote(payload.recovered ? L("已恢复上次成果；当前编辑内容已保留，需要时可再存一版。") : L("已存成 Artifact"), false);
+      if (payload.recovered) showNote(L("已恢复上次成果；当前编辑内容已保留，需要时可再存一版。"), false);
+      placed({ verb: "versioned", title: payload.document.title, object: { kind: "pages_document", id: payload.document.id },
+        note: L("第 {version} 版 · 放在这个位置的成果（Artifacts）里；继续编辑不会改变这一版", { version: payload.document.artifact_version }) });
     } catch (error) {
       // A failed response may follow an already committed Artifact. Refresh its
       // durable recovery state while preserving any local edits made in flight.
@@ -683,6 +706,16 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
 
   ${PAGES_IMPORT_CLIENT_SCRIPT}
+
+  // Moved or copied from the placement bar: the list here changed; a document moved away is no longer here to edit.
+  window.addEventListener?.("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("pages_document")) return;
+    void (async () => {
+      if (detail.mode === "move" && detail.from && selected && selected.id === detail.from.id) closeEditor();
+      await loadList();
+    })().catch((error) => showNote(error.message || L("文档请求失败"), true));
+  });
 
   // The Assistant changed a Pages document: show the saved version, unless the person has edits of their own in flight.
   window.addEventListener?.("molis:assistant-effect", (event) => {
@@ -871,7 +904,12 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-pages-export]") && selected) {
         closeMore();
-        exportHtml();
+        exportDocument(event.target.closest("[data-pages-export]").dataset.pagesExport || "html");
+        return;
+      }
+      if (event.target.closest("[data-pages-print]") && selected) {
+        closeMore();
+        printDocument();
         return;
       }
       if (event.target.closest("[data-pages-delete]") && selected) {

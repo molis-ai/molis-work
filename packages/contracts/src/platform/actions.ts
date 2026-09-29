@@ -14,6 +14,8 @@ import { WORKFLOW_CONTENT_SCHEMAS } from "./workflow-content.js";
 export * from "./workflow-content.js";
 import { searchSourceDeclarationProblems, type SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
+import { placementDeclarationProblems } from "./placement.js";
+export * from "./placement.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
 export type ActionSchema = Readonly<Record<string, unknown>>;
@@ -540,6 +542,7 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
           }
         }
         problems.push(...searchSourceDeclarationProblems(key, a, raw.operation, canonicalSchema));
+        problems.push(...placementDeclarationProblems(key, a, raw.operation, canonicalSchema));
         if (a.workflow_content !== undefined) {
           const w = a.workflow_content;
           if (!object(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !text(w.title) || !text(w.icon)

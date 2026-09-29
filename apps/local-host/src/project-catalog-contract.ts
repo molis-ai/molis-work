@@ -28,6 +28,7 @@ export class MolisWorkProjectCatalogError extends Error {
       | "catalog.demo_confirmation_required"
       | "catalog.demo_not_found"
       | "catalog.not_demo"
+      | "catalog.personal_space"
       | "context.stable_identity_required"
       | "context.identity_required"
       | "context.workspace_required"

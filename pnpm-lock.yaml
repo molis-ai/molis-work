@@ -194,6 +194,9 @@ importers:
       '@molis-ai/molis-work-service-listener-host':
         specifier: workspace:*
         version: link:horizontal/listener-host
+      '@molis-ai/molis-work-service-placement':
+        specifier: workspace:*
+        version: link:horizontal/placement
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:horizontal/runtime-host
@@ -471,6 +474,9 @@ importers:
       '@molis-ai/molis-work-service-listener-host':
         specifier: workspace:*
         version: link:../../horizontal/listener-host
+      '@molis-ai/molis-work-service-placement':
+        specifier: workspace:*
+        version: link:../../horizontal/placement
       '@molis-ai/molis-work-service-runtime-host':
         specifier: workspace:*
         version: link:../../horizontal/runtime-host
@@ -654,6 +660,12 @@ importers:
         version: link:../../packages/contracts
 
   horizontal/listener-host:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  horizontal/placement:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -1137,6 +1149,9 @@ importers:
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../../packages/storage
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
 
   plugins/native/schedule:
     dependencies:

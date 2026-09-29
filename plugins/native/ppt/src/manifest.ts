@@ -7,6 +7,7 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { PPT_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
+import { pptContentActions } from "./content-actions.js";
 import { PPT_MCP_EXPORTS } from "./mcp.js";
 
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
@@ -20,7 +21,7 @@ export const pptManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  actions: Object.values(pptActions),
+  actions: [...Object.values(pptActions), ...Object.values(pptContentActions)],
   permissions: [
     ...PPT_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: true, reason: "演示稿动作" })),
     { permission: "storage:private", required: true, reason: "本机演示稿库" },

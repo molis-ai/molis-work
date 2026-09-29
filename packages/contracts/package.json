@@ -218,6 +218,10 @@
       "types": "./dist/services/search.d.ts",
       "import": "./dist/services/search.js"
     },
+    "./services/placement": {
+      "types": "./dist/services/placement.d.ts",
+      "import": "./dist/services/placement.js"
+    },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"

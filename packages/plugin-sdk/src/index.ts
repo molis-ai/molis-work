@@ -177,3 +177,6 @@ function normalizeDate(value: string | undefined, fallback: string): string {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
+export {
+  defineObjectMoveAction, defineObjectCopyAction, bindObjectMoveHandler, bindObjectCopyHandler, PERSONAL_SPACE_PROJECT_ID, type PlacementResult,
+} from "@molis-ai/molis-work-contracts/platform/actions";

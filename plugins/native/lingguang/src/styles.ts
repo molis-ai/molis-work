@@ -84,4 +84,7 @@ export const LINGGUANG_STYLES = `
     .lingguang-selection-bar .mw-btn, .lingguang-chat-form .mw-btn,
     .plugin-stage-detail-bar .mw-btn { min-height: 44px; }
   }
+
+  .lingguang-placement-line { margin: 2px 0 10px; }
+  [data-lingguang-empty]:not([hidden]) ~ .lingguang-placement-line { display: none; }
 `;

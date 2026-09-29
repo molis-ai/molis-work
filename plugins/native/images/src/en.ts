@@ -75,4 +75,8 @@ export const IMAGES_EN: Record<string, string> = {
   "保存服务失败": "Could not save service",
   "提交结果未确认。再次点击生成会复用同一请求，避免重复创建任务。": "Submission was not confirmed. Generating again reuses the same request to avoid creating a duplicate job.",
   "连接生图 API，生成、预览和下载图片。": "Connect an image API to generate, preview, and download images.",
+  "放进 Shelf": "Add to Shelf",
+  "复制一份到你的 Shelf（个人空间），之后可以用于项目；这里的生成记录不变": "Copy it to your Shelf (personal space) to use in projects later; the generation record here stays as it is",
+  "放进 Shelf 失败": "Couldn't add to Shelf",
+  "这里会留下生成的图片与记录。": "Generated images and their records appear here.",
 };

@@ -28,6 +28,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 调模型、跑 Agent、改提示词或模型设置 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md)（纯非 AI 功能不用读） |
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
 | 同一件工作在助理、插件页面和手动操作之间连续：对象读取、版本前提、页面声明、通知 | [continuity.md](continuity.md) |
+| 放在哪里：个人空间与项目、用于项目、移动/复制/转成、位置条与完成提示 | [placement.md](placement.md) |
 | 抄哪个现有插件 | [examples.md](examples.md) |
 
 本仓库开发时 `.cursor/skills/molis-plugin-dev` 已指向这里。装到别的 Agent：见文末「安装」。

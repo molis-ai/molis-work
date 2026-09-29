@@ -65,6 +65,11 @@ export class GoalInputBindings implements GoalInputBindingsApi {
     }).immediate();
   }
 
+  deactivate(boardId: string, bindingId: string): boolean {
+    const result = this.db.prepare("UPDATE input_bindings SET state = 'inactive' WHERE board_id = ? AND binding_id = ? AND state <> 'inactive'").run(boardId, bindingId);
+    return Number(result.changes) > 0;
+  }
+
   private access(boardId: string, actorId = "module:goals"): ContextAccess {
     return { actor_id: actorId, scope: { kind: "personal", id: boardId } };
   }

@@ -709,3 +709,14 @@
   - 构建、根类型检查、边界检查通过。
   - 相关的 105 个测试文件 611 项里 604 通过。5 项跨进程 MCP/HTTP 在并行负载下超时，单独重跑全部通过。
   - 随后并入 Todo 0777360f（6da7c6f8），把插件页面脚本的 `projectTitle` 参数带到 main 的新调用处。
+
+**第四次全量回归（合并 main #99、Todo、放置之后，2026-09-29）**
+- 对象：共同分支 8933e112，先整体 `pnpm build`，并停掉预览。其间另外两个会话也在本机跑测试，负载较高。
+- 结果：3469 项，通过 3448，失败 14，跳过 7，用时约 89 分钟。日志在 scratchpad/full-tests-4.log。
+- 失败的 14 个文件在合入放置 0da799e7、Todo 39d88731 之后逐个单独重跑：
+  - 5 个通过：dense-workspace、feed-capture、inbox-current 属于负载超时；todo-from-inbox 由 Todo 修掉；workflows-action-steps 由放置对 Shelf 的修正修掉。
+  - 其余 9 个另在 origin/main（6d1dc02d）新建的基线上各跑一次：
+    - 7 个在 main 上同样失败，属于既有问题：plugin-global-settings（Shelf 设置里人工终端的说明依赖本机装了哪些 CLI）、plugin-sample（离线 npm 缓存里没有 @molis-ai/molis-work-kernel，是 main #99 让公开 SDK 依赖了 kernel）、product-experience-polish、product-interaction、project-user-journey、shelf-dropagent-parity（shelf.no_model）、workbench-pane-feed。
+    - goals-tree 在 main 上通过、在共同分支上必失败。原因是放置改动里“结果在别的空间就跳转”在 /goals/<id> 这类旧单看板页面上把所有结果都当作别处，整页跳走。已修（c2c9a327），修后 goals-tree、搜索相关与放置相关测试都通过。
+    - project-settings-standalone 在 main 上连跑三次都过，在共同分支上五次里失败一次（第 100 行，点设置分类后等表单出现超时），记为不稳定，待观察。
+- 另外：Pages 新建声明了撤销（c4791855），Pages 相关 250 项测试通过。

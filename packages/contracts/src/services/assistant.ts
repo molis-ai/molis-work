@@ -153,6 +153,11 @@ export interface AssistantMaterial {
   title: string;
   /** For `capability`: the one the person picked with “/” to be used this round (its exact identity). */
   capability?: { capability_id: string; version: number; provider_id: string; title: string };
+  /**
+   * For an object the person picked with “@” from the system search: the hit it came from. The hit is only a pointer;
+   * the Host checks it again with its owner and reads the object's text itself before the round.
+   */
+  reference?: { hit_id: string };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
   image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
   /** True when the person added it themselves; false when it came from the current page and they left it in. */

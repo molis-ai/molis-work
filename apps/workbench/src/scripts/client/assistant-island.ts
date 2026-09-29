@@ -983,6 +983,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   /** Official surfaces whose tab item is an object with a shared context reader; a plugin that declares its own context wins. */
   const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", sessions: "session", artifacts: "artifact" };
+  // What plugins declare for their searchable objects (kind and the surface it opens in) extends and corrects the list.
+  const declaredKinds = {};
+  api("/surface-kinds").then((result) => Object.assign(declaredKinds, result.kinds || {})).catch(() => undefined);
   // The last background a plugin page sent (purpose "background"), used while that plugin is the one on show.
   let background = null;
   const surfaceContext = () => {
@@ -997,7 +1000,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     // No declaration: the open tab still says which object the person is on.
     const tab = document.querySelector(".tab-item[aria-current='page'][data-item-id]");
     if (!tab) return null;
-    const kind = TAB_KINDS[tab.dataset.plugin];
+    const kind = declaredKinds[tab.dataset.plugin] || TAB_KINDS[tab.dataset.plugin];
     const title = tab.getAttribute("title") || "";
     return { plugin_id: tab.dataset.plugin, surface_title: title, ...(kind ? { object: { kind, id: tab.dataset.itemId, title } } : {}) };
   };
@@ -1039,7 +1042,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== currentId).slice(0, 2)
       .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
     if (selection && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(selection.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.kind === "image" ? L("图片") + "：" : "") + file.title, auto: false, thumb: file.preview }));
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, thumb: file.preview }));
     return items;
   };
   function paintMaterials() {
@@ -1139,6 +1142,54 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!starters.length && !rows.length) startersPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
   }
   function closeSlash() { if (startersPop && startersPop.dataset.mode === "slash") { delete startersPop.dataset.mode; startersPop.hidden = true; } }
+  /* “@”: find something in this project or the person's own content through the system search and bring it along.
+     A hit is only a pointer: the Host checks it with its owner and reads it before the round. */
+  const mentionOpen = () => startersPop && !startersPop.hidden && startersPop.dataset.mode === "mention";
+  const mentionAt = () => {
+    const before = String(input.value || "").slice(0, input.selectionStart ?? String(input.value || "").length);
+    const match = /(^|\s)@([^\s@]{0,40})$/.exec(before);
+    return match ? { query: match[2], start: before.length - match[2].length - 1 } : null;
+  };
+  let mentionSeq = 0, mentionTimer = null;
+  function closeMention() { clearTimeout(mentionTimer); if (startersPop && startersPop.dataset.mode === "mention") { delete startersPop.dataset.mode; startersPop.hidden = true; } }
+  function setMention(found) {
+    if (!startersPop) return;
+    clearTimeout(mentionTimer);
+    startersPop.dataset.mode = "mention";
+    startersPop.hidden = false;
+    const head = el("p", "assistant-popover-title", L("引用内容"));
+    if (!found.query) { startersPop.replaceChildren(head, el("p", "assistant-material-origin", L("输入关键词，从本项目和你个人的内容里找"))); return; }
+    const seq = ++mentionSeq;
+    mentionTimer = setTimeout(async () => {
+      let result;
+      try {
+        const response = await fetch(host.route("/api/search/query"), { method: "POST", cache: "no-store", headers: { "content-type": "application/json", ...host.headers() }, body: JSON.stringify({ query: found.query, scope: "all", limit: 8 }) });
+        result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || L("搜索暂时不可用，请稍后重试"));
+      } catch (error) { if (seq === mentionSeq && mentionOpen()) startersPop.replaceChildren(head, el("p", "assistant-material-origin", error.message)); return; }
+      if (seq !== mentionSeq || !mentionOpen()) return;
+      startersPop.replaceChildren(head);
+      (result.hits || []).forEach((hit) => {
+        const button = el("button", "assistant-starter assistant-mention", ""); button.type = "button";
+        button.append(el("span", "assistant-mention-title", hit.plugin_title + " · " + hit.title), el("span", "assistant-mention-snippet", hit.snippet || ""));
+        button.setAttribute("aria-label", L("引用") + "：" + hit.plugin_title + " · " + hit.title);
+        button.addEventListener("mousedown", (event) => event.preventDefault());
+        button.addEventListener("click", () => {
+          const at = mentionAt() || found;
+          const value = String(input.value || "");
+          input.value = value.slice(0, at.start) + "「" + hit.title + "」" + value.slice(at.start + 1 + at.query.length);
+          if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
+            files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
+              object: { kind: hit.subject.kind, id: hit.subject.id, title: hit.title }, source: { surface: (hit.open && hit.open.surface) || hit.plugin_id, plugin_id: hit.plugin_id, title: hit.plugin_title },
+              text: hit.snippet || "" });
+          }
+          typed = true; syncSend(); saveDraft(false); closeMention(); paintMaterials(); input.focus();
+        });
+        startersPop.append(button);
+      });
+      if (!(result.hits || []).length) startersPop.append(el("p", "assistant-material-origin", result.status === "indexing" ? L("内容还在建立索引，稍后再试") : L("没有找到；换个词试试")));
+    }, 180);
+  }
   function setStarters(open) {
     if (!startersPop) return;
     delete startersPop.dataset.mode;
@@ -1351,12 +1402,19 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const value = String(input.value || "");
     if (value.startsWith("/")) { void setSlash(value.slice(1)); return; }
     closeSlash();
+    const mention = mentionAt();
+    if (mention) { setMention(mention); return; }
+    closeMention();
     if (value.trim()) setStarters(false);
   });
   input.addEventListener("keydown", (event) => {
     // In the “/” list: down moves into it, Enter takes the first match; a “/…” is never sent as words.
     if (slashOpen() && event.key === "ArrowDown") { event.preventDefault(); startersPop.querySelector("button")?.focus(); return; }
     if (slashOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSlash(); return; }
+    // In the “@” list the same way: down moves into it, Enter takes the first hit, Escape leaves the words as typed.
+    if (mentionOpen() && event.key === "ArrowDown") { event.preventDefault(); startersPop.querySelector("button")?.focus(); return; }
+    if (mentionOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMention(); return; }
+    if (mentionOpen() && event.key === "Enter" && !event.isComposing && event.keyCode !== 229 && startersPop.querySelector("button")) { event.preventDefault(); startersPop.querySelector("button").click(); return; }
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     event.preventDefault();
     if (String(input.value || "").startsWith("/")) { if (slashOpen()) startersPop.querySelector("button")?.click(); return; }

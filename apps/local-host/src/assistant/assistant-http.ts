@@ -140,6 +140,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
         return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
       }
+      // Which object kind each surface's tab items are, from the plugins' search source declarations.
+      if (method === "GET" && parts.length === 1 && parts[0] === "surface-kinds") return { status: 200, body: { kinds: await service.surfaceKinds(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
       // What the Assistant's own rounds used today, and the person's daily cap.
       if (method === "GET" && parts.length === 1 && parts[0] === "usage") return { status: 200, body: await service.usage() };
       if (method === "POST" && parts.length === 1 && parts[0] === "budget") { service.saveBudget(body.daily_tokens); return { status: 200, body: await service.usage() }; }

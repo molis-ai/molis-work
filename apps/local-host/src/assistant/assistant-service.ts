@@ -131,6 +131,15 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
         image: { resource_id: image.resource_id.slice(0, 200), revision: image.revision, media_type: image.media_type.slice(0, 40), byte_length: image.byte_length },
         text: "这张图片随本轮一起发给你，只在这一轮能看到（之后的轮次看不到原图）。看不到图片内容就直接说看不到，不要猜测图里有什么。" };
     }
+    // Picked with “@”: the page's words about it are only the search snippet; the Host reads the object before the round.
+    if (item.reference !== undefined) {
+      if (item.kind !== "object" || !item.object || typeof item.reference?.hit_id !== "string" || !item.reference.hit_id) throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "object" as const, title: item.title.slice(0, 200), explicit: true,
+        reference: { hit_id: item.reference.hit_id.slice(0, 2000) },
+        object: { kind: String(item.object.kind).slice(0, 80), id: String(item.object.id).slice(0, 200), ...(item.object.title ? { title: String(item.object.title).slice(0, 200) } : {}) },
+        ...(item.source ? { source: { surface: String(item.source.surface).slice(0, 80), ...(item.source.plugin_id ? { plugin_id: String(item.source.plugin_id).slice(0, 120) } : {}), ...(item.source.title ? { title: String(item.source.title).slice(0, 200) } : {}) } } : {}),
+        ...(typeof item.text === "string" ? { text: item.text.slice(0, 600) } : {}) };
+    }
     total += item.text?.length ?? 0;
     if (total > MAX_MATERIAL_TEXT) throw new AssistantError("assistant.invalid", "材料正文合计过长，请只带需要的片段");
     return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: item.kind, title: item.title.slice(0, 200), explicit: item.explicit,
@@ -809,7 +818,7 @@ export class AssistantService {
    */
   async send(input: AssistantSendInput, caller: AssistantCaller): Promise<AssistantSendResult> {
     const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
-    const materials = checkMaterials(input.materials);
+    let materials = checkMaterials(input.materials);
     const images = materials.filter(item => item.kind === "image");
     if (images.length > MAX_IMAGES) throw new AssistantError("assistant.invalid", `一次最多带 ${MAX_IMAGES} 张图片`);
     for (const image of images) {
@@ -834,6 +843,7 @@ export class AssistantService {
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
       if (created && input.coding_session_id) work = await this.adoptCodingSession(work, input.coding_session_id);
       work = await this.chooseCharacter(work, input.character);
+      if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
       this.linkSent(work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode);
       this.store.finishRequest(this.actorId, input.request_id, result);
@@ -1146,6 +1156,59 @@ export class AssistantService {
       context.session_id && object.kind !== "coding_session" ? `所在会话：${context.session_id}` : "",
       others.length ? `与它相关的其他工作：${others.map(row => `「${row.title}」（${RELATION_WORDS[row.relation]}，${row.state}）`).join("；")}` : "",
       `正文${context.truncated ? "（节选，完整内容可用读取能力获取）" : ""}：\n${context.content.slice(0, 6000)}`].filter(Boolean).join("\n");
+  }
+
+  /**
+   * Objects the person picked with “@”. Each hit is checked again with its owner (search.open: still there, still
+   * readable, its current version), then read through the owner's reader when it has one. Without a reader only the
+   * title and the search snippet go, said as such. The person's explicit pick is what lets it in: a source the
+   * Assistant's own search could not reach (the local person's clipboard) is carried only this way.
+   */
+  private async readReferences(work: StoredWork, materials: AssistantMaterial[]): Promise<AssistantMaterial[]> {
+    let actions: PersonActions | null = null;
+    try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { actions = null; }
+    if (!actions) throw new AssistantError("assistant.unsupported", "现在读不到引用的内容，请稍后再试或去掉引用");
+    const views = await actions.discover().catch(() => [] as ActionView[]);
+    const opener = views.find(view => view.capability_id === "search.open" && view.availability.available);
+    const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
+    const out: AssistantMaterial[] = [];
+    for (const material of materials) {
+      if (!material.reference || !material.object) { out.push(material); continue; }
+      if (!opener) throw new AssistantError("assistant.unsupported", `现在不能核对「${material.title}」，请稍后再试或去掉这个引用`);
+      const opened = await actions.invoke({ capability_id: opener.capability_id, version: opener.version, provider_id: opener.provider.provider_id }, { hit_id: material.reference.hit_id })
+        .catch((error: unknown) => ({ state: "unavailable" as const, reason: error instanceof Error ? error.message : String(error) })) as
+        { state: "ok"; subject: { kind: string; id: string }; title: string; revision: string } | { state: "missing" | "unavailable"; reason: string };
+      if (opened.state !== "ok") {
+        throw new AssistantError("assistant.invalid", `引用的「${material.title}」${opened.state === "missing" ? "已不存在" : "现在读不到"}（${opened.reason}）；去掉它或重新选择后再发`);
+      }
+      const subject = opened.subject, reader = readers.find(view => view.action.subject_kinds.includes(subject.kind));
+      let context: ActionSubjectContext | null = null;
+      if (reader) {
+        try { context = await actions.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id }) as ActionSubjectContext; }
+        catch { context = null; }
+      }
+      const where = material.source?.title ?? material.source?.plugin_id ?? "搜索";
+      const text = context
+        ? `用户用“@”引用的对象，已向${where}重新读取（版本 ${context.revision}${context.truncated ? "，正文为节选" : ""}）。\n${context.content.slice(0, 12_000)}`
+        : `用户用“@”引用的对象。${where}没有提供正文读取，下面只是搜索结果里的摘要，不是全文：\n${material.text ?? "（没有摘要）"}`;
+      out.push({ ...material, title: opened.title || material.title, object: { kind: subject.kind, id: subject.id, version: context?.revision ?? opened.revision, title: opened.title || material.title }, text });
+    }
+    return out;
+  }
+
+  /** Which object kind each surface's tab items are, as plugins declare their search sources (kind and surface). */
+  async surfaceKinds(caller: AssistantCaller): Promise<Record<string, string>> {
+    let actions: PersonActions | null = null;
+    try { actions = await this.ports.scopeActions?.({ project_ref: caller.project_ref ?? undefined } as StoredWork) ?? null; } catch { return {}; }
+    if (!actions) return {};
+    const seen = new Map<string, Set<string>>();
+    for (const view of await actions.discover().catch(() => [] as ActionView[])) {
+      for (const item of view.action.search_source?.kinds ?? []) {
+        if (item.surface) seen.set(item.surface, (seen.get(item.surface) ?? new Set<string>()).add(item.kind));
+      }
+    }
+    // A surface that lists more than one kind cannot say which one its open tab is.
+    return Object.fromEntries([...seen].filter(([, kinds]) => kinds.size === 1).map(([surface, kinds]) => [surface, [...kinds][0]!]));
   }
 
   /** The works that relate to an object in a project (or in the person's own scope), for that object's page. */

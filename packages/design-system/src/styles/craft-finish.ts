@@ -624,6 +624,9 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }
   ${ASSIST} .assistant-material-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
   ${ASSIST} .assistant-material--image { grid-template-columns: 28px minmax(0, 1fr) auto auto; }
+  ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; }
+  ${ASSIST} .assistant-mention-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ${ASSIST} .assistant-mention-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
   ${ASSIST} .assistant-material-thumb { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; background: var(--nav-hover); }
   ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
   ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }

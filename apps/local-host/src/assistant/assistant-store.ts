@@ -38,6 +38,10 @@ CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id,
 CREATE TABLE IF NOT EXISTS assistant_followups (
   followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS assistant_usage (
+  run_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, ended_at TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL, cached INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS assistant_usage_by_day ON assistant_usage(actor_id, ended_at);
 CREATE TABLE IF NOT EXISTS assistant_unsettled (
   change_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
@@ -293,6 +297,23 @@ export class AssistantStore {
   setSetting(actorId: string, key: string, value: string): void {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+  }
+
+  /** One finished round's reported usage, kept once. */
+  recordUsage(actorId: string, usage: { work_id: string; run_id: string; ended_at: string; input: number; output: number; cached: number }): void {
+    this.db.prepare("INSERT OR IGNORE INTO assistant_usage(run_id,actor_id,work_id,ended_at,input,output,cached) VALUES (?,?,?,?,?,?,?)")
+      .run(usage.run_id, actorId, usage.work_id, usage.ended_at, usage.input, usage.output, usage.cached);
+  }
+
+  usageSince(actorId: string, since: string): { input: number; output: number; cached_input: number; rounds: number } {
+    const row = this.db.prepare("SELECT COALESCE(SUM(input),0) AS input, COALESCE(SUM(output),0) AS output, COALESCE(SUM(cached),0) AS cached, COUNT(*) AS rounds FROM assistant_usage WHERE actor_id=? AND ended_at>=?").get(actorId, since) as { input: number; output: number; cached: number; rounds: number };
+    return { input: Number(row.input), output: Number(row.output), cached_input: Number(row.cached), rounds: Number(row.rounds) };
+  }
+
+  /** Rounds of this person's works started since then, with the work they belong to (most recent 500). */
+  roundsSince(actorId: string, since: string): Array<{ work_id: string; round: StoredRound }> {
+    return this.db.prepare("SELECT r.work_id, r.body FROM assistant_rounds r JOIN assistant_works w ON w.work_id=r.work_id WHERE w.actor_id=? ORDER BY r.rowid DESC LIMIT 500").all(actorId)
+      .map(row => ({ work_id: String(row.work_id), round: JSON.parse(String(row.body)) as StoredRound })).filter(item => item.round.started_at >= since);
   }
 
   memoryPrefs(actorId: string): AssistantMemoryPrefs {

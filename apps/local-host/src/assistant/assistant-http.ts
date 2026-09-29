@@ -140,6 +140,9 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
         return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
       }
+      // What the Assistant's own rounds used today, and the person's daily cap.
+      if (method === "GET" && parts.length === 1 && parts[0] === "usage") return { status: 200, body: await service.usage() };
+      if (method === "POST" && parts.length === 1 && parts[0] === "budget") { service.saveBudget(body.daily_tokens); return { status: 200, body: await service.usage() }; }
       // A document the person brings (PDF): read by the runtime's parser, returned as this Send's material.
       if (method === "POST" && parts.length === 1 && parts[0] === "attachments") return { status: 200, body: { material: await service.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") }) } };
       // What the person asked the Assistant to keep: personal, and this project's when on a project's page.

@@ -430,6 +430,14 @@ export interface AssistantContribution {
  * failed, a decision it waits on, a round that finished while they were elsewhere, a result a plugin handed back. It
  * never starts anything, so a notice cannot cause another notice.
  */
+/** What the Assistant's own rounds used today (as the runtime reported them), and the person's daily cap. */
+export interface AssistantUsage {
+  /** Today in the person's time zone: finished rounds' reported tokens. Cached input is shown apart and not counted. */
+  today: { input: number; output: number; cached_input: number; rounds: number };
+  /** Input plus output tokens per day, or null for no cap. */
+  daily_tokens: number | null;
+}
+
 /** Something the person asked the Assistant to keep: personal (all their work) or one project's. */
 export interface AssistantMemory {
   memory_id: string;

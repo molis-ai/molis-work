@@ -67,7 +67,7 @@
 | --- | --- | --- | --- | --- |
 | 上下文整理（compaction） | `runtime.compaction`，按清单声明 | 已开：历史超过 16,000 tokens 时按 `assistant-compaction`（登记在 Prompt 设置里，可改）挑选保留原文，整理失败时照常继续 | ✅ | ✅ 真实触发（§9 第二片：灵光交来的工作里“上下文整理 · 保留历史原文”） |
 | 每轮预算（`maxTurns/maxTokens/maxWallClockMs`） | `startAgentRun` 的 budget | 每轮 24 步，到上限说人话、可继续 | 同 | ✅ `assistant-business-gateway`（步数上限）；§12 第二片 |
-| 用量（`usage/usageEntries`、`UsageBudget`） | 轮次视图带 run 用量 | 未汇总、未设上限 | — | ⛔ 用户可设的整体预算（按工作／按天）未做 |
+| 用量（run 用量回执） | 轮次视图带 run 用量；Host 按轮记账 | 今天用量与每日上限，到上限不开新轮 | — | ✅ `assistant-business-gateway`；§12 第三片（实测）。SDK 自己的 `UsageBudget` 未用（上限由 Host 在开跑前判断） |
 
 ## 9. Character、Skill、Scenario Pack、Harness
 
@@ -166,7 +166,7 @@
 
 1. 记忆的候选提炼（memoryInbox）与 Character 维度（明确要求的个人／项目记忆已接通）。
 2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；分别对应 P5 余项与 P9 的替代实现。
-3. 用户可设的整体预算。
+3. 按工作的预算（每日上限已接通）。
 4. 图片输入（`images`）、语音（PDF 附件已接通）。
 5. 会话分支、受控导出、跨会话搜索（后者待“系统级搜索”合入）。
 6. SDK Refine 与真实“评审—补改—复查”循环。

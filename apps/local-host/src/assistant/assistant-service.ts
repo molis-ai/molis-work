@@ -5,7 +5,7 @@ import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryPrefs, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryPrefs, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -1284,6 +1284,7 @@ export class AssistantService {
       await adapter.control(latest.ref, { kind: "steer", text: this.steerText(text, materials, context) });
       return this.result(work, "steered", latest.ref.run_id);
     }
+    await this.assertBudget();
     const offered = await this.actionTools(authority);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     const handle = await host.start(RUNTIME, {
@@ -1441,6 +1442,57 @@ export class AssistantService {
    * scope, each with its own session. Bounded (a few at once, a few in all, a few follow-ups each) and one level deep:
    * a delegated work does not delegate. What they report is read back, never taken as the parent's own result.
    */
+  /** Midnight today where the person is, as an instant. */
+  private startOfToday(): string {
+    const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, now = this.now();
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      .formatToParts(now).map(part => [part.type, part.value]));
+    const wall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
+    return new Date(now.getTime() - (wall - Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!))).toISOString();
+  }
+
+  /**
+   * Today's usage of the Assistant's own rounds, from the runtime's receipts: rounds that finished today and were not
+   * yet counted are read once and kept. A round still running is counted when it ends.
+   */
+  async usage(): Promise<AssistantUsage> {
+    const since = this.startOfToday();
+    const host = await this.ports.host().catch(() => null);
+    if (host) {
+      const adapter = host.adapter(RUNTIME);
+      for (const { work_id, round } of this.store.roundsSince(this.actorId, since)) {
+        if (round.executor === "coding") continue;
+        let work: StoredWork;
+        try { work = this.store.get(this.actorId, work_id); } catch { continue; }
+        if (!work.session_id) continue;
+        const view = await adapter.read({ session_id: work.session_id, run_id: round.run_id }).catch(() => null);
+        if (!view || !isTerminalAgentPhase(view.phase) || !view.usage) continue;
+        this.store.recordUsage(this.actorId, { work_id, run_id: round.run_id, ended_at: view.ended_at ?? this.now().toISOString(),
+          input: view.usage.tokens.input ?? 0, output: view.usage.tokens.output ?? 0, cached: view.usage.tokens.cached_input ?? 0 });
+      }
+    }
+    const saved = this.store.setting(this.actorId, "daily_tokens");
+    return { today: this.store.usageSince(this.actorId, since), daily_tokens: saved ? Number(saved) || null : null };
+  }
+
+  /** The person's daily cap on the Assistant's own rounds (input plus output tokens), or none. */
+  saveBudget(dailyTokens: unknown): AssistantUsage["daily_tokens"] {
+    const value = dailyTokens === null || dailyTokens === "" || dailyTokens === undefined ? null : Number(dailyTokens);
+    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw new AssistantError("assistant.invalid", "每日上限至少 1000 tokens，或留空表示不限");
+    this.store.setSetting(this.actorId, "daily_tokens", value === null ? "" : String(value));
+    return value;
+  }
+
+  /** A round does not start once today's cap is reached; what already ran stays, and the person is told why. */
+  private async assertBudget(): Promise<void> {
+    const usage = await this.usage();
+    if (usage.daily_tokens === null) return;
+    const used = usage.today.input + usage.today.output;
+    if (used >= usage.daily_tokens) {
+      throw new AssistantError("assistant.budget", `今天助理已用 ${used.toLocaleString("en-US")} tokens，达到你设的每日上限 ${usage.daily_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。可以明天继续，或在设置里调高上限`, undefined, "打开设置");
+    }
+  }
+
   /**
    * A document the person brings (PDF), read by the runtime's own parser into bounded text for this Send's materials.
    * What cannot be read says why (scanned, encrypted, damaged); nothing is guessed.

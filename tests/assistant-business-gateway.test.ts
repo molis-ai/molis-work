@@ -342,6 +342,26 @@ test("a capability picked with “/” reaches the round as its exact identity i
   } finally { await f.close(); }
 });
 
+test("today's usage comes from the runtime's own receipts; once the person's daily cap is reached a new round does not start, and says why", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "好的。"), () => reply(undefined, "再次好的。")]);
+  try {
+    const sent = await f.service.send({ text: "说一句话", request_id: "req-00000031" }, { project_ref: f.project });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "first round");
+    const usage = await f.service.usage();
+    assert.deepEqual([usage.today.rounds, usage.today.input > 0, usage.today.output > 0, usage.daily_tokens], [1, true, true, null]);
+    assert.throws(() => f.service.saveBudget(10), /至少 1000/);
+    assert.equal(f.service.saveBudget(5000), 5000);
+    // A cap below what was already used today (set directly, as if the rounds had been long ones).
+    f.store.setSetting("web-user", "daily_tokens", String(usage.today.input + usage.today.output));
+    await assert.rejects(f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000032" }, {}),
+      (error: unknown) => error instanceof AssistantError && error.code === "assistant.budget" && /达到你设的每日上限/.test(error.message));
+    assert.equal((await f.service.read(sent.work.work_id)).rounds.length, 1, "nothing started; what ran stays");
+    assert.equal(f.service.saveBudget(null), null);
+    const again = await f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000033" }, {});
+    assert.equal(again.outcome, "started", "no cap, no stop");
+  } finally { await f.close(); }
+});
+
 test("stopping a round withdraws its held change: nothing runs and nothing is left to approve", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "never" } } }),

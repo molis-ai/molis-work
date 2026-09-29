@@ -27,6 +27,17 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
       </form>
       <p class="settings-form-error" data-assistant-rules-error role="alert" hidden></p>
     </section>
+    <section class="settings-section assistant-usage" aria-labelledby="assistant-usage-title" data-assistant-usage>
+      <h2 id="assistant-usage-title">${L("用量与上限")}</h2>
+      <p class="settings-muted" data-assistant-usage-today>${L("正在读取…")}</p>
+      <form class="assistant-rule-form" data-assistant-budget>
+        <label class="settings-field"><span>${L("助理每天最多用（tokens，输入加输出；留空不限）")}</span>
+          <input class="mw-input" type="number" min="1000" step="1000" inputmode="numeric" data-assistant-budget-input aria-label="${L("每日上限")}"></label>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("保存")}</button>
+      </form>
+      <p class="settings-muted">${L("到了上限，新的一轮不会开始，已做的都保留；定时安排到点时也会说明没有开始。只统计助理自己的轮次，按运行时报告的用量。")}</p>
+      <p class="settings-form-error" data-assistant-budget-error role="alert" hidden></p>
+    </section>
     <section class="settings-section assistant-memory" aria-labelledby="assistant-memory-title" data-assistant-memory>
       <h2 id="assistant-memory-title">${L("记忆与偏好")}</h2>
       <p class="settings-muted">${L("助理只记你明确要它记住的（例如“以后回答都用要点列表”），不会从你的一次选择或修改里自己学。个人的在你所有工作里用；项目的只在那个项目里用。停用是保留但暂不使用；删除后不会再被想起。")}</p>
@@ -253,6 +264,27 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
     runMemory(() => memoryApi(prefs, "/memory-prefs"));
   }));
   runMemory(() => memoryApi());
+  // Usage and the daily cap belong to the person: the Home's own route.
+  const usageLine = root.querySelector("[data-assistant-usage-today]");
+  const budgetForm = root.querySelector("[data-assistant-budget]");
+  const budgetInput = root.querySelector("[data-assistant-budget-input]");
+  const budgetError = root.querySelector("[data-assistant-budget-error]");
+  const paintUsage = (usage) => {
+    const used = usage.today.input + usage.today.output;
+    usageLine.textContent = L("今天助理用了") + " " + used.toLocaleString() + " tokens（" + L("输入") + " " + usage.today.input.toLocaleString() + "，" + L("输出") + " " + usage.today.output.toLocaleString()
+      + (usage.today.cached_input ? "，" + L("缓存读取") + " " + usage.today.cached_input.toLocaleString() : "") + "，" + usage.today.rounds + " " + L("轮") + "）"
+      + (usage.daily_tokens ? " · " + L("上限") + " " + usage.daily_tokens.toLocaleString() : " · " + L("不设上限"));
+    if (document.activeElement !== budgetInput) budgetInput.value = usage.daily_tokens ? String(usage.daily_tokens) : "";
+  };
+  const usageApi = async (payload) => {
+    const response = await fetch("/api/assistant" + (payload ? "/budget" : "/usage"), payload ? { method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify(payload) } : undefined);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || L("没有完成，请重试"));
+    return data;
+  };
+  const runUsage = async (work) => { budgetError.hidden = true; try { paintUsage(await work()); } catch (failure) { budgetError.textContent = failure.message; budgetError.hidden = false; } };
+  budgetForm.addEventListener("submit", (event) => { event.preventDefault(); const raw = String(budgetInput.value || "").trim(); runUsage(() => usageApi({ daily_tokens: raw ? Number(raw) : null })); });
+  runUsage(() => usageApi());
   if (location.hash === "#contributions") { contributions.open = true; loadContributions(); }
   load();
 })();

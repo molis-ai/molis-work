@@ -340,11 +340,14 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
   const todos = new Map([["t1", { title: "发布后回访五位用户", belongs: "personal" }]]);
   const calls: string[] = [];
   f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
-    handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
-      if (!todo) throw new ActionError("todos.not_found", "待办不存在");
+    // Like Todo: a project's todos are not visible from outside that project.
+    handlers: [{ ...todoReader, handle: (caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
+      if (!todo || todo.belongs !== "personal" && caller.project_id !== todo.belongs) throw new ActionError("todos.not_found", "待办不存在");
       return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], session_id: null, open: { surface: "todo", id },
         project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
-      bindHomeObjectMoveHandler(homeMover, input => { calls.push(input.to_project_id); todos.get(input.subject.id)!.belongs = input.to_project_id;
+      bindHomeObjectMoveHandler(homeMover, (input, caller) => { const found = todos.get(input.subject.id)!;
+        if (found.belongs !== "personal" && caller.project_id !== found.belongs) throw new ActionError("todos.not_found", "待办不存在");
+        calls.push(input.to_project_id); found.belongs = input.to_project_id;
         return { subject: input.subject, project_id: input.to_project_id, revision: input.to_project_id }; })] });
   const todo = { kind: "todo_item", id: "t1", project_id: null };
   const before = await f.service.describe(todo);
@@ -357,8 +360,13 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
   assert.deepEqual(after.associations.filter(item => item.type === "used_in"), [], "used in the project it now belongs to says nothing more");
   // Its reader says where it belongs now; where it was is remembered.
   assert.deepEqual([after.location?.title, after.location?.access, after.moved_from?.title], ["项目「Q4 新版发布」", "home", "个人空间"]);
+  assert.deepEqual(moved.open, { project_id: "q4", surface: "todo", id: "t1" }, "opened in the project it now belongs to");
   await assert.rejects(f.service.move(todo, "q4"), { code: "placement.same_location" });
   await assert.rejects(f.service.link(todo, "q4"), { code: "placement.already_here" });
+  // Read and moved again from where it belongs now, although the plugin hides it outside that project.
+  assert.equal(after.state, "ok");
+  const back = await f.service.move(todo, "personal");
+  assert.deepEqual([calls.at(-1), back.location.title, (await f.service.describe(todo)).moved_from?.title], ["personal", "个人空间", "项目「Q4 新版发布」"]);
   // Home content without a mover (a clip) still cannot be moved.
   await assert.rejects(f.service.move({ kind: "clip", id: "clip-1", project_id: null }, "q4"), { code: "placement.not_movable" });
 });

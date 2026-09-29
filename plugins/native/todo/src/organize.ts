@@ -140,8 +140,7 @@ export class TodoOrganizer {
     for (const draft of byFingerprint.values()) ids.set(draft.ref, crypto.randomUUID());
     const candidates: TodoCandidate[] = [...byFingerprint.values()].map(draft => {
       const { ref, ...rest } = draft;
-      const placement = rest.placement === "project" && !access.projectId ? "unassigned" : rest.placement;
-      return { ...rest, placement, candidate_id: ids.get(ref)!, depends_on: rest.depends_on.flatMap(other => ids.has(other) ? [ids.get(other)!] : []),
+      return { ...rest, candidate_id: ids.get(ref)!, depends_on: rest.depends_on.flatMap(other => ids.has(other) ? [ids.get(other)!] : []),
         selected: rest.kind !== "suggestion" && rest.existing?.relation !== "conflict", decision: null };
     });
     const notes = [

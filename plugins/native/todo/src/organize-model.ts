@@ -1,6 +1,7 @@
 import { instructed, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { TodoCandidate, TodoCandidateKind, TodoItem, TodoPlacement } from "@molis-ai/molis-work-contracts/modules/todo";
-import { isTodoDate, isTodoTime } from "./dates.js";
+import { isTodoDate, isTodoTime, localDate } from "./dates.js";
+import { parseTodoQuickText } from "./quick-parse.js";
 
 /** A material as the caller hands it: text already read from its owner, with where it came from. */
 export interface TodoOrganizeMaterial {
@@ -24,7 +25,7 @@ export interface TodoOrganizeParse {
 }
 
 /** One model call reads at most this much material; longer sets are read in parts. */
-export const TODO_ORGANIZE_PART_CHARS = 24_000;
+export const TODO_ORGANIZE_PART_CHARS = 40_000;
 /** A single material is cut here; the batch says so. */
 export const TODO_ORGANIZE_MATERIAL_CHARS = 60_000;
 
@@ -49,6 +50,53 @@ export function passageFound(excerpt: string, text: string): boolean {
   return pieces.filter(piece => hay.includes(piece)).length / pieces.length >= 0.8;
 }
 
+const ABSOLUTE_DATE = /\d{1,2}月\d{1,2}[日号]|\d{4}-\d{1,2}-\d{1,2}/u;
+
+/**
+ * Read a date phrase the material wrote against when the material was written, without the model: the model's
+ * arithmetic is not trusted for "周四" or "下周一". Returns null when the phrase is not a date this reader knows.
+ * `ambiguous` says why the reading cannot be taken as the due date (no time on the material, "下周X" said on a Sunday).
+ */
+export function readDatePhrase(phrase: string, receivedAt: string | null | undefined, today: string): { date: string; time: string | null; ambiguous: string | null } | null {
+  const received = wallClock(receivedAt);
+  const absolute = ABSOLUTE_DATE.test(phrase);
+  const anchor = received ?? new Date(`${today}T12:00:00`);
+  const part = parseTodoQuickText(phrase, anchor).parts[0];
+  if (!part) return null;
+  let ambiguous: string | null = null;
+  if (!absolute && !received) ambiguous = `材料没有写时间，“${phrase}”按今天算是 ${part.date}`;
+  else if (!absolute && anchor.getDay() === 0 && /下下?周|下星期|下礼拜/u.test(phrase)) ambiguous = `“${phrase}”是周日说的，可能指 ${part.date}，也可能再晚一周`;
+  return { date: part.date, time: part.time, ambiguous };
+}
+
+/**
+ * The writer's own wall clock: "今天" in a mail sent 2026-09-28 10:05+08:00 is the 28th wherever it is read.
+ * The written date and time are taken as they are, without converting to this computer's time zone.
+ */
+function wallClock(value: string | null | undefined): Date | null {
+  if (!value || !Number.isFinite(Date.parse(value))) return null;
+  const written = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/u.exec(value.trim());
+  return written ? new Date(Number(written[1]), Number(written[2]) - 1, Number(written[3]), Number(written[4] ?? 12), Number(written[5] ?? 0)) : new Date(value);
+}
+
+const STAMP = /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})日?(?:[T\s]*(\d{1,2})[:：](\d{2}))?/gu;
+
+/**
+ * When the words were written: the nearest time written before the phrase (a chat line's stamp, a mail header), else the
+ * material's own time, else the first date written near its top. Only times that are in the material count.
+ */
+export function phraseWrittenAt(material: Pick<TodoOrganizeMaterial, "text" | "received_at">, phrase: string): string | null {
+  const at = material.text.indexOf(phrase);
+  const stamp = (match: RegExpMatchArray) => `${match[1]}-${match[2]!.padStart(2, "0")}-${match[3]!.padStart(2, "0")}T${(match[4] ?? "12").padStart(2, "0")}:${match[5] ?? "00"}`;
+  if (at >= 0) {
+    const before = [...material.text.slice(0, at).matchAll(STAMP)].at(-1);
+    if (before) return stamp(before);
+  }
+  if (material.received_at) return material.received_at;
+  const top = [...material.text.slice(0, 400).matchAll(STAMP)][0];
+  return top ? stamp(top) : null;
+}
+
 /** Group materials so each model call stays within the part size; a long material gets a part of its own. */
 export function organizeParts(materials: readonly TodoOrganizeMaterial[]): number[][] {
   const parts: number[][] = [];
@@ -65,11 +113,11 @@ export function organizeParts(materials: readonly TodoOrganizeMaterial[]): numbe
 }
 
 export function organizePrompt(instruction: InstructionPrompt, input: {
-  materials: readonly TodoOrganizeMaterial[]; indexes: readonly number[]; existing: readonly TodoItem[]; today: string; request?: string;
+  materials: readonly TodoOrganizeMaterial[]; indexes: readonly number[]; existing: readonly TodoItem[]; today: string; request?: string; me?: readonly string[];
 }): InstructedPrompt {
   const data = {
     today: input.today,
-    me: "你",
+    me: ["你", ...(input.me ?? [])],
     request: input.request ?? "",
     materials: input.indexes.map(index => {
       const material = input.materials[index]!;
@@ -82,17 +130,37 @@ export function organizePrompt(instruction: InstructionPrompt, input: {
   return instructed(instruction, `BEGIN_${boundary}\n${JSON.stringify(data)}\nEND_${boundary}`);
 }
 
+/** The organizing JSON inside a model reply that may carry fences, notes or reasoning around it. */
+export function organizeJson(raw: string): { candidates?: unknown; reference_only?: unknown } {
+  const whole = raw.trim().replace(/^```(?:json)?\s*/u, "").replace(/\s*```$/u, "");
+  try { const value = JSON.parse(whole); if (value && typeof value === "object") return value; } catch { /* look inside */ }
+  for (let start = raw.indexOf("{"); start >= 0; start = raw.indexOf("{", start + 1)) {
+    let depth = 0, quoted = false, escaped = false;
+    for (let index = start; index < raw.length; index += 1) {
+      const char = raw[index]!;
+      if (quoted) { if (escaped) escaped = false; else if (char === "\\") escaped = true; else if (char === "\"") quoted = false; continue; }
+      if (char === "\"") quoted = true;
+      else if (char === "{") depth += 1;
+      else if (char === "}" && --depth === 0) {
+        try {
+          const value = JSON.parse(raw.slice(start, index + 1));
+          if (value && typeof value === "object" && "candidates" in value) return value;
+        } catch { /* not this one */ }
+        break;
+      }
+    }
+  }
+  throw new Error("整理结果不是有效 JSON");
+}
+
 const text = (value: unknown, max: number): string => typeof value === "string" ? value.replace(/\s+/gu, " ").trim().slice(0, max) : "";
 
 /**
  * Keep only what the materials support: a passage that is really there, a due date only when its phrase is in the
  * passage's material, known todos only, edited fields protected. Everything else is dropped or marked uncertain.
  */
-export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganizeMaterial[], existing: ReadonlyMap<string, TodoItem>): TodoOrganizeParse {
-  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
-  let parsed: { candidates?: unknown; reference_only?: unknown };
-  try { parsed = JSON.parse(json) as typeof parsed; }
-  catch { throw new Error("整理结果不是有效 JSON"); }
+export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganizeMaterial[], existing: ReadonlyMap<string, TodoItem>, today: string = localDate()): TodoOrganizeParse {
+  const parsed = organizeJson(raw);
   const candidates: TodoCandidateDraft[] = [];
   let unverified = 0;
   const rows = Array.isArray(parsed.candidates) ? parsed.candidates.slice(0, 80) : [];
@@ -114,7 +182,28 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
     const phrase = text(due.phrase, 60) || null;
     const quoted = phrase !== null && evidence.some((entry: { material: number }) => normalizeForMatch(materials[entry.material - 1]!.text).includes(normalizeForMatch(phrase)));
     let dueDate = isTodoDate(due.date) ? due.date as string : null;
+    let dueTime = isTodoTime(due.time) ? due.time as string : null;
     let suggested = isTodoDate(value.suggested_date) ? value.suggested_date as string : null;
+    if (phrase && quoted) {
+      // The phrase decides the date, read against the material it came from; the model's own arithmetic does not.
+      // Every evidence material that uses the phrase reads it against its own time; if they disagree, it is ambiguous.
+      const sources = [...new Set(evidence.map((entry: { material: number }) => entry.material))].map(index => materials[index - 1]!)
+        .filter((material: TodoOrganizeMaterial) => normalizeForMatch(material.text).includes(normalizeForMatch(phrase)));
+      const readings = sources.map((material: TodoOrganizeMaterial) => readDatePhrase(phrase, phraseWrittenAt(material, phrase), today)).filter(Boolean) as NonNullable<ReturnType<typeof readDatePhrase>>[];
+      const dates = [...new Set(readings.map(entry => entry.date))];
+      const reading = dates.length > 1
+        ? { ...readings.at(-1)!, ambiguous: `不同材料里的“${phrase}”对应不同日期（${dates.join("、")}），请确认` }
+        : readings[0] ?? null;
+      if (reading?.ambiguous) {
+        suggested = reading.date;
+        dueDate = null;
+        dueTime = null;
+        uncertain.push(reading.ambiguous);
+      } else if (reading) {
+        dueDate = reading.date;
+        dueTime = reading.time ?? (dueTime && dueDate === due.date ? dueTime : null);
+      }
+    }
     if (dueDate && !quoted) {
       // A date the material does not state is at most a suggestion.
       suggested = suggested ?? dueDate;
@@ -143,9 +232,16 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
         if ((item.edited_fields as readonly string[]).includes(field)) protectedFields.push({ field, value: next as string | null });
         else changes[field] = next as string | null;
       }
+      // A due date the material states and the todo does not match is a change, whatever relation the model named.
+      if (dueDate && item.due_date !== dueDate && !("due_date" in changes) && !protectedFields.some(entry => entry.field === "due_date")) {
+        if ((item.edited_fields as readonly string[]).includes("due_date")) protectedFields.push({ field: "due_date", value: dueDate });
+        else changes.due_date = dueDate;
+      }
       const closed = item.status === "done" || item.status === "cancelled";
       let relation = match.relation as NonNullable<TodoCandidateDraft["existing"]>["relation"];
       if (relation === "update" && !Object.keys(changes).length) relation = protectedFields.length ? "conflict" : "same";
+      if (relation === "same" && Object.keys(changes).length) relation = "update";
+      if (relation === "same" && protectedFields.length) relation = "conflict";
       if (closed && relation !== "maybe_done") relation = Object.keys(changes).length ? "reopen" : "same";
       existingLink = { item_id: item.id, title: item.title, relation, changes, protected: protectedFields, reason: text(match.reason, 300) };
     }
@@ -154,7 +250,7 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
     refs.add(ref);
     candidates.push({
       ref, kind, title, why: text(value.why, 500), owner: { value: ownerWho, stated: ownerStated },
-      due_date: dueDate, due_time: dueDate && isTodoTime(due.time) ? due.time as string : null, due_phrase: phrase,
+      due_date: dueDate, due_time: dueDate ? dueTime : null, due_phrase: phrase,
       suggested_date: suggested, topic: text(value.topic, 80) || null,
       placement: PLACEMENTS.includes(value.placement) ? value.placement as TodoPlacement : "unassigned",
       waiting, evidence, uncertain, depends_on: (Array.isArray(value.depends_on) ? value.depends_on : []).map((entry: unknown) => text(entry, 20)).filter(Boolean),

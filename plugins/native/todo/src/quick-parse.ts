@@ -36,7 +36,8 @@ export function parseTodoQuickText(text: string, now: Date): TodoQuickParse {
     const today = now.getDay() === 0 ? 7 : now.getDay();
     if (week === "next") return day(7 - today + target);
     if (week === "this") return day(target - today);
-    return day(((target - today) + 7) % 7);
+    // "周一" said on a Monday means the coming one: today would be called 今天.
+    return day(((target - today) + 7) % 7 || 7);
   };
 
   const DATE = "(今天|明天|后天|大后天|(?:下下?周|下星期|下礼拜|这周|本周|这星期|周|星期|礼拜)[一二三四五六日天1-7]|月底|(?:\\d{4}年)?\\d{1,2}月\\d{1,2}[日号]|\\d{1,2}[日号]|\\d{4}-\\d{1,2}-\\d{1,2})";
@@ -101,7 +102,7 @@ export function parseTodoQuickText(text: string, now: Date): TodoQuickParse {
       const date = iso(at!);
       if (remind) parts.push({ field: "remind_at", phrase: phrase!.trim(), date, time: time ?? "09:00" });
       else if (before) parts.push({ field: "due_date", phrase: phrase!.trim(), date, time });
-      else parts.push({ field: "planned_date", phrase: word!, date, time: null });
+      else parts.push({ field: "planned_date", phrase: word!, date, time });
       // A time with a plain day has no field of its own, so only the day leaves the title.
       rest = !remind && !before && time ? rest.replace(word!, " ") : rest.replace(phrase!, " ");
     }

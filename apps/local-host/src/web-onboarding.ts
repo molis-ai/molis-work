@@ -25,8 +25,9 @@ export function createLocalOnboardingHttp(ports: OnboardingHttpPorts) {
     if (await createContextOnboardingHttp({ ...ports, actions: async (home, projectId) => {
       const project = await ports.withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, boardId: project.board_id, projectId: project.project_id });
-      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"] }));
-    } })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
+      return bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"] }));
+    }, homeActions: (_home, signal) => bindActionClient(localHost.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user",
+      permissions: ["todo:read", "todo:write", "model:invoke"], signal })) })(request, response, url, homeDirectory ?? resolveConfiguredHome())) return true;
     if (request.method === "GET" && url.pathname === "/api/onboarding/status") {
       sendJson(response, 200, molisWorkOnboardingStatus(homeDirectory, projectCount));
       return true;

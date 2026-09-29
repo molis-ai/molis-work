@@ -30,7 +30,7 @@ export { todoOrganizeActions, createTodoOrganizeHandlers, batchText, TODO_BATCH_
 export type { TodoOrganizePorts } from "./organize-actions.js";
 export { TodoOrganizer, materialSourceKey } from "./organize.js";
 export type { TodoApplyResult, TodoCandidateDecision } from "./organize.js";
-export { organizeParts, organizePrompt, parseOrganizeOutput, passageFound, normalizeForMatch } from "./organize-model.js";
+export { phraseWrittenAt, readDatePhrase, organizeJson, organizeParts, organizePrompt, parseOrganizeOutput, passageFound, normalizeForMatch } from "./organize-model.js";
 export type { TodoCandidateDraft, TodoOrganizeMaterial, TodoOrganizeParse } from "./organize-model.js";
 export { parseTodoQuickText } from "./quick-parse.js";
 export type { TodoQuickParse, TodoQuickPart } from "./quick-parse.js";

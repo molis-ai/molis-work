@@ -1,5 +1,6 @@
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 
 export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat";
 export interface ImportFile { path: string; data?: string; reason?: string }
@@ -21,7 +22,9 @@ export interface ContextJourney {
   sources: ContextSource[]; model: string | null; error: string | null;
   summary: { title: string; body: string; references: ContextReference[] } | null;
   project_id: string; document_id: string | null; updated_at: string;
-  adoption?: { title: string; body: string; blank: boolean };
+  adoption?: { title: string; body: string; blank: boolean; todo_selected?: string[] };
+  /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
+  todo?: { status: "pending" | "ready" | "failed"; batch_id: string | null; batch: TodoBatch | null; error: string | null; added?: string[] };
   auto_start?: boolean;
   previewed?: boolean;
   artifact_references?: ArtifactReference[];

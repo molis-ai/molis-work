@@ -50,9 +50,11 @@ function define<I, O>(name: string, title: string, description: string, operatio
 const READ = ["todo:read"], WRITE = ["todo:read", "todo:write"];
 
 export const todoOrganizeActions = {
-  extract: define<{ materials: TodoOrganizeMaterial[]; title?: string; request?: string; request_id?: string }, { batch: TodoBatch; replayed: boolean }>(
+  extract: define<{ materials: TodoOrganizeMaterial[]; title?: string; request?: string; request_id?: string; origin?: "onboarding"; me?: string[] }, { batch: TodoBatch; replayed: boolean }>(
     "organize.extract", "整理材料里的待办", "读给定材料，找出要你处理的事、你的承诺、在等别人的事和可考虑的建议，与已有待办比对，存成一份待你确认的整理结果；不直接新建或修改待办。材料正文由调用方先读好传入", "command",
-    object({ materials: { ...array(materialInput), minItems: 1, maxItems: 20 }, title: { ...text, maxLength: 120 }, request: { ...text, maxLength: 500, title: "用户这次的要求" }, request_id: id }, ["materials"]),
+    object({ materials: { ...array(materialInput), minItems: 1, maxItems: 50 }, title: { ...text, maxLength: 120 }, request: { ...text, maxLength: 500, title: "用户这次的要求" }, request_id: id,
+      origin: { enum: ["onboarding"], title: "由开始使用时的整理发起" },
+      me: { ...array({ ...text, minLength: 1, maxLength: 40 }), maxItems: 8, title: "用户本人在材料里的称呼（名字、昵称）" } }, ["materials"]),
     object({ batch, replayed: { type: "boolean" } }), [...WRITE, "model:invoke"],
     { scheduling: "concurrent", result_subject: { id: "batch.batch_id", revision: "batch.revision" }, result_view: { summary: "整理结果已保存，等你确认", title_pointer: "/batch/title" } }),
   list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", "整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
@@ -109,16 +111,19 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       for (const [part, indexes] of parts.entries()) {
         caller.signal?.throwIfAborted();
         caller.on_progress?.({ stage: "organizing", progress: part / Math.max(parts.length, 1) });
-        const raw = await ports.completeText(organizePrompt(TODO_ORGANIZE_BASIC, { materials: input.materials, indexes, existing, today, request: input.request }), { signal: caller.signal });
         let parsed;
-        try { parsed = parseOrganizeOutput(raw, input.materials, byId); }
-        catch { throw new TodoError("todo.model_invalid", "模型没有给出可用的整理结果，请再试一次"); }
+        // A reply that is not the requested JSON is asked for once more before giving up.
+        for (let attempt = 0; !parsed; attempt += 1) {
+          const raw = await ports.completeText(organizePrompt(TODO_ORGANIZE_BASIC, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }), { signal: caller.signal });
+          try { parsed = parseOrganizeOutput(raw, input.materials, byId, today); }
+          catch { if (attempt >= 1) throw new TodoError("todo.model_invalid", "模型没有给出可用的整理结果，请再试一次"); }
+        }
         drafts.push(...parsed.candidates.map(draft => ({ ...draft, ref: `p${part}-${draft.ref}`, depends_on: draft.depends_on.map(ref => `p${part}-${ref}`) })));
         reference.push(...parsed.reference_only);
         unverified += parsed.unverified;
       }
       await caller.beforeEffect();
-      return organizer(value => value.create({ title: input.title ?? "", origin: caller.audience === "agent" ? "assistant" : "manual", method: TODO_ORGANIZE_BASIC.prompt_id,
+      return organizer(value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: TODO_ORGANIZE_BASIC.prompt_id,
         materials: input.materials, candidates: drafts, reference_only: reference, unverified, request_id: input.request_id }, access));
     }, () => ports.modelAvailability()),
     bind(todoOrganizeActions.list, (input, caller) => organizer(value => ({ batches: value.list(ports.access(caller, caller.audience === "user"), input.status ?? "open") }))),

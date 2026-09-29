@@ -200,7 +200,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     state.parts.forEach((part) => {
       const chip = make("span", "todo-chip todo-chip--" + part.field);
       const label = part.field === "due_date" ? L("截止") : part.field === "planned_date" ? L("计划") : L("提醒");
-      chip.append(make("span", "", label + " " + dayLabel(part.date) + (part.time ? " " + part.time : "")));
+      // A planned day has no time of its own; the time stays in the title as written.
+      chip.append(make("span", "", label + " " + dayLabel(part.date) + (part.time && part.field !== "planned_date" ? " " + part.time : "")));
       chip.title = L("原文：") + part.phrase;
       const remove = make("button", "todo-chip-remove");
       remove.type = "button";
@@ -511,7 +512,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (candidate.topic) facts.append(make("span", "todo-meta-part", candidate.topic));
     const planned = choice.edits.planned_date;
     if (planned) facts.append(make("span", "todo-meta-part", L("计划") + " " + dayLabel(planned)));
-    else if (candidate.suggested_date && !candidate.decision) {
+    else if (candidate.suggested_date && candidate.suggested_date !== due && !candidate.decision) {
       const suggest = make("button", "mw-btn mw-btn--link todo-candidate-suggest", L("建议 {day} 做，按建议安排").replace("{day}", dayLabel(candidate.suggested_date)));
       suggest.type = "button";
       suggest.dataset.todoCandidateSuggest = candidate.candidate_id;

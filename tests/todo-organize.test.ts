@@ -61,7 +61,7 @@ test("organizing the spec example: invented passages dropped, unstated dates onl
   const [send, wait, nudge] = batch.candidates;
   assert.deepEqual([send!.due_date, send!.due_phrase], ["2026-10-02", "周五前"]);
   assert.deepEqual(send!.depends_on, [wait!.candidate_id]);
-  assert.equal(send!.placement, "unassigned", "没有项目时不能放进项目");
+  assert.equal(send!.placement, "project", "建议放进项目；没有项目时采用会放进暂未归类");
   assert.equal(nudge!.due_date, null, "原文没写“今天催”，日期只作建议");
   assert.equal(nudge!.suggested_date, "2026-09-28");
   assert.ok(nudge!.uncertain.some(line => line.includes("推测")));
@@ -145,4 +145,51 @@ test("organizing needs a model, replays a request, and keeps a project's batches
   const context = await f.inB.invoke(organize.subject, { subject_id: first.batch.batch_id });
   assert.equal(context.open?.id, "batch:" + first.batch.batch_id);
   assert.match(context.content, /\[要你处理\] 发送新版方案/u);
+});
+
+test("a reply with fences, notes or reasoning around the JSON still yields the organizing result", async () => {
+  const { organizeJson } = await import("@molis-ai/molis-work-plugin-todo");
+  const body = '{"candidates":[{"ref":"c1","title":"含 } 括号的标题"}],"reference_only":[]}';
+  assert.equal((organizeJson("```json\n" + body + "\n```") as any).candidates[0].title, "含 } 括号的标题");
+  assert.equal((organizeJson("思考：先看 {材料} 再输出。\n" + body + "\n以上。") as any).candidates.length, 1);
+  assert.throws(() => organizeJson("没有 JSON"), /不是有效 JSON/);
+});
+
+test("date phrases are read against when the material was written, not by the model's arithmetic; real ambiguity is kept as a suggestion", async () => {
+  const { readDatePhrase } = await import("@molis-ai/molis-work-plugin-todo");
+  const monday = new Date(2026, 8, 28, 9, 12).toISOString(), sunday = new Date(2026, 8, 27, 16, 0).toISOString();
+  assert.deepEqual(readDatePhrase("周四上午10点", monday, "2026-09-28"), { date: "2026-10-01", time: "10:00", ambiguous: null });
+  assert.deepEqual(readDatePhrase("今天下班前", monday, "2026-09-28"), { date: "2026-09-28", time: null, ambiguous: null });
+  assert.equal(readDatePhrase("今天下班前", "2026-09-28T10:05:00+08:00", "2026-09-28")?.date, "2026-09-28", "按写信人的当地日期读，不换算到本机时区");
+  assert.equal(readDatePhrase("周一", monday, "2026-09-28")?.date, "2026-10-05", "周一说“周一”指下周一");
+  assert.match(readDatePhrase("下周一前", sunday, "2026-09-28")!.ambiguous!, /周日说的/u);
+  assert.match(readDatePhrase("周五前", null, "2026-09-28")!.ambiguous!, /材料没有写时间/u);
+  assert.deepEqual(readDatePhrase("10月2日", null, "2026-09-28"), { date: "2026-10-02", time: null, ambiguous: null });
+  assert.equal(readDatePhrase("下次会前", monday, "2026-09-28"), null);
+});
+
+test("a stated due date that differs from an existing todo is an update, or a conflict when the person set that date, even if the model says same", async t => {
+  let answer = "";
+  const f = fixture(t, () => answer);
+  const mine = (await f.me.invoke(todoActions.create, { title: "发送新版方案", due_date: "2026-10-05" })).item;
+  await f.me.invoke(todoActions.update, { id: mine.id, due_date: "2026-10-06" });
+  const theirs = (await f.agent.invoke(todoActions.create, { title: "等待小李确认预算", due_date: "2026-10-09" })).item;
+  answer = JSON.stringify({ candidates: [
+    { ref: "c1", kind: "request", title: "发送新版方案", owner: { who: "你", stated: true }, due: { date: "2026-10-02", phrase: "周五前" }, evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], existing: { id: mine.id, relation: "same" } },
+    { ref: "c2", kind: "waiting", title: "等待小李确认预算", owner: { who: "小李", stated: true }, due: { date: "2026-10-02", phrase: "周五前" }, evidence: [{ material: 1, excerpt: "预算等小李确认" }], existing: { id: theirs.id, relation: "same" } },
+  ] });
+  const { batch } = await f.me.invoke(organize.extract, { materials: [MAIL] });
+  assert.deepEqual(batch.candidates.map(candidate => [candidate.existing?.relation, candidate.existing?.changes, candidate.existing?.protected]), [
+    ["conflict", {}, [{ field: "due_date", value: "2026-10-02" }]],
+    ["update", { due_date: "2026-10-02" }, []],
+  ]);
+});
+
+test("the time a phrase was written comes from the material itself: the chat line's stamp, the mail header, the date at the top", async () => {
+  const { phraseWrittenAt } = await import("@molis-ai/molis-work-plugin-todo");
+  const chat = "[2026-09-27 22:10] 阿杰: 收到\n[2026-09-28 09:40] 小王: 好的，我今天下班前把会议纪要发群里。";
+  assert.equal(phraseWrittenAt({ text: chat, received_at: null }, "今天下班前"), "2026-09-28T09:40");
+  assert.equal(phraseWrittenAt({ text: "Q4 规划会纪要（2026年9月27日）\n小王下周三前整理竞品对比。", received_at: null }, "下周三前"), "2026-09-27T12:00");
+  assert.equal(phraseWrittenAt({ text: "请周五前发方案。", received_at: "2026-09-28T09:00:00+08:00" }, "周五前"), "2026-09-28T09:00:00+08:00");
+  assert.equal(phraseWrittenAt({ text: "请周五前发方案。", received_at: null }, "周五前"), null);
 });

@@ -80,9 +80,28 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     for(const line of esc(text).split('\n')){const heading=/^#{1,3} (.+)$/.exec(line);if(heading){flush();out.push('<h3>'+heading[1]+'</h3>');}else if(!line.trim())flush();else paragraph.push(line);}
     flush();return out.join('').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\[S(\d+)\]/g,'<button class="cx-citation" data-cite="S$1" aria-label="'+L('查看来源')+' S$1">[S$1]</button>');
   }
+  // Todo drafts from the same materials: the person keeps what they want; the rest waits in Todo's “待你确认”.
+  let todoPicked=null;
+  const KIND={request:'要你处理',commitment:'你的承诺',waiting:'在等别人',suggestion:'建议'};
+  function draftDay(date){const d=new Date(date+'T00:00:00');return (d.getMonth()+1)+L('月')+d.getDate()+L('日');}
+  function drafts(){
+    const t=journey.todo;if(!t)return '';
+    const head='<header class="cx-drafts-head"><h2>'+L('待办草稿')+'</h2>';
+    if(t.status==='pending')return '<section class="cx-drafts">'+head+'</header><p class="cx-hint" role="status">'+L('正在整理材料里要你推进的事…')+'</p></section>';
+    if(t.status==='failed'||!t.batch)return '<section class="cx-drafts">'+head+'</header><p class="cx-hint">'+L('待办草稿没整理成')+(t.error?'：'+esc(t.error):'')+L('。项目建好后，可以让助理再整理这些资料。')+'</p></section>';
+    const open=t.batch.candidates.filter(c=>!c.decision);
+    if(!todoPicked)todoPicked=new Set(open.filter(c=>c.selected).map(c=>c.candidate_id));
+    const notes=t.batch.notes.map(n=>'<p class="cx-hint">'+esc(n)+'</p>').join('');
+    if(!open.length)return '<section class="cx-drafts">'+head+'</header><p class="cx-hint">'+L('材料里没有发现需要你推进的事。')+'</p>'+notes+'</section>';
+    return '<section class="cx-drafts">'+head+'<span class="cx-status">'+L('已选')+' '+todoPicked.size+' / '+open.length+'</span></header><p class="cx-hint">'+L('勾选的会加入新项目的待办；没勾的留在“待办 → 待你确认”，之后再决定。')+'</p>'+
+      open.map(c=>'<label class="cx-draft"><input type="checkbox" class="cx-check" data-draft="'+c.candidate_id+'" '+(todoPicked.has(c.candidate_id)?'checked':'')+'><span class="cx-draft-copy"><span class="cx-draft-title"><span class="cx-draft-kind">'+L(KIND[c.kind])+'</span>'+esc(c.title)+'</span><small>'+
+        [c.due_date?L('截止')+' '+draftDay(c.due_date)+(c.due_phrase?L('（原文“')+esc(c.due_phrase)+L('”）'):''):'',c.kind==='waiting'&&c.waiting?L('在等')+' '+esc(c.waiting.who):(c.owner.stated?'':L('负责人不确定')),c.existing?L('和已有待办有关'):''].filter(Boolean).join(' · ')+
+        '</small>'+(c.evidence[0]?'<small class="cx-draft-evidence">“'+esc(c.evidence[0].excerpt)+'”</small>':'')+'</span></label>').join('')+notes+
+      (t.batch.reference_only.length?'<p class="cx-hint">'+L('另有')+' '+t.batch.reference_only.length+' '+L('条仅供参考，未列为待办。')+'</p>':'')+'</section>';
+  }
   function review() {
     const s=journey.summary;
-    return '<main class="cx-review"><div class="cx-review-header"><button class="cx-button quiet small" data-action="restart">'+L('调整来源并重新整理')+'</button></div><h1>'+L('这就是你工作的起点。')+'</h1><p class="cx-subtitle">'+L('根据已有材料，整理了一份项目建议。名字和摘要都可以修改。')+'</p><p class="cx-error" role="alert">'+esc(error||journey.error)+'</p><div class="cx-review-grid"><section class="cx-document"><label for="cx-project-title">'+L('项目名称')+'</label><input id="cx-project-title" class="cx-field cx-title-input" maxlength="120" value="'+esc(s.title)+'"><div class="cx-actions"><span class="cx-status">'+L('工作摘要')+'</span><button class="cx-button quiet small" data-action="edit">'+L(editing?'完成编辑':'编辑摘要')+'</button></div>'+(editing?'<textarea id="cx-summary-editor" class="cx-field cx-summary-editor" maxlength="100000" aria-label="'+L('编辑摘要')+'">'+esc(s.body)+'</textarea>':'<div class="cx-summary">'+markdown(s.body)+'</div>')+'</section><aside class="cx-sources"><h2>'+L('依据这些材料')+' · '+s.references.length+'</h2>'+s.references.map(r=>'<button class="cx-reference" data-cite="'+r.label+'"><span>'+r.label+' · '+L('版本')+' '+r.version+'</span>'+esc(r.title)+'</button>').join('')+picked().filter(s=>s.error).map(s=>'<p class="cx-source-meta">'+L(names[s.kind])+': '+esc(s.error)+'</p>').join('')+picked().map(issues).join('')+'</aside></div><footer class="cx-review-actions"><span>'+L('摘要和来源快照会一起保存在项目中。')+'</span><button class="cx-button primary" data-action="adopt" '+(busy?'disabled':'')+'>'+L(busy?'正在保存…':'采用，开始工作')+' '+icon('arrow')+'</button></footer></main>';
+    return '<main class="cx-review"><div class="cx-review-header"><button class="cx-button quiet small" data-action="restart">'+L('调整来源并重新整理')+'</button></div><h1>'+L('这就是你工作的起点。')+'</h1><p class="cx-subtitle">'+L('根据已有材料，整理了一份项目建议。名字和摘要都可以修改。')+'</p><p class="cx-error" role="alert">'+esc(error||journey.error)+'</p><div class="cx-review-grid"><section class="cx-document"><label for="cx-project-title">'+L('项目名称')+'</label><input id="cx-project-title" class="cx-field cx-title-input" maxlength="120" value="'+esc(s.title)+'"><div class="cx-actions"><span class="cx-status">'+L('工作摘要')+'</span><button class="cx-button quiet small" data-action="edit">'+L(editing?'完成编辑':'编辑摘要')+'</button></div>'+(editing?'<textarea id="cx-summary-editor" class="cx-field cx-summary-editor" maxlength="100000" aria-label="'+L('编辑摘要')+'">'+esc(s.body)+'</textarea>':'<div class="cx-summary">'+markdown(s.body)+'</div>')+'</section><aside class="cx-sources"><h2>'+L('依据这些材料')+' · '+s.references.length+'</h2>'+s.references.map(r=>'<button class="cx-reference" data-cite="'+r.label+'"><span>'+r.label+' · '+L('版本')+' '+r.version+'</span>'+esc(r.title)+'</button>').join('')+picked().filter(s=>s.error).map(s=>'<p class="cx-source-meta">'+L(names[s.kind])+': '+esc(s.error)+'</p>').join('')+picked().map(issues).join('')+'</aside></div>'+drafts()+'<footer class="cx-review-actions"><span>'+L(todoPicked&&todoPicked.size?'摘要、来源快照和勾选的待办会一起保存在项目中。':'摘要和来源快照会一起保存在项目中。')+'</span><button class="cx-button primary" data-action="adopt" '+(busy?'disabled':'')+'>'+(busy?L('正在保存…'):todoPicked&&todoPicked.size?L('采用，加入 {count} 项待办并开始').replace('{count}',todoPicked.size):L('采用，开始工作'))+' '+icon('arrow')+'</button></footer></main>';
   }
   function render(focus) {
     app.setAttribute('aria-busy',String(busy));
@@ -110,7 +129,11 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const name=document.getElementById('cx-project-title'), body=document.getElementById('cx-summary-editor');
     if(name)journey.summary.title=name.value;if(body)journey.summary.body=body.value;
   }
-  function projectLocation() { return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin=pages&openItem='+encodeURIComponent(journey.document_id || '')+'&openTitle='+encodeURIComponent((journey.adoption?.title || journey.summary?.title || L('项目'))+' · '+L('工作摘要'))); }
+  function projectLocation() {
+    // With todos added, the person starts from one of them; otherwise from the overview document.
+    if (journey.todo && journey.todo.added && journey.todo.added.length) return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin=todo');
+    return route('/projects/'+encodeURIComponent(journey.project_id)+'/?openPlugin=pages&openItem='+encodeURIComponent(journey.document_id || '')+'&openTitle='+encodeURIComponent((journey.adoption?.title || journey.summary?.title || L('项目'))+' · '+L('工作摘要')));
+  }
   async function poll() {
     clearTimeout(timer);
     try { journey=await api(endpoint()); if(journey.phase==='complete'){location.assign(projectLocation());return;} render();if(journey.phase==='reading'||journey.phase==='adopting')timer=setTimeout(poll,1800); }
@@ -215,7 +238,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     preserveEdits();await saveQueue;
     const accepted=journey.adoption;
     const name=accepted?.title ?? (isBlank?document.getElementById('cx-blank-name').value:journey.summary.title);
-    journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly});
+    journey=await api(endpoint('adopt'),{title:name,body:accepted?.body ?? (isBlank?'':journey.summary.body),blank:isBlank&&!materialsOnly,materials_only:materialsOnly,todo_selected:!isBlank&&todoPicked?[...todoPicked]:[]});
     blank=false;
     if(journey.phase==='complete')location.assign(projectLocation());else{error=journey.error||L('保存尚未完成，请重试');render();}
   }
@@ -229,6 +252,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   app.addEventListener('change',async e=>{
     const el=e.target;
     try {
+      if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
       if(el.id==='cx-all')journey.sources.forEach(s=>s.selected=el.checked);
       else if(el.dataset.select)source(el.dataset.select).selected=el.checked;

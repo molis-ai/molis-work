@@ -196,6 +196,10 @@ test("search entries and the object reader follow the caller's scope", async t =
   assert.match(context.content, /状态：待处理/u);
   assert.deepEqual(context.open, { surface: "todo", id: mine.id });
   await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
+  // Archived reads as gone from use (the readers' shared convention), though Todo still lists it under 已归档.
+  const done = await f.me.invoke(actions.status, { id: mine.id, status: "done", expected_revision: mine.revision });
+  await f.me.invoke(actions.archive, { id: mine.id, archived: true, expected_revision: done.item.revision });
+  await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: mine.id }), { code: "todo.not_found" });
 });
 
 test("quick entry reads due dates, planned days and reminders without a model, and leaves the rest alone", () => {

@@ -44,6 +44,8 @@ export function createTodoSearchHandlers(withStore: <T>(run: (store: TodoStore) 
       let item: TodoItem;
       try { item = store.get((input as { subject_id: string }).subject_id, access(caller)); }
       catch { throw new ActionError("todo.not_found", "这件待办已删除，或不在当前范围内"); }
+      // Readers treat an archived object as gone from use (the shared convention); Todo itself still lists it under 已归档.
+      if (item.archived_at) throw new ActionError("todo.not_found", "这件待办已归档");
       return subjectContext({ subject: { kind: TODO_SUBJECT_KIND, id: item.id }, revision: String(item.revision), title: item.title,
         content: todoText(item), goal_ids: goals(item), session_id: null, open: open(item.id) });
     }) },

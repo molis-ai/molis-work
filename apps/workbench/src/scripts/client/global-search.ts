@@ -51,7 +51,8 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   // In the personal space everything is personal: “this project” would be the same thing twice.
   const scopes = hasProject && projectId !== ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? ["all", "project", "personal"] : ["personal"];
   // A hit from another partition can only be the person's own space (search answers nothing else across projects).
-  const away = (hit) => Boolean(hit.project_id) && hit.project_id !== projectId;
+  // A legacy single-board page has no project id of its own: its hits are its own board's, opened in place.
+  const away = (hit) => Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId;
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];
   let selected = 0;

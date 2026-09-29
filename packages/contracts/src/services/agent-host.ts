@@ -542,6 +542,8 @@ export interface AgentDelegatedWork {
   follow_ups: number;
   /** The person took this part back into the delegating work: it is finished there, not followed up here. */
   taken_back?: boolean;
+  /** What the delegating round should make of this state, in words (set when the person took it back). */
+  note?: string;
 }
 export interface AgentDelegation {
   /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */

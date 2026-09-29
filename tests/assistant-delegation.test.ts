@@ -154,6 +154,8 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
     const after = await service.takeBack(childId);
     assert.equal(after.work.work_id, sent.work.work_id, "the board shown is the delegating work's");
     assert.equal(after.delegated![0]!.taken_back, true);
+    const checked = await service.delegation(store.get("web-user", sent.work.work_id))!.status({ work_ids: [childId] });
+    assert.match(checked[0]!.note ?? "", /由你在这项工作里完成/, "a round still checking on it reads what taking it back means");
     await until(async () => ["stopped", "failed"].includes((await service.read(childId)).work.state), "child stopped");
     await assert.rejects(service.takeBack(childId), /已经收回/);
     // The delegating work's next round hears it, and a follow-up to the sub-task is refused.

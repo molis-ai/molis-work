@@ -2126,7 +2126,8 @@ export class AssistantService {
       const reply = [...turns].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim();
       const results = this.store.relations.forWork(identity(work)).filter(row => row.relation === "result").map(row => ({ kind: row.object.kind, id: row.object.id, revision: row.object.revision }));
       return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: reply.length > 1200 ? reply.slice(0, 1200) + "…" : reply } : {}),
-        ...(results.length ? { results } : {}), follow_ups: work.follow_ups ?? 0, ...(work.delegated_by?.taken_back_at ? { taken_back: true } : {}) };
+        ...(results.length ? { results } : {}), follow_ups: work.follow_ups ?? 0,
+        ...(work.delegated_by?.taken_back_at ? { taken_back: true, note: "用户把这个子任务收回到这项工作：它已停下，已产出的保留。这部分由你在这项工作里完成（可读取它已产出的对象接着做），不要再委托出去或对它追加；用户若另有要求，以用户为准。" } : {}) };
     };
     return {
       start: async input => {

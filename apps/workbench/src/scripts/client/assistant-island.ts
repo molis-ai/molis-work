@@ -749,7 +749,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         open.addEventListener("click", () => switchTo(child.work_id));
         row.append(open);
         /* Stop one sub-task from the board, without opening it; what it already did stays. */
-        if (["running", "paused", "waiting-input", "waiting-review"].includes(child.state)) {
+        if (!child.taken_back && ["running", "paused", "waiting-input", "waiting-review"].includes(child.state)) {
           const stop = el("button", "assistant-object-open", L("停止")); stop.type = "button";
           stop.setAttribute("aria-label", L("停止") + "：" + child.title);
           stop.addEventListener("click", async () => {

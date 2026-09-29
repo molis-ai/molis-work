@@ -285,6 +285,7 @@
 | 带 BOM 的 CSV（我们自己导出的、表格软件存的）交给数据表时，第一列名前多一个不可见字符 | 数据表解析 CSV 时去掉 BOM |
 | 问卷、数据表、演示稿的“恢复发布”仍用“发布”，与“开始收集”“存为固定版本”冲突 | 改为“继续保存上次固定版本”（Pages 同步） |
 | 从项目“关联资料”或工作流结果链接打开 Shelf 材料，Shelf 显示了但没选中那份（Shelf 变为可见时自己的列表读取比链接的读取晚发、把它作废；有时还误报“这份材料已不在 Shelf 中”）；`workflows-action-steps.e2e` 因此在共同分支上失败 | Shelf 记住链接要的那份，哪次读取先落地都选中它，读到后确实不在才提示 |
+| 移动、复制、用于项目的对话框里，目标项目在对话框打开期间被删除：报“找不到要移到的位置”，但它仍留在选项里、还能再选 | 失败后重新读取位置，去掉已不存在的选项并选中剩下的第一个；错误照常显示 |
 | 带链接加载时工作台对同一对象连发 3 次打开请求（助理会话实测提出），Coding、Todo、Artifacts 各重复读取 3 次 | 同一界面 250ms 内与上一次完全相同的请求只发一次；换对象、清空或之后再点标签页照常发 |
 
 ### 12.3 各插件结果与按钮核对
@@ -336,6 +337,19 @@
 - 本分支提交 7069a654（需求书）、62de3994（实现），并入助理 feature/system-assistant 76518a81（合并提交 d039d7ae）：只有灵光 `ui.ts`、`en.ts` 两处冲突，两边保留；合并后 `pnpm build` 通过，交汇处 36 个测试文件 160 项通过。已与助理会话、Todo 会话协调以 feature/system-assistant 为共同分支。Todo（d888347a）在 d039d7ae 上试合只有灵光 `ui.ts`、`scripts/workspace-packages.mjs` 两处冲突。
 - 与 Todo 对齐（双方确认）：Todo 的 personal、unassigned 都在个人空间（unassigned 是“还没整理”），project 在项目「X」；在个人空间里打开 Todo 按“个人”视图；对象读取返回 `open`、不存在或归档抛 `todo.not_found`（Todo 已做）；移动用 Home 作用域的放置移动（本分支已提供），Todo 声明 `todo.placement.move`，不另做一套；位置条与完成提示按 `skills/molis-plugin-dev/placement.md` 接。
 - 炼金术士“建成 Goal”界面验证：用与炼金术士 e2e 相同的方式经正式 API 生成两份研究（模型与搜索为显式测试替身），在 Q4 打开想法 → 决定页“去做”填理由 → “建成 Goal”，完成提示“已建成 Goal《证据墙》 存到 项目「Q4 新版发布」 · 这个想法和决定是它的来源；炼金术士里的记录不变”；Goal 打开后描述里带决定与下一步，关联写“来自《证据墙》”。
+
+### 12.7 代表性路径与自动化证据（对应任务第 5 条）
+
+以下每条都有能重复运行的自动测试，在真实工作台里用真实指针点击（`*.e2e.test.ts`），或经完整 HTTP 与 Host 运行（`work-placement-restart`）。截图在 `.impeccable/qa/review/specs/work-placement/verification/`。
+
+| 路径 | 覆盖的插件 | 自动测试 | 验证了什么 |
+| --- | --- | --- | --- |
+| 个人空间捕获，之后用于项目、理解关系、继续编辑 | Pages | `work-placement.e2e`（1440/390） | 完成提示写“存到 个人空间”；用于项目后位置不变；项目首页列出且写明“只有你能打开”；从项目打开的是同一篇，改动两边一致；之后移入项目，身份不变、写“原来在 个人空间”；重载后仍在 |
+| 从项目或 Goal 发起，默认归属正确，完成后直接查看和继续 | Goals + PPT、问卷→数据表、灵光→Pages/Goal | `work-placement-plugins.e2e` | 默认存到当前项目并关联 Goal；完成提示的“打开”进入新对象；新对象写来源，原对象写去向且本身不变；重载后 Goal 资料仍在 |
+| 没有项目也能完成一件独立工作，之后整理 | onboarding + Pages | `work-placement-journeys.e2e`（no project） | 全新 Home 走“空白开始 → 先在个人空间开始”；写文档、导出 Markdown 与网页（文件里有标题和正文）；“用于项目…”置灰并写“还没有其他项目”，“移到…”提示“没有别的位置”；建项目后移过去，“在新位置打开”进入同一篇并写“原来在 个人空间”。重载后 Pages 回到列表，这篇在最上面，一次点击继续（插件视图的标签页本就如此，不改） |
+| 同一素材被多个工作引用：更新、移除关联、删除 | Pages + Goals；Shelf | `work-placement-journeys.e2e`（shared）、`work-placement-plugins.e2e` 第 4 段 | 同一篇用于两个项目并关联 Goal；改标题后两个项目首页都显示新标题；在一个项目“移除关联”只影响它；删除后 Goal 资料写“原对象已删除”并可清理；Shelf 材料用于两个项目，从项目打开选中那份，删除后两边都写“原对象已删除”，清理后重载不再出现 |
+| 产物以承诺的形式可用 | PPT、问卷、Pages、数据表、图片 | `ppt-actions.e2e`（下载 `.pptx`）、`work-placement.test`（PowerPoint 包的页、备注、颜色、转义；问卷本机填写与答卷文件导入）、`work-placement-journeys.e2e`（Pages 导出文件内容）、`dataset-actions.e2e`（CSV）、`images-actions.e2e` | 见 AC5；Keynote 打开 `.pptx` 与本机填写页提交为人工核对（12.2） |
+| 中途失败、切换、关闭或重启后不丢 | 放置服务、Pages、问卷 | `work-placement-journeys.e2e`（shared）、`work-placement-restart` | 对话框打开期间目标项目被删：移动失败，写明原因，对话框留着并去掉已不存在的选项，文档留在原处；换个目标再移成功，关联都在。Host 停止再启动后：两条关联中移除的那条仍是移除的、复制品写“复制自”、旧引用找到移动后的位置、被拒绝的移动没有改动任何东西、答卷还在 |
 
 ## 13. 未完成与受阻
 

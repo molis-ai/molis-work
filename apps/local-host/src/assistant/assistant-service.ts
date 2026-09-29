@@ -511,6 +511,21 @@ export class AssistantService {
     } catch { /* A relation that fails to record never stops the person's Send. */ }
   }
 
+  /**
+   * A plugin hands a result back to a work (its page raised a `reply`). The work keeps a relation to the object, read
+   * from its owner like every other; nothing is copied, and receiving it does not mark the work done.
+   */
+  async receiveResult(workId: string, input: { object?: unknown; source?: unknown }): Promise<AssistantWorkView> {
+    const work = this.store.get(this.actorId, workId);
+    const object = input.object as { kind?: unknown; id?: unknown; version?: unknown } | undefined;
+    const source = input.source as { surface?: unknown; title?: unknown } | undefined;
+    const text = (value: unknown) => typeof value === "string" && value.trim() && value.length <= 200 ? value.trim() : null;
+    const kind = text(object?.kind), id = text(object?.id), from = text(source?.title) ?? text(source?.surface);
+    if (!kind || !id || !from) throw new AssistantError("assistant.invalid", "交回的结果要说明对象种类、标识和来自哪里");
+    this.store.relations.link(identity(work), "result", { kind, id, revision: revisionOf(typeof object?.version === "number" || typeof object?.version === "string" ? object.version : undefined) }, `${from} 交回`);
+    return this.read(workId);
+  }
+
   /** A command the Assistant ran for this work succeeded: keep the object it created or changed, at its new revision. */
   recordResult(work: StoredWork, view: ActionView, input: unknown, output: unknown): void {
     const result = actionResultSubject(view.action, input, output);

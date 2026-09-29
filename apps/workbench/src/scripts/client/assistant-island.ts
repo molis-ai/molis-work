@@ -774,10 +774,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   /** Official surfaces whose tab item is an object with a shared context reader; a plugin that declares its own context wins. */
   const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", sessions: "session", artifacts: "artifact" };
+  // The last background a plugin page sent (purpose "background"), used while that plugin is the one on show.
+  let background = null;
   const surfaceContext = () => {
     const surface = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find(visible);
     if (surface) {
       try { return JSON.parse(surface.getAttribute("data-assistant-context") || "null"); } catch { return null; }
+    }
+    const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
+    if (background && background.object && shown && shown.dataset.pluginId === background.source.surface) {
+      return { plugin_id: background.source.surface, surface_title: background.source.title, object: background.object };
     }
     // No declaration: the open tab still says which object the person is on.
     const tab = document.querySelector(".tab-item[aria-current='page'][data-item-id]");
@@ -953,6 +959,89 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return list;
   };
   const consumeMaterials = () => { files = []; selection = null; removed.clear(); joined.clear(); paintMaterials(); };
+
+  /* ─── What plugin pages tell the Assistant (spec 8.3): by purpose, never by wording ───────────────────────── */
+  const offerBar = island.querySelector("[data-assistant-offer]");
+  const heard = new Set();
+  // A delegated Send reuses its message id, so the same message twice starts one work.
+  let requestOverride = null;
+  const tidyMessage = (raw) => {
+    if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;
+    if (!["background", "change", "suggest", "delegate", "reply"].includes(raw.purpose)) return null;
+    if (!raw.source || typeof raw.source.surface !== "string" || !raw.source.surface) return null;
+    const source = { surface: raw.source.surface.slice(0, 80), title: typeof raw.source.title === "string" && raw.source.title ? raw.source.title.slice(0, 80) : raw.source.surface.slice(0, 80) };
+    const object = raw.object && typeof raw.object.kind === "string" && typeof raw.object.id === "string" && raw.object.kind && raw.object.id
+      ? Object.assign({ kind: raw.object.kind.slice(0, 80), id: raw.object.id.slice(0, 200) }, typeof raw.object.title === "string" ? { title: raw.object.title.slice(0, 200) } : {},
+        typeof raw.object.version === "number" || typeof raw.object.version === "string" ? { version: raw.object.version } : {}) : null;
+    const materials = Array.isArray(raw.materials) ? raw.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text)
+      .slice(0, 4).map((item) => ({ title: item.title.slice(0, 200), text: item.text.slice(0, 20000) })) : [];
+    return { message_id: raw.message_id, purpose: raw.purpose, source, object, text: typeof raw.text === "string" ? raw.text.trim().slice(0, 8000) : "", materials,
+      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null };
+  };
+  /** What a request brings becomes this Send's materials, marked as from that page; its words go into the input. */
+  const bring = (message) => {
+    message.materials.forEach((item, index) => files.push(Object.assign({ material_id: "msg-" + message.message_id.slice(0, 40) + "-" + index, kind: "text", title: item.title, text: item.text,
+      explicit: true, source: { surface: message.source.surface, title: message.source.title } }, message.object ? { object: message.object } : {})));
+    if (message.text) input.value = message.text;
+    syncSend(); paintMaterials();
+  };
+  const hideOffer = () => { if (!offerBar) return; offerBar.hidden = true; offerBar.replaceChildren(); };
+  /** A suggestion waits for the person: shown with where it came from, put into the input only if they say so. */
+  const showOffer = (message, unconfirmed) => {
+    if (!offerBar) return;
+    offerBar.replaceChildren();
+    const copy = el("p", "assistant-offer-copy");
+    copy.append(el("strong", "", message.source.title), document.createTextNode(" " + (unconfirmed ? L("想交给助理处理") : L("建议")) + "：" + (message.text || L("带上这些材料发起一项工作"))
+      + (message.materials.length ? "（" + L("材料") + " " + message.materials.length + "）" : "")));
+    offerBar.append(copy);
+    if (unconfirmed) offerBar.append(el("p", "assistant-material-origin", L("没有确认是你刚才在那里发起的：放进输入框后，请你确认再发送。")));
+    const actions = el("div", "assistant-offer-actions");
+    const put = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("放进输入框")); put.type = "button";
+    put.addEventListener("click", async () => { hideOffer(); if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); input.focus(); });
+    const skip = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("忽略")); skip.type = "button";
+    skip.addEventListener("click", hideOffer);
+    actions.append(put, skip);
+    offerBar.append(actions);
+    offerBar.hidden = false;
+  };
+  /** The person just asked that page to hand this over: continue the work it names, or start a new one, right away. */
+  const delegate = async (message) => {
+    if (busy) { showOffer(message, false); return; }
+    if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
+    else if (message.work_id || currentId) await switchTo(null);
+    bring(message);
+    if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
+    requestOverride = "msg-" + message.message_id;
+    composer.requestSubmit(send);
+  };
+  window.addEventListener("molis:assistant-message", (event) => {
+    const message = tidyMessage(event.detail);
+    if (!message || heard.has(message.message_id)) return;
+    heard.add(message.message_id);
+    if (message.purpose === "background") {
+      // Context only: it shapes what the next Send carries from this page; nothing is sent and no model runs.
+      background = message; paintMaterials(); return;
+    }
+    if (message.purpose === "change") {
+      if (!message.object) return;
+      relatedCache.delete(objectKey(message.object));
+      if (view && belongsToWork(message.object)) void refresh().then(schedule).catch(() => {});
+      return;
+    }
+    if (message.purpose === "suggest") { showOffer(message, false); return; }
+    if (message.purpose === "delegate") {
+      // Only a real gesture on the page counts as the person asking; a script alone gets a suggestion instead.
+      const asked = Boolean(navigator.userActivation && navigator.userActivation.isActive);
+      if (asked) void delegate(message); else showOffer(message, true);
+      return;
+    }
+    if (message.purpose === "reply") {
+      if (!message.work_id || !message.object) return;
+      void api("/works/" + encodeURIComponent(message.work_id) + "/results", "POST", { object: message.object, source: message.source })
+        .then((result) => { if (currentId === message.work_id) { view = result; render(); } })
+        .catch((error) => showProblem({ message: error.message }));
+    }
+  });
   let typed = false;
   input.addEventListener("input", () => { typed = true; syncSend(); saveDraft(false); if (String(input.value || "").trim()) setStarters(false); });
   input.addEventListener("keydown", (event) => {
@@ -966,7 +1055,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const text = String(input.value || "").trim();
     if (!text || busy) return;
     busy = true; syncSend(); problem = null; setPanel(true);
-    const requestId = unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID();
+    const requestId = requestOverride || (unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID());
+    requestOverride = null;
     const materials = sendMaterials();
     setStarters(false); if (materialsList) setMaterials(false);
     // A draft save still waiting to go out would land after the send and bring the sent text back: cancel it, and let

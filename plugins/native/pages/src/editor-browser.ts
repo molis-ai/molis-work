@@ -141,6 +141,11 @@ export interface PagesEditorMountOptions {
   pages?: () => readonly PagesListItem[];
   onOpenPage?: (id: string) => void;
   runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string; stub?: boolean }>;
+  /**
+   * Hands the selection to the resident Assistant: `suggest` puts it into the Assistant's input for the person to send;
+   * `delegate` is the person asking, here and now, for the Assistant to take it on with the request they typed.
+   */
+  askAssistant?: (input: { mode: "suggest" | "delegate"; request: string; selection: string }) => void;
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
 }
 
@@ -3211,6 +3216,37 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       button.addEventListener("click", () => { void runAiCommand(view, item.id, item.style); });
       pop.append(button);
     });
+    if (options.askAssistant) {
+      const ask = options.askAssistant;
+      const selection = () => view.state.doc.textBetween(view.state.selection.from, view.state.selection.to, "\n");
+      const heading = document.createElement("p");
+      heading.textContent = t(options.translate, "助理");
+      const bring = document.createElement("button");
+      bring.type = "button";
+      bring.className = "mw-menu__item";
+      bring.innerHTML = `<span>${escapeHtml(t(options.translate, "带到助理（由你发送）"))}</span>`;
+      bring.addEventListener("click", () => { ask({ mode: "suggest", request: "", selection: selection() }); hidePop(); });
+      // Handing over needs the person's own words for what to do; submitting this form is their asking.
+      const form = document.createElement("form");
+      form.className = "pages-ask-assistant";
+      const field = document.createElement("input");
+      field.className = "mw-input";
+      field.placeholder = t(options.translate, "要助理做什么？");
+      field.setAttribute("aria-label", t(options.translate, "要助理做什么？"));
+      const submit = document.createElement("button");
+      submit.type = "submit";
+      submit.className = "mw-btn mw-btn--primary mw-btn--sm";
+      submit.textContent = t(options.translate, "交给助理");
+      form.append(field, submit);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const request = field.value.trim();
+        if (!request) { field.focus(); return; }
+        ask({ mode: "delegate", request, selection: selection() });
+        hidePop();
+      });
+      pop.append(heading, bring, form);
+    }
     placeOverlay(pop, view.coordsAtPos(view.state.selection.from), "below");
   };
 

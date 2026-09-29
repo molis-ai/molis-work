@@ -82,6 +82,33 @@ export interface AssistantSurfaceContext {
 export const ASSISTANT_EFFECT_EVENT = "molis:assistant-effect";
 export const ASSISTANT_SURFACE_CHANGED_EVENT = "molis:assistant-surface-changed";
 
+/**
+ * A plugin page tells the Assistant something (spec 8.3). What happens depends on the purpose, never on wording:
+ * - `background`: context for the next round the person starts here; nothing is sent, no model runs.
+ * - `change`: an object changed; works that relate to it read it again. Not a request.
+ * - `suggest`: a request the person may send — offered to put into the input, never sent by itself.
+ * - `delegate`: the person just asked the page to hand this to the Assistant. It starts only right after a real user
+ *   gesture on the page; otherwise it becomes a suggestion. A repeat of the same `message_id` starts nothing.
+ * - `reply`: a plugin hands a result back to a work; the object is linked as that work's result (read from its owner).
+ * A plugin cannot claim the person's consent in the message itself.
+ */
+export const ASSISTANT_MESSAGE_EVENT = "molis:assistant-message";
+export type AssistantMessagePurpose = "background" | "change" | "suggest" | "delegate" | "reply";
+export interface AssistantPluginMessage {
+  message_id: string;
+  purpose: AssistantMessagePurpose;
+  /** The surface speaking, as the person knows it. */
+  source: { surface: string; title?: string };
+  /** The object it concerns (for change, reply, and what a suggestion or delegation is about). */
+  object?: { kind: string; id: string; title?: string; version?: number | string | null };
+  /** For suggest/delegate: the request in the person's words. For background: what the page shows now. */
+  text?: string;
+  /** Text the request brings along (at most 4, each at most 20000 characters). */
+  materials?: Array<{ title: string; text: string }>;
+  /** For reply (and to continue a work on delegate): the work it belongs to. */
+  work_id?: string;
+}
+
 export interface AssistantEffectDetail {
   work_id: string;
   /** The capability it ran, e.g. `pages.docs.update`; surfaces match on their own prefix. */

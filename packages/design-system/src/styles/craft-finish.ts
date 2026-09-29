@@ -595,6 +595,15 @@ const CRAFT_BASE_STYLES = `
     max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
   }
   ${ASSIST} .assistant-popover[hidden] { display: none; }
+  /* A plugin's suggestion waits above the bar until the person puts it in the input or ignores it. */
+  ${ASSIST} .assistant-offer {
+    position: absolute; z-index: 55; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 6px; width: min(420px, 100%);
+    padding: 10px 12px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
+  }
+  ${ASSIST} .assistant-offer[hidden] { display: none; }
+  ${ASSIST} .assistant-offer-copy { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  ${ASSIST} .assistant-offer-copy strong { margin-right: 4px; }
+  ${ASSIST} .assistant-offer-actions { display: flex; gap: 6px; justify-content: flex-end; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 6px; font-size: 11px; color: var(--faint); }
   ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 7px; }
   ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }

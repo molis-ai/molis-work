@@ -101,3 +101,18 @@ test("an unavailable Character is refused with why, never swapped for another; p
     assert.equal((await f.service.read(sent.work.work_id)).work.draft, "第二轮", "what the person typed is kept");
   } finally { await f.close(); }
 });
+
+test("a plugin handing a result back links it to the work as a result; a reply without an object or source is refused", { timeout: 60_000 }, async t => {
+  const f = await fixture(t);
+  try {
+    const sent = await f.service.send({ text: "起草一份说明", request_id: "req-reply-1" }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "round");
+    await f.service.receiveResult(sent.work.work_id, { object: { kind: "pages_document", id: "doc-7", title: "说明", version: 3 }, source: { surface: "pages", title: "Pages" } });
+    const relations = f.store.relations.forWork({ work_id: sent.work.work_id, project_id: "project" });
+    const result = relations.find(row => row.relation === "result");
+    assert.deepEqual([result?.object.kind, result?.object.id, result?.object.revision, result?.cause], ["pages_document", "doc-7", "3", "Pages 交回"]);
+    await assert.rejects(f.service.receiveResult(sent.work.work_id, { object: { kind: "pages_document" }, source: { surface: "pages" } }), /对象种类、标识和来自哪里/);
+    await assert.rejects(f.service.receiveResult(sent.work.work_id, { object: { kind: "pages_document", id: "x" } }), /对象种类、标识和来自哪里/);
+    assert.equal((await f.service.read(sent.work.work_id)).work.state, "completed", "receiving a result does not reopen or finish the work by itself");
+  } finally { await f.close(); }
+});

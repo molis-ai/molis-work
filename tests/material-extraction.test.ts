@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { computeBuildSourceDigest } from "../apps/local-host/src/installer/fingerprint.js";
 import { declaredReleaseFileEntries, copyReleaseEntries } from "../apps/local-host/src/installer/package-release-files.js";
-import { createMaterialExtractor, extractMaterial, MaterialExtractionError } from "../apps/local-host/src/material-extraction.js";
+import { createMaterialExtractor, extractMaterial, MaterialExtractionError, readMaterialHtml } from "../apps/local-host/src/material-extraction.js";
 import { extractJellyMaterial, readStoredJellyMaterial } from "../apps/local-host/src/jelly-native-material.js";
 import { prepareContextDocuments } from "../apps/local-host/src/context-onboarding-documents.js";
 
@@ -60,6 +60,19 @@ test("PDF cancellation and timeout terminate the worker before returning; later 
   await assert.rejects(extractMaterial(source, { timeoutMs: 1 }), error => error instanceof MaterialExtractionError && error.code === "timeout");
   assert.equal(ports(), initialPorts);
   assert.equal((await extractMaterial(source)).text, "Live worker"); assert.equal(ports(), initialPorts);
+});
+
+test("malformed HTML cannot block the Host deadline; cancellation releases its worker and later parsing recovers", { timeout: 5_000 }, async () => {
+  const ports = () => process.getActiveResourcesInfo().filter(name => name === "MessagePort").length;
+  const initial = ports(), html = "<".repeat(200_000), started = performance.now();
+  await assert.rejects(readMaterialHtml(html, { timeoutMs: 200 }), error => error instanceof MaterialExtractionError && error.code === "timeout");
+  assert.ok(performance.now() - started < 2_000); assert.equal(ports(), initial);
+  const controller = new AbortController(), stopped = new Error("cancel HTML");
+  const pending = extractMaterial({ file_name: "bad.html", bytes: Buffer.from(html) }, { signal: controller.signal });
+  setTimeout(() => controller.abort(stopped), 100);
+  await assert.rejects(pending, error => error === stopped); assert.equal(ports(), initial);
+  assert.deepEqual(await readMaterialHtml("<head><title>OK</title></head><p>Recovered</p>"), { title: "OK", text: "Recovered" });
+  assert.equal(ports(), initial);
 });
 test("Jelly old SHA references remain readable and revoked/aborted uploads cannot leave partial copies", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "molis-material-ref-"));

@@ -88,9 +88,12 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
   - 有 Artifact 输入的 PluginPlatform 观察同一项目连接的领域 journal，每秒核对已提交的 Artifact 游标；其他连接的提交也能触发既有输入图重算，不读取未提交的外层事务。启动读取当前固定事实，关闭先调用 `closeCoordination()` 停止观察、输入处理与事件，再停插件和关数据库。此路径刷新投影，不重放业务操作。
   - 安装器准备 npm 与 Desktop 资产但不自动发布；vendored 依赖的传递依赖必须能从标准 ancestor 解析。
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
+  - `material-web.ts` 负责显式网页捕获的 HTTP(S)、最多 5 次重定向、12 秒总时限和解压后 4 MiB 正文限制；每次派出复查权限，超限拒绝正文并取消流。Shelf 保留产品组织和链接失败提示，Artifacts 复用 Host HTML 解析，不跨模块导入 Shelf 解析器。
+  - Artifacts 外部文档沿用连接器请求生命周期；每个供应商 API 请求前复查原 Action、取消与账号 revision，最终异步授权检查之后再核对连接。撤权、断开或取消不继续读取正文、不刷新凭据，也不保存迟到结果。
 - 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts`
 - 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/generated-action-costs.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。
 - 生成式提示词身份/版本验证：`node scripts/run-tests.mjs tests/generated-plugin-prompt-binding.test.ts tests/generated-plugin-prompts.test.ts tests/plugin-model-generation.test.ts tests/agent-definitions.test.ts tests/prompt-registration.test.ts`。
+- 网页材料与导入验证：`node scripts/run-tests.mjs tests/material-web.test.ts tests/material-extraction.test.ts tests/artifact-document-import.test.ts tests/shelf-actions.test.ts`。
 - 相关手册：[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -115,8 +118,8 @@ Coding/Git 生产通知接到当前项目的 Files/Git 视图 revision；Host re
 
 ### 公共材料提取
 
-`material-extraction.ts` 实现 `contracts/services/materials`：输入已授权字节，返回正文、页/时间定位、覆盖及截断信息；不产生附件身份或业务材料记录。UTF-8/HTML 只做本地解析，PDF 文本在有界 worker 中执行，取消/超时会终止 worker。原生 PDF/OCR/音视频和许可证归 `native/materials`，构建随 Host 打包。模型下载必须显式允许，临时文件在子进程关闭后清理。
+`material-extraction.ts` 实现 `contracts/services/materials`：输入已授权字节，返回正文、页/时间定位、覆盖及截断信息；不产生附件身份或业务材料记录。UTF-8 只做本地解码；HTML、PDF 文本在有界 worker 中执行，取消/超时会终止并等待 worker 退出，异常 HTML 不能阻塞主线程时限。原生 PDF/OCR/音视频和许可证归 `native/materials`，构建随 Host 打包。模型下载必须显式允许，临时文件在子进程关闭后清理。
 
-Jelly 保留上传 SHA、历史路径和领域引用，只委托解析；onboarding 复用文字/HTML/PDF 文本提取，保留原始附件并拒绝截断或缺失文本层的 PDF。DOCX/ZIP 经同一 Host 文档 worker 读取，Pages 负责编辑器转换；Shelf 和其他消费者仍在迁移中。相关回归：`tests/material-extraction.test.ts`、`tests/jelly-native-material.test.ts`、`tests/context-onboarding-documents.test.ts`。
+Jelly 保留上传 SHA、历史路径和领域引用，只委托解析；onboarding 复用文字/HTML/PDF 文本提取，保留原始附件并拒绝截断或缺失文本层的 PDF。DOCX/ZIP 经同一 Host 文档 worker 读取，Pages 负责编辑器转换；Shelf 网页与 Artifacts HTML 已接通共同解析，Shelf 的 PDF/OCR 与 AI recipe 继续迁移。Artifacts HTML 端口异步，12 秒限时，保留原 2 MiB 正文与原文限制，不用网页截断代替文档；提交前沿用 beforeSave 并复核 signal。相关回归：`tests/material-extraction.test.ts`、`tests/jelly-native-material.test.ts`、`tests/context-onboarding-documents.test.ts`。
 
 文档批次用 `MaterialDocumentReader` 返回原名、正文格式、内容和覆盖信息。ZIP 路径/目录/CRC/有界解压、DOCX Mammoth 和 UTF-16 BOM 解码归 Host；预览和正式导入经 `pages-import.ts` 共用装配。取消/超时终止 worker，Pages 在异步返回后再检查执行权限，最终业务转换与单事务/请求幂等仍由 Pages 管理。文档输出合计限 20 MiB，超限拒绝整个批次。

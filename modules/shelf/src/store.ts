@@ -29,6 +29,8 @@ import type {
   ShelfRunJobInput,
   ShelfRuntimeStatus,
   ShelfSnapshot,
+  ShelfExecutionControl,
+  ShelfMaterialPorts,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { ShelfError } from "./errors.js";
 import { extractLocalText, markdownFromExtract, resultNameForExtract } from "./extract.js";
@@ -134,7 +136,7 @@ function safeInside(root: string, target: string): string {
 export class ShelfStore {
   private readonly probe: ShelfRuntimeProbe;
 
-  constructor(readonly root: string, probe: ShelfRuntimeProbe = {}) {
+  constructor(readonly root: string, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}) {
     this.probe = probe;
     mkdirSync(path.join(root, "files"), { recursive: true });
     mkdirSync(path.join(root, "jobs"), { recursive: true });
@@ -318,9 +320,16 @@ export class ShelfStore {
    * A link is captured as a page; everything else lands as text. The wheel's
    * 发给终端 asks for `capture: false`, the way DropAgent sends the link itself.
    */
-  async admitText(body: string, title = "粘贴文字", capture = true): Promise<ShelfItemRecord> {
+  admitText(body: string, title = "粘贴文字", capture = true, control?: ShelfExecutionControl): Promise<ShelfItemRecord> {
+    return this.admitCapturedText(body, title, capture, control);
+  }
+
+  private async admitCapturedText(body: string, title: string, capture: boolean, control?: ShelfExecutionControl, assertCurrent?: () => void): Promise<ShelfItemRecord> {
     const text = body.trim();
     if (!text) throw new ShelfError("shelf.empty_file", "剪贴板是空的");
+    if (isHttpUrl(text) && capture) return this.captureUrl(text, control, assertCurrent);
+    await beforeShelfEffect(control);
+    assertCurrent?.();
     if (isHttpUrl(text) && !capture) {
       return this.admit({
         filename: `${safeFilename(clipTitleFor("url", text))}.url`,
@@ -328,14 +337,21 @@ export class ShelfStore {
         mime: "text/uri-list",
       });
     }
-    if (isHttpUrl(text)) return this.admitUrl(text);
     const filename = `${safeFilename(title.slice(0, 40) || "paste")}.md`;
     return this.admit({ filename, bytes: Buffer.from(text, "utf8"), mime: "text/markdown" });
   }
 
   /** DropAgent fetches the page itself; a failed fetch still shelves the link. */
-  async admitUrl(url: string): Promise<ShelfItemRecord> {
-    const page = await captureWebsite(url);
+  admitUrl(url: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord> {
+    return this.captureUrl(url, control);
+  }
+
+  private async captureUrl(url: string, control?: ShelfExecutionControl, assertCurrent?: () => void): Promise<ShelfItemRecord> {
+    await beforeShelfEffect(control);
+    assertCurrent?.();
+    const page = await captureWebsite(url, this.materials.readWebsite, { signal: control?.signal, beforeDispatch: async () => { await beforeShelfEffect(control); assertCurrent?.(); } });
+    await beforeShelfEffect(control);
+    assertCurrent?.();
     return this.admit({
       filename: safeFilename(websiteFilename(page.title, page.url)),
       bytes: Buffer.from(page.markdown, "utf8"),
@@ -754,11 +770,14 @@ export class ShelfStore {
     });
   }
 
-  async clipboardToMaterial(clipId: string): Promise<ShelfItemRecord> {
+  async clipboardToMaterial(clipId: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord> {
     const clip = this.readCatalog().clipboard.find((entry) => entry.clip_id === clipId);
     if (!clip) throw new ShelfError("shelf.item_not_found", "这条剪贴板不存在");
-    if (clip.kind === "url") return this.admitUrl(clip.body);
-    return this.admitText(clip.body, clip.title);
+    const assertCurrent = () => {
+      const latest = this.readCatalog().clipboard.find(entry => entry.clip_id === clipId);
+      if (!latest || latest.fingerprint !== clip.fingerprint) throw new ShelfError("shelf.item_not_found", "这条剪贴板已删除或改变，未保存材料");
+    };
+    return this.admitCapturedText(clip.body, clip.title, true, control, assertCurrent);
   }
 
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer } {
@@ -839,8 +858,13 @@ export class ShelfStore {
   }
 }
 
-export function openShelfStore(homeDirectory: string, probe: ShelfRuntimeProbe = {}): ShelfStore {
-  return new ShelfStore(path.join(path.resolve(homeDirectory), "shelf"), probe);
+export function openShelfStore(homeDirectory: string, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}): ShelfStore {
+  return new ShelfStore(path.join(path.resolve(homeDirectory), "shelf"), probe, materials);
+}
+
+async function beforeShelfEffect(control?: ShelfExecutionControl): Promise<void> {
+  await control?.beforeEffect?.();
+  control?.signal?.throwIfAborted();
 }
 
 export function hashBytes(bytes: Uint8Array): string {

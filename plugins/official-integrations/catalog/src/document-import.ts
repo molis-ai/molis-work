@@ -1,4 +1,6 @@
 /** One-time document reads. Credentials never leave the selected provider's API origin. */
+import { createExecutionLifetime, type ExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
+
 export type ExternalDocumentSource = "notion" | "feishu" | "lark" | "google-docs";
 
 export interface ExternalDocument {
@@ -102,17 +104,22 @@ function documentReference(input: { source: ExternalDocumentSource; url: string 
   return { id, wiki, sourceUrl: url.toString() };
 }
 
-function createReader(fetchImpl: typeof fetch, signal: AbortSignal) {
+function createReader(fetchImpl: typeof fetch, lifetime: ExecutionLifetime, beforeDispatch?: () => void | Promise<void>) {
+  const { signal } = lifetime;
   async function text(url: string, init: RequestInit = {}): Promise<string> {
+    lifetime.assertActive();
+    await lifetime.wait(Promise.resolve(beforeDispatch?.()));
+    signal.throwIfAborted();
+    let response: Response | undefined;
     try {
-      const response = await fetchImpl(url, { ...init, redirect: "error", signal });
+      response = await fetchImpl(url, { ...init, redirect: "error", signal });
+      signal.throwIfAborted();
       if (response.status === 401) fail("needs_auth", "连接凭据已失效，请到设置重新连接数据源。");
       if (response.status === 403) fail("permission_denied", "当前连接没有读取该文档的权限。请检查只读权限，并将文档共享给连接的应用。");
       if (response.status === 404) fail("not_found", "找不到该文档，或当前连接无权读取。请检查链接和文档共享设置。");
       if (response.status === 429) fail("rate_limited", "数据源请求过于频繁，请稍后重试。");
       if (!response.ok) fail("provider", "数据源暂时无法提供文档，请稍后重试。");
       if (Number(response.headers.get("content-length")) > MAX_BYTES) {
-        await response.body?.cancel();
         fail("too_large", "文档超过 2 MB 导入上限，请拆分后导入。");
       }
       if (!response.body) return "";
@@ -124,23 +131,24 @@ function createReader(fetchImpl: typeof fetch, signal: AbortSignal) {
         while (true) {
           signal.throwIfAborted();
           const { done, value } = await reader.read();
+          signal.throwIfAborted();
           if (done) break;
           size += value.byteLength;
           if (size > MAX_BYTES) {
-            await reader.cancel();
             fail("too_large", "文档超过 2 MB 导入上限，请拆分后导入。");
           }
           result += decoder.decode(value, { stream: true });
         }
         return result + decoder.decode();
       } finally {
+        await reader.cancel().catch(() => {});
         reader.releaseLock();
       }
     } catch (error) {
+      signal.throwIfAborted();
       if (error instanceof ExternalDocumentImportError) throw error;
-      if (signal.aborted) fail("timeout", "读取文档超时，请稍后重试。");
-      fail("network", "读取文档失败，请检查网络后重试。");
-    }
+      return fail("network", "读取文档失败，请检查网络后重试。");
+    } finally { await response?.body?.cancel().catch(() => {}); }
   }
   async function json(url: string, init?: RequestInit): Promise<Record<string, unknown>> {
     const content = await text(url, init);
@@ -237,17 +245,24 @@ async function googleDocument(id: string, token: string, reader: Reader) {
 
 export async function readExternalDocument(
   input: { source: ExternalDocumentSource; url: string },
-  ports: { token: string; fetch?: typeof fetch; tokenKind?: "access_token" | "app_credentials" },
+  ports: { token: string; fetch?: typeof fetch; tokenKind?: "access_token" | "app_credentials";
+    signal?: AbortSignal; beforeDispatch?(): void | Promise<void> },
 ): Promise<ExternalDocument> {
+  ports.signal?.throwIfAborted();
   const reference = documentReference(input);
   const token = ports.token?.trim();
   if (!token) fail("needs_auth", "请先在设置中连接所选数据源。");
   const fetchImpl = ports.fetch ?? globalThis.fetch?.bind(globalThis);
   if (!fetchImpl) fail("network", "当前环境无法读取在线文档。");
-  const reader = createReader(fetchImpl, AbortSignal.timeout(DEADLINE_MS));
-  const content = input.source === "notion" ? await notionDocument(reference.id, token, reader)
-    : input.source === "google-docs" ? await googleDocument(reference.id, token, reader)
-      : await feishuDocument(input.source, reference, token, reader, ports.tokenKind);
-  if (!content.content.trim()) fail("empty_content", "文档没有可导入的正文。请确认文档内容和当前应用的读取权限。");
-  return { source: input.source, source_id: reference.id, source_url: reference.sourceUrl, ...content };
+  const lifetime = createExecutionLifetime({ signal: ports.signal,
+    timeout: { milliseconds: DEADLINE_MS, reason: new ExternalDocumentImportError("timeout", "读取文档超时，请稍后重试。") } });
+  try {
+    const reader = createReader(fetchImpl, lifetime, ports.beforeDispatch);
+    const content = input.source === "notion" ? await notionDocument(reference.id, token, reader)
+      : input.source === "google-docs" ? await googleDocument(reference.id, token, reader)
+        : await feishuDocument(input.source, reference, token, reader, ports.tokenKind);
+    lifetime.assertActive();
+    if (!content.content.trim()) fail("empty_content", "文档没有可导入的正文。请确认文档内容和当前应用的读取权限。");
+    return { source: input.source, source_id: reference.id, source_url: reference.sourceUrl, ...content };
+  } finally { lifetime.dispose(); }
 }

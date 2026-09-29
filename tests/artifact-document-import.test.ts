@@ -11,6 +11,7 @@ import {
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { importLocalArtifactDocument } from "../apps/local-host/src/artifact-document-import.js";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
 const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<script>importAttack()</script>\n";
@@ -112,7 +113,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
 
 test("HTML import extracts readable content, preserves its source and never executes its markup", async t => {
   const { coordinator, post, get } = await fixture(t);
-  const original = '<!doctype html><html><head><title>导出的文档</title></head><body><h1>导出的文档</h1><p>真实正文 <strong>保留文字</strong></p><script>htmlAttack()</script></body></html>';
+  const original = '<!doctype html><html><head><title>导出的文档</title></head><body><h1>导出的文档</h1><p>真实正文 <strong>保留文字</strong> &#x1f642; &#999999999999;</p><script>htmlAttack()</script><template>hiddenTemplate</template><script>unfinishedScript()';
   const response = await post({ source: "file", filename: "export.html", content: original });
   assert.equal(response.status, 201);
   const imported = await response.json() as { artifact_id: string; version: number; url: string; warnings: string[] };
@@ -122,13 +123,36 @@ test("HTML import extracts readable content, preserves its source and never exec
   assert.equal(payload.original_html, original);
   assert.equal(payload.title, "导出的文档");
   assert.match(String(payload.content), /真实正文/);
-  assert.doesNotMatch(String(payload.content), /htmlAttack|<script>/);
+  assert.match(String(payload.content), /🙂/);
+  assert.doesNotMatch(String(payload.content), /htmlAttack|hiddenTemplate|unfinishedScript|<script>/);
   const html = await (await get(imported.url)).text();
   assert.match(html, /artifact-document-warnings/);
   assert.match(html, /真实正文/);
   assert.doesNotMatch(html, /<script>htmlAttack\(\)<\/script>/);
   const exported = await (await get(`/api${imported.url}/export`)).json() as { payload: Record<string, unknown> };
   assert.equal(exported.payload.original_html, original);
+});
+
+for (const stop of ["cancel", "revoke"] as const) test(`HTML import ${stop} after real parsing leaves no Artifact and a fresh call recovers`, async t => {
+  const { coordinator } = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
+  const input = { source: "file", filename: "page.html", content: "<head><title>Page</title></head><p>Original body</p>" };
+  const ports = { boardId: DEMO_BOARD_ID, actorId: "fixture-owner", routePrefix: "/projects/current", artifacts: coordinator.artifacts };
+  const previous = coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID);
+  const pending = importLocalArtifactDocument(input, { ...ports, signal: controller.signal, beforeSave: async () => {
+    entered.resolve(); await release.promise;
+    if (stop === "revoke") throw new Error("revoked after parsing");
+  } });
+  const rejected = assert.rejects(pending, stop === "cancel" ? { name: "AbortError" } : /revoked after parsing/);
+  try {
+    await entered.promise;
+    if (stop === "cancel") controller.abort();
+    release.resolve(); await rejected;
+    assert.deepEqual(coordinator.artifacts.query.listArtifacts(DEMO_BOARD_ID), previous);
+    const saved = await importLocalArtifactDocument(input, ports);
+    const record = coordinator.artifacts.query.getArtifactVersion(DEMO_BOARD_ID, saved)!;
+    assert.equal((record.payload as Record<string, unknown>).original_html, input.content);
+    assert.equal((record.payload as Record<string, unknown>).content, "Original body");
+  } finally { release.resolve(); }
 });
 
 test("invalid, empty, oversized and unauthorized imports leave Artifact records unchanged and can recover", async t => {

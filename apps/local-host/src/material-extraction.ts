@@ -22,13 +22,21 @@ function extractPdf(source: MaterialSource, options: MaterialExtractionOptions, 
   return runMaterialWorker("material-pdf-worker.js", { bytes: new Uint8Array(source.bytes), limits }, options, "PDF");
 }
 
+/** Untruncated HTML conversion for document import; the caller owns its input/output and empty-content rules. */
+export function readMaterialHtml(html: string, options: Pick<MaterialExtractionOptions, 'signal' | 'timeoutMs'> = {}): Promise<{ title?: string; text: string }> {
+  if (Buffer.byteLength(html) > defaults.maxBytes) throw new MaterialExtractionError("invalid_data", "HTML 超过提取容量上限");
+  return runMaterialWorker("material-html-worker.js", { kind: "document", html }, options, "HTML");
+}
+
 export function createMaterialExtractor(native: NativeMaterialOptions = {}): MaterialExtractor {
   return async (source, options = {}) => {
     options.signal?.throwIfAborted();
     const limits = checkedLimits(options), extension = path.extname(source.file_name).toLowerCase();
     if (!source.bytes.length || source.bytes.length > limits.maxBytes) throw new MaterialExtractionError("invalid_data", "文件为空或超过提取容量上限");
     if (!supportsMaterialExtension(extension)) throw new MaterialExtractionError("unsupported", "不支持该材料格式", 415);
-    const result = materialTextExtensions.has(extension) ? extractMaterialText(source.bytes, extension, options.textFormat === "markdown", limits)
+    const result = extension === ".html" || extension === ".htm" ? await runMaterialWorker<MaterialExtraction>("material-html-worker.js",
+      { kind: "extraction", bytes: new Uint8Array(source.bytes), extension, markdown: options.textFormat === "markdown", limits }, options, "HTML")
+      : materialTextExtensions.has(extension) ? extractMaterialText(source.bytes, extension, options.textFormat === "markdown", limits)
       : extension === ".pdf" && options.pdfMode !== "ocr" ? await extractPdf(source, options, limits)
       : await extractNativeMaterial(source, options, limits, native);
     options.signal?.throwIfAborted();

@@ -23,8 +23,6 @@ export {
 export {
   WEBSITE_MIME,
   captureWebsite,
-  documentTitle,
-  htmlToMarkdown,
   websiteFilename,
   websiteMarkdown,
 } from "./website.js";

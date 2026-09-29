@@ -1,7 +1,7 @@
-import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
-  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput,
+  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { parseSettingsWriteBody } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
@@ -91,7 +91,7 @@ export interface ShelfActionPorts {
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
   admit(input: ShelfAdmitInput): ShelfItemRecord;
-  admitText(body: string, title?: string, capture?: boolean): Promise<ShelfItemRecord>;
+  admitText(body: string, title?: string, capture?: boolean, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
   admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord;
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer };
   seedSample(): ShelfItemRecord;
@@ -101,14 +101,14 @@ export interface ShelfActionPorts {
   cancelJob(jobId: string): ShelfJobRecord;
   useAsMaterial(itemId: string): ShelfItemRecord;
   addClipboard(body: string, extra?: { concealed?: boolean; types?: readonly string[] }): ShelfClipboardRecord | null;
-  clipboardToMaterial(clipId: string): Promise<ShelfItemRecord>;
+  clipboardToMaterial(clipId: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
   deleteClipboard(clipId: string): void;
   writeCopy(itemId: string, text: string): ShelfItemRecord;
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer };
 }
 
 export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>): ActionHandlerBinding => ({
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
   });
   const bytes = (encoded: string) => {
@@ -134,7 +134,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
       // The store hashes the file at this path before each run; only the local interface names real paths.
       if (input.origin_realpath && caller.audience !== "user") throw new ActionError("actions.forbidden", "只有本机界面可以登记原件路径");
       const typed = input.text?.trim();
-      if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, input.capture_pages !== false) };
+      if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, input.capture_pages !== false, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
       const filename = input.filename?.trim();
       if (!filename || !input.bytes_base64) throw new ActionError("shelf.invalid", "请选择要加入的文件");
       return { item: ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null }) };
@@ -159,7 +159,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     }),
     bind(shelfActions.clip, input => ({ clip: ports.addClipboard(input.text, { concealed: input.concealed === true, types: input.types ?? [] }) })),
     bind(shelfActions.deleteClip, input => { ports.deleteClipboard(input.clip_id); return { deleted: true as const }; }),
-    bind(shelfActions.clipToMaterial, async input => ({ item: await ports.clipboardToMaterial(input.clip_id) })),
+    bind(shelfActions.clipToMaterial, async (input, caller) => ({ item: await ports.clipboardToMaterial(input.clip_id, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) })),
     ...createShelfSearchHandlers(() => ports.snapshot()),
   ];
 }

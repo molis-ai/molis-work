@@ -36,6 +36,9 @@ export interface MaterialExtractionOptions {
 /** Source identity, saved originals, business conversions and citation rules remain with consumers. */
 export type MaterialExtractor = (source: MaterialSource, options?: MaterialExtractionOptions) => Promise<MaterialExtraction>;
 
+/** Read an explicitly authorized HTTP(S) page; the Host owns bounded transport and HTML extraction. */
+export type MaterialWebsiteReader = (url: string, options?: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }) => Promise<MaterialExtraction>;
+
 /** Transport form; the Host validates and decodes it before parsing. */
 export interface MaterialUpload { file_name: string; data_base64: string }
 export interface MaterialDocument {

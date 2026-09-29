@@ -260,4 +260,8 @@ Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来
 
 公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。Jelly 和 onboarding 已共用提取口，媒体模型下载仍需显式选择；生成摘要继续走 Prologue。
 
+显式网页读取用同一合同的 `MaterialWebsiteReader`：Host 限制 HTTP(S)、跳转、总时限与解压后字节数，复用 HTML 提取；传递 signal / beforeDispatch，业务提交前仍需 beforeEffect 和来源版本检查。Shelf 只组织网页材料、链接与失败提示，Artifacts 只组织导入文档，不得互相导入解析实现。普通抓取失败可以按产品约定保留链接，取消或撤权不能退化成“成功保存链接”。
+
+HTML 与 PDF/文档解析复用 Host 的可终止 worker 生命周期；不能只给网络阶段设定时器，却让畸形 HTML 在主线程无限解析。Artifacts 的异步 readHtml 保留原 HTML 与既有正文限额，解析后复核 beforeSave 和 signal；不要套用网页的部分正文策略。
+
 Pages 的 prepareImport 是 Host 注入端口：公共 MaterialDocumentReader 负责 UTF 编码、ZIP/DOCX 和容量限制，插件的 preparePagesImport 只将公共正文转换为编辑器文档。预览和提交共用装配，解析等待后复核权限与取消，再沿原事务提交；批次损坏不能导致部分写入。

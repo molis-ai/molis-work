@@ -22,7 +22,7 @@
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；提示词按执行版本解析、按安装分别登记，真实 Sandbox/SDK/HTTP 验证通过；最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
-| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf、Artifacts 和其余旧解析删除继续实施 |
+| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf 网页与 Artifacts HTML/外部导入已迁移并验证；Shelf PDF/OCR、AI recipe 及最终消费者复核待完成 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
 | 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
@@ -440,3 +440,24 @@ Cognia 当前扫描由 Host 负责路径/容量与取消，插件只解码严格
 已实现上述绑定，删除原“Home 登记优先、安装 release 优先于试运行”的解析路径。新增实际双项目安装用例，通过真实沙箱、Action、共享 Prologue 和本地 HTTP 检查旧/新版默认、草稿正文、用户覆盖、未知 id 零请求、升级/回滚、卸载另一安装后的编辑与调用、失效身份及停用。另覆盖异步声明读取期间取消/撤权/提供方撤下：零使用记录、零模型派出。手册与两个开发 Skill 已同步，纠正“所有安装前调用都是替身”的过期说法。
 
 整体 build 通过（`/tmp/platform-prompt-binding-build.log`）；第一批 5 文件 20 项通过，随后按 Host README 执行 15 文件 87 项通过。保留第一批未变化的 3 文件 12 项证据，共 18 文件 99 项当前验证，无跳过（`/tmp/platform-prompt-binding-targeted.log`、`/tmp/platform-prompt-binding-regression.log`）。70 包 boundary errors 为空（`/tmp/platform-prompt-binding-boundary.log`），diff whitespace 检查通过。回归期间没有源码/Skill 编辑或并发构建；未运行外部付费模型，未代表用户验收。仅本地提交；后续仍为 Shelf/Artifacts 及 01–12 最终复核。
+
+### Shelf 网页与 Artifacts HTML
+
+先接通 09 中网页这一完整消费者路径，再处理 Shelf 的 PDF/OCR 与 AI recipe。Shelf 当前自行 fetch/HTML 转换，Artifacts 又跨业务边界导入这份转换；fetch 先读完整 arrayBuffer 后截 4 MiB，无法限制实际接收容量。Shelf 的 admitText / clipboardToMaterial 等待抓取后没有保留 Action 的 beforeEffect / signal，也可能在撤权后保存材料。
+
+现有 materials 合同增加只读网页端口，Host 对显式 HTTP(S) URL 执行无凭据 GET、最多 5 次重定向、总计 12 秒和解压后 4 MiB 正文限制，复用已有 HTML/文字提取。保留原有用户可抓取本机或内网 HTTP(S) 的范围，不把它等同于生成插件已批准域名的沙箱网络策略。超限拒绝整个正文，不保存静默截断的 HTML；Shelf 继续保留链接并明确未抓到正文。普通抓取失败可保存链接，调用取消、权限撤销与提供方失效则不保存任何材料。剪贴板删除或改变后，迟到抓取不能重新保存已失效条目。
+
+Shelf Module 只持有注入的网页读取端口、标题/文件名和产品 Markdown，不再拥有 fetch 与通用 HTML 转换；无 Host 端口的纯领域调用只保存链接，不隐式联网。Artifacts 直接复用 Host HTML 解析，仍由原插件负责 2 MiB 上传、原 HTML 保存、标题、引用、幂等与提交权限。验证真实 HTTP 正常/重定向/超限/流中断/取消、实际 Shelf Action 的撤权后文件与目录零提交、剪贴板变化及恢复，并保留 Artifact 持久化/原文/历史导出验证。无持久格式迁移，旧网页材料照常读取。
+
+实际容量探测发现，仅 200 KB 的连续 `<` 已让现有同步 HTML 正则解析超过 3 秒，独立子进程到时被终止；主线程定时器不能约束这种 CPU 等待。HTML 解析接入既有 runMaterialWorker（256 MB、超时/取消后等待 terminate），保持同一解析实现；网页总 signal 覆盖取回与解析，Artifacts 的 readHtml 端口允许异步并传递取消，在返回后仍用原 beforeSave 提交检查。保留 Artifacts 原 2 MiB 输入/输出范围与原 HTML，不应用网页正文截断；其解析单独限 12 秒。第一批失败的 7 个 Shelf 取消断言由 snapshot 自动示例造成，改为捕获操作前的真实材料与文件，再比较零新增；不能删除产品示例来使测试通过。
+
+提交链复核补齐：Artifacts 两个导入 Action 原来未声明 concurrent，HTML/外部等待占用项目串行队列；Host 手工调用 validate_authority 和 actionAvailability，遗漏 Kernel 原调用的 provider generation / permissions / lifetime 检查。导入提供方显式声明并发，插件端口保留 ActionExecutionContext，Host 将完整 beforeEffect 交给 beforeSave，删除重复校验。真实解析后暂停提交，验证其他导入可完成、撤下提供方或取消后迟到调用零提交。
+
+
+外部文档提交链发现同类缺陷：账号 revision 在异步 beforeSave 之前检查，检查期间断开连接仍可保存；Integration 的 30 秒读取也没有接入原调用取消，分步读取在撤权后仍继续发请求。保留现有连接器生命周期和固定供应商协议，Host 在每次派出及最终提交前复查原 Action 与账号 revision，Integration 接收可信取消与派出检查，取消原因原样传递且释放响应流。保持连接选择、OAuth 单次刷新、2 MiB、30 秒和导入幂等；取消/连接变化不能触发刷新或继续请求。不改连接器凭据格式，不新增通用网络框架。
+
+本段已实现：删除 Shelf 私有网页 fetch/HTML 解析和 Artifacts 跨业务导入；真实网页读取、解压后容量、worker 解析、领域保存与原 Action 提交检查形成完整路径。连接器文档复用既有请求生命周期和 Plugin SDK 导出的 Kernel 执行生命周期，没有新增网络框架或依赖。保留账号初始 revision，OAuth 重试不得接受读取途中重新授权的新连接。
+
+验证：最终整体 `pnpm build` 通过（`/tmp/platform-web-materials-connector-final-build.log`）；本段网页/材料/导入/Shelf 定向 4 文件 33 项通过（`/tmp/platform-web-materials-final-targeted.log`），广义消费者回归 20 文件 110 项通过（`/tmp/platform-web-materials-regression.log`）。随后 Artifacts 并发/完整执行控制补齐 11 文件 67 项通过，连接器提交与取消补齐后对受影响链及 Host/Integration 必跑项重新执行 16 文件 106 项，全通过且无跳过（`/tmp/platform-web-materials-connector-regression.log`）；以上批次重叠，不累加为独立用例数。新增实际 HTTP 流取消关闭、元信息后撤权零后续请求、异步 guard 取消零派出、账号在最终授权等待期间断开零提交、并发导入不阻塞及提供方撤下零迟到写入。`pnpm boundary:check` errors 为空（`/tmp/platform-web-materials-boundary.log`），`git diff --check` 通过。测试期间未改源码/Skill 或并发构建；未使用真实外部账号/付费模型，也不代表用户体验或本人验收。
+
+接续：已连续完成提示词版本绑定与本段网页材料，后续仍在同一 Goal / spec 内推进。先完成 Shelf PDF/OCR 的公共 Host 端口与逐行置信度/语言选择、保留 PDF 预览和 32 MiB 入库行为，再将自动 AI recipe 接入同一 Home Prologue，保留人工终端交接与现有材料/结果身份；不能用只读 CLI Agent 适配器包装旧写文件 CLI 便声称已迁移。Shelf runJob 还未传原 Action 控制，取消/撤权后的失败记录和输入变化需一起修复。最后核对 Coding 草稿、Alchemist 动态指令及全部 01–12 消费者、手册和 Skill。剩余项未完成，保持实施中；本段仍仅为本地改造。

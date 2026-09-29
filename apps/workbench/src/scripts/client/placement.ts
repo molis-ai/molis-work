@@ -288,12 +288,12 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     }
     panel.append(list);
     const actions = node("div", undefined, "placement-panel-actions");
-    const action = (label, run, enabled, why) => { const button = node("button", label, "mw-btn mw-btn--secondary mw-btn--sm"); button.type = "button"; button.disabled = !enabled; if (why) button.title = why; button.onclick = () => { closePanel(); run(); }; actions.append(button); };
+    const action = (name, label, run, enabled, why) => { const button = node("button", label, "mw-btn mw-btn--secondary mw-btn--sm"); button.type = "button"; button.dataset.placementAction = name; button.disabled = !enabled; if (why) button.title = why; button.onclick = () => { closePanel(); run(); }; actions.append(button); };
     if (description.state === "ok") {
-      action(L("用于项目…"), () => useInProject(description), description.can.use_in_project, L("还没有其他项目"));
-      action(L("移到…"), () => moveOrCopy(description, "move"), description.can.move, description.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能移动"));
-      action(L("复制到…"), () => moveOrCopy(description, "copy"), description.can.copy, description.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能复制到别处"));
-      action(L("关联到 Goal…"), () => bindToGoal(description), Boolean(description.object.project_id || here()), L("先打开一个项目或个人空间"));
+      action("use-in-project", L("用于项目…"), () => useInProject(description), description.can.use_in_project, L("还没有其他项目"));
+      action("move", L("移到…"), () => moveOrCopy(description, "move"), description.can.move, description.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能移动"));
+      action("copy", L("复制到…"), () => moveOrCopy(description, "copy"), description.can.copy, description.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能复制到别处"));
+      action("goal", L("关联到 Goal…"), () => bindToGoal(description), Boolean(description.object.project_id || here()), L("先打开一个项目或个人空间"));
     }
     panel.append(actions);
     document.body.append(panel);
@@ -309,7 +309,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const error = node("p", "", "placement-dialog-error"); error.setAttribute("role", "alert");
     const footer = node("footer", undefined, "placement-dialog-foot");
     const cancel = node("button", L("取消"), "mw-btn mw-btn--secondary"); cancel.type = "button"; cancel.onclick = () => shell.close();
-    const ok = node("button", confirm, "mw-btn mw-btn--primary"); ok.type = "submit";
+    const ok = node("button", confirm, "mw-btn mw-btn--primary"); ok.type = "submit"; ok.dataset.placementConfirm = "";
     footer.append(cancel, ok);
     form.append(header, content, error, footer);
     shell.append(form); document.body.append(shell);
@@ -499,7 +499,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       text.append(node("small", source));
       const actions = node("span", undefined, "placement-related-actions");
       if (item.state === "ok" && item.open) {
-        const open = node("button", L("打开"), "mw-btn mw-btn--ghost mw-btn--sm"); open.type = "button";
+        const open = node("button", L("打开"), "mw-btn mw-btn--ghost mw-btn--sm"); open.type = "button"; open.dataset.placementOpen = item.object.id;
         open.onclick = () => openObject(item.open, item.title); actions.append(open);
       } else {
         actions.append(node("span", item.state === "missing" ? L("原对象已删除") : L("暂时读不到"), "mw-status mw-status--" + (item.state === "missing" ? "blocked" : "attention")));

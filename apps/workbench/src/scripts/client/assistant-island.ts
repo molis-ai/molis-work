@@ -671,7 +671,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const unsettled = work && view && view.unsettled ? view.unsettled : [];
     const jobs = work && view && view.jobs ? view.jobs : [];
     const undoable = work && view && view.undoable ? view.undoable : [];
-    const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id,
+    const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title, c.taken_back]), parent && parent.work_id,
       scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state]), jobs.map((j) => [j.job_id, j.state, j.last_state]),
       undoable.map((u) => [u.undo_id, u.state, u.detail])]);
     if (delegatedBox.dataset.signature === signature) return;
@@ -743,7 +743,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       children.forEach((child) => {
         const row = el("li", "assistant-object");
         row.append(el("span", "assistant-object-relation", L("子任务")), el("span", "assistant-object-title", child.title),
-          el("span", "assistant-object-state", stateLabel(child.state) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
+          el("span", "assistant-object-state", (child.taken_back ? L("已收回") : stateLabel(child.state)) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
         const open = el("button", "assistant-object-open", L("打开")); open.type = "button";
         open.setAttribute("aria-label", L("打开") + "：" + child.title);
         open.addEventListener("click", () => switchTo(child.work_id));
@@ -758,6 +758,18 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
             catch (error) { stop.disabled = false; showProblem({ message: error.message }); }
           });
           row.append(stop);
+        }
+        /* Take the part back: it stops, what it made stays, and this work finishes that part itself. */
+        if (!child.taken_back) {
+          const takeBack = el("button", "assistant-object-open", L("收回")); takeBack.type = "button";
+          takeBack.title = L("停下这个子任务，由这项工作自己接着做这一部分；它已产出的保留");
+          takeBack.setAttribute("aria-label", L("收回") + "：" + child.title);
+          takeBack.addEventListener("click", async () => {
+            takeBack.disabled = true;
+            try { view = await api("/works/" + encodeURIComponent(child.work_id) + "/take-back", "POST", {}); render(); }
+            catch (error) { takeBack.disabled = false; showProblem({ message: error.message }); }
+          });
+          row.append(takeBack);
         }
         list.append(row);
       });

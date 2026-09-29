@@ -206,7 +206,8 @@ export interface AssistantWork {
    */
   character?: AssistantCharacter;
   /** Set on a work another work delegated: which one, and what it was asked to deliver. */
-  delegated_by?: { work_id: string; title: string; acceptance: string };
+  /** `taken_back_at`: the person took this part back into the work that delegated it (it stopped; what it made stays). */
+  delegated_by?: { work_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
   budget_tokens?: number;
 }
@@ -356,7 +357,7 @@ export interface AssistantWorkView {
   /** The objects this work started from, used, produced and handed to, as their owners have them now. */
   objects: AssistantWorkObject[];
   /** Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups. */
-  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number }>;
+  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number; taken_back?: boolean }>;
   /** Timed rounds the person asked this work to run. */
   scheduled?: AssistantFollowUp[];
   /** Whether those timed rounds still run with the window closed (the runtime queue's own claim). */

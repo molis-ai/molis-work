@@ -113,3 +113,56 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
     await assert.rejects(service.control(sent.work.work_id, { kind: "stop" }), /没有在执行/, "nothing left to stop");
   } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("the person takes a sub-task back: it stops, the board says so, no more follow-ups go to it, and the delegating work finishes that part", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-takeback-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  let parentStep = 0, childId = "";
+  const parentBodies: string[] = [];
+  const parentScript = [
+    () => reply({ name: "delegate-work", input: { title: "起草结论", brief: "起草一段结论。", acceptance: "一段话，不超过三句" } }),
+    () => reply(undefined, "已交给子任务，它还在做。"),
+    // After the take-back: a follow-up to it is refused, then the round does the part itself.
+    () => reply({ name: "follow-up-delegated-work", input: { work_id: childId, text: "再改改" } }),
+    () => reply(undefined, "这部分我自己写完了。"),
+  ];
+  let releaseChild!: () => void;
+  const childHeld = new Promise<void>(resolve => { releaseChild = resolve; });
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const text = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
+    const body = JSON.parse(text);
+    if (JSON.stringify(body.messages).includes("委托给你的子任务")) {
+      await Promise.race([childHeld, new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }))]);
+      return reply(undefined, "草稿。");
+    }
+    parentBodies.push(text);
+    return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-takeback-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+  try {
+    const sent = await service.send({ text: "分给子任务起草结论", request_id: "req-delegation-takeback" }, { project_ref: project });
+    const parent = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.[0]?.state === "running" ? view : undefined; }, "child running");
+    childId = parent.delegated![0]!.work_id;
+    // Taken back from the board: the sub-task stops and the board marks it.
+    const after = await service.takeBack(childId);
+    assert.equal(after.work.work_id, sent.work.work_id, "the board shown is the delegating work's");
+    assert.equal(after.delegated![0]!.taken_back, true);
+    await until(async () => ["stopped", "failed"].includes((await service.read(childId)).work.state), "child stopped");
+    await assert.rejects(service.takeBack(childId), /已经收回/);
+    // The delegating work's next round hears it, and a follow-up to the sub-task is refused.
+    await service.send({ work_id: sent.work.work_id, text: "结论那部分你自己接着写完", request_id: "req-delegation-takeback-2" }, {});
+    await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "second round");
+    const told = parentBodies.find(body => body.includes("用户收回的子任务"));
+    assert.ok(told && told.includes("起草结论") && told.includes("不要再委托出去"), "the round is told the part is back");
+    const last = parentBodies.at(-1)!;
+    assert.match(last, /用户已把这个子任务收回到这项工作/, "the follow-up was refused");
+    assert.equal((await service.read(childId)).work.follow_ups ?? 0, 0);
+  } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

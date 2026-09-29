@@ -816,7 +816,8 @@ export class AssistantService {
     // Its task board: the sub-tasks it handed out, each as its own work.
     const children = this.store.delegatedBy(this.actorId, work.work_id);
     const host = children.length ? await this.ports.host() : null;
-    const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0 }))) : [];
+    const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0,
+      ...(child.delegated_by?.taken_back_at ? { taken_back: true } : {}) }))) : [];
     const scheduled = this.store.followUps(this.actorId, work.work_id);
     const claim = scheduled.length ? await this.scheduleClaim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
@@ -1785,6 +1786,16 @@ export class AssistantService {
         ...undone.map(item => `- 「${item.title}」（${item.undone_at ?? ""}）`)].join("\n")));
       for (const item of undone) this.store.saveUndo(this.actorId, { ...item, told: true });
     }
+    // Sub-tasks the person took back since the last round: this work finishes those parts itself.
+    const takenBack = this.store.delegatedBy(this.actorId, work.work_id).filter(child => (child.delegated_by?.taken_back_at ?? "") > since);
+    if (takenBack.length) {
+      const lines = takenBack.map(child => {
+        const made = this.store.relations.forWork(identity(child)).filter(row => row.relation === "result").map(row => `${row.object.kind} ${row.object.id}`);
+        return `- 「${child.title}」（验收标准：${child.delegated_by!.acceptance.slice(0, 300)}）${made.length ? `；它已产出：${made.slice(0, 5).join("、")}` : "；它还没有产出"}`;
+      });
+      out.push(...chunked({ ...base, title: "用户收回的子任务" }, "taken-back", ["用户把下面的子任务收回到这项工作，它们已停下，已产出的成果保留。这些部分由你在这项工作里继续完成（可以读取它们已产出的对象接着做），不要再委托出去，也不要对它们追加：",
+        ...lines].join("\n")));
+    }
     const jobs = this.store.jobs(this.actorId, work.work_id).filter(job => job.state === "running" || !job.told);
     if (jobs.length) {
       out.push(...chunked({ ...base, title: "后台任务" }, "jobs", jobs.map(job => `- 「${job.title}」（任务 ${job.job_id}）：${job.state === "running" ? "仍在进行" : job.state === "completed" ? "已完成" : job.state === "failed" ? "没有完成" : "不再跟进"}${job.last_state ? `（${job.last_state}）` : ""}`).join("\n")));
@@ -2115,7 +2126,7 @@ export class AssistantService {
       const reply = [...turns].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim();
       const results = this.store.relations.forWork(identity(work)).filter(row => row.relation === "result").map(row => ({ kind: row.object.kind, id: row.object.id, revision: row.object.revision }));
       return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: reply.length > 1200 ? reply.slice(0, 1200) + "…" : reply } : {}),
-        ...(results.length ? { results } : {}), follow_ups: work.follow_ups ?? 0 };
+        ...(results.length ? { results } : {}), follow_ups: work.follow_ups ?? 0, ...(work.delegated_by?.taken_back_at ? { taken_back: true } : {}) };
     };
     return {
       start: async input => {
@@ -2155,6 +2166,7 @@ export class AssistantService {
       },
       follow_up: async (workId, text) => {
         const child = own(workId);
+        if (child.delegated_by?.taken_back_at) throw new AssistantError("assistant.invalid", "用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
         if ((child.follow_ups ?? 0) >= MAX_FOLLOW_UPS) throw new AssistantError("assistant.limit", `已经追加过 ${MAX_FOLLOW_UPS} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
         const updated = this.store.update(this.actorId, child.work_id, null, { follow_ups: (child.follow_ups ?? 0) + 1 }, false);
         await this.dispatch(updated, text, [], null);
@@ -2171,6 +2183,24 @@ export class AssistantService {
         return view(this.store.get(this.actorId, child.work_id));
       },
     };
+  }
+
+  /**
+   * The person takes a sub-task back into the work that delegated it: it stops if still running (what it made stays
+   * with it), no more follow-ups go to it, and the delegating work's next round finishes that part itself.
+   */
+  async takeBack(childId: string): Promise<AssistantWorkView> {
+    const child = this.store.get(this.actorId, childId);
+    if (!child.delegated_by) throw new AssistantError("assistant.invalid", "这不是一个子任务");
+    if (child.delegated_by.taken_back_at) throw new AssistantError("assistant.invalid", "这个子任务已经收回了");
+    const host = await this.ports.host();
+    const latest = await this.latestRun(host, child);
+    if (latest && !isTerminalAgentPhase(latest.phase)) {
+      await host.adapter(RUNTIME).control(latest.ref, { kind: "stop" });
+      host.reviews.cancelPending(latest.ref.run_id, "用户把这个子任务收回了");
+    }
+    this.store.update(this.actorId, child.work_id, null, { delegated_by: { ...child.delegated_by, taken_back_at: this.now().toISOString() } }, false);
+    return this.read(child.delegated_by.work_id);
   }
 
   /** The Characters the person may choose for a work: only project work has them, and only the Assistant's own rounds use them. */

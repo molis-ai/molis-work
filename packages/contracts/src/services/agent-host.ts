@@ -540,6 +540,8 @@ export interface AgentDelegatedWork {
   results?: Array<{ kind: string; id: string; revision: string | null }>;
   /** Follow-ups sent to it so far; the Host refuses more than the limit. */
   follow_ups: number;
+  /** The person took this part back into the delegating work: it is finished there, not followed up here. */
+  taken_back?: boolean;
 }
 export interface AgentDelegation {
   /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */

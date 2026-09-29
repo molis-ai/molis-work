@@ -1191,7 +1191,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("todo_item")) return;
     void load().then(async () => {
       if (!selected || !detail.from || selected.id !== detail.from.id || dirtyFields.size) return;
-      await openDetail(selected.id).catch(() => closeDetail());
+      try {
+        // The person can still read it (the page may show every project), so the event alone does not say where it went:
+        // read it, and close it when it now belongs to a project this page is not showing.
+        await openDetail(selected.id);
+        if (selected && !everything && selected.project_id && selected.project_id !== projectId()) await closeDetail();
+      } catch { await closeDetail(); }
     }).catch(() => {});
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && !dirtyFields.size) void load().catch(() => {}); });

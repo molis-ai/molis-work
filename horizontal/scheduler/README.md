@@ -64,3 +64,5 @@ node --import tsx --test --test-concurrency=1 tests/scheduler.test.ts tests/sche
 - Migration Goals: `goal-reorg-f2`
 
 执行期间通过 Kernel 生命周期独立续租，不依赖下一次 tick。唤醒处理器的第二个参数 `ScheduleWakeupControl` 提供 signal 和同步 `beforeEffect()`，等待后写入前必须复查；该控制对象不属于持久化任务输入。暂停、取消、重排或被接管会撤销原执行身份，迟到结果不能写成成功或普通业务失败。领域幂等和未知副作用的恢复仍由 owner 负责。
+
+租约只可在到期前续期。到期即失去执行权，即使尚无人接管，原执行也不能续租或写入业务结果、成功或失败回执；休眠或长阻塞后必须遵守同一边界。`isExecuting()`、提交检查和续租使用相同的有效期判断。

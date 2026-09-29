@@ -304,15 +304,18 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
   }
 
   function renewExecutions(at: Date): void {
-    const leaseUntil = iso(new Date(at.getTime() + leaseMs));
-    const clock = iso(at);
     for (const [jobId, { token, controller }] of executions) {
       if (controller.signal.aborted) continue;
-      const renewed = db.prepare(`
-        UPDATE schedule_jobs
-        SET lease_until = ?, updated_at = ?
-        WHERE job_id = ? AND lease_token = ?
-      `).run(leaseUntil, clock, jobId, token);
+      const renewed = db.transaction(() => {
+        // Read the clock after acquiring the write lock; waiting for SQLite must not revive an expired lease.
+        const timestamp = Math.max(at.getTime(), now().getTime());
+        const clock = iso(new Date(timestamp)), leaseUntil = iso(new Date(timestamp + leaseMs));
+        return db.prepare(`
+          UPDATE schedule_jobs
+          SET lease_until = ?, updated_at = ?
+          WHERE job_id = ? AND lease_token = ? AND lease_until > ?
+        `).run(leaseUntil, clock, jobId, token, clock);
+      }).immediate();
       if (Number(renewed.changes) !== 1) controller.abort(new Error("Schedule execution no longer owned"));
     }
   }
@@ -352,8 +355,8 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
       monitor: { intervalMs: Math.max(1, Math.min(1000, Math.floor(leaseMs / 3))), check: () => renewExecutions(now()) } });
     const control: ScheduleWakeupControl = { signal: lifetime.signal, beforeEffect: () => {
       lifetime.assertActive();
-      const owned = db.prepare("SELECT lease_token FROM schedule_jobs WHERE job_id = ?").get(job.job_id) as { lease_token: string | null } | undefined;
-      if (!token || owned?.lease_token !== token) {
+      const owned = db.prepare("SELECT lease_token, lease_until FROM schedule_jobs WHERE job_id = ?").get(job.job_id) as Pick<JobRow, "lease_token" | "lease_until"> | undefined;
+      if (!token || owned?.lease_token !== token || !owned.lease_until || owned.lease_until <= iso(now())) {
         controller.abort(new Error("Schedule execution no longer owned"));
         lifetime.assertActive();
       }
@@ -398,10 +401,10 @@ export function createScheduleService(db: ScheduleSqliteDatabase, options: Sched
       if (token) {
         db.transaction(() => {
           const owned = db.prepare(
-            "SELECT lease_token FROM schedule_jobs WHERE job_id = ?",
-          ).get(job.job_id) as { lease_token: string | null } | undefined;
-          // Cancelled, stopped, or taken over by a newer execution: do not write.
-          if (!owned || owned.lease_token !== token) return;
+            "SELECT lease_token, lease_until FROM schedule_jobs WHERE job_id = ?",
+          ).get(job.job_id) as Pick<JobRow, "lease_token" | "lease_until"> | undefined;
+          // An expired lease is no longer owned, even before a replacement takes it.
+          if (lifetime.signal.aborted || !owned || owned.lease_token !== token || !owned.lease_until || owned.lease_until <= iso(now())) return;
           db.prepare(`
             INSERT INTO schedule_wakeups (wakeup_id, job_id, due_at, started_at, finished_at, status, detail)
             VALUES (?, ?, ?, ?, ?, ?, ?)

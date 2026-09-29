@@ -1,6 +1,6 @@
 # 公共能力归位与 Prologue 接入收敛
 
-状态：实施中。2026-09-28 用户授权完成下列全部范围，目标等级为「内部完整」。本文件是需求、迁移决策和验收进度的唯一入口；尚未验证的项目不能计作完成。
+状态：本地改造已完成，2026-09-29 完成最后代码复核及租约遗漏修复。2026-09-28 授权的 12 项实现、调用方迁移、清理、手册和 Skill 均已交付；目标等级仍为「内部完整」。证据覆盖工程、真实 SDK/SQLite/子进程和所列 Chrome 本机场景；真实付费模型、真实外部搜索、音频转写质量与用户本人验收未执行，不能据此宣称这些场景已验证或可发布。仅本地提交，未推送、开 PR 或合并。下表为最终验收，后文保留各切片当时的发现和验证过程，不以历史阶段状态覆盖本表。
 
 ## 目标与证据
 
@@ -10,22 +10,30 @@
 
 开始时其他 Session 在主检出做动作授权/Feed 提交边界和独立 UI 原型。架构修复 Session 的已完成结果已通过 PR #95 纳入本分支；最近核对为完成状态。本任务继续使用隔离工作树，进入其他仍在修改的模块前核对当前差异，不能覆盖或重复搬运成果。
 
-## 范围、归属和依赖
+## 最终验收：范围、归属与实际迁移
 
-| 项 | 当前问题 → 目标与消费者 | 所有者 | 依赖 / 状态 |
+下列证据批次有重叠，不累加成独立测试总数。曾失败的批次及修复后的定向复验在后文保留；不把失败日志标为全绿。最后复核以代码和调用链为主，没有机械重跑未受影响的验证。
+
+| 项 | 最终所有者 / 入口 | 调用方、清理与保留边界 | 验收证据 |
 | --- | --- | --- | --- |
-| 01 | Cognia、Coding 草稿绕过 Home Runtime → 同一模型入口与执行 owner，删除临时 Runtime/轮询 | Local Host 选择与凭据；Agent Host 执行桥 | Cognia/Coding 已迁移，Coding 两类草稿指令与 Alchemist 六类固定指令已登记并验证用户覆盖；Alchemist 与生成插件使用公共绑定，Builder 设计/编码保留同一 owner；Shelf recipe 已接入 Host/共享 Prologue，自动 CLI 与重复解析已删除；其他模型适配继续核对 |
-| 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
-| 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
-| 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
-| 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
-| 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
-| 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；提示词按执行版本解析、按安装分别登记，真实 Sandbox/SDK/HTTP 验证通过；最终跨消费者验收随 12 |
-| 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
-| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf 网页与 Artifacts HTML/外部导入已迁移并验证；Shelf PDF/OCR 已迁入公共 Host 并完成本地验证，AI recipe、原图和覆盖说明已接通，最终消费者复核继续 |
-| 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
-| 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
-| 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
+| 01 | Local Host `configured-models`/`host-complete-text` → Agent Host → 同 Home Prologue | Cognia、Coding 草稿、Alchemist、Jelly、生成插件及 Shelf 自动 recipe 已接公共入口；Pages/Dataset/Form/Lingguang/Workflow 和 TypeSafe/Images 适配已复核。删除临时 Runtime、私有轮询、Shelf 自动 CLI。Builder 设计/编码借用同一 owner，模型连接测试保留独立用途；人工终端不是自动 AI 替身。 | `/tmp/platform-combined-regression.log` 136/136；Coding 指令 119/119、Alchemist 指令 112/112；Shelf 41/41 及最终登记/全菜单 12/12。实际 SDK + 本地 HTTP；未调用付费模型。 |
+| 02 | Agent Host `PrologueTextResult`/typed usage；Host 绑定及可序列化 Contracts 回执 | 提供文本、已校验结构、进度、Run 引用、终态、reportedModels 与 reported/estimated/unknown 用量。Alchemist/Jelly 消费结构，Coding 保持短草稿契约，Shelf 保存完整回执；纯文本消费者不被迫增加业务账本。移除重复 JSON 拆围栏，领域有效性留业务模块。 | `/tmp/platform-json-regression.log` 的唯一测试导入问题已由 correction 回归 5/5 修复；共享原图/回执定向 33/33、Shelf 全菜单 12/12 验证估算与未知不转零。 |
+| 03 | SDK Session `collectRun`、Model structured/JSON decoder、已有 Function 外部校验 | 共享推理与 Builder 使用有界收集，取消原 Run；不支持的 schema 拒绝。Alchemist 只在显式 `beforeCorrection` 预留预算后纠正一次，领域 parse/提示词不下沉。原图复用 SDK intake，无第二附件系统。源仓 `18a1c827`，依赖/补丁/来源记录齐备，未改安装目录冒充源码。 | SDK 构建、typecheck、intake/相关回归 137 项通过，来源见 `vendor/prologue-sdk/README.md`；Molis 原图定向 33/33。可选真实 MiniMax 用例缺凭据未运行。 |
+| 04 | Kernel `createExecutionLifetime` 与 Action 执行控制；领域保存状态/幂等/恢复 | Pages 经 Action 生命周期与 generation attempt；Images/Alchemist 使用公共生命周期；Builder 使用同 owner 的 SDK 有界 Run 与自身 active token。删除重复等待/收集，保留任务特有恢复，不建立通用任务引擎。取消、停用、关闭和失主后不提交旧业务结果。 | `/tmp/platform-execution-regression.log` 的单项恢复断言修正后 recheck 4/4；Alchemist 26 文件 80/80；后续综合 136/136。最后生命周期/Schedule 回归 71/71。 |
+| 05 | 官方 Schedule 提醒/operation/恢复；Scheduler 租约；Host `installed-plugin-host` 安装执行 | Builder 不再拥有提醒、定时记录、pending 执行器；脱离 Studio 启动。迁移保留全部旧 pending、身份、时间和固定 interval，缺安装世代须明确确认，unknown 不自动重试。最后补齐过期租约不能续期/提交，不改表或领域恢复策略。 | SQLite 双连接、真实进程中断、Seatbelt、Chrome 恢复动线已通过；本轮 10 文件 71/71；强化持久写入及实际 operation 到期恢复后 2 文件 37/37，零 Inbox/旧回执/自动重跑。 |
+| 06 | Contracts `action.execution`；Kernel enforcement；Host 当前依赖解析 | Builder、Workflow、Agent、MCP 与 UI 读取共同声明；删除名称判断与重复频率窗口，生成式成本从当前及传递依赖派生。各入口继续保留独立授权，unknown 不当免费；等待后复核注册与安装版本。 | policy-final 67/67；installed-policy 135 通过、1 个可选公网用例未启用；generated-costs 135/135。最后 Shelf 生产发现验证模型可用性与费用一致。 |
+| 07 | 内置 `BUILTIN_PLUGIN_CATALOG`；普通 Runtime Manifest；生成式发布 operations | 内置 Manifest/UI/静态资源/Agent/历史 MCP 装配共用事实，删除 Host 重复清单；生成式公开动作从发布契约派生，旧版本定义复用，提示词绑定安装及执行版本。注册、可见、发现、执行授权仍分层，不靠登记 MCP 自动授予权限。 | builtin-composition 最终 126/126；generated-costs 135/135；integration-final 52/52，覆盖真实 Sandbox/SDK/HTTP 和旧 MCP 别名、升级撤回。 |
+| 08 | 领域 journal/输入图；PluginEventBus；可信 Run/Effect 通知 | 持久订阅用安装世代身份，pending 可恢复、已派出 unknown 需明确决定；不保存原调用的临时授权。Artifact 提交后通知输入图；Coding/Git 实际回执驱动 Files/Git 刷新，历史恢复不重发“新成功”；普通查询仍直接调用。 | event-identity 两项初始失败已 recheck 85/85；event-recovery 161/161；workspace-events 271/271，含真实 SQLite/SDK 与 Chrome 隐藏、断线、重挂。 |
+| 09 | Contracts Materials + Local Host 解析/原生工具；Storage 资源；领域转换归插件 | Jelly/onboarding、Shelf PDF/OCR/网页/目录、Pages DOCX/ZIP/PDF/HTML、Artifacts 迁移公共材料口；删除 Shelf 私有 PDF/HTML 与重复原生/解析实现及不可达本机 summarize。Cognia 保留无损 vault/附件身份；AI 原图不偷换成 OCR，部分覆盖进入结果。 | materials-final 176/176；document-import 208/208；shelf-materials 157/157；Shelf AI 41/41 及最终 12/12。真实 PDF、macOS OCR/子进程取消已验证；真实音频质量和模型下载未验证。 |
+| 10 | Host `search-evidence-runtime` + SEL；Storage EvidenceContentStore | Feed 和 Alchemist 共用公开搜索/证据保存，删除 Feed 专属 intent adapter/正文实现与 Alchemist 的 Feed/RSS 装配依赖；Feed 游标与 Alchemist 研究策略各自持有，历史 `molis-work-feed/sha256` 引用继续可读。 | `/tmp/platform-search-regression.log` 108/108：实际 SEL、受控传输、取消关闭、旧密文/API 互读及 Home 隔离；真实外部搜索未运行。 |
+| 11 | UI Host `client-lifecycle`，Workbench 注入 | Images、Coding/子面板、Builder 两套 UI、Shelf/结果面板与 Files/Git/Diff/Text Stats/审查均迁移挂载 scope。删除私有观察器/轮询；隐藏停止读取，卸载清理，旧响应不覆盖重挂视图，写命令不自动重放。保持产品设计。 | Coding 29/29；companion-final 24 通过、夹具编码问题修复后该浏览器文件 5/5；workspace-events 271/271 含最终交互复核；Shelf 41/41 含浅/深色设置页面。 |
+| 12 | 各模块公开入口及 README；AI 手册/Skill 与插件开发 Skill | 已复核调用方向、归属与无消费者旧路径。`docs/platform/PROLOGUE-AI.md`、`skills/molis-prologue-ai/SKILL.md` 以 Coding/Shelf 等真实实现说明接入，并由 `molis-plugin-dev` 关联；插件手册包含自动发现、Schedule 和事件。旧单测按现行行为对齐，未放宽领域/权限约束。 | 最后整体构建通过；70 包 boundary `errors: []`、无 compatibility allowlist/legacy huge files；最终 diff 检查通过。代码/迁移/文档范围无未完成项；未运行场景和未授权发布动作单列如下。 |
+
+### 交付边界与未验证项
+
+本次验收针对这 12 项本地改造，不把整个产品所有未来能力、其他 Session 的未合并功能或所有可能缺陷计作已完成。真实 SDK 接本地 HTTP 模型用于协议、授权、取消、回执和持久化验证，不等同于真实供应商质量/计费验证。付费文字/图像/TypeSafe、真实外部搜索、语音模型下载及真实音频识别质量、用户本人体验验收未执行；没有隐去这些差距，也没有更改配置、使用真实用户材料或代替用户验收。推送、PR、合并、正式安装与发布未执行。
+
+迁移及回滚遵循后文各项合同：SDK 包有源提交和完整重建补丁；历史输入/引用读取兼容；已迁移 Schedule 状态不可仅回退代码后与旧执行器并跑。本地工作树/分支保留可审阅改动。
 
 不能新增无消费者的框架、第二调度引擎、RAG/向量库、全局聊天数据库或全量视觉重做。领域提示词、来源选择、业务状态机、结果有效性和未知副作用恢复由业务 owner 决定。插件只能走公开 Contract，不 import 另一插件内部实现。MCP 注册不授予执行权限。
 
@@ -555,4 +563,14 @@ Shelf 自动生成本段已实现：生产 HTTP/Action 使用 generate/extract �
 
 实际覆盖：生产 Action → 同 Home SDK → 本地 HTTP 模型服务；全部 AI 菜单选项与自定义 shortcut、用户提示词覆盖、JSON 对象/非法 JSON/数组/null/纯完成说明、估算 token 与未知 cost、原图字节、指定模型失效无回退、PDF/目录中代码文件与二进制拒绝、部分 PDF 的 JSON 结果覆盖说明、原调用取消/撤权及最后授权等待后配置变化的零晚成果/零失败记账。Chrome 验证本机 PDF、人工终端恢复、设置页模型入口、共享生命周期；浅/深色模型与终端设置截图已目视核对（`.impeccable/qa/review/shelf-plugin/settings-light.png`、`settings-dark.png`）。没有调用真实付费供应商，不代表用户本人验收。
 
-接续：Shelf 消费者迁移结束，Goal 仍 active、全 01–12 范围不变。下一步按本表逐项进行最终代码与调用链复核，核对实际 owner/消费者/删除路径/兼容性、手册与 Skill、已有验证的适用范围；补齐发现的实质遗漏，再更新同一表的最终结论。当前未运行进程、无阻塞，不创建新 Goal 或复述 Prompt；仅本地提交，不推送/开 PR/合并。
+### 最终复核：过期租约不得复活
+
+05 的代码复核发现 Scheduler 的续租和提交只核对 token，未核对 `lease_until`；而 Schedule 恢复通过 `isExecuting()` 把过期租约认定为无主。休眠或长阻塞后，同一旧执行可以在尚未被接管时重新续租或写业务/回执，两个入口对执行所有权的判断不一致。
+
+保留现有表、token、续租机制与固定间隔：续租只延长尚未到期的租约；到期（含等于当前时间）即终止原 control，即使没有新 owner 也不得提交成功或失败回执。业务处理器继续在等待后通过 `beforeEffect()` 检查；未知外部结果仍由领域恢复，不自动重放。回执提交在同一事务中复查未到期及生命周期。未到期的长执行照常定期续租，下一拍时间不因续租而改变。
+
+验证以两条真实 SQLite 连接、受控时钟和等待栅栏制造到期/续租/提交/接管交错，断言零晚业务写入、零旧回执、无租约复活和新 owner 可正常完成。原“超过租约后下一 tick 可续租”测试改为租约到期前独立续租，保留长任务不重叠与 cadence 断言；新增到期边界的独立回归。无需数据迁移；回滚此修复将恢复已知过期提交缺陷，不建议回滚。执行整体构建、Scheduler/Schedule 必跑与相关迁移回归、边界检查。
+
+最终验证：整体 `pnpm build` 通过（`/tmp/platform-final-lease-build.log`），Scheduler/Schedule 及执行生命周期 10 文件 71/71（`/tmp/platform-final-lease-regression.log`）。随后仅增强测试：把晚副作用断言改为实际 SQLite 写入，并覆盖 production Host → Schedule operation 的租约过期、unknown/needs_review、零 Inbox/技术回执及未来 tick 不自动重跑；对应 2 文件 37/37（`/tmp/platform-final-lease-domain.log`）。生产源码未再修改，先前其余有效证据保留，不重复全跑。`pnpm boundary:check` 70 包、`errors: []`（`/tmp/platform-final-lease-boundary.log`）；diff 检查通过。
+
+01–12 已按当前代码调用链复核，实质遗漏已修复，最终结果见开头验收表。按仓库 `specs/README.md` 将同一需求书归档，不另建 Goal 或重复需求书；没有推送、开 PR、合并或改动主检出的其他工作。

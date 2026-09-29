@@ -80,17 +80,19 @@ test('an explicit failure is failed, and an unknown outcome stops future cadence
   assert.throws(() => setScheduledOperationEnabled(h.store.db, h.schedule, h.get(uncertain).jobId, true), /结果未知/);
 });
 
-for (const revoke of ['pause', 'cancel', 'reinstall', 'replace-caller'] as const) test(`scheduled ${revoke} refuses a late result and any late Inbox effect`, async t => {
+for (const revoke of ['pause', 'cancel', 'reinstall', 'replace-caller', 'lease-expired'] as const) test(`scheduled ${revoke} refuses a late result and any late Inbox effect`, async t => {
   const h = await harness(t), released = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
+  let calls = 0;
   const id = h.operations.add(identity, { at, operation: 'summarize', repeat: 'daily', inbox: true }).scheduleId, jobId = h.get(id).jobId;
   const stop = bindInstalledOperationCaller(h.store.db, DEMO_BOARD_ID, { describe: () => descriptor(), async call() {
-    entered.resolve(); await released.promise; return { state: 'succeeded', value: 'late answer' };
+    calls++; entered.resolve(); await released.promise; return { state: 'succeeded', value: 'late answer' };
   } }); t.after(stop);
   const ticking = h.schedule.tick(); await entered.promise;
   try {
     if (revoke === 'pause') setScheduledOperationEnabled(h.store.db, h.schedule, jobId, false);
     if (revoke === 'cancel') h.operations.cancel(identity, { scheduleId: id });
     if (revoke === 'reinstall') h.repository.save(installation('replacement'));
+    if (revoke === 'lease-expired') h.clock.now = new Date(Date.parse(at) + 30_000);
     if (revoke === 'replace-caller') {
       t.after(bindInstalledOperationCaller(h.store.db, DEMO_BOARD_ID, { describe: () => descriptor(), async call() { assert.fail('replacement must not replay'); } }));
     }
@@ -98,7 +100,9 @@ for (const revoke of ['pause', 'cancel', 'reinstall', 'replace-caller'] as const
   assert.equal(h.inbox().length, 0);
   if (revoke === 'cancel') assert.equal(h.get(id), null);
   else { assert.equal(h.get(id).state, 'needs_review'); assert.equal(h.occurrences(id)[0]?.state, 'unknown'); }
+  if (revoke === 'lease-expired') assert.equal(h.schedule.get(jobId)?.last_wakeup, null, 'expired execution cannot record a technical success or failure');
   h.clock.now = new Date(Date.parse(at) + DAY); await h.schedule.tick(); assert.equal(h.inbox().length, 0);
+  assert.equal(calls, 1, 'unknown external results must not be automatically replayed');
 });
 
 test('installation generation, Home isolation, quotas and real write failures guard the whole schedule transaction', async t => {

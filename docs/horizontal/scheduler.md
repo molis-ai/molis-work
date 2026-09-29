@@ -8,6 +8,8 @@
 
 运行中的唤醒独立续租，不需要另一个 tick 才保持所有权。处理器接收单独的 `ScheduleWakeupControl`，用其 signal 取消外部等待，并在副作用前调用同步 `beforeEffect()`。暂停、取消、重排或被接管后旧控制对象失效。与任务同库的领域写入应在事务中复查并提交，回执不会替业务代码提供提交保护。`isExecuting(jobId)` 读取共享租约，防止对话产品层把还在执行的 once job 提前重新登记。
 
+续租、提交与 `isExecuting()` 都要求租约尚未到期；到期时旧执行立即失去权限，即使无人接管也不能续租或提交成功/失败回执。续租及回执在取得数据库写锁后读取时钟复核，避免休眠、进程阻塞或数据库等待后复活旧租约。需要核对外部副作用的任务继续进入所属领域的明确恢复流程。
+
 通用插件提醒由官方 Schedule 拥有，通过公共 `reminders.add/cancel` 调用；Host 从可信调用上下文取得项目、插件和安装身份，插件输入不能指定这些身份。提醒与 job 同事务保存，到点由 Host 将 Inbox 投递和一次性消费同事务提交，无须打开 Studio。旧 Builder job 保留原 id、时间与收据，通过兼容唤醒读取迁入的 Schedule 记录；无法证明原安装归属则保留并暂停。
 
 定时运行插件 operation 使用 Schedule 的 `schedules.add/cancel`（系统提供方 `schedule.operations`），Host 只装配当前安装执行入口和单向旧数据迁移。Schedule 保存排期意图及每次 occurrence，Scheduler 不保存业务输入。可信 Host 可以在注册唤醒时提供同步 `prepare`，它在 lease claim 的同一事务内保存 pending；不能 await 或派出外部工作，失败回滚整个 claim。处理器可返回明确的 failed/plugin_unavailable 技术收据。

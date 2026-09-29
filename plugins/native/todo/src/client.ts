@@ -56,6 +56,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let selected = null;
   // The Assistant's works that relate to the open todo (read from the Assistant; empty when it is not there).
   let works = [];
+  let worksTimer = 0;
+  // Just after handing a todo over, its work may not have started yet: keep looking for a minute.
+  let watchWorksUntil = 0;
   let history = [];
   let backlinks = [];
   let linkPool = [];
@@ -753,6 +756,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     // One work can relate to the todo more than once (where it started, and as material): list it once.
     works = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);
     renderWorks();
+    // A round has no “finished” message for pages, so while one runs, look again now and then (only while this todo is open).
+    clearTimeout(worksTimer);
+    if (works.some((work) => work.state === "running") || Date.now() < watchWorksUntil) worksTimer = setTimeout(() => { if (selected && selected.id === item.id && !document.hidden) void loadWorks(item); }, 4000);
   };
   const RELATION = { blocked_by: L("要等它先完成"), blocks: L("它在等这件"), split_from: L("拆分自"), merged: L("合并自"), related: L("相关") };
   const renderLinks = (item) => {
@@ -1053,12 +1059,16 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         const going = works.find((work) => !["completed", "failed", "stopped"].includes(work.state));
         tellAssistant("delegate", selected, { text: L("帮我推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], ...(going ? { work_id: going.work_id } : {}) });
         const asked = selected;
+        watchWorksUntil = Date.now() + 60000;
         setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500);
         return;
       }
       if (button.matches("[data-todo-continue-work]") && selected) {
         await flush();
         tellAssistant("delegate", selected, { text: L("继续推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], work_id: button.dataset.todoContinueWork });
+        const asked = selected;
+        watchWorksUntil = Date.now() + 60000;
+        setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500);
         return;
       }
       if (button.matches("[data-todo-back]")) { await closeDetail(); return; }

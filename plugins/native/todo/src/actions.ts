@@ -101,7 +101,7 @@ export const todoActions = {
     object({ item, change_id: id, replayed: { type: "boolean" } }), { result_subject: resultSubject, result_view: { summary: "已加入待办", title_pointer: "/item/title" }, undo: undoChange }),
   update: define<TodoFields & Identity, { item: TodoItem; change_id: string | null }>("items.update", "修改待办", "只改给出的字段；带上读取时的 expected_revision，别处改过时拒绝而不覆盖", "command",
     object({ id, ...expected, ...fieldInput }, ["id"]), changed, { result_subject: resultSubject, result_view: { summary: "已修改待办", title_pointer: "/item/title" }, undo: undoChange }),
-  status: define<Identity & { status: TodoStatus }, { item: TodoItem; change_id: string | null }>("items.status", "改待办状态", "改为待处理、进行中、等待他人、已完成或已取消。只在用户确认这件事做完时才标为已完成", "command",
+  status: define<Identity & { status: TodoStatus }, { item: TodoItem; change_id: string | null }>("items.status", "改待办状态", "改为待处理、进行中、等待他人、已完成或已取消。只在用户明确要求改状态时调用：“推进”“跟进”“帮我做”不等于改状态，需要时先提议、由用户决定；只在用户确认这件事做完时才标为已完成", "command",
     object({ id, ...expected, status }, ["id", "status"]), changed, { result_subject: resultSubject, result_view: { summary: "已改状态", title_pointer: "/item/title" }, undo: undoChange }),
   archive: define<Identity & { archived: boolean }, { item: TodoItem; change_id: string | null }>("items.archive", "归档或取回待办", "把已完成或已取消的待办收起，或取回；不改变状态", "command",
     object({ id, ...expected, archived: { type: "boolean" } }, ["id", "archived"]), changed, { result_subject: resultSubject, undo: undoChange }),

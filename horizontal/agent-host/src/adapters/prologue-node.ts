@@ -117,6 +117,8 @@ export const THINKING_OUTPUT_TOKENS = 32_768;
 export const SUBAGENT_DEFAULT_TURNS = 20;
 /** Turns a round started without a budget may take: the SDK's own default, unchanged. */
 const ROUND_DEFAULT_TURNS = 8;
+/** One model call's wait for its answer to start, and between its parts, when the round has no time budget. */
+export const MODEL_CALL_TIMEOUT_MS = 180_000;
 /** Images a model call can carry, as recognised from their bytes. */
 const IMAGE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -1226,7 +1228,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
           model: input.model.model,
           credentialRef,
           ...(input.provenance.frozen.budget?.max_output_tokens === undefined ? {} : { params: { maxOutputTokens: input.provenance.frozen.budget.max_output_tokens } }),
-          ...(input.provenance.frozen.budget?.max_duration_ms === undefined ? {} : { timeoutMs: input.provenance.frozen.budget.max_duration_ms }),
+          // How long one model call may take to answer and then pause between parts. The SDK's 60 s default cut off
+          // reasoning models on larger rounds before their first byte (MiniMax-M3, measured 2026-09-28); a round with
+          // a time budget keeps that budget.
+          timeoutMs: input.provenance.frozen.budget?.max_duration_ms ?? MODEL_CALL_TIMEOUT_MS,
           messages: [{ role: "user", text: input.task }],
           // Images the person brought ride on every model call of this Run; their bytes are spliced in by the Host.
           ...(input.image_materials?.length ? { attachments: input.image_materials.map(image => ({ ref: { kind: "resource" as const, id: image.resource.id, revision: image.resource.revision }, as: "original" as const })) } : {}),

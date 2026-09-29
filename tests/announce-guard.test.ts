@@ -5,13 +5,17 @@ import { announcesWithoutActing, claimsMemoryChange } from "../horizontal/agent-
 test("an ending that only announces the next step is recognised; results, questions and blockers are not", () => {
   // Seen from MiniMax-M3 in real Coding rounds that then ended with nothing done.
   for (const text of ["calc.js 状态确认。现在分别给三个函数加 JSDoc，再新建 README.md，最后跑 npm test。", "继续。先把 calc.js 改成带 JSDoc 的版本。",
-    "现在同时改 calc.js（加 JSDoc）和新建 README.md。", "我来分别修改两个文件，然后跑 npm test 验证。", "Let me update the README next."]) {
+    "现在同时改 calc.js（加 JSDoc）和新建 README.md。", "我来分别修改两个文件，然后跑 npm test 验证。", "Let me update the README next.",
+    // Seen from MiniMax-M3 in an Assistant round that then ended without following up the sub-task.
+    "我把要求改成 13 字，让同一个子任务再试一次。"]) {
     assert.equal(announcesWithoutActing(text), true, text);
   }
   for (const text of ["完成。改动与结果：\n- calc.js 新增 multiply\n- npm test：exit 0，三条断言全部通过。", "calc.js 已落盘。", "要把这段替换进文档吗？",
     "当前没有可用的日历能力，无法创建事项。", "下面是需要留意的边界情况：\n1. 没有类型校验\n2. 浮点精度", "现在测试全部通过。", "", "I'll wait for your decision on which option to use?",
     // A plain fact that happens to start with 现在/开始 (seen from MiniMax-M3 answering a timed round).
-    "现在是 **19:04**（洛杉矶时区）。", "现在有 3 个目标还没开始。", "开始时间是下周一。"]) {
+    "现在是 **19:04**（洛杉矶时区）。", "现在有 3 个目标还没开始。", "开始时间是下周一。",
+    // Something done, said with 我把: not an announcement.
+    "我把结果整理好了。", "我把三条都核对过，没有问题。"]) {
     assert.equal(announcesWithoutActing(text), false, text);
   }
 });

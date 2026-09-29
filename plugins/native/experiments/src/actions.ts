@@ -1,4 +1,4 @@
-import { ActionError, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, bindSearchEntriesHandler, defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ExperimentsService } from "./service.js";
 import type { Experiment, ExperimentInput, Participant, TaskDefinition } from "./types.js";
 import { summarize } from "./metrics.js";
@@ -53,6 +53,8 @@ export const experimentsActions = {
     object({ connection_id: id }), object({ saved: { const: true } }), write),
   functions: define<Record<string, never>, { functions: ExperimentFunctionChoice[] }>("functions.list", "可对比的判断函数", "列出可冻结为实验任务的 Choice 判断函数（含草稿）",
     "query", object({}), object({ functions: { type: "array", items: { type: "object", required: ["id", "name"] } } }), [...read, "functions:manage"]),
+  /** System search: experiments by name and state. Materials and answers stay in the experiment (they can be sensitive test data). */
+  searchEntries: defineSearchEntriesAction("experiments.search.entries", [{ kind: "experiment", title: "实验", surface: "experiments" }], "实验", read, "home"),
 };
 export const EXPERIMENTS_ACTIONS: readonly ActionDefinition[] = Object.values(experimentsActions);
 export const EXPERIMENTS_ACTION_PERMISSIONS = [...new Set(EXPERIMENTS_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -95,5 +97,8 @@ export function createExperimentsActionHandlers(ports: ExperimentsActionPorts): 
     bind(experimentsActions.deleteModel, input => { service().deleteParticipant(input.id); return { deleted: true as const }; }),
     bind(experimentsActions.selectConnection, input => { ports.selectConnection(input.connection_id); return { saved: true as const }; }),
     bind(experimentsActions.functions, async (_input, caller) => ({ functions: await ports.choiceFunctions(caller) })),
+    bindSearchEntriesHandler(experimentsActions.searchEntries, () => service().list().map(row => ({ subject: { kind: "experiment", id: row.id },
+      revision: `${row.hash}:${row.status}`, title: row.name, summary: ({ ready: "待运行", running: "运行中", completed: "已完成", cancelled: "已取消", interrupted: "已中断" } as Record<string, string>)[row.status] ?? row.status,
+      updated_at: row.created_at, content: "summary" as const, open: { surface: "experiments", id: row.id } }))),
   ];
 }

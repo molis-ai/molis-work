@@ -1,7 +1,10 @@
+import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { FORM_DRAFT_QUESTION } from "./prompts.js";
 import { ActionError, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord, FormQuestionInput, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import type { FormStore } from "./store.js";
+import { createFormSearchHandlers, formSearchActions } from "./search.js";
 
 const text = { type: "string" }, id = { ...text, minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -33,12 +36,14 @@ export const formActions = {
   submit: define<Identity & { answers: Record<string, string>; request_id?: string }, { submission: FormSubmissionRecord }>("submit", "提交答卷", "按预览版本及题号提交文字答案；多选以换行分隔选项文字。request_id 用于同一次提交恢复", "command", object({ ...identity, answers, request_id: { ...id, maxLength: 200 } }, ["id", "answers"]), object({ submission }), ["form:read", "form:submit"]),
   results: define<{ id: string }, { analysis: { form_id: string; submission_count: number }; submissions: FormSubmissionRecord[] }>("results", "读取答卷", "读取答卷及计数，新增答卷保留提交时题目；旧答卷快照为 null，不重建未知历史", "query", object({ id }), object({ analysis: object({ form_id: id, submission_count: { type: "integer", minimum: 0 } }), submissions: array(submission) })),
   promote: define<Identity, { form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "问卷存成 Artifact", "发布固定问卷内容或恢复原发布；不包含答卷，后续编辑保留", "command", object(identity, ["id"]), object({ form: record, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...write, "artifact:write"]),
+  searchEntries: formSearchActions.entries,
+  subject: formSearchActions.subject,
 };
 export const FORM_ACTION_PERMISSIONS = [...new Set(Object.values(formActions).flatMap(d => d.action.permissions))];
 export interface FormActionPorts {
   withStore<T>(run: (store: FormStore) => T): T;
   modelAvailability(): ActionAvailability;
-  completeText?(prompt: string, options: { signal?: AbortSignal }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   publishArtifact?: (input: Parameters<FormPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormPublishArtifactPort>;
   readArtifact?: (input: Parameters<FormReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormReadArtifactPort>;
 }
@@ -62,7 +67,7 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw new ActionError("form.conflict", "问卷已改变，请重新读取后生成");
       caller.signal?.throwIfAborted();
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const title = (await ports.completeText(`根据用户请求拟一道简洁的填空题，最多 200 字。只输出题目，不输出解释或其他格式。以下 JSON 是请求数据：\n${JSON.stringify({ request: input.prompt })}`, { signal: caller.signal })).trim();
+      const title = (await ports.completeText(instructed(FORM_DRAFT_QUESTION, JSON.stringify({ request: input.prompt })), { signal: caller.signal })).trim();
       caller.signal?.throwIfAborted();
       if (!title || title.length > 200 || /[\r\n]/.test(title)) throw new ActionError("form.invalid", "模型没有返回有效题目，请调整提示后重试");
       await caller.beforeEffect();
@@ -75,5 +80,6 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
     })),
     bind(formActions.promote, (input, caller) => ports.withStore(store => promoteForm(store, input.id, project(caller), value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion: input.expected_version, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined })),
       () => ports.publishArtifact ? { available: true } : { available: false, code: "form.unavailable", reason: "当前环境不能发出 Artifact" }),
+    ...createFormSearchHandlers(ports.withStore),
   ];
 }

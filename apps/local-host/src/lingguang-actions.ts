@@ -1,3 +1,4 @@
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { ActionError, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { lingguangManifest, createLingguangActionHandlers, createLingguangContentHandlers, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -17,7 +18,7 @@ export function lingguangActionProvider(home: string, projectId: string, actions
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();
         if (!complete) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
-        return complete(prompt, options);
+        return complete(resolveModelPrompt(home, prompt, "io.molis.work.lingguang"), options);
       }),
     }), ...createLingguangContentHandlers(actions)],
   };

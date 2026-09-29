@@ -10,6 +10,7 @@ import {
   registerAgentHostCapabilities,
   type AgentStartAuthority,
   type PrologueNodeAdapterOptions,
+  type AgentPromptResolver,
 } from "@molis-ai/molis-work-service-agent-host";
 import { BUILTIN_PLUGIN_AGENTS, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -45,6 +46,8 @@ import path from "node:path";
  */
 
 export interface AgentHostCompositionOptions {
+  /** The person's edits of registered prompts; runs use them from their next start. */
+  prompts?: AgentPromptResolver;
   /** Called only inside the approved worktree-creation Effect. */
   authorizeWriterDirectory?(projectId: string, canonicalPath: string): Promise<void>;
   localHost: MolisWorkLocalHost;
@@ -82,7 +85,7 @@ const DEFAULT_CLI_RUNTIMES = [
  * Its capability matrix stays read-only until effect approval is connected.
  */
 export function composeAgentHost(options: AgentHostCompositionOptions): AgentHostComposition {
-  const agentHost = new AgentHost();
+  const agentHost = new AgentHost(options.prompts ? { prompts: options.prompts } : {});
 
   for (const runtime of options.cliRuntimes ?? DEFAULT_CLI_RUNTIMES) {
     agentHost.register(new CliAgentAdapter({

@@ -4,7 +4,13 @@ import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platfo
 import type { BuilderAgentRecord, BuilderAgentRequest } from '../packages/contracts/src/services/agent-host.js';
 import type { BuildCheckResult } from '../packages/contracts/src/platform/plugin-builder.js';
 import { assertContract } from '../packages/plugin-sandbox/dist/index.js';
-import { AgentBuilderWorkflow, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '../plugins/native/plugin-builder/src/index.js';
+import { AgentBuilderWorkflow, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '../plugins/native/plugin-builder/src/index.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { agentDefinitionsFor } from '../apps/local-host/src/agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../apps/local-host/src/agent-definitions/builtin-registrations.js';
+import { builderPrompts } from '../apps/local-host/src/plugin-builder/agent-surface.js';
 
 /** In-memory storage with the atomic replacement the Builder store requires. */
 function memoryStorage(): PluginPrivateStorage {
@@ -138,6 +144,28 @@ test('designer answer wrapped in reasoning and broken JSON goes back once with t
     assert.equal((release as { version: number }).version, 1);
     await assert.rejects(workflow.action(created.id, { action: 'publish', revision: workflow.store.require(created.id).revision }), /没有新的改动/, 'an unchanged build is not published twice');
   } finally { await workflow.close(); }
+});
+
+test('the designer runs the person’s edit from “Prompt 与 Character”, and its run records that version', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'molis-builder-prompts-'));
+  try {
+    const registry = agentDefinitionsFor(home, builtinRegistrations);
+    registry.save('io.molis.work.plugin-builder/builder-designer', BUILDER_PROMPTS.designer.text + '\n所有候选都用暖色。', null, 'person');
+    const h = harness([PROPOSALS]);
+    const workflow = new AgentBuilderWorkflow(memoryStorage(), { ...h.ports, prompt: builderPrompts(home) });
+    try {
+      const created = workflow.create('做一个随手记笔记的插件');
+      const build = await until(workflow, created.id, value => value.phase === 'choosing' || value.phase === 'failed');
+      assert.equal(build.phase, 'choosing', build.error ?? '');
+      const designer = h.requests.find(request => request.role === 'designer')!;
+      assert.match(designer.instruction, /所有候选都用暖色。$/);
+      assert.equal(designer.promptVersion, BUILDER_PROMPTS.designer.version + '+user.1');
+      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, BUILDER_PROMPTS.designer.version + '+user.1', 'the run record says which text ran');
+      assert.equal(registry.uses('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
+      registry.reset('io.molis.work.plugin-builder/builder-designer', 1, 'person');
+      assert.deepEqual(builderPrompts(home)('designer', BUILDER_PROMPTS.designer), BUILDER_PROMPTS.designer, 'after “恢复默认” the shipped text runs again');
+    } finally { await workflow.close(); }
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });
 
 test('a designer that keeps failing validation stops after three repairs with the host reason', async () => {

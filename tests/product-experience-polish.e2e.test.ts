@@ -177,6 +177,8 @@ test('Search opens an owner record in the visible split pane without creating a 
   const targetPane = await evaluate<string>("document.querySelector('.tab-pane.is-focused').dataset.tabPane");
   await click('[data-global-search-open]');
   await evaluate("(() => { const el = document.querySelector('[data-global-search]'); el.value = '分屏查找这份数据'; el.dispatchEvent(new Event('input', {bubbles:true})); })()");
+  // Content results come from the system search, so they arrive after the request, not with the keystroke.
+  await waitFor(`Boolean(document.querySelector('[data-global-search-id="${id}"]'))`);
   await click(`[data-global-search-id="${id}"]`);
   await waitFor(`[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].some(frame => frame.dataset.paneOwner === ${JSON.stringify(targetPane)} && frame.contentDocument?.querySelector('[data-dataset-title]')?.value === '分屏查找这份数据' && !frame.contentDocument.querySelector('[data-dataset-stage-workspace]').hidden)`, 20_000);
   assert.equal(await evaluate("document.querySelectorAll('.tab-item[data-plugin=dataset][data-item-id]').length"), 0);

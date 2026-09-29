@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -11,12 +13,13 @@ import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime'
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
 import { escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, builderManifest, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, renderAgentStudio, studioCapabilityCatalog, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { builderSkill } from './skill.js';
+import { buildSources, generatedRegistration, PROMPT_ID, readPluginPrompts, registerGeneratedPrompts, resolvePluginPrompt, unregisterGeneratedPrompts } from './prompts.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
@@ -24,7 +27,7 @@ import { runBuilderBrowserAcceptance } from './browser.js';
 import { ArtifactsModule } from '@molis-ai/molis-work-module-artifacts';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { AgentDesign, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+import type { AgentDesign, AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-builder';
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformOptions } from '../plugin-platform.js';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 const isolatedActions = (projectId: string): PluginPlatformOptions['actions'] => { const service = new ActionService(); return { registry: service, client: service, project_id: projectId }; };
@@ -35,7 +38,7 @@ import { hostNetwork } from './network.js';
 import { pluginSecrets, type PluginSecrets } from './secrets.js';
 import { bindReminderDelivery, createReminders } from './reminders.js';
 import { scheduleServiceFor } from '../schedule-runtime.js';
-import { capabilityLimits, hostCapabilities, keepNewestRecords, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane } from './capabilities.js';
+import { capabilityLimits, hostCapabilities, keepNewestRecords, slowOperations, standInCapabilities, type CapabilityImplementations, type Lane, type ModelGenerateInput } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
@@ -137,6 +140,17 @@ function storageFor(options: AgentStudioOptions): PluginPrivateStorage {
   return new SqlitePluginPrivateStorage(options.store.db).forPlugin(context, builderManifest);
 }
 
+/**
+ * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
+ * (`designer/3.2.0+user.2` for their second edit), so every run's record says so.
+ */
+export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
+  return (name, shipped) => {
+    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
+    return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
+  };
+}
+
 async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
   let boards = studios.get(options.store);
   if (!boards) { boards = new Map(); studios.set(options.store, boards); }
@@ -162,7 +176,23 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     });
     // A generated plugin calls the model the person chose in the studio, or else the first configured one: one turn,
     // no tools, its own instructions, in a directory of its own.
+    // What a plugin's call says to the model: its declared prompt as the person left it (registered once installed),
+    // or, for a trial, as the build declares it; plugins from before prompts were declared still send instructions.
+    const declaredPrompts = async (pluginId: string): Promise<PluginPrompt[]> => {
+      const buildId = pluginId.replace(/^io\.molis\.work\.generated\./, ''), build = studio.workflow.store.get(buildId);
+      if (build?.directory && build.design) return readPluginPrompts(await buildSources(build.directory, settledFor(build.directory), build.design.contract.operations.length)).prompts;
+      return studio.workflow.store.versions(buildId)[0]?.prompts ?? [];
+    };
+    const instructionsFor = async (pluginId: string, input: ModelGenerateInput): Promise<{ body: string; version: string }> => {
+      if (input.prompt !== undefined) {
+        if (!PROMPT_ID.test(input.prompt)) throw new Error('模型要求的 id 只能是小写字母、数字和连字符');
+        return resolvePluginPrompt(home, pluginId, input.prompt, () => declaredPrompts(pluginId));
+      }
+      if (input.instructions) return { body: input.instructions, version: 'inline' };
+      throw new Error('调用模型时要指明用哪一段已声明的要求（prompt）');
+    };
     const generate: CapabilityImplementations['generate'] = options.generate ?? (async (pluginId, input, signal) => {
+      const instructions = await instructionsFor(pluginId, input);
       const first = (await options.models())[0];
       const selection = selected() ?? (first ? { provider_id: first.provider_id, model_id: first.model_id } : null);
       if (!selection) throw new Error('插件要调用模型，但还没有配置可用的文字模型');
@@ -170,7 +200,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       await mkdir(work, { recursive: true, mode: 0o700 });
       const agent = await (await resolvePrologueBuilder(home))({ buildRoot: work, storageRoot: join(base, 'runs'), timeoutMs: 110_000, ...access(selection) });
       try {
-        const record = await agent.run({ role: 'model', instruction: input.instructions, promptVersion: 'plugin-model/1', contractRevision: pluginId, task: input.input || '（没有输入内容）', signal });
+        const record = await agent.run({ role: 'model', instruction: instructions.body, promptVersion: 'plugin-model/2:' + instructions.version, contractRevision: pluginId, task: input.input || '（没有输入内容）', signal });
         return { text: record.output.trim() };
       } finally { await agent.close(); await keepNewestRecords(join(base, 'runs', 'builder-runs')); }
     });
@@ -300,6 +330,12 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     };
     studio.withdrawExposed = () => { for (const pluginId of [...exposed.keys()]) withdraw(pluginId); };
     studio.expose = expose;
+    // An installed plugin's prompts join the Home's register while it is installed; the person's edits outlive a reinstall.
+    const installedRelease = (record: { publisher_signature: string; version: string }) => releasesOf(record.publisher_signature.slice(SIGNATURE.length)).find(item => releaseVersion(item.version) === record.version);
+    const registerPrompts = (release: AgentRelease, state: 'enabled' | 'disabled') => {
+      try { registerGeneratedPrompts(home, generatedRegistration(release, releasesOf(release.buildId), state, releaseVersion(release.version))); }
+      catch (error) { console.warn('[plugin-builder] 插件的 Prompt 没能登记', release.pluginId, error); }
+    };
     const lifecycle: AgentBuilderPorts['lifecycle'] = async (action, release, grants) => {
       const consent = (grants as { consent?: unknown } | undefined)?.consent === true;
       const record = installed().find(item => item.plugin_id === release.pluginId);
@@ -313,7 +349,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
           const code = studio.platform.runtime.list().find(item => item.plugin_id === release.pluginId)?.last_error_code;
           throw new Error('安装没有完成：' + (report.failed[0]?.message ?? report.blocked[0]?.message ?? '插件未能启动') + (code ? '（' + code + '）' : ''));
         }
-        expose(release);
+        expose(release); registerPrompts(release, 'enabled');
         return;
       }
       if (!record) throw new Error('这个插件还没有安装');
@@ -323,13 +359,13 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         const next = definition(release, covered(release.permissions, approved) ? approved : release.permissions);
         const state = action === 'upgrade' ? await studio.platform.upgrade(release.pluginId, next) : await studio.platform.rollback(release.pluginId, next);
         if (state?.status !== 'running') throw new Error((action === 'upgrade' ? '升级' : '回滚') + '没有完成：' + (state?.message ?? '插件未能启动') + '，原版本继续可用');
-        expose(release);
+        expose(release); registerPrompts(release, 'enabled');
         return;
       }
-      if (action === 'disable') { withdraw(release.pluginId); studio.platform.supervisor.revoke(release.pluginId); await studio.platform.runtime.stop(record.install_id); return; }
-      if (action === 'enable') { const state = await studio.platform.supervisor.enable(release.pluginId); if (state.status !== 'running') throw new Error('启用没有完成：' + (state.message ?? '')); expose(release); return; }
+      if (action === 'disable') { withdraw(release.pluginId); studio.platform.supervisor.revoke(release.pluginId); await studio.platform.runtime.stop(record.install_id); registerPrompts(installedRelease(record) ?? release, 'disabled'); return; }
+      if (action === 'enable') { const state = await studio.platform.supervisor.enable(release.pluginId); if (state.status !== 'running') throw new Error('启用没有完成：' + (state.message ?? '')); expose(release); registerPrompts(installedRelease(record) ?? release, 'enabled'); return; }
       if (action === 'uninstall') {
-        withdraw(release.pluginId); studio.platform.supervisor.revoke(release.pluginId);
+        withdraw(release.pluginId); studio.platform.supervisor.revoke(release.pluginId); unregisterGeneratedPrompts(home, release.pluginId);
         reminders.cancelAll(release.pluginId); scheduledRuns.cancelAll(release.pluginId); secrets.remove(release.pluginId);
         await studio.platform.runtime.uninstall(record.install_id, { retain_private_data: (grants as { keepData?: unknown } | undefined)?.keepData === true });
         storage.delete(APPROVED_KEY + release.pluginId);
@@ -366,6 +402,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       }),
       validateContract: contract => assertContract(contract),
       skill: stage => builderSkill(stage),
+      prompt: builderPrompts(home),
       async prepareBuild(previous, design, manifest) {
         const directory = join(studio.root, 'builds', previous.id, design.contract.revision);
         await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
@@ -420,7 +457,11 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         await writeFile(join(directory, 'manifest.json'), JSON.stringify(manifest, null, 2), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'contract.json'), JSON.stringify(build.design!.contract, null, 2), { mode: 0o400, flag: 'wx' });
         await writeFile(join(directory, 'interface.json'), JSON.stringify({ nodes: build.nodes, acceptance: build.design!.acceptance }, null, 2), { mode: 0o400, flag: 'wx' });
-        return { directory, bundlePath: target, packagePath: directory };
+        // What it tells the model, as the checked sources declare it: registered when this version is installed.
+        const { prompts, problems } = readPluginPrompts(await buildSources(build.directory!, settledFor(build.directory!), build.design!.contract.operations.length));
+        if (problems.length) throw new Error('发布前请先修好调用模型的写法：' + problems[0]);
+        await writeFile(join(directory, 'prompts.json'), JSON.stringify(prompts, null, 2), { mode: 0o400, flag: 'wx' });
+        return { directory, bundlePath: target, packagePath: directory, prompts };
       },
       installations: async (): Promise<Installation[]> => installed().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.slice(SIGNATURE.length),
         version: Number(item.version.split('.')[0]), state: item.state, effects: approvedFor(item.plugin_id) ?? {} })),
@@ -431,6 +472,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     // Installed plugins resume at their installed version after a host restart.
     for (const item of installed()) {
       const release = releasesOf(item.publisher_signature.slice(SIGNATURE.length)).find(candidate => releaseVersion(candidate.version) === item.version);
+      if (release) registerPrompts(release, item.state === 'disabled' ? 'disabled' : 'enabled');
       if (release) { const report = await studio.platform.start([{ definition: definition(release, approvedFor(release.pluginId) ?? release.permissions), grants: ['storage:private'] }]).catch(() => undefined);
         if (report?.running.includes(release.pluginId)) studio.expose?.(release); }
     }

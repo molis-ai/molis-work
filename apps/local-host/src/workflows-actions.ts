@@ -1,3 +1,4 @@
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { bindActionClient, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, workflowsManifest } from "@molis-ai/molis-work-plugin-workflows";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -22,7 +23,7 @@ export function workflowsActionProvider(home: string, projectId: string, actions
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();
         if (!complete) throw new Error("还没有可用的文字模型");
-        return complete(prompt, options);
+        return complete(resolveModelPrompt(home, prompt, "io.molis.work.native.workflows"), options);
       }),
     }),
   };

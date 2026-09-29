@@ -1,3 +1,4 @@
+import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { ActionError, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formManifest, createFormActionHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -20,7 +21,7 @@ export function formActionProvider(home: string, runtime: MolisWorkProjectRuntim
       },
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model(); if (!complete) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-        return complete(prompt, options);
+        return complete(resolveModelPrompt(home, prompt, "io.molis.work.form"), options);
       }),
     }),
   };

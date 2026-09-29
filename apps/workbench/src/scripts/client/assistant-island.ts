@@ -1,145 +1,1047 @@
-/** A bounded information assistant; all writes use the plugin's existing commands. */
+/**
+ * The resident Assistant in the bottom bar: one assistant, many works.
+ *
+ * Every fact shown here comes from the Host (`/api/assistant`): a work's state is its real run's state, a question is
+ * the run's own pending question, a confirmation is the Host's review of the exact effect. The page only decides where
+ * the next Send goes, and never sends anything the person did not send.
+ */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
-  const { translate: L, feedApi } = host;
+  const L = host.translate;
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
-  const toggle = island.querySelector("[data-assistant-toggle]");
+  const panel = island.querySelector("[data-assistant-panel]");
   const composer = island.querySelector("[data-assistant-composer]");
   const input = island.querySelector("[data-assistant-input]");
   const send = island.querySelector("[data-assistant-send]");
-  const plan = island.querySelector("[data-assistant-plan]");
+  const thread = island.querySelector("[data-assistant-thread]");
+  const empty = island.querySelector("[data-assistant-empty]");
+  const worksNav = island.querySelector("[data-assistant-works]");
+  const worksToggle = island.querySelector("[data-assistant-works-toggle]");
+  const titleEl = island.querySelector("[data-assistant-work-title]");
+  const stateEl = island.querySelector("[data-assistant-work-state]");
+  const scopeEl = island.querySelector("[data-assistant-work-scope]");
+  const target = island.querySelector("[data-assistant-target]");
+  const targetWrap = island.querySelector("[data-assistant-target-wrap]");
+  const targetLabel = island.querySelector("[data-assistant-target-label]");
+  const targetClear = island.querySelector("[data-assistant-target-clear]");
+  const newButton = island.querySelector("[data-assistant-new]");
+  if (!composer || !input || !send || !thread || !target) return null;
+  const project = host.project && host.project.id ? host.project : null;
+  const BT = String.fromCharCode(96);
+  const FENCE = BT + BT + BT;
+  const STATE_LABELS = { idle: "尚未开始", running: "进行中", "waiting-input": "等你回答", "waiting-review": "等你确认", paused: "已暂停",
+    completed: "已完成", failed: "没有完成", stopped: "已停止", "needs-check": "需要核对" };
+  const store = {
+    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+    set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
+  };
+  const CURRENT_KEY = "molis.assistant.current";
+  const NEW_DRAFT_KEY = "molis.assistant.new-draft";
+  let works = [];
+  let currentId = store.get(CURRENT_KEY);
+  let view = null;
   let busy = false;
-  if (!composer || !input || !send) return null;
-  // The composer either floats from a toggle (popover) or sits in the 助手 space of the rail.
-  const floating = composer.hasAttribute("popover");
-
-  const syncSend = () => {
-    send.disabled = busy || !String(input.value || "").trim();
-  };
-  const place = () => {
-    if (!floating || !toggle) return;
-    const rect = toggle.getBoundingClientRect();
-    const width = composer.offsetWidth || 300;
-    const height = composer.offsetHeight || 32;
-    const left = Math.min(rect.right + 8, innerWidth - width - 8);
-    const top = Math.max(8, Math.min(rect.top + (rect.height - height) / 2, innerHeight - height - 8));
-    composer.style.inset = "auto";
-    composer.style.margin = "0";
-    composer.style.left = Math.max(8, left) + "px";
-    composer.style.top = top + "px";
-  };
-  const isOpen = () => floating ? composer.matches(":popover-open") : !island.hidden;
-  const hide = () => { if (floating && isOpen()) composer.hidePopover(); };
-
-  if (floating) composer.addEventListener("toggle", (event) => {
-    const open = event.newState === "open";
-    toggle?.setAttribute("aria-expanded", String(open));
-    if (open) {
-      place();
-      syncSend();
-      requestAnimationFrame(() => {
-        place();
+  let problem = null;
+  let newScope = project ? "project" : "personal";
+  let newExecutor = "assistant";
+  // The first round's mode for a new Coding work; after that the session keeps it.
+  let newMode = "execute";
+  const executorButton = island.querySelector("[data-assistant-executor]");
+  const executorLabel = island.querySelector("[data-assistant-executor-label]");
+  const executorsPop = island.querySelector("[data-assistant-executors]");
+  const openExecutor = island.querySelector("[data-assistant-open-executor]");
+  const handoverButton = island.querySelector("[data-assistant-handover]");
+  const EXECUTORS = [{ id: "assistant", label: "助理", hint: "个人工作助理，使用你已授权的能力" }, { id: "coding", label: "Coding Agent", hint: "在项目的工作目录里写代码、运行命令，改动逐项请你确认" }];
+  const modeButton = island.querySelector("[data-assistant-mode]");
+  const modeLabel = island.querySelector("[data-assistant-mode-label]");
+  const modesPop = island.querySelector("[data-assistant-modes]");
+  const MODES = [{ id: "discuss", label: "讨论", hint: "只读，回答与建议，不改文件" }, { id: "plan", label: "规划", hint: "先出计划，确认后再执行" },
+    { id: "edit", label: "修改", hint: "改文件，不运行命令" }, { id: "execute", label: "执行", hint: "改文件并运行命令，逐项请你确认" }, { id: "review", label: "评审", hint: "检查现有改动并给出意见" }];
+  const setModes = (open) => {
+    if (!modesPop) return;
+    modesPop.hidden = !open;
+    modeButton?.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    const work = currentWork();
+    const chosen = work ? work.executor && work.executor.mode : newMode;
+    modesPop.replaceChildren(el("p", "assistant-popover-title", L(work ? "下一轮的方式（与 Coding 页面同一设置）" : "第一轮的方式")));
+    MODES.forEach((mode) => {
+      const item = el("button", "assistant-starter"); item.type = "button";
+      if (chosen === mode.id) item.setAttribute("aria-current", "true");
+      item.append(el("strong", "", L(mode.label)), el("span", "assistant-material-origin", " " + L(mode.hint)));
+      item.addEventListener("click", async () => {
+        setModes(false);
+        if (!work) { newMode = mode.id; paintTarget(); input.focus(); return; }
+        try {
+          view = await api("/works/" + encodeURIComponent(work.work_id) + "/mode", "POST", { mode: mode.id }); render();
+          window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: "coding.sessions.update", session_id: view.work.executor.session_id } }));
+        }
+        catch (error) { showProblem({ message: error.message }); }
         input.focus();
       });
+      modesPop.append(item);
+    });
+    (modesPop.querySelector("[aria-current]") || modesPop.querySelector("button"))?.focus();
+  };
+  // The choice is made against what is saved now, not what this panel last read.
+  modeButton?.addEventListener("click", async () => { if (!modesPop.hidden) { setModes(false); return; } if (currentId) await refresh().catch(() => {}); setModes(true); });
+  // Which Character carries the next round: the work's own choice, or one made here that the next Send brings along.
+  // Only the Assistant's own project work has Characters (they are published per project); a Coding work picks its own.
+  const characterButton = island.querySelector("[data-assistant-character]");
+  const characterLabel = island.querySelector("[data-assistant-character-label]");
+  const charactersPop = island.querySelector("[data-assistant-characters]");
+  let newCharacter = null, pendingCharacter;
+  const chosenCharacter = () => { const work = currentWork(); return work ? (pendingCharacter !== undefined ? pendingCharacter : work.character || null) : newCharacter; };
+  const characterAllowed = () => { const work = currentWork();
+    return work ? work.executor.kind !== "coding" && work.scope.kind === "project" : newExecutor === "assistant" && newScope === "project" && Boolean(project); };
+  const setCharacters = async (open) => {
+    if (!charactersPop) return;
+    charactersPop.hidden = !open;
+    characterButton?.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    const work = currentWork(), chosen = chosenCharacter();
+    charactersPop.replaceChildren(el("p", "assistant-popover-title", L("由哪个角色负责（从下一轮开始）")));
+    let choices = [];
+    try { choices = (await api("/characters" + (work ? "?work=" + encodeURIComponent(work.work_id) : ""))).characters; }
+    catch (error) { charactersPop.append(el("p", "assistant-material-origin", error.message)); }
+    const pick = (value) => { setCharacters(false); if (work) pendingCharacter = value; else newCharacter = value; paintTarget(); input.focus(); };
+    const own = el("button", "assistant-starter"); own.type = "button";
+    if (!chosen) own.setAttribute("aria-current", "true");
+    own.append(el("strong", "", L("助理自己")), el("span", "assistant-material-origin", " " + L("不指定角色")));
+    own.addEventListener("click", () => pick(null));
+    charactersPop.append(own);
+    choices.forEach((choice) => {
+      const item = el("button", "assistant-starter"); item.type = "button";
+      const same = chosen && chosen.artifact_id === choice.reference.artifact_id && chosen.version === choice.reference.version;
+      if (same) item.setAttribute("aria-current", "true");
+      item.append(el("strong", "", choice.title), el("span", "assistant-material-origin", " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || L("当前不可用")))));
+      // An unavailable version is shown with why, and cannot be chosen: nothing runs under a name it is not.
+      if (!choice.available) item.disabled = true;
+      else item.addEventListener("click", () => pick({ artifact_id: choice.reference.artifact_id, version: choice.reference.version, title: choice.title }));
+      charactersPop.append(item);
+    });
+    if (!choices.length) charactersPop.append(el("p", "assistant-material-origin", L("这个项目里还没有你发布的 Character；在 Characters 里新建并发布后就能选择。")));
+    (charactersPop.querySelector("[aria-current]") || charactersPop.querySelector("button:not([disabled])"))?.focus();
+  };
+  characterButton?.addEventListener("click", async () => { if (!charactersPop.hidden) { setCharacters(false); return; } if (currentId) await refresh().catch(() => {}); await setCharacters(true); });
+  // A surface says the person changed something there that this work may show: read the work again.
+  window.addEventListener("molis:assistant-surface-changed", (event) => {
+    const detail = event.detail || {}, work = currentWork();
+    const id = detail.object && detail.object.id;
+    if (!work || !id || !(work.executor && work.executor.session_id === id)) return;
+    void refresh().then(schedule).catch(() => {});
+  });
+  const codingHere = () => Boolean(project && document.querySelector('.plugin-rail-items [data-plugin-id="coding"]'));
+  let pollTimer = 0, draftTimer = 0, draftWrite = Promise.resolve();
+  // A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice.
+  let unsettled = null;
+
+  const api = async (path, method, body) => {
+    let response;
+    try {
+      response = await fetch(host.route("/api/assistant" + path), { method: method || "GET", headers: host.headers(),
+        body: body === undefined ? undefined : JSON.stringify(body) });
+    } catch (error) {
+      const failure = new Error(L("连接中断，结果未知；再次发送不会重复提交"));
+      failure.unknown = true;
+      throw failure;
     }
-  });
-  input.addEventListener("input", syncSend);
-  input.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    syncSend();
-    if (send.disabled) return;
-    composer.requestSubmit(send);
-  });
-  const note = (message) => {
-    const p = document.createElement("p"); p.textContent = message; plan.append(p); place(); return p;
+    let result = {};
+    try { result = await response.json(); } catch { /* an empty body is reported by status below */ }
+    if (!response.ok) {
+      const failure = new Error(result.error || L("助理暂时无法完成"));
+      failure.data = result;
+      throw failure;
+    }
+    return result;
   };
-  const actionButton = (label, action) => {
-    const button = document.createElement("button"); button.type = "button"; button.className = "mw-btn mw-btn--secondary";
-    button.textContent = L(label); plan.append(button);
-    button.onclick = async () => {
-      button.disabled = true;
-      try { await action(button); } catch (error) { note(error.message); button.disabled = false; }
-      place();
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  };
+  const stateLabel = (state) => L(STATE_LABELS[state] || state || "");
+  const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
+    : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
+  const currentWork = () => works.find((work) => work.work_id === currentId) || (view && view.work.work_id === currentId ? view.work : null);
+  const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
+  const setPanel = (open) => { if (panel) panel.hidden = !open; };
+  const syncSend = () => { send.disabled = busy || !String(input.value || "").trim(); };
+
+  /* ─── Where the next Send goes ─────────────────────────────────────────── */
+  const paintTarget = () => {
+    const work = currentWork();
+    if (work) {
+      targetLabel.textContent = (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
+      target.title = L("下一次发送进入这项工作；点 × 改为开始新工作");
+      if (targetClear) targetClear.hidden = false;
+      if (targetWrap) targetWrap.dataset.mode = "work";
+    } else {
+      targetLabel.textContent = L("新工作") + " · " + (newScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
+      target.title = project ? L("点击切换：新工作属于本项目，或属于你个人（不需要项目）") : L("新工作属于你个人");
+      if (targetClear) targetClear.hidden = true;
+      if (targetWrap) targetWrap.dataset.mode = "new";
+    }
+    input.placeholder = work ? L("补充要求、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…") : L("让助理做点什么…");
+    // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
+    if (modeButton) {
+      // A new work that continues an open Coding session runs in that session's own mode, shown once it is the work's.
+      const coding = work ? work.executor && work.executor.kind === "coding" : newExecutor === "coding" && codingHere() && !openCodingSession();
+      modeButton.hidden = !coding;
+      if (coding && modeLabel) {
+        const label = L("方式") + "：" + L((MODES.find((one) => one.id === (work ? work.executor.mode : newMode)) || { label: "执行" }).label);
+        modeLabel.textContent = label;
+        modeButton.setAttribute("aria-label", L(work ? "下一轮的方式" : "第一轮的方式") + " · " + label);
+      }
+    }
+    if (characterButton) {
+      const allowed = characterAllowed(), chosen = chosenCharacter();
+      characterButton.hidden = !allowed;
+      characterButton.toggleAttribute("data-chosen", Boolean(allowed && chosen));
+      if (allowed && characterLabel) {
+        characterLabel.textContent = L("角色") + "：" + (chosen ? chosen.title : L("助理"));
+        characterButton.setAttribute("aria-label", L("由哪个角色负责") + " · " + (chosen ? chosen.title + " v" + chosen.version : L("助理自己")));
+      }
+    }
+    // Who carries the next new work: chosen before sending; an existing work keeps its own.
+    if (executorButton) {
+      executorButton.hidden = Boolean(work) || !codingHere();
+      if (!codingHere() && newExecutor !== "assistant") newExecutor = "assistant";
+      executorButton.toggleAttribute("data-chosen", newExecutor !== "assistant");
+      if (executorLabel) executorLabel.textContent = L((EXECUTORS.find((one) => one.id === newExecutor) || EXECUTORS[0]).label)
+        + (newExecutor === "coding" && openCodingSession() ? " · " + L("当前会话") : "");
+    }
+  };
+  const setExecutors = (open) => {
+    if (!executorsPop) return;
+    executorsPop.hidden = !open;
+    executorButton?.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    executorsPop.replaceChildren(el("p", "assistant-popover-title", L("由谁来做")));
+    EXECUTORS.filter((one) => one.id !== "coding" || codingHere()).forEach((one) => {
+      const item = el("button", "assistant-starter"); item.type = "button";
+      if (one.id === newExecutor) item.setAttribute("aria-current", "true");
+      item.append(el("strong", "", L(one.label)), el("span", "assistant-material-origin", " " + L(one.hint)));
+      item.addEventListener("click", () => { newExecutor = one.id; setExecutors(false); paintTarget(); paintHead(); input.focus(); });
+      executorsPop.append(item);
+    });
+    (executorsPop.querySelector("[aria-current]") || executorsPop.querySelector("button"))?.focus();
+  };
+  executorButton?.addEventListener("click", () => setExecutors(executorsPop.hidden));
+  const remember = () => store.set(CURRENT_KEY, currentId);
+
+  /* ─── Drafts: every work keeps its own unsent text ─────────────────────── */
+  const saveDraft = (immediate) => {
+    clearTimeout(draftTimer);
+    const id = currentId, text = String(input.value || "");
+    const write = () => {
+      if (!id) { store.set(NEW_DRAFT_KEY, text || null); return; }
+      const work = works.find((row) => row.work_id === id);
+      if (work && work.draft === text) return;
+      if (work) work.draft = text;
+      draftWrite = api("/works/" + encodeURIComponent(id) + "/draft", "POST", { draft: text }).catch(() => { /* kept on the page; the next edit retries */ });
     };
-    return button;
+    if (immediate) write(); else draftTimer = setTimeout(write, 700);
   };
-  const presentPlan = (result) => {
-    note(result.message);
-    const action = result.action;
-    if (!action) return;
-    const description = document.createElement("blockquote");
-    description.textContent = (action.name || action.title) + "\n" + action.instructions;
-    plan.append(description);
-    if (action.kind === "draft_pages") {
-      note(L("所选材料") + "：" + action.entry_ids.length);
-      actionButton("检查材料与写作要求", () => { hide(); host.preparePages(action); });
+  const loadDraft = () => {
+    const work = currentWork();
+    input.value = work ? (work.draft || "") : (store.get(NEW_DRAFT_KEY) || "");
+    syncSend();
+  };
+  const switchTo = async (id) => {
+    if (id === currentId) return;
+    saveDraft(true);
+    currentId = id; remember(); problem = null; view = null; pendingCharacter = undefined;
+    thread.querySelectorAll(":scope > [data-round], :scope > [data-review], :scope > .assistant-problem").forEach((node) => node.remove());
+    loadDraft(); render();
+    if (id) { await refresh(); schedule(); }
+  };
+
+  /* ─── Text: the model's words as plain structure, never as markup ──────── */
+  const inline = (parent, text) => {
+    const pattern = new RegExp("(\\*\\*[^*]+\\*\\*|" + BT + "[^" + BT + "]+" + BT + ")", "g");
+    let last = 0, match;
+    while ((match = pattern.exec(text))) {
+      if (match.index > last) parent.append(document.createTextNode(text.slice(last, match.index)));
+      const token = match[0];
+      parent.append(token.startsWith("**") ? el("strong", "", token.slice(2, -2)) : el("code", "", token.slice(1, -1)));
+      last = match.index + token.length;
+    }
+    if (last < text.length) parent.append(document.createTextNode(text.slice(last)));
+  };
+  const rich = (text) => {
+    const root = el("div", "assistant-rich");
+    const lines = String(text || "").split("\n");
+    let list = null, paragraph = null;
+    const close = () => { list = null; paragraph = null; };
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index];
+      if (line.trim().startsWith(FENCE)) {
+        const code = [];
+        index += 1;
+        while (index < lines.length && !lines[index].trim().startsWith(FENCE)) { code.push(lines[index]); index += 1; }
+        const pre = el("pre"); pre.append(el("code", "", code.join("\n"))); root.append(pre); close(); continue;
+      }
+      if (!line.trim()) { close(); continue; }
+      const heading = /^(#{1,4})\s+(.*)$/.exec(line);
+      if (heading) { const node = el("p", "assistant-rich-heading"); inline(node, heading[2]); root.append(node); close(); continue; }
+      const bullet = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
+      if (bullet) {
+        const ordered = /^\s*\d/.test(line);
+        if (!list || list.tagName !== (ordered ? "OL" : "UL")) { list = el(ordered ? "ol" : "ul"); root.append(list); paragraph = null; }
+        const item = el("li"); inline(item, bullet[1]); list.append(item); continue;
+      }
+      if (!paragraph) { paragraph = el("p"); root.append(paragraph); list = null; }
+      else paragraph.append(el("br"));
+      inline(paragraph, line);
+    }
+    return root;
+  };
+
+  /* ─── Rendering, updated in place so reading and focus are never disturbed ─ */
+  const nearBottom = () => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
+  const keyed = (parent, attribute, key, create) => {
+    let node = [...parent.children].find((child) => child.getAttribute(attribute) === key);
+    if (!node) { node = create(); node.setAttribute(attribute, key); parent.append(node); }
+    return node;
+  };
+  const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
+  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新待办", "lookup-tools": "查找工具",
+    "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做" };
+  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行" };
+  const activityLine = (item) => {
+    const verb = L(VERBS[item.verb] || item.verb);
+    const what = item.target ? " " + item.target : "";
+    if (item.state === "started") return L("正在") + verb + what;
+    if (item.state === "completed") return L("已") + verb + what;
+    if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
+    return verb + what + " — " + L("结果未确认");
+  };
+  const renderQuestion = (card, work, round, question) => {
+    card.replaceChildren();
+    card.append(el("p", "assistant-card-title", L("助理在等你回答")), rich(question.prompt));
+    const answer = async (payload, button) => {
+      if (button) button.disabled = true;
+      try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/answer", "POST",
+        Object.assign({ run_id: round.run_id, pending_id: question.pending_id, pending_revision: question.pending_revision }, payload)); render(); schedule(); }
+      catch (error) { showProblem({ message: error.message }); if (button) button.disabled = false; }
+    };
+    if (question.answerable === false) { card.append(el("p", "assistant-muted", question.unavailable_reason || L("这个问题暂时不能回答"))); return; }
+    if (question.questions && question.questions.length) {
+      const form = el("form", "assistant-questionnaire");
+      question.questions.forEach((item) => {
+        const set = el("fieldset"); set.append(el("legend", "", item.prompt));
+        item.options.forEach((option) => {
+          const label = el("label"); const box = el("input"); box.type = item.multiple ? "checkbox" : "radio";
+          box.name = "q" + item.index; box.value = String(option.index); label.append(box, document.createTextNode(" " + option.label)); set.append(label);
+        });
+        if (item.allow_other) { const other = el("input", "mw-input"); other.name = "other" + item.index; other.placeholder = L("其他（可选）"); set.append(other); }
+        form.append(set);
+      });
+      const submit = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("提交回答")); submit.type = "submit"; form.append(submit);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const answers = question.questions.map((item) => {
+          const indexes = [...form.querySelectorAll('input[name="q' + item.index + '"]:checked')].map((box) => Number(box.value));
+          const other = form.querySelector('input[name="other' + item.index + '"]');
+          return Object.assign({ question: item.index, indexes }, other && other.value.trim() ? { other: other.value.trim() } : {});
+        });
+        answer({ answers }, submit);
+      });
+      card.append(form);
       return;
     }
-    let record = null;
-    let sample = null;
-    actionButton("创建规则草稿并试跑真实样本", async button => {
-      const snapshot = await feedApi("/api/feed", "GET");
-      sample = snapshot.feed_items.find(item => item.item_id === action.sample_item_id && item.source_id === action.source_id);
-      if (!sample) throw new Error(L("样本已不可用，请重新提出规则"));
-      if (!record) {
-        record = (await feedApi("/api/functions", "POST", { primitive: "choice", name: action.name,
-          function_key: "inbox_filter_" + crypto.randomUUID().replaceAll("-", "") })).function;
-      }
-      record = (await feedApi("/api/functions/" + encodeURIComponent(record.id), "POST", {
-        updated_at: record.updated_at, instructions: action.instructions,
-        criteria: [{ key: "inbox.admit", description: "符合规则，需要继续处理，进入 Inbox" }, { key: "feed.open", description: "不符合规则，留在 Feed" }],
-        scene_id: "feed.capture", subject_kinds: ["feed_item"], scene_map: { "inbox.admit": "inbox.admit", "feed.open": "feed.open" },
-      })).function;
-      note(L("试跑样本") + "：" + sample.title);
-      record = (await feedApi("/api/functions/" + encodeURIComponent(record.id) + "/preview", "POST", {
-        updated_at: record.updated_at, input: [sample.title, sample.summary, sample.body || ""].join("\n\n"),
-      })).function;
-      const preview = record.last_preview;
-      note(L("实际试跑结果") + "：" + L(preview?.outcome === "needs_review" ? "需要人工复核" : preview?.choice === "inbox.admit" ? "进入 Inbox" : "留在 Feed") + " · " + (preview?.model || "Jev"));
-      button.textContent = L("草稿已创建并试跑");
-      actionButton("检查或修改判断规则", () => { hide(); const next = new URL("/capabilities/rules", location.origin); next.searchParams.set("rule", record.id); const projectId = document.body.dataset.projectId; if (projectId) next.searchParams.set("project", projectId); if (new URL(location.href).searchParams.get("desktop") === "1") next.searchParams.set("desktop", "1"); location.href = next.pathname + next.search; });
-      actionButton("启用规则，处理最近 20 条消息", async enable => {
-        if (record.status !== "published") record = (await feedApi("/api/functions/" + encodeURIComponent(record.id) + "/publish", "POST", { updated_at: record.updated_at })).function;
-        const existing = (await feedApi("/api/feed/out-rules", "GET")).rules;
-        if (!existing.some(rule => rule.enabled && rule.function_key === record.function_key && rule.match.source_id === action.source_id && rule.admission === "inbox")) {
-          await feedApi("/api/feed/out-rules", "POST", { name: action.name, source_id: action.source_id, function_key: record.function_key, admission: "inbox" });
-        }
-        const latest = await feedApi("/api/feed", "GET");
-        const ids = latest.feed_items.filter(item => item.source_id === action.source_id).slice(0, 20).map(item => item.item_id);
-        if (ids.length) await feedApi("/api/feed/out-rules/evaluate", "POST", { item_ids: ids });
-        await host.refresh(); enable.textContent = L("规则已启用");
-        note(L("筛选结果与待复核项已进入 Inbox；来源的新消息也会沿用此规则。"));
+    if (question.options && question.options.length) {
+      const row = el("div", "assistant-card-actions");
+      question.options.forEach((option) => {
+        const button = el("button", "mw-btn mw-btn--secondary mw-btn--sm", option.label); button.type = "button";
+        button.addEventListener("click", () => answer({ text: option.value || option.label }, button));
+        row.append(button);
       });
+      card.append(row);
+    }
+    if (question.allows_free_text) {
+      const form = el("form", "assistant-answer");
+      const field = el("input", "mw-input"); field.placeholder = L("写下回答"); field.setAttribute("aria-label", L("写下回答"));
+      const submit = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("回答")); submit.type = "submit";
+      form.append(field, submit);
+      form.addEventListener("submit", (event) => { event.preventDefault(); if (field.value.trim()) answer({ text: field.value.trim() }, submit); });
+      card.append(form);
+    }
+  };
+  const renderReview = (card, work, review) => {
+    card.replaceChildren();
+    card.append(el("p", "assistant-card-title", L("执行前需要你确认")), el("p", "", review.summary));
+    const plain = review.fields.filter((field) => field.label !== "完整参数" && field.label !== "能力");
+    if (plain.length) {
+      const list = el("dl", "assistant-fields");
+      plain.forEach((field) => {
+        list.append(el("dt", "", L(field.label)));
+        const cell = el("dd");
+        // A diff or command reads as code: kept exact, monospaced, with added and removed lines told apart.
+        if (field.label === "改动" || field.label === "命令" || field.label === "参数") {
+          const pre = el("pre", "assistant-diff");
+          field.value.split("\n").forEach((line) => pre.append(el("span", line.startsWith("+ ") ? "is-added" : line.startsWith("- ") ? "is-removed" : "", line + "\n")));
+          cell.append(pre);
+        } else cell.textContent = field.value;
+        list.append(cell);
+      });
+      card.append(list);
+    }
+    const exact = review.fields.filter((field) => field.label === "完整参数" || field.label === "能力");
+    if (exact.length) {
+      const more = el("details", "assistant-exact"); more.append(el("summary", "", L("准确参数与能力")));
+      exact.forEach((field) => { more.append(el("p", "assistant-muted", L(field.label))); more.append(el("pre", "", field.value)); });
+      card.append(more);
+    }
+    const row = el("div", "assistant-card-actions");
+    const decide = async (decision) => {
+      row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
+      try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision }); render(); schedule(); }
+      catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
+    };
+    const allow = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("允许执行")); allow.type = "button";
+    const reject = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("拒绝")); reject.type = "button";
+    allow.addEventListener("click", () => decide("approve")); reject.addEventListener("click", () => decide("reject"));
+    row.append(allow, reject); card.append(row);
+  };
+  const EFFECTS = { read: "只读取，不改数据", write: "会修改数据，可在原处修改或撤回", irreversible: "会修改数据，不可撤回" };
+  const CARD_STATUS = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试", stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
+  const renderCard = (node, work, card) => {
+    node.replaceChildren();
+    node.dataset.status = card.status;
+    node.append(el("p", "assistant-card-title", card.title), el("p", "", card.summary),
+      el("p", "assistant-muted", card.provider + " · " + card.capability_title + " · " + L(EFFECTS[card.effect] || "")));
+    const open = card.status === "ready" || card.status === "needs-input" || card.status === "failed";
+    const inputs = {};
+    if (card.fields.length) {
+      const list = el("dl", "assistant-fields");
+      card.fields.forEach((field) => {
+        const asked = card.missing.find((item) => item.field === field.key);
+        list.append(el("dt", "", asked ? asked.question : L(field.label)));
+        const cell = el("dd");
+        if (field.editable && open) {
+          const control = el(field.value.includes("\n") || field.value.length > 60 ? "textarea" : "input", "mw-input");
+          control.value = field.value; control.setAttribute("aria-label", asked ? asked.question : field.label);
+          if (control.tagName === "TEXTAREA") control.rows = Math.min(8, field.value.split("\n").length + 1);
+          inputs[field.key] = control; cell.append(control);
+        } else cell.textContent = field.value;
+        list.append(cell);
+      });
+      node.append(list);
+    }
+    if (card.outcome || CARD_STATUS[card.status]) {
+      const status = el("p", "assistant-card-status", L(CARD_STATUS[card.status] || "") + (card.outcome ? "：" + card.outcome : ""));
+      status.setAttribute("role", "status"); node.append(status);
+    }
+    if (card.status === "stale") {
+      // Only an explicit request: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
+      const redo = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("请助理按最新状态重新准备")); redo.type = "button";
+      redo.addEventListener("click", async () => {
+        redo.disabled = true;
+        try {
+          await api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
+            text: L("建议「") + card.title + L("」没有执行：数据在建议之后变化了。请读取最新状态，重新准备这一项的操作卡。") });
+          await refresh(); schedule();
+        } catch (error) { showProblem({ message: error.message }); redo.disabled = false; }
+      });
+      node.append(redo);
+    }
+    if (!open) return;
+    const row = el("div", "assistant-card-actions");
+    const runButton = el("button", "mw-btn mw-btn--primary mw-btn--sm", card.status === "failed" ? L("再试一次") + "：" + card.title : card.title); runButton.type = "button";
+    const dismiss = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("忽略")); dismiss.type = "button";
+    runButton.addEventListener("click", async () => {
+      row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
+      const values = {};
+      Object.entries(inputs).forEach(([key, control]) => { values[key] = control.value; });
+      try {
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/run", "POST", { revision: card.revision, values });
+        if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
+        if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
+        render();
+      } catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
+    });
+    dismiss.addEventListener("click", async () => {
+      try { const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/dismiss", "POST", {});
+        if (view) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one); render(); }
+      catch (error) { showProblem({ message: error.message }); }
+    });
+    row.append(runButton, dismiss); node.append(row);
+  };
+  const renderCards = (parent, work, cards) => {
+    [...parent.children].forEach((child) => { if (child.dataset.card && !cards.some((card) => card.card_id === child.dataset.card)) child.remove(); });
+    cards.filter((card) => card.status !== "dismissed").forEach((card) => {
+      const node = keyed(parent, "data-card", card.card_id, () => el("div", "assistant-card assistant-card--action"));
+      const signature = card.revision + ":" + card.status;
+      if (node.dataset.signature !== signature) { node.dataset.signature = signature; renderCard(node, work, card); }
+      parent.append(node);
     });
   };
-  composer.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const prompt = String(input.value || "").trim();
-    if (!prompt || busy) return;
-    // The question heads its answer, so the panel reads as a reply rather than a notice.
-    const ask = document.createElement("p"); ask.className = "assistant-ask"; ask.textContent = prompt;
-    busy = true; syncSend(); plan.replaceChildren(ask);
-    const pending = note(L("正在结合当前项目的来源和 Inbox 材料拟定方案…"));
-    try {
-      const selected = document.querySelector("[data-feed-item-id].is-selected")?.dataset.feedItemId;
-      const result = await feedApi("/api/assistant/plan", "POST", { prompt, selected_item_id: selected });
-      pending.remove(); presentPlan(result);
-      if (String(input.value || "").trim() === prompt) input.value = "";
-    } catch (error) {
-      pending.remove();
-      const said = note(error.message);
-      if (/尚未配置助手模型|没有可用的文字模型|模型设置/.test(error.message || "")) {
-        const link = document.createElement("a");
-        link.href = "/settings/models";
-        link.textContent = L("打开模型设置");
-        said.append(document.createTextNode(" "), link);
+  const renderRound = (work, round) => {
+    const node = keyed(thread, "data-round", round.run_id, () => el("section", "assistant-round"));
+    const entries = [];
+    round.turns.forEach((turn, index) => entries.push({ key: "t:" + turn.turn_id, order: turn.sequence ?? index, turn }));
+    round.activity.forEach((item, index) => entries.push({ key: "a:" + item.call_id, order: item.sequence ?? (1000 + index), item }));
+    entries.sort((a, b) => a.order - b.order);
+    // Which Agent ran this round, when the work changed hands.
+    if (round.executor === "coding") { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由 Coding Agent 执行")); }
+    else if (round.character) { const tag = keyed(node, "data-entry", "executor", () => el("p", "assistant-round-executor")); setText(tag, L("由角色负责") + "：" + round.character.title + " v" + round.character.version); }
+    if (!round.turns.some((turn) => turn.kind === "user")) {
+      const own = keyed(node, "data-entry", "task", () => el("div", "assistant-msg assistant-msg--user"));
+      setText(own, round.text);
+    } else node.querySelector(':scope > [data-entry="task"]')?.remove();
+    entries.forEach((entry) => {
+      if (entry.turn) {
+        const turn = entry.turn;
+        const kind = turn.kind === "user" ? "user" : turn.kind === "assistant" ? "assistant" : "note";
+        const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
+        if (bubble.dataset.text !== turn.text) {
+          bubble.dataset.text = turn.text;
+          if (kind === "assistant") bubble.replaceChildren(rich(turn.text)); else bubble.textContent = turn.text;
+        }
+        node.append(bubble);
+      } else {
+        const line = keyed(node, "data-entry", entry.key, () => el("p", "assistant-activity"));
+        line.dataset.state = entry.item.state;
+        setText(line, activityLine(entry.item));
+        if (entry.item.detail) line.title = entry.item.detail; else line.removeAttribute("title");
+        node.append(line);
+      }
+    });
+    if (round.materials && round.materials.length) {
+      const chips = keyed(node, "data-entry", "materials", () => el("p", "assistant-materials"));
+      setText(chips, L("带上的材料") + "：" + round.materials.map((item) => item.title + (item.draft ? L("（草稿）") : "")).join("、"));
+    }
+    const status = keyed(node, "data-entry", "status", () => el("p", "assistant-round-status"));
+    const phase = round.phase;
+    status.dataset.phase = phase;
+    setText(status, phase === "running" || phase === "starting" || phase === "compacting" ? L("正在处理…")
+      : phase === "failed" ? L("这一轮没有完成") + (round.stop_reason ? "：" + round.stop_reason : "")
+      : phase === "stopped" || phase === "cancelled" ? L("这一轮已停止，已经发生的操作不会被撤回")
+      : phase === "paused" ? L("已暂停，点“继续”接着做")
+      : phase === "reconcile-required" ? L("有操作的结果还没确认，请先核对")
+      : phase === "unknown" ? L("这一轮的执行记录读不到，结果需要核对") : "");
+    status.hidden = !status.textContent;
+    node.append(status);
+    const questions = round.awaiting_input || [];
+    [...node.children].forEach((card) => { if (card.dataset.question && !questions.some((q) => q.pending_id === card.dataset.question)) card.remove(); });
+    questions.forEach((question) => {
+      const card = keyed(node, "data-question", question.pending_id, () => el("div", "assistant-card assistant-card--question"));
+      const signature = JSON.stringify(question);
+      if (card.dataset.signature !== signature) { card.dataset.signature = signature; renderQuestion(card, work, round, question); }
+      node.append(card);
+    });
+    renderCards(node, work, ((view && view.cards) || []).filter((card) => card.run_id === round.run_id));
+  };
+  const paintHead = () => {
+    const work = view && view.work.work_id === currentId ? view.work : currentWork();
+    titleEl.textContent = work ? work.title : L("新工作");
+    stateEl.textContent = work ? stateLabel(work.state) : "";
+    stateEl.dataset.state = work ? work.state : "";
+    scopeEl.textContent = work ? scopeLabel(work.scope, work.scope_title) : (newScope === "project" && project ? (project.title || L("本项目")) : L("个人"));
+    // Which Agent carries this work, and the way into its own professional page.
+    if (openExecutor) {
+      const coding = work && work.executor && work.executor.kind === "coding";
+      openExecutor.hidden = !coding;
+      if (coding) {
+        openExecutor.textContent = L("由 Coding Agent 执行") + (work.executor.session_id ? " · " + L("打开 Coding") : "");
+        openExecutor.disabled = !work.executor.session_id || !host.openItem;
+        openExecutor.onclick = () => { if (work.executor.session_id) host.openItem?.("coding", work.executor.session_id, work.title); };
       }
     }
-    finally { busy = false; syncSend(); place(); }
+    // The same work can change hands between rounds: to Coding in its project, and back to the Assistant.
+    if (handoverButton) {
+      const between = work && !isLive(work.state);
+      const toCoding = work && work.executor && work.executor.kind === "assistant" && work.scope.kind === "project" && codingHere();
+      const toAssistant = work && work.executor && work.executor.kind === "coding";
+      handoverButton.hidden = !between || !(toCoding || toAssistant);
+      if (!handoverButton.hidden) {
+        handoverButton.textContent = toCoding ? L("交给 Coding 继续") : L("回到助理");
+        handoverButton.onclick = async () => {
+          handoverButton.disabled = true;
+          try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/handover", "POST", { to: toCoding ? "coding" : "assistant" }); render(); input.focus(); }
+          catch (error) { showProblem({ message: error.message }); }
+          finally { handoverButton.disabled = false; }
+        };
+      }
+    }
+    const state = work ? work.state : "idle";
+    island.querySelector('[data-assistant-control="pause"]').hidden = state !== "running";
+    island.querySelector('[data-assistant-control="resume"]').hidden = state !== "paused";
+    island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state);
+  };
+  const showProblem = (next) => { problem = next; render(); };
+  /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
+  const announced = new Set();
+  let announcing = false;
+  const announceEffects = (work, rounds) => {
+    rounds.forEach((round) => round.activity.forEach((item) => {
+      if (item.verb !== "change" || item.state !== "completed" || !item.capability_id || announced.has(item.call_id)) return;
+      announced.add(item.call_id);
+      if (announcing) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: item.capability_id } }));
+    }));
+  };
+  const objectsBox = island.querySelector("[data-assistant-objects]");
+  const RELATION_LABEL = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
+  const objectState = (object) => object.state === "changed" ? L("已被修改") + " · " + L("现为版本") + " " + object.current_revision + " · " + L("这项工作记下版本") + " " + object.recorded_revision
+    : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
+    : object.current_revision ? L("未变") + " · " + L("版本") + " " + object.current_revision : L("可用");
+  const renderObjects = (work) => {
+    if (!objectsBox) return;
+    const objects = work && view.objects ? view.objects : [];
+    const signature = JSON.stringify([work && work.work_id, objects.map((o) => [o.relation, o.subject.kind, o.subject.id, o.state, o.current_revision, o.recorded_revision, o.title])]);
+    if (objectsBox.dataset.signature === signature) return;
+    objectsBox.dataset.signature = signature;
+    objectsBox.hidden = !objects.length;
+    if (!objects.length) { objectsBox.replaceChildren(); return; }
+    const changed = objects.filter((o) => o.state === "changed").length;
+    const gone = objects.filter((o) => o.state === "missing").length;
+    const wasOpen = objectsBox.querySelector("details")?.open;
+    const details = el("details", "assistant-objects-list");
+    details.open = wasOpen === undefined ? changed + gone > 0 : wasOpen;
+    details.append(el("summary", "", L("这项工作的对象") + " · " + objects.length + (changed ? " · " + changed + " " + L("项已被修改") : "") + (gone ? " · " + gone + " " + L("项已不存在") : "")));
+    const list = el("ul", "assistant-objects-items");
+    objects.forEach((object) => {
+      const row = el("li", "assistant-object assistant-object--" + object.state);
+      row.append(el("span", "assistant-object-relation", L(RELATION_LABEL[object.relation] || object.relation)), el("span", "assistant-object-title", object.title),
+        el("span", "assistant-object-state", objectState(object)));
+      if (object.open && host.openItem) {
+        const open = el("button", "assistant-object-open", L("打开")); open.type = "button";
+        open.setAttribute("aria-label", L("打开") + "：" + object.title);
+        open.addEventListener("click", () => host.openItem(object.open.surface, object.open.id, object.title));
+        row.append(open);
+      }
+      list.append(row);
+    });
+    details.append(list);
+    objectsBox.replaceChildren(details);
+  };
+  const render = () => {
+    const stick = nearBottom();
+    const work = view && view.work.work_id === currentId ? view.work : null;
+    renderObjects(work);
+    if (work) {
+      const index = works.findIndex((row) => row.work_id === work.work_id);
+      if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
+      else works.unshift(work);
+    }
+    if (empty) empty.hidden = Boolean(currentId);
+    const rounds = work ? view.rounds : [];
+    if (work) announceEffects(work, rounds);
+    [...thread.children].forEach((node) => { if (node.dataset.round && !rounds.some((round) => round.run_id === node.dataset.round)) node.remove(); });
+    rounds.forEach((round) => renderRound(work, round));
+    const reviews = work ? view.reviews : [];
+    [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
+    reviews.forEach((review) => {
+      const card = keyed(thread, "data-review", review.review_id, () => el("div", "assistant-card assistant-card--review"));
+      if (!card.dataset.painted) { card.dataset.painted = "1"; renderReview(card, work, review); }
+      thread.append(card);
+    });
+    thread.querySelector(":scope > .assistant-problem")?.remove();
+    const shown = problem || (work && view.problem) || null;
+    if (shown) {
+      const box = el("div", "assistant-problem"); box.setAttribute("role", "alert");
+      box.append(el("p", "", shown.message));
+      if (work && work.state === "needs-check") {
+        // What the interrupted round really did, then an explicit close. Nothing is re-run.
+        const check = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("查看实际发生了什么")); check.type = "button";
+        check.addEventListener("click", async () => {
+          check.disabled = true;
+          try {
+            const report = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery");
+            const OUTCOMES = { completed: "已发生", failed: "失败，没有发生", "not-dispatched": "没有执行", unknown: "结果未知，请到原处核对" };
+            const list = el("ul", "assistant-recovery");
+            report.rounds.forEach((round) => {
+              round.operations.forEach((op) => list.append(el("li", "", op.summary + " — " + L(OUTCOMES[op.outcome] || op.outcome))));
+              if (!round.operations.length) list.append(el("li", "", L("这一轮没有记录到任何操作")));
+              round.blockers.forEach((why) => list.append(el("li", "assistant-muted", why)));
+              if (round.can_close) {
+                const close = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("已核对，结束这一轮")); close.type = "button";
+                close.addEventListener("click", async () => {
+                  close.disabled = true;
+                  try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
+                  catch (error) { showProblem({ message: error.message }); }
+                });
+                list.append(close);
+              }
+            });
+            check.replaceWith(list);
+          } catch (error) { showProblem({ message: error.message }); }
+        });
+        box.append(check);
+      }
+      if (shown.action) {
+        if (/模型/.test(shown.action)) { const link = el("a", "mw-btn mw-btn--secondary mw-btn--sm", L(shown.action)); link.href = "/settings/models"; box.append(link); }
+        else box.append(el("p", "assistant-muted", L(shown.action)));
+      }
+      thread.append(box);
+    }
+    paintHead(); paintTarget(); paintWorks();
+    if (stick) thread.scrollTop = thread.scrollHeight;
+  };
+
+  /* ─── The list of works ────────────────────────────────────────────────── */
+  const paintWorks = () => {
+    if (!worksNav || worksNav.hidden) return;
+    const focused = document.activeElement && worksNav.contains(document.activeElement) ? document.activeElement.dataset.workId || "new" : null;
+    worksNav.replaceChildren();
+    const fresh = el("button", "assistant-works-item assistant-works-new", L("＋ 新工作")); fresh.type = "button"; fresh.dataset.workId = "new";
+    fresh.addEventListener("click", () => { setWorks(false); switchTo(null); input.focus(); });
+    worksNav.append(fresh);
+    if (!works.length) worksNav.append(el("p", "assistant-muted", L("还没有工作。发送一句话就会开始第一项。")));
+    works.forEach((work) => {
+      const item = el("button", "assistant-works-item"); item.type = "button"; item.dataset.workId = work.work_id;
+      if (work.work_id === currentId) item.setAttribute("aria-current", "true");
+      const meta = el("span", "assistant-works-meta", stateLabel(work.state) + " · " + scopeLabel(work.scope, work.scope_title));
+      meta.dataset.state = work.state;
+      item.append(el("span", "assistant-works-title", work.title), meta);
+      item.addEventListener("click", () => { setWorks(false); switchTo(work.work_id); });
+      worksNav.append(item);
+    });
+    if (focused) [...worksNav.querySelectorAll("button")].find((button) => button.dataset.workId === focused)?.focus();
+  };
+  const setWorks = (open) => {
+    if (!worksNav) return;
+    worksNav.hidden = !open;
+    worksToggle?.setAttribute("aria-expanded", String(open));
+    if (open) { paintWorks(); (worksNav.querySelector("[aria-current]") || worksNav.querySelector("button"))?.focus(); loadWorks(); }
+  };
+  const loadWorks = async () => {
+    try {
+      const result = await api("/works");
+      const drafts = new Map(works.map((work) => [work.work_id, work.draft]));
+      works = (result.works || []).map((work) => drafts.has(work.work_id) && work.work_id === currentId ? Object.assign(work, { draft: drafts.get(work.work_id) }) : work);
+      if (currentId && !works.some((work) => work.work_id === currentId)) { currentId = null; remember(); view = null; }
+      paintWorks(); paintTarget(); paintHead();
+    } catch { /* the list stays as it was; the next refresh retries */ }
+  };
+
+  /* ─── Keeping up with a running work ───────────────────────────────────── */
+  const refresh = async () => {
+    if (!currentId) return;
+    const id = currentId;
+    try { const next = await api("/works/" + encodeURIComponent(id)); if (id === currentId) { view = next; render(); } }
+    catch (error) {
+      if (error.data && error.data.code === "assistant.not_found") { currentId = null; remember(); view = null; render(); return; }
+      if (id === currentId) showProblem({ message: error.message });
+    }
+  };
+  const schedule = () => {
+    clearTimeout(pollTimer);
+    if (!currentId) return;
+    const state = view && view.work.work_id === currentId ? view.work.state : null;
+    // A hidden page still follows a live work, slowly, so it is current when the person looks again.
+    const delay = !isLive(state) ? 0 : document.hidden ? 8000 : state === "running" ? 1200 : 4000;
+    if (delay) pollTimer = setTimeout(async () => { await refresh(); schedule(); }, delay);
+  };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh().then(schedule); loadWorks(); } });
+  // Another window may have changed this work (a Coding mode, a new round): coming back to this one reads it again.
+  window.addEventListener("focus", () => { if (!document.hidden && currentId) refresh().then(schedule); });
+  const listTimer = setInterval(() => { if (!document.hidden && panel && !panel.hidden) loadWorks(); }, 15000);
+
+  /* ─── Sending ──────────────────────────────────────────────────────────── */
+  /* ─── What the person is looking at, and what goes with this Send ──────── */
+  const materialsButton = island.querySelector("[data-assistant-materials]");
+  const materialsCount = island.querySelector("[data-assistant-materials-count]");
+  const materialsList = island.querySelector("[data-assistant-materials-list]");
+  const startersPop = island.querySelector("[data-assistant-starters]");
+  const attach = island.querySelector("[data-assistant-attach]");
+  const fileInput = island.querySelector("[data-assistant-file]");
+  let lastSurface = null;
+  let selection = null;
+  let files = [];
+  const removed = new Set();
+  const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
+  const noteSurface = (target) => {
+    if (!(target instanceof Element) || island.contains(target)) return;
+    const surface = target.closest("[data-assistant-context]");
+    if (surface) lastSurface = surface;
+  };
+  document.addEventListener("focusin", (event) => noteSurface(event.target), true);
+  document.addEventListener("pointerdown", (event) => noteSurface(event.target), true);
+  document.addEventListener("selectionchange", () => {
+    const current = getSelection();
+    const node = current && current.anchorNode;
+    const element = node && (node.nodeType === 1 ? node : node.parentElement);
+    if (!element || island.contains(element)) return;
+    const text = current.isCollapsed ? "" : current.toString().trim();
+    if (!text) { selection = null; paintMaterials(); return; }
+    selection = { text: text.slice(0, 8000), truncated: text.length > 8000, surface: element.closest("[data-assistant-context]") };
+    removed.delete("selection");
+    paintMaterials();
   });
-  island.querySelector("[data-plugin-id]")?.addEventListener("click", hide);
-  addEventListener("resize", () => { if (isOpen()) place(); });
-  syncSend();
-  return { isOpen };
+  /** Official surfaces whose tab item is an object with a shared context reader; a plugin that declares its own context wins. */
+  const TAB_KINDS = { pages: "pages_document", coding: "coding_session", inbox: "inbox_entry", feed: "feed_item", goals: "goal", sessions: "session", artifacts: "artifact" };
+  const surfaceContext = () => {
+    const surface = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find(visible);
+    if (surface) {
+      try { return JSON.parse(surface.getAttribute("data-assistant-context") || "null"); } catch { return null; }
+    }
+    // No declaration: the open tab still says which object the person is on.
+    const tab = document.querySelector(".tab-item[aria-current='page'][data-item-id]");
+    if (!tab) return null;
+    const kind = TAB_KINDS[tab.dataset.plugin];
+    const title = tab.getAttribute("title") || "";
+    return { plugin_id: tab.dataset.plugin, surface_title: title, ...(kind ? { object: { kind, id: tab.dataset.itemId, title } } : {}) };
+  };
+  /* What the person looks at is not what they work on. A page object joins the current work only when it already
+     belongs to it (opened from it, produced by it) or when the person adds it; a new work starts from it. */
+  const joined = new Set();
+  const objectKey = (object) => object.kind + ":" + object.id;
+  const belongsToWork = (object) => Boolean(view && view.work.work_id === currentId && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id));
+  /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
+  const openCodingSession = () => { const context = surfaceContext(); return context && context.object && context.object.kind === "coding_session" ? context.object.id : null; };
+  const relatedCache = new Map();
+  const relatedWorks = (object) => {
+    const key = objectKey(object), held = relatedCache.get(key);
+    if (held && Date.now() - held.at < 10000) return held.works;
+    relatedCache.set(key, { at: Date.now(), works: held ? held.works : [] });
+    api("/related?kind=" + encodeURIComponent(object.kind) + "&id=" + encodeURIComponent(object.id))
+      .then((result) => { relatedCache.set(key, { at: Date.now(), works: result.works || [] }); paintMaterials(); }).catch(() => {});
+    return held ? held.works : [];
+  };
+  const pageObject = () => {
+    const context = surfaceContext();
+    if (!context || !context.object || removed.has("object")) return null;
+    const object = context.object;
+    const related = !currentId || belongsToWork(object);
+    return { object, context, related, included: related || joined.has(objectKey(object)) };
+  };
+  const clip = (text, size) => text.length > size ? text.slice(0, size - 1) + "…" : text;
+  /** The materials this Send would carry, each named and removable; page items are marked as coming from the page. */
+  const materialsNow = () => {
+    const context = surfaceContext();
+    const items = [];
+    const page = pageObject();
+    if (page) {
+      const label = L("正在看") + "：" + (page.object.title || page.object.id);
+      if (page.included) items.push({ key: "object", label, auto: !joined.has(objectKey(page.object)), note: currentId && page.related ? L("这项工作的对象") : "" });
+      else items.push({ key: "object", label, optional: true });
+    }
+    if (page && page.included && context.unsaved && context.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
+    if (page) relatedWorks(page.object).filter((row) => row.work_id !== currentId).slice(0, 2)
+      .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
+    if (selection && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(selection.text.replace(/\s+/g, " "), 28), auto: true });
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: file.title, auto: false }));
+    return items;
+  };
+  function paintMaterials() {
+    if (!materialsButton) return;
+    const items = materialsNow();
+    const carried = items.filter((item) => !item.optional);
+    materialsButton.hidden = !items.length;
+    if (materialsCount) materialsCount.textContent = String(carried.length) + (carried.length < items.length ? "+" : "");
+    materialsButton.setAttribute("aria-label", L("本次发送带上的材料") + "：" + carried.length + (carried.length < items.length ? "，" + L("另有正在看的对象未加入") : ""));
+    if (!materialsList || materialsList.hidden) return;
+    materialsList.replaceChildren(el("p", "assistant-popover-title", L("本次发送带上的材料")));
+    if (!items.length) materialsList.append(el("p", "assistant-muted", L("没有材料。可以在页面上选中内容，或添加文件。")));
+    items.forEach((item) => {
+      const row = el("div", "assistant-material" + (item.optional ? " assistant-material--optional" : ""));
+      if (item.work) {
+        // Another work already holds this object: continuing it there is one click, never automatic.
+        row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", stateLabel(item.work.state)));
+        const go = el("button", "assistant-material-add", L("切换过去")); go.type = "button";
+        go.addEventListener("click", () => { setMaterials(false); switchTo(item.work.work_id); input.focus(); });
+        row.append(go); materialsList.append(row); return;
+      }
+      if (item.optional) {
+        // Browsing is not working on it: the person decides whether this round takes it.
+        row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", L("与这项工作无关，不会带上")));
+        const add = el("button", "assistant-material-add", L("加入本轮")); add.type = "button";
+        add.addEventListener("click", () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMaterials(); materialsList.querySelector("button")?.focus(); });
+        row.append(add); materialsList.append(row); return;
+      }
+      row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", item.note || (item.auto ? L("来自当前页面") : L("你添加的"))));
+      const drop = el("button", "assistant-material-remove", "×"); drop.type = "button";
+      drop.setAttribute("aria-label", L("不带上") + "：" + item.label);
+      drop.addEventListener("click", () => {
+        const page = item.key === "object" ? pageObject() : null;
+        if (page && joined.has(objectKey(page.object))) joined.delete(objectKey(page.object));
+        else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
+        paintMaterials(); (materialsList.querySelector("button") || materialsButton).focus();
+      });
+      row.append(drop); materialsList.append(row);
+    });
+  }
+  const setMaterials = (open) => {
+    if (!materialsList) return;
+    materialsList.hidden = !open;
+    materialsButton?.setAttribute("aria-expanded", String(open));
+    if (open) { setStarters(false); paintMaterials(); materialsList.querySelector("button")?.focus(); }
+  };
+  materialsButton?.addEventListener("click", () => setMaterials(materialsList.hidden));
+  /* Starting points for the current content: choosing one fills the input and sends nothing. */
+  const startersFor = () => {
+    const context = surfaceContext();
+    const list = [];
+    if (selection && !removed.has("selection")) {
+      list.push({ label: L("改写选中的内容"), prompt: L("改写我选中的这段内容，保持原意，更清楚") });
+      list.push({ label: L("总结选中的内容"), prompt: L("用三句话总结我选中的内容") });
+    }
+    ((context && context.starters) || []).forEach((starter) => { if (starter && starter.label && starter.prompt) list.push(starter); });
+    return list.slice(0, 5);
+  };
+  function setStarters(open) {
+    if (!startersPop) return;
+    const list = open ? startersFor() : [];
+    startersPop.hidden = !list.length;
+    if (!list.length) return;
+    startersPop.replaceChildren(el("p", "assistant-popover-title", L("可以这样开始")));
+    list.forEach((starter) => {
+      const button = el("button", "assistant-starter", starter.label); button.type = "button";
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); setStarters(false); input.focus(); });
+      startersPop.append(button);
+    });
+  }
+  input.addEventListener("focus", () => { paintMaterials(); if (!String(input.value || "").trim() && !busy) setStarters(true); });
+  input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarters(false); }, 0));
+  document.addEventListener("pointerdown", (event) => {
+    if (!(event.target instanceof Element) || island.contains(event.target)) return;
+    setStarters(false); if (materialsList && !materialsList.hidden) setMaterials(false); if (executorsPop && !executorsPop.hidden) setExecutors(false); if (modesPop && !modesPop.hidden) setModes(false); if (charactersPop && !charactersPop.hidden) setCharacters(false);
+  });
+  island.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (materialsList && !materialsList.hidden) { event.preventDefault(); event.stopPropagation(); setMaterials(false); materialsButton?.focus(); return; }
+    if (startersPop && !startersPop.hidden) { event.preventDefault(); event.stopPropagation(); setStarters(false); }
+    if (executorsPop && !executorsPop.hidden) { event.preventDefault(); event.stopPropagation(); setExecutors(false); executorButton?.focus(); }
+    if (modesPop && !modesPop.hidden) { event.preventDefault(); event.stopPropagation(); setModes(false); modeButton?.focus(); }
+    if (charactersPop && !charactersPop.hidden) { event.preventDefault(); event.stopPropagation(); setCharacters(false); characterButton?.focus(); }
+  }, true);
+  /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
+  attach?.addEventListener("click", () => fileInput?.click());
+  fileInput?.addEventListener("change", async () => {
+    const chosen = [...(fileInput.files || [])];
+    fileInput.value = "";
+    for (const file of chosen) {
+      if (files.length >= 5) { host.showToast?.(L("一次最多带 5 个文件")); break; }
+      if (/^image\//.test(file.type)) { host.showToast?.(L("暂时不能读取图片：当前模型与运行方式还没有接通图片")); continue; }
+      if (file.size > 400000) { host.showToast?.(L("文件太大，请只带需要的部分") + "：" + file.name); continue; }
+      try { files.push({ material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }); }
+      catch { host.showToast?.(L("读不了这个文件") + "：" + file.name); }
+    }
+    paintMaterials();
+  });
+  /** The page, what is selected on it and the materials the person kept: all data for this Send, nothing more. */
+  const pageContext = () => {
+    const context = surfaceContext();
+    const current = document.querySelector("[data-plugin-picker-current]");
+    const active = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]");
+    const surface = (context && context.plugin_id) || (active && active.dataset.pluginId) || "home";
+    const title = (context && context.surface_title) || (current ? current.textContent.trim() : "");
+    const result = { source: Object.assign({ surface }, context && context.plugin_id ? { plugin_id: context.plugin_id } : {}, title ? { title } : {}), captured_at: new Date().toISOString() };
+    const page = pageObject();
+    if (page && page.included) result.object = page.object;
+    if (context && context.unsaved && page && page.included) result.unsaved = true;
+    if (selection && !removed.has("selection")) result.selection = { text: selection.text, truncated: selection.truncated };
+    return result;
+  };
+  const sendMaterials = () => {
+    const context = surfaceContext();
+    const list = files.map((file) => Object.assign({}, file));
+    const page = pageObject();
+    if (page && currentId && joined.has(objectKey(page.object))) {
+      list.push({ material_id: "object", kind: "object", title: page.object.title || page.object.id, explicit: true, object: page.object,
+        source: { surface: context.plugin_id || "page", ...(context.plugin_id ? { plugin_id: context.plugin_id } : {}) } });
+    }
+    if (page && page.included && context.unsaved && context.draft_text && !removed.has("draft")) {
+      list.unshift({ material_id: "draft", kind: "text", title: L("未保存的修改") + "：" + ((context.object && context.object.title) || ""), text: context.draft_text,
+        explicit: false, draft: true, source: { surface: context.plugin_id, plugin_id: context.plugin_id }, object: context.object });
+    }
+    return list;
+  };
+  const consumeMaterials = () => { files = []; selection = null; removed.clear(); joined.clear(); paintMaterials(); };
+  let typed = false;
+  input.addEventListener("input", () => { typed = true; syncSend(); saveDraft(false); if (String(input.value || "").trim()) setStarters(false); });
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    syncSend();
+    if (!send.disabled) composer.requestSubmit(send);
+  });
+  composer.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = String(input.value || "").trim();
+    if (!text || busy) return;
+    busy = true; syncSend(); problem = null; setPanel(true);
+    const requestId = unsettled && unsettled.text === text && unsettled.work === currentId ? unsettled.id : crypto.randomUUID();
+    const materials = sendMaterials();
+    setStarters(false); if (materialsList) setMaterials(false);
+    // A draft save still waiting to go out would land after the send and bring the sent text back: cancel it, and let
+    // one already on its way arrive first.
+    clearTimeout(draftTimer);
+    await draftWrite;
+    const body = { text, request_id: requestId, context: pageContext(), materials };
+    // The Character choice travels with the Send that makes it; the Host freezes that exact version or refuses.
+    const character = currentId ? pendingCharacter : newCharacter || undefined;
+    if (character !== undefined && characterAllowed()) body.character = character ? { artifact_id: character.artifact_id, version: character.version } : null;
+    if (currentId) body.work_id = currentId;
+    else if (newExecutor !== "assistant") {
+      body.executor = newExecutor;
+      if (newExecutor === "coding") { const session = openCodingSession(); if (session) body.coding_session_id = session; else body.mode = newMode; }
+    }
+    else body.scope = newScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
+    unsettled = { id: requestId, text, work: currentId };
+    try {
+      const result = await api("/send", "POST", body);
+      unsettled = null;
+      consumeMaterials();
+      clearTimeout(draftTimer);
+      // Sent text is nobody's draft any more, including the new-work draft it may have started as.
+      if (!currentId || store.get(NEW_DRAFT_KEY) === text) store.set(NEW_DRAFT_KEY, null);
+      currentId = result.work.work_id; remember(); pendingCharacter = undefined; newCharacter = null;
+      if (String(input.value || "").trim() === text) input.value = "";
+      const index = works.findIndex((work) => work.work_id === result.work.work_id);
+      if (index >= 0) works[index] = result.work; else works.unshift(result.work);
+      // A round a plugin's own Agent carries is that plugin's session: its page, if open, shows it now.
+      if (result.work.executor && result.work.executor.kind === "coding") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: result.work.work_id, capability_id: "coding.runs.start", session_id: result.work.executor.session_id } }));
+      if (result.outcome === "steered") host.showToast?.(L("已补充到正在进行的这一轮"));
+      if (result.outcome === "answered") host.showToast?.(L("已作为回答发送"));
+      await refresh();
+    } catch (error) {
+      if (!error.unknown) unsettled = null;
+      const data = error.data || {};
+      if (data.work) {
+        // The Host kept the text as this work's draft; it is no longer the new-work draft.
+        if (store.get(NEW_DRAFT_KEY) === text) store.set(NEW_DRAFT_KEY, null);
+        currentId = data.work.work_id; remember();
+        const index = works.findIndex((work) => work.work_id === data.work.work_id);
+        if (index >= 0) works[index] = data.work; else works.unshift(data.work);
+      }
+      problem = { message: error.message + (error.unknown ? "" : "。" + L("输入已保留")), action: data.action };
+      if (currentId) await refresh(); else render();
+    } finally { busy = false; syncSend(); schedule(); }
+  });
+
+  /* ─── Head controls ────────────────────────────────────────────────────── */
+  island.querySelectorAll("[data-assistant-control]").forEach((button) => button.addEventListener("click", async () => {
+    if (!currentId) return;
+    button.disabled = true;
+    try { view = await api("/works/" + encodeURIComponent(currentId) + "/control", "POST", { kind: button.dataset.assistantControl }); render(); }
+    catch (error) { showProblem({ message: error.message }); }
+    finally { button.disabled = false; schedule(); }
+  }));
+  newButton?.addEventListener("click", () => { switchTo(null); input.focus(); });
+  worksToggle?.addEventListener("click", () => setWorks(worksNav.hidden));
+  targetClear?.addEventListener("click", () => { switchTo(null); input.focus(); });
+  target.addEventListener("click", () => {
+    if (currentWork()) { setPanel(true); refresh().then(schedule); return; }
+    if (project) { newScope = newScope === "project" ? "personal" : "project"; paintTarget(); paintHead(); }
+  });
+  worksNav?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setWorks(false); worksToggle?.focus(); return; }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    const items = [...worksNav.querySelectorAll("button")];
+    const at = items.indexOf(document.activeElement);
+    event.preventDefault();
+    items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  });
+
+  loadDraft(); render();
+  // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
+  // Changes already done before this page loaded are not news; only ones completing from now on are announced.
+  loadWorks().then(() => { if (!typed) loadDraft(); if (currentId) return refresh().then(schedule); }).finally(() => { announcing = true; });
+  return { isOpen: () => Boolean(panel && !panel.hidden), dispose: () => { clearTimeout(pollTimer); clearInterval(listTimer); } };
 }`;

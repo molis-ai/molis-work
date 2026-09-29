@@ -1,5 +1,6 @@
+import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash } from "node:crypto";
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionFieldValue, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord, PagesInputSnapshot, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, runPagesAi, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { preparePagesImport, type PagesImportFile, type PreparedPagesImport } from "./import-files.js";
@@ -26,15 +27,23 @@ const generation = object({ request_id: id, project_id: id, request_hash: id, st
 const requestIdentity = { request_id: { type: "string", minLength: 1, maxLength: 160 }, request_hash: { type: "string", minLength: 1, maxLength: 160 } };
 const read = ["pages:read"], write = ["pages:write"];
 type Fields = { title?: string; body?: PagesBody; folder_id?: string; starred?: boolean; goal_id?: string };
+/** The object kind every Pages action and surface names; its context reader is `pages.subject.read`. */
+export const PAGES_SUBJECT_KIND = "pages_document";
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
   return { capability_id: `pages.${name}`, version: 1, operation, action: { title, description,
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
-    permissions, subject_kinds: ["pages_document"], input_schema: input, output_schema: output,
+    permissions, subject_kinds: [PAGES_SUBJECT_KIND], input_schema: input, output_schema: output,
+    // A command that returns the document names it, at its new version: callers keep relations to exactly that.
+    ...(operation === "command" && (output as { properties?: Record<string, unknown> }).properties?.document ? { result_subject: { id: "document.id", revision: "document.version" } } : {}),
     // These wait on a model: held in the project's queue they would stall every other operation of the project.
     // Generation keeps a running-record lock with CAS and ai only drafts after a version check, so they run beside it.
     ...(name === "ai" || name === "generate" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const pagesActions = {
+  /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
+  subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
+  /** System search: every document of the project by version; its text is read back through `subject`. */
+  searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
   list: define<Record<string, never>, { documents: PagesRecord[]; folders: PagesFolder[] }>("list", "文档列表", "读取当前项目全部文档和文件夹", "query", object({}), object({ documents: array(page), folders: array(folder) }), read),
   templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
   get: define<{ id: string }, { document: PagesRecord }>("get", "读取文档", "读取当前项目的一篇文档", "query", object({ id }), object({ document: page }), read),
@@ -63,7 +72,7 @@ export const PAGES_ACTIONS: readonly ActionDefinition[] = Object.values(pagesAct
 export const PAGES_ACTION_PERMISSIONS = [...new Set(PAGES_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface PagesActionPorts {
   withStore<T>(run: (store: PagesStore) => T): T;
-  completeText?(prompt: string, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   modelAvailability(): ActionAvailability;
   publishArtifact?: (input: Parameters<PagesPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesPublishArtifactPort>;
   readArtifact?: (input: Parameters<PagesReadArtifactPort>[0], caller: ActionCallContext) => ReturnType<PagesReadArtifactPort>;
@@ -77,6 +86,16 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
+    bind(pagesActions.subject, (input, caller) => ports.withStore(store => {
+      let document: PagesRecord;
+      try { document = store.get(input.subject_id, project(caller)); }
+      catch (error) { throw (error as { code?: string }).code === "pages.not_found" ? new ActionError("pages.not_found", "文档不存在或已删除") : error; }
+      return subjectContext({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档",
+        content: actionFieldValue("body", document.body), goal_ids: document.goal_id ? [document.goal_id] : [], session_id: null, open: { surface: "pages", id: document.id } });
+    })),
+    bindSearchEntriesHandler(pagesActions.searchEntries, caller => ports.withStore(store => store.list(project(caller)).map(document => ({
+      subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, revision: String(document.version), title: document.title || "未命名文档", summary: "",
+      updated_at: document.updated_at, content: "context" as const, open: { surface: "pages", id: document.id } })))),
     bind(pagesActions.list, (_, caller) => ports.withStore(store => ({ documents: store.list(project(caller)), folders: store.listFolders(project(caller)) }))),
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
     bind(pagesActions.get, (input, caller) => ports.withStore(store => ({ document: store.get(input.id, project(caller)) }))),

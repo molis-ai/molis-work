@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
-import { ActionError, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
@@ -41,7 +41,10 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
         return JSON.stringify(result) ?? "null";
       } finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
     };
-    return { executor: name, registration: { name, version: String(view.version), description: view.action.title + "\n" + view.action.description,
+    // Provider and effect lead the description: the name is a hash, and deferred tools are found by searching this text.
+    const effect = actionEffect(view.action, view.capability_id);
+    const label = `${view.provider.title} · ${effect === "read" ? "读取" : effect === "irreversible" ? "不可撤回" : "修改"} · ${view.action.title}`;
+    return { executor: name, registration: { name, version: String(view.version), description: label + "\n" + view.action.description,
       parameters: wrapped ? { type: "object", properties: { input: view.action.input_schema }, required: ["input"], additionalProperties: false } : view.action.input_schema,
       effectKind: view.operation === "query" ? "safe-read" as const : "mutate-external" as const,
       gate: "broker" as const, timeoutMs, idempotency: "none" as const } };

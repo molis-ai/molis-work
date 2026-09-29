@@ -204,6 +204,12 @@ test('an example that expects a type name instead of a value is sent back', () =
   const dropped: string[] = [];
   assert.deepEqual(expandDesign(design, base, 'io.molis.work.generated.x', 'r', dropped).contract.operations[0]!.examples[0], { input: {}, outputIncludes: { total: 0 } });
   assert.match(dropped.join(), /month（写成了类型名/);
+  // A list written as the word "array" (seen from MiniMax on a model-backed operation) is dropped the same way.
+  const listed = { ...design, operations: [{ ...design.operations[0]!, id: 'minutes.extract', kind: 'command', input: { text: 'string' }, output: { id: 'string', todos: ['string'] }, effects: { storage: ['read', 'write'], capabilities: ['model.generate'] },
+    examples: [{ input: { text: 'x' }, includes: { todos: 'array' } }] }], pages: [{ id: 'home', parts: [{ id: 'form', intent: 'input', purpose: '提炼', submit: 'minutes.extract' }] }] };
+  const alsoDropped: string[] = [];
+  assert.deepEqual(expandDesign(listed, base, 'io.molis.work.generated.x', 'r', alsoDropped).contract.operations[0]!.examples[0], { input: { text: 'x' }, outputIncludes: {} });
+  assert.match(alsoDropped.join(), /todos（写成了类型名/);
 });
 
 test('a form that "submits" the query a list reads becomes that list\'s filter bar, and its submit step goes', () => {

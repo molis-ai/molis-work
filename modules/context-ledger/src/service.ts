@@ -17,7 +17,7 @@ export interface ContextLedgerOptions {
 
 function sameScope(a: ContextScope, b: ContextScope): boolean { return a.kind === b.kind && a.id === b.id; }
 export function sameRef(a: ObjectRef, b: ObjectRef): boolean {
-  return a.module === b.module && a.id === b.id && a.version === b.version && sameScope(a.scope, b.scope)
+  return a.module === b.module && a.id === b.id && a.version === b.version && (a.revision ?? null) === (b.revision ?? null) && sameScope(a.scope, b.scope)
     && (a.project_id ?? null) === (b.project_id ?? null) && a.object_type === b.object_type;
 }
 

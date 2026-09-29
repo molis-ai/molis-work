@@ -6,7 +6,7 @@ import { charactersUiContribution } from "./ui.js";
 import type { CharactersImportPorts } from "./imports.js";
 import { characterBrowserPreview, characterSnapshotPreview, characterFilePreview } from "./import-preview.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, bindOwnerPluginAction, referencesAction, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindOwnerPluginAction, referencesAction, searchEntriesPage, subjectContext, type ActionDefinition, type ActionUsage, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { charactersActions, type CharacterLaunchInput } from "./actions.js";
 
 export interface CharactersPluginPorts {
@@ -64,6 +64,16 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
     };
     const a = charactersActions;
     const handlers = [
+      // System search lists the person's own drafts; the reader returns the same current text.
+      bindOwnerPluginAction(context, a.searchEntries, input => searchEntriesPage(ports.drafts.list().filter(draft => draft.state !== "tombstoned").map(draft => ({
+        subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色", summary: "",
+        updated_at: draft.updated_at, content: "context" as const, open: { surface: "characters", id: draft.character_id } })), input)),
+      bindOwnerPluginAction(context, a.subject, input => {
+        const draft = ports.drafts.get(input.subject_id);
+        if (!draft || draft.state === "tombstoned") throw new ActionError("character.not_found", "角色已删除");
+        return subjectContext({ subject: { kind: "character", id: draft.character_id }, revision: String(draft.revision), title: draft.title || "未命名角色",
+          content: draft.instructions, goal_ids: [], session_id: null, open: { surface: "characters", id: draft.character_id } });
+      }),
       bindOwnerPluginAction(context, a.list, () => ({ drafts: ports.drafts.list().map(characterBrowserPreview),
         publications: publications().map(record => ({ ...record, payload: characterBrowserPreview(parseCharacterContent(record.payload)) })) })),
       bindOwnerPluginAction(context, a.actions, async () => ({ actions: [...await actionCatalog()] })),

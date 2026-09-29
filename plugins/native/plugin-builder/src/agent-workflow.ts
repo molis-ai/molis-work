@@ -5,12 +5,12 @@ import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin
 import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { AgentBuilderStore } from './agent-store.js';
-import { BUILDER_PROMPTS } from './agent-prompts.js';
+import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
 import { contractEffects, validateAgentDesign } from './agent-validation.js';
 import { parseModelJson } from './validation.js';
 import { expandDesign, normalizeProposal } from './agent-authoring.js';
-import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease } from './agent-model.js';
+import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease, PluginPrompt } from './agent-model.js';
 
 export interface AgentBuilderPorts {
   projectId: string;
@@ -20,6 +20,11 @@ export interface AgentBuilderPorts {
   agent(build: AgentBuild, purpose: 'design' | 'code'): Promise<{ run(request: BuilderAgentRequest): Promise<BuilderAgentRecord>; close(): Promise<void>; records(): Promise<BuilderAgentRecord[]> }>;
   /** The plugin development Skill a stage works to (the same standard official plugins use); absent in a release without it. */
   skill?(stage: 'design' | 'code'): BuilderSkill | undefined;
+  /**
+   * The text an Agent prompt runs with now: the person's edit (from “Prompt 与 Character”) or the shipped default. The
+   * version names which, so a run's record says whether it used the person's text.
+   */
+  prompt?(name: BuilderPromptName, shipped: { version: string; text: string }): { version: string; text: string };
   /** The capability catalog new designs are made against. */
   catalogVersion?: string;
   /** Plugins a design uses that this project has not enabled, and enabling them. */
@@ -42,7 +47,7 @@ export interface AgentBuilderPorts {
   browserAcceptance(build: AgentBuild, signal: AbortSignal): Promise<NonNullable<AgentBuild['browserResult']>>;
   /** Shared source modules already in the build (src/*.ts other than the operation files and the entry). */
   sources?(build: AgentBuild): Promise<string[]>;
-  publish(build: AgentBuild, manifest: BuildManifest, bundlePath: string, version: number): Promise<{ directory: string; bundlePath: string; packagePath: string }>;
+  publish(build: AgentBuild, manifest: BuildManifest, bundlePath: string, version: number): Promise<{ directory: string; bundlePath: string; packagePath: string; prompts?: PluginPrompt[] }>;
   installations(): Promise<unknown[]>;
   lifecycle(action: 'install' | 'upgrade' | 'rollback' | 'disable' | 'enable' | 'uninstall', release: AgentRelease, grants?: unknown): Promise<void>;
 }
@@ -106,6 +111,11 @@ function pruneSteps(steps: AgentBuildStep[]) {
 
 /** Durable host-driven state machine. Browser views subscribe; no browser tick starts work. */
 export class AgentBuilderWorkflow {
+  /** An Agent prompt as it runs now: the host's registered version (the person's edit) or the shipped text. */
+  private prompt(name: BuilderPromptName): { version: string; text: string } {
+    const shipped = BUILDER_PROMPTS[name];
+    return this.ports.prompt?.(name, shipped) ?? shipped;
+  }
   readonly store: AgentBuilderStore;
   private readonly jobs = new Map<string, { abort: AbortController; done: Promise<void> }>();
   /** Mockups being drawn; they outlive the job that proposed them and stop when the host closes. */
@@ -175,7 +185,7 @@ export class AgentBuilderWorkflow {
    * at most twice in a row. Long structured answers are where models most often slip.
    */
   private async designer<T>(id: string, token: string, signal: AbortSignal, stepId: string, task: Record<string, unknown>, accept: (output: string) => T): Promise<T> {
-    const prompt = BUILDER_PROMPTS.designer;
+    const prompt = this.prompt('designer');
     let repair: { previousAnswer: string; validationError: string } | undefined;
     for (let attempt = 0; ; attempt++) {
       const current = this.store.require(id);
@@ -424,7 +434,7 @@ export class AgentBuilderWorkflow {
     const stepId = 'smoke:' + token, name = broken.operation.description || broken.operation.id;
     this.step(id, { id: stepId, agent: 'code', action: 'implement', label: '用真实数据读取「' + name + '」出错，代码 Agent 修正中', operationId: broken.operation.id, status: 'active', detail: broken.error });
     const index = this.store.require(id).design!.contract.operations.findIndex(item => item.id === broken!.operation.id);
-    await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, BUILDER_PROMPTS.repair, [broken!.operation.id], stepId + ':run', {
+    await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, this.prompt('repair'), [broken!.operation.id], stepId + ':run', {
       operation: broken!.operation, implementation: 'src/operations/' + index + '.ts', tests: 'tests/operations/' + index + '.ts', attempt: 1, maxRepairs: 1,
       failure: { passed: false, gates: [{ id: 'G7', passed: false, detail: '检查里别处的数据由替身代答，这次用真实数据读取时出错：' + broken!.error + '。按真实返回修正（例如传对编号、读不到时照样列出），不要改合同' }] } }));
     const checked = await this.check(id, this.store.require(id).design!.contract.operations.map(item => item.id), signal); this.current(id, token);
@@ -492,7 +502,7 @@ export class AgentBuilderWorkflow {
     // A reworked operation still passes its unchanged checks, so it always gets one run with the change to make.
     for (let attempt = 0; (!result.passed || (change !== undefined && attempt === 0)) && attempt < 4; attempt++) {
       const now = this.store.require(id), revising = initial.history.length > 0;
-      const prompt = attempt ? BUILDER_PROMPTS.repair : revising || change ? BUILDER_PROMPTS.revise : BUILDER_PROMPTS.implement;
+      const prompt = attempt ? this.prompt('repair') : revising || change ? this.prompt('revise') : this.prompt('implement');
       // Everything the agent needs is in the task, so its limited turns go to writing and checking, not exploring.
       const siblings = now.design!.contract.operations.map((item, position) => ({ id: item.id, kind: item.kind, description: item.description, input: item.input, output: item.output,
         implementation: 'src/operations/' + position + '.ts', tests: 'tests/operations/' + position + '.ts', implemented: now.connected.includes(item.id) })).filter(item => item.id !== operation.id);
@@ -592,12 +602,12 @@ export class AgentBuilderWorkflow {
       const operations = design.contract.operations.map((item, index) => ({ ...item, implementation: 'src/operations/' + index + '.ts', tests: 'tests/operations/' + index + '.ts' })).filter(item => operationIds.includes(item.id));
       const parts = design.parts.filter(part => components.has(part.id)).map(({ id: partId, intent, purpose, props, read, submit }) => ({ id: partId, intent, purpose, props, read, submit }));
       const shared = await this.ports.sources?.(this.store.require(id)) ?? [];
-      await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, BUILDER_PROMPTS.acceptance, operationIds, stepId + ':run',
+      await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, this.prompt('acceptance'), operationIds, stepId + ':run',
         { operations, parts, shared, acceptanceFailure: { description: test.description, steps: test.steps, detail: failed.detail }, round }));
       let final = await this.check(id, design.contract.operations.map(item => item.id), signal); this.current(id, token);
       // A fix that breaks a check goes back to the code agent with the check's own words, as any other repair.
       for (let attempt = 1; !final.passed && attempt <= 2; attempt++) {
-        await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, BUILDER_PROMPTS.repair, operationIds, stepId + ':repair:' + attempt,
+        await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, this.prompt('repair'), operationIds, stepId + ':repair:' + attempt,
           { operations, shared, failure: final, attempt, maxRepairs: 2, acceptanceFailure: { description: test.description, steps: test.steps, detail: failed.detail } }));
         final = await this.check(id, design.contract.operations.map(item => item.id), signal); this.current(id, token);
       }

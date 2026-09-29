@@ -18,7 +18,8 @@ test("Experiments register at Home; only lists and result summaries leave the lo
     const mine = (await client.discover(user)).filter(row => row.provider.plugin_id === "io.molis.work.experiments");
     assert.deepEqual(mine.map(row => row.capability_id).sort(), EXPERIMENTS_ACTIONS.map(row => row.capability_id).sort());
     const external = (await client.discover({ ...user, actor_id: "runtime:x", audience: "mcp" })).filter(row => row.provider.plugin_id === "io.molis.work.experiments");
-    assert.deepEqual(external.map(row => row.capability_id).sort(), ["experiments.list", "experiments.results"],
+    // The search source carries only what the list already shares: each experiment's name and state.
+    assert.deepEqual(external.map(row => row.capability_id).sort(), ["experiments.list", "experiments.results", "experiments.search.entries"],
       "participants name local executables, so configuring and running stay with the local user");
 
     const store = openFunctionsStore(home);

@@ -2,6 +2,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { parseClockTime } from "./calendar.js";
 import type { ScheduleConversationTaskView } from "./tasks.js";
+import { createScheduleSearchHandlers, scheduleSearchActions } from "./search.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1 };
@@ -47,6 +48,8 @@ export const scheduleActions = {
     "打开任务时清除未读标记，不改变排期", "command", object({ task_id: id }), object({ task }), write),
   setJobEnabled: define<{ job_id: string; enabled: boolean }, { job: ScheduleJobRecord }>("jobs.enabled", "暂停或恢复闹钟",
     "暂停或恢复其他插件登记的闹钟；对话任务使用自己的开关", "command", object({ job_id: id, enabled: { type: "boolean" } }), object({ job }), write),
+  searchEntries: scheduleSearchActions.entries,
+  subject: scheduleSearchActions.subject,
 };
 export const SCHEDULE_ACTIONS: readonly ActionDefinition[] = Object.values(scheduleActions);
 export const SCHEDULE_ACTION_PERMISSIONS = [...new Set(SCHEDULE_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -80,5 +83,6 @@ export function createScheduleActionHandlers(projectId: string, ports: ScheduleA
     bind(scheduleActions.setTaskEnabled, input => ({ task: ports.setTaskEnabled(input.task_id, input.enabled) })),
     bind(scheduleActions.openTask, input => ({ task: ports.openTask(input.task_id) })),
     bind(scheduleActions.setJobEnabled, input => ({ job: ports.setEnabled(input.job_id, input.enabled) })),
+    ...createScheduleSearchHandlers(projectId, () => ports.listTasks()),
   ];
 }

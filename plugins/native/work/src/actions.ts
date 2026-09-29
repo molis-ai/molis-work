@@ -1,6 +1,6 @@
 import { sessionMessageActions, createSessionMessageHandlers } from "./message-actions.js";
 import type { SessionMessageService } from "./messages.js";
-import { defineSubjectContextAction, subjectContext, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSubject, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectContextAction, subjectContext, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSubject, type ActionSubjectContext, defineSearchEntriesAction, bindSearchEntriesHandler, searchText, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkSessionApi, WorkSessionRecord, WorkSessionGoalLink } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { RUNTIME_SESSION_CAPABILITIES, type RuntimeHostApi, type RuntimeSessionCapabilities } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import type { SessionContentService } from "./content.js";
@@ -39,6 +39,8 @@ export const workActions = {
   homeEvents: defineHomeEventsAction("sessions.home.events", ["session"], "会话首页事项", ["sessions:read"]),
   ...sessionMessageActions,
   subject: defineSubjectContextAction("sessions.subject.read", "session", "会话上下文", ["sessions:read"]),
+  /** System search: sessions by title, Runtime and the Goal they work on. Private session content stays with its owner. */
+  searchEntries: defineSearchEntriesAction("sessions.search.entries", [{ kind: "session", title: "会话", surface: "sessions" }], "会话", ["sessions:read"]),
   directory: define<Record<string, never>, WorkSessionDirectory>("sessions.directory.read", "会话目录", "读取当前项目会话、目标关联历史、内容记录数量和 Runtime 支持的操作，供目录与会话选择使用。", "query",
     { type: "object", properties: {}, additionalProperties: false }, { type: "object", properties: {
       records: { type: "array", items: { type: "object", properties: { session: publicWorkSessionSchema,
@@ -152,6 +154,14 @@ export function createWorkActionHandlers(projectId: string, resources: () => Pro
         title: session.title || "Session", content: `会话：${session.title || session.session_id}\nRuntime：${session.runtime_id}`,
         goal_ids: session.current_goal_id ? [session.current_goal_id] : [], session_id: session.session_id });
     }),
+    { ...bindSearchEntriesHandler(workActions.searchEntries, async caller => {
+      if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "Session 调用不属于当前项目");
+      const owner = await resources(); await assertAuthority(caller, workActions.searchEntries); caller.signal?.throwIfAborted();
+      return owner.registry.list({ project_id: projectId }).map((session): SearchEntry => ({
+        subject: { kind: "session", id: session.session_id }, revision: session.updated_at, title: session.title || "Session",
+        summary: searchText([session.runtime_id, session.status].filter(Boolean).join(" · "), 200), updated_at: session.updated_at, content: "summary",
+        open: { surface: "sessions", id: session.session_id } }));
+    }) },
     bind(workActions.directory, async (_input, caller) => {
       if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "Session 调用不属于当前项目");
       const owner = await resources();

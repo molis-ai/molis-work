@@ -27,7 +27,7 @@ test("Dataset standard MCP: actual data, project grants, CSV, versions and publi
   try {
     const writer = await connect("a"), other = await connect("b"), reader = await connect("a", "read");
     const names = (await writer.listTools()).tools.map(t => t.name).filter(n => n.startsWith("dataset."));
-    assert.deepEqual(names.sort(), ["list", "get", "create", "update", "delete", "columns.add", "columns.ai", "import", "export", "versions", "snapshot", "rollback", "promote"].map(n => `dataset.${n}__v1`).sort());
+    assert.deepEqual(names.sort(), ["list", "get", "create", "update", "delete", "columns.add", "columns.ai", "import", "export", "versions", "snapshot", "rollback", "promote", "search.entries", "subject.read"].map(n => `dataset.${n}__v1`).sort());
     assert.equal((await call(reader, "list")).ai_available, false);
     let { dataset } = await call(writer, "create", { title: "外部数据表" });
     assert.equal((await call(reader, "get", { id: dataset.id })).dataset.title, dataset.title);

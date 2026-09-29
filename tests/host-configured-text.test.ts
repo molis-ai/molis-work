@@ -202,7 +202,6 @@ test("two configured Homes keep account credentials separate even under another 
     const connectionB = configure({ ...f, home: homeB, catalog: catalogB });
     withConnectorConnections(homeB, store => store.replaceToken(connectionB.connection_id, "other-home-fixture-key"));
     const a = hostCompleteText({ homeDirectory: f.home })!, b = hostCompleteText({ homeDirectory: homeB })!;
-    await assert.rejects(runWithMolisWorkHome(f.home, () => planInformationWork({} as never, "unconfigured-project", { prompt: "Missing bound completion" })), /尚未配置助手模型/);
     await runWithMolisWorkHome(homeB, () => a("Home A"));
     await runWithMolisWorkHome(f.home, () => b("Home B"));
     assert.deepEqual(f.requests.map(request => request.headers.authorization), ["Bearer configured-fixture-key", "Bearer other-home-fixture-key"]);

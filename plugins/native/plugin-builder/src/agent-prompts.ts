@@ -69,3 +69,20 @@ mode = "propose" 的每个方案是它的轻量版：operations 只有 id、kind
 【规范】怎么实现、怎么测、哪些文件能写、怎样调用平台能力，按本阶段挂载的《插件开发规范 · 代码》（和官方插件同一份标准）。
 【提醒】工具只有 read、write、edit、plugin-checks，没有搜索：要看的文件路径和合同都在任务里，不要去找别的说明文件。两个文件第一次写之前先 read；都写好再跑 plugin-checks，按返回原文一次改完再重跑。` },
 } as const;
+
+export type BuilderPromptName = keyof typeof BUILDER_PROMPTS;
+
+/** A prompt's shipped version as the register counts it (`designer/3.2.0` → 30200), so a newer default shows as updated. */
+export function builderPromptVersion(name: BuilderPromptName): number {
+  const [major = 0, minor = 0, patch = 0] = (/(\d+)\.(\d+)\.(\d+)$/.exec(BUILDER_PROMPTS[name].version) ?? []).slice(1).map(Number);
+  return major * 10_000 + minor * 100 + patch;
+}
+
+/** How each prompt reads in “Prompt 与 Character”. */
+export const BUILDER_PROMPT_TITLES: Readonly<Record<BuilderPromptName, { title: string; purpose: string; used_by: string[] }>> = {
+  designer: { title: "主线设计师", purpose: "理解需求，提出方案、细化与修订插件的产品与功能合同", used_by: ["插件创作台 · 设计"] },
+  implement: { title: "代码 Agent · 实现", purpose: "按确定的设计写出插件代码", used_by: ["插件创作台 · 构建"] },
+  revise: { title: "代码 Agent · 修改", purpose: "按用户的修改意见改动已有插件代码", used_by: ["插件创作台 · 修改"] },
+  repair: { title: "代码 Agent · 修复", purpose: "按宿主检查给出的失败原因修复代码", used_by: ["插件创作台 · 构建"] },
+  acceptance: { title: "代码 Agent · 验收", purpose: "按设计里的验收项检查生成的插件", used_by: ["插件创作台 · 验收"] },
+};

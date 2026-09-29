@@ -1,3 +1,4 @@
+import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   WorkflowError, advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
@@ -5,6 +6,7 @@ import {
   type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
 import type { WorkflowSummary, WorkflowsStore } from "./store.js";
+import { createWorkflowsSearchHandlers, workflowsSearchActions } from "./search.js";
 
 /** One input field of a candidate action, as the mapping editor shows it. */
 export interface WorkflowActionField { readonly name: string; readonly type: string; readonly required: boolean; readonly title?: string; readonly enum?: readonly (string | number | boolean)[] }
@@ -122,7 +124,7 @@ export interface WorkflowsActionPorts {
   /** The Host's full schema validator, also used by actual action dispatch. */
   assertInput(schema: ActionSchema, input: unknown): void;
   aiAvailable(): boolean;
-  completeText?(prompt: string, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<string>;
+  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<string>;
   changed?(): void;
 }
 
@@ -178,6 +180,8 @@ export const workflowsActions = {
   usages: defineActionUsagesAction("workflows.usages", "流程里的使用位置", read),
   stop: define<{ id: string }, { instance: WorkflowInstance }>("instances.stop", "结束一次运行", "结束还在进行的一次运行，已交接的内容保留", "command",
     object({ id }), object({ instance }), write),
+  searchEntries: workflowsSearchActions.entries,
+  subject: workflowsSearchActions.subject,
 };
 export const WORKFLOWS_ACTIONS: readonly ActionDefinition[] = Object.values(workflowsActions);
 export const WORKFLOWS_ACTION_PERMISSIONS = [...new Set(WORKFLOWS_ACTIONS.flatMap(definition => definition.action.permissions))];
@@ -447,6 +451,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }),
     bind(workflowsActions.actionSteps, async (_input, _content, _caller, reach) => ({ actions: workflowActionChoices(await reach.all()), fields: WORKFLOW_PAYLOAD_FIELDS })),
     bind(workflowsActions.judgments, async (_input, _content, _caller, reach) => ({ judgments: workflowJudgmentChoices(await reach.all()) })),
+    ...createWorkflowsSearchHandlers(projectId, ports.withStore),
   ];
 }
 

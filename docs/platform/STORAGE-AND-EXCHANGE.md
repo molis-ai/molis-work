@@ -9,6 +9,20 @@
 - 跨 owner 写入使用本地事务、Durable Outbox、幂等 Event 和补偿。
 - Secret 只存安全引用；日志、Artifact 与普通数据库不保存明文。
 
+### 1.1 数据生命周期规则（2026-09-28 按代码核实）
+
+| 情形 | 业务数据（各 owner 的库） | 派生数据（系统搜索索引） |
+| --- | --- | --- |
+| Home 隔离 | 每个库跟随打开它的 Home（`openHomeSqliteDatabase(home, name)`、项目库路径由目录记录）；不同 Home 不共享库、密钥或索引 | `{home}/search/search.db` 只属于这个 Home |
+| 迁移 | owner 打开库时迁移自己的 schema（`CREATE … IF NOT EXISTS`、`ensureSqliteColumn`；项目库由 Host 的项目迁移） | schema 版本不符时清空重建，不做迁移 |
+| 备份与恢复 | Home 整体离线拷贝，恢复到同一绝对路径（目录记录保存库路径）；加密正文需要原密钥（`tests/home-backup-recovery.test.ts`） | 可随备份一起恢复，也可缺失：下次查询按各来源版本追平或重建 |
+| 插件在项目里停用 | 数据保留，动作不可用（`actions.plugin_disabled`） | 该来源的索引内容删除；重新启用后从 owner 数据重建 |
+| Runtime 插件卸载 | 安装记录置为已卸载；未要求保留时，Host 删除其私有存储（`retain_private_data` 可保留） | 来源从目录消失后删除其索引内容 |
+| 删除项目 | 项目库目录暂存后删除并留回执；Home 级个人库（Pages、Form 等）里按 `project_id` 分区的行**目前不清理**，不要假设删除项目会清掉它们 | 该项目的索引内容全部删除（项目不在目录、也没有打开运行环境时） |
+| 卸载 `--purge` | 清除 `PERSONAL_HOME_SQLITE_STORES` 列出的 Home 级库（含 `search`）与用户项目，须再次确认 | 随之删除 |
+
+派生数据只是可重建的缓存，从不被当作业务事实读取或写回；业务事实的读取总是回到 owner 的动作。
+
 ## 2. Exchange
 
 `packages/exchange` 提供 Envelope、路由、顺序、CAS、ACK、Cursor、Replay、Blob、Quota、Retention 与审计。Server 只理解官方 Envelope 外壳和平台控制字段，不解释 Plugin payload。

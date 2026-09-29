@@ -18,7 +18,9 @@ export interface PluginHostExecutorOptions {
   actor_id: string;
   artifacts: ArtifactsApplicationApi;
   actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
-    client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string };
+    client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
+    /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
+    inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;

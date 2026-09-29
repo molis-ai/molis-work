@@ -74,7 +74,8 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
   - 被取消、撤权、停用的调用不再写任何记录，包括失败记账。
   - 只装配和做 IO（连接、事务、文件、HTTP、进程），不复制 Module 的业务规则；能力注册不启动 SDK、CLI 或请求模型。
   - 安装器准备 npm 与 Desktop 资产但不自动发布；vendored 依赖的传递依赖必须能从标准 ancestor 解析。
-- 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts`
+  - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
+- 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts tests/system-search-lifecycle.test.ts`
 - 相关手册：[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

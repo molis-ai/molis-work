@@ -1,3 +1,4 @@
+import { modelPromptText } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { feedCaptureFixture } from "./feed-capture-fixture.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -89,7 +90,7 @@ test("Pages retries saved input, rejects concurrent generation and preserves lat
     assert.equal(store.generation("project-a", record.request_id)?.status, "failed");
     let calls = 0;
     let finish!: (value: string) => void;
-    const first = generatePagesFromMaterials(run => run(store), record, async prompt => { calls++; assert.match(prompt, /SUMMARY_EXPORT/); return new Promise(resolve => { finish = resolve; }); });
+    const first = generatePagesFromMaterials(run => run(store), record, async input => { const prompt = modelPromptText(input); calls++; assert.match(prompt, /SUMMARY_EXPORT/); return new Promise(resolve => { finish = resolve; }); });
     await assert.rejects(generatePagesFromMaterials(run => run(store), record, async () => "duplicated"), /仍在生成/);
     finish("# 观察\n\n有边界的内容。");
     const saved = await first;
@@ -144,7 +145,7 @@ test("Multi-material document retains every source and a project-scoped return l
   try {
     const record = request();
     const multi = { ...record, inputs: [...record.inputs, { ...record.inputs[0]!, entry_id: "entry-2", item_id: "item-2", body: "第二个来源只支持有限推断", url: "https://example.com/second" }] };
-    const result = await generatePagesFromMaterials(run => run(store), multi, async prompt => {
+    const result = await generatePagesFromMaterials(run => run(store), multi, async input => { const prompt = modelPromptText(input);
       assert.match(prompt, /第二个来源只支持有限推断/); return "两条材料支持范围不同。[材料 1][材料 2]";
     });
     const body = JSON.stringify(result.document.body);

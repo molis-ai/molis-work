@@ -87,6 +87,7 @@
     "@molis-ai/molis-work-service-listener-host": "workspace:*",
     "@molis-ai/molis-work-service-runtime-host": "workspace:*",
     "@molis-ai/molis-work-service-scheduler": "workspace:*",
+    "@molis-ai/molis-work-service-search": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",
     "@molis-ai/molis-work-ui-host": "workspace:*",
     "esbuild": "^0.28.2",

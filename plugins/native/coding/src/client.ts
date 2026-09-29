@@ -66,7 +66,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let directoryClaimed = false;
   const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
   const materialSelections = new Map(), characterSelections = new Map(), characterSkills = new Map(), characterTitles = new Map();
-  const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
+  const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), adoptedConfigurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
   const actionSelections = new Map();
   let mcpChoices = [], mcpSourceChoices = [];
   let methodChoices = [], methodDocumentTicket = 0;
@@ -413,6 +413,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
 
     }
   };
+  const canonical=value=>JSON.stringify(value,(key,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(name=>[name,item[name]])) : item);
   const applyConfiguration = () => {
     const config=configurations.get(current),models=q('[data-coding-model]');
     models.querySelector('[data-unavailable]')?.remove();
@@ -1053,10 +1054,20 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       q('[data-coding-results-open]').setAttribute('aria-label', resultsLabel);
       if(recovery && recoveryKey!==id){recoveryKey=id;void readRecovery();}
       if(!q('[data-coding-title] input')) q('[data-coding-title]').textContent=data.session.title;
+      // What the person is on, for the bottom Assistant: this session, at its round count. Data about the screen only.
+      root.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.coding',surface_title:'Coding',
+        object:{kind:'coding_session',id,title:data.session.title||'编码会话',version:String(data.run_count ?? data.runs.length)},
+        starters:[{label:'总结这个会话做到哪里',prompt:'总结这个 Coding 会话目前做到哪里、改了哪些文件、还差什么'},{label:'检查最近的改动',prompt:'检查这个会话最近一轮的改动有没有问题'}]}));
       q('[data-coding-goal-label]').textContent=data.session.goal_id?'下一轮目标：'+(data.session.goal_title || data.session.goal_id):'下一轮未关联目标';
       retitle(id,state.sessions.find(record=>record.session_id===id)?.title,data.session.title);
       state.sessions=state.sessions.map(record=>record.session_id===id ? data.session : record);
+      // Settings saved elsewhere (the bottom Assistant, another window) are taken over unless this page holds a change of
+      // its own not saved yet; otherwise its next save would quietly put the old choice back.
+      const saved=canonical(data.configuration ?? null),adopted=adoptedConfigurations.get(id);
       if(!configurations.has(id)) configurations.set(id,data.configuration);
+      else if(adopted!==undefined && saved!==adopted && canonical(configurations.get(id) ?? null)===adopted){configurations.set(id,data.configuration);if(!fresh){applyConfiguration();controls();}}
+      // In step with what is saved: from here a difference is someone else's change. Out of step: this page's own change is still on its way.
+      if(adopted===undefined || canonical(configurations.get(id) ?? null)===saved) adoptedConfigurations.set(id,saved);
       if(fresh) {
         if(!configurations.get(id)){
           q('[data-coding-intent]').value='discuss';
@@ -1144,6 +1155,22 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!reuse)await refreshState();
     host.openItem('coding',session.session_id,session.title);await select(session.session_id);input.focus();
   };
+  // Tells the bottom Assistant this session changed here (its mode, a new round), so a work it shows reads it again.
+  const surfaceChanged=id=>{if(id)window.dispatchEvent(new CustomEvent('molis:assistant-surface-changed',{detail:{plugin_id:'coding',object:{kind:'coding-session',id}}}));};
+  // The bottom Assistant can carry this same session through Coding's own actions. When it changes the session's
+  // settings or starts a round, the page takes what is saved, so its next save cannot write the old choice back.
+  window.addEventListener('molis:assistant-effect',event=>{
+    const detail=event.detail || {};
+    if(typeof detail.capability_id!=='string' || detail.capability_id.indexOf('coding.')!==0 || !current || detail.session_id!==current)return;
+    const id=current;
+    void api('/sessions/'+encodeURIComponent(id)+'?window=1').then(data=>{
+      if(current!==id || !data.configuration)return;
+      const before=configurations.get(id)?.intent;
+      configurations.set(id,{...configurations.get(id),...data.configuration});applyConfiguration();controls();
+      if(before!==data.configuration.intent)status('下一轮方式已在助理里改为「'+(q('[data-coding-intent]').selectedOptions[0]?.textContent || data.configuration.intent)+'」。');
+    }).catch(()=>{});
+    void readCurrent();
+  });
   let creatingCharacterSession=false;
   window.addEventListener('molis-work:character-coding',event=>{
     if(creatingCharacterSession)return;
@@ -1330,7 +1357,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   if(!globalThis.CSS?.supports?.('field-sizing','content'))input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,Math.min(innerHeight*0.4,320))+'px';});
   input.addEventListener('input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=setTimeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]')])field.addEventListener('change',()=>{
-    rememberConfiguration();controls();void flushDraft().catch(error=>status('配置暂未保存：'+error.message,true));
+    const id=current;rememberConfiguration();controls();void flushDraft().then(()=>surfaceChanged(id)).catch(error=>status('配置暂未保存：'+error.message,true));
   });
   q('[data-coding-method-search]').addEventListener('input',renderMethods);
   q('[data-coding-goal-search]').addEventListener('input',renderGoalRows);
@@ -1530,7 +1557,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
       }
       if(current===id && input.value===task) input.value='';
-      if(localDraft(id)===task) await saveDraft(id,''); await refreshState();await readCurrent();
+      if(localDraft(id)===task) await saveDraft(id,''); surfaceChanged(id); await refreshState();await readCurrent();
     } catch(error) { status(error.message,true); }
     finally { sending=false;controls(); }
   });

@@ -12,6 +12,7 @@ export { DATASET_UI_CONTRIBUTION_ID, datasetUiContribution, datasetUiDescriptor,
 export type { DatasetUiModel, DatasetUiPrimitives, DatasetUiSurface } from "./ui.js";
 export { DATASET_STYLES } from "./styles.js";
 export { DATASET_EN } from "./en.js";
+export { DATASET_INSTRUCTIONS } from "./prompts.js";
 export { DATASET_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { DATASET_NATIVE_PLUGIN_ROUTES, DatasetPluginRouteTable } from "./routes.js";
 export type { DatasetPluginRouteHandler, DatasetPluginRouteRequest, DatasetPluginRouteResponse } from "./routes.js";

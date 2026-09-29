@@ -200,6 +200,9 @@ importers:
       '@molis-ai/molis-work-service-scheduler':
         specifier: workspace:*
         version: link:horizontal/scheduler
+      '@molis-ai/molis-work-service-search':
+        specifier: workspace:*
+        version: link:horizontal/search
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:packages/storage
@@ -474,6 +477,9 @@ importers:
       '@molis-ai/molis-work-service-scheduler':
         specifier: workspace:*
         version: link:../../horizontal/scheduler
+      '@molis-ai/molis-work-service-search':
+        specifier: workspace:*
+        version: link:../../horizontal/search
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -635,8 +641,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -663,6 +669,12 @@ importers:
         version: 1.1.0
 
   horizontal/scheduler:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  horizontal/search:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
@@ -1536,8 +1548,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz':
-    resolution: {integrity: sha512-7udGtDg/8+KKeYTT4IYVZpJn5GK3J007GJHk3LzCXtA5mo+y8bD9dPLibupEI3DmucbaH+UgZgA+haawoddMgg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant.tgz':
+    resolution: {integrity: sha512-KVtNspb1ZAUdwlb3X7kicvOT+GXxHo+2/SuMCYLXTrLXnEfX1RhI9ZtqNfpwHNybHQTs7Rq4wiGKVHg0lkO67g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant.tgz}
     version: 0.0.0-rc.1
 
   '@rolldown/binding-android-arm-eabi@1.2.9':
@@ -2961,7 +2973,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-network-dispatch.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-assistant.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

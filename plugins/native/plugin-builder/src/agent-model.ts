@@ -74,8 +74,16 @@ export interface AgentBuild extends AgentBuildSnapshot {
   history: AgentBuildSnapshot[];
   error: string | null; createdAt: string; updatedAt: string;
 }
+/**
+ * What a generated plugin tells the model, declared in its source (`export const prompts = [...]`) and called by id
+ * (`model.generate` with `{ prompt: id, input }`). The Host registers them when the plugin is installed, so the person
+ * sees and edits them in “Prompt 与 Character” like every other prompt.
+ */
+export interface PluginPrompt { id: string; title: string; purpose: string; body: string }
 export interface AgentRelease {
   buildId: string; pluginId: string; version: number; design: AgentDesign; nodes: PluginComponentNode[];
   manifest: BuildManifest; directory: string; bundlePath: string; packagePath: string;
   permissions: SandboxEffects; publishedAt: string;
+  /** Its declared prompts; absent in releases made before prompts were declared (they still send inline instructions). */
+  prompts?: PluginPrompt[];
 }

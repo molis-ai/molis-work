@@ -11,14 +11,24 @@
 
 ## 实现时
 
+给模型的要求不写在调用处，而是在调用它的操作文件里声明，按 id 调用。用户能在设置“Prompt 与 Character”里看到并修改这些要求，插件安装后按用户的版本运行：
+
 ```ts
+export const prompts = [
+  { id: 'summary', title: '要点提炼', purpose: '把一段笔记提炼成三条要点',
+    body: '提炼为三条中文要点，每条不超过 40 字，只输出要点，不要编号以外的说明。' },
+] as const;
+
 const { text } = await sdk.capability.call('model.generate', {
-  instructions: '提炼为三条中文要点，每条不超过 40 字，只输出要点。',
+  prompt: 'summary',
   input: originalText,
 }) as { text: string };
 const summary = text.trim();
 if (!summary) throw Object.assign(new Error('没有生成正文，请重试'), { code: '合同中声明的错误码' });
 ```
+
+- `prompts` 的每一项都是字面量：`id`（小写字母、数字、连字符，插件内唯一）、`title`、`purpose`、`body`；`prompt` 也写成字面量 id。
+- 每次调用会变的内容（用户输入、已保存的记录）放进 `input`，不要拼进要求里；不要传 `instructions`。检查（G4）会拒绝未声明的 id、计算出来的 id 和仍在传 `instructions` 的调用。
 
 `originalText` 来自当前操作已校验的输入；示例错误码必须换成冻结合同中实际声明的值。先获得有效结果，再按本插件约定保存并返回严格合同结果。结构化输出要验证字段和含义，解析失败保留原文供恢复，不写伪造的默认成功数据。
 

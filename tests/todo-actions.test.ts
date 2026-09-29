@@ -327,3 +327,29 @@ test("every change the Assistant may make without asking says how it is undone, 
   assert.equal(byId.get("todo.items.delete")!.action.undo, undefined);
   assert.equal(actionEffect(byId.get("todo.items.delete")!.action, "todo.items.delete"), "irreversible");
 });
+
+test("the Assistant's reminder query lists the person's own reminders due in the window, from every project, each once per time", async t => {
+  const f = fixture(t);
+  const at = (hours: number, minutes = 0) => new Date(Date.UTC(2026, 8, 28, hours, minutes)).toISOString();
+  const mine = (await f.me.invoke(actions.create, { title: "个人：交电费", remind_at: at(2) })).item;
+  const inA = (await f.inA.invoke(actions.create, { title: "A：给王总回电话", placement: "project", remind_at: at(2, 30) })).item;
+  const later = (await f.me.invoke(actions.create, { title: "窗口之后", remind_at: at(5) })).item;
+  const seen = (await f.me.invoke(actions.create, { title: "已经知道了", remind_at: at(2, 10) })).item;
+  await f.me.invoke(actions.acknowledgeReminder, { id: seen.id });
+  const done = (await f.me.invoke(actions.create, { title: "做完了", remind_at: at(2, 20) })).item;
+  await f.me.invoke(actions.status, { id: done.id, status: "done", expected_revision: done.revision });
+  const window = { from: at(1), to: at(3) };
+  const { source, reminders } = await f.me.invoke(actions.dueWindow, window);
+  assert.deepEqual(source, { surface: "todo", title: "待办" });
+  assert.deepEqual(reminders.map(reminder => [reminder.title, reminder.project_id, reminder.reminder_id]),
+    [["个人：交电费", null, `${mine.id}@${mine.remind_at}`], ["A：给王总回电话", "project-a", `${inA.id}@${inA.remind_at}`]]);
+  assert.deepEqual(reminders[1]!.open, { surface: "todo", id: inA.id });
+  // A new time is a new reminder; the window's end is exclusive; a reminder is never marked by being read.
+  const moved = await f.me.invoke(actions.update, { id: mine.id, remind_at: at(2, 45), expected_revision: mine.revision });
+  const again = await f.me.invoke(actions.dueWindow, window);
+  assert.equal(again.reminders.find(reminder => reminder.subject?.id === mine.id)!.reminder_id, `${mine.id}@${moved.item.remind_at}`);
+  assert.equal((await f.me.invoke(actions.dueWindow, { from: at(1), to: at(2) })).reminders.length, 0);
+  assert.ok(!(await f.me.invoke(actions.get, { id: later.id })).item.reminder_acknowledged_at);
+  await assert.rejects(f.me.invoke(actions.dueWindow, { from: at(3), to: at(1) }), { code: "actions.input_invalid" });
+  await assert.rejects(f.agentHome.invoke(actions.dueWindow, window));
+});

@@ -141,7 +141,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
           <label class="todo-field"><span>${p.text("计划处理日期")}</span><small>${p.text("你打算哪天做")}</small><input class="mw-input" type="date" data-todo-field="planned_date"></label>
           <label class="todo-field"><span>${p.text("提醒时间")}</span><small>${p.text("什么时候提醒你")}</small><input class="mw-input" type="datetime-local" data-todo-field="remind_at"></label>
         </div>
-        <p class="todo-hint" data-todo-remind-hint hidden>${p.text("提醒只在 Molis Work 打开时出现；关着应用时不会按时提醒，打开后会补一条。")}</p>
+        <p class="todo-hint" data-todo-remind-hint hidden>${p.text("到时间会在底栏提醒你，并受你设的提醒规则约束；Molis Work 关着时不会按时提醒，打开后会补上。")}</p>
         <fieldset class="todo-field">
           <legend>${p.text("放在")}</legend>
           <div class="mw-toggle-group todo-placement-choices" data-slot="toggle-group" role="radiogroup" aria-label="${p.text("放在")}" data-todo-placement-choices></div>

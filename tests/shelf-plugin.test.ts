@@ -87,7 +87,7 @@ test("empty shelf seeds a real extractable sample PDF and keeps origin hash", as
     assert.equal(hashBytes(copy.bytes), origin.origin_hash);
     const jobRoot = join(home, "shelf", "jobs", job.job_id);
     assert.equal(existsSync(join(jobRoot, "input", origin.name)), true);
-    assert.equal(existsSync(join(jobRoot, "work", origin.name)), true);
+    assert.equal(existsSync(join(jobRoot, "input", origin.name)), true);
     assert.equal(existsSync(join(jobRoot, "output", "pdf.md")), true);
     assert.equal(store.snapshot().results[0]?.name, "pdf.md");
   });
@@ -111,8 +111,8 @@ test("admitting a local file copies bytes and refuses to write if the original h
     await assert.rejects(
       store.runJob({ recipe: "summarize", item_id: item.item_id }),
       (error: unknown) => error instanceof ShelfError
-        && error.code === "shelf.no_agent"
-        && error.message === "未发现终端 Agent。",
+        && error.code === "shelf.no_model"
+        && /AI 模型/u.test(error.message),
     );
   });
 });

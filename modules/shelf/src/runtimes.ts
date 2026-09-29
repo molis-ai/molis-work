@@ -44,17 +44,6 @@ export interface ShelfRuntimeProbe {
   readonly skipHelp?: boolean;
 }
 
-export interface ShelfAgentRunRequest {
-  /** A custom CLI takes the prompt as-is; the presets go by their own flags. */
-  readonly kind?: "tui" | "cli";
-  readonly workdir: string;
-  readonly promptFile: string;
-  readonly outputFile: string;
-  readonly prompt: string;
-  readonly isolation: ShelfIsolationGrade;
-  readonly network: boolean;
-}
-
 const HELP_CACHE = new Map<string, string>();
 const SANDBOX_CACHE = new Map<string, boolean>();
 
@@ -181,98 +170,6 @@ function hasRunCommand(help: string): boolean {
     || /^\s+run\b/mu.test(help);
 }
 
-/** DropAgent `HeadlessCLI.arguments` plus `CodexCLI.execArguments`. */
-export function headlessArguments(
-  engineKey: string,
-  help: string,
-  request: ShelfAgentRunRequest,
-): string[] {
-  switch (engineKey) {
-    case "codex":
-      return codexArguments(request);
-    case "grok":
-      return grokArguments(help, request);
-    case "claude":
-      return claudeArguments(help, request);
-    case "gemini":
-    case "kimi":
-    case "qwen":
-      return promptArguments(help, request);
-    case "opencode":
-      return opencodeArguments(help, request);
-    case "cursor":
-    case "codebuddy":
-      return printArguments(help, request);
-    default:
-      if (request.kind === "cli") {
-        return help.includes("--print") ? ["--print", request.prompt] : [request.prompt];
-      }
-      if (hasRunCommand(help)) return opencodeArguments(help, request);
-      if (help.includes("--print")) return claudeArguments(help, request);
-      if (help.includes("--prompt")) return promptArguments(help, request);
-      return [];
-  }
-}
-
-function codexArguments(request: ShelfAgentRunRequest): string[] {
-  const args = [
-    "exec",
-    "--ephemeral",
-    "--ignore-user-config",
-    "--ignore-rules",
-    "--skip-git-repo-check",
-    "--json",
-    "--cd", request.workdir,
-    "--output-last-message", request.outputFile,
-  ];
-  if (request.isolation === "workspace") {
-    args.push("--sandbox", "workspace-write");
-    if (request.network) args.push("-c", "sandbox_workspace_write.network_access=true");
-  }
-  args.push(request.prompt);
-  return args;
-}
-
-function grokArguments(help: string, request: ShelfAgentRunRequest): string[] {
-  const args: string[] = [];
-  if (help.includes("--cwd")) args.push("--cwd", request.workdir);
-  if (help.includes("--prompt-file")) args.push("--prompt-file", request.promptFile);
-  else if (help.includes("--single")) args.push("--single", request.prompt);
-  if (help.includes("--output-format")) {
-    args.push("--output-format", help.includes("streaming-messages-json") ? "streaming-messages-json" : "json");
-  }
-  return args;
-}
-
-function claudeArguments(help: string, request: ShelfAgentRunRequest): string[] {
-  const args: string[] = [];
-  if (help.includes("--print")) args.push("--print");
-  if (help.includes("--output-format")) args.push("--output-format", "text");
-  if (help.includes("--add-dir")) args.push("--add-dir", request.workdir);
-  args.push(request.prompt);
-  return args;
-}
-
-function promptArguments(help: string, request: ShelfAgentRunRequest): string[] {
-  if (help.includes("--prompt")) return ["--prompt", request.prompt];
-  if (help.includes("-p")) return ["-p", request.prompt];
-  return [];
-}
-
-function opencodeArguments(help: string, request: ShelfAgentRunRequest): string[] {
-  const args = ["run"];
-  if (help.includes("--dir")) args.push("--dir", request.workdir);
-  args.push(request.prompt);
-  return args;
-}
-
-function printArguments(help: string, request: ShelfAgentRunRequest): string[] {
-  if (help.includes("--print")) return ["--print", request.prompt];
-  if (help.includes("-p,") || help.includes("-p ")) return ["-p", request.prompt];
-  return [];
-}
-
-/** DropAgent `IsolationGrade.spokenFact`, word for word. */
 export function isolationFact(grade: ShelfIsolationGrade): string {
   switch (grade) {
     case "workspace":

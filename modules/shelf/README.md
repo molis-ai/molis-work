@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Host 打开用户 Home 下的 `shelf/`；`admit` 写入材料副本，`runJob("extract_text")` 在 `Jobs/<id>/work` 抽字并产出结果文件。
+Host 打开用户 Home 下的 `shelf/`；`admit` 写入材料副本，`runJob("extract_text")` 在 `jobs/<id>/input` 抽字并产出结果文件。
 
 ## 从哪里读代码
 
@@ -47,7 +47,7 @@ node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts
 - 不变量：
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
   - 不写项目数据库、不自动发布 Artifact；同项目、同成果、同版本再次接收返回已有副本并保留编辑。
-  - 任务运行时 `input/` 只读，`work/` 是 Agent 的工作目录。
+  - 自动任务只通过注入的 ShelfAiPorts，冻结 input 副本只读；领域模块不启动模型或终端进程。
   - CLI 能力探测只缓存完成的结果，超时或启动失败下次重新探测。
   - 任务使用 Kernel 执行生命周期；在途执行按 Home/root/job 隔离。异步等待后复查原 Action、任务和原件/副本 hash，再写输出、成果或失败记录。已取消/撤权的执行不补写失败；终止或重启后的旧 running 记录不自动重跑，也不继续阻塞材料。显式取消可以关闭原记录。
 - 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-cli-probe.test.ts tests/shelf-project-results-http.test.ts`
@@ -66,4 +66,6 @@ node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts
 
 ## 被动发现与真实执行
 
-`runtime()` / `snapshot()` 和 Agent 目录只检查可执行文件，不启动 `--help`。找到程序后 `capability_pending: true`、`can_run_job: false`，动作可以进入确认界面但不宣称能力或登录已验证。`runJob()` 仅在需要 Agent 时探测所选程序，继续按原规则校验任务入口与隔离；本机提取不探测 Agent。显式 `pathEnvironment` 是完整搜索范围，默认发现才包含常用安装目录。
+`runtime()` / `snapshot()` 和 Agent 目录只检查可执行文件，不启动 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。显式 `pathEnvironment` 是完整搜索范围，默认发现才包含常用安装目录。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
+
+自动生成合同是 `ShelfAiPorts`，Host 拥有配置模型、材料 IO 与 SDK；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。

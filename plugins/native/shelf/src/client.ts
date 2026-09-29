@@ -78,6 +78,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const items = () => [...(snapshot.materials || []), ...(snapshot.results || [])];
   const stageBusy = () => stage.classList.contains("is-confirm") || stage.classList.contains("is-run") || stage.classList.contains("is-fail");
   const runtime = () => snapshot.runtime || { runtime_key: "", title: L("Agent"), can_run_job: false, isolation: "none", isolation_fact: "" };
+  const ai = () => snapshot.ai || { available: false, choices: [], selected: null };
+  const aiLabel = () => ai().choices.find(choice => choice.provider_id === ai().selected?.provider_id && choice.model_id === ai().selected?.model_id)?.label || L("AI 模型");
   const deviceSettings = () => snapshot.settings || {};
   const actionOrder = () => {
     const order = deviceSettings().action_order;
@@ -266,7 +268,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escapeText(label) + '</p><img class="shelf-image" alt="" src="' + fileUrl(item.item_id) + '"></div>';
     }
     const text = textCache.get(item.item_id) ?? item.preview_text ?? "";
-    return '<div class="shelf-preview-inner shelf-doc" data-shelf-read="' + escapeAttr(item.item_id) + '"><p class="shelf-kicker">' + escapeText(label) + '</p><div class="shelf-reading">' + reading.render(item, text) + '</div></div>';
+    const coverage = item.material_coverage?.length ? '<p class="settings-hint" data-shelf-coverage>' + escapeText(L("材料覆盖说明")) + " · " + item.material_coverage.map(escapeText).join("；") + "</p>" : "";
+    return '<div class="shelf-preview-inner shelf-doc" data-shelf-read="' + escapeAttr(item.item_id) + '"><p class="shelf-kicker">' + escapeText(label) + "</p>" + coverage + '<div class="shelf-reading">' + reading.render(item, text) + '</div></div>';
 
   };
   const comparisonSources = () => {
@@ -470,7 +473,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const mark = tone || (id === "extract" ? "clay" : id === "use" || id === "join" ? "ochre" : id === "talk" ? "plum" : "slate");
     return '<svg class="tone-' + mark + '" aria-hidden="true"><use href="#icon-' + icon + '"></use></svg>';
   };
-  const agentMissing = () => runtime().can_run_job !== true && runtime().capability_pending !== true;
+  const agentMissing = () => !ai().available;
   const renderBar = (kind) => {
     if(!lifetime.alive)return;
     lastBarKind = kind;
@@ -495,7 +498,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     } else {
       const picked = batch();
       const hidden = hiddenActions();
-      const ready = runtime().can_run_job === true || runtime().capability_pending === true;
+      const ready = ai().available === true;
       for (const slot of actionOrder()) {
         const action = shortcutFor(slot);
         const recipe = action ? null : recipeFor(slot);
@@ -514,14 +517,14 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
           }
           continue;
         }
-        const imageOnly = !action && recipe.recipe === "extract_text" && picked.every((item) => item.kind === "image");
+        const imageOnly = !action && recipe.recipe === "extract_text" && picked.some((item) => item.kind === "image");
         const needsVision = imageOnly && runtime().image_text === false;
         const available = action ? ready : recipe.available !== false && !needsVision;
         const enabled = available && enough && !stageBusy();
         const title = !enough
           ? L("「{name}」至少要两份材料", { name: L(action ? action.name : recipe.short_title || recipe.label) })
           : needsVision ? L("这台机器还没有本机文字识别") : action
-          ? (ready ? L("在副本里跑，写出新的 Markdown") : L(runtime().runtime_key ? "{agent} 没有无界面执行入口，动作不能跑。" : "未发现终端 Agent。", { agent: runtime().title }))
+          ? (ready ? L("在副本里跑，写出新的 Markdown") : L(ai().reason || "请先配置 AI 模型"))
           : recipe.available === false ? L(recipe.reason || "") : L(recipe.blurb || "");
         recipes.push(actChip(id, action ? action.name : L(recipe.short_title || recipe.label), enabled, title, action ? "ochre" : recipe.tone, slot));
       }
@@ -551,7 +554,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
         tone: "ochre",
         accepts: pending.shortcut.kinds || [],
         output_file: "",
-        needs_network: false,
+        needs_network: true,
         requires_agent: true,
         minimum_count: 1,
         choices: [],
@@ -561,28 +564,17 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     return recipeFor(pending.recipe);
   };
   const facts = (recipe, count) => {
-    const live = runtime();
     const local = isLocalRecipe(recipe);
-    const ready = live.can_run_job === true || live.capability_pending === true;
-    const workspace = live.isolation === "workspace";
     return {
       read: L("{count} 份材料的副本", { count: String(count) }),
-      write: local ? L("仅任务目录") : !ready ? L("无执行入口") : workspace ? L("仅任务目录") : L("未确认仅任务目录"),
-      network: local ? L("关") : !ready ? L("无执行入口") : !workspace ? L("未确认") : recipe.needs_network ? L("开") : L("关"),
-      isolation: local
-        ? (selected?.kind === "image" ? L("本机识别，不发送") : L("本机提取，不发送"))
-        : !ready ? L("无执行入口") : L(live.isolation_fact || ""),
+      write: L("仅保存新结果，原件不变"),
+      network: local ? L("关") : L("发送材料到所选模型"),
+      isolation: local ? L("本机提取，不发送") : L("无终端和文件写入工具"),
     };
   };
   const actorLine = (recipe) => {
-    const live = runtime();
-    if (isLocalRecipe(recipe)) {
-      return selected?.kind === "image" ? L("本机识别，不发送。") : L("本机提取，不发送。");
-    }
-    if (live.capability_pending === true) return L("{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。", { agent: live.title });
-    if (live.can_run_job === true) return L("{agent} 在任务副本里跑。", { agent: live.title });
-    if (live.runtime_key) return L("{agent} 没有无界面执行入口，动作不能跑。", { agent: live.title });
-    return L("未发现终端 Agent。");
+    if (isLocalRecipe(recipe)) return selected?.kind === "image" ? L("本机识别，不发送。") : L("本机提取，不发送。");
+    return ai().available ? L("{model} 处理所选材料，可能产生模型费用。", { model: aiLabel() }) : L(ai().reason || "请先配置 AI 模型");
   };
   const paintChoices = (recipe) => {
     const wrap = workbench.querySelector("[data-shelf-choice]");
@@ -629,7 +621,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const localName = pdf ? "pdf.md" : image ? "ocr.md" : "extract.md";
     const outName = recipe.recipe === "shortcut"
       ? shortcutOutput(selected.name, recipe.label)
-      : recipe.recipe === "extract_text" ? localName : recipe.output_file;
+      : recipe.recipe === "extract_text" ? localName : recipe.recipe === "extract_structure" && pending.option !== "json" ? "extracted.md" : recipe.output_file;
     const title = recipe.recipe === "extract_text"
       ? (pdf ? L("提取 PDF 文字") : image ? L("提取图片文字") : L("提取文字"))
       : L(recipe.label);
@@ -1182,7 +1174,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       line.hidden = false;
       line.textContent = isLocalRecipe(recipe)
         ? (selected.kind === "image" ? L("正在本机识别图片里的文字…") : L("正在从副本抽取可选中文字…"))
-        : L("{agent} 正在副本里跑「{recipe}」…", { agent: runtime().title, recipe: L(recipe.short_title || recipe.label) });
+        : L("{agent} 正在副本里跑「{recipe}」…", { agent: aiLabel(), recipe: L(recipe.short_title || recipe.label) });
     }
     watchRun();
     try {

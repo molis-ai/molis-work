@@ -33,34 +33,24 @@ import type {
   ShelfSnapshot,
   ShelfExecutionControl,
   ShelfMaterialPorts,
+  ShelfAiPorts,
+  ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { ShelfError } from "./errors.js";
-import { markdownFromExtract, resultNameForExtract } from "./extract.js";
-import {
-  cancelAgentProcess,
-  collectRecipeOutput,
-  hasDeliverable,
-  runAgentProcess,
-  SHELF_JOB_TIMEOUT_MS,
-} from "./job-runner.js";
+import { markdownFromExtract } from "./extract.js";
 import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 import { captureWebsite, websiteFilename, WEBSITE_MIME } from "./website.js";
 import {
-  fileGuardrail,
   recipeAvailability,
-  recipePrompt,
   resolvedChoiceId,
   shelfRecipeSpec,
+  shelfRecipeOutputName,
   SHELF_RECIPES,
 } from "./recipes.js";
 import {
   detectShelfRuntime,
   emptyShelfRuntime,
-  headlessArguments,
-  missingJobReason,
-  NO_AGENT_REASON,
-  readCliHelp,
   type ShelfRuntimeProbe,
 } from "./runtimes.js";
 import {
@@ -70,6 +60,7 @@ import {
   shortcutOutputName,
 } from "./settings.js";
 
+export const SHELF_JOB_TIMEOUT_MS = 10 * 60 * 1000;
 const CATALOG_VERSION = 1;
 const SAMPLE_NAME = "试用示例.pdf";
 export const CLIPBOARD_LIMIT = 10;
@@ -83,13 +74,11 @@ export const TEXT_EDIT_EXTENSIONS = new Set([
   "c", "h", "cc", "cpp", "m", "mm",
   "csv", "log",
 ]);
-/** A CLI recipe runs only when the picked Agent has a headless job entry. */
-function recipeTable(runtime: ShelfRuntimeStatus): readonly ShelfRecipeAvailability[] {
-  const reason = runtime.runtime_key ? missingJobReason(runtime.title) : NO_AGENT_REASON;
-  const available = runtime.can_run_job || runtime.capability_pending === true;
+const noAi: ShelfAiStatus = { available: false, selected: null, choices: [], reason: "请在设置中配置 AI 模型，再为置物架选择可用模型" };
+function recipeTable(ai: ShelfAiStatus): readonly ShelfRecipeAvailability[] {
   return SHELF_RECIPES.map((spec) => recipeAvailability(spec.recipe, {
-    available: spec.requires_agent ? available : true,
-    reason: spec.requires_agent && !available ? reason : null,
+    available: spec.requires_agent ? ai.available : true,
+    reason: spec.requires_agent && !ai.available ? ai.reason : null,
   }));
 }
 
@@ -138,13 +127,13 @@ function safeInside(root: string, target: string): string {
 export class ShelfStore {
   private readonly probe: ShelfRuntimeProbe;
 
-  constructor(readonly root: string, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}) {
+  constructor(readonly root: string, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts) {
     this.probe = probe;
     mkdirSync(path.join(root, "files"), { recursive: true });
     mkdirSync(path.join(root, "jobs"), { recursive: true });
   }
 
-  /** The terminal Agent a recipe would run in. Never throws at the caller. */
+  /** Manual terminal discovery. Automatic recipes use the independent AI port. */
   runtime(settings: ShelfDeviceSettings = this.settings(), probeCapabilities = false): ShelfRuntimeStatus {
     const image_text = this.materials.imageTextAvailable?.() ?? false;
     try {
@@ -179,11 +168,13 @@ export class ShelfStore {
       catalog.items.filter((item) => item.group === group && !item.hidden).map(publicItem);
     const settings = normalizeSettings(catalog.settings);
     const runtime = this.runtime(settings);
+    const ai = this.ai?.status(settings.model_selection) ?? noAi;
     return {
+      ai,
       materials: visible("material"),
       results: visible("result"),
       clipboard: catalog.clipboard.slice(0, CLIPBOARD_LIMIT),
-      recipes: recipeTable(runtime),
+      recipes: recipeTable(ai),
       current_clip_id: catalog.current_clip_id,
       runtime,
       running_jobs: catalog.jobs.filter((job) => job.status === "running" && !isStaleJob(job, this.root)),
@@ -423,8 +414,8 @@ export class ShelfStore {
   }
 
   /**
-   * DropAgent `JobService.start`: copy the materials into `input/` and `work/`,
-   * run the picked Agent (or the on-device extractor) on the copy, collect one
+   * DropAgent `JobService.start`: copy the selected materials into read-only `input/`,
+   * call the shared AI port (or on-device extractor) on the copy, collect one
    * deliverable, then check the original is still byte for byte what it was.
    */
   async runJob(input: ShelfRunJobInput, control?: ShelfExecutionControl): Promise<ShelfJobOutcome> {
@@ -452,10 +443,9 @@ export class ShelfStore {
     if (items.length < spec.minimum_count) {
       throw new ShelfError("shelf.recipe_unavailable", `「${spec.short_title}」至少要两份材料`);
     }
-    const runtime = this.runtime(settings, spec.requires_agent);
-    if (spec.requires_agent && !runtime.can_run_job) {
-      throw new ShelfError("shelf.no_agent", runtime.runtime_key ? missingJobReason(runtime.title) : NO_AGENT_REASON);
-    }
+    const runtime = this.runtime(settings);
+    const ai = spec.requires_agent ? this.ai?.status(settings.model_selection) ?? noAi : noAi;
+    if (spec.requires_agent && (!ai.available || !ai.selected)) throw new ShelfError("shelf.no_model", ai.reason ?? noAi.reason!);
     if (!spec.requires_agent && !this.materials.extract) throw new ShelfError("shelf.extraction_unavailable", "材料提取服务不可用，请从 Molis Work 打开置物架后重试");
     if (!spec.requires_agent && items.some(item => item.kind === "image") && !runtime.image_text) throw new ShelfError("shelf.no_ocr", OCR_MISSING);
     const optionId = spec.choices.length ? resolvedChoiceId(spec.recipe, input.option_id) : null;
@@ -468,38 +458,34 @@ export class ShelfStore {
     const jobId = this.id("job");
     const jobRoot = path.join(this.root, "jobs", jobId);
     const inputDir = path.join(jobRoot, "input");
-    const workDir = path.join(jobRoot, "work");
     const outputDir = path.join(jobRoot, "output");
     mkdirSync(inputDir, { recursive: true });
-    mkdirSync(workDir, { recursive: true });
     mkdirSync(outputDir, { recursive: true });
     const workNames: string[] = [];
     for (const item of items) {
       const source = this.absolute(item);
-      const name = uniqueName(workDir, item.name);
+      const name = uniqueName(inputDir, item.name);
       if (item.kind === "folder") {
         copyTree(source, path.join(inputDir, name));
-        copyTree(source, path.join(workDir, name));
       } else {
         copyFileSync(source, path.join(inputDir, name));
-        copyFileSync(source, path.join(workDir, name));
       }
       workNames.push(name);
     }
     freezeReadOnly(inputDir);
-    appendEvent(jobRoot, "复制到 input/ 与 work/");
+    appendEvent(jobRoot, "复制到只读 input/");
     writeFileSync(path.join(jobRoot, "manifest.json"), `${JSON.stringify({
       id: jobId,
       recipe: spec.recipe,
       action: actionName,
-      agent: spec.requires_agent ? runtime.runtime_key : localActor(items[0].kind),
-      isolation: spec.requires_agent ? runtime.isolation : "none",
+      agent: spec.requires_agent ? "prologue" : localActor(items[0].kind),
+      isolation: spec.requires_agent ? "model-input-only" : "none",
       items: items.map((item) => ({ id: item.item_id, title: item.name, checksum: item.origin_hash })),
     }, null, 2)}\n`);
 
     const outputName = shortcut
       ? shortcutOutputName(items[0].name, shortcut.name)
-      : this.outputNameFor(spec.recipe, items[0].kind);
+      : shelfRecipeOutputName(spec.recipe, items[0].kind, optionId);
     const outputFile = path.join(outputDir, outputName);
     const createdAt = now();
     const running: ShelfJobRecord = {
@@ -509,9 +495,9 @@ export class ShelfStore {
       item_id: items[0].item_id,
       item_ids: items.map((item) => item.item_id),
       option_id: optionId,
-      runtime: spec.requires_agent ? runtime.runtime_key : localActor(items[0].kind),
+      runtime: spec.requires_agent ? "prologue" : localActor(items[0].kind),
       result_item_id: null,
-      isolation: spec.requires_agent ? runtime.isolation_fact : "本机抽字，不调用 Agent",
+      isolation: spec.requires_agent ? "仅发送所选材料，无终端或文件写入工具" : "本机抽字，不调用模型",
       error: null,
       created_at: createdAt,
       finished_at: null,
@@ -524,64 +510,46 @@ export class ShelfStore {
     const lifetime = createExecutionLifetime({ signal: control?.signal ? AbortSignal.any([control.signal, controller.signal]) : controller.signal,
       timeout: { milliseconds: SHELF_JOB_TIMEOUT_MS, reason: new ShelfError("shelf.job_timeout", "任务超时，未继续保存结果") } });
     activeJobs.set(key, controller);
-    const stopProcess = () => cancelAgentProcess(jobId);
-    lifetime.signal.addEventListener("abort", stopProcess, { once: true });
     const assertCurrent = () => {
       const current = this.readCatalog();
+      if (spec.requires_agent && (JSON.stringify(normalizeSettings(current.settings).model_selection) !== JSON.stringify(settings.model_selection)
+        || (shortcut && JSON.stringify(normalizeSettings(current.settings).shortcuts.find(row => row.id === shortcut.id)) !== JSON.stringify(shortcut)))) {
+        throw new ShelfError("shelf.configuration_changed", "生成期间模型选择或快捷动作已变化，结果未保存");
+      }
       if (current.jobs.find(job => job.job_id === jobId)?.status !== "running") throw new ShelfError("shelf.cancelled", "任务已取消");
-      for (const item of items) {
+      for (const [index, item] of items.entries()) {
         const latest = this.requireItem(current, item.item_id);
         if (latest.hidden || latest.relative_path !== item.relative_path) throw new ShelfError("shelf.item_not_found", "材料已收起或改变，未保存结果");
         this.assertOriginUntouched(latest);
-        if (this.contentHash(latest) !== copyHashes.get(item.item_id)) throw new ShelfError("shelf.hash_changed", "架子上的副本 Hash 已变化，已停止写入");
+        if (this.contentHash(latest) !== copyHashes.get(item.item_id)
+          || this.contentHash(item, path.join(inputDir, workNames[index])) !== copyHashes.get(item.item_id)) throw new ShelfError("shelf.hash_changed", "架子上的副本 Hash 已变化，已停止写入");
       }
     };
+    let validateResult: (() => void) | undefined;
     const beforeCommit = async () => {
       await lifetime.wait(Promise.resolve(control?.beforeEffect?.()));
-      lifetime.assertActive(); assertCurrent();
+      lifetime.assertActive(); assertCurrent(); validateResult?.();
     };
 
+    let execution: ShelfJobRecord["execution"];
+    let materialCoverage: readonly string[] | undefined;
     try {
       await beforeCommit();
       if (spec.requires_agent) {
-        const promptFile = path.join(jobRoot, "prompt.txt");
-        const listed = workNames.map((name) => `- ${name}`).join("\n");
-        const body = shortcut
-          ? `${fileGuardrail(outputName)}\n${shortcut.prompt}\n`
-          : recipePrompt(spec.recipe, optionId);
-        const prompt = `${body}\n材料：\n${listed}\n`;
-        writeFileSync(promptFile, prompt);
-        const help = readCliHelp(runtime.executable);
-        const args = headlessArguments(runtime.runtime_key, help, {
-          kind: runtime.kind,
-          workdir: workDir,
-          promptFile,
-          outputFile,
-          prompt,
-          isolation: runtime.isolation,
-          network: spec.needs_network,
-        });
-        const result = await runAgentProcess({
-          executable: runtime.executable,
-          args,
-          workdir: workDir,
-          outputFile,
-          jobId,
-        });
+        const result = await lifetime.wait(this.ai!.generate({ recipe: spec.recipe as Exclude<ShelfRecipeId, "extract_text">,
+          option_id: optionId, ...(shortcut ? { shortcut_prompt: shortcut.prompt } : {}), selection: ai.selected!, root: inputDir,
+          sources: items.map((item, index) => ({ relative_path: workNames[index], name: item.name, kind: item.kind, mime: item.mime })),
+        }, { signal: lifetime.signal, beforeEffect: beforeCommit }));
+        validateResult = result.validateResult;
+        execution = result.execution;
+        materialCoverage = result.coverage;
         await beforeCommit();
-        appendEvent(jobRoot, "收尾");
-        collectRecipeOutput({
-          outputFile,
-          work: workDir,
-          input: inputDir,
-          inputNames: workNames,
-          lastMessage: result.last_message,
-        });
+        writeFileSync(outputFile, result.text);
       } else {
         const parts: string[] = [];
         for (const [index, item] of items.entries()) {
           const sourceName = item.kind === "pdf" ? "source.pdf" : path.extname(item.name) ? item.name : `source.${item.mime.slice("image/".length)}`;
-          const extracted = await this.materials.extract!({ file_name: sourceName, bytes: readFileSync(path.join(workDir, workNames[index])) },
+          const extracted = await this.materials.extract!({ file_name: sourceName, bytes: readFileSync(path.join(inputDir, workNames[index])) },
             { signal: lifetime.signal, pdfMode: "text", ...(item.kind === "image" ? { ocrLanguages: ocrLanguages(optionId) } : {}),
               timeoutMs: 60_000, limits: { maxBytes: 32 * 1024 * 1024 } });
           await beforeCommit();
@@ -601,9 +569,12 @@ export class ShelfStore {
         jobId,
         sourceItemIds: items.map((item) => item.item_id),
         status: "done",
+        coverage: materialCoverage,
       });
       const finished: ShelfJobRecord = {
         ...running,
+        ...(execution ? { execution } : {}),
+        ...(materialCoverage?.length ? { material_coverage: materialCoverage } : {}),
         status: "succeeded",
         result_item_id: result.item_id,
         finished_at: now(),
@@ -615,10 +586,12 @@ export class ShelfStore {
     } catch (error) {
       unlockDirectories(inputDir);
       await beforeCommit();
+      if (error instanceof ShelfError && error.code === "shelf.configuration_changed") throw error;
       const cancelled = error instanceof ShelfError && error.code === "shelf.cancelled";
       const reason = failureCopy(error);
       const closed: ShelfJobRecord = {
         ...running,
+        ...((error instanceof ShelfError ? error.execution : execution) ? { execution: error instanceof ShelfError ? error.execution : execution } : {}),
         status: cancelled ? "cancelled" : "failed",
         error: cancelled ? null : reason,
         finished_at: now(),
@@ -629,7 +602,7 @@ export class ShelfStore {
       // A cancel leaves the shelf as it was; a failure leaves a row saying why.
       if (!cancelled) {
         this.storeResult({
-          outputFile: hasDeliverable(outputFile) ? outputFile : null,
+          outputFile: null,
           outputName,
           jobId,
           sourceItemIds: items.map((item) => item.item_id),
@@ -640,7 +613,6 @@ export class ShelfStore {
       throw error instanceof ShelfError ? error : new ShelfError("shelf.job_failed", reason);
     } finally {
       activeJobs.delete(key);
-      lifetime.signal.removeEventListener("abort", stopProcess);
       lifetime.dispose();
       unlockDirectories(inputDir);
     }
@@ -654,15 +626,9 @@ export class ShelfStore {
     }
   }
 
-  private outputNameFor(recipe: ShelfRecipeId, kind: ShelfItemKind): string {
-    if (recipe !== "extract_text") return shelfRecipeSpec(recipe).output_file;
-    return resultNameForExtract(kind);
-  }
-
   /**
    * The deliverable becomes a shelf copy of its own, so results survive job
-   * cleanup. A failed run still files a row: with its partial file when there
-   * is one, otherwise with the reason alone and nothing to take away.
+   * cleanup. An authorized failure files its reason, without exposing an invalid partial result.
    */
   private storeResult(options: {
     outputFile: string | null;
@@ -671,6 +637,7 @@ export class ShelfStore {
     sourceItemIds: readonly string[];
     status: "done" | "failed";
     failureReason?: string | null;
+    coverage?: readonly string[];
   }): ShelfItemRecord {
     const taken = this.readCatalog().items.filter((item) => item.group === "result").map((item) => item.name);
     const name = uniqueTitle(options.outputName, taken);
@@ -703,6 +670,7 @@ export class ShelfStore {
       children: [],
       status: options.status,
       failure_reason: options.failureReason ?? null,
+      ...(options.coverage?.length ? { material_coverage: options.coverage } : {}),
       origin_realpath: null,
     };
     this.update((next) => {
@@ -718,7 +686,6 @@ export class ShelfStore {
     if (!job) throw new ShelfError("shelf.item_not_found", "这个任务不存在");
     if (job.status !== "running") return job;
     activeJobs.get(jobKey(this.root, jobId))?.abort(new ShelfError("shelf.cancelled", "任务已取消"));
-    cancelAgentProcess(jobId);
     const cancelled: ShelfJobRecord = { ...job, status: "cancelled", finished_at: now() };
     this.update((next) => {
       next.jobs = next.jobs.map((entry) => entry.job_id === jobId ? cancelled : entry);
@@ -844,8 +811,7 @@ export class ShelfStore {
   }
 
   /** A file hashes its bytes; a folder hashes every path and file under it. */
-  private contentHash(item: StoredItem): string {
-    const absolute = this.absolute(item);
+  private contentHash(item: StoredItem, absolute = this.absolute(item)): string {
     if (item.kind !== "folder") return sha256(readFileSync(absolute));
     const digest = createHash("sha256");
     const walk = (directory: string, prefix: string): void => {
@@ -907,8 +873,8 @@ export class ShelfStore {
   }
 }
 
-export function openShelfStore(homeDirectory: string, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}): ShelfStore {
-  return new ShelfStore(path.join(path.resolve(homeDirectory), "shelf"), probe, materials);
+export function openShelfStore(homeDirectory: string, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
+  return new ShelfStore(path.join(path.resolve(homeDirectory), "shelf"), probe, materials, ai);
 }
 
 async function beforeShelfEffect(control?: ShelfExecutionControl): Promise<void> {
@@ -1126,7 +1092,7 @@ function uniqueTitle(preferred: string, taken: readonly string[]): string {
 }
 
 /**
- * `input/` is the evidence copy: the Agent reads `work/`, never this one. The
+ * `input/` is the frozen source copy consumed by the Host. The
  * folder itself is locked only while the job runs, so ordinary cleanup later
  * still works; the files stay read-only.
  */

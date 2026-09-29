@@ -1,3 +1,4 @@
+import { shelfAiPorts } from "./shelf-ai.js";
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
@@ -14,8 +15,10 @@ const provider = (projectId?: string) => ({ provider_id: shelfManifest.plugin_id
 
 /** The personal Shelf belongs to this Home. Each call reads the current store and agent PATH, as the HTTP panel did. */
 export function shelfActionProvider(home: string, materials: ShelfMaterialPorts = { readWebsite: readMaterialWebsite, extract: extractMaterial, imageTextAvailable: materialImageTextAvailable }): ActionProviderRegistration {
-  const store = () => openShelfStore(home, shelfRuntimeProbe(), materials);
+  const ai = shelfAiPorts(home, materials);
+  const store = () => openShelfStore(home, shelfRuntimeProbe(), materials, ai);
   return { provider: provider(), definitions: SHELF_ACTIONS, handlers: createShelfActionHandlers({
+    aiStatus: () => ai.status(store().settings().model_selection),
     snapshot: () => store().snapshot(),
     settings: () => store().settings(),
     saveSettings: patch => store().saveSettings(patch),

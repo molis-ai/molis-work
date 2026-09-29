@@ -7,7 +7,7 @@ export function shelfRouteErrorResponse(error: unknown): ShelfPluginRouteRespons
   if (code === "shelf.conflict") return { status: 409, body: { error: message, code } };
   if (["actions.forbidden", "actions.scope_mismatch", "actions.owner_mismatch"].includes(code)) return { status: 403, body: { error: message, code } };
   if (code.startsWith("actions.")) return { status: 400, body: { error: message, code } };
-  if (code === "shelf.recipe_unavailable" || code === "shelf.no_agent") return { status: 409, body: { error: message, code } };
+  if (code === "shelf.recipe_unavailable" || code === "shelf.no_agent" || code === "shelf.no_model") return { status: 409, body: { error: message, code } };
   if (code.startsWith("shelf.")) return { status: 400, body: { error: message, code } };
   return { status: 400, body: { error: message } };
 }

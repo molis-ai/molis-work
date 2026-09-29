@@ -1448,3 +1448,18 @@ export interface BuilderAgentRecord {
   activity: BuilderAgentActivity[];
   usage: unknown[];
 }
+
+/** Serializable execution facts from the shared inference service; absent counts remain unknown. */
+export interface BoundedInferenceReceipt {
+  readonly run_ref: { readonly kind: "run"; readonly id: string; readonly revision: number };
+  readonly state: "completed" | "failed" | "cancelled" | "tripped" | "circuit-tripped";
+  readonly configuredModel: string;
+  readonly reportedModels: readonly string[];
+  readonly usage: readonly {
+    readonly input: InferenceTokenCount; readonly output: InferenceTokenCount;
+    readonly cacheRead: InferenceTokenCount; readonly cacheWrite: InferenceTokenCount;
+    readonly cost: { readonly source: InferenceUsageSource; readonly amount?: number; readonly currency?: string };
+  }[];
+}
+export type InferenceUsageSource = "reported" | "estimated" | "unknown";
+export interface InferenceTokenCount { readonly source: InferenceUsageSource; readonly tokens?: number }

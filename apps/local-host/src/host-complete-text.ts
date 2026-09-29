@@ -3,7 +3,7 @@ import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } fro
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openConfiguredModels, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
+import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
 export interface HostTextRequestOptions {
   signal?: AbortSignal;
@@ -37,14 +37,7 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
       const selected = selectConfiguredTextModel(home, opened.store, options.selection);
       if (selected) {
         const selection = { provider_id: selected.provider.provider_id, model_id: selected.model.model_id };
-        const current = () => {
-          const catalog = openConfiguredModels(home);
-          try {
-            const selected = catalog && selectConfiguredTextModel(home, catalog.store, selection);
-            return selected && { ...selected, credential_snapshot: runWithMolisWorkHome(home, () => peekSealedEntry(selected.provider.credential_ref)) };
-          }
-          finally { catalog?.storage.close(); }
-        };
+        const current = () => configuredTextModelSnapshot(home, selection);
         return async (prompt, request) => {
           validatePrompt(prompt); request?.signal?.throwIfAborted();
           const before = current();

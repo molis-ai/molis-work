@@ -14,13 +14,6 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { ShelfError, isShelfError } from "./errors.js";
 export { markdownFromExtract, resultNameForExtract } from "./extract.js";
 export {
-  SHELF_JOB_TIMEOUT_MS,
-  agentEnvironment,
-  collectRecipeOutput,
-  hasDeliverable,
-  runAgentProcess,
-} from "./job-runner.js";
-export {
   WEBSITE_MIME,
   captureWebsite,
   websiteFilename,
@@ -38,11 +31,9 @@ export {
   SHELF_RECIPES,
   SHELF_RECIPE_ORDER,
   SHELF_SHORTCUT_RECIPE,
-  fileGuardrail,
-  finalizeOutput,
   looksLikeDeliverable,
+  finalizeShelfRecipeResult,
   recipeAvailability,
-  recipePrompt,
   resolvedChoiceId,
   shelfRecipeAccepts,
   shelfRecipeOutputName,
@@ -57,7 +48,6 @@ export {
   clearShelfRuntimeCache,
   detectShelfRuntime,
   emptyShelfRuntime,
-  headlessArguments,
   installedShelfEngines,
   isolationFact,
   shelfRuntimeCatalog,
@@ -67,9 +57,10 @@ export {
   shelfSearchDirectories,
   supportsWorkspaceSandbox,
 } from "./runtimes.js";
-export type { ShelfAgentRunRequest, ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
+export type { ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
 export { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 export {
+  SHELF_JOB_TIMEOUT_MS,
   CLIPBOARD_LIMIT,
   ShelfStore,
   clipFingerprint,

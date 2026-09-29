@@ -63,3 +63,6 @@ description: How to add or change an AI capability in Molis Work — anything th
 - 交付时分清：源码审查、替身、真实 SDK、真实模型、产品实操、用户验收。
 
 执行结果驱动通知时，从 Agent Host 的 Run 投影或 Prologue Effect/dispatch 回执读取真实结果；批准不等于执行成功，reconcile-required/unknown 也不是成功。Coding/Git 的刷新通知不重试模型或副作用，SDK 重启恢复历史回执时不重新发布“新执行”。订阅使用当前插件 activation 的独立身份，等待后复查，停止时释放。
+
+
+Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插件 prompts.ts，模型选择与人工终端 engine 分离。AI Action 明确 model:invoke 和 metered；本机提取是独立的 none 成本 Action，旧混合入口不能绕过 AI 授权。保留完整执行回执的 reported/estimated/unknown，JSON 解码读取 SDK 的 ok/value，领域约束再校验。材料部分覆盖进入最终结果说明；最终业务提交仍复查原调用、材料 hash 和可信 Host 返回的模型配置校验，不让最后一次 await 留出失效结果写入窗口。

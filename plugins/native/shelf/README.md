@@ -66,6 +66,6 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`
 
-Agent 列表与页面刷新不启动本机 CLI。已找到程序但尚未检查能力时显示“执行时检查”；动作确认保留登录与隔离未知的提示。用户真正执行动作时由原 Shelf Module 检查所选 Agent，不遍历启动其他程序。
+Agent 列表与页面刷新不启动本机 CLI。人工终端保留全部引擎；自动动作通过独立 AI 模型选择和共享 Prologue。确认页说明材料会发给所选模型、可能计费、原件不变以及无终端写入工具。本机提取单独声明无模型成本与权限。固定指令由插件 prompts.ts 登记，界面、MCP 与 Workflow 使用同一 Action 定义。
 
 Shelf 和结果面板使用 Host 注入的 UI 生命周期。卸载释放全局事件、请求、观察器及计时器；隐藏停止运行进度查询，返回时保留编辑/确认/运行中的交互，其余状态读取最新快照。迟到的旧快照不能覆盖较新的读取或命令结果。

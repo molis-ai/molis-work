@@ -14,7 +14,7 @@
 
 | 项 | 当前问题 → 目标与消费者 | 所有者 | 依赖 / 状态 |
 | --- | --- | --- | --- |
-| 01 | Cognia、Coding 草稿绕过 Home Runtime → 同一模型入口与执行 owner，删除临时 Runtime/轮询 | Local Host 选择与凭据；Agent Host 执行桥 | Cognia/Coding 已迁移，Coding 两类草稿指令与 Alchemist 六类固定指令已登记并验证用户覆盖；Alchemist 与生成插件使用公共绑定，Builder 设计/编码保留同一 owner；Shelf recipe 仍有 Module 内 CLI 直连，需归 Agent Host/Prologue；其他模型适配继续核对 |
+| 01 | Cognia、Coding 草稿绕过 Home Runtime → 同一模型入口与执行 owner，删除临时 Runtime/轮询 | Local Host 选择与凭据；Agent Host 执行桥 | Cognia/Coding 已迁移，Coding 两类草稿指令与 Alchemist 六类固定指令已登记并验证用户覆盖；Alchemist 与生成插件使用公共绑定，Builder 设计/编码保留同一 owner；Shelf recipe 已接入 Host/共享 Prologue，自动 CLI 与重复解析已删除；其他模型适配继续核对 |
 | 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
@@ -22,7 +22,7 @@
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；提示词按执行版本解析、按安装分别登记，真实 Sandbox/SDK/HTTP 验证通过；最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
-| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf 网页与 Artifacts HTML/外部导入已迁移并验证；Shelf PDF/OCR 已迁入公共 Host 并完成本地验证，AI recipe 及最终消费者复核待完成 |
+| 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf 网页与 Artifacts HTML/外部导入已迁移并验证；Shelf PDF/OCR 已迁入公共 Host 并完成本地验证，AI recipe、原图和覆盖说明已接通，最终消费者复核继续 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已覆盖 Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板，并补齐 Files/Git、独立 Diff/Text Stats 与 Host 审查的真实挂载/隐藏/卸载链；工程与 Chrome 验证通过，最终跨消费者复核随 12 |
 | 12 | 旧路径、文档、测试预期漂移 → 删除重复并更新手册/Skill/消费者示例 | 对应模块 + 开发规范 | 随每项更新，最终总验收 |
@@ -534,3 +534,25 @@ Shelf 自动任务使用模型目录选择；终端 engine/custom runtimes 只�
 本段最终回归：Host/Actions/Review/Images/安装及系统搜索 16 文件 110/111 通过，唯一未运行项是缺 `MINIMAX_API_KEY` 的真实商业模型（`/tmp/platform-original-images-regression.log`）。70 包边界 errors 为空（`/tmp/platform-original-images-boundary.log`）；SDK 累计补丁反向检查、Molis diff whitespace 检查通过。定向与包回归合计 20 文件 143 通过、1 跳过；未把跳过算作成功，也不代表 UI 或用户本人验收。测试期间无源码/Skill 修改或并发构建，主检出保持未动。
 
 接续从 Shelf 消费者开始，不重建 Goal 或重复 Prompt。当前 `ShelfStore.runJob` 仍调用 `runAgentProcess`，`ShelfMaterialPorts` 只有解析端口；应新增其业务 AI 端口，由 Host 接共享配置、登记指令和原图输入，Module 继续拥有副本/任务/结果及 beforeCommit。`ShelfDeviceSettings.engine` 与 9 类 CLI/custom runtimes 留给人工终端，自动模型另设选择；snapshot/设置页/确认文案同步，不能再以 CLI headless 能力表示模型可用性。还须对齐 `shelf.jobs.run` 当前仅有 shelf:write、无模型费用元数据的合同，保留本机 extract_text 的离线路径。Prompt 的固定 recipe 指令归插件登记，用户快捷指令与材料作数据，JSON 仅 json 选项并用 SDK 解码；删除自动 job-runner/结果猜测与无消费者的 headless 参数构造，保留真实手动终端所需探测。PDF/目录/普通文件仍需逐项准备并如实表达覆盖，不静默漏文件。SDK 新包已验证，无需再造图像协议；之后完成 01–12 总验收。
+
+### Shelf 自动生成的权限与落地合同
+
+自动 recipe 经 Host 配置模型、登记指令和同 Home Prologue；Shelf 负责材料副本、业务格式校验、任务与结果提交。`extract_text` 继续只走本机材料提取。新增 `shelf.jobs.generate`（shelf:write + model:invoke、metered）与 `shelf.jobs.extract`（shelf:write、none），界面路由按 recipe 调用。历史 `shelf.jobs.run.v1` 保留为 unknown 成本的兼容入口，AI 分支在每次原 beforeEffect 后复查 model:invoke；不能借旧入口绕过模型授权，也不要求本机提取获得模型授权。所有入口共享一个领域实现，无自动重试。
+
+模型选择独立于手动终端 engine，默认取当前可用模型目录首项；显式选择失效拒绝，不回退。模型目录声明 vision 才可发送原图。固定 recipe 指令由 Shelf 插件登记，option 与用户 shortcut 为数据；输出通过共享 SDK JSON 解码和 Shelf 领域有效性检查，points/todos/quotes 保存 Markdown。完整执行引用、终态、实际模型与逐次用量保存到 job 的可选回执，历史记录仍可读，未知值不转零。
+
+Host 逐份读取已冻结的 input 副本，PDF/HTML 复用公共提取，图片经已实现的原图资源端口；目录保留相对路径并逐项处理。不能处理的二进制或超限输入明确失败，不漏文件、不静默截断、不用 OCR 代替视觉模型。材料解析的部分覆盖进入提示词及最终结果说明。保留原件 hash、材料/任务/结果身份与手动终端全部现有引擎。删除自动 CLI 执行、结果猜测和无消费者参数构造；旧设置及历史任务无破坏性迁移。
+
+
+Shelf 实施复核补充：删除只为 CLI 写文件而存在的 work 双份副本，新任务统一消费冻结 input，历史目录不改。PDF 部分提取的 coverage 同时保存到 job 和结果条目，JSON 仍保持业务对象且预览显示覆盖说明。Host 从同一个配置快照读取函数检查模型/连接，最终业务 beforeEffect 返回后同步复核该快照，配置失效不补写成果或失败记录。首轮真实 SDK 回归已发现并修复 JSON 解码误读（SDK 返回 ok/value envelope），并对齐非报告用量为 SDK 的 estimated、未知 cost 不转零；域回归 23 项已通过，集成和浏览器仍在验证中。
+
+
+自动生成的公开 availability 也读取同一 Shelf 模型选择与 Host 模型目录，本机提取保持独立。Action 的 AI recipe 枚举从 Module catalog 派生，时限复用 Module 常量，避免第三份能力清单。此补齐后重新执行整体构建与受影响回归，再做包边界检查；前一版定向 7 文件 41/41、Chrome 与 SDK 全通过（/tmp/platform-shelf-ai-consumer-tests.log）。
+
+Shelf 自动生成本段已实现：生产 HTTP/Action 使用 generate/extract 两个明确入口，兼容 run.v1 对 AI 继续复查模型权限；MCP/Agent 可发现相同成本和当前模型可用状态。模型目录、提示词登记/覆盖、Host 材料提取、原图资源、共享 Prologue、领域输出校验、完整回执与最终授权/配置/hash 检查已贯通。自动 CLI job-runner、无消费者的 headless 参数生成、私有 JSON 拆围栏和 work 重复副本已删除；九种人工终端及自定义 Runtime、原材料/任务/成果身份、历史记录保持。输出有效性和覆盖提示归 Module，Host 只解析、绑定和派出。用户手册、AI Skill 及其已有插件开发 Skill 关联同步。
+
+验证：最后生产改动整体构建通过（`/tmp/platform-shelf-ai-discovery-build.log`）；此前定向 7 文件 41/41 包含 Domain 状态与 Chrome（`/tmp/platform-shelf-ai-consumer-tests.log`）。最后包要求及消费者回归 22 文件 132 项中 131 通过，唯一失败为提示词登记测试不识别 Manifest 导入常量（`/tmp/platform-shelf-ai-regression.log`）。保持 owner 单一来源，检查器增加相对导入常量解析并验证 Shelf 动态指令，随后该检查与扩展后的真实 SDK 全菜单选项回归共 12/12（`/tmp/platform-shelf-ai-registration-tests.log`），无生产源码改动；其他已通过证据不重复执行。以上批次重叠，不累加为独立测试数，均无跳过。`pnpm boundary:check` errors 为空（`/tmp/platform-shelf-ai-boundary.log`），`git diff --check` 通过。
+
+实际覆盖：生产 Action → 同 Home SDK → 本地 HTTP 模型服务；全部 AI 菜单选项与自定义 shortcut、用户提示词覆盖、JSON 对象/非法 JSON/数组/null/纯完成说明、估算 token 与未知 cost、原图字节、指定模型失效无回退、PDF/目录中代码文件与二进制拒绝、部分 PDF 的 JSON 结果覆盖说明、原调用取消/撤权及最后授权等待后配置变化的零晚成果/零失败记账。Chrome 验证本机 PDF、人工终端恢复、设置页模型入口、共享生命周期；浅/深色模型与终端设置截图已目视核对（`.impeccable/qa/review/shelf-plugin/settings-light.png`、`settings-dark.png`）。没有调用真实付费供应商，不代表用户本人验收。
+
+接续：Shelf 消费者迁移结束，Goal 仍 active、全 01–12 范围不变。下一步按本表逐项进行最终代码与调用链复核，核对实际 owner/消费者/删除路径/兼容性、手册与 Skill、已有验证的适用范围；补齐发现的实质遗漏，再更新同一表的最终结论。当前未运行进程、无阻塞，不创建新 Goal 或复述 Prompt；仅本地提交，不推送/开 PR/合并。

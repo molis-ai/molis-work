@@ -1,3 +1,4 @@
+import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 import assert from "node:assert/strict";
 import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -83,12 +84,12 @@ test("panel keys save one slot at a time and keep the rest", async () => {
   });
 });
 
-test("the engine choice picks the runtime, and a custom CLI can close a job", async () => {
+test("terminal choice preserves all engines while automatic jobs use the shared model", async () => {
   await withHome(async (home) => {
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, "exit 0");
     await fakeAgent(bin, "gemini", "Usage: gemini\\n  --prompt <text>", "exit 0");
-    const store = openShelfStore(home, { pathEnvironment: bin, home });
+    const store = openShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
     assert.equal(store.runtime().runtime_key, "claude");
     store.saveSettings({ engine: "gemini" });
     clearShelfRuntimeCache();
@@ -108,7 +109,7 @@ test("the engine choice picks the runtime, and a custom CLI can close a job", as
     const item = store.admit({ filename: "报价.md", bytes: Buffer.from("总价 12 万元。", "utf8"), mime: "text/markdown" });
     const outcome = await store.runJob({ recipe: "summarize", item_id: item.item_id });
     assert.equal(outcome.result?.name, "summary.md");
-    assert.equal(outcome.job.runtime, "custom:house");
+    assert.equal(outcome.job.runtime, "prologue");
   });
 });
 
@@ -116,7 +117,7 @@ test("a saved shortcut action runs on the copy and writes 原名-动作.md", asy
   await withHome(async (home) => {
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, `printf '%s\\n' "# 联系人" "" "张三 · 13800000000" > 报价-抽联系人.md`);
-    const store = openShelfStore(home, { pathEnvironment: bin, home });
+    const store = openShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
     const settings = store.saveSettings({
       shortcuts: [{ id: "act1", name: "抽联系人", prompt: "把材料里的联系人写成一张表。", kinds: ["markdown", "pdf"] }],
     });
@@ -126,9 +127,7 @@ test("a saved shortcut action runs on the copy and writes 原名-动作.md", asy
     const outcome = await store.runJob({ recipe: "shortcut", item_id: item.item_id, shortcut_id: "act1" });
     assert.equal(outcome.result?.name, shortcutOutputName("报价.md", "抽联系人"));
     assert.equal(outcome.result?.name, "报价-抽联系人.md");
-    const prompt = readFileSync(join(home, "shelf", "jobs", outcome.job.job_id, "prompt.txt"), "utf8");
-    assert.match(prompt, /把材料里的联系人写成一张表。/u);
-    assert.match(prompt, /把完整结果写成文件：报价-抽联系人\.md/u);
+    assert.deepEqual(outcome.job.execution, shelfTestReceipt);
 
     const image = store.admit({ filename: "图.png", bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47]), mime: "image/png" });
     await assert.rejects(
@@ -184,7 +183,7 @@ test("a folder comes in whole: children stay in place and a recipe gets the tree
   await withHome(async (home) => {
     const bin = join(home, "bin");
     await fakeAgent(bin, "claude", HELP_WITH_PRINT, `printf '%s\\n' "# 合稿" "" "读了整棵树。" > summary.md`);
-    const store = openShelfStore(home, { pathEnvironment: bin, home });
+    const store = openShelfStore(home, { pathEnvironment: bin, home }, {}, shelfTestAi());
     const folder = store.admitFolder({
       name: "报价材料",
       entries: [
@@ -207,7 +206,7 @@ test("a folder comes in whole: children stay in place and a recipe gets the tree
 
     const outcome = await store.runJob({ recipe: "summarize", item_id: folder.item_id });
     assert.equal(outcome.result?.name, "summary.md");
-    const staged = join(home, "shelf", "jobs", outcome.job.job_id, "work", "报价材料", "附件", "明细.md");
+    const staged = join(home, "shelf", "jobs", outcome.job.job_id, "input", "报价材料", "附件", "明细.md");
     assert.equal(readFileSync(staged, "utf8"), "人力 8 万，硬件 4 万。");
   });
 });
@@ -268,7 +267,7 @@ test("a link is shelved as a captured page, and a dead link still lands with its
   });
 });
 
-test("passive Shelf snapshots do not launch CLIs; a job probes only its chosen Agent", async () => {
+test("passive snapshots and automatic jobs never launch terminal CLIs", async () => {
   await withHome(async home => {
     const bin = join(home, "bin");
     await mkdir(bin, { recursive: true });
@@ -285,7 +284,7 @@ else
 fi
 `, { mode: 0o700 });
     await writeFile(other, `#!/bin/sh\nprintf start > '${otherMarker}'\n`, { mode: 0o700 });
-    const store = openShelfStore(home, { pathEnvironment: bin, home, preferred: "claude" });
+    const store = openShelfStore(home, { pathEnvironment: bin, home, preferred: "claude" }, {}, shelfTestAi());
     const item = store.admit({ filename: "note.md", bytes: Buffer.from("A local fixture"), mime: "text/markdown" });
     for (let index = 0; index < 3; index++) {
       const snapshot = store.snapshot();
@@ -298,7 +297,7 @@ fi
     assert.throws(() => readFileSync(otherMarker), { code: "ENOENT" });
     const outcome = await store.runJob({ recipe: "summarize", item_id: item.item_id });
     assert.equal(outcome.result?.name, "summary.md");
-    assert.equal(readFileSync(marker, "utf8"), "start\nstart\n");
+    assert.throws(() => readFileSync(marker), { code: "ENOENT" });
     assert.throws(() => readFileSync(otherMarker), { code: "ENOENT" });
   });
 });

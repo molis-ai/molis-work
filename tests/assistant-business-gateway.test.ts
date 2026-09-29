@@ -61,7 +61,8 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views), undefined, undefined,
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views),
+      (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   return { service, store, host, adapter, queue, notes, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
@@ -359,6 +360,55 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
     assert.equal(f.service.saveBudget(null), null);
     const again = await f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000033" }, {});
     assert.equal(again.outcome, "started", "no cap, no stop");
+  } finally { await f.close(); }
+});
+
+test("background work a round or a card starts is followed through the plugin's status query to its end; the person is told and the next round hears it once", { timeout: 60_000 }, async t => {
+  let state = "running";
+  const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
+    audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
+    background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
+  const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
+    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false } } };
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "市场" } } }),
+    () => reply(undefined, "已开始研究，后台进行中。"),
+    body => { assert.match(JSON.stringify(body.messages), /后台任务[\s\S]*Research · Start research」（任务 job-1）：已完成/); return reply(undefined, "研究已完成。"); },
+    body => { assert.doesNotMatch(JSON.stringify(body.messages), /Research · Start research」（任务 job-1）/, "told once"); return reply({ name: "suggest-action", input: { title: "再研究一次", summary: "再开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }); },
+    () => reply(undefined, "给了一个按钮。"),
+  ]);
+  let next = 0;
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
+    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
+  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
+    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  try {
+    const sent = await f.service.send({ text: "开始一轮市场研究", request_id: "req-00000034" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.jobs?.length ? v : undefined; }, "job followed");
+    assert.deepEqual(view.jobs!.map(job => [job.title, job.job_id, job.state]), [["Research · Start research", "job-1", "running"]]);
+    const [job] = f.store.jobs("web-user", sent.work.work_id);
+    assert.equal((await f.service.checkJob(job!.key))!.state, "running", "still running: looked again later");
+    state = "completed";
+    assert.equal((await f.service.checkJob(job!.key))!.state, "completed");
+    view = await f.service.read(sent.work.work_id);
+    assert.deepEqual([view.jobs![0]!.state, view.jobs![0]!.last_state], ["completed", "completed"]);
+    assert.match(f.service.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
+    await f.service.send({ work_id: sent.work.work_id, text: "研究怎么样了", request_id: "req-00000035" }, {});
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "second round");
+
+    // A card that starts a job stays running until the job ends, then says how it ended.
+    state = "running";
+    await f.service.send({ work_id: sent.work.work_id, text: "给我一个再研究一次的按钮", request_id: "req-00000036" }, {});
+    const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
+    const ran = await f.service.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    assert.deepEqual([ran.status, ran.outcome], ["running", "已开始，后台进行中"]);
+    const cardJob = f.store.jobs("web-user", sent.work.work_id).find(item => item.card_id === ran.card_id)!;
+    state = "failed";
+    await f.service.checkJob(cardJob.key);
+    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
+    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成（failed）"]);
   } finally { await f.close(); }
 });
 

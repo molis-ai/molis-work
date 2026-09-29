@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantMemoryPrefs, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -38,6 +38,9 @@ CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id,
 CREATE TABLE IF NOT EXISTS assistant_followups (
   followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS assistant_jobs (
+  key TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assistant_usage (
   run_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, ended_at TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL, cached INTEGER NOT NULL
 );
@@ -62,6 +65,18 @@ export interface StoredWork extends Omit<AssistantWork, "state"> {
   project_ref?: LocalHostProjectReference;
   /** On a delegated work: follow-ups its delegating work sent it. */
   follow_ups?: number;
+}
+
+/** A background job being followed: the public view plus how to read its state. */
+export interface StoredJob extends AssistantBackgroundJob {
+  key: string;
+  status: { capability_id: string; version: number; provider_id: string };
+  input: string;
+  path: string;
+  done: string[];
+  failed: string[];
+  checks: number;
+  told?: boolean;
 }
 
 /** A notice as stored: the public facts plus whether the person still has to see it. */
@@ -297,6 +312,22 @@ export class AssistantStore {
   setSetting(actorId: string, key: string, value: string): void {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+  }
+
+  jobs(actorId: string, workId?: string): StoredJob[] {
+    const rows = workId ? this.db.prepare("SELECT body, told FROM assistant_jobs WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId)
+      : this.db.prepare("SELECT body, told FROM assistant_jobs WHERE actor_id=? ORDER BY rowid").all(actorId);
+    return rows.map(row => ({ ...JSON.parse(String(row.body)) as StoredJob, told: Number(row.told) === 1 }));
+  }
+
+  saveJob(actorId: string, job: StoredJob): void {
+    const { told: _told, ...body } = job;
+    this.db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body")
+      .run(job.key, actorId, job.work_id, JSON.stringify(body));
+  }
+
+  markJobsTold(actorId: string, keys: readonly string[]): void {
+    for (const key of keys) this.db.prepare("UPDATE assistant_jobs SET told=1 WHERE actor_id=? AND key=?").run(actorId, key);
   }
 
   /** One finished round's reported usage, kept once. */

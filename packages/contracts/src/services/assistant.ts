@@ -349,6 +349,8 @@ export interface AssistantWorkView {
   schedule_survives_close?: boolean;
   /** Changes still running at their owner when a round stopped or ran out of time, and what the owner finally did. */
   unsettled?: AssistantUnsettledChange[];
+  /** Background work this work started in plugins, and how each stands. */
+  jobs?: AssistantBackgroundJob[];
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }
@@ -430,6 +432,21 @@ export interface AssistantContribution {
  * failed, a decision it waits on, a round that finished while they were elsewhere, a result a plugin handed back. It
  * never starts anything, so a notice cannot cause another notice.
  */
+/** Background work a round or a card started in a plugin (a research run…), followed until it ends. */
+export interface AssistantBackgroundJob {
+  job_id: string;
+  work_id: string;
+  /** The capability that started it, as the person reads it. */
+  title: string;
+  state: "running" | "completed" | "failed" | "unknown";
+  /** The plugin's own word for the latest state. */
+  last_state?: string;
+  started_at: string;
+  ended_at?: string;
+  /** Set when a suggestion card started it. */
+  card_id?: string;
+}
+
 /** What the Assistant's own rounds used today (as the runtime reported them), and the person's daily cap. */
 export interface AssistantUsage {
   /** Today in the person's time zone: finished rounds' reported tokens. Cached input is shown apart and not counted. */

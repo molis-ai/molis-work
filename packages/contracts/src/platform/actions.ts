@@ -117,6 +117,20 @@ export interface ActionMetadata {
    * Callers that keep relations to results (the Assistant's work) use it; undeclared, see `actionResultSubject`.
    */
   readonly result_subject?: { readonly id: string; readonly revision?: string };
+  /**
+   * A command that starts background work (a research run, a generation job): how a caller follows it to its end.
+   * `id` is the dot path to the job id in this command's output; the `status` query of the same provider takes it in
+   * its `input` field and reports the state at the dot path `state`; `done` and `failed` list the final states.
+   * The Assistant uses it to watch a job it started and tell the person when it ends (the convention for long work).
+   */
+  readonly background_job?: {
+    readonly status: { readonly capability_id: string; readonly version: number };
+    readonly id: string;
+    readonly input: string;
+    readonly state: string;
+    readonly done: readonly string[];
+    readonly failed: readonly string[];
+  };
 }
 
 export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
@@ -490,6 +504,15 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
             || canonicalSchema(a.input_schema) !== canonicalSchema(HOME_EVENT_WINDOW_SCHEMA)
             || canonicalSchema(a.output_schema) !== canonicalSchema(HOME_EVENT_COLLECTION_SCHEMA)) {
             problems.push(`${key} 首页事件查询必须使用完整规范合同`);
+          }
+        }
+        if (a.background_job !== undefined) {
+          const job = a.background_job;
+          const path = (value: unknown) => typeof value === "string" && /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(value);
+          const states = (value: unknown) => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === "string" && item.length > 0);
+          if (raw.operation !== "command" || !object(job) || !object(job.status) || !id(job.status.capability_id) || !version(job.status.version)
+            || !path(job.id) || !path(job.input) || !path(job.state) || !states(job.done) || !states(job.failed)) {
+            problems.push(`能力 ${key} 的后台任务声明必须是命令，并写明状态查询、任务标识与状态的位置和结束状态`);
           }
         }
         if (a.workflow_content !== undefined) {

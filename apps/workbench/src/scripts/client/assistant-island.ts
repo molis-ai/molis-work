@@ -630,12 +630,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const parent = work && work.delegated_by ? work.delegated_by : null;
     const scheduled = work && view && view.scheduled ? view.scheduled : [];
     const unsettled = work && view && view.unsettled ? view.unsettled : [];
+    const jobs = work && view && view.jobs ? view.jobs : [];
     const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id,
-      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state])]);
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state]), jobs.map((j) => [j.job_id, j.state, j.last_state])]);
     if (delegatedBox.dataset.signature === signature) return;
     delegatedBox.dataset.signature = signature;
-    delegatedBox.hidden = !children.length && !parent && !scheduled.length && !unsettled.length;
+    delegatedBox.hidden = !children.length && !parent && !scheduled.length && !unsettled.length && !jobs.length;
     delegatedBox.replaceChildren();
+    /* Background work this work started in plugins, followed until it ends. */
+    const JOB = { running: "后台进行中", completed: "后台已完成", failed: "后台没有完成", unknown: "不再跟进，请到原处查看" };
+    jobs.forEach((job) => {
+      const row = el("p", "assistant-object");
+      row.append(el("span", "assistant-object-relation", L("后台任务")), el("span", "assistant-object-title", job.title),
+        el("span", "assistant-object-state", L(JOB[job.state] || job.state) + (job.last_state ? "（" + job.last_state + "）" : "")));
+      delegatedBox.append(row);
+    });
     /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
     const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
     unsettled.forEach((change) => {

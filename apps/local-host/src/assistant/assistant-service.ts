@@ -11,7 +11,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { randomUUID } from "node:crypto";
@@ -322,6 +322,18 @@ export function recallKeywords(text: string): string[] {
 }
 
 const FOLLOW_UP_KIND = "assistant.follow-up";
+const JOB_KIND = "assistant.job-check";
+/** The value at a dot path (`run.jobId`), or undefined. */
+function pathValue(value: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((node, key) => node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined, value);
+}
+/** An object with one value placed at a dot path. */
+function setPath(target: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
+  const keys = path.split("."); let node = target;
+  keys.slice(0, -1).forEach(key => { node = (node[key] = node[key] && typeof node[key] === "object" ? node[key] : {}) as Record<string, unknown>; });
+  node[keys.at(-1)!] = value;
+  return target;
+}
 /** A follow-up's next due time as a queued task: one key per follow-up and due time. */
 function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
   return { key: `fu-${followUp.followup_id}-${Date.parse(followUp.next_at!)}`, session_id: sessionId, kind: FOLLOW_UP_KIND,
@@ -524,6 +536,11 @@ export class AssistantService {
     const schedule = await this.schedule().catch(() => null);
     if (!schedule) return false;
     this.#runnerFor(schedule);
+    this.#jobRunnerFor(schedule);
+    // Jobs still followed when the Host went away: look again soon.
+    for (const job of this.store.jobs(this.actorId).filter(item => item.state === "running")) {
+      try { await this.scheduleJobCheck({ ...job, checks: 0 }, this.store.get(this.actorId, job.work_id)); } catch { /* its work is gone */ }
+    }
     for (const followUp of this.store.followUps(this.actorId).filter(item => item.enabled && item.next_at)) {
       let work: StoredWork;
       try { work = this.store.get(this.actorId, followUp.work_id); } catch { continue; }
@@ -646,6 +663,7 @@ export class AssistantService {
     const scheduled = this.store.followUps(this.actorId, work.work_id);
     const claim = scheduled.length ? await this.scheduleClaim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
+    const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
     // A suggestion about an object the person has since changed or removed by hand is not offered any more.
     for (const card of this.store.cards(work.work_id).filter(item => item.target && (item.status === "ready" || item.status === "needs-input"))) {
       const moved = await this.targetMoved(work, card);
@@ -653,7 +671,7 @@ export class AssistantService {
     }
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(problem ? { problem } : {}) };
+      ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(problem ? { problem } : {}) };
   }
 
   /** The rounds run in the Assistant's own session. */
@@ -932,8 +950,70 @@ export class AssistantService {
     });
   }
 
+  /**
+   * A command that starts background work (declared by its `background_job`) is followed to its end: its state is read
+   * through the plugin's own status query, on Prologue's queue, less often as time goes on. Returns the job, or null.
+   */
+  async watchJob(work: StoredWork, view: ActionView, output: unknown, cardId?: string): Promise<StoredJob | null> {
+    const declared = view.action.background_job;
+    if (!declared) return null;
+    const jobId = pathValue(output, declared.id);
+    if (typeof jobId !== "string" && typeof jobId !== "number") return null;
+    const job: StoredJob = { key: `job-${randomUUID()}`, job_id: String(jobId), work_id: work.work_id, title: `${view.provider.title} · ${view.action.title}`, state: "running",
+      started_at: this.now().toISOString(), ...(cardId ? { card_id: cardId } : {}),
+      status: { capability_id: declared.status.capability_id, version: declared.status.version, provider_id: view.provider.provider_id },
+      input: declared.input, path: declared.state, done: [...declared.done], failed: [...declared.failed], checks: 0 };
+    this.store.saveJob(this.actorId, job);
+    await this.scheduleJobCheck(job, work);
+    return job;
+  }
+
+  private async scheduleJobCheck(job: StoredJob, work: StoredWork): Promise<void> {
+    const schedule = await this.schedule().catch(() => null);
+    if (!schedule || !work.session_id) return;
+    this.#jobRunnerFor(schedule);
+    // 15 s, then doubling, at most every 5 minutes.
+    const delay = Math.min(300_000, 15_000 * 2 ** Math.min(job.checks, 5));
+    await schedule.enqueue({ key: `${job.key}-${job.checks}`, session_id: work.session_id, kind: JOB_KIND, payload: { key: job.key }, due_at: new Date(this.now().getTime() + delay).toISOString(), max_attempts: 1 });
+  }
+
+  #detachJobs: (() => void) | null = null;
+  #jobRunnerFor(schedule: AgentScheduleCapability): void {
+    if (!this.#detachJobs) this.#detachJobs = schedule.handle(JOB_KIND, async task => { await this.checkJob(String(task.payload.key ?? "")); });
+  }
+
+  /** Reads a followed job's state once; ends it (telling the person) or schedules the next look. Never re-runs anything. */
+  async checkJob(key: string): Promise<StoredJob | null> {
+    const job = this.store.jobs(this.actorId).find(item => item.key === key);
+    if (!job || job.state !== "running") return job ?? null;
+    let work: StoredWork;
+    try { work = this.store.get(this.actorId, job.work_id); } catch { return null; }
+    let state: string | null = null;
+    try {
+      const actions = await this.ports.scopeActions?.(work);
+      if (actions) state = String(pathValue(await actions.invoke(job.status, setPath({}, job.input, job.job_id)), job.path) ?? "");
+    } catch { state = null; }
+    const ended = state && job.done.includes(state) ? "completed" as const : state && job.failed.includes(state) ? "failed" as const : null;
+    const giveUp = !ended && this.now().getTime() - Date.parse(job.started_at) > 6 * 3600_000;
+    const next: StoredJob = { ...job, checks: job.checks + 1, ...(state ? { last_state: state } : {}),
+      ...(ended ? { state: ended, ended_at: this.now().toISOString() } : giveUp ? { state: "unknown" as const, ended_at: this.now().toISOString() } : {}) };
+    this.store.saveJob(this.actorId, next);
+    if (next.state === "running") { await this.scheduleJobCheck(next, work); return next; }
+    this.store.raiseNotice(this.actorId, { kind: next.state === "failed" ? "failed" : "result", work_id: work.work_id, work_title: work.title,
+      text: next.state === "completed" ? `「${next.title}」在后台完成了` : next.state === "failed" ? `「${next.title}」在后台没有完成（${next.last_state ?? "失败"}）` : `「${next.title}」过了 6 小时仍没有结束，不再跟进；请到原处查看` }, `job:${next.key}:${next.state}`);
+    if (next.card_id) {
+      try {
+        const card = this.store.card(work.work_id, next.card_id);
+        this.store.updateCard(card, card.revision, next.state === "completed" ? { status: "done", outcome: `后台已完成（${next.last_state}）` }
+          : next.state === "failed" ? { status: "failed", outcome: `后台没有完成（${next.last_state}）` } : { status: "unknown", outcome: "过了 6 小时仍没有结束，请到原处查看" });
+      } catch { /* The card changed meanwhile: the notice still says how the job ended. */ }
+    }
+    return next;
+  }
+
   /** A command the Assistant ran for this work succeeded: keep the object it created or changed, at its new revision. */
   recordResult(work: StoredWork, view: ActionView, input: unknown, output: unknown): void {
+    void this.watchJob(work, view, output).catch(() => undefined);
     const result = actionResultSubject(view.action, input, output);
     if (!result) return;
     this.store.relations.link(identity(work), "result", { kind: result.subject.kind, id: result.subject.id, revision: result.revision },
@@ -1174,6 +1254,9 @@ export class AssistantService {
     try {
       const result = await client.invoke(card.reference, prepared);
       const outcome = summarizeResult(result);
+      // Background work it started: the card shows it running, then how it ended.
+      const job = await this.watchJob(work, view, result, card.card_id).catch(() => null);
+      if (job) return cardView(this.store.updateCard(card, card.revision, { status: "running", outcome: "已开始，后台进行中" }));
       return cardView(this.store.updateCard(card, card.revision, { status: "done", ...(outcome ? { outcome } : {}) }));
     } catch (error) {
       const code = (error as { code?: string }).code ?? "";
@@ -1344,6 +1427,12 @@ export class AssistantService {
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
     if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
+    // Background work this work started: running ones as such, ended ones once.
+    const jobs = this.store.jobs(this.actorId, work.work_id).filter(job => job.state === "running" || !job.told);
+    if (jobs.length) {
+      out.push(...chunked({ ...base, title: "后台任务" }, "jobs", jobs.map(job => `- 「${job.title}」（任务 ${job.job_id}）：${job.state === "running" ? "仍在进行" : job.state === "completed" ? "已完成" : job.state === "failed" ? "没有完成" : "不再跟进"}${job.last_state ? `（${job.last_state}）` : ""}`).join("\n")));
+      this.store.markJobsTold(this.actorId, jobs.filter(job => job.state !== "running").map(job => job.key));
+    }
     // Professional roles this work may hand a part to (published here, runnable now): delegation names one by its id.
     if (!work.delegated_by && work.project_ref && this.ports.characters && work.executor.kind !== "coding") {
       const roles = (await this.ports.characters(work.project_ref).catch(() => [])).filter(item => item.available);

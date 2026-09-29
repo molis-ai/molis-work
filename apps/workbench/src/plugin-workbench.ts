@@ -180,7 +180,7 @@ export function pluginWorkbenchClientBootstrap(): string {
   return BUILTIN_PLUGIN_WORKBENCH.flatMap((pack) => {
     const lines: string[] = [];
     if (pack.clientFactory) {
-      lines.push(`(${pack.clientFactory})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "", feedApi, route });`);
+      lines.push(`(${pack.clientFactory})({ translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "", projectTitle: () => state.project?.display_name || "", feedApi, route });`);
     }
     if (pack.settingsClient) lines.push(pack.settingsClient);
     return lines;

@@ -43,7 +43,7 @@ export const todoUiContribution: UiContribution<TodoUiModel> = {
 
 const VIEWS: readonly [string, string][] = [["today", "今天"], ["waiting", "等待中"], ["unscheduled", "未安排"], ["upcoming", "即将到期"], ["all", "全部"], ["closed", "已完成"]];
 const STATUSES: readonly [string, string][] = [["open", "待处理"], ["doing", "进行中"], ["waiting", "等待他人"], ["done", "已完成"], ["cancelled", "已取消"]];
-const PLACEMENTS: readonly [string, string][] = [["personal", "个人"], ["project", "这个项目"], ["unassigned", "暂未归类"]];
+const PLACEMENTS: readonly [string, string][] = [["personal", "个人空间"], ["project", "这个项目"], ["unassigned", "暂未归类"]];
 
 export function renderTodoWorkbench(model: TodoUiModel): string {
   const { primitives: p } = model;

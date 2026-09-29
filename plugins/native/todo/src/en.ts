@@ -255,4 +255,6 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "帮我推进「{title}」": "Help me move “{title}” forward",
   "继续推进「{title}」": "Continue moving “{title}” forward",
   "到时间会在底栏提醒你，并受你设的提醒规则约束；Molis Work 关着时不会按时提醒，打开后会补上。": "You are reminded in the bottom bar when it is time, following your own reminder rules. Nothing arrives while Molis Work is closed; missed ones show when you open it.",
+  "个人空间": "Personal space",
+  "项目「{name}」": "Project “{name}”",
 };

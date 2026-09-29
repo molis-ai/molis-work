@@ -12,7 +12,6 @@ export const todoAgentManifest: AgentManifest = {
       prompts: ["todo-organizer"], host_tools: [...BUSINESS_HOST_TOOLS] },
   ],
   prompts: [{ prompt_id: "todo-organizer", version: 1 }],
-  skills: [{ skill_id: "todo-organize", version: 1, name: "整理待办", summary: "从材料里找出要你推进的事，与已有待办比对，存成等你确认的整理结果。", tools: ["find-tools", "ask-user"] }],
 };
 
 export const todoPrompts: readonly AgentPromptText[] = [
@@ -29,14 +28,23 @@ export const todoPrompts: readonly AgentPromptText[] = [
   },
 ];
 
+/**
+ * Methods Todo offers to other Agents (the Assistant, 待办整理师 as a Character) for business work. Each is declared in
+ * the Manifest's `methods` with the same id, version, name, summary and tools; the Host registers the body from here.
+ */
 export const todoMethods: readonly AgentSkillDefinition[] = [
   {
-    skill_id: "todo-organize", version: 1, name: "整理待办", summary: "从材料里找出要你推进的事，与已有待办比对，存成等你确认的整理结果。", tools: ["find-tools", "ask-user"],
+    skill_id: "todo-organize", version: 1, name: "整理待办",
+    summary: "从用户给的材料里找出要用户推进的事，与已有待办比对，存成等用户确认的整理结果；也用于“看看有没有遗漏的待办”和“这封邮件影响哪些安排”。",
+    tools: ["find-capabilities", "read-capability", "change-capability", "ask-user"],
     body: [
-      "1. 弄清这次的范围：用户选了哪些材料、要整理什么；没有指明材料时，先说明打算看的范围（例如最近 7 天已同步的邮件和本项目新增资料），只看已授权的来源。",
-      "2. 读好材料正文（邮件、文件、网页、聊天导出、当前页面的对象），连同标题、来源和写下的时间一起交给 todo.organize.extract；用户本人的称呼放进 me。",
-      "3. 把整理结果的要点告诉用户：几件要你处理、几件你的承诺、几件在等别人、几条建议、哪些和已有待办有关、哪些不确定；请用户在待办的“待你确认”里采用，不替用户采用。",
-      "4. 用户说“看看有没有遗漏”时同样按 1–3 做，只报告新发现的和需要更新的；没有就直说没有。用户问“这封邮件会影响哪些安排”时，读这封邮件和相关待办，说明受影响的事项和具体变化，更新建议同样经整理结果交给用户确认。",
+      "适用：用户要从邮件、文件、会议记录、网页或当前页面的对象里整理出要做的事，或问“最近有没有遗漏的待办”“这封邮件会影响哪些安排”。",
+      "1. 弄清范围：用户选了哪些材料、要整理什么。没有指明材料时，先说明打算看的范围（例如最近 7 天已同步的邮件和本项目新增的资料），只看已授权的来源。",
+      "2. 读原文：用 read-capability 读用户指向的每个对象的正文，连同标题、来源和写下的时间；不要凭标题或摘要推测内容。",
+      "3. 交给待办整理：用 change-capability 调“整理材料里的待办”（todo.organize.extract），materials 放读到的正文（每份带标题和收到时间），me 放用户本人在材料里的称呼；由待办整理师负责时 method 用 organizer，否则 basic。它只生成等用户确认的整理结果，不会直接加入待办。",
+      "4. 告诉用户结果要点：几件要用户处理、几件用户自己的承诺、几件在等别人、几条建议、哪些和已有待办有关、哪些还不确定；请用户在待办的“待你确认”里勾选采用，不替用户采用。只有用户明确说“直接加进待办”时，才用“采用整理结果”（todo.organize.apply）把把握大的加入，负责人不明或日期有歧义的列出来问。",
+      "5. 查漏时同样按 1–4 做，只报告新发现的和需要更新的，没有就直说没有。问影响时，读这封邮件和相关待办，说明哪些事项受影响、具体怎么变，更新建议同样经整理结果交给用户确认。",
+      "注意：用户的待办由 Todo 的能力（todo.*）读写，不是你自己的 update-todo 工作清单；不编造负责人、日期、优先级或完成状态。",
     ].join("\n"),
   },
 ];

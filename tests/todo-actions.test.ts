@@ -3,10 +3,11 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { actionEffect, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PERSONAL_SPACE_PROJECT_ID, actionEffect, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
+  TODO_ACTIONS as TODO_ALL_ACTIONS,
   TODO_ACTION_PERMISSIONS,
   createTodoActionHandlers,
   openTodoStore,
@@ -195,7 +196,14 @@ test("search entries and the object reader follow the caller's scope", async t =
   assert.equal(context.revision, "1");
   assert.match(context.content, /状态：待处理/u);
   assert.deepEqual(context.open, { surface: "todo", id: mine.id });
+  assert.equal(context.project_id, null, "个人待办不属于项目");
+  const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" })).item;
+  assert.equal((await f.agentA.invoke(todoSearchActions.subject, { subject_id: inA.id })).project_id, "project-a", "项目待办说明属于哪个项目");
   await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: inB.id }), { code: "todo.not_found" });
+  // Archived reads as gone from use (the readers' shared convention), though Todo still lists it under 已归档.
+  const done = await f.me.invoke(actions.status, { id: mine.id, status: "done", expected_revision: mine.revision });
+  await f.me.invoke(actions.archive, { id: mine.id, archived: true, expected_revision: done.item.revision });
+  await assert.rejects(f.agentA.invoke(todoSearchActions.subject, { subject_id: mine.id }), { code: "todo.not_found" });
 });
 
 test("quick entry reads due dates, planned days and reminders without a model, and leaves the rest alone", () => {
@@ -270,4 +278,52 @@ test("home events: due reminders and overdue need attention; due, planned and fo
     ["约好今天问", "today", false, "约定今天跟进 王总"],
   ]);
   assert.deepEqual(collection.events[0]!.open, { kind: "item", surface: "todo", id: collection.events[0]!.subject.id, title: "提醒到了", label: "打开待办" });
+});
+
+test("in the personal space Todo is the personal view, and never files a todo under a project called “personal”", async t => {
+  const f = fixture(t);
+  const personalSpace = bindActionClient(f.service, () => ({ actor_id: "web-user", project_id: PERSONAL_SPACE_PROJECT_ID, audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
+  await f.me.invoke(actions.create, { title: "个人的事" });
+  await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" });
+  const made = (await personalSpace.invoke(actions.create, { title: "在个人空间记下" })).item;
+  assert.deepEqual([made.placement, made.project_id], ["personal", null]);
+  assert.deepEqual(titles(await personalSpace.invoke(actions.list, { view: "all" })), ["个人的事", "在个人空间记下"]);
+  await assert.rejects(personalSpace.invoke(actions.create, { title: "放进项目", placement: "project" }), { code: "actions.project_required" });
+});
+
+test("the placement panel moves a todo between the personal space and projects: same todo, recorded, undoable, only for the person", async t => {
+  const f = fixture(t);
+  const inA = (await f.inA.invoke(actions.create, { title: "A 项目的事", placement: "project" })).item;
+  const toB = await f.me.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: "project-b" });
+  assert.deepEqual([toB.subject.id, toB.project_id], [inA.id, "project-b"]);
+  assert.deepEqual(titles(await f.inB.invoke(actions.list, { view: "all" })), ["A 项目的事"], "身份不变，到了 B");
+  assert.deepEqual(titles(await f.inA.invoke(actions.list, { view: "all" })), []);
+  const home = await f.me.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: PERSONAL_SPACE_PROJECT_ID });
+  assert.equal(home.project_id, PERSONAL_SPACE_PROJECT_ID);
+  const item = (await f.me.invoke(actions.get, { id: inA.id })).item;
+  assert.deepEqual([item.placement, item.project_id], ["personal", null]);
+  await assert.rejects(f.me.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: PERSONAL_SPACE_PROJECT_ID }), { code: "placement.same_location" });
+  const { history } = await f.me.invoke(actions.get, { id: inA.id });
+  const last = history.find(change => change.kind === "update" && "project_id" in change.after)!;
+  await f.me.invoke(actions.revert, { change_id: last.change_id });
+  assert.equal((await f.me.invoke(actions.get, { id: inA.id })).item.project_id, "project-b", "移动可以撤销");
+  await assert.rejects(f.agentHome.invoke(actions.move, { subject: { kind: "todo_item", id: inA.id }, to_project_id: "project-a" }));
+});
+
+test("every change the Assistant may make without asking says how it is undone, from its own output; delete stays confirmed each time", () => {
+  const byId = new Map(TODO_ALL_ACTIONS.map(definition => [definition.capability_id, definition]));
+  const reversible = ["todo.items.create", "todo.items.update", "todo.items.status", "todo.items.archive", "todo.items.batch", "todo.items.link", "todo.organize.extract", "todo.organize.apply"];
+  for (const id of reversible) {
+    const definition = byId.get(id)!;
+    const undo = definition.action.undo;
+    assert.ok(undo, id);
+    assert.ok(byId.has(undo.capability_id), `${id} → ${undo.capability_id}`);
+    const properties = (definition.action.output_schema as { properties: Record<string, { properties?: Record<string, unknown> }> }).properties;
+    for (const path of Object.values(undo.input)) {
+      const [head, next] = String(Array.isArray(path) ? path[0] : path).split(".");
+      assert.ok(next ? properties[head!]?.properties?.[next] : properties[head!], `${id}: ${String(path)}`);
+    }
+  }
+  assert.equal(byId.get("todo.items.delete")!.action.undo, undefined);
+  assert.equal(actionEffect(byId.get("todo.items.delete")!.action, "todo.items.delete"), "irreversible");
 });

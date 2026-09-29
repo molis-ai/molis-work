@@ -1,3 +1,4 @@
+import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseTodoQuickText } from "./quick-parse.js";
 
 /** Todo workbench client: views, quick entry, inline completion, batch changes, the detail editor and undo. */
@@ -53,6 +54,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let today = "";
   let listSeq = 0;
   let selected = null;
+  // The Assistant's works that relate to the open todo (read from the Assistant; empty when it is not there).
+  let works = [];
   let history = [];
   let backlinks = [];
   let linkPool = [];
@@ -66,7 +69,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   let quickAttempt = null;
   let dropped = new Set();
   let placementChoice = "";
-  const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
+  // The personal space is a location, not a project: there Todo is the personal view (personal and unplaced todos).
+  const projectId = () => {
+    const current = (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
+    return current === ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? "" : current;
+  };
   try { placementChoice = window.localStorage.getItem("molis.todo.quick-placement") || ""; } catch { placementChoice = ""; }
 
   const headers = () => typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
@@ -79,7 +86,30 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       error.code = payload.code;
       throw error;
     }
+    // Works that relate to a todo read it again when it changes here (the Assistant's page message; not a request).
+    if (method === "POST" && path.indexOf("/api/todo") === 0) (payload.item ? [payload.item] : payload.items || []).forEach((item) => { if (item && item.id) tellAssistant("change", item); });
     return payload;
+  };
+  // The resident Assistant hears about a todo through its page message (spec 8.3 of the Assistant): the todo as the
+  // object, its details as material. Handing over needs a real click here; anything else is only offered to the person.
+  const todoObject = (item) => ({ kind: "todo_item", id: item.id, title: item.title, version: item.revision });
+  const todoMaterial = (item) => ({
+    title: L("待办") + "「" + item.title + "」",
+    text: [
+      L("要做什么") + "：" + item.title,
+      L("状态") + "：" + (STATUS[item.status] || item.status),
+      item.due_date ? L("截止日期") + "：" + item.due_date + (item.due_time ? " " + item.due_time : "") : "",
+      item.planned_date ? L("计划处理日期") + "：" + item.planned_date : "",
+      item.waiting ? L("在等谁") + "：" + item.waiting.who + (item.waiting.what ? "，" + item.waiting.what : "") : "",
+      item.notes ? L("说明") + "：" + item.notes : "",
+      ...item.sources.filter((source) => source.kind !== "manual").map((source) => L("来源") + "：" + source.title + (source.reason ? "（" + source.reason + "）" : "") + (source.excerpt ? "\\n“" + source.excerpt + "”" : "")),
+      ...item.links.map((link) => L("关联") + "：" + link.title),
+    ].filter(Boolean).join("\\n"),
+  });
+  const tellAssistant = (purpose, item, extra) => {
+    window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
+      message_id: crypto.randomUUID(), purpose, source: { surface: "todo", title: L("待办") }, object: todoObject(item), ...(extra || {}),
+    } }));
   };
 
   const pad = (value) => String(value).padStart(2, "0");
@@ -700,6 +730,30 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       box.append(entry);
     });
   };
+  // Progress lives with the Assistant's work; the todo shows where each one stands and continues it (no second record).
+  const WORK_STATE = { idle: L("尚未开始"), running: L("进行中"), "waiting-input": L("等你回答"), "waiting-review": L("等你确认"), paused: L("已暂停"),
+    completed: L("已完成"), failed: L("没有完成"), stopped: L("已停止"), "needs-check": L("需要核对") };
+  const renderWorks = () => {
+    const box = $("[data-todo-works]");
+    box.replaceChildren();
+    $("[data-todo-works-section]").hidden = !works.length;
+    works.forEach((work) => {
+      const line = make("div", "todo-link");
+      const go = make("button", "mw-btn mw-btn--link", L("继续推进"));
+      go.type = "button";
+      go.dataset.todoContinueWork = work.work_id;
+      line.append(make("span", "todo-link-kind", WORK_STATE[work.state] || work.state), make("span", "", work.title), go);
+      box.append(line);
+    });
+  };
+  const loadWorks = async (item) => {
+    let found = [];
+    try { found = (await request("GET", "/api/assistant/related?kind=todo_item&id=" + encodeURIComponent(item.id))).works || []; } catch { found = []; }
+    if (!selected || selected.id !== item.id) return;
+    // One work can relate to the todo more than once (where it started, and as material): list it once.
+    works = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);
+    renderWorks();
+  };
   const RELATION = { blocked_by: L("要等它先完成"), blocks: L("它在等这件"), split_from: L("拆分自"), merged: L("合并自"), related: L("相关") };
   const renderLinks = (item) => {
     const box = $("[data-todo-links]");
@@ -758,6 +812,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   };
   const fillEditor = (item) => {
+    const switching = !selected || selected.id !== item.id;
     selected = item;
     dirtyFields = new Set();
     clearTimeout(saveTimer); saveTimer = 0;
@@ -791,6 +846,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderSources(item);
     renderLinks(item);
     renderHistory();
+    if (switching) { works = []; renderWorks(); }
+    void loadWorks(item);
     showDetailNote("");
     paintSave();
     rowsEl.querySelectorAll("[data-todo-row]").forEach((row) => row.classList.toggle("is-selected", row.dataset.todoRow === item.id));
@@ -990,6 +1047,20 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (button.matches("[data-todo-open-linked]")) { await flush(); await openDetail(button.dataset.todoOpenLinked); return; }
+      // Handing over or continuing: the same work whether started here or from the bottom bar, so an unfinished one goes on.
+      if (button.matches("[data-todo-delegate]") && selected) {
+        await flush();
+        const going = works.find((work) => !["completed", "failed", "stopped"].includes(work.state));
+        tellAssistant("delegate", selected, { text: L("帮我推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], ...(going ? { work_id: going.work_id } : {}) });
+        const asked = selected;
+        setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500);
+        return;
+      }
+      if (button.matches("[data-todo-continue-work]") && selected) {
+        await flush();
+        tellAssistant("delegate", selected, { text: L("继续推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], work_id: button.dataset.todoContinueWork });
+        return;
+      }
       if (button.matches("[data-todo-back]")) { await closeDetail(); return; }
       if (button.matches("[data-todo-batch-action]")) {
         const action = button.dataset.todoBatchAction;
@@ -1092,6 +1163,15 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     void load().then(async () => {
       if (!selected) return;
       if (dirtyFields.size) { showDetailNote(L("助理刚改过这件待办；你还有没保存的输入，保存时会提示冲突，不会覆盖。"), true); return; }
+      await openDetail(selected.id).catch(() => closeDetail());
+    }).catch(() => {});
+  });
+  // Moved from the placement panel: same todo, new place. Read it again; close it if it left what this page shows.
+  window.addEventListener("molis:placement-changed", (event) => {
+    const detail = event.detail || {};
+    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("todo_item")) return;
+    void load().then(async () => {
+      if (!selected || !detail.from || selected.id !== detail.from.id || dirtyFields.size) return;
       await openDetail(selected.id).catch(() => closeDetail());
     }).catch(() => {});
   });

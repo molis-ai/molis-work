@@ -146,6 +146,7 @@ export const TODO_STYLES = `
     body.immersive-workbench .plugin-stage-list .todo-row > .todo-entry.feed-stage-entry { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "meta" "trail"; }
     .todo-trail { justify-content: flex-start; }
     .todo-quick-meta .mw-btn--primary { width: 100%; justify-content: center; }
+    .todo-delegate > span { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { .todo-pick { transition: none; } }
 `;

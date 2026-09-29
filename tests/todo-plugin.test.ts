@@ -15,8 +15,10 @@ import {
   TODO_PROJECT_PLUGIN_ID,
   TodoPluginRouteTable,
   createTodoRouteHandlers,
+  todoManifest,
   todoRouteErrorResponse,
 } from "@molis-ai/molis-work-plugin-todo";
+import { inspectMethodDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { rewriteNativePluginApiPath } from "../apps/local-host/src/native-plugin-api.js";
 import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
@@ -120,9 +122,14 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
 
 test("待办整理师 and both organizing methods are registered with the Host, so they show in “Prompt 与 Character” and can be edited", async () => {
   const { builtinRegistrations } = await import("../apps/local-host/src/agent-definitions/builtin-agents.js");
-  const todo = (builtinRegistrations() as Array<{ owner_id?: string; roles?: Array<{ name: string; workspace?: string; execution?: string }>; prompts?: Array<{ prompt_id: string }> }>)
+  const todo = (builtinRegistrations() as Array<{ owner_id?: string; roles?: Array<{ name: string; workspace?: string; execution?: string }>; prompts?: Array<{ prompt_id: string }>;
+    methods?: Array<{ skill_id: string; version: number; tools: string[]; body: string }> }>)
     .filter(entry => entry.owner_id === "io.molis.work.todo");
   assert.equal(todo.length, 1);
   assert.deepEqual(todo[0]!.roles!.map(role => [role.name, role.workspace, role.execution]), [["待办整理师", "business", "operate"]]);
   assert.deepEqual(todo[0]!.prompts!.map(prompt => prompt.prompt_id).sort(), ["todo-organizer", "todo.organize.basic", "todo.organize.organizer"]);
+  // “整理待办” is offered to other Agents (the Assistant, 待办整理师 as a Character) with business tools only.
+  assert.deepEqual(todo[0]!.methods!.map(method => [method.skill_id, method.version, method.tools]), [["todo-organize", 1, ["find-capabilities", "read-capability", "change-capability", "ask-user"]]]);
+  assert.match(todo[0]!.methods![0]!.body, /todo\.organize\.extract/u);
+  assert.deepEqual(inspectMethodDeclarations(todoManifest.methods), []);
 });

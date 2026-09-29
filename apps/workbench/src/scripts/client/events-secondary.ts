@@ -113,6 +113,64 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
         selectFeedItem(itemId, true, true, false);
         return;
       }
+      // "转为待办" from another plugin (Inbox, 灵光): the workbench composes it, so neither plugin depends on Todo.
+      // The original is kept as the todo's source and left as it was; converting the same entry again finds its todo.
+      const makeTodo = target.closest("[data-make-todo]");
+      if (makeTodo) {
+        const kind = makeTodo.dataset.makeTodo;
+        const id = makeTodo.dataset.makeTodoId;
+        const title = String(makeTodo.dataset.makeTodoTitle || "").trim().slice(0, 200);
+        if (!kind || !id || !title) return;
+        const status = makeTodo.closest("[data-make-todo-scope]")?.querySelector("[data-make-todo-status]");
+        makeTodo.disabled = true;
+        makeTodo.setAttribute("aria-busy", "true");
+        if (status) status.hidden = true;
+        try {
+          const response = await fetch(route("/api/todo"), {
+            method: "POST",
+            headers: molisWorkControlHeaders(),
+            body: JSON.stringify({
+              title,
+              placement: state.project?.project_id || document.body.dataset.projectId ? "project" : "personal",
+              request_id: kind + ":" + id,
+              sources: [{
+                kind, title,
+                excerpt: String(makeTodo.dataset.makeTodoExcerpt || "").slice(0, 2000),
+                reason: String(makeTodo.dataset.makeTodoReason || "").slice(0, 500),
+                subject: { kind: makeTodo.dataset.makeTodoSubject || kind, id },
+                open: { surface: makeTodo.dataset.makeTodoSurface || kind, id },
+              }],
+            }),
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.item) throw new Error(result.error || L("没能转为待办"));
+          const message = result.replayed ? L("这条已经转为待办") : L("已转为待办，这里的状态不变");
+          if (status) {
+            const open = document.createElement("button");
+            open.type = "button";
+            open.className = "mw-btn mw-btn--link";
+            open.dataset.workbenchItemPlugin = "todo";
+            open.dataset.workbenchItemId = result.item.id;
+            open.dataset.workbenchItemTitle = result.item.title;
+            open.textContent = L("打开待办");
+            status.replaceChildren(document.createTextNode(message + " "), open);
+            status.classList.remove("is-error");
+            status.classList.add("is-done");
+            status.hidden = false;
+          } else showToast(message);
+        } catch (error) {
+          if (status) {
+            status.textContent = error.message || L("没能转为待办");
+            status.classList.remove("is-done");
+            status.classList.add("is-error");
+            status.hidden = false;
+          } else showToast(error.message || L("没能转为待办"), true);
+        } finally {
+          makeTodo.disabled = false;
+          makeTodo.removeAttribute("aria-busy");
+        }
+        return;
+      }
       const inboxAction = target.closest("[data-inbox-action]");
       if (inboxAction) {
         const statusValue = inboxAction.dataset.inboxAction;
@@ -134,6 +192,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `        return;
           else await refreshInboxStage();
         } catch (error) {
           if (status) {
+            status.classList.remove("is-done");
             status.textContent = error.message || L("Inbox 操作失败");
             status.hidden = false;
           }

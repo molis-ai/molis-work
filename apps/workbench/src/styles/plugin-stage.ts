@@ -6,6 +6,9 @@ export const PLUGIN_STAGE_STYLES = `
     padding: 0; background: var(--paper);
   }
   .plugin-stage-shell [hidden] { display: none !important; }
+  body:not([data-todo-available]) [data-make-todo] { display: none !important; }
+  body .feed-action-status[data-make-todo-status].is-done { color: var(--ink-soft); font-size: 12px; }
+  [data-make-todo-status] .mw-btn--link { color: inherit; font-size: inherit; text-decoration: underline; text-underline-offset: 3px; }
   .plugin-stage-list {
     position: absolute; inset: 0; z-index: 0; overflow: auto; overscroll-behavior: contain;
     padding: 52px 20px 28px; background: var(--paper);

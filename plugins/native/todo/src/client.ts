@@ -676,14 +676,24 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     saveStatus.className = "mw-status mw-status--" + tone;
     publishContext();
   };
-  const SOURCE_KIND = { manual: L("手动"), material: L("材料"), assistant: L("助理"), onboarding: L("开始使用时"), inbox: "Inbox" };
+  const SOURCE_KIND = { manual: L("手动"), material: L("材料"), assistant: L("助理"), onboarding: L("开始使用时"), inbox: "Inbox", lingguang: L("灵光") };
   const renderSources = (item) => {
     const box = $("[data-todo-sources]");
     box.replaceChildren();
     item.sources.forEach((source) => {
       const entry = make("div", "todo-source");
       const head = make("div", "todo-source-head");
-      head.append(make("span", "todo-link-kind", SOURCE_KIND[source.kind] || ""), make("strong", "", source.title), make("small", "", timeLabel(source.added_at)));
+      // The original opens where it lives: an Inbox entry or 灵光 belongs to the project the todo was made in.
+      const here = source.open && projectId() && item.project_id === projectId();
+      const name = here ? make("button", "mw-btn mw-btn--link", source.title) : make("strong", "", source.title);
+      if (here) {
+        name.type = "button";
+        name.dataset.workbenchItemPlugin = source.open.surface;
+        name.dataset.workbenchItemId = source.open.id;
+        name.dataset.workbenchItemTitle = source.title;
+        name.title = L("打开原条目");
+      }
+      head.append(make("span", "todo-link-kind", SOURCE_KIND[source.kind] || ""), name, make("small", "", timeLabel(source.added_at)));
       entry.append(head);
       if (source.reason) entry.append(make("p", "", source.reason));
       if (source.excerpt) entry.append(make("blockquote", "", source.excerpt));

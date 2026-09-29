@@ -63,6 +63,7 @@ export const LINGGUANG_STYLES = `
     max-width: min(420px, calc(100% - 32px)); text-align: center;
   }
   .lingguang-note.is-error { background: var(--red); color: var(--paper); }
+  .lingguang-note .mw-btn--link { color: inherit; text-decoration: underline; min-height: 0; padding: 0; }
   dialog.mw-dialog.creative-confirm { width: min(360px, calc(100vw - 32px)); }
   .creative-confirm-form { display: flex; flex-direction: column; gap: 16px; padding: 18px 20px 16px; }
   .creative-confirm-form p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink); }

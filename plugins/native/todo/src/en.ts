@@ -134,6 +134,8 @@ export const TODO_EN: Readonly<Record<string, string>> = {
   "材料": "Material",
   "助理": "Assistant",
   "开始使用时": "Getting started",
+  "灵光": "Lingguang",
+  "打开原条目": "Open the original",
   "拆分自": "Split from",
   "合并自": "Merged from",
   "已完成的动作": "Done",

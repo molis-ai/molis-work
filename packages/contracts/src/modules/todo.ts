@@ -34,7 +34,7 @@ export interface TodoWaiting {
 /** Where a todo came from and why it is one. Materials are referenced, never copied in full. */
 export interface TodoSource {
   readonly source_id: string;
-  readonly kind: "manual" | "material" | "assistant" | "onboarding" | "inbox";
+  readonly kind: "manual" | "material" | "assistant" | "onboarding" | "inbox" | "lingguang";
   /** Where it was created or what it came from: "你在 Todo 创建", a mail subject, a file name. */
   readonly title: string;
   /** The passage the todo rests on, bounded. Empty for a manual todo. */

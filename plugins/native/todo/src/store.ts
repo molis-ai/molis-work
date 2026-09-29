@@ -72,7 +72,7 @@ interface ChangeRow {
 const EDITABLE: readonly TodoEditableField[] = ["title", "notes", "due_date", "due_time", "planned_date", "remind_at", "placement", "important", "waiting"];
 const LINK_KINDS: readonly TodoLinkKind[] = ["goal", "material", "todo", "outcome", "work"];
 const RELATIONS: readonly TodoRelation[] = ["blocked_by", "blocks", "split_from", "merged", "related"];
-const SOURCE_KINDS: readonly TodoSource["kind"][] = ["manual", "material", "assistant", "onboarding", "inbox"];
+const SOURCE_KINDS: readonly TodoSource["kind"][] = ["manual", "material", "assistant", "onboarding", "inbox", "lingguang"];
 const MAX_BATCH = 200;
 
 export class TodoStore {

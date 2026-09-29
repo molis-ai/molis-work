@@ -17,6 +17,14 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const note = workbench.querySelector("[data-lingguang-note]");
   const confirmDialog = workbench.querySelector("[data-lingguang-confirm]");
   const saveStatus = workbench.querySelector('[data-lingguang-save-status]');
+  const todoButton = workbench.querySelector("[data-lingguang-todo]");
+  // "转为待办" is composed by the workbench from what the button carries, so it always carries what is on screen.
+  const syncTodo = () => {
+    if (!todoButton || !selected) return;
+    todoButton.dataset.makeTodoId = selected.id;
+    todoButton.dataset.makeTodoTitle = titleInput.value.trim() || bodyInput.value.trim().split(/\\r?\\n/)[0].slice(0, 80);
+    todoButton.dataset.makeTodoExcerpt = bodyInput.value.slice(0, 2000);
+  };
   const saveRetry = workbench.querySelector('[data-lingguang-save-retry]');
   /** The spark on screen, for the placement bar and the Assistant. */
   const publishContext = (unsaved) => {
@@ -138,6 +146,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     showSave("已保存");
     titleInput.value = record.title;
     bodyInput.value = record.body || "";
+    syncTodo();
     markSelected(record.id);
   };
   const closeWorkspace = () => {
@@ -438,7 +447,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   });
   workspace.addEventListener("input", (event) => {
-    if (event.target.closest("[data-lingguang-title], [data-lingguang-body]")) queueSave();
+    if (event.target.closest("[data-lingguang-title], [data-lingguang-body]")) { syncTodo(); queueSave(); }
   });
   chatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -486,7 +495,15 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     wantedId = event.detail?.itemId || null;
     if (!wantedId) return;
     if (records.some((item) => item.id === wantedId)) void openWanted().catch((error) => showNote(error.message, true));
-    else void loadList().then(openWanted).catch((error) => showNote(error.message, true));
+    else void loadList().then(() => {
+      // A link from elsewhere (a todo's source, an old tab) can name one that was discarded: say so instead of opening nothing.
+      if (wantedId && !records.some((item) => item.id === wantedId)) {
+        wantedId = null;
+        showNote(L("这条灵光已丢掉或不存在"), true);
+        return;
+      }
+      return openWanted();
+    }).catch((error) => showNote(error.message, true));
   });
   void loadList().then(openWanted).catch((error) => showNote(error.message, true));
 }

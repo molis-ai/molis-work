@@ -286,12 +286,13 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
     await import("@molis-ai/molis-work-app-workbench");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
-  const everything = ["jelly", "goals", "sessions", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
+  const everything = ["jelly", "goals", "sessions", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
   assert.deepEqual(
     railEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
     [
       ["goals", "Goals", "target"],
       ["sessions", "Sessions", "terminal"],
+      ["todo", "待办", "list"],
       ["inbox", "Inbox", "inbox"],
       ["jelly", "Jelly", "calendar"],
       ["feed", "Feed", "rss"],
@@ -345,6 +346,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("dataset"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("ppt"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("lingguang"), false, "个人插件不是项目可启用项");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.has("todo"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("alchemist"), false, "个人插件不是项目可启用项");
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
 });

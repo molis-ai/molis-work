@@ -12,6 +12,7 @@ import { PAGES_EN } from "@molis-ai/molis-work-plugin-pages";
 import { DATASET_EN } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_EN } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_EN } from "@molis-ai/molis-work-plugin-lingguang";
+import { TODO_EN } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_EN } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_EN } from "@molis-ai/molis-work-plugin-workflows";
 import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
@@ -363,6 +364,7 @@ export const EN: Record<string, string> = {
   ...DATASET_EN,
   ...PPT_EN,
   ...LINGGUANG_EN,
+  ...TODO_EN,
   ...JELLY_EN,
   ...COGNIA_EN,
   ...ALCHEMIST_EN,

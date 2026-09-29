@@ -29,6 +29,7 @@ export const LINGGUANG_EN: Record<string, string> = {
   "复制正文": "Copy text",
   "已复制，没有写入其他系统。": "Copied. Nothing was written elsewhere.",
   "复制失败": "Could not copy",
+  "这条灵光已丢掉或不存在": "This spark was discarded or no longer exists",
   "先扔进来，还没归类也没关系。": "Drop it in. It does not need a category yet.",
   "再说一点": "A little more, if you want",
   "还没有正文": "No body yet",

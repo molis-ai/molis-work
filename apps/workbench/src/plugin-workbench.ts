@@ -36,6 +36,7 @@ import { FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution } from "@mo
 import { DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
+import { TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution } from "@molis-ai/molis-work-plugin-workflows";
 import { workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
@@ -114,6 +115,13 @@ export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = [
     stylesheet: LINGGUANG_STYLES,
     clientFactory: LINGGUANG_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-lingguang-id]", idDataset: "lingguangId" },
+  },
+  {
+    project_plugin_id: "todo",
+    contributions: [todoUiContribution],
+    stylesheet: TODO_STYLES,
+    clientFactory: TODO_CLIENT_FACTORY_SCRIPT,
+    searchRow: { selector: "[data-todo-id]", idDataset: "todoId" },
   },
   {
     project_plugin_id: "alchemist",

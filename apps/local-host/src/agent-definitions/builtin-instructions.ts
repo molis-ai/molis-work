@@ -10,6 +10,7 @@ import { LINGGUANG_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { WORKFLOWS_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-workflows";
 import { COGNIA_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { ALCHEMIST_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-alchemist";
+import { TODO_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-todo";
 
 /**
  * Every instruction a built-in model call uses. A Plugin's live in its package and are listed here once; the Host's own
@@ -17,7 +18,7 @@ import { ALCHEMIST_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-alchemist";
  * not in this list, or when a call sends a raw prompt string.
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [...PAGES_INSTRUCTIONS, ...JELLY_INSTRUCTIONS, ...FORM_INSTRUCTIONS, ...DATASET_INSTRUCTIONS,
-  ...LINGGUANG_INSTRUCTIONS, ...WORKFLOWS_INSTRUCTIONS, ...COGNIA_INSTRUCTIONS, ...ALCHEMIST_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER];
+  ...LINGGUANG_INSTRUCTIONS, ...WORKFLOWS_INSTRUCTIONS, ...COGNIA_INSTRUCTIONS, ...ALCHEMIST_INSTRUCTIONS, ...TODO_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER];
 
 /**
  * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Cognia's knowledge answers), with the

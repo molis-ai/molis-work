@@ -7,9 +7,10 @@ import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import { localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { actionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, type ActionCallContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { AssistantError, AssistantService } from "./assistant-service.js";
+import type { PersonActions } from "./assistant-coding.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
@@ -19,6 +20,8 @@ import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = "web-user";
+/** How long one working-out of the person's grants is reused by the calls that follow it. */
+const PERSON_CONTEXT_REUSE_MS = 2_000;
 
 export interface AssistantHttpPorts {
   localHost: MolisWorkLocalHost;
@@ -35,6 +38,35 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
   const store = new AssistantStore(openHomeSqliteDatabase(ports.homeDirectory, ASSISTANT_STORE_NAME));
+  // The person's grants in a project (or the Home), shared by the calls one list or one round makes in quick succession:
+  // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
+  // checked against its current definition, availability and grant owner when it is dispatched.
+  const contexts = new Map<string, { at: number; context: Promise<ActionCallContext> }>();
+  const personContext = (reference: LocalHostProjectReference | undefined): Promise<ActionCallContext> => {
+    const key = reference?.project_id ?? "", hit = contexts.get(key), now = Date.now();
+    if (hit && now - hit.at < PERSON_CONTEXT_REUSE_MS) return hit.context;
+    const context = localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS);
+    contexts.set(key, { at: now, context });
+    context.catch(() => { if (contexts.get(key)?.context === context) contexts.delete(key); });
+    return context;
+  };
+  // What is offered there, likewise: reading several works' objects in one list asked for the same directory each time.
+  const directories = new Map<string, { at: number; views: Promise<readonly ActionView[]> }>();
+  const personClient = (reference: LocalHostProjectReference | undefined): PersonActions => {
+    const client = reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient();
+    const key = reference?.project_id ?? "";
+    return {
+      discover: () => {
+        const hit = directories.get(key), now = Date.now();
+        if (hit && now - hit.at < PERSON_CONTEXT_REUSE_MS) return hit.views;
+        const views = personContext(reference).then(context => client.discover(context));
+        directories.set(key, { at: now, views });
+        views.catch(() => { if (directories.get(key)?.views === views) directories.delete(key); });
+        return views;
+      },
+      invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
+    };
+  };
   const service: AssistantService = new AssistantService(store, {
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
@@ -51,31 +83,13 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
     // The person's own actions in the work's project, as the page there would use them.
     personActions: async work => {
-      const reference = work.project_ref;
-      if (!reference) throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作");
-      const client = ports.localHost.actionClient(reference);
-      return {
-        discover: async () => client.discover(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS)),
-        invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS), action, input),
-      };
+      if (!work.project_ref) throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作");
+      return personClient(work.project_ref);
     },
     // The person's Home, for the reminders they set in Plugins.
-    homeActions: async () => {
-      const client = ports.localHost.homeActionClient();
-      return {
-        discover: async () => client.discover(await localWebActionContext(ports.localHost, undefined, LOCAL_OWNER_PERMISSIONS)),
-        invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, undefined, LOCAL_OWNER_PERMISSIONS), action, input),
-      };
-    },
+    homeActions: async () => personClient(undefined),
     // Reading related objects back from their owners, as the person: the work's project, or the Home for personal work.
-    scopeActions: async work => {
-      const reference = work.project_ref;
-      const client = reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient();
-      return {
-        discover: async () => client.discover(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS)),
-        invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS), action, input),
-      };
-    },
+    scopeActions: async work => personClient(work.project_ref),
   }, WEB_ACTOR);
   const entry = { home: ports.homeDirectory, service, store };
   services.set(ports.localHost, entry);

@@ -8,6 +8,8 @@ import { promotePagesDocument, type PagesPublishArtifactPort, type PagesReadArti
 import type { PagesStore } from "./store.js";
 import { generatePagesFromMaterials } from "./generate.js";
 import { pagesTemplateSummaries } from "./templates.js";
+import { convertImportContent } from "./import-content.js";
+import { pagesSchema } from "./schema.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, pattern: "\\S" };
@@ -19,6 +21,10 @@ const pageProperties = { id, project_id: id, title: text, body, folder_id: text,
 const page = object({ ...pageProperties, publication_pending: object({ version: { type: "integer", minimum: 1 }, source_version: { type: "integer", minimum: 1 }, goal_id: text }) }, Object.keys(pageProperties));
 const folder = object({ id, project_id: id, title: text, created_at: text, updated_at: text });
 const fields = { title: { type: "string", maxLength: 80 }, body, folder_id: text, starred: { type: "boolean" }, goal_id: { type: "string", maxLength: 80 } };
+// What an agent or a workflow writes: Markdown that Pages converts, or a body in Pages' own structure (checked before saving).
+const writeFields = { ...fields,
+  body: { ...body, description: "Pages 自己的文档结构（ProseMirror JSON，节点名用 Pages 的：paragraph、heading、bullet_list、ordered_list、list_item、table、table_row、table_header、table_cell 等）；由助理或流程写正文时优先用 markdown" },
+  markdown: { type: "string", minLength: 1, maxLength: 1_000_000, description: "正文的 Markdown 写法（标题、列表、表格、引用、代码块都可以），由 Pages 转换成文档；与 body 只给一个" } };
 const files = { ...array(object({ name: text, data: text })), minItems: 1, maxItems: 100 };
 const prepared = object({ documents: array(object({ key: id, name: text, title: text, body, warnings: array(text) })), warnings: array(text) });
 const version = { type: "integer", minimum: 1 };
@@ -27,6 +33,7 @@ const generation = object({ request_id: id, project_id: id, request_hash: id, st
 const requestIdentity = { request_id: { type: "string", minLength: 1, maxLength: 160 }, request_hash: { type: "string", minLength: 1, maxLength: 160 } };
 const read = ["pages:read"], write = ["pages:write"];
 type Fields = { title?: string; body?: PagesBody; folder_id?: string; starred?: boolean; goal_id?: string };
+type WrittenFields = Fields & { markdown?: string };
 /** The object kind every Pages action and surface names. */
 export const PAGES_SUBJECT_KIND = "pages_document";
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"], scheduling?: ActionDefinition["action"]["scheduling"]): ActionDefinition<I, O> {
@@ -49,13 +56,13 @@ export const pagesActions = {
   templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
   get: define<{ id: string }, { document: PagesRecord }>("get", "读取文档", "读取当前项目的一篇文档", "query", object({ id }), object({ document: page }), read),
   // A new document can be taken back while no one has changed it, so the Assistant may create one when asked without a confirmation.
-  create: withAction(define<Fields & { template_id?: string }, { document: PagesRecord }>("create", "新建文档", "在当前项目创建正文或使用内置模板", "command", object({ ...fields, template_id: text }, []), object({ document: page }), write),
+  create: withAction(define<WrittenFields & { template_id?: string }, { document: PagesRecord }>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换", "command", object({ ...writeFields, template_id: text }, []), object({ document: page }), write),
     { undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } } }),
   // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
   discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
     { effect: "irreversible" }),
   // An edit by an agent or a workflow keeps what it replaced (change_id), so the person can take it back while nothing changed since.
-  update: withAction(define<Fields & { id: string; expected_version?: number }, { document: PagesRecord; change_id?: string | null }>("update", "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑", "command", object({ id, ...fields, expected_version: version }, ["id"]), { type: "object", properties: { document: page, change_id: { type: ["string", "null"] } }, required: ["document"], additionalProperties: false }, write),
+  update: withAction(define<WrittenFields & { id: string; expected_version?: number }, { document: PagesRecord; change_id?: string | null }>("update", "修改文档", "修改文档；提供读取时的 version，避免覆盖其他编辑；正文可用 markdown 给出，由 Pages 转换", "command", object({ id, ...writeFields, expected_version: version }, ["id"]), { type: "object", properties: { document: page, change_id: { type: ["string", "null"] } }, required: ["document"], additionalProperties: false }, write),
     { undo: { capability_id: "pages.revert", version: 1, input: { change_id: "change_id" } } }),
   revert: define<{ change_id: string }, { document: PagesRecord }>("revert", "撤销对文档的修改", "把一次由助理或流程做的修改撤回到修改前；之后又被改过就不撤并说明", "command", object({ change_id: id }), object({ document: page }), write),
   delete: define<{ id: string }, { ok: true }>("delete", "删除文档", "永久删除当前项目的一篇文档", "command", object({ id }), object({ ok: { const: true } }), write),
@@ -123,12 +130,12 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.list, (_, caller) => ports.withStore(store => ({ documents: store.list(project(caller)), folders: store.listFolders(project(caller)) }))),
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
     bind(pagesActions.get, (input, caller) => ports.withStore(store => ({ document: store.get(input.id, project(caller)) }))),
-    bind(pagesActions.create, (input, caller) => ports.withStore(store => ({ document: store.create({ ...input, project_id: project(caller) }) }))),
+    bind(pagesActions.create, (input, caller) => ports.withStore(store => ({ document: store.create({ ...written(input, caller), project_id: project(caller) }) }))),
     bind(pagesActions.update, (input, caller) => ports.withStore(store => {
       // The person's own editing (the Pages page, autosave) needs no taking back; what an agent or workflow changed does.
-      if (caller.audience === "user") return { document: store.update(input.id, input, project(caller)), change_id: null };
+      if (caller.audience === "user") return { document: store.update(input.id, written(input, caller), project(caller)), change_id: null };
       const before = store.get(input.id, project(caller));
-      const document = store.update(input.id, input, project(caller));
+      const document = store.update(input.id, written(input, caller), project(caller));
       return { document, change_id: store.keepChange(before, document) };
     })),
     bind(pagesActions.revert, (input, caller) => ports.withStore(store => ({ document: store.revertChange(input.change_id, project(caller)) }))),
@@ -172,4 +179,26 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
       () => ports.publishArtifact ? { available: true } : { available: false, code: "pages.unavailable", reason: "当前环境不能发出 Artifact" }),
     bind(pagesActions.extract, (input, caller) => ports.withStore(store => store.extract(input.id, project(caller)))),
   ];
+}
+
+/**
+ * What an agent, a workflow or MCP writes is what the editor can show. Markdown is converted by Pages itself; a body
+ * must fit Pages' schema, or nothing is saved and the caller hears which names to use. (A body the editor cannot parse
+ * opened as an empty page, and the next keystroke there saved the empty page over it.) The person's own editor always
+ * writes its own structure.
+ */
+function written<T extends WrittenFields>(input: T, caller: ActionCallContext): Omit<T, "markdown"> {
+  const { markdown, ...rest } = input;
+  if (markdown !== undefined) {
+    if (rest.body !== undefined) throw new ActionError("pages.invalid", "markdown 与 body 只给一个");
+    const converted = convertImportContent({ name: rest.title || "未命名文档", format: "markdown", content: markdown });
+    return { ...rest, ...(rest.title ? {} : { title: converted.title.slice(0, 80) }), body: converted.body };
+  }
+  if (rest.body === undefined || caller.audience === "user" || !rest.body.content?.length) return rest;
+  try { pagesSchema.nodeFromJSON(rest.body).check(); }
+  catch (error) {
+    const names = Object.keys(pagesSchema.nodes).filter(name => name !== "doc" && name !== "text").join("、");
+    throw new ActionError("pages.invalid", `正文不是 Pages 能显示的结构（${error instanceof Error ? error.message : String(error)}），没有保存。节点用 Pages 自己的名字（${names}），或改用 markdown 字段给出正文，由 Pages 转换。`);
+  }
+  return rest;
 }

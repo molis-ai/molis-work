@@ -44,6 +44,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   let openingId = null;
   let editVersion = 0;
   let dirty = false;
+  // The open document's body cannot be shown by this editor: read-only, never autosaved (see fillEditor).
+  let unshowable = false;
   let saveQueue = Promise.resolve();
   const publishing = new Set();
   const keepListScroll = (paint) => {
@@ -77,6 +79,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const showNote = (text, isError) => {
     if (!note) return;
     if (!text && selected?.publication_pending) text = L("上次成果保存尚未完成。继续保存会恢复当时的快照，当前编辑内容可在之后另存一版。");
+    // While the open body cannot be shown, clearing other notes leaves this one: the page is read-only for that reason.
+    if (!text && unshowable) { text = L("这篇文档的内容结构在编辑器里显示不了，为了不覆盖原内容，这里暂停编辑和自动保存。可以让助理重新写一遍，或在助理的工作面板里撤销那次修改。"); isError = true; }
     note.hidden = !text;
     note.textContent = text || "";
     note.classList.toggle("is-error", Boolean(isError && text));
@@ -511,11 +515,16 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     titleEl.textContent = record.title;
     statusEl.textContent = L("已保存");
     titleInput.value = record.title;
+    // A body this editor cannot show (written elsewhere in another structure) is not shown as an empty page: the next
+    // keystroke would save that empty page over it. It stays read-only and unsaved until it is replaced or undone.
+    unshowable = Boolean(record.body && Editor && Editor.canShow && !Editor.canShow(record.body));
     try {
-      ensureEditor(record.body || (Editor && Editor.emptyDoc()));
+      ensureEditor(unshowable ? Editor.emptyDoc() : record.body || (Editor && Editor.emptyDoc()));
     } finally {
       filling = false;
     }
+    if (editor && editor.view) editor.view.setProps({ editable: () => !unshowable });
+    titleInput.disabled = unshowable;
     markSelected(record.id);
     syncEditorChrome();
     showNote("", false);
@@ -543,7 +552,13 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (selected) {
       const next = records.find((item) => item.id === selected.id);
       if (!next) closeEditor();
-      else if (!saveTimer && !dirty) remember(next, false);
+      else if (!saveTimer && !dirty) {
+        // Changed elsewhere (the Assistant, another window): show what is there now. The old text left on screen under
+        // the new version would be saved over the change by the next keystroke.
+        const moved = next.version !== selected.version;
+        remember(next, moved);
+        if (moved) editVersion += 1;
+      }
     }
   };
   const save = async () => {
@@ -563,6 +578,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const queueSave = () => {
+    if (unshowable) return;
     statusEl.textContent = L("保存中");
     editVersion += 1;
     dirty = true;
@@ -716,6 +732,21 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       await loadList();
     })().catch((error) => showNote(error.message || L("文档请求失败"), true));
   });
+
+  // Back in this window: the open document may have changed elsewhere (another window, the Assistant in another tab).
+  // Only it is read again; the change shows at once when nothing of the person's own waits, and otherwise they are told.
+  const recheckOpen = async () => {
+    if (!selected || document.hidden) return;
+    const id = selected.id, version = selected.version;
+    const payload = await request("GET", "/api/plugins/pages/" + encodeURIComponent(id));
+    const next = payload && payload.document;
+    if (!next || !selected || selected.id !== id || next.version === version) return;
+    if (saveTimer || dirty) { showNote(L("这篇文档刚在别处改过；你还有未保存的修改，保存时会提示冲突，不会覆盖。"), true); return; }
+    remember(next, true);
+    editVersion += 1;
+  };
+  window.addEventListener?.("focus", () => { void recheckOpen().catch(() => {}); });
+  document.addEventListener?.("visibilitychange", () => { void recheckOpen().catch(() => {}); });
 
   // The Assistant changed a Pages document: show the saved version, unless the person has edits of their own in flight.
   window.addEventListener?.("molis:assistant-effect", (event) => {

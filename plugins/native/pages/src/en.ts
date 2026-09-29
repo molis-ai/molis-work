@@ -5,6 +5,8 @@ export const PAGES_EN: Record<string, string> = {
   "交给助理": "Hand to the Assistant",
   "选中的文字": "Selected text",
   "列表暂时读不到": "The list could not be read",
+  "这篇文档的内容结构在编辑器里显示不了，为了不覆盖原内容，这里暂停编辑和自动保存。可以让助理重新写一遍，或在助理的工作面板里撤销那次修改。": "This document's structure can't be shown in the editor. To keep its content safe, editing and autosave are paused here. Ask the Assistant to write it again, or undo that change from the Assistant's work panel.",
+  "这篇文档刚在别处改过；你还有未保存的修改，保存时会提示冲突，不会覆盖。": "This document just changed elsewhere. You have unsaved edits; saving will report a conflict instead of overwriting.",
   "请稍后重试": "Try again in a moment",
   "重试": "Retry",
   "保存中": "Saving",

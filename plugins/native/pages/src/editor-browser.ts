@@ -3899,6 +3899,13 @@ export function getDoc(handle: PagesEditorHandle): unknown {
   return handle.view.state.doc.toJSON();
 }
 
+/** Whether a stored body is one this editor can show as it is (an empty body is). */
+export function canShow(value: unknown): boolean {
+  const content = value && typeof value === "object" ? (value as { content?: unknown }).content : undefined;
+  if (!Array.isArray(content) || !content.length) return true;
+  try { pagesSchema.nodeFromJSON(value).check(); return true; } catch { return false; }
+}
+
 export function setDoc(handle: PagesEditorHandle, value: unknown): void {
   const doc = nodeFromUnknown(value);
   handle.view.updateState(EditorState.create({

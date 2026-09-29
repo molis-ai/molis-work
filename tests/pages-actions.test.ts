@@ -174,3 +174,25 @@ test("an edit an agent made can be taken back while nothing changed since; the p
     assert.match(JSON.stringify((await bound.invoke(actions.get, { id: document.id })).document.body), /v6 by the person/);
   });
 });
+
+test("what an agent writes is what the editor can show: Markdown is converted by Pages, a body in another editor's structure is refused", async () => {
+  await fixture(async ({ client, caller }) => {
+    const agent: ActionCallContext = { ...caller, audience: "agent" };
+    // Seen with MiniMax-M3: list and table nodes named the way another editor names them. Saved, it opened as an empty page.
+    const foreign = { type: "doc" as const, content: [{ type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "项目创建于 9 月 28 日" }] }] }] }] };
+    await assert.rejects(client.invoke(agent, actions.create, { title: "现状报告", body: foreign }),
+      (error: { code?: string; message?: string }) => error.code === "pages.invalid" && /bullet_list/.test(error.message ?? "") && /markdown/.test(error.message ?? ""));
+    assert.equal((await client.invoke(caller, actions.list, {})).documents.length, 0, "nothing was saved");
+    const { document } = await client.invoke(agent, actions.create, { markdown: "# Q4 plan 项目现状报告\n\n## 目标清单\n\n| 目标 | 状态 |\n| --- | --- |\n| 卡片测试 | 待开始 |\n\n- 进展一\n- 进展二" });
+    assert.equal(document.title, "Q4 plan 项目现状报告", "the Markdown's own heading names the page");
+    const types = JSON.stringify(document.body);
+    for (const name of ["heading", "table", "bullet_list", "list_item"]) assert.match(types, new RegExp(`"type":"${name}"`));
+    assert.match(types, /卡片测试/);
+    const { document: updated } = await client.invoke(agent, actions.update, { id: document.id, markdown: "## 下一步\n\n1. 补全目标定义", expected_version: document.version });
+    assert.match(JSON.stringify(updated.body), /"type":"ordered_list"/);
+    await assert.rejects(client.invoke(agent, actions.update, { id: document.id, markdown: "x", body: foreign, expected_version: updated.version }), { code: "pages.invalid" });
+    // The person's own editor writes Pages' structure; its saves are not second-guessed.
+    const own = await client.invoke(caller, actions.update, { id: document.id, body: body("我自己改的"), expected_version: updated.version });
+    assert.match(JSON.stringify(own.document.body), /我自己改的/);
+  });
+});

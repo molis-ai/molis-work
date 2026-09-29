@@ -104,9 +104,19 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
   let total = 0;
   return value.map((raw, index) => {
     const item = raw as AssistantMaterial;
-    if (!item || typeof item !== "object" || !["selection", "object", "text", "file", "image"].includes(item.kind)
+    if (!item || typeof item !== "object" || !["selection", "object", "text", "file", "image", "capability"].includes(item.kind)
       || typeof item.title !== "string" || typeof item.explicit !== "boolean" || item.text !== undefined && typeof item.text !== "string") {
       throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+    }
+    // A capability picked with “/”: its exact identity; the words the model reads are the Host's, not the page's.
+    if (item.kind === "capability") {
+      const cap = item.capability;
+      if (!cap || typeof cap.capability_id !== "string" || !Number.isSafeInteger(cap.version) || typeof cap.provider_id !== "string" || typeof cap.title !== "string") {
+        throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+      }
+      const capability = { capability_id: cap.capability_id.slice(0, 200), version: cap.version, provider_id: cap.provider_id.slice(0, 200), title: cap.title.slice(0, 200) };
+      return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "capability" as const, title: `用：${capability.title}`, explicit: true, capability,
+        text: `用户指定这一轮用这个能力：「${capability.title}」（capability_id ${capability.capability_id}，version ${capability.version}，provider_id ${capability.provider_id}）。先用 find-capabilities 核对它的参数再用；会改变数据的照常请用户确认；它现在不可用就如实说明，不要换别的能力。` };
     }
     total += item.text?.length ?? 0;
     if (total > MAX_MATERIAL_TEXT) throw new AssistantError("assistant.invalid", "材料正文合计过长，请只带需要的片段");

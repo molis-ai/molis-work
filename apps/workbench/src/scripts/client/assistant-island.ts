@@ -1046,8 +1046,49 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     ((context && context.starters) || []).forEach((starter) => { if (starter && starter.label && starter.prompt) list.push(starter); });
     return list.slice(0, 5);
   };
+  /* “/”: pick a capability this work may really use now (or one of this page's starters); nothing runs by picking. */
+  let capabilityRows = null;
+  const loadCapabilityRows = async () => {
+    if (capabilityRows) return capabilityRows;
+    try { capabilityRows = ((await api("/capabilities")).capabilities || []).filter((row) => row.enabled); } catch { capabilityRows = []; }
+    return capabilityRows;
+  };
+  const slashOpen = () => startersPop && !startersPop.hidden && startersPop.dataset.mode === "slash";
+  async function setSlash(query) {
+    if (!startersPop) return;
+    const q = String(query || "").trim().toLowerCase();
+    const starters = startersFor().filter((starter) => !q || starter.label.toLowerCase().includes(q));
+    const rows = (await loadCapabilityRows()).filter((row) => !q || [row.title, row.provider, row.description].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 8);
+    if (!String(input.value || "").startsWith("/")) return;
+    startersPop.dataset.mode = "slash";
+    startersPop.hidden = false;
+    startersPop.replaceChildren(el("p", "assistant-popover-title", L("用一个能力，或这样开始")));
+    starters.forEach((starter) => {
+      const button = el("button", "assistant-starter", starter.label); button.type = "button";
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => { input.value = starter.prompt; typed = true; syncSend(); saveDraft(false); closeSlash(); input.focus(); });
+      startersPop.append(button);
+    });
+    rows.forEach((row) => {
+      const title = row.provider + " · " + row.title;
+      const button = el("button", "assistant-starter", L("用") + "：" + title); button.type = "button";
+      button.title = row.description || title;
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => {
+        if (!files.some((file) => file.kind === "capability" && file.capability.capability_id === row.capability_id)) {
+          files.push({ material_id: "cap-" + crypto.randomUUID(), kind: "capability", title: L("用") + "：" + title, explicit: true,
+            capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
+        }
+        input.value = ""; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMaterials(); input.focus();
+      });
+      startersPop.append(button);
+    });
+    if (!starters.length && !rows.length) startersPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
+  }
+  function closeSlash() { if (startersPop && startersPop.dataset.mode === "slash") { delete startersPop.dataset.mode; startersPop.hidden = true; } }
   function setStarters(open) {
     if (!startersPop) return;
+    delete startersPop.dataset.mode;
     const list = open ? startersFor() : [];
     startersPop.hidden = !list.length;
     if (!list.length) return;
@@ -1215,10 +1256,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
   });
   let typed = false;
-  input.addEventListener("input", () => { typed = true; syncSend(); saveDraft(false); if (String(input.value || "").trim()) setStarters(false); });
+  input.addEventListener("input", () => {
+    typed = true; syncSend(); saveDraft(false);
+    const value = String(input.value || "");
+    if (value.startsWith("/")) { void setSlash(value.slice(1)); return; }
+    closeSlash();
+    if (value.trim()) setStarters(false);
+  });
   input.addEventListener("keydown", (event) => {
+    // In the “/” list: down moves into it, Enter takes the first match; a “/…” is never sent as words.
+    if (slashOpen() && event.key === "ArrowDown") { event.preventDefault(); startersPop.querySelector("button")?.focus(); return; }
+    if (slashOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSlash(); return; }
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     event.preventDefault();
+    if (String(input.value || "").startsWith("/")) { if (slashOpen()) startersPop.querySelector("button")?.click(); return; }
     // Nothing typed: Enter opens the work the next Send goes to — the way in from the keyboard, and on a phone,
     // where the work chip steps aside while the input has focus.
     if (!String(input.value || "").trim()) { if (currentWork()) { setPanel(true); refresh().then(schedule); } return; }

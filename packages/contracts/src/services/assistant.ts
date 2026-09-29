@@ -149,8 +149,10 @@ export interface AssistantContextSnapshot {
 /** A material the person put into this message, or one the page offered and they kept. */
 export interface AssistantMaterial {
   material_id: string;
-  kind: "selection" | "object" | "text" | "file" | "image";
+  kind: "selection" | "object" | "text" | "file" | "image" | "capability";
   title: string;
+  /** For `capability`: the one the person picked with “/” to be used this round (its exact identity). */
+  capability?: { capability_id: string; version: number; provider_id: string; title: string };
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
   explicit: boolean;
   source?: AssistantSurfaceRef;

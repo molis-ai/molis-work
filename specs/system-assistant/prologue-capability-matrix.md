@@ -93,7 +93,8 @@
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
 | `resources.inspect/readChunk/revoke` | 本轮材料 | 文本附件、选区、对象材料 | ✅ | ✅ §5 P2 |
-| `parseDocument/parseResource`、`beginIntake`、`collectResources`、`resourceLeases` | — | PDF、图片附件未做 | — | ⛔ P2 余项（PDF 与图片） |
+| `parseResource` ＋ `document-parser` 槽（App 提供 pdfjs 解析器） | Agent Host `documents` 能力 | PDF 附件读成有界文本材料 | — | ✅ `assistant-attachments`；§5 P2（MiniMax 实测） |
+| `parseDocument`（授权根里的文件）、`beginIntake`、`collectResources`、`resourceLeases` | — | 助理无目录，不适用于 `parseDocument`；图片附件未做 | — | 🟡 图片输入未接（当前模型不支持看图时应如实说明） |
 | `sources/extractFromSource/ingestWebPage/ingestSourceFrom`、`collections`、`webSearch` | — | 新资料由插件首页事项提供；网页检索未接 | — | ⛔ 助理自带网页检索与来源摄取未接；业务来源归 Feed/Inbox |
 
 ## 12. 多模态；13. 界面观察与计算机操作
@@ -166,7 +167,7 @@
 1. 记忆的候选提炼（memoryInbox）与 Character 维度（明确要求的个人／项目记忆已接通）。
 2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；分别对应 P5 余项与 P9 的替代实现。
 3. 用户可设的整体预算。
-4. PDF／图片等附件（`parseDocument/parseResource`、`images` 输入）、语音。
+4. 图片输入（`images`）、语音（PDF 附件已接通）。
 5. 会话分支、受控导出、跨会话搜索（后者待“系统级搜索”合入）。
 6. SDK Refine 与真实“评审—补改—复查”循环。
 7. MCP 资源／Prompt、MCP Elicitation、SDK Functions、网页检索与来源摄取。

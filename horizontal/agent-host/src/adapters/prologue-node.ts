@@ -83,6 +83,8 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
 }
 
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
+  /** Parsers the App supplies for documents people bring (PDF…); the runtime ships none. */
+  documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   /** App identity Prologue records against this Runtime's work. */
@@ -165,6 +167,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     host,
     preset: "local-agent",
     onQueuedWork: runScheduled,
+    ...(options.documentParsers?.length ? { slots: { "document-parser": { implementation: "molis-host-document-parsers", version: "1.0.0", impl: options.documentParsers } } } : {}),
     // The runtime's turn default is what a subagent gets when its dispatch names none; the user set it to 20.
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
     // Background commands belong to the session and keep running after its round (the person's decision), at most four
@@ -750,6 +753,16 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         return { ...item, wait_id: waitId };
       },
       release: (project, workId, actorId, note) => projectWork.release(project, workId, actorId, note),
+    },
+    documents: {
+      parse: async input => {
+        const stage = runtime.resources.stage({ mediaKind: "binary", byteLength: input.bytes.byteLength, label: input.name.slice(0, 120) || "attachment" });
+        let ref;
+        try { stage.write(input.bytes); ref = (await stage.publishDurable()).ref; }
+        catch (error) { stage.discard(); throw error; }
+        const parsed = await runtime.parseResource({ ref });
+        return { text: parsed.text, truncated: parsed.truncated, ...(parsed.pages !== undefined ? { pages: parsed.pages } : {}) };
+      },
     },
     memory: (() => {
       type Entry = import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryEntry;

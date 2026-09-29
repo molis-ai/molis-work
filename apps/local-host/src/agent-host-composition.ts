@@ -1,4 +1,5 @@
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
+import { pdfDocumentParser } from "./pdf-document-parser.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
@@ -107,6 +108,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
     return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
       ...options.prologue,
+      // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
+      documentParsers: [pdfDocumentParser],
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
     }).then((adapter) => { prologue = adapter; agentHost.register(adapter); }))

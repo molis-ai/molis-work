@@ -1431,6 +1431,27 @@ export class AssistantService {
    * scope, each with its own session. Bounded (a few at once, a few in all, a few follow-ups each) and one level deep:
    * a delegated work does not delegate. What they report is read back, never taken as the parent's own result.
    */
+  /**
+   * A document the person brings (PDF), read by the runtime's own parser into bounded text for this Send's materials.
+   * What cannot be read says why (scanned, encrypted, damaged); nothing is guessed.
+   */
+  async readAttachment(input: { name: string; data: string }): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
+    const name = typeof input?.name === "string" ? input.name.trim().slice(0, 200) : "";
+    if (!name || typeof input.data !== "string" || !input.data) throw new AssistantError("assistant.invalid", "没有收到文件");
+    const bytes = Buffer.from(input.data, "base64");
+    if (bytes.byteLength > 8 * 1024 * 1024) throw new AssistantError("assistant.invalid", "文件超过 8 MB，请只带需要的部分");
+    const documents = (await this.ports.host()).adapter(RUNTIME).documents;
+    if (!documents) throw new AssistantError("assistant.unsupported", "当前运行时不能读取这类文件");
+    let parsed: { text: string; truncated: boolean; pages?: number };
+    try { parsed = await documents.parse({ bytes: new Uint8Array(bytes), name }); }
+    catch (error) {
+      const code = (error as { code?: string }).code ?? "";
+      throw new AssistantError("assistant.invalid", code === "RESOURCE_PARSER_UNAVAILABLE" ? "暂时只能读取文本文件和 PDF" : (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, ""));
+    }
+    return { material_id: `file-${randomUUID()}`, kind: "file", title: name + (parsed.pages ? `（${parsed.pages} 页${parsed.truncated ? "，只取了前面一部分" : ""}）` : ""),
+      text: parsed.text, explicit: true, ...(parsed.pages ? { pages: parsed.pages } : {}), ...(parsed.truncated ? { truncated: true } : {}) };
+  }
+
   private async memoryStore(): Promise<AgentMemoryCapability> {
     const memory = (await this.ports.host()).adapter(RUNTIME).memory;
     if (!memory) throw new AssistantError("assistant.unsupported", "当前运行时没有记忆能力");

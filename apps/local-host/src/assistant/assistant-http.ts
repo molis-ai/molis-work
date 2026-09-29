@@ -84,7 +84,8 @@ async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostPr
  */
 export async function handleAssistantHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<boolean> {
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: 400_000,
+  // A document the person brings travels as base64 (up to 8 MB of file); everything else stays small.
+  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: url.pathname.endsWith("/api/assistant/attachments") ? 11_500_000 : 400_000,
     async handle({ method, pathname, body }) {
       const { service, store } = assistantServiceFor(ports);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
@@ -139,6 +140,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
         return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
       }
+      // A document the person brings (PDF): read by the runtime's parser, returned as this Send's material.
+      if (method === "POST" && parts.length === 1 && parts[0] === "attachments") return { status: 200, body: { material: await service.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") }) } };
       // What the person asked the Assistant to keep: personal, and this project's when on a project's page.
       if (method === "GET" && parts.length === 1 && parts[0] === "memories") {
         return { status: 200, body: { memories: await service.memories(ports.projectRef?.project_id ?? null), prefs: service.memoryPrefs() } };

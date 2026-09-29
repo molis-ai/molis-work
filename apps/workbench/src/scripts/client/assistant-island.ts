@@ -1082,6 +1082,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     for (const file of chosen) {
       if (files.length >= 5) { host.showToast?.(L("一次最多带 5 个文件")); break; }
       if (/^image\//.test(file.type)) { host.showToast?.(L("暂时不能读取图片：当前模型与运行方式还没有接通图片")); continue; }
+      // A PDF is read by the Agent runtime's own parser (text layer only); what cannot be read says why.
+      if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+        if (file.size > 8 * 1024 * 1024) { host.showToast?.(L("文件超过 8 MB，请只带需要的部分") + "：" + file.name); continue; }
+        try {
+          const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+          const { material } = await api("/attachments", "POST", { name: file.name, data });
+          files.push({ material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true });
+        } catch (error) { host.showToast?.(file.name + "：" + error.message); }
+        continue;
+      }
+      // Only text is read here; other binary files would reach the model as noise.
+      if (!/^text\//.test(file.type) && !/\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|h|cpp|sql|sh|log|ini|toml)$/i.test(file.name)) {
+        host.showToast?.(L("暂时只能读取文本文件和 PDF") + "：" + file.name); continue;
+      }
       if (file.size > 400000) { host.showToast?.(L("文件太大，请只带需要的部分") + "：" + file.name); continue; }
       try { files.push({ material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }); }
       catch { host.showToast?.(L("读不了这个文件") + "：" + file.name); }

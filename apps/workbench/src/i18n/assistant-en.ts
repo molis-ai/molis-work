@@ -305,6 +305,8 @@ export const ASSISTANT_EN: Record<string, string> = {
   "用三句话总结我选中的内容": "Summarize the selection in three sentences",
   "一次最多带 5 个文件": "At most 5 files at a time",
   "暂时不能读取图片：当前模型与运行方式还没有接通图片": "Images can't be read yet: the current model and runtime don't take images",
+  "文件超过 8 MB，请只带需要的部分": "The file is over 8 MB; bring only the part you need",
+  "暂时只能读取文本文件和 PDF": "Only text files and PDFs can be read for now",
   "文件太大，请只带需要的部分": "File too large; bring only the part you need",
   "读不了这个文件": "Can't read this file",
   "查看实际发生了什么": "See what actually happened",

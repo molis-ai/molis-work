@@ -1128,6 +1128,17 @@ export interface AgentMemoryEntry {
   version: number;
 }
 
+/** A document parser the App supplies to the runtime (the SDK ships none): bounded text, or a failure — never empty text. */
+export interface AgentDocumentParser {
+  mediaTypes: readonly string[];
+  parse(input: { bytes: Uint8Array; mediaType: string; maxChars: number }): Promise<{ text: string; pages?: number }>;
+}
+
+/** Documents the person brings, read through the runtime's own resources and parsers (Prologue `parseResource`). */
+export interface AgentDocumentCapability {
+  parse(input: { bytes: Uint8Array; name: string }): Promise<{ text: string; truncated: boolean; pages?: number }>;
+}
+
 /** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */
 export interface AgentMemoryCapability {
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
@@ -1182,6 +1193,7 @@ export interface AgentRuntimeAdapter {
   readonly recovery?: AgentRecoveryCapability;
   readonly schedule?: AgentScheduleCapability;
   readonly memory?: AgentMemoryCapability;
+  readonly documents?: AgentDocumentCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   health(): Promise<AgentRuntimeHealth>;
   createSession(input: AgentCreateSessionInput): Promise<AgentSessionRef>;

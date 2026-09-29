@@ -176,6 +176,8 @@ export interface PrologueRuntimePort {
   schedule?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduleCapability;
   /** Prologue Memory, scope by scope. */
   memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability;
+  /** Documents parsed by the runtime's own parsers. */
+  documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
   skillLibrary?: AgentSkillLibrary;
   mcpLibrary?: AgentMcpLibrary;
@@ -289,6 +291,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   readonly schedule?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentScheduleCapability;
   readonly memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryCapability;
+  readonly documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
   readonly #now: () => Date;
@@ -309,6 +312,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (options.runtime.background) this.background = options.runtime.background;
     if (options.runtime.schedule) this.schedule = options.runtime.schedule;
     if (options.runtime.memory) this.memory = options.runtime.memory;
+    if (options.runtime.documents) this.documents = options.runtime.documents;
     if (options.runtime.subagents) this.subagents = {
       ...(options.runtime.subagents.workspaces ? { workspaces: true as const } : {}),
       list: async run => { await this.read(run); return options.runtime.subagents!.list(run); },

@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
+import { todoAgentManifest } from "./roles.js";
 
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
 
@@ -21,6 +22,7 @@ export const todoManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS],
+  agent: todoAgentManifest,
   ui: {
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [

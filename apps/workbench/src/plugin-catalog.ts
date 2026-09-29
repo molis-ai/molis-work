@@ -28,7 +28,7 @@ import { FORM_PROJECT_PLUGIN_ID, formManifest } from "@molis-ai/molis-work-plugi
 import { DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "@molis-ai/molis-work-plugin-dataset";
 import { PPT_PROJECT_PLUGIN_ID, pptManifest } from "@molis-ai/molis-work-plugin-ppt";
 import { LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_PROJECT_PLUGIN_ID, todoManifest } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, alchemistManifest } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest } from "@molis-ai/molis-work-plugin-work";
@@ -72,7 +72,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   { project_plugin_id: FEED_PROJECT_PLUGIN_ID, manifest: feedManifest, summary: "查看来源消息和完整流水。" },
   { project_plugin_id: SHELF_PROJECT_PLUGIN_ID, manifest: shelfManifest, personal: true, summary: "把文件放到置物架，处理副本，原件不动。" },
   { project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, manifest: lingguangManifest, personal: true, summary: "先记下还没想清楚的想法，再决定留下或丢掉。" },
-  { project_plugin_id: TODO_PROJECT_PLUGIN_ID, manifest: todoManifest, personal: true, summary: "记下要推进的事，分清今天做、在等谁和还没安排的。" },
+  { project_plugin_id: TODO_PROJECT_PLUGIN_ID, manifest: todoManifest, personal: true, summary: "记下要推进的事，分清今天做、在等谁和还没安排的。", agent: { prompts: todoPrompts, skills: todoMethods } },
   { project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID, manifest: charactersManifest, personal: true, summary: "编辑角色的做事方式，发布固定版本供 AI 任务选择。" },
   { project_plugin_id: PAGES_PROJECT_PLUGIN_ID, manifest: pagesManifest, personal: true, summary: "写文档，用块和格式，保存在这台电脑。" },
   { project_plugin_id: FORM_PROJECT_PLUGIN_ID, manifest: formManifest, personal: true, summary: "建问卷，预览填写，看结果。" },

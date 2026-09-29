@@ -117,3 +117,12 @@ test("HTTP routes map to the same actions; fixed paths are not read as ids; a pr
     assert.equal(gone.status, 200);
   });
 });
+
+test("待办整理师 and both organizing methods are registered with the Host, so they show in “Prompt 与 Character” and can be edited", async () => {
+  const { builtinRegistrations } = await import("../apps/local-host/src/agent-definitions/builtin-agents.js");
+  const todo = (builtinRegistrations() as Array<{ owner_id?: string; roles?: Array<{ name: string; workspace?: string; execution?: string }>; prompts?: Array<{ prompt_id: string }> }>)
+    .filter(entry => entry.owner_id === "io.molis.work.todo");
+  assert.equal(todo.length, 1);
+  assert.deepEqual(todo[0]!.roles!.map(role => [role.name, role.workspace, role.execution]), [["待办整理师", "business", "operate"]]);
+  assert.deepEqual(todo[0]!.prompts!.map(prompt => prompt.prompt_id).sort(), ["todo-organizer", "todo.organize.basic", "todo.organize.organizer"]);
+});

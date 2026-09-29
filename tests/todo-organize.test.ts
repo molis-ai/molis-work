@@ -193,3 +193,11 @@ test("the time a phrase was written comes from the material itself: the chat lin
   assert.equal(phraseWrittenAt({ text: "请周五前发方案。", received_at: "2026-09-28T09:00:00+08:00" }, "周五前"), "2026-09-28T09:00:00+08:00");
   assert.equal(phraseWrittenAt({ text: "请周五前发方案。", received_at: null }, "周五前"), null);
 });
+
+test("a phrase no rule can read (“这周”) never becomes a due date on the model's word", async t => {
+  const f = fixture(t, () => JSON.stringify({ candidates: [{ ref: "c1", kind: "waiting", title: "等阿杰给报价", owner: { who: "阿杰", stated: true },
+    due: { date: "2026-09-28", phrase: "这周" }, evidence: [{ material: 1, excerpt: "报价我这周搞定" }] }] }));
+  const { batch } = await f.me.invoke(organize.extract, { materials: [{ title: "群聊", text: "[2026-09-28 09:41] 阿杰: 报价我这周搞定" }] });
+  assert.deepEqual([batch.candidates[0]!.due_date, batch.candidates[0]!.suggested_date], [null, "2026-09-28"]);
+  assert.ok(batch.candidates[0]!.uncertain.some(line => line.includes("只是估计")));
+});

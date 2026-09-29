@@ -202,6 +202,12 @@ export function parseOrganizeOutput(raw: string, materials: readonly TodoOrganiz
       } else if (reading) {
         dueDate = reading.date;
         dueTime = reading.time ?? (dueTime && dueDate === due.date ? dueTime : null);
+      } else if (dueDate) {
+        // A phrase no rule can turn into a day ("这周", "月中") does not become a due date on the model's word.
+        suggested = suggested ?? dueDate;
+        dueDate = null;
+        dueTime = null;
+        uncertain.push(`“${phrase}”没有写具体哪天，${suggested} 只是估计`);
       }
     }
     if (dueDate && !quoted) {

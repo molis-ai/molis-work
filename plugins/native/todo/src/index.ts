@@ -25,7 +25,8 @@ export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHan
 export type { TodoActionPorts, TodoListItem, TodoListResult } from "./actions.js";
 export { todoSearchActions, todoText } from "./search.js";
 export { todoHomeEventsAction, todoHomeEvents } from "./home-events.js";
-export { TODO_INSTRUCTIONS, TODO_ORGANIZE_BASIC } from "./prompts.js";
+export { TODO_INSTRUCTIONS, TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
+export { TODO_ORGANIZER_ROLE, todoAgentManifest, todoMethods, todoPrompts } from "./roles.js";
 export { todoOrganizeActions, createTodoOrganizeHandlers, batchText, TODO_BATCH_SUBJECT_KIND } from "./organize-actions.js";
 export type { TodoOrganizePorts } from "./organize-actions.js";
 export { TodoOrganizer, materialSourceKey } from "./organize.js";

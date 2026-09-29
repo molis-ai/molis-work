@@ -5,7 +5,7 @@ import { localDate } from "./dates.js";
 import { TodoError } from "./error.js";
 import { organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { TodoOrganizer, validEdits, type TodoApplyResult, type TodoCandidateDecision } from "./organize.js";
-import { TODO_ORGANIZE_BASIC } from "./prompts.js";
+import { TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
 import type { TodoAccess, TodoStore } from "./store.js";
 
 export const TODO_BATCH_SUBJECT_KIND = "todo_batch";
@@ -50,11 +50,12 @@ function define<I, O>(name: string, title: string, description: string, operatio
 const READ = ["todo:read"], WRITE = ["todo:read", "todo:write"];
 
 export const todoOrganizeActions = {
-  extract: define<{ materials: TodoOrganizeMaterial[]; title?: string; request?: string; request_id?: string; origin?: "onboarding"; me?: string[] }, { batch: TodoBatch; replayed: boolean }>(
+  extract: define<{ materials: TodoOrganizeMaterial[]; title?: string; request?: string; request_id?: string; origin?: "onboarding"; me?: string[]; method?: "basic" | "organizer" }, { batch: TodoBatch; replayed: boolean }>(
     "organize.extract", "整理材料里的待办", "读给定材料，找出要你处理的事、你的承诺、在等别人的事和可考虑的建议，与已有待办比对，存成一份待你确认的整理结果；不直接新建或修改待办。材料正文由调用方先读好传入", "command",
     object({ materials: { ...array(materialInput), minItems: 1, maxItems: 50 }, title: { ...text, maxLength: 120 }, request: { ...text, maxLength: 500, title: "用户这次的要求" }, request_id: id,
       origin: { enum: ["onboarding"], title: "由开始使用时的整理发起" },
-      me: { ...array({ ...text, minLength: 1, maxLength: 40 }), maxItems: 8, title: "用户本人在材料里的称呼（名字、昵称）" } }, ["materials"]),
+      me: { ...array({ ...text, minLength: 1, maxLength: 40 }), maxItems: 8, title: "用户本人在材料里的称呼（名字、昵称）" },
+      method: { enum: ["basic", "organizer"], title: "整理方法：basic 基本整理；organizer 待办整理师的方法" } }, ["materials"]),
     object({ batch, replayed: { type: "boolean" } }), [...WRITE, "model:invoke"],
     { scheduling: "concurrent", result_subject: { id: "batch.batch_id", revision: "batch.revision" }, result_view: { summary: "整理结果已保存，等你确认", title_pointer: "/batch/title" } }),
   list: define<{ status?: "open" | "all" }, { batches: TodoBatch[] }>("organize.list", "整理结果", "列出等你确认的整理结果（或全部最近的）", "query",
@@ -107,6 +108,7 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
       const drafts: TodoCandidateDraft[] = [];
       const reference: TodoBatch["reference_only"][number][] = [];
       let unverified = 0;
+      const method = input.method === "organizer" ? TODO_ORGANIZE_ORGANIZER : TODO_ORGANIZE_BASIC;
       const parts = organizeParts(input.materials);
       for (const [part, indexes] of parts.entries()) {
         caller.signal?.throwIfAborted();
@@ -114,7 +116,7 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
         let parsed;
         // A reply that is not the requested JSON is asked for once more before giving up.
         for (let attempt = 0; !parsed; attempt += 1) {
-          const raw = await ports.completeText(organizePrompt(TODO_ORGANIZE_BASIC, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }), { signal: caller.signal });
+          const raw = await ports.completeText(organizePrompt(method, { materials: input.materials, indexes, existing, today, request: input.request, me: input.me }), { signal: caller.signal });
           try { parsed = parseOrganizeOutput(raw, input.materials, byId, today); }
           catch { if (attempt >= 1) throw new TodoError("todo.model_invalid", "模型没有给出可用的整理结果，请再试一次"); }
         }
@@ -123,7 +125,7 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
         unverified += parsed.unverified;
       }
       await caller.beforeEffect();
-      return organizer(value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: TODO_ORGANIZE_BASIC.prompt_id,
+      return organizer(value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: method.prompt_id,
         materials: input.materials, candidates: drafts, reference_only: reference, unverified, request_id: input.request_id }, access));
     }, () => ports.modelAvailability()),
     bind(todoOrganizeActions.list, (input, caller) => organizer(value => ({ batches: value.list(ports.access(caller, caller.audience === "user"), input.status ?? "open") }))),

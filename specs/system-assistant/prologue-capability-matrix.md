@@ -64,7 +64,7 @@
 
 | SDK 公开面 | Host 接入 | 助理 | Coding | 状态与证据 |
 | --- | --- | --- | --- | --- |
-| 上下文整理（compaction） | `runtime.compaction`，角色可开 | 助理角色未开 | ✅ | ⛔ 助理长工作的上下文整理未开（目前靠每轮只带本轮材料与会话历史） |
+| 上下文整理（compaction） | `runtime.compaction`，按清单声明 | 已开：历史超过 16,000 tokens 时按 `assistant-compaction`（登记在 Prompt 设置里，可改）挑选保留原文，整理失败时照常继续 | ✅ | 🟡 已接入；长工作里真实触发尚未观察到 |
 | 每轮预算（`maxTurns/maxTokens/maxWallClockMs`） | `startAgentRun` 的 budget | 每轮 24 步，到上限说人话、可继续 | 同 | ✅ `assistant-business-gateway`（步数上限）；§12 第二片 |
 | 用量（`usage/usageEntries`、`UsageBudget`） | 轮次视图带 run 用量 | 未汇总、未设上限 | — | ⛔ 用户可设的整体预算（按工作／按天）未做 |
 
@@ -163,7 +163,7 @@
 
 1. Memory（P8）：需 Prologue 提供真正的项目作用域。
 2. 助理的 Skill（插件方法）与 SDK Subagent：均被 app 模式拒绝；分别对应 P5 余项与 P9 的替代实现。
-3. 助理长工作的上下文整理（compaction）与用户可设的整体预算。
+3. 用户可设的整体预算（助理长工作的上下文整理已开，待真实长工作里观察）。
 4. PDF／图片等附件（`parseDocument/parseResource`、`images` 输入）、语音。
 5. 会话分支、受控导出、跨会话搜索（后者待“系统级搜索”合入）。
 6. SDK Refine 与真实“评审—补改—复查”循环。

@@ -5,7 +5,7 @@ import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -238,6 +238,17 @@ function describeObjects(objects: readonly AssistantWorkObject[]): string {
   return [...lines, ...(notes.length ? ["", ...notes] : [])].join("\n");
 }
 
+/**
+ * Why a round stopped, in the person's words. A limit is a boundary the round kept, not a crash: what it did stays,
+ * and the person can let it go on.
+ */
+export function stopInWords(reason: string): string {
+  if (/too many tool turns|AGENT_BUDGET_EXCEEDED.*turn|maxTurns/i.test(reason)) return `到了这一轮的步数上限（${ROUND_TURNS} 步），停在这里；已完成的修改都保留。说“继续”可以接着做`;
+  if (/MODEL_BUDGET_EXCEEDED|token/i.test(reason) && /budget|limit|exceed/i.test(reason)) return "到了这一轮的用量上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
+  if (/wall.?clock|duration|timed.?out/i.test(reason)) return "到了这一轮的时间上限，停在这里；已完成的修改都保留。说“继续”可以接着做";
+  return reason;
+}
+
 /** The modes a Coding round can run in, as Coding's own page offers them. */
 const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "review", "collaborate", "parallel"];
 
@@ -255,12 +266,22 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     const verb = verbs[item.name] ?? item.name;
     const named = titles?.get(item.target);
     const target = (verb === "read" || verb === "change") && named ? `${named.provider} · ${named.title}` : item.target;
-    const reason = item.state !== "failed" ? undefined : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
+    // Sent and not finished: it may have happened, so it is neither done nor a failure to retry.
+    const uncertain = item.state === "failed" && /actions\.outcome_unknown|may or may not have taken effect/.test(`${item.summary} ${item.output ?? ""}`);
+    const said = `${item.summary} ${item.output ?? ""}`;
+    const reason = item.state !== "failed" || uncertain ? undefined
+      // The person answered “拒绝” on its confirmation.
+      : /This effect is denied/.test(said) ? "declined" as const
+      // Refused before anyone was asked: its input did not fit the capability (a plain failure the round can correct).
+      : /blocked "change-capability"|blocked "read-capability"/.test(said) ? undefined
+      : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
       : /TOOL_INTERRUPTED/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
+      // Switched off for the Assistant, uninstalled or no longer offered by the time it would run (even after approval).
+      : /not offered here any more|not available here|action_revoked|已对助理关闭/.test(`${item.summary} ${item.output ?? ""}`) ? "unavailable" as const
       : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;
     // A round that is over has nothing still going on: a step it never closed is one whose outcome nobody recorded.
-    const state = ended && item.state === "started" ? "unknown" as const : item.state;
-    const detail = item.state === "failed" && item.output ? item.output.replace(/\s+/g, " ").trim().slice(0, 300) : "";
+    const state = uncertain || (ended && item.state === "started") ? "unknown" as const : item.state;
+    const detail = item.state === "failed" && item.output ? item.output.replace(/\s+/g, " ").trim().replace(/^[A-Z][A-Z_]+:\s*/, "").slice(0, 300) : "";
     const capability = (verb === "read" || verb === "change") && item.target ? { capability_id: item.target } : {};
     return [{ call_id: item.call_id, verb, target, state, ...capability, ...(reason ? { reason } : {}), ...(detail ? { detail } : {}), ...(item.sequence !== undefined ? { sequence: item.sequence } : {}) }];
   });
@@ -445,9 +466,10 @@ export class AssistantService {
     const host = children.length ? await this.ports.host() : null;
     const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0 }))) : [];
     const scheduled = this.store.followUps(this.actorId, work.work_id);
+    const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
-      ...(scheduled.length ? { scheduled } : {}), ...(problem ? { problem } : {}) };
+      ...(scheduled.length ? { scheduled } : {}), ...(unsettled.length ? { unsettled } : {}), ...(problem ? { problem } : {}) };
   }
 
   /** The rounds run in the Assistant's own session. */
@@ -600,10 +622,20 @@ export class AssistantService {
     }
     const host = await this.ports.host();
     const latest = await this.latestRun(host, work);
-    if (!latest || isTerminalAgentPhase(latest.phase)) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
-    await host.adapter(RUNTIME).control(latest.ref, { kind: control.kind });
-    // A stopped round's held effects will never run: withdraw them so no one approves a change nothing will make.
-    if (control.kind === "stop") host.reviews.cancelPending(latest.ref.run_id, "这一轮已停止");
+    // What it handed out stops with it: a sub-task nobody waits for any more would go on changing things.
+    const children = control.kind === "stop" ? (await Promise.all(this.store.delegatedBy(this.actorId, work.work_id)
+      .map(async child => ({ child, run: await this.latestRun(host, child).catch(() => null) })))).filter(item => item.run && !isTerminalAgentPhase(item.run.phase)) : [];
+    const running = latest && !isTerminalAgentPhase(latest.phase);
+    if (!running && !children.length) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
+    if (running) {
+      await host.adapter(RUNTIME).control(latest.ref, { kind: control.kind });
+      // A stopped round's held effects will never run: withdraw them so no one approves a change nothing will make.
+      if (control.kind === "stop") host.reviews.cancelPending(latest.ref.run_id, "这一轮已停止");
+    }
+    for (const { run } of children) {
+      await host.adapter(RUNTIME).control(run!.ref, { kind: "stop" }).catch(() => undefined);
+      host.reviews.cancelPending(run!.ref.run_id, "委托它的工作已停止");
+    }
     return this.read(workId);
   }
 
@@ -642,6 +674,14 @@ export class AssistantService {
     if (!review || review.run?.session_id !== session || review.board_id !== ownerOf(work)) throw new AssistantError("assistant.scope", "这项确认不属于这项工作");
     if (!["approve", "reject"].includes(input.decision)) throw new AssistantError("assistant.invalid", "请选择允许或拒绝");
     await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) });
+    // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
+    if (input.decision === "reject" && work.executor.kind !== "coding" && review.run) {
+      const latest = await this.latestRun(host, work).catch(() => null);
+      if (latest && latest.ref.run_id === review.run.run_id && !isTerminalAgentPhase(latest.phase)) {
+        const why = input.note ? `，理由：${String(input.note).slice(0, 500)}` : "";
+        await host.adapter(RUNTIME).control(latest.ref, { kind: "steer", text: `（Molis 转告）用户拒绝了这次修改「${describeReview(review.document).summary}」${why}。它没有执行。不要换别的能力做同一件事；需要时问用户想怎么做。` }).catch(() => undefined);
+      }
+    }
     return this.read(workId);
   }
 
@@ -690,6 +730,22 @@ export class AssistantService {
     this.store.relations.link(identity(work), "result", { kind, id, revision: revisionOf(typeof object?.version === "number" || typeof object?.version === "string" ? object.version : undefined) }, `${from} 交回`);
     this.store.raiseNotice(this.actorId, { kind: "result", work_id: work.work_id, work_title: work.title, text: `${from} 把结果交回了「${work.title}」` }, `${work.work_id}:result:${kind}:${id}:${String(object?.version ?? "")}`);
     return this.read(workId);
+  }
+
+  /**
+   * A change still running at its owner when its round stopped or ran out of time. Nothing is re-sent: the Host waits
+   * for the owner's answer and keeps it, so the person sees what really happened and the next round is told.
+   */
+  trackUnsettled(work: StoredWork, title: string, call: Promise<unknown>): void {
+    const change: AssistantUnsettledChange = { change_id: `chg-${randomUUID()}`, work_id: work.work_id, title, started_at: this.now().toISOString(), state: "pending" };
+    this.store.saveUnsettled(this.actorId, change);
+    void call.then(() => ({ state: "completed" as const }), (error: unknown) => {
+      // Refused at its own check before any effect (the stop reached it first): it did not happen.
+      if ((error as { code?: unknown })?.code === "actions.cancelled" || (error as { name?: unknown })?.name === "AbortError") return { state: "not-run" as const };
+      return { state: "failed" as const, detail: (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 300) };
+    }).then(outcome => {
+      try { this.store.saveUnsettled(this.actorId, { ...change, ...outcome, settled_at: this.now().toISOString() }); } catch { /* The store closed with the Host. */ }
+    });
   }
 
   /** A command the Assistant ran for this work succeeded: keep the object it created or changed, at its new revision. */
@@ -1061,6 +1117,13 @@ export class AssistantService {
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
     if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
+    // Changes a stopped round left running, and how each ended: never to be submitted again blindly.
+    const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
+    if (unsettled.length) {
+      const words = { pending: "还没有结果：不要再次提交，需要时先读取对象核对", completed: "停止后已完成：不要再次提交", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
+      out.push(...chunked({ ...base, title: "上一轮停止时仍在执行的修改" }, "unsettled", unsettled.map(change => `- 「${change.title}」：${words[change.state]}${change.detail ? `（${change.detail}）` : ""}`).join("\n")));
+      this.store.markUnsettledTold(this.actorId, unsettled.filter(change => change.state !== "pending").map(change => change.change_id));
+    }
     const objects = await this.workObjects(work);
     if (objects.length) out.push(...chunked({ ...base, title: "这项工作的对象" }, "objects", describeObjects(objects)));
     // Work a professional Agent did for this work comes back here: its session, as its owner reports it.
@@ -1230,7 +1293,7 @@ export class AssistantService {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest),
       phase: view?.phase ?? "unknown", turns: view?.turns ?? [], activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
-      ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: view.stop_reason } : {}), ended_at: view?.ended_at ?? null };
+      ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason) } : {}), ended_at: view?.ended_at ?? null };
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {

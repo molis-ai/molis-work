@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionView, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { actionKey, assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
-import { readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
+import { prologueActionGateway, readableInput } from "../horizontal/agent-host/src/adapters/prologue-action-gateway.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -43,7 +43,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
-  local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [write, count],
+  const unregister = local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [write, count],
     handlers: [{ ...write, handle(context, input) { notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
       { ...count, handle() { return Number(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n); } }] });
   const requests: any[] = [];
@@ -61,9 +61,10 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views)),
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views), undefined, undefined,
+      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
-  return { service, store, host, adapter, queue, notes, requests, project, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, host, adapter, queue, notes, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -160,6 +161,11 @@ test("activity and review read in the person's terms", () => {
     { call_id: "a", verb: "change", target: "Notes · Save a note", state: "failed", capability_id: "fixture.notes.write", reason: "not-authorized" },
     { call_id: "b", verb: "lookup", target: "Notes", state: "completed" },
   ]);
+  // The person's “拒绝”, and an input refused before anyone was asked, read as what they were.
+  assert.deepEqual(presentActivity([
+    { call_id: "d", name: "change-capability", target: "fixture.notes.write", state: "failed", summary: "change-capability · EFFECT_NOT_AUTHORIZED", output: "EFFECT_NOT_AUTHORIZED: This effect is denied; only an authorized effect may be dispatched. Policy blocked it: the decision was \"rule-ask\"", at: null },
+    { call_id: "c", name: "change-capability", target: "fixture.notes.write", state: "failed", summary: "change-capability · EFFECT_NOT_AUTHORIZED", output: "EFFECT_NOT_AUTHORIZED: Hook \"h\" blocked \"change-capability\": 输入不符合能力合同：/text type", at: null },
+  ] as never, titles).map(item => [item.call_id, item.reason ?? null, item.detail?.slice(0, 20)]), [["d", "declined", "This effect is denie"], ["c", null, "Hook \"h\" blocked \"ch"]]);
   assert.deepEqual(readableInput({ properties: { title: { title: "标题" } } }, { title: "Q4", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Line one" }] }, { type: "paragraph", content: [{ type: "text", text: "Line two" }] }] } }),
     [{ label: "标题", value: "Q4" }, { label: "正文", value: "Line one\nLine two" }]);
 });
@@ -201,6 +207,123 @@ test("the gateway takes a JSON-string input as the value it means, and a contrac
     assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["read:completed", "change:failed"]);
     assert.match(done.rounds[0]!.activity[1]!.detail ?? "", /must be a JSON value matching this schema/);
     assert.equal(done.reviews.length, 0);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
+  } finally { await f.close(); }
+});
+
+test("switched off while its change waits for approval: approving later runs nothing, and the round says why", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "held" } } }),
+    body => { assert.match(JSON.stringify(body.messages), /not offered here any more.*nothing ran.*Do not use a different capability/); return reply(undefined, "这项能力已被关闭，没有保存。"); },
+  ]);
+  try {
+    const sent = await f.service.send({ text: "save held", request_id: "req-00000021" }, { project_ref: f.project });
+    const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    // The person switches the capability off for the Assistant in settings while the change is still waiting.
+    f.store.setActionEnabled("web-user", actionKey({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }), false);
+    await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "the approval given before the switch does not outlive it");
+    const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
+    assert.deepEqual([change.state, change.reason], ["failed", "unavailable"]);
+  } finally { await f.close(); }
+});
+
+test("a plugin disabled or upgraded while its change waits: the old call runs nothing, the round says so, and the new version is found", { timeout: 60_000 }, async t => {
+  const upgraded: ActionDefinition = { ...write, version: 2, action: { ...write.action, title: "Save a note (v2)" } };
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "old call" } } }),
+    body => { assert.match(JSON.stringify(body.messages), /not offered here any more at version 1.*now offers version 2/); return reply({ name: "find-capabilities", input: { query: "Save" } }); },
+    body => {
+      const found = JSON.stringify(body.messages);
+      assert.match(found, /"version\\":2/, "the upgraded capability is found");
+      return reply(undefined, "插件已升级，旧的调用没有执行；需要的话我用新版本重新提交。");
+    },
+  ]);
+  try {
+    const sent = await f.service.send({ text: "save old call", request_id: "req-00000025" }, { project_ref: f.project });
+    const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    // The plugin is disabled, then comes back as a new version, while the change is still waiting for the person.
+    f.unregister();
+    f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [upgraded],
+      handlers: [{ ...upgraded, handle(context, input) { f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, "v2"); return { saved: true }; } }] });
+    await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "an approval of version 1 never runs as version 2");
+    const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
+    assert.deepEqual([change.state, change.reason], ["failed", "unavailable"]);
+    assert.equal(done.work.state, "completed");
+  } finally { await f.close(); }
+});
+
+test("a change stopped while its owner is still running: shown as not known, then as what the owner did; the next round is told and nothing is re-sent", { timeout: 60_000 }, async t => {
+  const slow: ActionDefinition = { ...write, capability_id: "fixture.slow.write", action: { ...write.action, title: "Save slowly" } };
+  let finish!: () => void, entered!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; }), reached = new Promise<void>(resolve => { entered = resolve; });
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.slow.write", version: 1, provider_id: "fixture.slow", input: { text: "slow" } } }),
+    body => { assert.match(JSON.stringify(body), /上一轮停止时仍在执行的修改/); assert.match(JSON.stringify(body), /Slow · Save slowly」：停止后已完成：不要再次提交/); return reply(undefined, "上次停止时那条保存后来已完成，不再重复。"); },
+  ]);
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.slow", kind: "plugin", title: "Slow" }, definitions: [slow],
+    handlers: [{ ...slow, async handle(context, input) {
+      await context.beforeEffect?.();
+      entered(); await gate;
+      f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, "slow");
+      return { saved: true };
+    } }] });
+  try {
+    const sent = await f.service.send({ text: "save slow", request_id: "req-00000022" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await reached;
+    // The person stops the round while the owner is still saving.
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    const stopped = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "failed"].includes(v.work.state) ? v : undefined; }, "stopped");
+    const change = stopped.rounds[0]!.activity.find(item => item.verb === "change")!;
+    assert.notEqual(change.state, "completed");
+    assert.notEqual(change.reason, "interrupted", "not claimed as “没有执行”: it was already with its owner");
+    assert.deepEqual(stopped.unsettled?.map(item => [item.title, item.state]), [["Slow · Save slowly", "pending"]]);
+    // The owner finishes after all: it happened once, and the work says so.
+    finish();
+    const settled = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.unsettled?.[0]?.state === "completed" ? v : undefined; }, "the owner's late answer");
+    assert.ok(settled.unsettled![0]!.settled_at);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+    // The next round is told once; nothing is sent again.
+    await f.service.send({ work_id: sent.work.work_id, text: "继续", request_id: "req-00000023" }, {});
+    const next = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "next round");
+    assert.equal(next.unsettled, undefined, "told, so no longer listed");
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "exactly one effect");
+  } finally { finish(); await f.close(); }
+});
+
+test("a round that reaches its step limit stops there, keeps what it did, says so in words, and the next round goes on", { timeout: 60_000 }, async t => {
+  const script: Array<(body: any) => Response> = [() => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "kept" } } })];
+  for (let i = 0; i < 40; i++) script.push(() => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }));
+  const f = await fixture(t, script);
+  try {
+    const sent = await f.service.send({ text: "save kept, then keep counting", request_id: "req-00000026" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed", "stopped"].includes(v.work.state) ? v : undefined; }, "limit");
+    assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（24 步）.*已完成的修改都保留/);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "what it did before the limit stays");
+    assert.ok(done.objects.length === 0 || done.objects.every(object => object.relation !== "result" || object.state !== "missing"));
+    const again = await f.service.send({ work_id: sent.work.work_id, text: "继续", request_id: "req-00000027" }, {});
+    assert.equal(again.outcome, "started", "the limit ends a round, not the work");
+  } finally { await f.close(); }
+});
+
+test("the person's 拒绝 reaches the round as theirs, with their reason, and nothing runs", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "no" } } }),
+    body => { assert.match(JSON.stringify(body.messages), /用户拒绝了这次修改「Notes · Save a note」，理由：先别存/); return reply(undefined, "好的，没有保存。"); },
+  ]);
+  try {
+    const sent = await f.service.send({ text: "save no", request_id: "req-00000028" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "reject", note: "先别存" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
+    assert.equal(done.rounds[0]!.activity.find(item => item.verb === "change")?.reason, "declined");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
   } finally { await f.close(); }
 });
@@ -286,4 +409,17 @@ test("the gateway takes a capability's fields put beside its identity as the inp
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(f.notes.prepare("SELECT body FROM notes").get()!.body, "flattened");
   } finally { await f.close(); }
+});
+
+test("a change its owner has not answered by the gateway's own deadline ends in words that say it may have happened", { timeout: 20_000 }, async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as unknown as ActionView;
+  let seen: AbortSignal | undefined;
+  const client = { discover: async () => [view], invoke: (_ref: unknown, _input: unknown, signal?: AbortSignal) => { seen = signal; return new Promise(() => {}); } };
+  const { executors } = prologueActionGateway({ client, operate: true } as never, 10_500);
+  const started = Date.now();
+  await assert.rejects((executors["change-capability"] as any)({ args: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "x" } } }),
+    (error: any) => error.code === "actions.outcome_unknown" && /may or may not have taken effect/.test(error.message));
+  assert.ok(Date.now() - started < 7_000, "well before the runtime's own limit");
+  assert.equal(seen?.aborted, true, "the owner is told to stop");
 });

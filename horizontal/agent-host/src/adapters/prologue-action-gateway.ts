@@ -18,6 +18,21 @@ const describe = (view: ActionView) => {
     use: effect === "read" ? GATEWAY_TOOLS.read : GATEWAY_TOOLS.change, description: view.action.description.slice(0, 600), input_schema: view.action.input_schema };
 };
 
+/**
+ * Why a named capability cannot run now, and what the round may do about it. Upgraded: the same capability at another
+ * version may be used, with a fresh confirmation. Otherwise it was switched off or removed on purpose: no stand-in.
+ */
+function notOffered(views: readonly ActionView[], args: Pick<CapabilityArgs, "capability_id" | "version" | "provider_id">): string {
+  const other = views.find(row => row.capability_id === args.capability_id && row.provider.provider_id === args.provider_id && row.version !== args.version && row.action.audiences.includes("agent"));
+  if (other) return `That capability is not offered here any more at version ${args.version}; nothing ran. Its provider now offers version ${other.version}: read its input_schema with find-capabilities and, if the person still wants this, submit it again (they will be asked to confirm).`;
+  return "That capability is not offered here any more (switched off for you, removed, or no longer offered to agents); nothing ran. Do not use a different capability to do the same thing: tell the person it was not done and why, and let them decide.";
+}
+
+const abortedBy = (signal: AbortSignal) => new Promise<never>((_resolve, reject) => {
+  if (signal.aborted) reject(signal.reason);
+  else signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+});
+
 function parseCapability(args: Record<string, unknown>): CapabilityArgs {
   if (typeof args.capability_id !== "string" || !args.capability_id || typeof args.provider_id !== "string" || !args.provider_id
     || !Number.isSafeInteger(args.version)) throw new ActionError("actions.reference_invalid", "Name the capability exactly: capability_id, version and provider_id as find-capabilities returned them.");
@@ -46,29 +61,44 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
   };
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
-    const view = (await gateway.client.discover()).find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);
-    if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", "That capability is not offered here any more; search again with find-capabilities.");
+    const views = await gateway.client.discover();
+    const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);
+    if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", notOffered(views, args));
     if (!view.availability.available) throw new ActionError(view.availability.code, view.availability.reason);
     const reads = actionEffect(view.action, view.capability_id) === "read";
     if (write && reads) throw new ActionError("actions.gateway_mismatch", `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`);
     if (!write && !reads) throw new ActionError("actions.gateway_mismatch", `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`);
     return view;
   };
-  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal) => {
+  const invoke = async (args: CapabilityArgs, view: ActionView, signal: AbortSignal, write = false) => {
     const schema = view.action.input_schema;
+    // A change stops being waited on a little before the runtime's own deadline, so the round hears why in words.
+    const local = new AbortController();
+    const follow = () => local.abort(signal.reason);
+    if (signal.aborted) follow(); else signal.addEventListener("abort", follow, { once: true });
+    const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
     try {
-      const result = await gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-        normalizedInput(view, args.input), signal);
-      signal.throwIfAborted();
+      const call = gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
+        normalizedInput(view, args.input), local.signal);
+      call.catch(() => undefined);
+      // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
+      const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
+      local.signal.throwIfAborted();
       return JSON.stringify(result) ?? "null";
     } catch (error) {
+      const code = (error as { code?: unknown })?.code;
+      // Sent to its owner and not finished (stopped or out of time), or finished with an unusable result: it may have
+      // happened. Said as such, so neither the person nor the model takes it for "nothing happened" and repeats it.
+      if (write && (local.signal.aborted || code === "actions.output_invalid_after_effect")) {
+        throw new ActionError("actions.outcome_unknown", `"${view.provider.title} · ${view.action.title}" was sent but did not finish (${local.signal.aborted ? "it ran out of time or was stopped" : "its result was invalid"}); it may or may not have taken effect. Do not submit it again: first read the object back with ${GATEWAY_TOOLS.read} and tell the person what actually happened.`);
+      }
       // A contract mismatch is corrected in one step when the model sees the shape it must send.
       const message = error instanceof Error ? error.message : String(error);
       if (/输入不符合能力合同|input schema|does not match/i.test(message)) {
         throw new ActionError((error as { code?: string }).code ?? "actions.input_invalid", `${message}. The input must be a JSON value matching this schema: ${JSON.stringify(schema).slice(0, 2000)}`);
       }
       throw error;
-    }
+    } finally { clearTimeout(deadline); signal.removeEventListener("abort", follow); }
   };
   const executors: Record<string, ToolRunner> = {
     [GATEWAY_TOOLS.find]: guarded(async args => {
@@ -105,7 +135,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       if (!gateway.operate) throw new ActionError("actions.forbidden", "This role may only read.");
       const parsed = parseCapability(args);
       const view = await current(parsed, true);
-      return invoke(parsed, view, signal);
+      return invoke(parsed, view, signal, true);
     }),
   };
   const capability = { type: "object", properties: {
@@ -200,8 +230,9 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   if (toolName === GATEWAY_TOOLS.change && !gateway.operate) return "This role may only read.";
   let parsed: CapabilityArgs;
   try { parsed = parseCapability((input ?? {}) as Record<string, unknown>); } catch (error) { return (error as Error).message; }
-  const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
-  if (!view || !view.action.audiences.includes("agent")) return "That capability is not offered here (it may have been switched off, removed or changed); nothing was done. Search again with find-capabilities.";
+  const views = await gateway.client.discover();
+  const view = views.find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
+  if (!view || !view.action.audiences.includes("agent")) return notOffered(views, parsed);
   if (!view.availability.available) return `${view.availability.reason}; nothing was done.`;
   const reads = actionEffect(view.action, view.capability_id) === "read";
   if (toolName === GATEWAY_TOOLS.change && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;

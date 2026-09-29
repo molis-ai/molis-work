@@ -310,7 +310,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新待办", "lookup-tools": "查找工具",
     delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
     "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做" };
-  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行" };
+  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
     const what = item.target ? " " + item.target : "";
@@ -571,7 +571,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const state = work ? work.state : "idle";
     island.querySelector('[data-assistant-control="pause"]').hidden = state !== "running";
     island.querySelector('[data-assistant-control="resume"]').hidden = state !== "paused";
-    island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state);
+    /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
+    const liveChildren = work && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
+    island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state) && !liveChildren;
   };
   const showProblem = (next) => { problem = next; render(); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
@@ -626,12 +628,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const children = work && view.delegated ? view.delegated : [];
     const parent = work && work.delegated_by ? work.delegated_by : null;
     const scheduled = work && view.scheduled ? view.scheduled : [];
+    const unsettled = work && view.unsettled ? view.unsettled : [];
     const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id,
-      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome])]);
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state])]);
     if (delegatedBox.dataset.signature === signature) return;
     delegatedBox.dataset.signature = signature;
-    delegatedBox.hidden = !children.length && !parent && !scheduled.length;
+    delegatedBox.hidden = !children.length && !parent && !scheduled.length && !unsettled.length;
     delegatedBox.replaceChildren();
+    /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
+    const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
+    unsettled.forEach((change) => {
+      const row = el("p", "assistant-object");
+      row.append(el("span", "assistant-object-relation", L("停止时仍在执行")), el("span", "assistant-object-title", change.title),
+        el("span", "assistant-object-state", L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "")));
+      delegatedBox.append(row);
+    });
     const REPEAT = { none: "一次", daily: "每天", weekly: "每周" }, OUTCOME = { started: "已开始", missed: "错过（当时没在运行）", skipped: "跳过（上一轮未结束）", failed: "没有完成" };
     scheduled.forEach((followUp) => {
       const row = el("p", "assistant-object");
@@ -667,6 +678,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         open.setAttribute("aria-label", L("打开") + "：" + child.title);
         open.addEventListener("click", () => switchTo(child.work_id));
         row.append(open);
+        /* Stop one sub-task from the board, without opening it; what it already did stays. */
+        if (["running", "paused", "waiting-input", "waiting-review"].includes(child.state)) {
+          const stop = el("button", "assistant-object-open", L("停止")); stop.type = "button";
+          stop.setAttribute("aria-label", L("停止") + "：" + child.title);
+          stop.addEventListener("click", async () => {
+            stop.disabled = true;
+            try { await api("/works/" + encodeURIComponent(child.work_id) + "/control", "POST", { kind: "stop" }); await refresh(); }
+            catch (error) { stop.disabled = false; showProblem({ message: error.message }); }
+          });
+          row.append(stop);
+        }
         list.append(row);
       });
       details.append(list);

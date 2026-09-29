@@ -218,8 +218,8 @@ export interface AssistantActivity {
   state: "started" | "completed" | "failed" | "unknown";
   /** For a read or change: the capability it used, so the surface that owns that data can refresh. */
   capability_id?: string;
-  /** Why it did not happen, when that is known: not authorized, declined by the person. */
-  reason?: "not-authorized" | "declined" | "interrupted";
+  /** Why it did not happen, when that is known: not authorized, declined by the person, stopped, or switched off / gone by the time it would run. */
+  reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
   /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */
   detail?: string;
   sequence?: number;
@@ -343,6 +343,8 @@ export interface AssistantWorkView {
   delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number }>;
   /** Timed rounds the person asked this work to run. */
   scheduled?: AssistantFollowUp[];
+  /** Changes still running at their owner when a round stopped or ran out of time, and what the owner finally did. */
+  unsettled?: AssistantUnsettledChange[];
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }
@@ -460,6 +462,22 @@ export type AssistantRuleInput = Pick<AssistantRule, "kind" | "surfaces" | "exce
  * these words. It runs only while Molis Work runs on this computer; a time missed while it was not running is
  * reported, never replayed late.
  */
+/**
+ * A change the round had sent to its owner that had not answered when the round stopped or ran out of time. The Host
+ * keeps listening: `pending` until the owner answers, then whether it happened. Never re-sent.
+ */
+export interface AssistantUnsettledChange {
+  change_id: string;
+  work_id: string;
+  /** The capability as the person reads it: provider · title. */
+  title: string;
+  started_at: string;
+  state: "pending" | "completed" | "failed" | "not-run";
+  settled_at?: string;
+  /** The owner's words for a failure, bounded. */
+  detail?: string;
+}
+
 export interface AssistantFollowUp {
   followup_id: string;
   work_id: string;

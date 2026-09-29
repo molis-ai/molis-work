@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS assistant_notices (
 CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id, state, created_at);
 CREATE TABLE IF NOT EXISTS assistant_followups (
   followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS assistant_unsettled (
+  change_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, told INTEGER NOT NULL DEFAULT 0, body TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS assistant_observed (
   actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, PRIMARY KEY(actor_id, work_id)
@@ -258,6 +261,21 @@ export class AssistantStore {
   saveFollowUp(actorId: string, followUp: AssistantFollowUp): void {
     this.db.prepare("INSERT INTO assistant_followups(followup_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(followup_id) DO UPDATE SET body=excluded.body")
       .run(followUp.followup_id, actorId, followUp.work_id, JSON.stringify(followUp));
+  }
+
+  /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */
+  unsettled(actorId: string, workId: string, untold = false): AssistantUnsettledChange[] {
+    return this.db.prepare(`SELECT body FROM assistant_unsettled WHERE actor_id=? AND work_id=?${untold ? " AND told=0" : ""} ORDER BY rowid`).all(actorId, workId)
+      .map(row => JSON.parse(String(row.body)) as AssistantUnsettledChange);
+  }
+
+  saveUnsettled(actorId: string, change: AssistantUnsettledChange): void {
+    this.db.prepare("INSERT INTO assistant_unsettled(change_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(change_id) DO UPDATE SET body=excluded.body")
+      .run(change.change_id, actorId, change.work_id, JSON.stringify(change));
+  }
+
+  markUnsettledTold(actorId: string, changeIds: readonly string[]): void {
+    for (const id of changeIds) this.db.prepare("UPDATE assistant_unsettled SET told=1 WHERE actor_id=? AND change_id=?").run(actorId, id);
   }
 
   removeFollowUp(actorId: string, followupId: string): boolean {

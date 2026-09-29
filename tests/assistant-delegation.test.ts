@@ -74,3 +74,42 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     assert.equal(service.delegation(store.get("web-user", child.work.work_id)), undefined);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+test("stopping a work also stops the sub-tasks it handed out that are still running, even after its own round ended", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-stop-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  let parentStep = 0;
+  const parentScript = [
+    () => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }),
+    () => reply(undefined, "已交给子任务，它还在做。"),
+  ];
+  let releaseChild!: () => void;
+  const childHeld = new Promise<void>(resolve => { releaseChild = resolve; });
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    if (JSON.stringify(body.messages).includes("委托给你的子任务")) {
+      // A model request that takes its time, and gives up when the run is stopped (as a real one does).
+      await Promise.race([childHeld, new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }))]);
+      return reply(undefined, "草稿。");
+    }
+    return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-stop-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+  try {
+    const sent = await service.send({ text: "分给子任务起草", request_id: "req-delegation-stop" }, { project_ref: project });
+    // The parent's round is over; its sub-task is still running.
+    const parent = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.[0]?.state === "running" ? view : undefined; }, "child running");
+    const stopped = await service.control(sent.work.work_id, { kind: "stop" });
+    assert.equal(stopped.work.state, "completed", "the parent's finished round stays finished");
+    const child = await until(async () => { const view = await service.read(parent.delegated![0]!.work_id); return ["stopped", "failed"].includes(view.work.state) ? view : undefined; }, "child stopped");
+    assert.equal(child.work.state, "stopped");
+    await assert.rejects(service.control(sent.work.work_id, { kind: "stop" }), /没有在执行/, "nothing left to stop");
+  } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

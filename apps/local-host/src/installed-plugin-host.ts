@@ -16,7 +16,7 @@ import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platf
 import { configuredModelChoices } from './configured-models.js';
 import { hostScheduleReminders } from './schedule-reminders.js';
 import { scheduleServiceFor } from './schedule-runtime.js';
-import { studioStorage } from './plugin-builder/storage.js';
+import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
 import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
 import { exposeInstalledPlugin, exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { bindInstalledOperationCaller } from './schedule-operations.js';
@@ -145,12 +145,16 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     describe: identity => { const current = scheduledInstallation(identity.pluginId); return current?.installationId === identity.installationId ? current : null; },
     link: pluginId => (options.routePrefix ?? '') + '/plugins/' + pluginId });
   const generate = options.generate ?? createPluginModelGeneration({ homeDirectory,
-    declaredPrompts: async pluginId => {
-      const installed = releaseFor(pluginId);
-      if (installed) return installed.prompts ?? [];
-      const build = releases.get(pluginId.replace(/^io\.molis\.work\.generated\./, ''));
-      return build?.directory && build.design
-        ? readPluginPrompts(await buildSources(build.directory, build.directory + '.settled', build.design.contract.operations.length)).prompts : [];
+    declaredPrompts: async (pluginId, caller) => {
+      if (closed || caller?.project_id !== actions.project_id || !caller.plugin_install_id) throw new SandboxError('CAPABILITY_DENIED', '模型调用缺少当前项目的执行身份');
+      if (caller.plugin_install_id.startsWith(STABLE_PREVIEW)) {
+        const build = releases.get(caller.plugin_install_id.slice(STABLE_PREVIEW.length));
+        if (!build?.directory || build.design?.contract.pluginId !== pluginId) throw new SandboxError('CAPABILITY_DENIED', '模型调用的试运行构建已失效');
+        return { kind: 'preview', prompts: readPluginPrompts(await buildSources(build.directory, build.directory + '.settled', build.design.contract.operations.length)).prompts };
+      }
+      const record = recordFor(pluginId), installed = releaseFor(pluginId);
+      if (!record || record.install_id !== caller.plugin_install_id || record.state !== 'running' || !installed) throw new SandboxError('CAPABILITY_DENIED', '模型调用的安装执行身份已失效');
+      return { kind: 'installed', registration: generatedRegistration(installed, releases.versions(installed.buildId), 'enabled', record.version) };
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
@@ -198,8 +202,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return value;
   };
   const covered = (next: SandboxEffects, approved: SandboxEffects) => Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
+  const promptScope = (installationId: string) => JSON.stringify([actions.project_id, boardId, installationId]);
   const registerPrompts = (release: AgentRelease, state: 'enabled' | 'disabled') =>
-    registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, releaseVersion(release.version)));
+    registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, releaseVersion(release.version)), promptScope(recordFor(release.pluginId)!.install_id));
   const lifecycle: AgentBuilderPorts['lifecycle'] = async (action, release, grants) => {
     if (closed) throw new Error('安装运行入口已关闭');
     const consent = (grants as { consent?: unknown } | undefined)?.consent === true, record = recordFor(release.pluginId);
@@ -240,7 +245,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       reminders.cancelInstallation(release.pluginId, record.install_id); scheduledRuns.cancelInstallation(release.pluginId, record.install_id); secrets.remove(release.pluginId);
       const keepData = (grants as { keepData?: unknown } | undefined)?.keepData === true;
       await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
-      unregisterGeneratedPrompts(homeDirectory, release.pluginId);
+      unregisterGeneratedPrompts(homeDirectory, release.pluginId, promptScope(record.install_id));
       for (const [key, entry] of definitions) if (entry.pluginId === release.pluginId) definitions.delete(key);
       if (!keepData) privateStorage.deleteInstallationData(record.install_id);
       storage.delete(APPROVED_KEY + release.pluginId); recoveryErrors.delete(release.pluginId);

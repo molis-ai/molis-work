@@ -42,9 +42,16 @@ async function fixture(t: test.TestContext) {
   const adapter = await createPrologueNodeAdapter({ app: { appId: 'plugin-model-test', appVersion: '1.0.0' }, storageRoot: join(home, 'owner-runtime') });
   const service = new ActionService();
   let beforeResolve = async () => {};
+  let beforeDeclaration = async () => {};
   let selection = { provider_id: 'fixture', model_id: 'fixed-model' };
   const generate = createPluginModelGeneration({ homeDirectory: home, selection: () => selection,
-    declaredPrompts: async () => [{ id: 'summary', title: 'Summary', purpose: 'Extract notes', body: 'BUILD_INSTRUCTION' }],
+    declaredPrompts: async (pluginId, caller) => {
+      await beforeDeclaration();
+      assert.equal(caller?.project_id, 'p'); assert.equal(caller?.plugin_install_id, 'install-1');
+      return { kind: 'installed', registration: { owner_id: pluginId,
+        source: { kind: 'plugin', plugin_id: pluginId, title: 'Fixture', plugin_version: '1.0.0', origin: 'generated', state: 'enabled' },
+        prompts: [{ prompt_id: 'summary', version: 1, kind: 'instruction', title: 'Summary', purpose: 'Extract notes', used_by: ['Fixture'], body: 'BUILD_INSTRUCTION' }], roles: [] } };
+    },
     resolveInference: async () => { await beforeResolve(); return adapter.inference; } });
   const unregister = registerPlatformCapabilities({ registry: service, client: service, project_id: 'p' }, { generate });
   let authorized = true;
@@ -59,8 +66,25 @@ async function fixture(t: test.TestContext) {
     await rm(home, { recursive: true, force: true });
   });
   return { home, bodies, catalog, invoke, unregister, select: (next: typeof selection) => { selection = next; }, revoke: () => { authorized = false; },
+    beforeDeclaration: (next: typeof beforeDeclaration) => { beforeDeclaration = next; },
     beforeResolve: (next: typeof beforeResolve) => { beforeResolve = next; }, beforeReply: (next: typeof beforeReply) => { beforeReply = next; } };
 }
+
+for (const stop of ['revoke', 'withdraw', 'cancel'] as const) test(`generated prompt ${stop} during declaration loading records no use and sends no request`, { timeout: 30_000 }, async t => {
+  const f = await fixture(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
+  const registry = agentDefinitionsFor(f.home, builtinRegistrations), key = 'io.molis.work.generated.fixture/summary';
+  f.beforeDeclaration(async () => { entered.resolve(); await release.promise; });
+  const rejected = assert.rejects(f.invoke(controller.signal, { prompt: 'summary', input: 'material' }), stop === 'cancel' ? { name: 'AbortError' }
+    : { code: stop === 'revoke' ? 'actions.revoked' : 'actions.provider_changed' });
+  try {
+    await entered.promise;
+    if (stop === 'revoke') f.revoke();
+    if (stop === 'withdraw') f.unregister();
+    if (stop === 'cancel') controller.abort();
+    release.resolve(); await rejected;
+    assert.equal(f.bodies.length, 0); assert.deepEqual(registry.uses(key), []);
+  } finally { release.resolve(); }
+});
 
 test('generated model Action uses the shared Runtime without tools or per-plugin work/history directories', { timeout: 30_000 }, async t => {
   const f = await fixture(t);

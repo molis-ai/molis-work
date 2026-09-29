@@ -20,7 +20,7 @@
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
-| 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
+| 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；提示词按执行版本解析、按安装分别登记，真实 Sandbox/SDK/HTTP 验证通过；最终跨消费者验收随 12 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 真实 Run/Effect 通知、Files/Git Host 消费与可见刷新已接通并验证；最终全消费者复核随 12 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 公共字节/定位/覆盖契约、Host 文字/HTML/PDF worker 与原生组件已实现；Jelly/onboarding 迁移及工程/本地原生验证通过；Pages/DOCX/ZIP 的 Host 解析、领域转换与双入口装配也已迁移并验证；Cognia 无损 vault/附件边界已复核并保留；Shelf、Artifacts 和其余旧解析删除继续实施 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
@@ -426,3 +426,17 @@ Cognia 当前扫描由 Host 负责路径/容量与取消，插件只解码严格
 整合最终复验：14 文件 52/52，无跳过；包含纠正后的提示词门禁、共同目录/自动挂载、声明/Agent 文本、i18n 与客户端名称检查、Coding Chrome 卸载与重挂、独立安装宿主、生成模型真实 SDK/HTTP 和安装构建一致性。日志 `/tmp/platform-integration-final-regression.log`，最终整体构建 `/tmp/platform-integration-catalog-build.log`。70 包边界检查 errors 为空；本地整合差异相对 `22f383cb` 的 whitespace 检查通过（排除必须保留上下文空格的源码补丁），完整 SDK 补丁 reverse apply --check 通过；日志 `/tmp/platform-integration-boundary.log`。首轮已通过且未受后续小改动影响的回归证据保留，不重复跑整批。仅本地整合提交，未推送、开 PR 或修改主检出。
 
 接续以当前同一 Goal 为准，不重复 Goal Prompt：先确认新 Prompt 登记的多项目/安装版本问题是否有真实可达调用，再按既定 09 完成 Shelf/Artifacts 的公共材料与 01 Shelf AI 链路；Cognia 保留经复核的无损 vault 边界。最后覆盖包括 Coding 草稿调用方固定指令在内的全消费者审查，以及 01–12 总验收。此次整合不代表整个 Goal 已完成。
+
+### 生成插件提示词的执行版本
+
+当前可达缺陷：同一插件安装旧发布版后，创作台试运行新版，Host 先读已安装 release，解析器又先读 Home 登记，导致新版试运行使用旧默认正文。现有 generated-plugin-prompts 用例把传入 BUILD 却返回旧登记默认当成成功，需要按实际产品合同纠正。另一个项目卸载相同 plugin_id 时，Home 单 owner 注销也会删除其他安装的登记。
+
+模型 Action 将可信 project_id / plugin_install_id 传给现有安装 owner；它按当前安装记录选择发布版，或按创作台真实 preview 身份选择构建声明，拒绝缺失、错项目及错插件身份。解析前完成异步声明读取并重新检查 beforeEffect / signal，再验证当前版本确实声明该 prompt。已安装调用在自己的默认版本上应用既有 Home/owner/prompt 用户覆盖；创作试运行使用构建正文，避免已安装版和用户覆盖掩盖作者修改。取消和版本切换不允许继续派出。
+
+沿用 AgentDefinitions 的覆盖和使用记录，增加接收 Host 已选声明的指令解析入口；不以设置页当前展示的默认版本决定执行。生成式登记按项目/安装保留，停用、升级与卸载只修改自己的登记。设置仍保留一个 owner/prompt 编辑入口，多个版本的默认展示选择启用安装中的最新 prompt 版本并注明，历史用户覆盖仍共享且重装保留；没有新持久表或业务身份输入。
+
+验证实际安装 owner + Action 调用的已安装版、新草稿、跨项目不同版本与卸载；真实 SDK/本地 HTTP 检查最终 system 正文、未知 prompt 零派出、取消/撤权；覆盖登记删除与用户覆盖历史。先整体构建，再按 Host README 定向回归及边界检查。兼容旧 inline instructions；不改变 release、安装数据或用户覆盖键，回滚仅恢复本次源码。
+
+已实现上述绑定，删除原“Home 登记优先、安装 release 优先于试运行”的解析路径。新增实际双项目安装用例，通过真实沙箱、Action、共享 Prologue 和本地 HTTP 检查旧/新版默认、草稿正文、用户覆盖、未知 id 零请求、升级/回滚、卸载另一安装后的编辑与调用、失效身份及停用。另覆盖异步声明读取期间取消/撤权/提供方撤下：零使用记录、零模型派出。手册与两个开发 Skill 已同步，纠正“所有安装前调用都是替身”的过期说法。
+
+整体 build 通过（`/tmp/platform-prompt-binding-build.log`）；第一批 5 文件 20 项通过，随后按 Host README 执行 15 文件 87 项通过。保留第一批未变化的 3 文件 12 项证据，共 18 文件 99 项当前验证，无跳过（`/tmp/platform-prompt-binding-targeted.log`、`/tmp/platform-prompt-binding-regression.log`）。70 包 boundary errors 为空（`/tmp/platform-prompt-binding-boundary.log`），diff whitespace 检查通过。回归期间没有源码/Skill 编辑或并发构建；未运行外部付费模型，未代表用户验收。仅本地提交；后续仍为 Shelf/Artifacts 及 01–12 最终复核。

@@ -16,6 +16,7 @@ import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { builderSkill } from './skill.js';
 import { buildSources, readPluginPrompts } from './prompts.js';
+import { STABLE_PREVIEW } from './storage.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
@@ -67,7 +68,6 @@ const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>(
 const MODEL_KEY = INSTALLED_MODEL_KEY;
 const PREVIEW_KEY = 'plugin-builder:agent-studio:preview:';
 /** The canvas preview keeps its records; gate runs use fresh identities and memory only. */
-const STABLE_PREVIEW = 'studio-preview:';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /**

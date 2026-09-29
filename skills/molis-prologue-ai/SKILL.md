@@ -43,6 +43,7 @@ description: How to add or change an AI capability in Molis Work — anything th
    - **提示词要登记，用户能看能改**：指令写在插件的 `src/prompts.ts`，用 `defineInstructionPrompt({ owner_id, prompt_id, version, title, purpose, used_by, body })` 声明，从包入口导出 `<插件>_INSTRUCTIONS`；调用时传 `instructed(指令, 数据)`，端口类型写 `InstructedPrompt`／`ModelPromptInput`，不收裸字符串。指令只写要求，用户材料和本次参数放在数据里。
    - Host 适配器经 `resolveModelPrompt(home, prompt, 插件 id)` 取有效正文（用户在“Prompt 与 Character”里改过就用用户版，并记一次使用）；内置插件的 `*_INSTRUCTIONS` 在 `apps/workbench/src/builtin-plugins.ts` 的同一插件项声明 `instructions`，Host 从共同目录派生登记。
    - 不经 Agent Host 的 Agent（如插件创作台）也一样：Prompt 登记在同一处，运行时经端口取有效正文，版本里写出 `+user.<修订号>`。
+   - 生成插件先按可信调用上下文选择安装发布版或创作构建，再解析该版本已声明的 prompt；不能先查 Home 设置登记来选择默认正文。安装版应用现有用户覆盖，创作试运行验证构建正文。多项目登记按安装隔离，用户覆盖仍按 Home/owner/prompt 共享；卸载一个安装不能移除其他安装的登记。
 5. **Agent 角色**（如需要）：Manifest `agent` 块声明 `execution`（缺省 read-only）、`prompts`（按角色列出，读者角色不要拿到写者提示词）、`host_tools`；提示词正文随插件包导出并在 `apps/workbench/src/plugin-catalog.ts` 的 `BUILTIN_PLUGIN_AGENTS` 可见；在 Prologue 上登记钩子一律 `forSession`。
 6. **错误**：执行服务不可用用 `inferenceServiceUnavailableReason` 如实说明；派出前被宿主复核拒绝用 `isDispatchRefusal` 识别，说明「没有发出」而不是网络问题；供应商 HTTP 错误按状态给可操作提示；不要把 SDK 细节透给用户。
 7. **取消与恢复**：被取消/撤权/停用的调用不再写任何记录；长任务用持久记录 + `request_id` 幂等，重试不重复调模型。

@@ -3,7 +3,7 @@
  * The broker has already checked the id against the installation's grants; this layer checks the input and the
  * output against legacy schemas and translates old Goals shapes. Current capabilities execute through ActionService.
  */
-import type { ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { ActionCallContext, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertMatches, SandboxError, type SandboxLimits, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { studioCapability, type StudioCapability } from '@molis-ai/molis-work-plugin-builder';
@@ -13,7 +13,7 @@ export interface CapabilityImplementations {
    * A tool-less model call on the model the person configured, with one of the plugin's declared prompts (by id, as
    * the person left it) or, from plugins generated before prompts were declared, inline instructions.
    */
-  generate(pluginId: string, input: ModelGenerateInput, signal: AbortSignal, beforeDispatch?: () => void | Promise<void>): Promise<{ text: string }>;
+  generate(pluginId: string, input: ModelGenerateInput, signal: AbortSignal, beforeDispatch?: () => void | Promise<void>, caller?: PluginModelCaller): Promise<{ text: string }>;
   /** The project's goals, reached through the Goals plugin's own actions as this plugin installation. */
   goals?: {
     list(identity: Readonly<SandboxIdentity>, control?: SandboxServiceContext): Promise<Array<{ id: string; title: string; status: string }>>;
@@ -22,6 +22,7 @@ export interface CapabilityImplementations {
 }
 type CapabilityService = NonNullable<SandboxServices['capability']>;
 export interface ModelGenerateInput { prompt?: string; instructions?: string; input: string }
+export type PluginModelCaller = Pick<ActionCallContext, 'project_id' | 'plugin_install_id'>;
 
 function known(id: string): StudioCapability {
   const capability = studioCapability(id);

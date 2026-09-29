@@ -48,7 +48,7 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
   const definitions = [define('model.generate', 'read', 'concurrent')];
   const handlers: ActionHandlerBinding[] = [
     { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal,
-      () => context.beforeEffect()) },
+      () => context.beforeEffect(), { project_id: context.project_id, plugin_install_id: context.plugin_install_id }) },
   ];
   return actions.registry.registerProvider({ provider: { provider_id: PLATFORM_PROVIDER_ID, title: '插件平台', kind: 'system', project_id: actions.project_id }, definitions, handlers });
 }

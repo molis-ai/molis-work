@@ -82,6 +82,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
   - 安装 operation 每次读取当前依赖的版本、可用性和 execution，决定通道及单次时限；等待后依赖变更拒绝晚提交。query 运行时也拒绝收费或写入能力。嵌套超时的未知结果沿 Sandbox、HTTP 和公开 Action 保留，不能被插件 catch 后变成成功。
   - 生成式公开 Action 从已发布 operation 契约派生，发现/调用准备与 Builder 目录刷新直接及传递依赖的 cost；网络/缺失/循环无法确认时保持 unknown。仅变化的 operation 替换注册，关闭或卸载期间的异步检查不能重挂旧动作；不改安装指纹或旧 provider/version，不借声明自动授予权限。
   - 安装 owner 按已发布版本复用唯一执行定义，回滚不能用新对象替换 Runtime 已登记的同版本实现。版本切换先验证批准覆盖所需权限，执行定义只持有所需集合；卸载同时清除该插件的缓存，重装产生新定义。
+  - 生成式模型提示词按可信项目/安装身份读取实际发布声明；试运行读取自己的构建声明。Home 设置中的聚合登记只用于发现与编辑，不能替代执行版本；用户覆盖按 owner/prompt 保留，安装登记按项目/实例分别更新和注销。异步声明读取后先复查授权/取消，再记使用和派出。
   - `installed-plugin-host.ts` 按项目数据库拥有生成式安装运行；发现/恢复读取已发布工件和批准记录，不初始化创作 Workflow。Studio 只委托生命周期管理。正常关闭保留启用意图，用户停用不随重启撤销；关闭顺序是创作与预览、安装进程、其他项目插件、数据库。
   - 只装配和做 IO（连接、事务、文件、HTTP、进程），不复制 Module 的业务规则；能力注册不启动 SDK、CLI 或请求模型。
   - 有 Artifact 输入的 PluginPlatform 观察同一项目连接的领域 journal，每秒核对已提交的 Artifact 游标；其他连接的提交也能触发既有输入图重算，不读取未提交的外层事务。启动读取当前固定事实，关闭先调用 `closeCoordination()` 停止观察、输入处理与事件，再停插件和关数据库。此路径刷新投影，不重放业务操作。
@@ -89,6 +90,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
 - 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts tests/system-search-host.test.ts`
 - 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/generated-action-costs.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。
+- 生成式提示词身份/版本验证：`node scripts/run-tests.mjs tests/generated-plugin-prompt-binding.test.ts tests/generated-plugin-prompts.test.ts tests/plugin-model-generation.test.ts tests/agent-definitions.test.ts tests/prompt-registration.test.ts`。
 - 相关手册：[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

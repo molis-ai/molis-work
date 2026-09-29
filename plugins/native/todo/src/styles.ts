@@ -121,6 +121,7 @@ export const TODO_STYLES = `
   .todo-source blockquote { margin: 0; padding: 4px 10px; border-left: 2px solid var(--line-strong); color: var(--ink-soft); white-space: pre-wrap; }
   .todo-link { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; }
   .todo-link-kind { flex: none; font-size: 11px; color: var(--muted); }
+  .todo-work-result { padding-left: 16px; }
   .todo-link .mw-btn--link { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .todo-link-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .todo-link-add .mw-select { width: auto; min-width: 10rem; max-width: 100%; }

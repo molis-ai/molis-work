@@ -12,7 +12,10 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   if (!browser) return;
   const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory } = browser;
   const store = openTodoStore(homeDirectory);
-  const item = store.create({ title: "给王总回电话", placement: "project", notes: "问预算" }, { projectId, everything: false, actor: "user", actorId: "test" }).item;
+  const scope = { projectId, everything: false, actor: "user" as const, actorId: "test" };
+  const made = store.create({ title: "给王总回电话", placement: "project", notes: "问预算" }, scope).item;
+  // A draft the Assistant made and linked back, with where it opens.
+  const item = store.link(made.id, { add: { kind: "outcome", subject: { kind: "pages_document", id: "doc-reply" }, title: "给王总的回电要点", outcome: "draft", open: { surface: "pages", id: "doc-reply" } } }, made.revision, scope).item;
   store.close();
   const output = new URL(`../${specEvidenceDirectory("specs/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
@@ -23,6 +26,8 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openItem=${item.id}` }, sessionId));
   await waitFor("document.querySelector('[data-todo-field=title]')?.value === '给王总回电话'");
   assert.equal(await evaluate("document.querySelector('[data-todo-works-section]').hidden"), true, "还没有助理工作时不显示这一栏");
+  assert.deepEqual(await evaluate("(() => { const draft = document.querySelector('[data-todo-links] [data-workbench-item-plugin]'); return draft && [draft.dataset.workbenchItemPlugin, draft.dataset.workbenchItemId, draft.textContent]; })()"),
+    ["pages", "doc-reply", "给王总的回电要点"], "挂回的草稿可以从待办点开");
 
   // Handing over is the person's own click: the todo goes as the object, its details as material.
   await click("[data-todo-delegate]");

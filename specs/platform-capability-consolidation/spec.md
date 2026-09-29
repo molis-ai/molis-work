@@ -21,7 +21,7 @@
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
 | 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开操作从发布契约派生，当前及传递依赖 cost 已接通；最终跨入口验收随 12 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 内置目录、UI 资源/贡献、Agent 正文与历史 MCP 已归同一装配声明并验证；普通 Runtime 发现链保留；生成式已接通费用刷新和旧版本定义复用，保持发布契约为唯一公开声明；整体构建及 22 文件 135 项回归通过，最终跨消费者验收随 12 |
-| 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭，以及 unknown 明确恢复已实现并验证；领域 journal 桥接与实际领域消费者仍待完成 |
+| 08 | 领域提交到插件事件缺桥接 → 已提交事实通知、独立订阅身份/生命周期 | 既有领域 journal / 输入图及 PluginEventBus | 安装身份/世代、持久投递状态、旧游标迁移、异步提交检查与关闭、unknown 明确恢复，以及 Artifact journal 到输入图的通知已实现并验证；Coding/Git 实际生产通知仍待接通 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
 | 10 | Alchemist 搜索依赖 Feed 装配 → 共享 SEL 搜索和证据保存，兼容历史 ref | Host 搜索组合，领域策略留消费者 | 已完成实现与工程验证；真实外部搜索未运行 |
 | 11 | Coding/Builder/Shelf/Images 各管 timer/SSE/observer → 公共客户端生命周期与实际清理 | UI Host/Workbench | 已完成实现与工程/浏览器验证：Images、Coding 及子面板、Builder 两套界面、Shelf 及结果面板 |
@@ -188,6 +188,12 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
 
 提交链复查还发现 delivering 落库失败会被当作普通处理器失败并错误推进游标；现显式区分是否已经进入处理器，未派出时保留 retry_wait，不丢事件。人工恢复后唤醒失败以同步错误返回、已保存的决定仍可查询，不留下脱离请求的 rejected Promise。前端每次请求捕获本次可见性 signal，重新进入页面不能让旧请求借用新生命周期覆盖界面。
 
+Artifact 输入传播的实际缺口：`PluginInputGraph` 只检查记录存在，未检查 available/active；直接通过领域 API 失效或归档时没有通知，慢处理也只有 signal，缺少提交时的重新读取。继续复用领域事务内的 journal 和既有固定版本输入图：Storage 提供按对象类型读取 journal 游标，Host 以项目为界观察 Artifact 提交并重新计算输入。读取游标和重算只消费已提交事务；不把 Artifact 事件冒充 Coding 发布，不新增业务 outbox 或第二份 Artifact 状态。启动按当前事实重算，不需要重跑全部历史；断线期间以持久 journal 补发现变化。
+
+输入图须拒绝已失效/归档记录，等待启动后和异步消费者提交前复查固定输入、当前插件实例与启用身份；暴露独立 beforeEffect 并迁移真实异步处理入口。重新激活应重新投递当前固定输入，旧调用不可转交新实例。Host 关闭先停止 journal 观察和输入处理，再关闭事件总线及数据库。验证两 SQLite 连接提交、外层事务回滚、同项目/跨项目隔离、关闭、启动等待中失效、处理等待中失效，以及再次激活接到当前输入；普通查询仍直接读事实。此改动不改变原 Artifact/端口数据格式，回滚仅失去自动失效通知与更严格的消费检查。
+
+首轮回归发现收紧输入后 Text Stats 把失效材料显示为「等待选择」。保留原产品的 waiting/unavailable 区分，在输入状态附带既有的失效原因，由消费者明确显示不可用；不重新开放失效 payload，也不放宽原测试预期。
+
 ### 内置插件装配与生成式公开声明
 
 07 当前证据：普通 Runtime 插件已由 Manifest.actions 与实际 contribution 注册，停用撤销，MCP/Agent/Workflow 复用目录，不需再造发现层。内置插件仍在 Workbench 的 catalog、workbench packs 和 Host 历史 MCP handler 表重复绑定同一个身份；Coding 设置还在 composition 单独注册。不同 Native Host 工厂携带各自领域依赖，显式注入这些端口是必要的装配，不以动态反射替代。
@@ -262,7 +268,7 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
 
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-scheduled-operations-boundary.log。源码与构建完成后再回归，回归期间没有改源码、脚本、package.json 或 Skill。
 
-接续位置：05 的调度归位、安装运行独立与恢复链路，06 的执行策略及依赖复核，07 的 Native 装配与生成式公开声明均已实现相应链路；08 的订阅身份、安装世代、处理中断隔离与明确恢复已实现。后续继续 08 的领域 journal 提交桥接和实际消费者；09 的材料提取/资源契约；再完成 01–03 及其余实际消费者、文档与 Skill 的最终总验收。仍只交付本地改造，不以已完成切片替代整个任务。
+接续位置：05 的调度归位、安装运行独立与恢复链路，06 的执行策略及依赖复核，07 的 Native 装配与生成式公开声明均已实现相应链路；08 的订阅身份、安装世代、处理中断隔离、明确恢复及 Artifact journal 输入传播已实现。后续继续 08 的 Coding/Git 实际生产通知；09 的材料提取/资源契约；再完成 01–03 及其余实际消费者、文档与 Skill 的最终总验收。仍只交付本地改造，不以已完成切片替代整个任务。
 
 - 安装调用策略更新：删除启动时固定依赖目录、通道和时限的旧路径，每次 operation 使用当前依赖事实，经可信 beforeEffect 复核。query 动态拒绝 metered/写入/停用依赖；无关目录变化不影响本次调用。Sandbox 的单次时限在排队前复制，不进入 worker JSON，也不改 CPU、内存、频率或 grants。嵌套 Action/服务超时的 unknown 贯穿 HTTP 与公开 Action；插件捕获错误后不能继续写入或伪装成功。返回值违反 schema 也保留可能已提交的效果，撤下死进程，下一次明确调用可重新执行。手册、Skill 与包约定同步。
 
@@ -296,3 +302,9 @@ Native UI 兼容证据：Goals Manifest 明确只声明静态产品位置，内�
   整体构建通过，最终 28 文件 161/161，无跳过；69 包边界检查 errors 为空，diff whitespace 检查通过。包含真实 SQLite 两连接 CAS、事务故障、重启与迁移、明确 retry/skip 后的顺序及副作用，以及真实 Host/Chrome 的控制权限、取消、过期确认、读取失败保留输入和提交后历史。390px 窄屏浅色/深色截图均已检查，使用既有单选组件修复控件布局；截图在 `.impeccable/qa/review/plugin-event-recovery-{light,dark}.png`。日志 `/tmp/platform-event-recovery-final-build.log`、`/tmp/platform-event-recovery-regression.log`、`/tmp/platform-event-recovery-boundary.log`。无真实付费模型或外部副作用调用，未代表用户本人验收；领域桥接与材料契约仍未完成。
 
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-event-identity-boundary.log。回归期间未改源码、脚本、package.json 或 Skill。
+
+- Artifact 提交传播：Host 按项目观察既有 journal 的 Artifact 游标，其他连接的已提交失效/归档进入原输入图；外层事务未提交时不通知，启动直接重算当前固定事实。输入图拒绝不可用版本，处理器启动等待后和提交前复查原输入与当前实例；关闭取消等待，重新激活重新投递当前输入。Git 接入输入 guard，Text Stats 从输入状态保留失效原因，避免把不可用误显示为尚未选择。没有新增 Artifact 状态表、业务 outbox 或副作用重放路径。
+
+  整体构建通过。首轮 6 文件 31/32 捕获 Text Stats 状态退化，修复产品反馈后重新整体构建，最终 41 文件 252/252，无跳过；69 包边界 errors 为空，diff whitespace 检查通过。真实 SQLite 两连接与外层事务验证提交/回滚、跨项目隔离、重新激活和关闭；慢处理与启动等待验证旧输入零晚写入；已有真实 Coding Chrome 生命周期路径通过。日志 `/tmp/platform-artifact-bridge-final-build.log`、`/tmp/platform-artifact-bridge-regression.log`、`/tmp/platform-artifact-bridge-boundary.log`。未调用付费模型或外部服务，没有新增视觉布局，未代表用户本人验收。
+
+09 初步代码证据：Shelf 的 `pdf.ts` 自行解析 PDF 字符流，项目导入在 Host 使用 pdfjs，Jelly 的原生 PDF/OCR/音视频工具仍放在业务插件目录，HTML 文字/Markdown 提取也分散在 Shelf 与 Jelly Host。后续将解析器和系统工具归 Host，保留已有上传引用、各入口大小与取消策略、页码/时间定位和完整性表达；不能把 Pages 的任务卡/知识页生成或 Cognia 的业务引用一起搬入解析层。尚未实施该迁移。

@@ -57,7 +57,7 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, boardId
 
 async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   const failures: unknown[] = [];
-  await platform.events.close();
+  await platform.closeCoordination();
   for (const pluginId of platform.supervisor.enabledPluginIds()) {
     const active = platform.supervisor.state(pluginId);
     platform.supervisor.revoke(pluginId);
@@ -96,6 +96,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       board_id: ports.boardId,
       actor_id: ports.actorId,
       db: ports.store.db,
+      journal: ports.store,
       artifacts,
       ui: new UiHost(),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),

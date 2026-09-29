@@ -8,6 +8,8 @@
 
 LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy timeout；LocalSqliteJournal 借用连接处理日志/幂等。Host 负责模块 schema 的迁移顺序。runWithMolisWorkHome 将文件适配限定到当前 Home。
 
+`eventCursor(boardId, objectType?)` 可以只读取某类对象的 journal 游标。Host 用它发现同项目其他连接已提交的变化；调用方负责避开本连接尚未提交的事务。它不提供业务订阅身份、确认或副作用重放，这些仍由各 owner 管理。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。

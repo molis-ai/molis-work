@@ -4,6 +4,7 @@ import type {
   PluginDefinition,
   PluginStartContext,
   PluginEventDeliveryContext,
+  PluginInputDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 import { gitEventTypes } from "./events.js";
@@ -28,7 +29,7 @@ export interface GitPluginPorts {
   /** The change currently selected, for the `current` command input. */
   selectedPath?(): readonly string[] | null;
   /** The Host re-reads status; the Plugin only says when it should. */
-  onWorkingTreeChanged?(reason: "upstream" | "event" | "unavailable", delivery?: PluginEventDeliveryContext): void | Promise<void>;
+  onWorkingTreeChanged?(reason: "upstream" | "event" | "unavailable", delivery?: PluginEventDeliveryContext | PluginInputDeliveryContext): void | Promise<void>;
   onStop?(context: PluginStartContext): void | Promise<void>;
 }
 
@@ -75,8 +76,10 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
             title: commandId === "git.accept-run-changes" ? "接受变更" : objectId,
           };
         },
-        onUpstreamReady: async () => {
-          await ports.onWorkingTreeChanged?.("upstream");
+        onUpstreamReady: async (_inputs, delivery) => {
+          delivery.beforeEffect();
+          await ports.onWorkingTreeChanged?.("upstream", delivery);
+          delivery.beforeEffect();
         },
         onUpstreamUnavailable: async () => {
           repositoryReady = false;

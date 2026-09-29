@@ -84,6 +84,7 @@ node --import tsx --test --test-concurrency=1 tests/local-host.test.ts tests/web
   - 安装 owner 按已发布版本复用唯一执行定义，回滚不能用新对象替换 Runtime 已登记的同版本实现。版本切换先验证批准覆盖所需权限，执行定义只持有所需集合；卸载同时清除该插件的缓存，重装产生新定义。
   - `installed-plugin-host.ts` 按项目数据库拥有生成式安装运行；发现/恢复读取已发布工件和批准记录，不初始化创作 Workflow。Studio 只委托生命周期管理。正常关闭保留启用意图，用户停用不随重启撤销；关闭顺序是创作与预览、安装进程、其他项目插件、数据库。
   - 只装配和做 IO（连接、事务、文件、HTTP、进程），不复制 Module 的业务规则；能力注册不启动 SDK、CLI 或请求模型。
+  - 有 Artifact 输入的 PluginPlatform 观察同一项目连接的领域 journal，每秒核对已提交的 Artifact 游标；其他连接的提交也能触发既有输入图重算，不读取未提交的外层事务。启动读取当前固定事实，关闭先调用 `closeCoordination()` 停止观察、输入处理与事件，再停插件和关数据库。此路径刷新投影，不重放业务操作。
   - 安装器准备 npm 与 Desktop 资产但不自动发布；vendored 依赖的传递依赖必须能从标准 ancestor 解析。
 - 改动后必跑：`node scripts/run-tests.mjs tests/local-host.test.ts tests/local-host-actions.test.ts tests/action-before-effect.test.ts tests/action-model-scheduling.test.ts tests/action-read-compatibility.test.ts tests/installer-symlink-dependencies.test.ts`
 - 安装插件执行链额外验证：`node scripts/run-tests.mjs tests/installed-plugin-host.test.ts tests/installed-plugin-execution.test.ts tests/installed-plugin-policy.test.ts tests/generated-action-costs.test.ts tests/agent-built-plugins-reminders.test.ts tests/agent-built-plugins-network.test.ts`。

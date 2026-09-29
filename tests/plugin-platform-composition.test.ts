@@ -9,6 +9,8 @@ import type {
   PluginDefinition,
   PluginManifest,
   PluginEventsClient,
+  PluginOutputsClient,
+  PluginInputDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_ROUTE_PREFIX } from "@molis-ai/molis-work-plugin-runtime";
@@ -154,11 +156,12 @@ function project(directory: string) {
     board_id: DEMO_BOARD_ID,
     actor_id: "tester",
     db: store.db,
+    journal: store,
     artifacts,
     ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
-  return { store, platform };
+  return { store, platform, artifacts };
 }
 
 test('stopped activation event clients remain revoked after restart and bus close releases a waiting subscriber', async () => {
@@ -314,5 +317,77 @@ test("bindings, port values and undelivered events survive reopening the project
     second.store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('committed Artifact changes refresh existing inputs across connections and stop at project close', { timeout: 18000 }, async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'artifact-input-journal-'));
+  const { store, platform, artifacts } = project(directory);
+  const other = new LocalProjectDatabase(join(directory, 'board.db'));
+  const remote = new ArtifactsModule({ db: other.db, appendEvent: event => other.appendEvent(event) });
+  const recorder: Recorder = { received: [], delivered: [] };
+  let outputs!: PluginOutputsClient;
+  const contexts: PluginInputDeliveryContext[] = [];
+  let unavailable = 0;
+  let onUnavailable = Promise.withResolvers<void>();
+  const base = definitionFor(manifestFor({ id: CONSUMER, inputs: ['payload'] }), recorder);
+  const consumer: PluginDefinition = { ...base, async start(context) { return { ...await base.start(context) as PluginAppContribution,
+    onUpstreamReady: (_inputs, delivery) => { delivery.beforeEffect(); contexts.push(delivery); },
+    onUpstreamUnavailable: () => { unavailable++; onUnavailable.resolve(); } }; } };
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  try {
+    await platform.start([
+      { definition: definitionFor(manifestFor({ id: PRODUCER, outputs: ['payload'] }), recorder, services => { outputs = (services as { outputs: PluginOutputsClient }).outputs; }) },
+      { definition: consumer },
+    ]);
+    platform.wiring.bind({ board_id: DEMO_BOARD_ID, target_plugin_id: CONSUMER, target_port: 'payload',
+      source_plugin_id: PRODUCER, source_port: 'payload', origin: 'user', actor_id: 'tester' });
+    const first = outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'first' } }).artifact;
+    await platform.wiring.drain(); assert.equal(contexts.length, 1);
+    // Let the watcher establish its cursor; repeating the current projection is idempotent.
+    await delay(1100); assert.equal(contexts.length, 1);
+    store.db.prepare('INSERT INTO boards (board_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
+      .run('other-board', 'Other', new Date().toISOString(), new Date().toISOString());
+    const originalEvaluate = platform.wiring.evaluateAll.bind(platform.wiring); let refreshes = 0;
+    platform.wiring.evaluateAll = () => { refreshes++; originalEvaluate(); };
+    store.appendEvent({ eventId: 'other-project-artifact', boardId: 'other-board', actorId: 'tester', type: 'artifact.published',
+      objectType: 'artifact', objectId: 'unrelated@1', reason: 'Other project', payload: {}, at: new Date().toISOString() });
+    await delay(1100); assert.equal(refreshes, 0, 'another project does not invalidate this input graph');
+    assert.throws(() => createPluginPlatform({ actions: pluginActions(store, DEMO_BOARD_ID), board_id: DEMO_BOARD_ID,
+      actor_id: 'tester', db: store.db, journal: other, artifacts, ui: new UiHost(),
+      privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }), /当前项目连接/u);
+    store.db.exec('BEGIN IMMEDIATE');
+    artifacts.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...first, reason: 'rolled back' });
+    await delay(1100);
+    assert.equal(unavailable, 0); assert.equal(contexts[0]!.signal.aborted, false);
+    store.db.exec('ROLLBACK'); await delay(1100);
+    assert.equal(unavailable, 0); contexts[0]!.beforeEffect();
+    assert.equal(artifacts.query.getArtifactVersion(DEMO_BOARD_ID, first)!.availability, 'available');
+
+    other.db.exec('BEGIN IMMEDIATE');
+    remote.commands.markUnavailable({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...first, reason: 'removed remotely' });
+    await delay(1100); assert.equal(unavailable, 0, 'uncommitted work on another connection is invisible');
+    other.db.exec('COMMIT'); await onUnavailable.promise;
+    assert.equal(unavailable, 1); assert.equal(contexts[0]!.signal.aborted, true);
+    assert.equal(platform.wiring.status(CONSUMER).status, 'missing');
+
+    const second = outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'second' } }).artifact;
+    await platform.wiring.drain(); assert.equal(contexts.length, 2);
+    onUnavailable = Promise.withResolvers<void>();
+    remote.commands.archiveVersion({ board_id: DEMO_BOARD_ID, actor_id: 'tester', ...second });
+    await onUnavailable.promise; assert.equal(unavailable, 2);
+    assert.equal(artifacts.query.getArtifactVersion(DEMO_BOARD_ID, second)!.lifecycle_state, 'archived');
+    outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'third' } });
+    await platform.wiring.drain(); assert.equal(contexts.length, 3);
+    await platform.supervisor.restart(CONSUMER); await platform.wiring.drain();
+    assert.equal(contexts.length, 4, 'a new activation receives the existing fixed input');
+    assert.throws(() => contexts[2]!.beforeEffect()); contexts[3]!.beforeEffect();
+    await platform.closeCoordination(); assert.equal(contexts[3]!.signal.aborted, true);
+    outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'after close' } });
+    await delay(1100); assert.equal(contexts.length, 4); assert.equal(unavailable, 2);
+  } finally {
+    if (store.db.inTransaction) store.db.exec('ROLLBACK');
+    if (other.db.inTransaction) other.db.exec('ROLLBACK');
+    await platform.closeCoordination(); other.close(); store.close(); rmSync(directory, { recursive: true, force: true });
   }
 });

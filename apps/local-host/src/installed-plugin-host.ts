@@ -91,7 +91,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return catalogPending;
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
-  const platform = createPluginPlatform({ board_id: boardId, actor_id: options.actorId ?? 'web-user', db: store.db, actions, ui: new UiHost(),
+  const platform = createPluginPlatform({ board_id: boardId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
@@ -239,7 +239,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const close = async () => {
     if (closed) return;
     closed = true; stopScheduledRuns?.(); disposePlatform(); disposeScheduledOperations(); disposeReminders?.();
-    await platform.events.close();
+    await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];
     for (const pluginId of platform.supervisor.enabledPluginIds()) {

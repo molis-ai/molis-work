@@ -111,6 +111,7 @@ SSOT：`specs/archive/plugin-outbound-mcp/spec.md`。
 - 输出口：`services.outputs.publish`、`invalidate(port, 给人看的原因)`、`retain(引用)`。同一轮输入是否算一组，由 Host 创建 client 时附上 `scope_key`。`publish` 参数里没有这个字段。
 - `input_groups`：组之间换着用；选中的那一组端口生效，其余不绑也不算失败。
 - 完整输入一次送达 `onUpstreamReady`；失效走 `onUpstreamUnavailable`。Host 不投递半套。
+- 输入状态的 `missing.reason` 区分未选择和已失效，界面保留 waiting/unavailable 的语义。输入通知刷新当前投影，不是一次性业务命令。`onUpstreamReady(inputs, context)` 接到可用且未归档的固定版本；异步读取后、更新投影前调用 `context.beforeEffect()`，并把 `context.signal` 传给可取消操作。Host 从已提交的领域 journal 发现失效/归档并重算既有输入图。新实例重新读取当前输入，不能把重启通知当作再次执行外部操作的授权。
 
 ## 插件事件总线（不是判断场景）
 

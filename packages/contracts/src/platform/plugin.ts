@@ -22,6 +22,7 @@ import type {
 } from "./plugin-events.js";
 import type {
   PluginInputsClient,
+  PluginInputDeliveryContext,
   PluginOutputsClient,
   PluginPortsDeclaration,
   PluginUpstreamReadyInputs,
@@ -314,7 +315,7 @@ export interface PluginAppContribution {
   /** Complete, fixed input set. The Host never delivers a partial change. */
   onUpstreamReady?(
     inputs: PluginUpstreamReadyInputs,
-    context: { signal: AbortSignal },
+    context: PluginInputDeliveryContext,
   ): void | Promise<void>;
   onUpstreamUnavailable?(reason: PluginUpstreamUnavailableReason): void | Promise<void>;
   onEvent?(

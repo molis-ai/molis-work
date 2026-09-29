@@ -33,10 +33,11 @@ export class LocalSqliteJournal {
     return this.db.transaction(fn).immediate();
   }
 
-  eventCursor(boardId: string): number {
-    const row = this.db
-      .prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE board_id = ?")
-      .get(boardId) as Row;
+  eventCursor(boardId: string, objectType?: string): number {
+    const row = objectType === undefined
+      ? this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE board_id = ?").get(boardId) as Row
+      : this.db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE board_id = ? AND object_type = ?")
+        .get(boardId, objectType) as Row;
     return number(row.cursor);
   }
 

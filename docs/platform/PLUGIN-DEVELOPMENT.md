@@ -217,3 +217,5 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 Coding 草稿、Cognia 知识生成等工具为空的调用使用 Home 共享推理入口；插件拥有提示词和领域校验，Host 拥有模型/凭据绑定。需要结构结果、执行引用、进度或 typed usage 时使用 `hostTextGeneration`，标准接线见 [Prologue AI 手册](PROLOGUE-AI.md) 与 [开发 Skill](../../skills/molis-prologue-ai/SKILL.md)。
 
 Host Capability 可选调用参数 `signal` 由 Plugin SDK 传递给 Host invocation；取消只收紧本次操作，不授予任何身份/权限。`before_effect` 与原调用持续授权检查仍保留，不能用成功收到模型文字代替提交前检查。
+
+Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstreamReady(inputs, context)` 接到完整固定版本；异步读取后、更新投影前调用 `context.beforeEffect()`，并把 `context.signal` 传给可取消操作。Host 从领域已提交 journal 发现失效/归档并重新计算已有输入图；不可用版本不再投递，旧实例和旧输入的晚结果拒绝提交。新实例重新读取当前输入，不能把重启通知当成再次执行外部操作的授权。

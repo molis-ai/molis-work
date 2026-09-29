@@ -1,6 +1,6 @@
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { GATEWAY_TOOLS, gatewayProblem, gatewayReview, prologueActionGateway } from "./prologue-action-gateway.js";
-import { ANNOUNCE_HELD, announcesWithoutActing } from "./announce-guard.js";
+import { ANNOUNCE_HELD, MEMORY_CLAIM_HELD, announcesWithoutActing, claimsMemoryChange } from "./announce-guard.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -196,6 +196,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const gatewayRuns = new Map<string, NonNullable<PrologueStartInput["action_gateway"]>>();
   const gatewayHooks = new Set<string>();
   // Rounds that may change things: an ending that only announces the next step is held once per run.
+  /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
+  const memoryRounds = new Map<string, { keep: number; forget: number }>();
   const stopGuards = new Map<string, { writing: boolean; held: Set<string> }>();
   const actionControllers = new Map<string, AbortController>();
   const runRoots = new Map<string, ExactRef<"authorized-root">>();
@@ -931,8 +933,17 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const actionController = new AbortController();
       // None sessions do not construct or adopt any tool pack.
       // Business work with the gateway binds its three tools instead of one per action.
-      const actionTools = none ? undefined : input.action_gateway
-        ? { ...prologueActionGateway(input.action_gateway, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
+      // What this round really kept or forgot, for the stop check below: a reply may not claim what no call did.
+      const memoryDone = { keep: 0, forget: 0 };
+      const memory = input.action_gateway?.client.memory;
+      if (memory) memoryRounds.set(input.session_id, memoryDone); else memoryRounds.delete(input.session_id);
+      const gatewayForRun = input.action_gateway && memory ? { ...input.action_gateway, client: { ...input.action_gateway.client, memory: {
+        remember: async (value: Parameters<typeof memory.remember>[0]) => { const kept = await memory.remember(value); memoryDone.keep += 1; return kept; },
+        list: () => memory.list(),
+        forget: async (id: string) => { const result = await memory.forget(id); if (result.forgotten) memoryDone.forget += 1; return result; },
+      } } } : input.action_gateway;
+      const actionTools = none ? undefined : gatewayForRun
+        ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
         : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
       if (input.action_gateway) {
         gatewayRuns.set(input.session_id, input.action_gateway);
@@ -956,7 +967,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
         stopGuards.set(sessionId, created);
         runtime.hooks.register({ id: `molis-announce-guard-${sessionId}`, event: "session-stop", forSession: sessionId, handler: async context => {
           const run = context.origin?.run, text = (context.input as { text?: unknown } | undefined)?.text;
-          if (!created.writing || !run || typeof text !== "string" || created.held.has(run) || !announcesWithoutActing(text)) return { kind: "allow" as const };
+          if (!run || typeof text !== "string" || created.held.has(run)) return { kind: "allow" as const };
+          // A claim of keeping or forgetting that no call made this round is held once, whatever the round's execution.
+          const claim = memoryRounds.has(sessionId) ? claimsMemoryChange(text) : null;
+          if (claim && memoryRounds.get(sessionId)![claim] === 0) { created.held.add(run); return { kind: "deny" as const, why: MEMORY_CLAIM_HELD[claim] }; }
+          if (!created.writing || !announcesWithoutActing(text)) return { kind: "allow" as const };
           created.held.add(run);
           return { kind: "deny" as const, why: ANNOUNCE_HELD };
         } });

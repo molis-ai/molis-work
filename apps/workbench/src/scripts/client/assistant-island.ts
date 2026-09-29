@@ -573,7 +573,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     island.querySelector('[data-assistant-control="pause"]').hidden = state !== "running";
     island.querySelector('[data-assistant-control="resume"]').hidden = state !== "paused";
     /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
-    const liveChildren = work && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
+    const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
     island.querySelector('[data-assistant-control="stop"]').hidden = !isLive(state) && !liveChildren;
   };
   const showProblem = (next) => { problem = next; render(); };
@@ -626,10 +626,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const delegatedBox = island.querySelector("[data-assistant-delegated]");
   const renderDelegated = (work) => {
     if (!delegatedBox) return;
-    const children = work && view.delegated ? view.delegated : [];
+    const children = work && view && view.delegated ? view.delegated : [];
     const parent = work && work.delegated_by ? work.delegated_by : null;
-    const scheduled = work && view.scheduled ? view.scheduled : [];
-    const unsettled = work && view.unsettled ? view.unsettled : [];
+    const scheduled = work && view && view.scheduled ? view.scheduled : [];
+    const unsettled = work && view && view.unsettled ? view.unsettled : [];
     const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id,
       scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome]), unsettled.map((u) => [u.change_id, u.state])]);
     if (delegatedBox.dataset.signature === signature) return;
@@ -827,8 +827,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const noticesPop = island.querySelector("[data-assistant-notices]");
   let notices = [];
   const shownSurface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
-  const paintNotices = () => {
+  const paintNotices = (force) => {
     if (!noticesPop) return;
+    // Polling repaints only what changed, and keeps focus on the same button: a list rebuilt under the person's
+    // finger or keyboard focus loses the tap or drops focus to the page.
+    const signature = JSON.stringify(notices.map((notice) => [notice.notice_id, notice.text, notice.held && notice.held.reason]));
+    if (!force && noticesPop.dataset.signature === signature) return;
+    noticesPop.dataset.signature = signature;
+    const focused = noticesPop.contains(document.activeElement) ? document.activeElement : null;
+    const focusKey = focused ? [focused.dataset.noticeId, focused.dataset.noticeAction] : null;
     noticesPop.replaceChildren(el("p", "assistant-popover-title", L("需要你看看")));
     const open = notices.filter((notice) => !notice.held), held = notices.filter((notice) => notice.held);
     const row = (notice) => {
@@ -837,8 +844,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (notice.held) item.append(el("p", "assistant-material-origin", L("按你的规则暂不提醒") + "：" + notice.held.reason));
       const actions = el("div", "assistant-offer-actions");
       const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开")); go.type = "button";
+      go.dataset.noticeId = notice.notice_id; go.dataset.noticeAction = "open";
+      go.setAttribute("aria-label", L("打开") + "：" + notice.text);
       go.addEventListener("click", async () => { setNotices(false); await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen"); });
       const done = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("知道了")); done.type = "button";
+      done.dataset.noticeId = notice.notice_id; done.dataset.noticeAction = "dismiss";
+      done.setAttribute("aria-label", L("知道了") + "：" + notice.text);
       done.addEventListener("click", () => settleNotice({ notice_id: notice.notice_id }, "dismissed"));
       actions.append(go, done);
       item.append(actions);
@@ -852,6 +863,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       noticesPop.append(quiet);
     }
     if (!notices.length) noticesPop.append(el("p", "assistant-material-origin", L("现在没有需要你看的事")));
+    if (focusKey) (noticesPop.querySelector('[data-notice-id="' + focusKey[0] + '"][data-notice-action="' + focusKey[1] + '"]') || noticesPop.querySelector("button"))?.focus();
   };
   const paintAttention = () => {
     const open = notices.filter((notice) => !notice.held).length;
@@ -866,7 +878,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!noticesPop) return;
     noticesPop.hidden = !open;
     attentionButton?.setAttribute("aria-expanded", String(open));
-    if (open) { paintNotices(); noticesPop.querySelector("button")?.focus(); }
+    if (open) { paintNotices(true); noticesPop.querySelector("button")?.focus(); }
   };
   const loadNotices = async () => {
     try { notices = (await api("/notices?surface=" + encodeURIComponent(shownSurface()))).notices || []; }
@@ -1193,6 +1205,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   input.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
     event.preventDefault();
+    // Nothing typed: Enter opens the work the next Send goes to — the way in from the keyboard, and on a phone,
+    // where the work chip steps aside while the input has focus.
+    if (!String(input.value || "").trim()) { if (currentWork()) { setPanel(true); refresh().then(schedule); } return; }
     syncSend();
     if (!send.disabled) composer.requestSubmit(send);
   });

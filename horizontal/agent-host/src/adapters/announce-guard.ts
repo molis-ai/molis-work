@@ -21,3 +21,26 @@ export function announcesWithoutActing(text: string): boolean {
 /** What the model reads when its announcement is held. */
 export const ANNOUNCE_HELD =
   "Your last message only said what you would do next and called no tool, so nothing has happened yet. If the work is not finished, call the tools now. If it is finished, needs the person's decision, or cannot proceed, say so plainly.";
+
+/**
+ * A reply that says something was remembered or forgotten, from a round in which no such call succeeded. Seen from
+ * MiniMax-M3: it listed the memories and then answered “记下了……”, keeping nothing. Only the closing paragraph counts.
+ */
+const KEPT = /已(?:经)?(?:记下|记住)|(?:记下|记住)(?:了|啦)|已(?:经)?(?:保存|存)(?:为|到|进)(?:记忆|偏好)|\b(?:I(?:'ve| have) (?:noted|saved|remembered)|noted that)\b/i;
+const FORGOT = /已(?:经)?(?:删除|删掉|忘掉|忘记)|(?:删除|删掉|忘掉|忘记)(?:了|啦)|\bI(?:'ve| have) (?:forgotten|deleted|removed)\b/i;
+// Only about memory: a note written into a document (“已记下会议要点”) or a deleted page is a business change, not this.
+const ABOUT_MEMORY = /记忆|偏好|以后|生效|适用|记住的|\b(?:memory|memories|preference|from now on)\b/i;
+const NOT_DONE = /(?:没有|没|未|不会|无法|不能)(?:记下|记住|保存|删除|删掉|忘掉)/;
+export function claimsMemoryChange(text: string): "keep" | "forget" | null {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length > 1200 || /[？?]\s*$/.test(trimmed) || !ABOUT_MEMORY.test(trimmed) || NOT_DONE.test(trimmed)) return null;
+  if (FORGOT.test(trimmed)) return "forget";
+  if (KEPT.test(trimmed)) return "keep";
+  return null;
+}
+
+/** What the model reads when it claimed a memory change it did not make. */
+export const MEMORY_CLAIM_HELD = {
+  keep: "You said you remembered it, but no remember call succeeded in this round, so nothing was kept. Call remember now if the person asked you to keep it; otherwise say plainly that it was not kept.",
+  forget: "You said you forgot or deleted it, but no forget-memory call succeeded in this round, so it is still kept. Call forget-memory now if the person asked; otherwise say plainly that it was not deleted.",
+} as const;

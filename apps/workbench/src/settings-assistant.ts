@@ -230,7 +230,9 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
         const next = window.prompt(L("修改这条记忆"), memory.text);
         if (next !== null && next.trim() && next.trim() !== memory.text) runMemory(() => memoryApi({ memory_id: memory.memory_id, action: "update", text: next.trim() }));
       });
+      edit.setAttribute("aria-label", L("修改") + "：" + memory.text);
       const toggle = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L(memory.disabled ? "启用" : "停用")); toggle.type = "button";
+      toggle.setAttribute("aria-label", L(memory.disabled ? "启用" : "停用") + "：" + memory.text);
       toggle.addEventListener("click", () => runMemory(() => memoryApi({ memory_id: memory.memory_id, action: memory.disabled ? "enable" : "disable" })));
       const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("删除")); remove.type = "button";
       remove.setAttribute("aria-label", L("删除") + "：" + memory.text);

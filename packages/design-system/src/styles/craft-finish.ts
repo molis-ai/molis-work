@@ -765,6 +765,14 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-popover { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; }
     ${ASSIST} .assistant-panel, ${SHELL} .dock-window { position: fixed; left: 8px; right: 8px; bottom: 64px; width: auto; height: min(70dvh, 560px); }
     ${ASSIST} .assistant-target { max-width: 30%; }
+    /* The panel's head on a phone: the work's title keeps the room; the scope chip steps aside and the head's
+       buttons show their icons only (their names stay as accessible labels). */
+    ${ASSIST} .assistant-head { gap: 4px; }
+    ${ASSIST} .assistant-work-switch { flex: 1 1 auto; min-width: 0; max-width: none; }
+    ${ASSIST} .assistant-work-scope { display: none; }
+    ${ASSIST} .assistant-work-executor { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+    ${ASSIST} .assistant-head-actions .dock-window-action > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    ${ASSIST} .assistant-head-actions .dock-window-action { white-space: nowrap; }
     /* On a phone the chips sit compact beside a tappable input; while typing, the input takes the whole bar. */
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 24px; min-width: 24px; }

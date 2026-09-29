@@ -97,6 +97,15 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.equal(refused?.state, "failed");
     assert.equal((await service.memories(null)).length, 1);
 
+    // A reply that claims it kept something no call kept is held once; the round then really keeps it.
+    script.push(
+      () => reply({ name: "list-memories", input: {} }),
+      () => reply(undefined, "记下了：周会在周三下午两点，以后在本项目里都按这个来。"),
+      body => { assert.match(JSON.stringify(body.messages), /no remember call succeeded/); return reply({ name: "remember", input: { text: "周会在周三下午两点", scope: "project", said: "记住：周会在周三下午两点" } }); },
+      () => reply(undefined, "记下了：周会在周三下午两点（只在项目甲里生效）。"));
+    await round("记住：周会在周三下午两点", projectA, "req-memory-010");
+    assert.ok((await service.memories("project-a")).some(item => item.text === "周会在周三下午两点"), "held once, then kept for real");
+
     // Forming memories switched off: the round is not given the tools at all; what is kept is still used.
     service.saveMemoryPrefs({ form: false });
     const noForm = await round("以后都用英文回答", projectA, "req-memory-008");

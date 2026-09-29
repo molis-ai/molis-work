@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { announcesWithoutActing } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { announcesWithoutActing, claimsMemoryChange } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("an ending that only announces the next step is recognised; results, questions and blockers are not", () => {
   // Seen from MiniMax-M3 in real Coding rounds that then ended with nothing done.
@@ -14,4 +14,17 @@ test("an ending that only announces the next step is recognised; results, questi
     "现在是 **19:04**（洛杉矶时区）。", "现在有 3 个目标还没开始。", "开始时间是下周一。"]) {
     assert.equal(announcesWithoutActing(text), false, text);
   }
+});
+
+test("a reply that claims a memory was kept or forgotten is recognised; saying it was not is not a claim", () => {
+  // Seen from MiniMax-M3: it listed the memories, then answered as if it had kept the new one.
+  assert.equal(claimsMemoryChange("记下了：**Q4 plan 项目的周会固定在周三下午两点**。这条只在本项目里生效。"), "keep");
+  assert.equal(claimsMemoryChange("已记住你的偏好：回答用要点列表。"), "keep");
+  assert.equal(claimsMemoryChange("- 已删除，现在没有保留的记忆"), "forget");
+  assert.equal(claimsMemoryChange("没有记下：这是个人工作，不能记为项目记忆。"), null);
+  assert.equal(claimsMemoryChange("要我把这条记下来吗？"), null);
+  assert.equal(claimsMemoryChange("会议安排如下：周三下午两点。"), null);
+  // Business changes in the same words are not memory claims.
+  assert.equal(claimsMemoryChange("已记下会议要点到「周会纪要」。"), null);
+  assert.equal(claimsMemoryChange("已删除文档「草稿」。"), null);
 });

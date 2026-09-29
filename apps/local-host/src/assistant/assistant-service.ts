@@ -13,7 +13,7 @@ import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
 import { directEligible } from "./assistant-authority.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type DueReminderCollection, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AssistantStoreError, type AssistantStore, type StoredCard, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -51,6 +51,8 @@ export interface AssistantServicePorts {
   personActions?(work: StoredWork): Promise<PersonActions>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: StoredWork): Promise<PersonActions>;
+  /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
+  homeActions?(): Promise<PersonActions>;
   /** The Characters the person published in a project, each saying whether it can run now. */
   characters?(project: LocalHostProjectReference): Promise<AssistantCharacterChoice[]>;
   /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
@@ -71,6 +73,10 @@ const MAX_DELEGATED = 6, MAX_ACTIVE_DELEGATED = 3, MAX_FOLLOW_UPS = 2;
 
 /** Notices older than this are no longer news: resolved quietly rather than shown late. */
 const NOTICE_TTL_MS = 48 * 60 * 60 * 1000;
+/** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
+const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
+/** A reminder told later than this after its time is said to be missed. */
+const REMINDER_LATE_MS = 10 * 60 * 1000;
 
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
@@ -478,6 +484,8 @@ export class AssistantService {
   }
 
   settleNotices(target: { notice_id?: string; work_id?: string }, state: "seen" | "dismissed"): number {
+    // Reminders belong to no work: they are settled one by one, never as "every notice of work ''".
+    if (!target.notice_id && !target.work_id) return 0;
     // The merged new-material notice stands for all of that work's: settling it settles them together.
     const material = target.notice_id ? this.store.openNotices(this.actorId).find(item => item.notice_id === target.notice_id && item.kind === "material") : undefined;
     if (material) return this.store.openNotices(this.actorId).filter(item => item.kind === "material" && item.work_id === material.work_id)
@@ -583,6 +591,45 @@ export class AssistantService {
     this.store.setSetting(this.actorId, "material_seen", JSON.stringify([...seen].slice(-2000)));
     return raised;
   }
+
+  /**
+   * Reminders the person set in Plugins that came due since the last look: each told once, as a notice subject to the
+   * person's rules like any other. Asked of the Plugins that declare due reminders; nothing is started or changed.
+   */
+  async sweepReminders(): Promise<number> {
+    if (this.#sweeping || !this.ports.homeActions) return 0;
+    this.#sweeping = true;
+    try {
+      const now = this.now(), last = this.store.setting(this.actorId, "reminder_sweep");
+      // The first look starts a few minutes back; later ones from where the last stopped (bounded when Molis Work was off).
+      const from = new Date(Math.max(last ? Date.parse(last) : now.getTime() - REMINDER_LATE_MS, now.getTime() - REMINDER_LOOKBACK_MS));
+      const window = { from: from.toISOString(), to: new Date(now.getTime() + 1).toISOString() };
+      const actions = await withinTime(this.ports.homeActions());
+      const providers = (await withinTime(actions.discover())).filter(view => view.action.input_type === DUE_REMINDERS_INPUT_TYPE && view.action.output_type === DUE_REMINDERS_OUTPUT_TYPE && view.availability.available);
+      let raised = 0, missed = false;
+      for (const provider of providers) {
+        let collection: DueReminderCollection;
+        try { collection = await withinTime(actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window)) as DueReminderCollection; }
+        catch { missed = true; continue; }
+        for (const reminder of collection.reminders) {
+          const due = Date.parse(reminder.due_at);
+          if (!(due >= from.getTime() && due <= now.getTime())) continue;
+          const late = now.getTime() - due > REMINDER_LATE_MS;
+          const at = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false, ...(this.ports.timeZone ? { timeZone: this.ports.timeZone } : {}) }).format(new Date(due));
+          const stored = this.store.raiseNotice(this.actorId, { kind: "reminder", work_id: "", work_title: collection.source.title,
+            text: `${late ? "错过的提醒" : "提醒"}（${collection.source.title} · ${at}）：${reminder.title.slice(0, 120)}`,
+            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title: reminder.title.slice(0, 120), project_id: reminder.project_id } } : {}) },
+            `reminder:${provider.provider.provider_id}:${reminder.reminder_id}`);
+          if (stored) raised += 1;
+        }
+      }
+      // A Plugin that could not answer is asked again for the same stretch next time (each reminder is still told once).
+      if (!missed) this.store.setSetting(this.actorId, "reminder_sweep", now.toISOString());
+      return raised;
+    } finally { this.#sweeping = false; }
+  }
+
+  #sweeping = false;
 
   rules(): AssistantRule[] { return this.store.rules(this.actorId); }
 
@@ -707,7 +754,7 @@ export class AssistantService {
 
   /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
   saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
-    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material"];
+    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material", "reminder"];
     if (!input || !["quiet", "pause"].includes(input.kind)) throw new AssistantError("assistant.invalid", "规则只能是“在某处不提醒”或“暂停提醒”");
     const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
     const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];

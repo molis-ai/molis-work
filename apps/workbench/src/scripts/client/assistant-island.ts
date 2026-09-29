@@ -920,7 +920,22 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开")); go.type = "button";
       go.dataset.noticeId = notice.notice_id; go.dataset.noticeAction = "open";
       go.setAttribute("aria-label", L("打开") + "：" + notice.text);
-      go.addEventListener("click", async () => { setNotices(false); await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen"); });
+      go.addEventListener("click", async () => {
+        setNotices(false);
+        // A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page.
+        if (notice.open) {
+          void settleNotice({ notice_id: notice.notice_id }, "seen");
+          const where = notice.open.project_id || "personal", here = project ? project.id : "personal";
+          if (where === here && host.openItem) { host.openItem(notice.open.surface, notice.open.id, notice.open.title); return; }
+          const url = new URL("/projects/" + encodeURIComponent(where) + "/", location.origin);
+          url.searchParams.set("openPlugin", notice.open.surface); url.searchParams.set("openItem", notice.open.id); url.searchParams.set("openTitle", notice.open.title);
+          const desktop = new URLSearchParams(location.search).get("desktop"); if (desktop) url.searchParams.set("desktop", desktop);
+          location.assign(url.pathname + url.search);
+          return;
+        }
+        await switchTo(notice.work_id); setPanel(true); void settleNotice({ work_id: notice.work_id }, "seen");
+      });
+      if (notice.kind === "reminder" && !notice.open) go.hidden = true;
       const done = el("button", "mw-btn mw-btn--ghost mw-btn--sm", L("知道了")); done.type = "button";
       done.dataset.noticeId = notice.notice_id; done.dataset.noticeAction = "dismiss";
       done.setAttribute("aria-label", L("知道了") + "：" + notice.text);

@@ -15,6 +15,7 @@ export function renderAssistantSettings({ L, projectId }: { L(text: string): str
         <div class="assistant-rule-surfaces" data-assistant-rule-surfaces></div>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="failed" checked> ${L("这一轮失败仍然提醒")}</label>
         <label class="settings-check"><input type="checkbox" data-assistant-rule-except="needs-decision"> ${L("需要我决定时仍然提醒")}</label>
+        <label class="settings-check"><input type="checkbox" data-assistant-rule-except="reminder" checked> ${L("我自己设的提醒到时间仍然提醒")}</label>
         <button class="mw-btn mw-btn--secondary mw-btn--sm" type="submit">${L("添加规则")}</button>
       </form>
       <form class="assistant-rule-form" data-assistant-rule-pause>
@@ -180,7 +181,7 @@ export const ASSISTANT_SETTINGS_CLIENT_SCRIPT = String.raw`
   };
   const SURFACES = [["pages", "Pages"], ["coding", "Coding"], ["goals", "Goals"], ["jelly", "Jelly"], ["cognia", "Cognia"], ["dataset", "Dataset"], ["form", "Forms"], ["workflows", "工作流程"], ["lingguang", "灵光"], ["home", "项目首页"]];
   const surfaceName = (id) => (SURFACES.find((row) => row[0] === id) || [id, id])[1];
-  const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料" };
+  const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料", reminder: "你设的提醒" };
   const rulesList = root.querySelector("[data-assistant-rules-list]");
   const rulesError = root.querySelector("[data-assistant-rules-error]");
   const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");

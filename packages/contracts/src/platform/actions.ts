@@ -5,6 +5,8 @@ import { SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, SUBJECT_CONTEXT_INPUT_SCH
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_SCHEMA, type SubjectOfferChoice } from "./action-offers.js";
 import { HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_COLLECTION_SCHEMA } from "./home-events.js";
 export * from "./home-events.js";
+import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, DUE_REMINDER_WINDOW_SCHEMA, DUE_REMINDER_COLLECTION_SCHEMA } from "./due-reminders.js";
+export * from "./due-reminders.js";
 export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
@@ -521,6 +523,14 @@ export function inspectActionDeclarations(definitions: unknown, scenes: unknown)
             || canonicalSchema(a.input_schema) !== canonicalSchema(HOME_EVENT_WINDOW_SCHEMA)
             || canonicalSchema(a.output_schema) !== canonicalSchema(HOME_EVENT_COLLECTION_SCHEMA)) {
             problems.push(`${key} 首页事件查询必须使用完整规范合同`);
+          }
+        }
+        if (a.input_type === DUE_REMINDERS_INPUT_TYPE || a.output_type === DUE_REMINDERS_OUTPUT_TYPE) {
+          if (raw.operation !== "query" || a.kind !== "query" || a.scope !== "home"
+            || a.input_type !== DUE_REMINDERS_INPUT_TYPE || a.output_type !== DUE_REMINDERS_OUTPUT_TYPE
+            || canonicalSchema(a.input_schema) !== canonicalSchema(DUE_REMINDER_WINDOW_SCHEMA)
+            || canonicalSchema(a.output_schema) !== canonicalSchema(DUE_REMINDER_COLLECTION_SCHEMA)) {
+            problems.push(`${key} 到期提醒查询必须是 Home 范围、使用完整规范合同`);
           }
         }
         if (a.background_job !== undefined) {

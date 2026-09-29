@@ -208,8 +208,13 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => { await assistant().scanNewMaterial(); })
       .catch(error => console.warn("[assistant] 新资料没有读到", error)), 300_000);
     assistantTimer.unref();
+    // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
+    const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => { await assistant().sweepReminders(); })
+      .catch(error => console.warn("[assistant] 到期提醒没有读到", error)), 60_000);
+    reminderTimer.unref();
     server.once("close", () => {
       clearInterval(assistantTimer);
+      clearInterval(reminderTimer);
       im.close();
       void closeExperiments(storageHome);
       clearInterval(schedulerTimer);

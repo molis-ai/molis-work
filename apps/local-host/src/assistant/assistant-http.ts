@@ -59,6 +59,14 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS), action, input),
       };
     },
+    // The person's Home, for the reminders they set in Plugins.
+    homeActions: async () => {
+      const client = ports.localHost.homeActionClient();
+      return {
+        discover: async () => client.discover(await localWebActionContext(ports.localHost, undefined, LOCAL_OWNER_PERMISSIONS)),
+        invoke: async (action, input) => client.invoke(await localWebActionContext(ports.localHost, undefined, LOCAL_OWNER_PERMISSIONS), action, input),
+      };
+    },
     // Reading related objects back from their owners, as the person: the work's project, or the Home for personal work.
     scopeActions: async work => {
       const reference = work.project_ref;

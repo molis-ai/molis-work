@@ -46,6 +46,12 @@ test("new material that shares a Goal with a live work raises one merged notice;
     feed.push(item("a", "竞品发布了 Q4 路线图", "2026-09-29T09:01:00.000Z", ["g-q4"]), item("b", "午餐菜单", "2026-09-29T09:02:00.000Z", []),
       item("c", "另一个项目的周报", "2026-09-29T09:03:00.000Z", ["g-other"]));
     assert.equal(await service.scanNewMaterial(), 1, "only the item that shares the work's Goal");
+    // Each look leaves a record of how far it got in each project, for diagnostics; looks never overlap.
+    const record = JSON.parse(store.setting("web-user", "material_scan") ?? "{}");
+    assert.equal(record.raised, 1);
+    assert.ok(record.finished_at && record.projects[0].sources >= 1 && record.projects[0].goals >= 1 && record.projects[0].events >= 1, JSON.stringify(record));
+    const overlapping = [service.scanNewMaterial(), service.scanNewMaterial()];
+    assert.equal((await Promise.all(overlapping))[1], 0, "a look already running is not joined by another");
     const [notice] = service.notices(null);
     assert.equal(notice!.kind, "material");
     assert.match(notice!.text, /Feed 有新内容「竞品发布了 Q4 路线图」，和这项工作的目标「Q4 计划」有关/);

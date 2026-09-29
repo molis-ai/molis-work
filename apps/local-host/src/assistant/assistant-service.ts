@@ -158,6 +158,15 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
   });
 }
 
+/** One project in a look for new material: how far the look got there. */
+interface ScanLook { project_id: string; works: number; capabilities?: number; sources?: number; goals?: number; events?: number; problem?: string }
+
+/** A step of a background look that takes too long is given up (as a failure), so it never holds up the next look. */
+function withinTime<T>(step: Promise<T>, ms = 20_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([step, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("读取超时")), ms); })]).finally(() => clearTimeout(timer));
+}
+
 /** PNG, JPEG, GIF or WebP, by the bytes themselves. */
 function looksLikeImage(bytes: Buffer): boolean {
   const head = bytes.subarray(0, 12).toString("latin1");
@@ -470,6 +479,27 @@ export class AssistantService {
    * out; nothing here starts a round, so a notice cannot feed itself. Looks from where it last stopped.
    */
   async scanNewMaterial(): Promise<number> {
+    // One look at a time: a look still running (a slow owner) is not joined by another.
+    if (this.#scanning) return 0;
+    this.#scanning = true;
+    const started_at = this.now().toISOString();
+    this.scanLooks = [];
+    this.store.setSetting(this.actorId, "material_scan", JSON.stringify({ started_at }));
+    try {
+      const raised = await this.scanOnce();
+      this.store.setSetting(this.actorId, "material_scan", JSON.stringify({ started_at, finished_at: this.now().toISOString(), raised, projects: this.scanLooks }));
+      return raised;
+    } catch (error) {
+      this.store.setSetting(this.actorId, "material_scan", JSON.stringify({ started_at, finished_at: this.now().toISOString(), error: error instanceof Error ? error.message : String(error) }));
+      throw error;
+    } finally { this.#scanning = false; }
+  }
+
+  #scanning = false;
+  /** What the last look saw in each project, kept with its record (for diagnostics). */
+  private scanLooks: ScanLook[] = [];
+
+  private async scanOnce(): Promise<number> {
     const now = this.now();
     // Items are dated by their source, so one may turn up after its date: what matters is whether it was seen before.
     // The first look only learns what is already there; nothing older than a notice's life is considered.
@@ -483,15 +513,18 @@ export class AssistantService {
     let raised = 0;
     for (const [projectId, group] of byProject) {
       let actions: PersonActions | null = null;
-      try { actions = await this.ports.scopeActions?.(group[0]!) ?? null; } catch { actions = null; }
+      const looked: ScanLook = { project_id: projectId, works: group.length };
+      this.scanLooks.push(looked);
+      try { actions = await withinTime(this.ports.scopeActions?.(group[0]!) ?? Promise.resolve(null)); } catch (error) { actions = null; looked.problem = error instanceof Error ? error.message : String(error); }
       if (!actions) continue;
-      const views = await actions.discover().catch(() => [] as ActionView[]);
+      const views = await withinTime(actions.discover()).catch((error: unknown) => { looked.problem = error instanceof Error ? error.message : String(error); return [] as ActionView[]; });
       const providers = views.filter(view => view.action.input_type === HOME_EVENTS_INPUT_TYPE && view.action.output_type === HOME_EVENTS_OUTPUT_TYPE && view.availability.available);
+      looked.capabilities = views.length; looked.sources = providers.length;
       const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
       const read = async (subject: { kind: string; id: string }): Promise<ActionSubjectContext | null> => {
         const reader = readers.find(view => view.action.subject_kinds.includes(subject.kind));
         if (!reader) return null;
-        try { return await actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id }) as ActionSubjectContext; }
+        try { return await withinTime(actions!.invoke({ capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: subject.id })) as ActionSubjectContext; }
         catch { return null; }
       };
       // What each live work is about: the Goals of the objects it relates to.
@@ -504,14 +537,17 @@ export class AssistantService {
         }
         if (ids.size) goals.set(work.work_id, ids);
       }
+      looked.goals = [...goals.values()].reduce((sum, ids) => sum + ids.size, 0);
       if (!goals.size && !firstLook) continue;
+      looked.events = 0;
       const window = { from: from.toISOString(), to: new Date(now.getTime() + 1).toISOString(), now: now.toISOString() };
       for (const provider of providers) {
         let collection: HomeEventCollection;
-        try { collection = await actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window) as HomeEventCollection; }
+        try { collection = await withinTime(actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window)) as HomeEventCollection; }
         catch { continue; }
         // New items (occurred) and newly open attention items (active); standing status lines (today) are not material.
         for (const event of collection.events.filter(item => item.placement === "occurred" || item.placement === "active").slice(0, 100)) {
+          looked.events = (looked.events ?? 0) + 1;
           const key = `${projectId}:${provider.capability_id}:${event.event_id}`;
           if (seen.has(key)) continue;
           seen.add(key);

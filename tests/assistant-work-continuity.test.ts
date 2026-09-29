@@ -83,7 +83,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views), (view, input, output) => service.recordResult(work, view, input, output)),
     scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }),
     projectTitle: async () => "Fixture project" }, "web-user");
-  return { service, store, notes, requests, project, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, notes, requests, project, local, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 const ref = (capability_id: string) => ({ capability_id, version: 1, provider_id: "fixture.notes" });
@@ -196,6 +196,65 @@ test("what the person does in the plugin settles what it made redundant: a sugge
     f.notes.set(made, { text: "made, then edited by hand", version: 2 });
     assert.equal(await f.service.settleHandledNotices(), 1);
     assert.equal(f.service.notices(null).filter(notice => notice.work_id === sent.work.work_id && notice.kind === "completed").length, 0);
+  } finally { await f.close(); }
+});
+
+test("an object the person moved to another project is named where it went, not read across; a deleted one stays missing", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply(undefined, "看过了。"),
+    body => {
+      const text = JSON.stringify(body);
+      assert.match(text, /已被用户移到项目「Other project」/);
+      assert.match(text, /被移走的对象不要在这里重新创建/);
+      assert.match(text, /「background」已被移到项目「Other project」。这项工作的范围读不到它现在的正文/);
+      assert.doesNotMatch(text, /secret plan of the other project/, "a Home object of another project is not read from here");
+      return reply(undefined, "它已移到 Other project。");
+    },
+  ]);
+  // The placement service follows moves: the old identity finds the object in its new place.
+  const where = new Map<string, { project_id: string; title: string }>();
+  const describe: ActionDefinition = { capability_id: "placement.describe", version: 1, operation: "query", action: {
+    title: "对象放在哪里", description: "按对象身份说明它现在存放在哪里", kind: "query", scope: "project", audiences: ["user", "agent"], permissions: ["notes:read"], subject_kinds: [],
+    input_schema: { type: "object", properties: { object: { type: "object" } }, required: ["object"], additionalProperties: false } } };
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "system.placement", kind: "system", title: "放置" }, definitions: [describe],
+    handlers: [{ ...describe, handle(_c, input) {
+      const object = (input as { object: { kind: string; id: string; project_id: string | null } }).object, now = where.get(object.id);
+      const here = { kind: "project", project_id: "project", title: "Fixture project", access: "project", access_label: "项目成员" };
+      if (!now) return { state: "missing", reason: "已删除", object, title: object.id, plugin: null, location: null, moved_from: null, associations: [], can: { move: false, copy: false, use_in_project: false }, open: null };
+      return { state: "ok", reason: null, object: { ...object, project_id: now.project_id }, title: object.id === "t1" ? "Ship it" : "background", plugin: null,
+        location: { kind: "project", project_id: now.project_id, title: now.title, access: "project", access_label: "项目成员" }, moved_from: here,
+        associations: [], can: { move: true, copy: true, use_in_project: true }, open: { project_id: now.project_id, surface: "notes", id: object.id } };
+    } }] });
+  // A Home-kept to-do says which project it belongs to; the reader alone would still hand it over.
+  let todoProject = "project";
+  const todoReader = defineSubjectContextAction("fixture.todo.subject.read", "todo", "待办", ["notes:read"], "home");
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.todo", kind: "plugin", title: "Todo" }, definitions: [todoReader],
+    handlers: [{ ...todoReader, handle: () => subjectContext({ subject: { kind: "todo", id: "t1" }, revision: "1", title: "Ship it", content: todoProject === "project" ? "ship" : "secret plan of the other project",
+      goal_ids: [], session_id: null, project_id: todoProject }) }] });
+  try {
+    f.notes.set("bg", { text: "background", version: 4 });
+    f.notes.set("old", { text: "old note", version: 1 });
+    const page = { source: { surface: "notes", title: "Notes" }, object: { kind: "note", id: "bg", version: 4, title: "background" }, captured_at: new Date().toISOString() };
+    const sent = await f.service.send({ text: "看看这两条", request_id: "req-00000131", context: page,
+      materials: [{ material_id: "m1", kind: "object", title: "old note", explicit: true, object: { kind: "note", id: "old", version: 1 }, text: "old note" },
+        { material_id: "m2", kind: "object", title: "Ship it", explicit: true, object: { kind: "todo", id: "t1", version: 1 }, text: "ship" }] }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "first round");
+
+    // The person moves one note to another project and deletes the other, in their plugins.
+    f.notes.delete("bg"); where.set("bg", { project_id: "other", title: "Other project" });
+    f.notes.delete("old");
+    todoProject = "other"; where.set("t1", { project_id: "other", title: "Other project" });
+    const view = await f.service.read(sent.work.work_id);
+    const states = view.objects.map(object => [object.relation, object.subject.id, object.state, object.title, object.moved_to ?? null, object.open ?? null]);
+    assert.deepEqual(states, [
+      ["origin", "bg", "moved", "background", { title: "Other project", kind: "project" }, null],
+      ["material", "old", "missing", "old", null, null],
+      ["material", "t1", "moved", "Ship it", { title: "Other project", kind: "project" }, null],
+    ]);
+
+    // Continued from the page that still shows the moved note: the round hears where it went, and nothing of its body.
+    await f.service.send({ work_id: sent.work.work_id, text: "继续", request_id: "req-00000132", context: page }, { project_ref: f.project });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
   } finally { await f.close(); }
 });
 

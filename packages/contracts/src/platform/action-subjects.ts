@@ -13,6 +13,11 @@ export interface ActionSubjectContext {
   session_id: string | null;
   /** Where the person opens it: the workbench surface and item. Absent when the object has no page of its own. */
   open?: { surface: string; id: string };
+  /**
+   * Only for objects kept in the person's Home that belong to a project (a todo of that project): which project.
+   * Objects stored in a project partition leave it out — the partition says where they are (specs/work-placement §7.2).
+   */
+  project_id?: string | null;
 }
 const id = { type: "string", minLength: 1 };
 export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
@@ -20,7 +25,10 @@ export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subj
 const properties = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: 32000 },
   truncated: { type: "boolean" }, goal_ids: { type: "array", items: id, uniqueItems: true }, session_id: { type: ["string", "null"] } };
 const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
-export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open }, required: Object.keys(properties), additionalProperties: false };
+const belongsTo = { type: ["string", "null"], maxLength: 120 };
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open, project_id: belongsTo }, required: Object.keys(properties), additionalProperties: false };
+/** The v1 output before `project_id` was added: readers declared with it keep working. */
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT = { type: "object", properties: { ...properties, open }, required: Object.keys(properties), additionalProperties: false };
 /** The v1 output before `open` was added: readers declared with it keep working. */
 export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", properties, required: Object.keys(properties), additionalProperties: false };
 /**

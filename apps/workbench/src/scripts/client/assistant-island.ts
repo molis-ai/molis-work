@@ -591,6 +591,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const RELATION_LABEL = { origin: "起点", material: "材料", result: "成果", session: "专业会话" };
   const objectState = (object) => object.state === "changed" ? L("已被修改") + " · " + L("现为版本") + " " + object.current_revision + " · " + L("这项工作记下版本") + " " + object.recorded_revision
     : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
+    : object.state === "moved" ? (object.moved_to ? L("已移到") + "「" + object.moved_to.title + "」" : L("在别的项目里"))
     : object.current_revision ? L("未变") + " · " + L("版本") + " " + object.current_revision : L("可用");
   const renderObjects = (work) => {
     if (!objectsBox) return;
@@ -602,10 +603,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!objects.length) { objectsBox.replaceChildren(); return; }
     const changed = objects.filter((o) => o.state === "changed").length;
     const gone = objects.filter((o) => o.state === "missing").length;
+    const moved = objects.filter((o) => o.state === "moved").length;
     const wasOpen = objectsBox.querySelector("details")?.open;
     const details = el("details", "assistant-objects-list");
-    details.open = wasOpen === undefined ? changed + gone > 0 : wasOpen;
-    details.append(el("summary", "", L("这项工作的对象") + " · " + objects.length + (changed ? " · " + changed + " " + L("项已被修改") : "") + (gone ? " · " + gone + " " + L("项已不存在") : "")));
+    details.open = wasOpen === undefined ? changed + gone + moved > 0 : wasOpen;
+    details.append(el("summary", "", L("这项工作的对象") + " · " + objects.length + (changed ? " · " + changed + " " + L("项已被修改") : "") + (gone ? " · " + gone + " " + L("项已不存在") : "") + (moved ? " · " + moved + " " + L("项已移走") : "")));
     const list = el("ul", "assistant-objects-items");
     objects.forEach((object) => {
       const row = el("li", "assistant-object assistant-object--" + object.state);

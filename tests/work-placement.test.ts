@@ -337,7 +337,8 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
   f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
     handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
       if (!todo) throw new ActionError("todos.not_found", "待办不存在");
-      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], session_id: null, open: { surface: "todo", id } }); } },
+      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: todo.title, content: "", goal_ids: [], session_id: null, open: { surface: "todo", id },
+        project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
       bindHomeObjectMoveHandler(homeMover, input => { calls.push(input.to_project_id); todos.get(input.subject.id)!.belongs = input.to_project_id;
         return { subject: input.subject, project_id: input.to_project_id, revision: input.to_project_id }; })] });
   const todo = { kind: "todo_item", id: "t1", project_id: null };
@@ -347,7 +348,12 @@ test("a plugin that keeps its objects at Home moves them through its own Home-sc
   const moved = await f.service.move(todo, "q4");
   assert.deepEqual(calls, ["q4"], "the plugin changes where it belongs; the object stays at Home");
   assert.deepEqual([moved.object.project_id, moved.location.title, moved.location.access], [null, "项目「Q4 新版发布」", "home"]);
-  assert.deepEqual((await f.service.describe(todo)).associations.filter(item => item.type === "used_in"), [], "used in the project it now belongs to says nothing more");
+  const after = await f.service.describe(todo);
+  assert.deepEqual(after.associations.filter(item => item.type === "used_in"), [], "used in the project it now belongs to says nothing more");
+  // Its reader says where it belongs now; where it was is remembered.
+  assert.deepEqual([after.location?.title, after.location?.access, after.moved_from?.title], ["项目「Q4 新版发布」", "home", "个人空间"]);
+  await assert.rejects(f.service.move(todo, "q4"), { code: "placement.same_location" });
+  await assert.rejects(f.service.link(todo, "q4"), { code: "placement.already_here" });
   // Home content without a mover (a clip) still cannot be moved.
   await assert.rejects(f.service.move({ kind: "clip", id: "clip-1", project_id: null }, "q4"), { code: "placement.not_movable" });
 });

@@ -44,6 +44,7 @@ export const PLACEMENT_STYLES = `
   .placement-dialog-error { margin: 6px 0 0; color: var(--red); font-size: 12.5px; }
   .placement-dialog-error:empty { display: none; }
   .placement-toasts { position: fixed; left: 50%; bottom: 76px; z-index: 70; display: grid; gap: 8px; transform: translateX(-50%); width: min(560px, calc(100vw - 24px)); pointer-events: none; }
+  .placement-toasts.is-top { top: 56px; bottom: auto; }
   .placement-toast { display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px; background: var(--paper); color: var(--ink);
     border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow); pointer-events: none; }
   /* Only the card's buttons take clicks; a click on its text reaches the stage underneath (composers live at the bottom). */

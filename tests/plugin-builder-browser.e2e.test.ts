@@ -39,7 +39,7 @@ test("plugin builder browser completes creation, installed data, publishing and 
   });
   await new Promise<void>(done => server.listen(0, "127.0.0.1", done));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
-  const screenshots = resolve("specs/plugin-builder/work-items/prologue-runtime/screenshots"); await mkdir(screenshots, { recursive: true });
+  const screenshots = resolve(process.env.MOLIS_WORK_REVIEW_EVIDENCE === "1" ? "specs/plugin-builder/work-items/prologue-runtime/screenshots" : ".impeccable/qa/review/plugin-builder"); await mkdir(screenshots, { recursive: true });
   const downloads = join(directory, "downloads"); await mkdir(downloads);
   await browser.command("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads, eventsEnabled: true });
   await browser.command("Target.setDiscoverTargets", { discover: true });

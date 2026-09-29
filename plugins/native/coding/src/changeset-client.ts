@@ -1,5 +1,6 @@
 /** Fixed review reader; only the existing composer can submit model work. */
 export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
+  const lifetime=ports.lifetime;
   const {root,q,api}=ports;
   let runId='',ticket=0,index=0,value=null,comments=[],fixed=false,net=false,netIndices=null;
   const reader=q('[data-coding-change-reader]'),message=q('[data-coding-change-status]');
@@ -15,9 +16,9 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
       row.className='coding-feedback-item';head.className='coding-feedback-where';
       where.textContent=(file?.path || '原文件')+' · 写入 '+(comment.change_index+1)+' · '+lineLabel(comment);where.title=where.textContent;
       input.className='mw-textarea';input.rows=2;input.value=comment.comment;input.maxLength=5000;input.placeholder='想让 Agent 怎么改这一行？';input.setAttribute('aria-label',where.textContent+' 的意见');
-      input.addEventListener('input',()=>{comment.comment=input.value;remember();});
+      lifetime.listen(input,'input',()=>{comment.comment=input.value;remember();});
       remove.type='button';remove.className='mw-btn mw-btn--ghost coding-feedback-remove';remove.setAttribute('aria-label','移除这条意见');remove.title='移除这条意见';remove.innerHTML='<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
-      remove.addEventListener('click',()=>{comments.splice(n,1);remember();renderComments();});
+      lifetime.listen(remove,'click',()=>{comments.splice(n,1);remember();renderComments();});
       head.append(where,remove);row.append(head,input);list.append(row);
     });
     q('[data-coding-feedback-count]').textContent=comments.length?comments.length+' 条':'';
@@ -40,7 +41,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
   const renderFiles=(files,runValue)=>{
     const nav=q('[data-coding-change-files]');nav.replaceChildren();
     const groups=new Map();files.forEach((file,n)=>{if(!groups.has(file.path))groups.set(file.path,[]);groups.get(file.path).push(n);});
-    const pick=(n)=>{const button=el('button','coding-change-write');button.type='button';button.dataset.codingChangeIndex=String(n);button.setAttribute('aria-pressed',String(!net && n===index));button.addEventListener('click',()=>{if(net || n!==index)void open(runValue,false,n,fixed,'0');});return button;};
+    const pick=(n)=>{const button=el('button','coding-change-write');button.type='button';button.dataset.codingChangeIndex=String(n);button.setAttribute('aria-pressed',String(!net && n===index));lifetime.listen(button,'click',()=>{if(net || n!==index)void open(runValue,false,n,fixed,'0');});return button;};
     const state=(file)=>{const [tone,label]=stateOf(file),node=el('span','coding-change-state',label);node.dataset.tone=tone;return node;};
     for(const [path,list] of groups){
       const first=files[list[0]],group=el('div','coding-change-file');group.dataset.kind=first.kind;
@@ -51,7 +52,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
         head.append(el('span','coding-change-icon'),pathLabel(path),writes);head.firstChild.innerHTML='<svg aria-hidden="true"><use href="#icon-file"></use></svg>';group.append(head);
         if(netGroup?.available){
           const whole=el('button','coding-change-write is-net');whole.type='button';whole.dataset.codingChangeNet=path;whole.setAttribute('aria-pressed',String(net && list.includes(index)));
-          whole.append(el('span','coding-change-step','本轮净变更'));whole.addEventListener('click',()=>{if(!(net && list.includes(index)))void open(runValue,false,list[0],fixed,'1');});group.append(whole);
+          whole.append(el('span','coding-change-step','本轮净变更'));lifetime.listen(whole,'click',()=>{if(!(net && list.includes(index)))void open(runValue,false,list[0],fixed,'1');});group.append(whole);
         }
         list.forEach((n,order)=>{const file=files[n],button=pick(n);button.append(el('span','coding-change-step','第 '+(order+1)+' 次'+(file.kind==='added'&&order===0?' · 新建':'')),counts(file),state(file));group.append(button);});
       }
@@ -82,9 +83,9 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
       const output=q('[data-coding-change-output]'),selected=result.reference && result.output?.artifact_id===result.reference.artifact_id && result.output?.version===result.reference.version;
       output.hidden=!result.reference;
       if(scrollToStart)q('[data-coding-tools]').scrollTop=0;output.disabled=!result.reference || selected;output.textContent=selected?'已作为变更输出':'设为变更输出';renderComments();
-    }catch(error){if(ticket===token){message.textContent=error.message;q('[data-coding-change-body]').replaceChildren();q('[data-coding-change-files]').replaceChildren();}}
+    }catch(error){if(!lifetime.alive)return;if(ticket===token){message.textContent=error.message;q('[data-coding-change-body]').replaceChildren();q('[data-coding-change-files]').replaceChildren();}}
   };
-  root.addEventListener('click',async(event)=>{
+  lifetime.listen(root,'click',async(event)=>{
     const target=event.target.closest('button');if(!target)return;
     if(target.hasAttribute('data-diff-unfold') && reader.contains(target)){
       const group=target.dataset.diffUnfold,rows=target.closest('ol');
@@ -96,7 +97,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     if(target.hasAttribute('data-coding-change-output') && value?.reference){
       const id=ports.current(),run=runId,token=ticket;target.disabled=true;
       try{await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run)+'/changeset/output','POST',{expected_reference:value.output});if(id===ports.current() && token===ticket)await open(run,false,index,fixed);}
-      catch(error){if(token===ticket){message.textContent=error.message;target.disabled=false;}}return;
+      catch(error){if(!lifetime.alive)return;if(token===ticket){message.textContent=error.message;target.disabled=false;}}return;
     }
     if(target.hasAttribute('data-coding-line') && value?.reference){
       if(comments.length>=30){message.textContent='一次最多填写 30 条意见。';return;}
@@ -112,7 +113,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
         await ports.appendDraft(result.task);
         if(id!==ports.current() || ticket!==token)return;
         comments=[];remember();close();ports.focusDraft();
-      }catch(error){if(ticket===token){message.textContent=error.message;target.disabled=false;}}
+      }catch(error){if(!lifetime.alive)return;if(ticket===token){message.textContent=error.message;target.disabled=false;}}
     }
   });
   return {close,openFixed:(run)=>open(run,false,0,true),active:()=>Boolean(runId)};

@@ -1,4 +1,5 @@
 import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
+import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
 
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
@@ -6,6 +7,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
   const market = document.querySelector('[data-work-surface="market"]');
   const selector = market.querySelector("[data-market-project]");
+  const eventRecovery = (${PLUGIN_EVENT_RECOVERY_CLIENT})(host, market);
   const trigger = market.querySelector("[data-market-project-trigger]");
   const popover = market.querySelector("[data-market-project-popover]");
   const projectLabel = market.querySelector("[data-market-project-label]");
@@ -83,6 +85,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     popover.style.width = width + "px";
   };
   const filter = () => {
+    eventRecovery.scope(Boolean(projectId) && selector.value === projectId);
     const current = projects?.find(project => project.project_id === selector.value);
     const query = market.querySelector("[data-market-search]").value.trim().toLocaleLowerCase();
     const onlyAdded = market.querySelector('[data-market-scope][aria-pressed="true"]')?.dataset.marketScope === "added";

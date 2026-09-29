@@ -1,3 +1,5 @@
+import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { ALCHEMIST_EXPLORATION } from "../../../prompts.js";
 import { ZodError, z } from "zod";
 import type { DirectionUnderstanding } from "../../domain/discovery/exploration.js";
 import type { IdeaCard } from "../../domain/discovery/idea-card.js";
@@ -142,7 +144,7 @@ async function generateCheckpoint(
   const generation = await dependencies.runtime.generateStructured({
     operationId: job.id,
     purpose: "把 Direction 炼化为少量有价值的 Idea 候选",
-    systemPrompt: "返回严格符合结构的方向理解和 Idea Brief 草案；不为凑数生成卡牌。",
+    systemPrompt: instructed(ALCHEMIST_EXPLORATION, ""),
     userPrompt: JSON.stringify({ title: input.directionTitle, description: input.directionDescription,
       founderTaste: (dependencies.taste?.() ?? []).map(rule => ({ title: rule.title, statement: rule.statement, appliesTo: rule.appliesTo, exceptions: rule.exceptions })) }),
     jsonSchema: z.toJSONSchema(explorationGenerationSchema) as Record<string, unknown>,

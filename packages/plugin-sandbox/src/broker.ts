@@ -1,8 +1,13 @@
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
 import { BoundedQueue, RateBudget } from './queue.js';
+import { createExecutionLifetime } from '@molis-ai/molis-work-kernel';
 
-export interface SandboxServiceContext { readonly identity: Readonly<SandboxIdentity>; readonly signal: AbortSignal; readonly operationId: string }
+export interface SandboxServiceContext {
+  readonly identity: Readonly<SandboxIdentity>; readonly signal: AbortSignal; readonly operationId: string;
+  /** Recheck the original Host invocation after waits and immediately before a side effect. */
+  beforeEffect?(): Promise<void>;
+}
 export interface SandboxServices {
   /** Must serialize by identity and atomically commit only if callback succeeds and signal remains active. */
   storage?: { transaction<T>(context: SandboxServiceContext, mutate: (entries: Map<string, SandboxJson>) => T): Promise<T> };
@@ -22,22 +27,20 @@ export class SandboxBroker {
     this.queue = new BoundedQueue(limits.sdkQueue); this.calls = new RateBudget(limits.sdkPerMinute); this.events = new RateBudget(limits.eventsPerMinute);
   }
   stop(error: SandboxError): void { this.queue.close(error); }
-  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
+  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
       signal.throwIfAborted();
-      const timeout = AbortSignal.timeout(this.limits.serviceTimeoutMs);
-      const serviceSignal = AbortSignal.any([signal, timeout]);
-      const context: SandboxServiceContext = { identity: this.identity, signal: serviceSignal, operationId: operation.id };
-      const work = this.dispatch(context, operation.effects, method, args);
-      const result = await new Promise<SandboxJson>((resolve, reject) => {
-        const abort = () => reject(new SandboxError('SERVICE_TIMEOUT', 'Host service cancelled or timed out'));
-        serviceSignal.addEventListener('abort', abort, { once: true });
-        work.then(resolve, reject).finally(() => serviceSignal.removeEventListener('abort', abort)).catch(() => {});
-      });
-      serviceSignal.throwIfAborted(); assertJson(result);
-      if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('RESPONSE_TOO_LARGE', 'Host service response exceeds channel limit');
-      return result;
+      const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: serviceTimeoutMs, reason: new SandboxError('SERVICE_TIMEOUT', 'Host service cancelled or timed out; its result may be unknown', 'unknown') } });
+      const beforeEffect = async () => { lifetime.assertActive(); await guard?.(); lifetime.assertActive(); };
+      const context: SandboxServiceContext = { identity: this.identity, signal: lifetime.signal, operationId: operation.id, beforeEffect };
+      try {
+        await lifetime.wait(beforeEffect());
+        const result = await lifetime.wait(this.dispatch(context, operation.effects, method, args));
+        await lifetime.wait(beforeEffect()); assertJson(result);
+        if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('RESPONSE_TOO_LARGE', 'Host service response exceeds channel limit');
+        return result;
+      } finally { lifetime.dispose(); }
     });
   }
   private async dispatch(context: SandboxServiceContext, effects: SandboxEffects, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {

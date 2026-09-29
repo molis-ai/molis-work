@@ -8,7 +8,7 @@ import { JellyError } from "./error.js";
 import { makeJellyMaterialSnapshot, validateJellyStructuredDigest, renderJellyDigestMarkdown, jellyMaterialFingerprint } from "./material.js";
 
 export interface JellyAiPorts {
-  completeText?: (prompt: InstructedPrompt, options?: { signal?: AbortSignal }) => Promise<string>;
+  completeJson?: (prompt: InstructedPrompt, options?: { signal?: AbortSignal }) => Promise<unknown>;
   readSource?: (url: string) => Promise<{ text: string; title?: string }>;
   signal?: AbortSignal;
   onProgress?: (progress: { stage: string; progress: number }) => void;
@@ -40,10 +40,6 @@ function sourceText(state: JellyWorkspace, input: JellyAiInput): string {
   }
   return input.text?.trim() ?? "";
 }
-function parseJson(text: string): unknown {
-  const clean = text.trim().replace(/^```(?:json)?\s*/u, "").replace(/\s*```$/u, "");
-  try { return JSON.parse(clean); } catch { throw new JellyError("jelly.ai_invalid", "模型没有返回有效计划，原文未修改，请重试或手工拆解"); }
-}
 function addDay(day: string, n: number): string { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 /** Propose free 15-minute slots; all-day records do not reserve timed capacity. */
 export function scheduleJellyActions(state: JellyWorkspace, actions: JellyPlanAction[], today: string, firstMinute = 540, durations: number[] = []): JellyPlanAction[] {
@@ -69,10 +65,11 @@ export function scheduleJellyActions(state: JellyWorkspace, actions: JellyPlanAc
 }
 
 function cancelled(ports: JellyAiPorts): void { if (ports.signal?.aborted) throw new JellyError("jelly.cancelled", "整理已取消，原始材料保留"); }
-async function complete(ports: JellyAiPorts, prompt: InstructedPrompt): Promise<string> {
+async function complete(ports: JellyAiPorts, prompt: InstructedPrompt): Promise<unknown> {
   cancelled(ports);
-  if (!ports.completeText) throw new JellyError("jelly.ai_unavailable", "尚未配置文字模型。原始素材已保留，可以先转为笔记。");
-  const value = await ports.completeText(prompt, { signal: ports.signal }); cancelled(ports); return value;
+  if (!ports.completeJson) throw new JellyError("jelly.ai_unavailable", "尚未配置文字模型。原始素材已保留，可以先转为笔记。");
+  try { return await ports.completeJson(prompt, { signal: ports.signal }); }
+  finally { cancelled(ports); }
 }
 async function digestSnapshot(snapshot: JellyMaterialSnapshot, ports: JellyAiPorts): Promise<JellyStructuredDigest> {
   const batches: JellyMaterialSnapshot["blocks"][] = [];
@@ -83,7 +80,7 @@ async function digestSnapshot(snapshot: JellyMaterialSnapshot, ports: JellyAiPor
   let results: JellyStructuredDigest[] = [];
   for (const [index, blocks] of batches.entries()) {
     ports.onProgress?.({ stage: "summarizing", progress: index / batches.length });
-    const value = parseJson(await complete(ports, instructed(JELLY_DIGEST_PART, `这是第 ${index + 1}/${batches.length} 部分。\n<材料块>\n${JSON.stringify(blocks)}\n</材料块>`)));
+    const value = await complete(ports, instructed(JELLY_DIGEST_PART, `这是第 ${index + 1}/${batches.length} 部分。\n<材料块>\n${JSON.stringify(blocks)}\n</材料块>`));
     results.push(validateJellyStructuredDigest(value, { ...snapshot, blocks, content_fingerprint: jellyMaterialFingerprint(blocks, snapshot.coverage, snapshot.attachment) }));
   }
   while (results.length > 1) {
@@ -92,7 +89,7 @@ async function digestSnapshot(snapshot: JellyMaterialSnapshot, ports: JellyAiPor
     for (let index = 0; index < results.length; index += 3) {
       const part = results.slice(index, index + 3);
       if (part.length === 1) { next.push(part[0]!); continue; }
-      const merged = parseJson(await complete(ports, instructed(JELLY_DIGEST_MERGE, `<分段摘要>\n${JSON.stringify(part)}\n</分段摘要>`)));
+      const merged = await complete(ports, instructed(JELLY_DIGEST_MERGE, `<分段摘要>\n${JSON.stringify(part)}\n</分段摘要>`));
       next.push(validateJellyStructuredDigest(merged, snapshot));
     }
     results = next;
@@ -111,7 +108,7 @@ export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, por
     if (source?.material?.source_hash === sourceHash) text = source.material.blocks.map(block => block.text).join("\n\n");
     if (!source?.material && source?.url && ports.readSource) { extracted = await ports.readSource(source.url); text = extracted.text; }
     else if (source?.url && !text.trim()) throw new JellyError("jelly.source_unavailable", "来源正文还没有读取成功，请导入原文后重试");
-    if (!ports.completeText) throw new JellyError("jelly.ai_unavailable", "尚未配置文字模型。原始素材已保留，可以先转为笔记。");
+    if (!ports.completeJson) throw new JellyError("jelly.ai_unavailable", "尚未配置文字模型。原始素材已保留，可以先转为笔记。");
     if (!text.trim()) throw new JellyError("jelly.invalid", "原始素材没有可提炼的正文");
     if (text.length > 2_000_000) throw new JellyError("jelly.invalid", "材料超过 200 万字符，请按章节分开处理；没有截断后冒充全文");
     const snapshot = source?.material?.source_hash === sourceHash ? source.material : makeJellyMaterialSnapshot(sourceHash, extracted ?? { text });
@@ -124,8 +121,8 @@ export async function runJellyAi(state: JellyWorkspace, input: JellyAiInput, por
   let entries: unknown[]; let questions: string[] = [];
   if (input.manual) entries = text.split(/\n+/u).filter((line) => line.trim()).slice(0, 30).map((title) => ({ title: title.replace(/^[-*#\d.\s]+/u, "").slice(0, 200), notes: "", minutes: 30 }));
   else {
-    if (!ports.completeText) throw new JellyError("jelly.ai_unavailable", "尚未配置文字模型。可以使用手工拆解，再逐项编辑和安排。");
-    const result = parseJson(await complete(ports, instructed(JELLY_DECOMPOSE, `用户补充：${input.instructions ?? ""}\n<原文>\n${text}\n</原文>`)));
+    if (!ports.completeJson) throw new JellyError("jelly.ai_unavailable", "尚未配置文字模型。可以使用手工拆解，再逐项编辑和安排。");
+    const result = await complete(ports, instructed(JELLY_DECOMPOSE, `用户补充：${input.instructions ?? ""}\n<原文>\n${text}\n</原文>`));
     entries = result && typeof result === "object" && "actions" in result && Array.isArray(result.actions) ? result.actions : [];
     questions = result && typeof result === "object" && "clarification_questions" in result && Array.isArray(result.clarification_questions) ? result.clarification_questions.filter((q): q is string => typeof q === "string" && !!q.trim()).slice(0, 3).map(q => q.slice(0, 500)) : [];
   }

@@ -50,6 +50,11 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       for (const target of surfaces) {
         const result = await request(api(id, target));
         assert.equal(result.status, allowed.includes(target) ? 200 : 404, `${plugin} → ${target}: ${JSON.stringify(result.body)}`);
+        if (["files", "git"].includes(target)) {
+          const hint = await request(api(id, target, "/view-revision"));
+          assert.equal(hint.status, allowed.includes(target) ? 200 : 404, "refresh hints obey the same surface enablement");
+          if (hint.status === 200) { assert.deepEqual(Object.keys(hint.body), ["revision"]);assert.equal(typeof hint.body.revision,"string"); }
+        }
       }
       const session = await request(api(id, "coding", "/sessions"), "POST", { title: "Must require Coding" });
       assert.equal(session.status, plugin === "coding" ? 200 : 404, "companion access must never imply Coding execution access");

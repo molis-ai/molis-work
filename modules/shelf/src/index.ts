@@ -12,19 +12,10 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { ShelfError, isShelfError } from "./errors.js";
-export { extractLocalText, markdownFromExtract, resultNameForExtract } from "./extract.js";
-export {
-  SHELF_JOB_TIMEOUT_MS,
-  agentEnvironment,
-  collectRecipeOutput,
-  hasDeliverable,
-  runAgentProcess,
-} from "./job-runner.js";
+export { markdownFromExtract, resultNameForExtract } from "./extract.js";
 export {
   WEBSITE_MIME,
   captureWebsite,
-  documentTitle,
-  htmlToMarkdown,
   websiteFilename,
   websiteMarkdown,
 } from "./website.js";
@@ -32,22 +23,17 @@ export type { ShelfWebsiteCapture } from "./website.js";
 export {
   OCR_LOW_CONFIDENCE,
   OCR_MISSING,
-  imageTextAvailable,
-  ocrHelperPath,
   ocrLanguages,
   ocrMarkdown,
-  recognizeImageText,
 } from "./ocr.js";
 export type { ShelfOcrLine } from "./ocr.js";
 export {
   SHELF_RECIPES,
   SHELF_RECIPE_ORDER,
   SHELF_SHORTCUT_RECIPE,
-  fileGuardrail,
-  finalizeOutput,
   looksLikeDeliverable,
+  finalizeShelfRecipeResult,
   recipeAvailability,
-  recipePrompt,
   resolvedChoiceId,
   shelfRecipeAccepts,
   shelfRecipeOutputName,
@@ -62,7 +48,6 @@ export {
   clearShelfRuntimeCache,
   detectShelfRuntime,
   emptyShelfRuntime,
-  headlessArguments,
   installedShelfEngines,
   isolationFact,
   shelfRuntimeCatalog,
@@ -72,9 +57,10 @@ export {
   shelfSearchDirectories,
   supportsWorkspaceSandbox,
 } from "./runtimes.js";
-export type { ShelfAgentRunRequest, ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
-export { SAMPLE_PDF_TEXT, createExtractablePdf, extractPdfSelectableText } from "./pdf.js";
+export type { ShelfEngine, ShelfRuntimeProbe } from "./runtimes.js";
+export { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
 export {
+  SHELF_JOB_TIMEOUT_MS,
   CLIPBOARD_LIMIT,
   ShelfStore,
   clipFingerprint,

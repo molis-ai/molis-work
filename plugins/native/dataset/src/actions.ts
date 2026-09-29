@@ -19,8 +19,8 @@ const identity = { id, expected_version: version };
 const read = ["dataset:read"], write = ["dataset:read", "dataset:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; columns?: readonly DatasetColumnInput[]; rows?: readonly DatasetRowInput[] };
-function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write): ActionDefinition<I, O> {
-  return { capability_id: `dataset.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) } };
+function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+  return { capability_id: `dataset.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["dataset"], input_schema: input, output_schema: output, permissions, ...(name === "columns.ai" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const datasetActions = {
   list: define<Record<string, never>, { datasets: DatasetRecord[]; ai_available: boolean; ai_unavailable_reason: string | null }>("list", "数据表列表", "读取当前项目数据表及当前 AI 加列可用性", "query", object({}), object({ datasets: array(record), ai_available: { type: "boolean" }, ai_unavailable_reason: { type: ["string", "null"] } })),
@@ -29,7 +29,7 @@ export const datasetActions = {
   update: define<Edit, { dataset: DatasetRecord }>("update", "修改数据表", "替换指定字段；携带读取版本以避免覆盖其他编辑", "command", object({ ...identity, title: { ...text, maxLength: 80 }, description: { ...text, maxLength: 2000 }, columns: { ...array(object(columnFields, [])), maxItems: 40 }, rows: { ...array(object(rowFields, [])), maxItems: 2000 } }, ["id"]), changed),
   delete: define<Identity, { ok: true }>("delete", "删除数据表", "删除表及全部本机版本；未完成的发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   generate: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.add", "按列名加列", "本地追加文本列，以输入作为列名；不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 80 } }, ["id", "prompt"]), changed),
-  generateAi: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.ai", "AI 拟列名并加列", "根据明确提示拟定一个列名并追加文本列；调用当前文字模型，失败或表已改变时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"]),
+  generateAi: define<Identity & { prompt: string }, { dataset: DatasetRecord }>("columns.ai", "AI 拟列名并加列", "根据明确提示拟定一个列名并追加文本列；调用当前文字模型，失败或表已改变时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"], { cost: "metered" }),
   import: define<Identity & { csv: string }, { dataset: DatasetRecord }>("import", "导入 CSV", "以 CSV 表头和数据替换当前列与行", "command", object({ ...identity, csv: { ...text, maxLength: 2_000_000 } }, ["id", "csv"]), changed),
   export: define<{ id: string }, { dataset: DatasetRecord; csv: string }>("export", "导出 CSV", "导出完整当前表和正确转义的 CSV 文本", "query", object({ id }), object({ dataset: record, csv: text })),
   versions: define<{ id: string }, { versions: DatasetVersionRecord[] }>("versions", "版本列表", "读取当前表的本机快照；保留稳定版本 ID", "query", object({ id }), object({ versions: array(snapshot) })),

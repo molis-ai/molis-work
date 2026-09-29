@@ -16,8 +16,8 @@ const conversationState = object({ conversation, sparks: { type: "array", items:
 const fields = { title: { type: "string", maxLength: 80 }, body: { type: "string", maxLength: 8000 } };
 const read = ["lingguang:read"], write = ["lingguang:write"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
-  return { capability_id: `lingguang.${name}`, version: 1, operation, action: { title, description,
+  output: ActionSchema, permissions: readonly string[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+  return { capability_id: `lingguang.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}),
     kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"],
     permissions, subject_kinds: ["lingguang_spark"], input_schema: input, output_schema: output,
     // A reply waits on a model; the store commits it only against the conversation snapshot it was asked about.
@@ -34,7 +34,7 @@ export const lingguangActions = {
   openConversation: define<{ spark_ids: string[] }, LingguangConversationState>("conversation.open", "打开灵光对话", "为所选灵光打开或恢复原有对话与历史，不调用模型", "command", object({ spark_ids: ids }), conversationState, [...read, ...write]),
   getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
   message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
-    object({ id, body: { type: "string", minLength: 1, maxLength: 2000, pattern: "\\S" } }), conversationState, [...read, ...write, "model:invoke"]),
+    object({ id, body: { type: "string", minLength: 1, maxLength: 2000, pattern: "\\S" } }), conversationState, [...read, ...write, "model:invoke"], { cost: "metered" }),
   searchEntries: lingguangSearchActions.entries,
   subject: lingguangSearchActions.subject,
 };

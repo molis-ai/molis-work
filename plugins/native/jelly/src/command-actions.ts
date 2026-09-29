@@ -6,8 +6,8 @@ import * as s from "./action-schema.js";
 export const JELLY_READ = ["jelly:read"];
 // Every command returns the workspace, so write permission alone cannot disclose Home data.
 export const JELLY_WRITE = ["jelly:read", "jelly:write"];
-export function defineJellyAction<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? JELLY_READ : JELLY_WRITE, scheduling?: "concurrent"): ActionDefinition<I, O> {
-  return { capability_id: `jelly.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation", scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output } };
+export function defineJellyAction<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = operation === "query" ? JELLY_READ : JELLY_WRITE, scheduling?: "concurrent", execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+  return { capability_id: `jelly.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "home", ...(scheduling ? { scheduling } : {}), audiences: ["user", "workflow", "agent", "mcp"], permissions, subject_kinds: ["jelly_workspace"], input_schema: input, output_schema: output } };
 }
 export type JellyCommandInput = { expected_revision: number; [key: string]: unknown };
 const command = (name: string, title: string, fields: Record<string, unknown>, required = Object.keys(fields)) => defineJellyAction<JellyCommandInput, { state: JellyWorkspace }>(name, title, `${title}；作用于本机 Jelly 工作区，使用最近读取的 revision，保留原撤销历史。`, "command", s.object({ ...fields, expected_revision: s.revision }, [...required, "expected_revision"]), s.stateResult);

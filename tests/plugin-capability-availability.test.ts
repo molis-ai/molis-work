@@ -9,6 +9,24 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 const definition = { capability_id: "unfamiliar.backend", version: 1, operation: "query" as const };
 const reference = (id: string) => ({ project_id: id, board_id: id, storage_key: `memory:${id}` });
 
+test("plugin capability cancellation reaches its Host invocation and blocks a late write", async () => {
+  const host = new LocalHost({ runtimeFactory: { open: () => ({ saved: 0 }), close: () => {} } });
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
+  let saved = 0;
+  host.register(definition, async (_runtime, _input, invocation) => {
+    assert.equal(invocation.signal, controller.signal);
+    entered.resolve(); await release.promise;
+    await invocation.beforeEffect(); saved++; return saved;
+  });
+  const capabilities = createPluginCapabilityClient({ ...filesManifest, capabilities: { provides: [], consumes: [definition.capability_id] } }, host.client(reference("cancelled")));
+  try {
+    const pending = capabilities.invoke(definition, {}, { signal: controller.signal });
+    const rejected = assert.rejects(pending, { name: "AbortError" });
+    await entered.promise; controller.abort(); release.resolve(); await rejected;
+    assert.equal(saved, 0);
+  } finally { release.resolve(); await host.close(); }
+});
+
 test("removing a dependency during a real nested Host call blocks the caller's subsequent write", async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = reference("waiting");

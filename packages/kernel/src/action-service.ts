@@ -7,6 +7,7 @@ import {
 import { CapabilityRegistry } from "./index.js";
 import { actionSchemaAccepts, compileActionSchema, createActionSchemaCompiler, validateActionValue } from "./action-schema.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
+import { createExecutionLifetime } from "./execution-lifetime.js";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;
@@ -82,20 +83,36 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           return own.available ? this.dependencyAvailability(context, definition) : own;
         };
         const registeredDefinition = { ...definition, action_provider: provider };
+        const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
           context.signal?.throwIfAborted();
           validateActionValue(validateInput, input, "input");
+          const policy = definition.action.execution;
+          if (policy?.max_calls_per_minute) {
+            const now = Date.now();
+            for (const [key, calls] of callWindows) {
+              const recent = calls.filter(at => now - at < 60_000);
+              if (recent.length) callWindows.set(key, recent); else callWindows.delete(key);
+            }
+            const key = JSON.stringify([context.actor_id, context.project_id ?? null, context.plugin_install_id ?? null]);
+            const recent = callWindows.get(key) ?? [];
+            if (recent.length >= policy.max_calls_per_minute) throw new ActionError("actions.rate_limited", "这项能力一分钟内调用次数太多，请稍后再试");
+            recent.push(now); callWindows.set(key, recent);
+          }
+          const lifetime = policy?.timeout_ms === undefined ? undefined : createExecutionLifetime({ signal: context.signal,
+            timeout: { milliseconds: policy.timeout_ms, reason: new ActionError("actions.timeout", "这项能力执行超时，已停止本机等待；请检查结果后决定是否重试") } });
           const registration = this.registry.registrationToken(registeredDefinition);
           const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
           let executing = true;
           const assertCurrent = () => {
             if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
+            lifetime?.assertActive();
             context.signal?.throwIfAborted();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
             assertAvailable(availability(context));
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
-          const execution: ActionExecutionContext = { ...context, beforeEffect: async () => {
+          const execution: ActionExecutionContext = { ...context, ...(lifetime ? { signal: lifetime.signal } : {}), beforeEffect: async () => {
             assertCurrent();
             await context.validate_authority?.(reference);
             await context.validate_permissions?.(definition.action.permissions);
@@ -125,10 +142,12 @@ export class ActionService implements ActionClient, ActionRegistryPort {
             if (handler.execution === "sync") {
               try { const value = checked(requireSynchronous(result)); settled(); return value; }
               catch (error) { settled(error); throw error; }
-              finally { executing = false; }
+              finally { executing = false; lifetime?.dispose(); }
             }
-            return Promise.resolve(result).then(checked).then(value => { settled(); return value; }, error => { settled(error); throw error; }).finally(() => { executing = false; });
-          } catch (error) { executing = false; settled(error); throw error; }
+            const pending = Promise.resolve(result);
+            return (lifetime ? lifetime.wait(pending) : pending).then(checked).then(value => { settled(); return value; }, error => { settled(error); throw error; })
+              .finally(() => { executing = false; lifetime?.dispose(); });
+          } catch (error) { executing = false; lifetime?.dispose(); settled(error); throw error; }
         };
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, synchronous: handler.execution === "sync" }));

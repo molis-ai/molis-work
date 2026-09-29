@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+/** Stable during activation and upgrades; a reinstall receives a new generation without moving private data. */
+export function pluginInstallationGeneration(record: Pick<PluginInstanceRecord, 'installation_generation' | 'installed_at'>): string {
+  return record.installation_generation ?? 'legacy:' + record.installed_at;
+}
 
 /** Canonical identity of the Manifest stored with a Runtime installation. */
 export function pluginManifestDigest(manifest: PluginManifest): string {

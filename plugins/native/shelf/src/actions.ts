@@ -1,9 +1,9 @@
-import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
-  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput,
+  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { parseSettingsWriteBody } from "@molis-ai/molis-work-module-shelf";
+import { parseSettingsWriteBody, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
 import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfSearchEntriesAction } from "./search.js";
 
@@ -29,6 +29,15 @@ function define<I, O>(name: string, title: string, description: string, operatio
   return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) } };
 }
+
+function jobDefinition(name: string, title: string, description: string, recipes: readonly ShelfRecipeId[], cost: "none" | "metered" | "unknown", permissions: readonly string[]): ActionDefinition<ShelfRunJobInput, ShelfJobOutcome> {
+  const definition = define<ShelfRunJobInput, ShelfJobOutcome>(name, title, description, "command",
+    object({ recipe: { type: "string", enum: recipes }, item_id: id, item_ids: { type: "array", minItems: 1, maxItems: 50, items: id },
+      option_id: nullableText, shortcut_id: nullableText }, ["recipe"]),
+    object({ job, result: { anyOf: [item, { type: "null" }] }, origin_hash: text }), permissions, SHARED);
+  return { ...definition, action: { ...definition.action, execution: { cost, timeout_ms: SHELF_JOB_TIMEOUT_MS } } };
+}
+const AI_RECIPES = [...SHELF_RECIPES, SHELF_SHORTCUT_RECIPE].filter(recipe => recipe.requires_agent).map(recipe => recipe.recipe);
 
 export interface ShelfAdmitActionInput {
   text?: string; title?: string; capture_pages?: boolean;
@@ -65,11 +74,9 @@ export const shelfActions = {
   useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED),
   edit: define<{ item_id: string; text: string }, { item: ShelfItemRecord }>("items.edit", "修改 Shelf 文字", "保存文字材料的新正文", "command",
     object({ item_id: id, text: { type: "string", maxLength: 2_000_000 } }), object({ item }), write, SHARED),
-  runJob: define<{ recipe: ShelfRecipeId; item_id?: string; item_ids?: string[]; option_id?: string | null; shortcut_id?: string | null }, ShelfJobOutcome>("jobs.run", "用 Shelf 处理材料",
-    "用本机终端 Agent 按所选动作处理材料并生成结果；失败时保留任务记录与原因", "command",
-    object({ recipe: { type: "string", minLength: 1, maxLength: 100 }, item_id: id, item_ids: { type: "array", minItems: 1, maxItems: 50, items: id },
-      option_id: nullableText, shortcut_id: nullableText }, ["recipe"]),
-    object({ job, result: { anyOf: [item, { type: "null" }] }, origin_hash: text }), write, SHARED),
+  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke"]),
+  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", write),
+  runJob: jobDefinition("jobs.run", "处理 Shelf 材料（兼容入口）", "旧调用兼容；新调用使用 jobs.generate 或 jobs.extract。AI 分支要求额外的 model:invoke 权限并可能产生模型费用", [...AI_RECIPES, "extract_text"], "unknown", write),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "取消运行中的处理任务", "command", object({ job_id: id }), object({ job }), write, SHARED),
   settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL),
   saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL),
@@ -87,29 +94,34 @@ export const SHELF_ACTION_PERMISSIONS = [...new Set(SHELF_ACTIONS.flatMap(defini
 
 /** The personal Shelf store, bound by the Host to this Home. */
 export interface ShelfActionPorts {
+  aiStatus?(): ShelfAiStatus;
   snapshot(): ShelfSnapshot;
   settings(): ShelfDeviceSettings;
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
-  admit(input: ShelfAdmitInput): ShelfItemRecord;
-  admitText(body: string, title?: string, capture?: boolean): Promise<ShelfItemRecord>;
+  admit(input: ShelfAdmitInput, control?: ShelfExecutionControl): ShelfItemRecord | Promise<ShelfItemRecord>;
+  admitText(body: string, title?: string, capture?: boolean, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
   admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord;
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer };
   seedSample(): ShelfItemRecord;
   hide(itemId: string): void;
   deleteCopy(itemId: string): void;
-  runJob(input: ShelfRunJobInput): Promise<ShelfJobOutcome>;
+  runJob(input: ShelfRunJobInput, control?: ShelfExecutionControl): Promise<ShelfJobOutcome>;
   cancelJob(jobId: string): ShelfJobRecord;
   useAsMaterial(itemId: string): ShelfItemRecord;
   addClipboard(body: string, extra?: { concealed?: boolean; types?: readonly string[] }): ShelfClipboardRecord | null;
-  clipboardToMaterial(clipId: string): Promise<ShelfItemRecord>;
+  clipboardToMaterial(clipId: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
   deleteClipboard(clipId: string): void;
   writeCopy(itemId: string, text: string): ShelfItemRecord;
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer };
 }
 
 export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandlerBinding[] {
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>): ActionHandlerBinding => ({
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
+    ...(definition.capability_id === shelfActions.generate.capability_id && ports.aiStatus ? { availability: () => {
+      const state = ports.aiStatus!();
+      return state.available ? { available: true } : { available: false, code: "shelf.no_model", reason: state.reason ?? "请先配置 AI 模型" };
+    } } : {}),
   });
   const bytes = (encoded: string) => {
     const decoded = Buffer.from(encoded, "base64");
@@ -134,10 +146,11 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
       // The store hashes the file at this path before each run; only the local interface names real paths.
       if (input.origin_realpath && caller.audience !== "user") throw new ActionError("actions.forbidden", "只有本机界面可以登记原件路径");
       const typed = input.text?.trim();
-      if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, input.capture_pages !== false) };
+      if (typed) return { item: await ports.admitText(typed, input.title?.trim() || undefined, input.capture_pages !== false, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
       const filename = input.filename?.trim();
       if (!filename || !input.bytes_base64) throw new ActionError("shelf.invalid", "请选择要加入的文件");
-      return { item: ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null }) };
+      return { item: await ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null },
+        { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
     }),
     bind(shelfActions.admitFolder, input => ({ item: ports.admitFolder({ name: input.name.trim(), origin_realpath: input.origin_realpath?.trim() || null,
       entries: input.entries.map(entry => ({ relative: entry.relative, bytes: bytes(entry.bytes_base64), mime: entry.mime || undefined })) }) })),
@@ -146,10 +159,19 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.delete, input => { ports.deleteCopy(input.item_id); return { deleted: true as const }; }),
     bind(shelfActions.useAsMaterial, input => ({ item: ports.useAsMaterial(input.item_id) })),
     bind(shelfActions.edit, input => ({ item: ports.writeCopy(input.item_id, input.text) })),
-    bind(shelfActions.runJob, input => {
+    ...[shelfActions.generate, shelfActions.extract, shelfActions.runJob].map(definition => bind(definition, async (input, caller) => {
       if (!input.item_id && !input.item_ids?.length) throw new ActionError("shelf.invalid", "请选择动作和材料");
-      return ports.runJob({ recipe: input.recipe, item_id: input.item_id, item_ids: input.item_ids, option_id: input.option_id ?? null, shortcut_id: input.shortcut_id ?? null });
-    }),
+      const beforeEffect = async () => {
+        await caller.beforeEffect();
+        if (definition === shelfActions.runJob && input.recipe !== "extract_text") {
+          if (!caller.permissions.includes("model:invoke")) throw new ActionError("actions.forbidden", "AI 生成需要 model:invoke 权限");
+          await caller.validate_permissions?.(["model:invoke"]);
+          caller.signal?.throwIfAborted();
+        }
+      };
+      await beforeEffect();
+      return ports.runJob(input, { signal: caller.signal, beforeEffect });
+    })),
     bind(shelfActions.cancelJob, input => ({ job: ports.cancelJob(input.job_id) })),
     bind(shelfActions.settings, () => ports.settings()),
     bind(shelfActions.saveSettings, input => {
@@ -159,7 +181,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     }),
     bind(shelfActions.clip, input => ({ clip: ports.addClipboard(input.text, { concealed: input.concealed === true, types: input.types ?? [] }) })),
     bind(shelfActions.deleteClip, input => { ports.deleteClipboard(input.clip_id); return { deleted: true as const }; }),
-    bind(shelfActions.clipToMaterial, async input => ({ item: await ports.clipboardToMaterial(input.clip_id) })),
+    bind(shelfActions.clipToMaterial, async (input, caller) => ({ item: await ports.clipboardToMaterial(input.clip_id, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) })),
     ...createShelfSearchHandlers(() => ports.snapshot()),
   ];
 }

@@ -3,6 +3,8 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_CHANGESET_TYPE,
+  CODING_RUN_UPDATED_EVENT,
+  GIT_OPERATION_UPDATED_EVENT,
   CODING_FILE_CHANGED_EVENT,
   CODING_WORKSPACE_INVALIDATED_EVENT,
   DIFF_CHANGESET_SCHEMA_VERSION,
@@ -86,8 +88,9 @@ export const gitManifest: PluginManifest = {
     ],
   },
   events: {
-    publishes: [{ event_type_id: GIT_FILE_CHANGED_EVENT, type_version: 1 }],
+    publishes: [{ event_type_id: GIT_FILE_CHANGED_EVENT, type_version: 1 }, { event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1 }],
     subscribes: [
+      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1, from_plugin_ids: [CODING_PLUGIN_ID] },
       {
         event_type_id: CODING_FILE_CHANGED_EVENT,
         type_version: 1,

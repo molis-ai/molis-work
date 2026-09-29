@@ -361,7 +361,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!uiAdapter.includes("renderFeedContribution") || !pluginUi.includes("feedUiContribution")) {
     errors.push("Feed UI must cross the Workbench public contribution entrypoint");
   }
-  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution")) {
+  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", read("apps/workbench/src/builtin-plugins.ts"))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");
   }
   if (!uiHost.includes("class UiHost") || !uiHost.includes("render<TModel>(request")) {
@@ -1375,25 +1375,30 @@ export function checkGoalTreeApplicationOwnership(coordinator, host, application
 
 // Check both registration styles. An import alone is not a registered contribution:
 // the pack must list it and the composition root must register that pack's entries.
-export function hasWorkbenchUiContribution(workbench, registry, name) {
+export function hasWorkbenchUiContribution(workbench, registry, name, descriptors = "") {
   if (workbench.includes(`host.register(${name})`)) return true;
-  const importsRegistry = /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u.test(workbench);
-  const registersPacks = /for\s*\(const pack of BUILTIN_PLUGIN_WORKBENCH\)\s*\{\s*for\s*\(const contribution of pack\.contributions\)\s*host\.register\(contribution\)/u.test(workbench);
-  const packs = registry.match(/export const BUILTIN_PLUGIN_WORKBENCH[^=]*=\s*\[([\s\S]*?)\n\];/u)?.[1] ?? "";
+  const importsRegistry = /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH(?:\s*,[^}]+)?\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u.test(workbench);
+  const registersPacks = /function createWorkbenchUiHost\(packs:[^=]+?=\s*BUILTIN_PLUGIN_WORKBENCH\)/u.test(workbench)
+    && /for\s*\(const pack of packs\)\s*\{\s*for\s*\(const contribution of pack\.contributions\)\s*host\.register\(contribution\)/u.test(workbench);
+  const derivesPacks = /import\s*\{\s*BUILTIN_PLUGIN_CATALOG[^}]*\}\s*from\s*["']\.\/builtin-plugins\.js["']/u.test(registry)
+    && /export const BUILTIN_PLUGIN_WORKBENCH[^=]*=\s*pluginWorkbenchPacks\(\)/u.test(registry)
+    && /function pluginWorkbenchPacks\(catalog:[^=]+?=\s*BUILTIN_PLUGIN_CATALOG\)/u.test(registry)
+    && /return catalog\.flatMap\(entry => entry\.workbench \? \[\{ project_plugin_id: entry\.project_plugin_id, \.\.\.entry\.workbench \}\] : \[\]\)/u.test(registry);
+  const packs = derivesPacks ? descriptors.match(/export const BUILTIN_PLUGIN_CATALOG[^=]*=\s*\[([\s\S]*?)\n\];/u)?.[1] ?? "" : "";
   const contributions = [...packs.matchAll(/contributions:\s*\[([^\]]*)\]/gu)]
     .flatMap(match => match[1].split(",").map(value => value.trim()));
   return importsRegistry && registersPacks && contributions.includes(name);
 }
 
-export function checkProposalUiOwnership(renderer, workbench, proposalMount, legacyMount, clientDispatch, registry = "") {
+export function checkProposalUiOwnership(renderer, workbench, proposalMount, legacyMount, clientDispatch, registry = "", descriptors = "") {
   const errors = [];
   for (const name of ["proposedGoalName", "goalTreeProposalItemCopy", "goalTreeDecompositionIssueCopy", "renderGoalTreeProposalDecision", "renderRewireDecision", "renderContractProposal", "renderCandidateDecision", "buildDecisionGroups", "recentDecisionResults"]) {
     if (new RegExp(`function\\s+${name}\\s*\\(`, "u").test(renderer)) errors.push(`apps/workbench/src/renderer.ts: DD2 ${name} belongs to the Goals contribution`);
   }
   for (const name of ["goalsProposalUiContribution", "goalsDecisionResultsUiContribution"]) {
-    if (!hasWorkbenchUiContribution(workbench, registry, name)) errors.push(`apps/workbench: DD2 ${name} must be registered with UiHost`);
+    if (!hasWorkbenchUiContribution(workbench, registry, name, descriptors)) errors.push(`apps/workbench: DD2 ${name} must be registered with UiHost`);
   }
-  if (hasWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution")) {
+  if (hasWorkbenchUiContribution(workbench, registry, "goalsLegacyProposalUiContribution", descriptors)) {
     errors.push("apps/workbench: retired goalsLegacyProposalUiContribution must stay unregistered");
   }
   if (!proposalMount.includes("host.mount(")) errors.push("apps/workbench: proposal renderers must mount the native contributions");
@@ -1437,7 +1442,8 @@ export function checkPackageBoundaries(repositoryRoot) {
       ].map(file => fs.readFileSync(path.join(repositoryRoot, file), "utf8")
         + (file === "apps/workbench/src/index.ts" ? fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/ui-composition.ts"), "utf8") : ""));
       return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,
-        fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/plugin-workbench.ts"), "utf8"));
+        fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/plugin-workbench.ts"), "utf8"),
+        fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/builtin-plugins.ts"), "utf8"));
     })()).map(message => `[proposal-ui-owner] ${message}`),
     ...proposalCheckOwnership.map(message => `[proposal-check-owner] ${message}`),
     ...checkGoalTreeApplicationOwnership(...[

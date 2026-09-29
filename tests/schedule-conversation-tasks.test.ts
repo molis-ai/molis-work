@@ -26,6 +26,60 @@ import {
 } from "@molis-ai/molis-work-plugin-schedule";
 import { directScheduleActions } from "./schedule-direct-actions.js";
 
+for (const failure of [false, true]) test(`paused conversation ignores the late runner ${failure ? "error" : "result"} without writing failure`, async () => {
+  const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
+  const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
+  const wakeupIndex = new PluginWakeupIndex();
+  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const ports = createScheduleActionPorts({ db, schedule, now: () => clock.now });
+  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
+    async run() { entered.resolve(); await gate.promise; if (failure) throw new Error("late failure"); return { text: "late result", important: true }; },
+  }, () => clock.now, control));
+  const task = ports.createTask({ title: "slow", instructions: "wait", hour: 9, minute: 0, notify_important: true });
+  clock.now = new Date(2026, 8, 20, 9, 1);
+  const running = schedule.tick();
+  try {
+    await entered.promise;
+    ports.setTaskEnabled(task.task_id, false);
+    gate.resolve(); await running;
+    const persisted = getScheduleConversationTask(db, task.task_id)!;
+    assert.equal(persisted.enabled, false);
+    assert.deepEqual(persisted.turns.map(turn => [turn.kind, turn.text]), [["user", "wait"]]);
+    assert.equal(persisted.last_error, null);
+  } finally { gate.resolve(); await running; db.close(); }
+});
+
+test("a concurrent calendar tick does not replace the lease of a running one-shot conversation", async () => {
+  const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
+  const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
+  const wakeupIndex = new PluginWakeupIndex();
+  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
+    async run() { entered.resolve(); await gate.promise; return { text: "one result", important: false }; },
+  }, () => clock.now, control));
+  const ports = createScheduleActionPorts({ db, schedule, now: () => clock.now });
+  const task = ports.createTask({ title: "slow", instructions: "wait", hour: 9, minute: 0 });
+  clock.now = new Date(2026, 8, 20, 9, 1);
+  const running = schedule.tick();
+  try {
+    await entered.promise;
+    const held = () => db.prepare("SELECT lease_token FROM schedule_jobs WHERE job_id = ?").get(task.job_id) as { lease_token: string | null };
+    const token = held().lease_token;
+    assert.ok(token);
+    const other = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+    await other.tick();
+    await rescheduleEnabledConversationTasks(db, other, () => clock.now);
+    assert.equal(held().lease_token, token);
+    clock.now = new Date(clock.now.getTime() + 1000);
+    ports.openTask(task.task_id);
+    gate.resolve(); await running;
+    assert.equal(getScheduleConversationTask(db, task.task_id)?.turns.at(-1)?.text, "one result");
+    await rescheduleEnabledConversationTasks(db, other, () => clock.now);
+    assert.equal(other.get(task.job_id!)?.enabled, true);
+    assert.ok(other.get(task.job_id!)!.next_due_at > clock.now.toISOString());
+  } finally { gate.resolve(); await running; db.close(); }
+});
+
 test("本地日历日：过了当天时刻就排到明天", () => {
   const from = new Date(2026, 8, 20, 10, 0, 0);
   const next = nextDailyLocalDue(9, 0, from);

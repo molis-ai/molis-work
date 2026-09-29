@@ -15,8 +15,8 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
-  permissions: readonly string[], audiences: readonly ActionAudience[] = LOCAL): ActionDefinition<I, O> {
-  return { capability_id: `experiments.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+  permissions: readonly string[], audiences: readonly ActionAudience[] = LOCAL, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
+  return { capability_id: `experiments.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation",
     scope: "home", audiences, permissions, subject_kinds: ["experiment"], input_schema: input, output_schema: output } };
 }
 
@@ -40,7 +40,7 @@ export const experimentsActions = {
     object({ experiment }), write),
   delete: define<{ id: string }, { deleted: true }>("delete", "删除实验", "删除已停止的实验快照", "command", object({ id }), object({ deleted: { const: true } }), write),
   run: define<{ id: string }, { experiment: Experiment }>("run", "运行实验", "按快照调用各参试模型一次；运行中可取消，不自动重试", "command", object({ id }),
-    object({ experiment }), [...write, "model:invoke"]),
+    object({ experiment }), [...write, "model:invoke"], undefined, { cost: "metered" }),
   cancel: define<{ id: string }, { experiment: Experiment }>("cancel", "取消实验", "取消正在运行的实验，已完成的格子保留", "command", object({ id }), object({ experiment }), write),
   review: define<{ id: string; case_id: string; reference: string; note: string }, { experiment: Experiment }>("review", "人工复核", "为一条材料记录人工参考答案及依据",
     "command", object({ id, case_id: id, reference: id, note: text }), object({ experiment }), write),

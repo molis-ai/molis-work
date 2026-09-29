@@ -83,7 +83,7 @@ export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 export { withFunctionsService } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
-export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./feed-intelligence-client.js";
+export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 
 export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
@@ -130,7 +130,7 @@ export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
-export { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
+export { hostCompleteText, hostTextGeneration, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 export { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
 export { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
 
@@ -217,3 +217,5 @@ export { draftText } from "./model-draft.js";
 
 export { ensureSystemAgentService } from "./system-agent-service.js";
 export { LocalActionGatewayClient } from "./action-gateway.js";
+
+export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./search-evidence-runtime.js";

@@ -1,4 +1,4 @@
-import { withActionEffect, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { withActionEffect, type ActionAvailability, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyItem, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { runJellyAi, type JellyAiInput, type JellyAiPorts } from "./ai.js";
 import { jellyOccurrences, jellyProgress } from "./calendar.js";
@@ -37,8 +37,8 @@ export const jellyActions = {
   // Saves a confirmation token; the deletion itself is the separate delete action.
   previewInspirationDelete: withActionEffect(define<{ id: string }, { preview: JellyPreview }>("inspiration.delete_preview", "预览灵感永久删除", "要求灵感已归档；保留已生成的笔记并保存确认凭证", "command", s.object({ id: s.id }), s.object({ preview: s.preview })), "write", false),
   manualPlan: define<AiInput, AiResult>("plan.manual", "按原文逐行拆解", "将原文逐行形成待采纳任务，不使用模型，不写入笔记或日历", "query", aiInput, planOutput),
-  modelPlan: define<AiInput, AiResult>("plan.generate", "模型拆解行动计划", "根据原文或笔记选区生成待采纳任务；不自动写入或执行任务", "command", aiInput, planOutput, [...JELLY_READ, "model:invoke"], "concurrent"),
-  digest: define<AiInput, AiResult>("inspiration.summarize", "提炼素材摘要", "保留逐条证据；灵感来源在生成结束后重新检查原文和素材，再保存摘要", "command", aiInput, s.object({ digest: s.digest, state: s.workspace }, ["digest"]), [...JELLY_WRITE, "model:invoke"], "concurrent"),
+  modelPlan: define<AiInput, AiResult>("plan.generate", "模型拆解行动计划", "根据原文或笔记选区生成待采纳任务；不自动写入或执行任务", "command", aiInput, planOutput, [...JELLY_READ, "model:invoke"], "concurrent", { cost: "metered" }),
+  digest: define<AiInput, AiResult>("inspiration.summarize", "提炼素材摘要", "保留逐条证据；灵感来源在生成结束后重新检查原文和素材，再保存摘要", "command", aiInput, s.object({ digest: s.digest, state: s.workspace }, ["digest"]), [...JELLY_WRITE, "model:invoke"], "concurrent", { cost: "metered" }),
   searchEntries: jellySearchActions.entries,
   itemSubject: jellySearchActions.item,
   noteSubject: jellySearchActions.note,
@@ -49,16 +49,16 @@ export const JELLY_ACTION_PERMISSIONS = [...new Set(JELLY_ACTIONS.flatMap(defini
 export interface JellyActionPorts {
   withStore<T>(run: (store: JellyStore) => T): T;
   modelAvailability(): ActionAvailability;
-  ai(caller: ActionCallContext): JellyAiPorts;
+  ai(caller: ActionExecutionContext): JellyAiPorts;
 }
 export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandlerBinding[] {
   const read = <T>(run: (state: JellyWorkspace) => T) => ports.withStore(store => run(store.read()));
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
-  const ai = async (input: AiInput, kind: JellyAiInput["kind"], manual: boolean, caller: ActionCallContext): Promise<AiResult> => {
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
+  const ai = async (input: AiInput, kind: JellyAiInput["kind"], manual: boolean, caller: ActionExecutionContext): Promise<AiResult> => {
     caller.signal?.throwIfAborted();
     const before = read(state => state);
     const result = await runJellyAi(before, { ...input, kind, manual }, { ...(manual ? {} : ports.ai(caller)), signal: caller.signal });
-    caller.signal?.throwIfAborted();
+    await caller.beforeEffect();
     if ("digest" in result && input.source_type === "inspiration" && input.source_id) {
       return ports.withStore(store => {
         const latest = store.read();

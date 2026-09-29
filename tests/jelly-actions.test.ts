@@ -201,3 +201,38 @@ test("model plan action returns a real preview and requires source mapping befor
   assert.equal((await read()).revision, 0);
   const state = await command("plan.apply", { plan: result.plan }); assert.equal(state.items[0]!.title, "模型给出的步骤"); assert.equal(state.task_links.length, 1);
 });
+
+for (const response of ["not JSON", '{"actions":[{"title":3}]}', "null"]) test(`Jelly rejects malformed or invalid structured output without changing original data: ${response}`, async t => {
+  const f = fixture(t, async () => response);
+  await f.command("note.create", { title: "原笔记", markdown: "准备真实发布材料" });
+  const before = await f.read();
+  await assert.rejects(f.bound.invoke(actions.modelPlan, { source_type: "note", source_id: before.notes[0]!.id }), { code: "jelly.ai_invalid" });
+  assert.deepEqual(await f.read(), before);
+});
+
+test("Jelly accepts whole-response JSON fences through Host and still returns an uncommitted domain plan", async t => {
+  const f = fixture(t, async () => '```json\n{"actions":[{"title":"核对来源","notes":"逐条核实","minutes":30}],"clarification_questions":[]}\n```');
+  const before = await f.read();
+  const result = await f.bound.invoke(actions.modelPlan, { source_type: "text", text: "准备发布说明" });
+  assert.equal(result.plan.actions[0]?.title, "核对来源");
+  assert.deepEqual(await f.read(), before);
+});
+
+for (const phase of ["dispatch", "result"] as const) test(`Jelly revocation at ${phase} prevents further model dispatch or digest writes`, async t => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let allowed = true, dispatched = 0;
+  const f = fixture(t, async (prompt, options) => {
+    if (phase === "dispatch") { entered.resolve(); await release.promise; }
+    await options?.beforeDispatch?.(); dispatched++;
+    if (phase === "result") { entered.resolve(); await release.promise; }
+    return digestModel(prompt, options);
+  });
+  const state = await f.command("inspiration.create", { raw_text: "这份原文必须保留。" });
+  const pending = f.service.invoke({ ...f.caller, validate_authority: async () => {
+    if (!allowed) throw Object.assign(new Error("Jelly permission revoked"), { code: "actions.forbidden" });
+  } }, actions.digest, { source_type: "inspiration", source_id: state.inspirations[0]!.id });
+  await entered.promise; allowed = false; release.resolve();
+  await assert.rejects(pending, { code: "actions.forbidden" });
+  assert.equal(dispatched, phase === "dispatch" ? 0 : 1);
+  assert.deepEqual(await f.read(), state);
+});

@@ -10,6 +10,7 @@ import type {
   PluginManifest,
   PluginUpstreamReadyInputs,
   PluginUpstreamUnavailableReason,
+  PluginInputDeliveryContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PluginWiringError } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -52,7 +53,7 @@ function portPlugin(input: {
   inputs?: PortSpec[];
   outputs?: PortSpec[];
   groups?: Array<{ group_id: string; title: string; ports: string[] }>;
-  onReady?: (inputs: PluginUpstreamReadyInputs, context: { signal: AbortSignal }) => void | Promise<void>;
+  onReady?: (inputs: PluginUpstreamReadyInputs, context: PluginInputDeliveryContext) => void | Promise<void>;
   onUnavailable?: (reason: PluginUpstreamUnavailableReason) => void;
   failUntil?: number;
 }): { definition: PluginDefinition; starts: () => number } {
@@ -174,6 +175,7 @@ function harness(definitions: PluginDefinition[]) {
     artifacts,
   });
   return {
+    runtime,
     supervisor,
     graph,
     artifacts,
@@ -572,4 +574,65 @@ test("content that can no longer be read is reported instead of delivered", asyn
 
   assert.equal(reasons[0]?.code, "content_unavailable");
   assert.equal(deliveries.length, 1);
+});
+
+for (const change of ['archive', 'unavailable'] as const) {
+  test(`fixed input ${change} is rejected at commit without waiting for a refresh`, async () => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    let writes = 0, delivery: PluginInputDeliveryContext | undefined;
+    const reasons: PluginUpstreamUnavailableReason[] = [];
+    const producer = portPlugin({ id: PROJECTS, outputs: [{ port: 'project', type: PROJECT_TYPE }] });
+    const consumer = portPlugin({ id: CODING, inputs: [{ port: 'project', type: PROJECT_TYPE }],
+      onReady: async (_inputs, context) => { delivery = context; entered.resolve(); await release.promise; context.beforeEffect(); writes++; },
+      onUnavailable: reason => reasons.push(reason) });
+    const rig = harness([producer.definition, consumer.definition]);
+    await rig.start();
+    rig.graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
+      source_port: 'project', origin: 'user', actor_id: 'actor' });
+    const reference = rig.artifacts.put('fixed', 1);
+    rig.graph.publish({ plugin_id: PROJECTS, port: 'project', reference });
+    rig.graph.evaluateAll(); await entered.promise;
+    const stored = rig.artifacts.read(reference)!;
+    if (change === 'archive') stored.lifecycle_state = 'archived'; else stored.availability = 'unavailable';
+    assert.equal(rig.graph.status(CODING).status, 'missing');
+    release.resolve(); await rig.graph.drain();
+    assert.equal(writes, 0); assert.equal(delivery!.signal.aborted, true);
+    rig.graph.evaluateAll(); await rig.graph.drain();
+    assert.equal(reasons.length, 1); assert.equal(reasons[0]!.code, 'content_unavailable');
+    await rig.graph.close();
+  });
+}
+
+test('a source invalidated while startup is waiting never reaches the consumer', async () => {
+  const producer = portPlugin({ id: PROJECTS, outputs: [{ port: 'project', type: PROJECT_TYPE }] });
+  let writes = 0;
+  const consumer = portPlugin({ id: CODING, inputs: [{ port: 'project', type: PROJECT_TYPE }], onReady: () => { writes++; } });
+  const rig = harness([producer.definition, consumer.definition]); await rig.start();
+  const ensure = rig.supervisor.ensureStarted.bind(rig.supervisor), waiting = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  rig.supervisor.ensureStarted = async id => { waiting.resolve(); await release.promise; return ensure(id); };
+  rig.graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
+    source_port: 'project', origin: 'user', actor_id: 'actor' });
+  const reference = rig.artifacts.put('fixed', 1);
+  rig.graph.publish({ plugin_id: PROJECTS, port: 'project', reference });
+  rig.graph.evaluateAll(); await waiting.promise;
+  rig.artifacts.read(reference)!.availability = 'unavailable';
+  release.resolve(); await rig.graph.drain(); assert.equal(writes, 0);
+  await rig.graph.close();
+});
+
+test('closing the input graph releases a waiting handler and refuses its late commit', async () => {
+  const producer = portPlugin({ id: PROJECTS, outputs: [{ port: 'project', type: PROJECT_TYPE }] });
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>();
+  let writes = 0;
+  const consumer = portPlugin({ id: CODING, inputs: [{ port: 'project', type: PROJECT_TYPE }], onReady: async (_inputs, context) => {
+    entered.resolve(); await release.promise;
+    try { context.beforeEffect(); writes++; } finally { finished.resolve(); }
+  } });
+  const rig = harness([producer.definition, consumer.definition]); await rig.start();
+  rig.graph.bind({ board_id: BOARD, target_plugin_id: CODING, target_port: 'project', source_plugin_id: PROJECTS,
+    source_port: 'project', origin: 'user', actor_id: 'actor' });
+  rig.graph.publish({ plugin_id: PROJECTS, port: 'project', reference: rig.artifacts.put('fixed', 1) });
+  rig.graph.evaluateAll(); await entered.promise;
+  await rig.graph.close(); release.resolve(); await finished.promise;
+  rig.graph.evaluateAll(); await rig.graph.drain(); assert.equal(writes, 0);
 });

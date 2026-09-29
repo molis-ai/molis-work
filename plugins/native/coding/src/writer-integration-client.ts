@@ -1,5 +1,6 @@
 /** Select current child-worktree contents; only the Host review surface can approve them. */
 export const CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
+  const lifetime=ports.lifetime;
   const {q,api,host}=ports,dialog=q('[data-coding-integration-dialog]'),list=q('[data-coding-integration-files]'),message=q('[data-coding-integration-status]'),prepare=q('[data-coding-integration-prepare]');
   let endpoint='',workspace='',view=null,ticket=0,busy=false,reading=false,reviewing=false,operation='',selection=new Map(),resolutions=new Map(),draft='';
   const MARKER=/^(<{7}|={7}|>{7}|\\|{7})( |$)/m,markers=(text)=>(text.match(/^<{7}( |$)/gm)||[]).length;
@@ -23,7 +24,7 @@ export const CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         const key=file.path.join('/'),row=el('section');row.className='coding-material';
         const label=el('label'),check=el('input');label.className='mw-check-row';check.type='checkbox';check.className='mw-check';check.disabled=!file.selectable;check.checked=file.selectable && previous.get(key)===file.revision;check.setAttribute('aria-label','整合：'+key);
         if(check.checked)selection.set(key,file.revision);
-        check.addEventListener('change',()=>{if(check.checked)selection.set(key,file.revision);else selection.delete(key);operation='';remember();update();});
+        lifetime.listen(check,'change',()=>{if(check.checked)selection.set(key,file.revision);else selection.delete(key);operation='';remember();update();});
         label.append(check,el('span',key+' · '+({added:'新增',modified:'修改',deleted:'删除'}[file.target])));row.append(label);
         if(file.reason)row.append(el('p',file.reason));
         // What would change in the main workspace, as a folded diff; the full texts stay one level down.
@@ -37,7 +38,7 @@ export const CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
           const merge=el('div');merge.className='coding-merge';
           const open=el('button',file.conflict.clean?'查看三方合并结果':'三方合并并解决冲突');open.type='button';open.className='mw-btn';
           merge.append(open);row.append(merge);
-          open.addEventListener('click',()=>{
+          lifetime.listen(open,'click',()=>{
             open.remove();
             const editor=el('textarea'),state=el('p'),use=el('label'),useCheck=el('input');
             editor.className='mw-textarea coding-merge-editor';editor.rows=Math.min(18,Math.max(6,file.conflict.merged_text.split('\\n').length+1));editor.spellcheck=false;
@@ -50,30 +51,30 @@ export const CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
                 pick.append(el('span','冲突 '+(index+1)+' · 主工作区 '+lines(hunk.ours)+' 行，子任务 '+lines(hunk.theirs)+' 行'));
                 for(const [how,label] of [['ours','用主工作区'],['theirs','用子任务'],['both','两边都保留']]){const b=el('button',label);b.type='button';b.className='mw-btn mw-btn--ghost';
                   b.setAttribute('aria-label','冲突 '+(index+1)+'：'+label);
-                  b.addEventListener('click',()=>{editor.value=take(editor.value,index,how);sync();(picks.querySelector('button')||editor).focus();});pick.append(b);}
+                  lifetime.listen(b,'click',()=>{editor.value=take(editor.value,index,how);sync();(picks.querySelector('button')||editor).focus();});pick.append(b);}
                 picks.append(pick);});
               state.textContent=blocked?'还有 '+Math.max(left,1)+' 处冲突没有解决（<<<<<<< / ||||||| / ======= / >>>>>>> 标记还在），选好内容并删掉标记后才能整合。':file.conflict.clean&&editor.value===file.conflict.merged_text?'自动合并没有冲突：保留了主工作区和子任务各自的改动。':'冲突已处理，可以用这个结果整合。';
               state.dataset.tone=blocked?'attention':'done';useCheck.disabled=blocked;if(blocked){useCheck.checked=false;selection.delete(key);resolutions.delete(key);}
               else if(useCheck.checked){selection.set(key,file.revision);resolutions.set(key,editor.value);}
               operation='';remember();update();};
-            editor.addEventListener('input',sync);useCheck.addEventListener('change',()=>{if(useCheck.checked){selection.set(key,file.revision);resolutions.set(key,editor.value);}else{selection.delete(key);resolutions.delete(key);}operation='';remember();update();});
+            lifetime.listen(editor,'input',sync);lifetime.listen(useCheck,'change',()=>{if(useCheck.checked){selection.set(key,file.revision);resolutions.set(key,editor.value);}else{selection.delete(key);resolutions.delete(key);}operation='';remember();update();});
             merge.append(el('p',file.conflict.clean?'这是自动三方合并的结果，保留了双方的改动；可以再修改后整合。':'每处冲突依次是：<<<<<<< 主工作区 下面是主工作区的内容，||||||| 原基线 下面是两边改动前的原内容，======= 下面是子任务的内容，到 >>>>>>> 子任务 结束。可以用每处冲突旁的按钮选一边或两边都保留，也可以直接编辑。'),editor,picks,state,use);sync();editor.focus();
           });
         }
         list.append(row);
       }
       remember();message.textContent='请选择文件，再准备宿主审查。';await refreshReviews();
-    }catch(error){if(at===ticket){view=null;selection.clear();message.textContent=error.message;}}
+    }catch(error){if(!lifetime.alive)return;if(at===ticket){view=null;selection.clear();message.textContent=error.message;}}
     finally{reading=false;update();}
   };
-  q('[data-coding-integration-close]').addEventListener('click',()=>dialog.close());
-  dialog.addEventListener('close',()=>{ticket++;});
-  q('[data-coding-integration-refresh]').addEventListener('click',()=>void refresh());
-  prepare.addEventListener('click',async()=>{
+  lifetime.listen(q('[data-coding-integration-close]'),'click',()=>dialog.close());
+  lifetime.listen(dialog,'close',()=>{ticket++;});
+  lifetime.listen(q('[data-coding-integration-refresh]'),'click',()=>void refresh());
+  lifetime.listen(prepare,'click',async()=>{
     if(busy || reading || !view)return;busy=true;message.textContent='正在准备整合审查…';update();operation ||= crypto.randomUUID();const at=ticket;
     try{await api(endpoint,'POST',{operation_id:operation,files:view.files.filter(f=>selection.get(f.path.join('/'))===f.revision).map(f=>({path:f.path,revision:f.revision,...(resolutions.has(f.path.join('/'))?{resolution:resolutions.get(f.path.join('/'))}:{})}))});
       operation='';if(at===ticket){message.textContent='已准备审查。执行状态以下方原回执为准。';await refreshReviews();}
-    }catch(error){if(at===ticket)message.textContent=error.message;}finally{busy=false;update();}
+    }catch(error){if(!lifetime.alive)return;if(at===ticket)message.textContent=error.message;}finally{busy=false;update();}
   });
   return {refreshReviews,open:async(id,run,child)=>{
     if(busy || reading){ports.status('原成果操作仍在处理，请稍后重新打开',true);return;}

@@ -1,7 +1,13 @@
 import type { PluginEventType } from "@molis-ai/molis-work-contracts/platform/plugin-events";
-import { GIT_FILE_CHANGED_EVENT, parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { GIT_OPERATION_UPDATED_EVENT, GIT_FILE_CHANGED_EVENT, parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
-export { GIT_FILE_CHANGED_EVENT };
+export { GIT_FILE_CHANGED_EVENT, GIT_OPERATION_UPDATED_EVENT };
+
+export interface GitOperationUpdate {
+  workspace_id: string;
+  operation_id: string;
+  outcome: "succeeded" | "failed" | "unknown";
+}
 
 /**
  * What Git tells the rest of the project.
@@ -39,6 +45,14 @@ export function parseGitFileChanged(payload: unknown): GitFileChanged {
 }
 
 export const gitEventTypes: readonly PluginEventType[] = [
+  {
+    event_type_id: GIT_OPERATION_UPDATED_EVENT,
+    type_version: 1,
+    validate(payload: unknown): GitOperationUpdate {
+      if (!isRecord(payload) || typeof payload.outcome !== "string" || !["succeeded", "failed", "unknown"].includes(payload.outcome)) throw new Error("operation-updated 无效");
+      return { workspace_id: requireText(payload.workspace_id, "workspace_id"), operation_id: requireText(payload.operation_id, "operation_id"), outcome: payload.outcome as GitOperationUpdate["outcome"] };
+    },
+  },
   {
     event_type_id: GIT_FILE_CHANGED_EVENT,
     type_version: 1,

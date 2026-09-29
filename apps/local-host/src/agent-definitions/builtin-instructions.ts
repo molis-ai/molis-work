@@ -2,21 +2,16 @@ import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { COGNIA_EVIDENCE_PROMPT, INFORMATION_PLANNER, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
 import { BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
-import { PAGES_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-pages";
-import { JELLY_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { FORM_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { LINGGUANG_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-lingguang";
-import { WORKFLOWS_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-workflows";
-import { COGNIA_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
- * Every instruction a built-in model call uses. A Plugin's live in its package and are listed here once; the Host's own
+ * Every instruction a built-in model call uses. A Plugin's live in its package and come from the shared composition; the Host's own
  * sit beside the code that calls the model. `tests/prompt-registration.test.ts` fails when a call's instructions are
  * not in this list, or when a call sends a raw prompt string.
  */
-export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [...PAGES_INSTRUCTIONS, ...JELLY_INSTRUCTIONS, ...FORM_INSTRUCTIONS, ...DATASET_INSTRUCTIONS,
-  ...LINGGUANG_INSTRUCTIONS, ...WORKFLOWS_INSTRUCTIONS, ...COGNIA_INSTRUCTIONS, ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER];
+export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
+  ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.instructions ?? []), ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER,
+];
 
 /**
  * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Cognia's knowledge answers), with the
@@ -43,7 +38,6 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
  * step with the transitional list in `tests/prompt-registration.test.ts`.
  */
 export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [
-  { owner_id: "io.molis.work.alchemist", title: "炼金术士", reason: "工作室按每个任务在插件内拼出 systemPrompt，还没有拆成可登记的固定指令；迁移单列" },
 ];
 
 /** Built-in Plugins whose manifest Agent block is not what their runs use; their real prompts are registered above instead. */

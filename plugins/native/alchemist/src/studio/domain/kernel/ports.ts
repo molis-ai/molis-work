@@ -1,7 +1,8 @@
+import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export interface StructuredGenerationRequest<Result> {
   operationId: string;
   purpose: string;
-  systemPrompt: string;
+  systemPrompt: InstructedPrompt;
   userPrompt: string;
   jsonSchema: Record<string, unknown>;
   parse(value: unknown): Result;

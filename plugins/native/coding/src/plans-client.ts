@@ -1,13 +1,14 @@
 import { parseCodingPlan, parseCodingPlanAnswer } from "./plans.js";
 /** Plan drafts are UI inputs; execution state is always projected from Run records. */
 export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
+  const lifetime=ports.lifetime;
   const parseCodingPlan=${parseCodingPlan.toString()};
   const parseCodingPlanAnswer=${parseCodingPlanAnswer.toString()};
   const {q,api,current,execute,status}=ports;
   let plan=null,runs=[],owner='',busy=false,editor=null,renderKey='';
   const region=q('[data-coding-plan]'),dialog=q('[data-coding-plan-dialog]');
   const element=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
-  const button=(text,action,disabled=false)=>{const node=element('button',text,'mw-btn');node.type='button';node.disabled=disabled;node.addEventListener('click',()=>void action());return node;};
+  const button=(text,action,disabled=false)=>{const node=element('button',text,'mw-btn');node.type='button';node.disabled=disabled;lifetime.listen(node,'click',()=>void action());return node;};
   const path=()=>'/sessions/'+encodeURIComponent(owner)+'/plan';
   const field=(label,value,multiline=false)=>{const node=element('label',undefined,'mw-field'),input=element(multiline?'textarea':'input',undefined,'mw-input');node.append(element('span',label),input);input.value=value;if(multiline)input.rows=3;return {node,input};};
   const describe=(parent,content)=>{
@@ -62,7 +63,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
   };
   const action=async(fn)=>{
     if(busy)return;const id=owner;busy=true;renderKey='';render();
-    try{await fn(id);}catch(error){if(id===current())status(error.message,true);}
+    try{await fn(id);}catch(error){if(!lifetime.alive)return;if(id===current())status(error.message,true);}
     finally{busy=false;renderKey='';if(id===current())render();}
   };
   const render=()=>{
@@ -97,15 +98,15 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
       const data=await api(path(),'POST',{run_id:run.ref.run_id,expected_revision:plan?.revision ?? 0});if(id===current()){plan=data.plan;edit();}
     }),busy));
   };
-  q('[data-coding-plan-form]').addEventListener('input',remember);
-  q('[data-coding-plan-close]').addEventListener('click',()=>{remember();dialog.close();});
-  dialog.addEventListener('cancel',remember);
-  q('[data-coding-plan-form]').addEventListener('submit',async event=>{
+  lifetime.listen(q('[data-coding-plan-form]'),'input',remember);
+  lifetime.listen(q('[data-coding-plan-close]'),'click',()=>{remember();dialog.close();});
+  lifetime.listen(dialog,'cancel',remember);
+  lifetime.listen(q('[data-coding-plan-form]'),'submit',async event=>{
     event.preventDefault();if(!editor || busy)return;remember();const draft=editor;busy=true;q('[data-coding-plan-save]').disabled=true;
     try{const data=await api('/sessions/'+encodeURIComponent(draft.id)+'/plan','POST',{expected_revision:draft.revision,content:values()});
       try{sessionStorage.removeItem(storedKey(draft.id));}catch{}
       if(draft.id===current()){plan=data.plan;dialog.close();editor=null;status('计划修改已保存，需确认这一修订后才能执行。');}
-    }catch(error){q('[data-coding-plan-error]').textContent=error.message;}
+    }catch(error){if(!lifetime.alive)return;q('[data-coding-plan-error]').textContent=error.message;}
     finally{busy=false;q('[data-coding-plan-save]').disabled=false;renderKey='';render();}
   });
   return {

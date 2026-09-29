@@ -16,12 +16,14 @@ import { CODING_ROLE_IDS } from "./roles.js";
  * publisher knows what its payload means.
  */
 export {
+  CODING_RUN_UPDATED_EVENT,
   CODING_FILE_CHANGED_EVENT,
   CODING_PREFERENCE_EVENT,
   CODING_WORKSPACE_INVALIDATED_EVENT,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 import {
+  CODING_RUN_UPDATED_EVENT,
   CODING_FILE_CHANGED_EVENT,
   CODING_PREFERENCE_EVENT,
   CODING_WORKSPACE_INVALIDATED_EVENT,
@@ -147,7 +149,20 @@ export const codingPreferenceType: PluginEventType<CodingPreference> = {
   validate: parseCodingPreference,
 };
 
+/** A stopped or uncertain Run may have changed its workspace; this hint never claims success. */
+export const codingRunUpdatedType: PluginEventType = {
+  event_type_id: CODING_RUN_UPDATED_EVENT,
+  type_version: 1,
+  validate(payload: unknown) {
+    if (!isRecord(payload)) throw new Error("run-updated 不是对象");
+    if (typeof payload.phase !== "string" || !["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(payload.phase)) throw new Error("phase 不是停止或待核对状态");
+    return { workspace_id: requireText(payload.workspace_id, "workspace_id"),
+      session_id: requireText(payload.session_id, "session_id"), run_id: requireText(payload.run_id, "run_id"), phase: payload.phase };
+  },
+};
+
 export const codingEventTypes = [
+  codingRunUpdatedType,
   codingFileChangedType,
   codingWorkspaceInvalidatedType,
   codingPreferenceType,

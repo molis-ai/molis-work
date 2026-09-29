@@ -1,7 +1,6 @@
 import type { BoardSnapshot, GoalPresentationState as WebGoalStatus, GoalsDocumentView as WebGoalView, GoalsCoverageItem as WebCoverageItem, GoalsInputBinding as WebInputBinding, GoalsPolicyBinding as WebPolicyBinding, GoalsDecisionEvent as WebEventRecord } from "@molis-ai/molis-work-plugin-goals";
 import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
-import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
-import type { ScheduleConversationTaskView } from "@molis-ai/molis-work-plugin-schedule";
+import type { ScheduleConversationTaskView, ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 export interface MolisWorkWebView {
   enabled_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
@@ -33,8 +32,10 @@ export interface MolisWorkWebView {
   feed: FeedSnapshot;
   feed_source_catalog?: FeedSourceCatalogView[];
   feed_connector_auth?: FeedUiModel["connector_auth"];
-  schedule_jobs?: readonly ScheduleJobRecord[];
+  schedule_jobs?: readonly ScheduleJobView[];
   schedule_tasks?: readonly ScheduleConversationTaskView[];
+  schedule_operations?: import("@molis-ai/molis-work-plugin-schedule").ScheduleUiModel["operations"];
+  schedule_orphaned_occurrences?: import("@molis-ai/molis-work-plugin-schedule").ScheduleUiModel["orphaned_occurrences"];
   /** Live authorized status from the Inbox scene owner. */
   inbox_judgment?: import("@molis-ai/molis-work-plugin-inbox").InboxJudgmentSummary;
 }

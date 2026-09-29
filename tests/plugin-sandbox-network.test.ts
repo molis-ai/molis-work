@@ -68,6 +68,13 @@ test('HTTPS proxy pins checked DNS, verifies hostname, rejects redirects and blo
     } });
     assert.equal((await injected.request(context, request, authorization)).body, body);
     const before = connections;
+    let allowed = true;
+    const revoked = createHttpsProxy({ resolveHostname: async () => [{ address: '93.184.216.34', family: 4 }], resolveSecret: async () => {
+      allowed = false;
+      return { header: 'authorization', prefix: 'Bearer ', value: 'top-secret-token', domains: ['example.com'] };
+    } });
+    await assert.rejects(revoked.request({ ...context, beforeEffect: async () => { if (!allowed) throw new Error('Revoked while resolving the secret'); } }, request, authorization), /Revoked while resolving/);
+    assert.equal(connections, before, 'the original invocation is rechecked after awaited Host resolution and before creating transport');
     t.mock.method(dns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }, { address: '127.0.0.1', family: 4 }]); syncBuiltinESMExports();
     await assert.rejects(proxy.request(context, request, authorization), { code: 'NETWORK_DENIED' }); assert.equal(connections, before);
   } finally {

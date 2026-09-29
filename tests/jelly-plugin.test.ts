@@ -27,7 +27,7 @@ test('Jelly plans are previews, not writes, and schedule around real calendar oc
   const store=fixture(t);store.execute({type:'item.create',item:{title:'既有安排',start_date:day,start_time:540,end_time:600}});
   store.execute({type:'note.create',title:'发布',markdown:'准备发布材料\n确认说明'});
   const before=store.read(),note=before.notes[0]!;
-  const generated=await runJellyAi(before,{kind:'decompose',source_type:'note',source_id:note.id,today:day,start_time:540},{completeText:async()=>JSON.stringify({actions:[{title:'核对文档',notes:'说明完整',minutes:30}]})});
+  const generated=await runJellyAi(before,{kind:'decompose',source_type:'note',source_id:note.id,today:day,start_time:540},{completeJson:async()=>({actions:[{title:'核对文档',notes:'说明完整',minutes:30}]})});
   assert.ok('plan'in generated);assert.equal(generated.plan.actions[0]?.schedule?.start_time,600);assert.equal(store.read().revision,before.revision);
   store.execute({type:'plan.apply',plan:generated.plan},before.revision);assert.equal(store.read().items.length,2);assert.equal(store.read().task_links.length,1);
   store.execute({type:'plan.apply',plan:generated.plan},store.read().revision);assert.equal(store.read().items.length,2);
@@ -36,7 +36,7 @@ test('Jelly plans are previews, not writes, and schedule around real calendar oc
 test('Jelly AI failures retain source; no fabricated model output',async t=>{
   const store=fixture(t);store.execute({type:'inspiration.create',raw_text:'关于未来产品的一段真实原文'});const before=store.read(),id=before.inspirations[0]!.id;
   await assert.rejects(()=>runJellyAi(before,{kind:'digest',source_type:'inspiration',source_id:id},{}),/尚未配置/);
-  await assert.rejects(()=>runJellyAi(before,{kind:'decompose',source_type:'inspiration',source_id:id},{completeText:async()=>'<not JSON>'}),/有效计划/);
+  await assert.rejects(()=>runJellyAi(before,{kind:'decompose',source_type:'inspiration',source_id:id},{completeJson:async()=>null}),/计划需要/);
   assert.deepEqual(store.read(),before);
   const manual=await runJellyAi(before,{kind:'decompose',source_type:'inspiration',source_id:id,manual:true},{});assert.ok('plan'in manual);assert.equal(manual.method,'manual');
 });
@@ -51,10 +51,10 @@ test('proposed slots preserve cross-midnight occupancy and report no slot when f
 });
 test('long material keeps original evidence identities through hierarchical summaries',async t=>{
   const store=fixture(t);store.execute({type:'inspiration.create',raw_text:'第一段真实观察。'.repeat(1600)+'\n\n'+'第二段包含边界。'.repeat(1600)});let calls=0;
-  const result=await runJellyAi(store.read(),{kind:'digest',source_type:'inspiration',source_id:store.read().inspirations[0]!.id},{completeText:async input=>{const prompt=modelPromptText(input);
+  const result=await runJellyAi(store.read(),{kind:'digest',source_type:'inspiration',source_id:store.read().inspirations[0]!.id},{completeJson:async input=>{const prompt=modelPromptText(input);
     calls++;const blockMatch=prompt.match(/<材料块>\n([\s\S]*?)\n<\/材料块>/u);
-    if(blockMatch){const blocks=JSON.parse(blockMatch[1]!);const id=blocks[0].id;return JSON.stringify({thesis:{text:'观察摘要',evidence_block_ids:[id]},takeaways:[{text:'保留观察与边界',evidence_block_ids:[id]}],chapters:[],quotes:[],dropped:[]});}
-    const summaries=JSON.parse(prompt.match(/<分段摘要>\n([\s\S]*?)\n<\/分段摘要>/u)![1]!);return JSON.stringify({...summaries[0],takeaways:summaries.map((s:any)=>s.takeaways[0])});
+    if(blockMatch){const blocks=JSON.parse(blockMatch[1]!);const id=blocks[0].id;return {thesis:{text:'观察摘要',evidence_block_ids:[id]},takeaways:[{text:'保留观察与边界',evidence_block_ids:[id]}],chapters:[],quotes:[],dropped:[]};}
+    const summaries=JSON.parse(prompt.match(/<分段摘要>\n([\s\S]*?)\n<\/分段摘要>/u)![1]!);return {...summaries[0],takeaways:summaries.map((s:any)=>s.takeaways[0])};
   }});
   assert.ok('digest'in result);assert.ok(calls>=3);assert.equal(result.digest.snapshot?.blocks.map(b=>b.text).join('').length,store.read().inspirations[0]!.raw_text.replace(/\n/g,'').length);
   const ids=new Set(result.digest.snapshot!.blocks.map(b=>b.id));assert.ok(result.digest.structured!.takeaways.every(c=>c.evidence_block_ids.every(id=>ids.has(id))));assert.equal(store.read().inspirations[0]!.digest,null);

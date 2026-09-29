@@ -1,3 +1,4 @@
+import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -140,7 +141,7 @@ test("Alchemist aborting an event observer leaves its job intact; cancelled conv
   await f.runtime.runPending();
   assert.equal((await f.call(a.runEvents, { id: receipt.jobId! })).status, "completed");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), abort = new AbortController();
-  f.ai.generate = async () => { entered.resolve(); await release.promise; return { text: '{"reply":"迟到的成功回复"}', runtimeLabel: "fixture" }; };
+  f.ai.generate = async () => { entered.resolve(); await release.promise; return alchemistOutput('{"reply":"迟到的成功回复"}'); };
   const pending = f.service.invoke({ ...f.caller, signal: abort.signal }, a.conversationSend, { body: "这次讨论取消", context: { kind: "direction", label: direction.title, directionId: direction.id } });
   await entered.promise;
   abort.abort(); release.resolve(); await pending;

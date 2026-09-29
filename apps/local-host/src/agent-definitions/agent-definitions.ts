@@ -49,13 +49,14 @@ const keyOf = (ownerId: string, promptId: string) => `${ownerId}/${promptId}`;
  */
 export class AgentDefinitions {
   private readonly owners = new Map<string, AgentDefinitionRegistration>();
+  private readonly scopes = new Map<string, Map<string, AgentDefinitionRegistration>>();
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     db.exec(SCHEMA);
   }
 
-  /** Register (or renew) everything one owner ships. A later registration of the same owner replaces it. */
-  register(registration: AgentDefinitionRegistration): void {
+  /** Renew one declaration. Installed plugins supply a Host-owned scope so another installation cannot withdraw it. */
+  register(registration: AgentDefinitionRegistration, scope = ""): void {
     const ids = new Set<string>();
     for (const prompt of registration.prompts) {
       if (ids.has(prompt.prompt_id)) throw new AgentDefinitionsError("agent_definitions.invalid", `${registration.owner_id} 重复登记了 ${prompt.prompt_id}`);
@@ -66,10 +67,37 @@ export class AgentDefinitions {
       const missing = role.prompt_ids.filter(id => !ids.has(id));
       if (missing.length) throw new AgentDefinitionsError("agent_definitions.invalid", `角色 ${role.role_id} 引用了未登记的 Prompt：${missing.join("、")}`);
     }
-    this.owners.set(registration.owner_id, structuredClone(registration));
+    const declarations = this.scopes.get(registration.owner_id) ?? new Map();
+    declarations.set(scope, structuredClone(registration));
+    this.scopes.set(registration.owner_id, declarations);
+    this.refreshOwner(registration.owner_id);
   }
 
-  unregister(ownerId: string): void { this.owners.delete(ownerId); }
+  unregister(ownerId: string, scope = ""): void {
+    this.scopes.get(ownerId)?.delete(scope);
+    this.refreshOwner(ownerId);
+  }
+
+  /** Settings show one editable key; execution resolves the calling installation's declaration separately. */
+  private refreshOwner(ownerId: string): void {
+    const declarations = [...(this.scopes.get(ownerId)?.values() ?? [])];
+    if (!declarations.length) { this.scopes.delete(ownerId); this.owners.delete(ownerId); return; }
+    const enabled = declarations.filter(owner => owner.source.kind !== "plugin" || owner.source.state === "enabled");
+    const preferred = enabled.length ? enabled : declarations;
+    const prompts = new Map<string, AgentPromptRegistration>();
+    // Keep older-only prompts editable too; an enabled declaration takes precedence over a disabled one.
+    for (const group of [declarations, preferred]) {
+      const selected = new Map<string, AgentPromptRegistration>();
+      for (const owner of group) for (const prompt of owner.prompts) {
+        if (!selected.has(prompt.prompt_id) || selected.get(prompt.prompt_id)!.version <= prompt.version) selected.set(prompt.prompt_id, prompt);
+      }
+      for (const [id, prompt] of selected) prompts.set(id, prompt);
+    }
+    const owner = preferred.at(-1)!;
+    this.owners.set(ownerId, { ...owner, prompts: [...prompts.values()],
+      ...(declarations.length > 1 ? { notes: [...new Set(declarations.flatMap(item => item.notes ?? [])),
+        "此插件有多个安装：优先显示启用安装中的最新 Prompt 默认版本；各次调用仍使用自己的发布版本，你的修改由这些安装共享。"] } : {}) });
+  }
 
   hasPrompt(ownerId: string, promptId: string): boolean { return Boolean(this.owners.get(ownerId)?.prompts.some(prompt => prompt.prompt_id === promptId)); }
 
@@ -170,9 +198,14 @@ export class AgentDefinitions {
   /** A direct model call's instructions, as registered and as the person left them. */
   instruction(ownerId: string, promptId: string, caller: string): { body: string; version: number; user_revision: number | null } {
     const { prompt } = this.registered(keyOf(ownerId, promptId));
+    return this.instructionForDeclaration(ownerId, prompt, caller);
+  }
+
+  /** Host-selected release declaration, never a prompt body supplied by a model action's business input. */
+  instructionForDeclaration(ownerId: string, prompt: AgentPromptRegistration, caller: string): { body: string; version: number; user_revision: number | null } {
     if (prompt.kind !== "instruction") throw new AgentDefinitionsError("agent_definitions.invalid", "这段 Prompt 不是模型调用的指令");
-    const edited = this.override(keyOf(ownerId, promptId));
-    this.recordUse({ key: keyOf(ownerId, promptId), version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
+    const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
+    this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
     return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };
   }
 

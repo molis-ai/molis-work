@@ -138,6 +138,8 @@ export interface HostPluginCaller {
 
 /** In-process authority callbacks are separate from serializable business inputs. */
 export interface HostCapabilityCallOptions {
+  /** Cancellation narrows this invocation; it never grants caller authority. */
+  signal?: AbortSignal;
   /** Host-only binding. The Plugin SDK executor always overrides a supplied value. */
   plugin_caller?: HostPluginCaller;
   before_effect?: () => void | Promise<void>;
@@ -145,6 +147,7 @@ export interface HostCapabilityCallOptions {
   consumer?: "plugin";
 }
 export interface HostCapabilityInvocation {
+  readonly signal?: AbortSignal;
   readonly plugin?: HostPluginCaller;
   readonly consumer?: "plugin";
   /** Recheck original authority and live project policy immediately before a side effect. */

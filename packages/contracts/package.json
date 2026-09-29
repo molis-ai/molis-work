@@ -241,6 +241,10 @@
     "./platform/plugin-builder": {
       "types": "./dist/platform/plugin-builder.d.ts",
       "import": "./dist/platform/plugin-builder.js"
+    },
+    "./services/materials": {
+      "types": "./dist/services/materials.d.ts",
+      "import": "./dist/services/materials.js"
     }
   },
   "files": [

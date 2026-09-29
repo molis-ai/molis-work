@@ -10,6 +10,7 @@ export const packageDescriptor = {
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+export type { GitOperationUpdate } from "./events.js";
 
 export {
   GitStatusError,

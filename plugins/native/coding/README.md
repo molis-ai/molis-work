@@ -62,6 +62,8 @@ Coding 每次发送明确冻结 60 轮执行预算；固定计划按步骤计算
 
 Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.
 
+短草稿（提交说明、接续摘要）的固定指令归 `src/prompts.ts`，通过共同目录登记并支持用户覆盖。`agent.draft-text.v1` 只传 `prompt` id、材料和所选模型；Host 使用原调用插件身份解析，不能在业务输入声明 owner。材料裁剪、摘要降级及提交前的用户审阅仍由 Coding 负责。相关回归：`tests/coding-commit-draft.test.ts`、`tests/coding-history-summary-http.test.ts`、`tests/prompt-registration.test.ts`。
+
 ## 开发要求
 
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图。
@@ -76,3 +78,7 @@ Directory candidates and browsing preferences come from the [current-project set
   - 路由只做装配：委派信件的视图（`delegation-view.ts`）与等待/唤醒的判断和文本（`waits.ts`）是纯函数，不读存储、不调宿主。
 - 改动后必跑：`node scripts/run-tests.mjs tests/coding-actions.test.ts tests/coding-artifacts.test.ts tests/coding-capabilities.test.ts tests/coding-commands.test.ts tests/coding-companion-inputs.test.ts tests/coding-delegation-waits.test.ts tests/builtin-plugin-agent-texts.test.ts`
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/coding-plugin/spec.md](../../../specs/coding-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏时停止会话/目录/审查轮询和时间显示，返回后刷新，卸载取消本机请求并释放监听、观察器和定时器。草稿仍按原业务规则保存；界面关闭不会停止服务端运行。
+
+后台 Run follower 使用当前 activation 的独立权限和取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。

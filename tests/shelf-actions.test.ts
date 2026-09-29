@@ -58,8 +58,8 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     const read = await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "shelf.items.read__v1", arguments: { item_id: item.item_id } } }, mcp) as { result: { structuredContent: { text: string } } };
     assert.equal(read.result.structuredContent.text, "会议纪要：周五前定稿");
 
-    // Without a terminal Agent the run fails with a recorded reason instead of pretending to work.
-    await assert.rejects(bound.invoke(a.runJob, { recipe: "summary", item_id: item.item_id }), (error: { code?: string }) => (error.code ?? "").startsWith("shelf."));
+    // Without a configured model the automatic action refuses before creating a job.
+    await assert.rejects(bound.invoke(a.runJob, { recipe: "summarize", item_id: item.item_id }), (error: { code?: string }) => (error.code ?? "").startsWith("shelf."));
     await bound.invoke(a.hide, { item_id: item.item_id });
     assert.ok(!(await bound.invoke(a.list, {})).materials.some(row => row.item_id === item.item_id));
 

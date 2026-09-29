@@ -54,11 +54,13 @@ export class PluginInputGraph implements PluginWiringApi {
   readonly #repository: PluginWiringRepository;
   readonly #artifacts: PluginArtifactReaderPort;
   readonly #now: () => Date;
+  readonly #canReadCommitted: () => boolean;
   readonly #failureListeners = new Set<(failure: PluginInputFailure) => void>();
   readonly #dispatched = new Map<string, string>();
   readonly #controllers = new Map<string, AbortController>();
   readonly #tails = new Map<string, Promise<void>>();
   readonly #retained = new Set<string>();
+  readonly #shutdown = new AbortController();
 
   constructor(input: {
     boardId: string;
@@ -66,12 +68,14 @@ export class PluginInputGraph implements PluginWiringApi {
     repository: PluginWiringRepository;
     artifacts: PluginArtifactReaderPort;
     now?: () => Date;
+    canReadCommitted?(): boolean;
   }) {
     this.#boardId = input.boardId;
     this.#lifecycle = input.lifecycle;
     this.#repository = input.repository;
     this.#artifacts = input.artifacts;
     this.#now = input.now ?? (() => new Date());
+    this.#canReadCommitted = input.canReadCommitted ?? (() => true);
   }
 
   observeFailures(listener: (failure: PluginInputFailure) => void): () => void {
@@ -299,8 +303,9 @@ export class PluginInputGraph implements PluginWiringApi {
 
   /** Re-evaluate one consumer and deliver or revoke as the current wiring says. */
   evaluate(pluginId: string): void {
+    if (this.#shutdown.signal.aborted || !this.#canReadCommitted()) return;
     const generation = this.#lifecycle.generation(pluginId);
-    if (generation === undefined) return;
+    if (generation === undefined) { this.revoke(pluginId); return; }
     const resolved = this.#resolve(pluginId);
     if (!resolved.applicable) return;
 
@@ -323,10 +328,49 @@ export class PluginInputGraph implements PluginWiringApi {
     this.#controllers.set(pluginId, controller);
     this.#enqueue(pluginId, async (consumer) => {
       if (controller.signal.aborted) return;
-      await consumer.contribution.onUpstreamReady?.(resolved.inputs, {
-        signal: controller.signal,
-      });
-    });
+      let entered = false;
+      const beforeEffect = () => {
+        const reject = () => {
+          controller.abort();
+          if (!entered && this.#controllers.get(pluginId) === controller) this.#dispatched.delete(pluginId);
+          throw new PluginWiringError("port_binding_invalid", "输入或插件执行身份已失效");
+        };
+        if (controller.signal.aborted || this.#shutdown.signal.aborted || !this.#canReadCommitted() || !consumer.active()
+          || this.#lifecycle.generation(pluginId) !== generation) reject();
+        try {
+          const current = this.#resolve(pluginId);
+          if (current.status.status !== "ready" || current.signature !== signature) reject();
+        } catch (error) {
+          controller.abort();
+          if (!entered && this.#controllers.get(pluginId) === controller) this.#dispatched.delete(pluginId);
+          throw error;
+        }
+      };
+      beforeEffect();
+      entered = true;
+      await consumer.contribution.onUpstreamReady?.(structuredClone(resolved.inputs), { signal: controller.signal, beforeEffect });
+      beforeEffect();
+    }, controller.signal);
+  }
+
+  /** Activation/revocation invalidates the previous instance's input context. */
+  revoke(pluginId: string): void {
+    this.#revoke(pluginId);
+    this.#dispatched.delete(pluginId);
+  }
+
+  /** A failed journal read cannot leave previously delivered inputs authoritative. */
+  suspend(message: string): void {
+    for (const pluginId of [...this.#dispatched.keys()]) {
+      this.revoke(pluginId);
+      this.#fail(pluginId, "consumer_failed", message);
+    }
+  }
+
+  async close(): Promise<void> {
+    this.#shutdown.abort();
+    for (const pluginId of [...this.#controllers.keys()]) this.revoke(pluginId);
+    await this.drain();
   }
 
   /** Re-evaluate every enabled consumer. Used after wiring changes and at start. */
@@ -436,7 +480,7 @@ export class PluginInputGraph implements PluginWiringApi {
         artifact_id: output.artifact_id,
         version: output.version,
       });
-      if (!record) {
+      if (!record || record.availability !== "available" || record.lifecycle_state !== "active") {
         missing.push(port);
         unavailable ??= {
           binding_id: bindingId(pluginId, port),
@@ -451,7 +495,7 @@ export class PluginInputGraph implements PluginWiringApi {
     if (missing.length > 0) {
       return {
         applicable: true,
-        status: { status: "missing", missing },
+        status: { status: "missing", missing, ...(unavailable ? { reason: unavailable } : {}) },
         inputs: {},
         signature: "",
         reason: unavailable ?? {
@@ -512,19 +556,33 @@ export class PluginInputGraph implements PluginWiringApi {
   #enqueue(
     pluginId: string,
     run: (consumer: NonNullable<Awaited<ReturnType<PluginHostLifecycle["ensureStarted"]>>>) => Promise<void>,
+    inputSignal?: AbortSignal,
   ): void {
+    const generation = this.#lifecycle.generation(pluginId);
+    const signal = inputSignal ? AbortSignal.any([inputSignal, this.#shutdown.signal]) : this.#shutdown.signal;
     const previous = this.#tails.get(pluginId) ?? Promise.resolve();
     const next = previous
       .then(async () => {
-        const consumer = await this.#lifecycle.ensureStarted(pluginId);
-        if (!consumer || !consumer.active()) {
-          this.#fail(pluginId, "consumer_failed", "消费者未能就绪，输入变更未送达");
-          return;
-        }
-        await run(consumer);
+        if (signal.aborted || this.#lifecycle.generation(pluginId) !== generation) return;
+        let abort = () => {};
+        const stopped = new Promise<void>(resolve => { abort = resolve; signal.addEventListener("abort", abort, { once: true }); });
+        try {
+          await Promise.race([stopped, (async () => {
+            const consumer = await this.#lifecycle.ensureStarted(pluginId);
+            if (signal.aborted || this.#lifecycle.generation(pluginId) !== generation) return;
+            if (!consumer || !consumer.active()) {
+              this.#dispatched.delete(pluginId);
+              this.#fail(pluginId, "consumer_failed", "消费者未能就绪，输入变更未送达");
+              return;
+            }
+            await run(consumer);
+          })()]);
+        } finally { signal.removeEventListener("abort", abort); }
       })
       .catch(() => {
-        this.#fail(pluginId, "consumer_failed", "消费者处理输入变更时失败");
+        if (!signal.aborted && this.#lifecycle.generation(pluginId) === generation) {
+          this.#fail(pluginId, "consumer_failed", "消费者处理输入变更时失败");
+        }
       });
     this.#tails.set(pluginId, next);
     void next.then(() => {

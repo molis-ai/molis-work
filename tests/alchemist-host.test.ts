@@ -1,3 +1,8 @@
+import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { ALCHEMIST_COPILOT, ALCHEMIST_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-alchemist";
+import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
+import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
+import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import http from "node:http";
@@ -14,19 +19,20 @@ import { handleAlchemistNativePluginHttp } from "../apps/local-host/src/alchemis
 import { createAlchemistSearchPort } from "../apps/local-host/src/alchemist-search.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "../apps/local-host/src/project-host.js";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { createAlchemistSearchTransport } from "../apps/local-host/src/alchemist-search-transport.js";
+import { createAnySearchTransport } from "../apps/local-host/src/anysearch-transport.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "../apps/local-host/src/web-http.js";
-import type { MolisWorkProjectCatalog } from "../apps/local-host/src/project-catalog.js";
-import type { LocalWebCatalogRunner } from "../apps/local-host/src/web-project-settings.js";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ensureSystemAgentService } from "../apps/local-host/src/system-agent-service.js";
+import { withConnectorConnections } from "../apps/local-host/src/connector-connection-store.js";
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import type { PrologueInferenceClient } from "@molis-ai/molis-work-service-agent-host";
 import { resolvePrologueInference } from "../apps/local-host/src/prologue-inference-host.js";
-import { LocalSqliteStorage, type SecretStore } from "@molis-ai/molis-work-storage";
+import { LocalSqliteStorage, createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome, type SecretStore } from "@molis-ai/molis-work-storage";
 
 const card = { title: "访谈回看", highlight: "找回原话", targetUser: "独立创始人", scenario: "访谈结束后复盘", problem: "判断遗漏了用户原话", mechanism: "把判断关联到原句", valueProposition: "减少错误假设", whyItMayWork: "用户已有访谈记录", assumptions: ["愿意整理访谈"], unknowns: ["是否持续使用"], mvp: { inScope: ["导入一份访谈"], outOfScope: ["自动录音"] } };
 const ai: AlchemistAiPort = {
   async listModels() { return [{ id: "test/model", label: "测试模型", runtimeLabel: "显式测试运行时", costVisibility: "unobservable" }]; },
-  async generate() { return { text: JSON.stringify({ understanding: { summary: "访谈后的研究", assumptions: ["有访谈资料"], unknowns: ["复盘频率"], concreteness: "direction" }, cards: [card], noCardsReason: null }), runtimeLabel: "显式测试运行时" }; },
+  async generate() { return alchemistOutput(JSON.stringify({ understanding: { summary: "访谈后的研究", assumptions: ["有访谈资料"], unknowns: ["复盘频率"], concreteness: "direction" }, cards: [card], noCardsReason: null }), "显式测试运行时"); },
   async search() { throw new Error("This test does not research"); },
 };
 
@@ -90,48 +96,85 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
   }
 });
 
-test("Alchemist packed Prologue borrows the shared Home owner and fixed model, and rejects a result after model configuration changes", { timeout: 30_000 }, async t => {
+async function configuredAi(t: test.TestContext, endpoint = "http://127.0.0.1:1") {
   const home = await mkdtemp(join(tmpdir(), "alchemist-prologue-"));
+  const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "model-api", displayName: "Alchemist test", token: "explicit-test-secret" }));
+  withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", endpoint));
+  catalog.models.upsert({ provider_id: "fixture", display_name: "显式测试 Provider", base_url: endpoint, api_format: "anthropic-messages", models: [{ model_id: "model", enabled: true }] });
+  catalog.models.selectConnection("fixture", connection.credential_ref!);
+  const host = new MolisWorkLocalHost({ homeDirectory: home }); ensureSystemAgentService(host, home);
+  t.after(async () => {
+    await host.close(); catalog.close(); resetSecretStoreCache();
+    if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior;
+    await rm(home, { recursive: true, force: true });
+  });
+  return { home, catalog, host, secrets: runWithMolisWorkHome(home, () => createFileSecretStore()) };
+}
+
+test("Alchemist packed Prologue borrows the shared Home owner and fixed model, and rejects a result after model configuration changes", { timeout: 30_000 }, async t => {
   const requests: Array<Record<string, any>> = [];
-  let changeConfiguration = false;
-  const host = new MolisWorkLocalHost({ homeDirectory: home });
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
-    requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)));
+  let changeConfiguration: (() => void) | undefined;
+  const server = http.createServer(async (request, response) => {
+    let raw = ""; for await (const chunk of request) raw += chunk;
+    requests.push(JSON.parse(raw));
+    assert.equal(request.headers["x-api-key"], "explicit-test-secret");
     const events: string[] = [];
     const emit = (type: string, payload: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...payload })}\n\n`);
     emit("message_start", { message: { id: "alchemist-fixture", type: "message", role: "assistant", model: "model", content: [], usage: { input_tokens: 20, output_tokens: 0 } } });
     emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } });
     emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: '{"reply":"原文可追溯"}' } });
     emit("content_block_stop", { index: 0 }); emit("message_delta", { delta: { stop_reason: "end_turn" }, usage: { output_tokens: 12 } }); emit("message_stop", {});
-    if (changeConfiguration) provider.models[0]!.enabled = false;
-    return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
+    changeConfiguration?.();
+    response.writeHead(200, { "content-type": "text/event-stream" }); response.end(events.join(""));
   });
-  const provider = { provider_id: "fixture", display_name: "显式测试 Provider", base_url: "https://1.1.1.1", api_format: "anthropic-messages" as const, credential_ref: "test-secret", enabled: true, models: [{ model_id: "model", enabled: true }], created_at: "", updated_at: "" };
-  const withCatalog: LocalWebCatalogRunner = async (_options, read) => read({ models: {
-    health: () => [{ provider_id: "fixture", status: "ready" }], list: () => [provider],
-    resolveConfiguration: (selection: { provider_id?: string; model_id?: string }) => selection?.model_id !== "model" ? null : ({ provider, model: provider.models[0], api_key: "explicit-test-secret" }),
-  } } as unknown as MolisWorkProjectCatalog);
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const f = await configuredAi(t, `http://127.0.0.1:${address.port}`);
   try {
-    const shared = await resolvePrologueInference(home);
+    const shared = await resolvePrologueInference(f.home);
     let borrowed = 0;
-    const port = createAlchemistProloguePort({ homeDirectory: home, projectId: "p", withCatalog, search: ai.search,
-      resolveInference: async requestedHome => { assert.equal(requestedHome, home); borrowed++; const client = await resolvePrologueInference(requestedHome); assert.equal(client, shared); return client; } });
-    assert.equal((await port.listModels())[0]?.id, "fixture/model");
-    const generated = await port.generate({ operationId: "copilot-1", actorId: "external-author", purpose: "解释当前访谈", systemPrompt: "只讨论提供的原文", userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
-    assert.equal(JSON.parse(generated.text).reply, "原文可追溯"); assert.match(generated.runtimeLabel, /Prologue/); assert.equal(requests.length, 1);
+    const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search,
+      resolveInference: async requestedHome => { assert.equal(requestedHome, f.home); borrowed++; const client = await resolvePrologueInference(requestedHome); assert.equal(client, shared); return client; } });
+    const originalGet = f.secrets.get.bind(f.secrets); let reads = 0;
+    t.mock.method(f.secrets, "get", ref => { reads++; return originalGet(ref); });
+    assert.equal((await port.listModels())[0]?.id, "fixture/model"); assert.equal(reads, 0, "model discovery cannot decrypt credentials");
+    const generated = await port.generate({ operationId: "copilot-1", actorId: "external-author", purpose: "解释当前访谈", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
+    assert.deepEqual(generated.json, { ok: true, value: { reply: "原文可追溯" } }); assert.match(generated.runtimeLabel, /Prologue/); assert.equal(requests.length, 1);
     assert.match(JSON.stringify(requests[0].messages), /不愿每天重新整理/);
+    assert.match(JSON.stringify(requests[0].system), /Founder Copilot/);
     assert.equal(requests[0].model, "model"); assert.equal(requests[0].max_tokens, 4_096);
     assert.deepEqual(generated.usage, { inputTokens: 20, outputTokens: 12 });
     assert.equal(requests[0].tools?.length ?? 0, 0);
-    await assert.rejects(port.generate({ operationId: "missing", purpose: "test", systemPrompt: "", userPrompt: "", jsonSchema: {}, modelId: "fixture/missing" }), /没有可用模型/);
-    assert.equal(requests.length, 1, "a missing fixed model must not trigger fallback or a paid request");
-    changeConfiguration = true;
-    await assert.rejects(port.generate({ operationId: "changed-config", actorId: "external-author", purpose: "检查配置变更", systemPrompt: "只输出 JSON", userPrompt: "返回一句回复",
-      jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" }), /RUNTIME_CONFIGURATION_CHANGED/);
-    assert.equal(requests.length, 2); assert.equal(borrowed, 2);
-    await assert.rejects(access(join(home, "alchemist", "projects", "p", "runtime")), { code: "ENOENT" });
-  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
-  await assert.rejects(resolvePrologueInference(home), /尚未装配/);
+    const definitions = agentDefinitionsFor(f.home, builtinRegistrations);
+    for (const prompt of ALCHEMIST_INSTRUCTIONS) {
+      const key = `${prompt.owner_id}/${prompt.prompt_id}`, edited = `User-defined instruction: ${prompt.prompt_id}`;
+      assert.equal(definitions.prompt(key).default_body, prompt.body);
+      definitions.save(key, edited, null, "owner");
+      await port.generate({ ...cancellableInput(new AbortController().signal),
+        systemPrompt: instructed({ ...prompt, body: "REQUEST_DEFAULT_MUST_NOT_WIN" }, "DIMENSIONS_AS_DATA"), userPrompt: "MATERIAL_ONLY" });
+      const sent = requests.at(-1)!;
+      assert.ok(JSON.stringify(sent.system).includes(edited));
+      assert.match(JSON.stringify(sent.system), /DIMENSIONS_AS_DATA/);
+      assert.doesNotMatch(JSON.stringify(sent.system), /REQUEST_DEFAULT_MUST_NOT_WIN|MATERIAL_ONLY/);
+      assert.match(JSON.stringify(sent.messages), /MATERIAL_ONLY/);
+      assert.equal(definitions.prompt(key).last_used?.user_revision, 1);
+    }
+    assert.equal(requests.length, 7);
+    await assert.rejects(port.generate({ ...cancellableInput(new AbortController().signal),
+      systemPrompt: instructed({ ...ALCHEMIST_COPILOT, prompt_id: "missing" }, "") }), { code: "agent_definitions.not_found" });
+    await assert.rejects(port.generate({ ...cancellableInput(new AbortController().signal),
+      systemPrompt: instructed({ ...ALCHEMIST_COPILOT, owner_id: "io.molis.work.coding" }, "") }), /必须登记在本插件下/);
+    await assert.rejects(port.generate({ operationId: "missing", purpose: "test", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: "", jsonSchema: {}, modelId: "fixture/missing" }), /没有可用模型/);
+    assert.equal(requests.length, 7, "invalid instruction or missing fixed model cannot trigger fallback or a paid request");
+    changeConfiguration = () => f.catalog.models.upsert({ ...f.catalog.models.get("fixture")!, enabled: false });
+    await assert.rejects(port.generate({ operationId: "changed-config", actorId: "external-author", purpose: "检查配置变更", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: "返回一句回复",
+      jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" }), { code: "actions.configuration_changed" });
+    assert.equal(requests.length, 8); assert.equal(borrowed, 8);
+    await assert.rejects(access(join(f.home, "alchemist", "projects", "p", "runtime")), { code: "ENOENT" });
+    await f.host.close(); await assert.rejects(resolvePrologueInference(f.home), /尚未装配/);
+  } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
 });
 
 test("Alchemist search initializes its own persistent SEL storage and returns actual provider materials", { timeout: 15_000 }, async t => {
@@ -257,7 +300,7 @@ test("Alchemist search abort before TLS completion sends no body and shutdown wa
     return request as unknown as http.ClientRequest;
   });
   syncBuiltinESMExports();
-  const transport = createAlchemistSearchTransport();
+  const transport = createAnySearchTransport();
   const call = { appId: "molis-work", binding: { providerId: "anysearch", providerVersion: "mcp-v1_1", bindingRevision: 1,
     transportProfileId: "anysearch-mcp-v1", transportProfileFingerprint: "sha256:explicit-test-binding" },
     request: { providerId: "anysearch", operation: "search" as const, body: { query: "public evidence" } }, signal: controller.signal };
@@ -284,13 +327,8 @@ test("Alchemist search abort before TLS completion sends no body and shutdown wa
   }
 });
 
-const cancellationProvider = { provider_id: "cancel-test", display_name: "显式取消测试", base_url: "https://1.1.1.1", api_format: "anthropic-messages" as const,
-  credential_ref: "cancel-test-secret", enabled: true, models: [{ model_id: "MiniMax-M3", enabled: true }], created_at: "", updated_at: "" };
-const cancellationCatalog: LocalWebCatalogRunner = async (_options, read) => read({ models: {
-  resolveConfiguration: () => ({ provider: cancellationProvider, model: cancellationProvider.models[0], api_key: "explicit-cancel-test-secret" }),
-} } as unknown as MolisWorkProjectCatalog);
 function cancellableInput(signal: AbortSignal) {
-  return { operationId: "cancelled-operation", purpose: "test", systemPrompt: "Only JSON", userPrompt: "Return a reply", jsonSchema: { type: "object" }, modelId: "cancel-test/MiniMax-M3", signal };
+  return { operationId: "cancelled-operation", purpose: "test", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: "Return a reply", jsonSchema: { type: "object" }, modelId: "fixture/model", signal };
 }
 
 function textInference(completeTextResult: PrologueInferenceClient["completeTextResult"]): PrologueInferenceClient {
@@ -298,41 +336,55 @@ function textInference(completeTextResult: PrologueInferenceClient["completeText
   return { completeTextResult, completeText: unexpected, generateImages: unexpected, evaluateTypeSafe: unexpected };
 }
 
-for (const gate of ["catalog", "inference"] as const) test(`Alchemist abort during ${gate} preparation never invokes or dispatches inference`, { timeout: 15_000 }, async t => {
-  const home = await mkdtemp(join(tmpdir(), "alchemist-cancel-"));
+for (const gate of ["guard", "inference"] as const) test(`Alchemist abort during ${gate} preparation never invokes inference`, { timeout: 15_000 }, async t => {
+  const f = await configuredAi(t);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const controller = new AbortController();
-  let requests = 0, calls = 0;
-  t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("cancelled preparation must not dispatch"); });
+  let calls = 0;
   const inference = textInference(async () => { calls++; throw new Error("cancelled preparation must not invoke inference"); });
-  const catalog: LocalWebCatalogRunner = gate === "catalog"
-    ? async (options, read) => { entered.resolve(); await release.promise; return cancellationCatalog(options, read); }
-    : cancellationCatalog;
   try {
-    const port = createAlchemistProloguePort({ homeDirectory: home, projectId: "p", withCatalog: catalog, search: ai.search,
+    const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search,
       resolveInference: async () => { if (gate === "inference") { entered.resolve(); await release.promise; } return inference; } });
-    const generated = port.generate(cancellableInput(controller.signal));
+    const generated = port.generate({ ...cancellableInput(controller.signal), beforeModelDispatch: async () => {
+      if (gate === "guard") { entered.resolve(); await release.promise; }
+    } });
     await entered.promise;
+    const definitions = agentDefinitionsFor(f.home, builtinRegistrations), key = `${ALCHEMIST_COPILOT.owner_id}/${ALCHEMIST_COPILOT.prompt_id}`;
+    const uses = definitions.uses(key);
+    if (gate === "guard") assert.equal(uses.length, 0);
     controller.abort(new Error("用户停止了准备中的任务"));
     await assert.rejects(generated, /用户停止了准备中的任务/);
     release.resolve(); await new Promise<void>(resolve => setImmediate(resolve));
-    assert.equal(calls, 0); assert.equal(requests, 0);
-  } finally { release.resolve(); await rm(home, { recursive: true, force: true }); }
+    assert.equal(calls, 0);
+    assert.deepEqual(definitions.uses(key), uses, "late authorization cannot record another prompt use");
+  } finally { release.resolve(); }
 });
 
-test("Alchemist abort while shared inference returns cannot publish its completed result", { timeout: 15_000 }, async () => {
-  const home = await mkdtemp(join(tmpdir(), "alchemist-cancel-result-"));
+test("Alchemist revoked during initial authorization records no instruction use or model dispatch", async t => {
+  const f = await configuredAi(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let calls = 0;
+  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search,
+    resolveInference: async () => { calls++; throw new Error("must not initialize"); } });
+  const pending = port.generate({ ...cancellableInput(new AbortController().signal), beforeModelDispatch: async () => {
+    entered.resolve(); await release.promise; throw new Error("revoked while checking");
+  } });
+  const rejected = assert.rejects(pending, /revoked while checking/);
+  await entered.promise; release.resolve(); await rejected;
+  assert.equal(calls, 0);
+  assert.deepEqual(agentDefinitionsFor(f.home, builtinRegistrations).uses(`${ALCHEMIST_COPILOT.owner_id}/${ALCHEMIST_COPILOT.prompt_id}`), []);
+});
+
+test("Alchemist abort while shared inference returns cannot publish its completed result", { timeout: 15_000 }, async t => {
+  const f = await configuredAi(t);
   const controller = new AbortController();
   let requests = 0;
   const inference = textInference(async input => {
     await input.beforeDispatch?.(); requests++;
     controller.abort(new Error("用户在结果返回前停止"));
     assert.equal(input.signal?.aborted, true);
-    return { value: '{"reply":"completed before result returned"}', configuredModel: input.model, reportedModels: [], usage: [] };
+    return { state: "completed", run_ref: { kind: "run", id: "fixture", revision: 1 }, value: '{"reply":"completed before result returned"}', configuredModel: input.model, reportedModels: [], usage: [] };
   });
-  try {
-    const port = createAlchemistProloguePort({ homeDirectory: home, projectId: "p", withCatalog: cancellationCatalog, search: ai.search, resolveInference: async () => inference });
-    await assert.rejects(port.generate(cancellableInput(controller.signal)), /用户在结果返回前停止/);
-    assert.equal(requests, 1, "a request already dispatched before abort is neither repeated nor presented as a cancelled success");
-  } finally { await rm(home, { recursive: true, force: true }); }
+  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search, resolveInference: async () => inference });
+  await assert.rejects(port.generate(cancellableInput(controller.signal)), /用户在结果返回前停止/);
+  assert.equal(requests, 1, "a request already dispatched before abort is neither repeated nor presented as a cancelled success");
 });

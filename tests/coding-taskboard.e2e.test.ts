@@ -1,3 +1,4 @@
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -18,7 +19,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       const board=document.querySelector('[data-coding-board]'),went=[],amended=[];
       const names={builder:'构建者','coding-reviewer':'独立评审'};
-      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>names[id]||id,
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>names[id]||id,
         navigate:async(id,target)=>{went.push(target);},amend:async(runId,version,amendment)=>{amended.push({runId,version,amendment});}});
       const t0=Date.parse('2026-09-25T07:00:00Z');
       const plan={revision:2,content:{title:'让 @ 引用支持裸名字',steps:[{title:'放行裸名字',acceptance:'a'},{title:'读不到就丢弃',acceptance:'b'},{title:'跑测试',acceptance:'c'}],blockers:'',change_reason:''}};
@@ -73,7 +74,7 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
     const result = await page.evaluate<any>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       const board=document.querySelector('[data-coding-board]'),amended=[];
-      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'构建者':id,
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'构建者':id,
         navigate:async()=>{},amend:async(runId,version,amendment)=>{amended.push(amendment);}});
       const t0=Date.parse('2026-09-26T07:00:00Z');
       const plan={revision:1,content:{title:'四步',steps:[{title:'改 a',acceptance:'a'},{title:'改 b',acceptance:'b'},{title:'看页面',acceptance:'c'},{title:'写说明',acceptance:'d'}],blockers:'',change_reason:''}};

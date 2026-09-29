@@ -18,12 +18,17 @@
   "files": [
     "dist",
     "README.md",
-    "tooling/experiments"
+    "tooling/experiments",
+    "native/materials/bin",
+    "native/materials/THIRD-PARTY-NOTICES.md",
+    "native/materials/licenses"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && node native/materials/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "materials:build": "bash native/materials/build.sh",
+    "materials:build:whisper": "bash native/materials/build-whisper.sh"
   },
   "dependencies": {
     "node-pty": "^1.1.0",
@@ -96,7 +101,9 @@
     "@molis-ai/molis-work-plugin-sandbox": "workspace:*",
     "typescript": "^5.8.0",
     "@molis-ai/molis-work-server": "workspace:*",
-    "@molis-ai/molis-work-im-ui": "workspace:*"
+    "@molis-ai/molis-work-im-ui": "workspace:*",
+    "fflate": "0.8.2",
+    "mammoth": "1.11.0"
   },
   "molis-work": {
     "path": "apps/local-host",

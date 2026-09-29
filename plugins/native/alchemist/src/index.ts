@@ -1,3 +1,4 @@
+export { ALCHEMIST_INSTRUCTIONS, ALCHEMIST_COPILOT, ALCHEMIST_EXPLORATION, ALCHEMIST_REUSE, ALCHEMIST_SYNTHESIS, ALCHEMIST_CROSS_CHECK, ALCHEMIST_FORMAT_CORRECTION } from "./prompts.js";
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-alchemist",
   packagePath: "plugins/native/alchemist",

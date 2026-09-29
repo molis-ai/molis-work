@@ -10,6 +10,7 @@ import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs'
 import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js';
 import { seedDemoBoard, DEMO_BOARD_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, installedPluginStages, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
+import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/src/installed-plugin-host.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
 
 /**
@@ -25,7 +26,9 @@ test('studio: a request becomes a working, published plugin that the person can 
   const fixture = agentStudioFixture(0); let modelDelay = 0;
   const options = { store, boardId: DEMO_BOARD_ID, homeDirectory: home, ...fixture,
     generate: async (pluginId: string, input: { prompt?: string; instructions?: string; input: string }) => { await new Promise(resolve => setTimeout(resolve, modelDelay)); return fixture.generate(pluginId, input); } };
+  let liveSubscriptions = 0, subscriptions = 0;
   const server: Server = createServer((request, response) => {
+    if (request.url?.endsWith("/events")) { liveSubscriptions++; subscriptions++; response.on("close", () => { liveSubscriptions--; }); }
     const url = new URL(request.url ?? '/', 'http://localhost') /* as the product server does: no port in the base */;
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void handleAgentStudioHttp(request, response, url, options, token).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); });
@@ -145,9 +148,17 @@ test('studio: a request becomes a working, published plugin that the person can 
     await standalone.command('Page.navigate', { url: origin + '/plugin-builder/studio/preview/' + buildId });
     await standalone.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('间隔复习比集中复习记得更久')`);
 
-    // Uninstall keeps the data when asked to; the plugin page then no longer serves it.
-    // Other tabs were opened meanwhile; a background tab's timers are throttled, so bring the studio back first.
+    const installedOwner = await ensureInstalledPlugins(options);
+    await releaseAgentStudio(store, DEMO_BOARD_ID);
+    await installedPage.command('Page.reload');
+    await installedPage.wait(`document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('正式使用的第一条')`);
+    assert.equal(await ensureInstalledPlugins(options), installedOwner, 'closing authoring does not close or recreate installed execution');
+    // The lifecycle intentionally suspends hidden views. Re-enter the studio before asking it to render.
     await installedPage.command('Page.close'); await standalone.command('Page.close'); await page.command('Page.bringToFront');
+    await page.command('Page.reload');
+    await page.wait(`document.querySelector('[data-as-uninstall]')`);
+
+    // Uninstall keeps the data when asked to; the plugin page then no longer serves it.
     await page.click('[data-as-uninstall]');
     await page.wait(`document.querySelector('.as-dialog button[value=keep]')`);
     await page.click('.as-dialog button[value=keep]');
@@ -160,10 +171,24 @@ test('studio: a request becomes a working, published plugin that the person can 
     await page.viewport(390, 844, true);
     const overflow = await page.evaluate<string[]>(`[...document.querySelectorAll('body *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>391&&r.width>0&&getComputedStyle(e).position!=='fixed'}).slice(0,8).map(e=>e.tagName+'.'+e.className+' '+Math.round(e.getBoundingClientRect().right))`);
     assert.equal(await page.evaluate('document.documentElement.scrollWidth<=390'), true, overflow.join(' | '));
+    const observed = async (predicate: () => boolean) => {
+      for (let n = 0; n < 100 && !predicate(); n++) await new Promise(resolve => setTimeout(resolve, 20));
+      assert.ok(predicate(), 'expected studio SSE lifecycle on the real HTTP server');
+    };
+    await observed(() => liveSubscriptions === 1);
+    const beforeResume = subscriptions;
+    await page.evaluate("document.querySelector('[data-agent-studio]').hidden=true");
+    await observed(() => liveSubscriptions === 0);
+    await page.evaluate("document.querySelector('[data-agent-studio]').hidden=false");
+    await observed(() => liveSubscriptions === 1 && subscriptions === beforeResume + 1);
+    await page.wait("document.querySelector('[data-as-install]')");
+    await page.evaluate("document.querySelector('[data-agent-studio]').remove()");
+    await observed(() => liveSubscriptions === 0);
+
   } finally {
     await browser.close();
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseAgentStudio(store, DEMO_BOARD_ID); store.close();
+    await releaseAgentStudio(store, DEMO_BOARD_ID); await releaseInstalledPlugins(store, DEMO_BOARD_ID); store.close();
     await rm(home, { recursive: true, force: true });
   }
 });

@@ -1,3 +1,4 @@
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "./coding-companions.js";
 import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
 import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
@@ -17,6 +18,7 @@ import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
 import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
 /** AP3 Workbench client segment: initialization. */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
+    const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
 
     immersiveNavigation = (${IMMERSIVE_NAVIGATION_FACTORY_SCRIPT})({
       workspace, treePane, documentPane, getSelected: () => selected, getState: () => state,
@@ -29,6 +31,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       saveUiState: () => saveUiState(),
     });
     pluginWorkbench = (${PLUGIN_WORKBENCH_FACTORY_SCRIPT})({
+      mountPluginClient,
       route, translate: L, projectId: state.project?.project_id,
       setSurface: surface => { setDesktopDirectory("artifacts", false, false); setDesktopWorkSurface(surface); },
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
@@ -82,10 +85,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         setMobileView("document");
       },
     });
-    const companionRequest = async (plugin, path, method = "GET", body) => {
-        const response = await fetch(route('/api/plugins/io.molis.work.' + plugin + path), {method,cache:'no-store',
+    const companionRequest = async (plugin, path, method = "GET", body, signal) => {
+        const response = await fetch(route('/api/plugins/io.molis.work.' + plugin + path), {method,cache:'no-store',signal,
           ...(method==='GET'?{}:{headers:molisWorkControlHeaders(),body:JSON.stringify(body ?? {})})});
-        const result = await response.json();
+        const result = await response.json();signal?.throwIfAborted();
         if(!response.ok)throw new Error(result.error || '无法读取文件工作区');
         return result;
       };
@@ -99,19 +102,19 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       codingRoot?.querySelector('[data-coding-tools]')?.removeAttribute('data-companion-open');
       if(codingRoot){codingRoot.dataset.codingResults='false';if(!codingRoot.querySelector('[data-coding-session][aria-current="true"]'))codingRoot.dataset.codingDetail='false';}
     };
-    const gitBrowser = codingRoot ? (${GIT_CLIENT_FACTORY_SCRIPT})({root:codingRoot,request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
-      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})}) : null;
-    const filesBrowser = codingRoot ? (${FILES_CLIENT_FACTORY_SCRIPT})({root:codingRoot,
+    const gitBrowser = codingRoot ? (${GIT_CLIENT_FACTORY_SCRIPT})({mountPluginClient,root:codingRoot,request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
+      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient,route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})}) : null;
+    const filesBrowser = codingRoot ? (${FILES_CLIENT_FACTORY_SCRIPT})({mountPluginClient,root:codingRoot,
       icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
       request: companionRequest,
       onWorkspaceSelected: () => { void gitBrowser?.refresh(); },
       openResult: () => openCompanionResult('files'),
       closeResult: closeCompanionResult,
     }) : null;
-    (${CODING_CLIENT_FACTORY_SCRIPT})({
+    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient,
       revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
-      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({route,headers:()=>molisWorkControlHeaders()}),
+      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient,route,headers:()=>molisWorkControlHeaders()}),
       addWorkspace: async (workspace_path) => {
         const response = await fetch(route("/api/workspaces"), { method:"POST", headers:molisWorkControlHeaders(), body:JSON.stringify({workspace_path,user_confirmed:true}) });
         const result = await response.json();
@@ -122,6 +125,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openBeside: (plugin, id, title) => tabWorkspace?.openBeside(plugin, id, title),
     });
     (${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})({
+      mountPluginClient,
       request: companionRequest, route, icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
       openPlugin: plugin => tabWorkspace?.openPlugin(plugin),
       reviewFactory: ${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT},

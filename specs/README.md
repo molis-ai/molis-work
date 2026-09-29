@@ -30,6 +30,7 @@
 - [pages-plugin](pages-plugin/spec.md)：整期目标是内部完整。后面的 work item 还在加。
 - [project-session-workspace-rebuild](project-session-workspace-rebuild/spec.md)：完成等级停在可交互原型。
 - [inbox-feed-plugin-split](inbox-feed-plugin-split/spec.md)：切片 6 已完成。整体还要收到内部完整。
+- [plugin-notification-bell](plugin-notification-bell/spec.md)：待验收。标题栏铃铛已实现，等用户验收。
 
 ## 已收
 

@@ -1,6 +1,6 @@
 # 标题栏插件通知铃铛
 
-状态：实现中。目标完成等级 **3：功能可用**。不改用户真实库，不发布。
+状态：待验收。铃铛已实现（PR #102），目标完成等级 **3：功能可用**。不改用户真实库，不发布。
 
 ## 背景与问题
 
@@ -75,3 +75,11 @@
 - `node scripts/run-tests.mjs tests/plugin-notification-bell.test.ts`（新：标记、样式、文案）
 - 工作台必跑：`node scripts/run-tests.mjs tests/plugin-declarative-mounting.test.ts tests/builtin-plugin-agent-texts.test.ts tests/builtin-manifests-contract.test.ts tests/builtin-plugin-composition.test.ts tests/workbench-ui-platform.test.ts tests/i18n.test.ts tests/client-script-undeclared.test.ts`
 - 界面加跑：`node scripts/run-tests.mjs tests/workbench-tab-workspace.e2e.test.ts tests/immersive-directory.e2e.test.ts`
+
+## 验证记录
+
+2026-09-29，Linux 容器，基线 `fa27207a`。
+
+- 全量非浏览器：3383 项，3103 通过，264 跳过，16 项未过。这 16 项在基线上同样未过，报错一致：缺原生发布资产 `native/materials/bin`、npm 离线缓存缺包、`pages-mcp` 超过 30 秒、未设 Chrome 时 Builder 用例直接判失败、`plugin-global-settings` 的 Grok 断言。
+- 全部浏览器用例（96 个文件，Chromium）：221 项，190 通过，4 跳过，27 项未过。其中 23 项在基线上同样失败，失败位置一致；2 项在基线上也会在同一步偶发失败；2 项单独重跑 3 次都通过。
+- 铃铛相关的浏览器用例和截图见 PR #102。

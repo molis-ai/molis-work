@@ -6,7 +6,7 @@
  *
  * A call runs the installed operation in its sandbox, as the plugin, exactly like a click on its page.
  */
-import type { ActionAvailability, ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, type ActionAvailability, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import type { ProjectActions } from './catalog.js';
@@ -30,8 +30,9 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     capability_id: exposedActionId(release, operation.id), version: release.version,
     handle: async (context, input) => {
       await context.beforeEffect();
-      const result = await call(release.pluginId, operation.id, input as SandboxJson, context), body = result.body as { value?: unknown; error?: unknown } | undefined;
+      const result = await call(release.pluginId, operation.id, input as SandboxJson, context), body = result.body as { value?: unknown; error?: unknown; outcome?: string } | undefined;
       await context.beforeEffect();
+      if (result.status !== 200 && body?.outcome === 'unknown') throw new ActionError('actions.outcome_unknown', String(body.error ?? '本次结果未知，请先检查结果再决定是否重试'));
       if (result.status !== 200) throw new Error(String(body?.error ?? '插件「' + title + '」没有完成这项功能'));
       return body?.value ?? null;
     },

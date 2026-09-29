@@ -22,6 +22,10 @@ match the contract: `export const operations = { 'notes.list': async (input, sdk
 The host snapshots the bundle before execution. SDK calls are asynchronous; every call
 must be awaited. Return values and thrown `{code,message}` errors cross a bounded JSON
 channel. Declared errors retain their codes; unexpected errors use `PLUGIN_ERROR`.
+Trusted Host errors may carry `SandboxError.outcome = 'unknown'`. A service timeout or
+an adapter reporting an uncertain external result fences subsequent effects and rejects
+the operation even if plugin code catches the SDK error and returns a fallback. Worker
+error JSON cannot supply this marker, and it does not carry into the next explicit call.
 
 Contracts use a strict, bounded JSON Schema subset. Object schemas require `properties`,
 `required`, and `additionalProperties:false`; arrays require `items`. Supported constraints
@@ -62,6 +66,12 @@ ownership checks. Capability adapters must preserve this identity when calling o
 plugins. Logical resource names map to host-approved resources; never join untrusted names
 to a filesystem path. Adapters must honor cancellation before committing side effects.
 Missing adapters, missing effect declarations, or omitted grants deny the call.
+
+The trusted Host can pass per-call `limits.operationTimeoutMs` and `limits.serviceTimeoutMs`
+from current capability metadata. They are copied when the call enters the queue and do
+not mutate process defaults or another call's policy. Values must be positive timer-safe
+integers. These controls never cross worker JSON and do not change grants, CPU, memory,
+queue or frequency limits. The Host revalidates the selected policy in `beforeEffect()`.
 
 `createHttpsProxy` is the package's strict network adapter. It requires exact approved DNS
 domains, HTTPS port 443, and no credentials in URLs. Every DNS answer must be public

@@ -19,7 +19,7 @@
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
 | 05 | Builder 专属提醒/operation/待执行生命周期 → 既有 Schedule、Scheduler、安装执行端口各负其责 | 官方 Schedule 产品、平台技术调度、业务插件执行 | 已实现提醒/operation 归位、独立安装 owner、安装世代、全量旧 pending 迁移及明确恢复；工程、真实 SQLite/进程中断/Seatbelt 与 Chrome 路径通过，未运行付费模型和用户本人验收 |
-| 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent 消费及 Native/Host 提供方已实现并验证；安装依赖变更与执行绑定随 05/07 完成 |
+| 06 | timeout/cost 等按名称硬编码 → 公共动作元数据与一致消费策略 | Contracts/Kernel/Host | 执行声明、Kernel 时限/频率、Builder/Agent、Native/Host 及安装调用的动态依赖绑定已实现并验证；生成式公开动作的声明与发现一致性随 07 收尾 |
 | 07 | Native catalog/pack/Host 多清单 → 适合现有部署模式的共同描述与注册发现 | Host composition + 插件公开描述 | 06；待实现 |
 | 08 | 领域提交到插件事件缺桥接 → 已提交事件可靠投递、独立订阅身份/生命周期 | 领域 outbox + 现有 PluginEventBus | 核对 Feed Session 后；待实现 |
 | 09 | Jelly/Shelf/Cognia/Pages/Artifacts 重复材料处理 → 公共 Host 解析/资源/来源契约 | Host 解析，Storage 资源，业务转换留插件 | 02；待实现 |
@@ -146,11 +146,25 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
 
 当前 Builder 目录用 `capability_id === model.generate` 判断费用，sandbox 超时/slow lane 只读旧 Studio 名单；Agent 工具使用统一固定超时。新增提供方声明的 Action `execution`：明确时限、费用类别（未声明保持 unknown）和必要的调用频率上限，随原目录/版本传递。Kernel 对明确声明的时限和频率执行统一检查，沿既有 signal / beforeEffect 契约取消并拒绝迟到写入；入口可以有更严格的限额。现有 concurrent 声明继续负责并发，不新造第二种调度机制，取消仍为合作式而非保证厂商停止计费。
 
-将 model.generate 和真实 AI/外部工具提供方的已知事实迁入声明，Builder、Sandbox、Workflow、Agent/MCP 消费共同定义；旧生成物只保留输入输出转换，不能继续以能力名称推断执行政策。验证任意名字的声明能力也受相同预算/超时约束、目录与实际执行一致、原调用者隔离、取消后 late commit 被拒绝。未声明的旧能力不被静默标为免费，也不凭空添加产品预算。此切片与 05 的安装执行端口串行，元数据接口及真实消费者迁移完成前不标记 06 完成。频率计数为本机当前注册实例的调用保护，按 actor/project/install 跨入口共享，不承担跨重启计费；未声明的能力不添加默认预算。旧生成物仅保留 Goals 形状适配，其余调用进入统一目录，并在实际派出前重新检查原调用者。设计阶段按声明的 metered 费用拒绝页面自动 query；Agent 的入口上限可更严格。安装 sandbox 启动时读取目录策略，依赖更新后的执行绑定与恢复将随 05/07 补齐。
+将 model.generate 和真实 AI/外部工具提供方的已知事实迁入声明，Builder、Sandbox、Workflow、Agent/MCP 消费共同定义；旧生成物只保留输入输出转换，不能继续以能力名称推断执行政策。验证任意名字的声明能力也受相同预算/超时约束、目录与实际执行一致、原调用者隔离、取消后 late commit 被拒绝。未声明的旧能力不被静默标为免费，也不凭空添加产品预算。此切片与 05 的安装执行端口串行，元数据接口及真实消费者迁移完成前不标记 06 完成。频率计数为本机当前注册实例的调用保护，按 actor/project/install 跨入口共享，不承担跨重启计费；未声明的能力不添加默认预算。旧生成物仅保留 Goals 形状适配，其余调用进入统一目录，并在实际派出前重新检查原调用者。设计阶段按声明的 metered 费用拒绝页面自动 query；Agent 的入口上限可更严格。安装调用现已逐次读取并复核当前依赖策略，详见下文；生成式公开动作声明仍随 07 收尾。
 
 ### 真实提供方执行声明
 
 继续核对 Native AI 入口：Pages、Form、Dataset、灵光、Cognia、Jelly 的直接生成，Images/Experiments/Alchemist/Coding 的后台启动，以及 Feed/Inbox/Workflow/Functions、Home 判断与信息规划的模型或判断调用。由各提供方在实际定义处明确 `cost: metered`（可能消耗计量额度，不等于每次实际收费）；配置读取、取消、缓存读取不据此标为收费，也不以权限名推断。既有后台任务的业务时限、取消和恢复仍由其 owner 控制，本切片不把整个任务生命周期误当成 Action 处理器等待时限。没有单次动作总时限证据就不补假时限或统一频率。未知外部能力保持 unknown。额外确认 `alchemist.reuse.assess` 等待模型时仍占串行队列，因旧门禁只按 `model:invoke` 权限筛选而遗漏；它仅读取候选并在模型返回后核对原授权，改为显式 concurrent，并让门禁同时检查 metered 提供方。验证从真实 Home/项目目录读取并经 Builder 设计策略消费，确认直接生成与后台启动都会阻止页面自动收费查询，普通历史读取仍可用于查询。
+
+### 安装调用随当前能力策略更新
+
+代码证据：`sandboxedPluginDefinition.start` 只读取一次 capability catalog 并据此固定 slow lane 和 Runner/Broker 时限；真正的 `catalogCapabilities.call` 却每次选择最新提供方版本。提供方超时、成本或版本改变后，实际调用和进程限额不一致。query 禁止收费能力也只在生成时检查，现有安装可能在页面刷新时调用后来改为收费的依赖。
+
+每次安装 operation 读取其实际依赖的当前目录，按同一 latest/offered 选择计算慢调用通道和本次操作/服务时限。Sandbox 增加仅可信 Host 可传的单次时限，沿现有 queue、Runner、Broker 和取消链执行，不修改 worker 协议或 CPU/内存/频率限制，也不为时限变化重建整套 Runtime。没有依赖的本地读写继续用原默认值；未声明费用保持 unknown。
+
+安装调用捕获依赖的提供方、版本、可用性、执行策略和读写性质，派出前及异步等待后的原 beforeEffect 中复核；发生变更的原调用不继续产生副作用或提交结果，也不自动重试。新调用读取新策略。当前 query 拒绝收费或写入型依赖，不依靠能力名字；缺失/停用/不再开放的依赖在派出前拒绝。这里不扩大安装 grants，提供方自己的 Kernel 授权与频率检查仍逐次执行。外部结果可能未知时保留 unknown，不能经 HTTP 降格成普通失败。公开生成式动作的身份与 Manifest 归位仍属于 07，不能顺带破坏既有指纹或授权引用。
+
+嵌套 Action 超时或提供方被替换、Host 服务超时的未知结果由可信 Host 标记，并贯穿 Sandbox、安装 HTTP、公开 Action 和 Schedule。worker 不能通过 JSON 伪造该标记；也不能 catch 后返回替代值，将结果变成成功或继续提交。一次调用的未知状态不会污染下一次明确发起的调用。普通缺服务/权限拒绝仍保留原本的已知错误语义。
+
+返回链复核补充：worker 返回违反 output schema 的值时，已有写入可能已发生。将其识别为结果未知的通道协议错误，终止并撤下失效进程；不回滚或重放已发生效果，下一次明确调用重新启动。输入 schema 拒绝仍发生在派出前，保留已知错误。
+
+验证生产 Sandbox 的同进程逐次时限、队列内各调用预算互不污染、服务超时取消；真实安装版本/策略变化后读最新限额，query 的收费/写入变化零派出，等待期间变化导致零晚写入，合法新调用恢复且不重复旧工作。无关提供方注册不取消调用；同一描述的重新注册由 Kernel 原 registration token 拒绝旧提交。按受影响包要求整体构建后跑回归与边界检查。
 
 ### 当前验证记录
 
@@ -209,3 +223,9 @@ Host 只留单向旧数据读取器：在同事务导入已知任务和全部 pe
   最终 69 包边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-scheduled-operations-boundary.log。源码与构建完成后再回归，回归期间没有改源码、脚本、package.json 或 Skill。
 
 接续位置：05 的提醒、定时 operation、持久待执行、安装独立执行和显式恢复链路已接通并完成上述验证。下一步继续 06：安装定义在 start 时捕获 capabilities/slow lanes，需核对依赖提供方、版本和策略变化后的失效与重建。07 的生成式动作归 Runtime 生命周期前，仍须处理合成 Manifest 的同版本指纹和旧提供方授权引用，不能静默破坏安装；Native catalog/pack/Host 多清单继续审查。08 事件订阅的独立身份、世代与领域 outbox，09 材料提取/资源合同，以及最终全消费者和文档验收仍未完成。当前仅本地改造，不能把已完成切片等同整个 Goal 完成。
+
+- 安装调用策略更新：删除启动时固定依赖目录、通道和时限的旧路径，每次 operation 使用当前依赖事实，经可信 beforeEffect 复核。query 动态拒绝 metered/写入/停用依赖；无关目录变化不影响本次调用。Sandbox 的单次时限在排队前复制，不进入 worker JSON，也不改 CPU、内存、频率或 grants。嵌套 Action/服务超时的 unknown 贯穿 HTTP 与公开 Action；插件捕获错误后不能继续写入或伪装成功。返回值违反 schema 也保留可能已提交的效果，撤下死进程，下一次明确调用可重新执行。手册、Skill 与包约定同步。
+
+  首轮 6 文件 61/61 通过；补齐输出协议错误后重新整体构建，最终 17 文件 135 项通过、1 项可选真实公网 HTTPS 未启用而跳过，零失败。覆盖真实 Seatbelt 复用进程/独立排队时限、当前版本和策略变化、同描述重新注册、晚写入拒绝、未知状态不可伪造或清除，以及真实 SQLite 提交、Schedule 进程中断/恢复、Chrome 明确恢复入口。没有运行付费模型，数据来自隔离 Home/SQLite，不代表用户本人验收。日志 /tmp/platform-installed-policy-final-build.log、/tmp/platform-installed-policy-regression.log；首轮 /tmp/platform-installed-policy-targeted.log。
+
+  最终边界检查 errors 为空，diff whitespace 检查通过；日志 /tmp/platform-installed-policy-boundary.log。回归期间未改源码、脚本、package.json 或 Skill。06 的生成式公开声明、07–09 及最终全消费者复核仍未完成，不以本切片替代整体交付。

@@ -27,11 +27,11 @@ export class SandboxBroker {
     this.queue = new BoundedQueue(limits.sdkQueue); this.calls = new RateBudget(limits.sdkPerMinute); this.events = new RateBudget(limits.eventsPerMinute);
   }
   stop(error: SandboxError): void { this.queue.close(error); }
-  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>): Promise<SandboxJson> {
+  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
       signal.throwIfAborted();
-      const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: this.limits.serviceTimeoutMs, reason: new SandboxError('SERVICE_TIMEOUT', 'Host service cancelled or timed out') } });
+      const lifetime = createExecutionLifetime({ signal, timeout: { milliseconds: serviceTimeoutMs, reason: new SandboxError('SERVICE_TIMEOUT', 'Host service cancelled or timed out; its result may be unknown', 'unknown') } });
       const beforeEffect = async () => { lifetime.assertActive(); await guard?.(); lifetime.assertActive(); };
       const context: SandboxServiceContext = { identity: this.identity, signal: lifetime.signal, operationId: operation.id, beforeEffect };
       try {

@@ -48,7 +48,19 @@ export function hostCapabilities(options: { goals?: CapabilityImplementations['g
   };
 }
 
-export interface CapabilityExecution { id: string; version?: number; offered?: boolean; execution?: ActionExecutionPolicy }
+export interface CapabilityExecution {
+  id: string; version?: number; provider_id?: string; offered?: boolean; installed?: boolean;
+  effect?: 'read' | 'write' | 'irreversible'; execution?: ActionExecutionPolicy;
+}
+
+/** Only dependencies of this operation participate; unrelated catalog changes must not revoke its work. */
+export function capabilityPolicyBinding(effects: SandboxEffects, capabilities: readonly CapabilityExecution[]): string {
+  return JSON.stringify([...(effects.capabilities ?? [])].sort().map(id => {
+    const entry = latestCapability(capabilities, id), policy = entry?.execution;
+    return [id, entry?.provider_id ?? null, entry?.version ?? null, entry?.offered ?? null, entry?.installed ?? null, entry?.effect ?? null,
+      policy?.timeout_ms ?? null, policy?.cost ?? 'unknown', policy?.max_calls_per_minute ?? null];
+  }));
+}
 /** Keep metadata and dispatch on the same offered version; private entries cannot set a public call's limits. */
 export function latestCapability<T extends CapabilityExecution>(capabilities: readonly T[], id: string): T | undefined {
   return capabilities.filter(item => item.id === id && item.offered !== false).sort((a, b) => (b.version ?? 0) - (a.version ?? 0))[0];

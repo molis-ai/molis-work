@@ -133,7 +133,11 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
           if (!options.live(context.identity)) throw new SandboxError('CAPABILITY_DENIED', '这个插件的能力调用已停止');
         } };
       try { return await options.actions.client.invoke(caller, { capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }, input) as SandboxJson; }
-      catch (error) { throw new SandboxError('CAPABILITY_REFUSED', error instanceof Error ? error.message : String(error)); }
+      catch (error) {
+        const code = (error as { code?: string })?.code;
+        const uncertain = context.signal.aborted || ['actions.timeout', 'actions.provider_changed', 'actions.output_invalid_after_effect', 'actions.outcome_unknown'].includes(code ?? '');
+        throw new SandboxError('CAPABILITY_REFUSED', error instanceof Error ? error.message : String(error), uncertain ? 'unknown' : undefined);
+      }
     },
   };
 }

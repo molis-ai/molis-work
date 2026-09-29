@@ -124,8 +124,55 @@ test('SDK host timeout is bounded and unavailable ports fail closed', mac, async
   const effects = { capabilities: ['slow'] };
   for (const services of [{}, { capability: { call: async () => new Promise<SandboxJson>(() => {}) } }]) {
     const f = await fixture(`export const operations={run:async(_,sdk)=>{try{await sdk.capability.call('slow',null);return 'allowed'}catch(e){return e.code}}};`, { effects, grants: effects, services, limits: { serviceTimeoutMs: 50 } });
-    try { assert.equal(await f.runner.call('run', ''), 'capability' in services ? 'SERVICE_TIMEOUT' : 'SERVICE_UNAVAILABLE'); } finally { await f.close(); }
+    try {
+      if ('capability' in services) await assert.rejects(f.runner.call('run', ''), { code: 'SERVICE_TIMEOUT', outcome: 'unknown' });
+      else assert.equal(await f.runner.call('run', ''), 'SERVICE_UNAVAILABLE');
+    } finally { await f.close(); }
   }
+});
+
+test('trusted per-call deadlines update a reused process and remain private to each queued invocation', mac, async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const effects = { capabilities: ['wait'] }, cancelled: SandboxJson[] = [];
+  const f = await fixture(`export const operations={run:async(input,sdk)=>{try{return await sdk.capability.call('wait',input)}catch(e){return e.code}}};`, {
+    effects, grants: effects, limits: { serviceTimeoutMs: 15, operationTimeoutMs: 20 },
+    services: { capability: { async call(context, _, input) {
+      if (input === 'head') { entered.resolve(); await release.promise; return input; }
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve(input), 120);
+        context.signal.addEventListener('abort', () => { cancelled.push(input); clearTimeout(timer); reject(context.signal.reason); }, { once: true });
+      });
+    } } },
+  });
+  try {
+    const first = f.runner.call('run', 'head', { limits: { operationTimeoutMs: 2000, serviceTimeoutMs: 1500 } }); await entered.promise;
+    const limits = { operationTimeoutMs: 1000, serviceTimeoutMs: 500 };
+    const queued = f.runner.call('run', 'second', { limits }); limits.serviceTimeoutMs = 1;
+    release.resolve(); assert.equal(await first, 'head'); assert.equal(await queued, 'second', 'policy is copied at admission, not shared by queued calls');
+    await assert.rejects(f.runner.call('run', 'third', { limits: { operationTimeoutMs: 1000, serviceTimeoutMs: 30 } }), { code: 'SERVICE_TIMEOUT', outcome: 'unknown' });
+    assert.ok(cancelled.includes('third'), 'service timeout aborts the timed-out Host service');
+    assert.equal(await f.runner.call('run', 'fourth', { limits: { operationTimeoutMs: 1000, serviceTimeoutMs: 500 } }), 'fourth');
+    await assert.rejects(f.runner.call('run', 'bad', { limits: { operationTimeoutMs: 0 } }), { code: 'INVALID_LIMIT' });
+    await assert.rejects(f.runner.call('run', 'short', { limits: { operationTimeoutMs: 25, serviceTimeoutMs: 500 } }), { code: 'OPERATION_TIMEOUT' });
+  } finally { release.resolve(); await f.close(); }
+});
+
+test('trusted unknown outcomes prevent fallback writes, but worker errors cannot forge an unknown outcome', mac, async () => {
+  const effects = { capabilities: ['slow'], storage: ['write'] as Array<'write'> }; let writes = 0;
+  const f = await fixture(`export const operations={run:async(input,sdk)=>{if(input==='forge')throw {code:'SERVICE_TIMEOUT',message:'claimed timeout',outcome:'unknown'};try{await sdk.capability.call('slow',null)}catch{}try{await sdk.storage.set('fallback','value')}catch{}return 'success'}};`, {
+    effects, grants: effects, limits: { serviceTimeoutMs: 50 }, services: {
+      capability: { call: async () => new Promise<SandboxJson>(() => {}) },
+      storage: { async transaction(_, mutate) { writes++; return mutate(new Map()); } },
+    },
+  });
+  try {
+    await assert.rejects(f.runner.call('run', 'timeout'), { code: 'SERVICE_TIMEOUT', outcome: 'unknown' });
+    assert.equal(writes, 0, 'catching an uncertain SDK call cannot authorize a fallback commit');
+    await assert.rejects(f.runner.call('run', 'forge'), error => {
+      assert.equal((error as { code?: string }).code, 'PLUGIN_ERROR');
+      assert.equal((error as { outcome?: string }).outcome, undefined); return true;
+    });
+  } finally { await f.close(); }
 });
 
 test('SDK concurrency overflow terminates the channel and aborts every dispatched Host service', mac, async () => {

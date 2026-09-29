@@ -121,6 +121,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 - 仅声明 `action_scenes` 而没有绑定、触发和消费处理器，或给宿主加场景/去向白名单。
 - 等模型或外部服务的动作不声明 `scheduling: "concurrent"`：等待期间它会占住整个项目的串行队列（门禁 `tests/action-model-scheduling.test.ts`）。
 - 按能力名称猜测时限、费用或调用限额：提供方应在 `action.execution` 声明真实的 `timeout_ms`、`cost` 和必要的 `max_calls_per_minute`，消费者读取共同目录。直接生成和启动后台 AI 任务都应声明 metered；任务读取与取消不因此收费，后台任务时限仍归任务 owner。费用未声明是 unknown；超时只停止等待与合作式执行，不代表厂商没有计费，未知副作用不自动重试。异步返回提交前仍需 `beforeEffect()`。详见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md)。
+- 将安装时的依赖策略当作永久有效：Host 每次 operation 读取当前版本、费用、时限与可用性，等待后再次复查；query 运行时也拒绝收费和写入能力。嵌套调用的未知结果必须向公开 Action 和 Schedule 透传，不能 catch 后继续提交或伪装成功；可信控制不放入 worker JSON。
 - 丢弃原调用的执行控制：生成式动作进入 route/沙箱后，仍需传递可信 Host 的 signal/beforeEffect，嵌套 Action、网络派出和存储提交前复查；不能从 JSON 或固定 actor 名称重建授权。沙箱队列负责操作串行，外层动作声明 concurrent，避免回调平台时死锁。取消后结果未知的操作不自动重放；持久任务不能复用创建时的临时授权回调。
 - 把已安装插件运行绑在创作页面：Host 的安装运行入口读取已发布工件和明确批准记录，Studio 仅委托它管理安装。恢复和发现不能初始化创作 Workflow 或启动草稿模型任务；正常 Host 关闭保留启用意图，用户停用须保持到显式启用。缺少批准记录时报告恢复失败，不从发布权限清单自动补权。
 - 读取已存历史的结果合同只按新写入的枚举收紧：一条旧记录不合规，整个读取就失败。结果合同读取兼容、写入严格。

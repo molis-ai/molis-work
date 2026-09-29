@@ -10,6 +10,8 @@ import { LocalHost } from "../apps/local-host/src/local-host.js";
 import { AssistantStore } from "../apps/local-host/src/assistant/assistant-store.js";
 import { AssistantService, holdingRule } from "../apps/local-host/src/assistant/assistant-service.js";
 import { assistantAuthority } from "../apps/local-host/src/assistant/assistant-authority.js";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { ASSISTANT_RULE_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/src/assistant/assistant-rule-actions.js";
 
 const rule = (partial: Partial<AssistantRule>): AssistantRule => ({ rule_id: "r", kind: "quiet", surfaces: [], except: [], label: "规则", enabled: true, created_at: "2026-09-28T00:00:00.000Z", ...partial });
 
@@ -78,4 +80,18 @@ test("a round that finishes while the person is elsewhere raises one notice; the
     assert.throws(() => service.saveRule({ kind: "pause", surfaces: [], except: [], label: "没有结束时间" }), /结束时间/);
     assert.throws(() => service.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "" }), /说法/);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("the person's rules are the Assistant's own actions: found by agents, adding one is a change, the Host keeps it as written", async () => {
+  const actions = new ActionService();
+  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
+  registerAssistantRuleActions(actions, () => service);
+  const caller = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
+  const found = actions.discover(caller).filter(view => view.provider.provider_id === "io.molis.work.assistant.rules");
+  assert.deepEqual(found.map(view => [view.capability_id, view.operation]).sort(), [["assistant.rules.add", "command"], ["assistant.rules.list", "query"], ["assistant.rules.remove", "command"]]);
+  const added = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不要提醒，失败除外" }) as { rules: AssistantRule[] };
+  assert.deepEqual(added.rules.map(item => [item.kind, item.surfaces, item.except, item.label]), [["quiet", ["pages"], ["failed"], "写文档时不要提醒，失败除外"]]);
+  await assert.rejects(actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "sometimes", label: "x" }), /kind|规则/);
+  const removed = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.remove, { rule_id: added.rules[0]!.rule_id }) as { rules: AssistantRule[] };
+  assert.deepEqual(removed.rules, []);
 });

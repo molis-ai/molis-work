@@ -13,6 +13,7 @@ import { AssistantError, AssistantService } from "./assistant-service.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
+import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = "web-user";
@@ -64,6 +65,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   }, WEB_ACTOR);
   const entry = { home: ports.homeDirectory, service, store };
   services.set(ports.localHost, entry);
+  // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
+  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service); }
+  catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
   return entry;
 }
 

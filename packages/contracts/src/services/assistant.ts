@@ -278,7 +278,8 @@ export interface AssistantCard {
   effect: "read" | "write" | "irreversible";
   /** The prepared input, field by field as the person reads it; `editable` ones can be changed before running. */
   /** `options`: the choices of a field that has them (the value sent is `raw`; `value` is its label). */
-  fields: Array<{ key: string; label: string; value: string; editable: boolean; raw?: string; options?: Array<{ value: string; label: string }> }>;
+  /** `input`: a day or a moment, picked rather than typed (`raw` is the stored value; a moment is sent as an exact instant). */
+  fields: Array<{ key: string; label: string; value: string; editable: boolean; raw?: string; options?: Array<{ value: string; label: string }>; input?: "date" | "datetime" }>;
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
   /** What happened, or why not, in the owner's words. */

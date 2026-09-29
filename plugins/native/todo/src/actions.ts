@@ -54,10 +54,11 @@ const expected = { expected_revision: revision };
 const fieldInput = {
   title: { ...text, minLength: 1, maxLength: 200, title: "要做什么" },
   notes: { ...text, maxLength: 10_000, title: "说明" },
-  due_date: { ...nullable(date), title: "截止日期（YYYY-MM-DD）" },
+  // The standard formats let a card offer a date or a date-and-time picker; the page already sends these exact forms.
+  due_date: { ...nullable({ ...date, format: "date" }), title: "截止日期（YYYY-MM-DD）" },
   due_time: { ...nullable(time), title: "截止时间（HH:MM）" },
-  planned_date: { ...nullable(date), title: "计划处理日期（YYYY-MM-DD）" },
-  remind_at: { ...nullable(instant), title: "提醒时间（带时区）" },
+  planned_date: { ...nullable({ ...date, format: "date" }), title: "计划处理日期（YYYY-MM-DD）" },
+  remind_at: { ...nullable({ ...instant, format: "date-time" }), title: "提醒时间（带时区）" },
   placement: { ...placement, title: "放在哪里：个人空间、当前项目或暂未归类" },
   important: { type: "boolean", title: "重要（只能由本人设置）" },
   waiting: { ...nullable(waiting), title: "在等谁、等什么、何时跟进" },

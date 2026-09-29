@@ -81,9 +81,10 @@ test("revisions refuse stale writes; the person's edits are recorded and the Ass
   const unchanged = await f.me.invoke(actions.update, { id: created.item.id, expected_revision: 3, due_date: "2026-10-05" });
   assert.equal(unchanged.change_id, null);
   assert.equal(unchanged.item.revision, 3);
-  await assert.rejects(f.me.invoke(actions.update, { id: created.item.id, due_date: "2026-02-30" }), { code: "todo.invalid" });
+  // A day that does not exist and a reminder without its time zone fail the declared formats before Todo sees them.
+  await assert.rejects(f.me.invoke(actions.update, { id: created.item.id, due_date: "2026-02-30" }), { code: "actions.input_invalid" });
   await assert.rejects(f.me.invoke(actions.update, { id: created.item.id, due_date: null, due_time: "10:00" }), { code: "todo.invalid" });
-  await assert.rejects(f.me.invoke(actions.update, { id: created.item.id, remind_at: "2026-10-01T09:00:00" }), { code: "todo.invalid" });
+  await assert.rejects(f.me.invoke(actions.update, { id: created.item.id, remind_at: "2026-10-01T09:00:00" }), { code: "actions.input_invalid" });
   const history = await f.me.invoke(actions.get, { id: created.item.id });
   assert.deepEqual(history.history.map(change => [change.kind, change.actor]), [["update", "user"], ["update", "assistant"], ["create", "assistant"]]);
 });

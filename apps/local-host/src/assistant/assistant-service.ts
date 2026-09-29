@@ -1,7 +1,7 @@
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegatedWork, AgentDelegation, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryEntry, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentPendingQuestion, AgentRecoveryReport, AgentReviewRequest, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { actionEffect, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
@@ -216,10 +216,22 @@ function summarizeResult(result: unknown): string {
 
 type SchemaProperties = Record<string, { title?: string; description?: string; properties?: SchemaProperties; type?: unknown }>;
 const labelOf = (properties: SchemaProperties | undefined, key: string) => actionFieldLabel(key, properties?.[key]);
-/** A field with declared choices is shown by its label and edited by picking one; the raw value is what runs. */
+/**
+ * A field with declared choices is shown by its label and edited by picking one; a day or a moment is picked too. The raw
+ * value is what runs.
+ */
 const choices = (declared: unknown, value: unknown) => {
+  const raw = typeof value === "string" ? { raw: value } : {};
   const options = actionFieldOptions(declared);
-  return options ? { options, ...(typeof value === "string" ? { raw: value } : {}) } : {};
+  if (options) return { options, ...raw };
+  const input = actionFieldInput(declared);
+  return input ? { input, ...raw } : {};
+};
+const allowsNull = (declared: unknown): boolean => {
+  if (!declared || typeof declared !== "object") return false;
+  const schema = declared as { type?: unknown; oneOf?: unknown; anyOf?: unknown };
+  if (schema.type === "null" || Array.isArray(schema.type) && schema.type.includes("null")) return true;
+  return ([schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined)?.some(allowsNull) ?? false;
 };
 const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
 
@@ -373,6 +385,7 @@ const CODING_MODES: readonly string[] = ["discuss", "plan", "edit", "execute", "
 
 export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined, ended = false): AssistantActivity[] {
   const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "change-reversible": "change", "ask-user": "ask", "update-todo": "todo",
+    "suggest-action": "suggest",
     // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
     "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
     "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
@@ -380,13 +393,13 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
     // The person's memory.
     "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
-    // The Host let a round that only announced its next step continue.
-    "自动续做": "auto-continue" };
+    // The Host let a round that only announced its next step continue; the runtime condensed a long work's context.
+    "自动续做": "auto-continue", "上下文整理": "compact" };
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining") return [];
     const verb = verbs[item.name] ?? item.name;
     const named = titles?.get(item.target);
-    const target = (verb === "read" || verb === "change") && named ? `${named.provider} · ${named.title}` : item.target;
+    const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : item.target;
     // Sent and not finished: it may have happened, so it is neither done nor a failure to retry.
     const uncertain = item.state === "failed" && /actions\.outcome_unknown|may or may not have taken effect/.test(`${item.summary} ${item.output ?? ""}`);
     const said = `${item.summary} ${item.output ?? ""}`;
@@ -1574,9 +1587,11 @@ export class AssistantService {
         if (!permitted(key)) throw new AssistantError("assistant.invalid", `字段「${key}」不能在这里修改`);
         const [head, child] = key.split(".") as [string, string | undefined];
         const properties = card.input_schema.properties as SchemaProperties | undefined;
-        const declared = child ? properties?.[head]?.properties?.[child]?.type : properties?.[head]?.type;
+        const schema = child ? properties?.[head]?.properties?.[child] : properties?.[head];
         let value: unknown = raw;
-        if (declared !== "string" && typeof raw === "string") { try { value = JSON.parse(raw); } catch { value = raw; } }
+        // A day or a moment the person cleared, on a field that may be empty, is "none".
+        if (raw === "" && actionFieldInput(schema) && allowsNull(schema)) value = null;
+        else if (schema?.type !== "string" && typeof raw === "string") { try { value = JSON.parse(raw); } catch { value = raw; } }
         if (child) {
           const parent = (prepared as Record<string, unknown>)[head];
           if (!plainObject(parent)) throw new AssistantError("assistant.invalid", `字段「${key}」不能在这里修改`);

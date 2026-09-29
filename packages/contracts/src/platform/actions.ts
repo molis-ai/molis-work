@@ -678,8 +678,31 @@ export function actionFieldOptions(declared?: unknown): Array<{ value: string; l
   return (schema.enum as string[]).map(value => ({ value, label: named.get(value) ?? value }));
 }
 
-/** A field's value as a person reads it: a declared choice by its label, rich text as its text, minutes-of-day as a time, the rest as it is. */
+/**
+ * How a person fills a field that is a calendar day or a moment, from its JSON Schema `format` ("date", "date-time"),
+ * through a nullable wrapper: picked rather than typed. Null for any other field.
+ */
+export function actionFieldInput(declared?: unknown): "date" | "datetime" | null {
+  if (!declared || typeof declared !== "object") return null;
+  const schema = declared as { format?: unknown; oneOf?: unknown; anyOf?: unknown };
+  if (schema.format === "date") return "date";
+  if (schema.format === "date-time") return "datetime";
+  const listed = ([schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined)
+    ?.filter(item => !(item && typeof item === "object" && (item as { type?: unknown }).type === "null"));
+  return listed?.length === 1 ? actionFieldInput(listed[0]) : null;
+}
+
+/** A moment as a person reads it, in this machine's local time. */
+const localMoment = (value: string): string | null => {
+  const at = new Date(value);
+  if (!Number.isFinite(at.getTime())) return null;
+  const two = (part: number) => String(part).padStart(2, "0");
+  return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())} ${two(at.getHours())}:${two(at.getMinutes())}`;
+};
+
+/** A field's value as a person reads it: a declared choice by its label, a moment in local time, rich text as its text, minutes-of-day as a time, the rest as it is. */
 export function actionFieldValue(key: string, value: unknown, declared?: unknown): string {
+  if (typeof value === "string" && actionFieldInput(declared) === "datetime") return localMoment(value) ?? value;
   if (typeof value === "string") return actionFieldOptions(declared)?.find(option => option.value === value)?.label ?? value;
   if (typeof value === "number" && /_time$/.test(key) && Number.isInteger(value) && value >= 0 && value < 1440) {
     return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`;

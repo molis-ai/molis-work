@@ -35,6 +35,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     get(key) { try { return localStorage.getItem(key); } catch { return null; } },
     set(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } },
   };
+  // A stored instant as the value of a local date-and-time picker.
+  const localMoment = (iso) => {
+    const at = new Date(iso);
+    if (!Number.isFinite(at.getTime())) return "";
+    const two = (part) => String(part).padStart(2, "0");
+    return at.getFullYear() + "-" + two(at.getMonth() + 1) + "-" + two(at.getDate()) + "T" + two(at.getHours()) + ":" + two(at.getMinutes());
+  };
   const CURRENT_KEY = "molis.assistant.current";
   const NEW_DRAFT_KEY = "molis.assistant.new-draft";
   let works = [];
@@ -307,10 +314,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
-  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", ask: "向你提问", todo: "更新工作步骤", "lookup-tools": "查找工具",
+  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", suggest: "准备操作卡", ask: "向你提问", todo: "更新工作步骤", "lookup-tools": "查找工具",
     delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
     "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆", "memory-suggest": "建议记住一条",
-    "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做" };
+    "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做", compact: "整理上下文" };
   const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
   const activityLine = (item) => {
     const verb = L(VERBS[item.verb] || item.verb);
@@ -430,6 +437,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           field.options.forEach((option) => { const item = el("option", "", option.label); item.value = option.value; item.selected = option.value === field.raw; control.append(item); });
           control.setAttribute("aria-label", asked ? asked.question : field.label);
           inputs[field.key] = control; cell.append(control);
+        } else if (field.editable && open && field.input) {
+          // A day or a moment is picked, never typed as a timestamp; a moment is picked in local time and sent exactly.
+          const control = el("input", "mw-input");
+          control.type = field.input === "date" ? "date" : "datetime-local";
+          if (field.input === "datetime") { control.dataset.moment = ""; control.value = field.raw ? localMoment(field.raw) : ""; }
+          else control.value = field.raw || "";
+          control.setAttribute("aria-label", asked ? asked.question : field.label);
+          inputs[field.key] = control; cell.append(control);
         } else if (field.editable && open) {
           const control = el(field.value.includes("\n") || field.value.length > 60 ? "textarea" : "input", "mw-input");
           control.value = field.value; control.setAttribute("aria-label", asked ? asked.question : field.label);
@@ -466,7 +481,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const hadFocus = node.contains(document.activeElement);
       row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
       const values = {};
-      Object.entries(inputs).forEach(([key, control]) => { values[key] = control.value; });
+      Object.entries(inputs).forEach(([key, control]) => {
+        values[key] = control.dataset.moment !== undefined && control.value ? new Date(control.value).toISOString() : control.value;
+      });
       try {
         const next = await api("/works/" + encodeURIComponent(work.work_id) + "/cards/" + encodeURIComponent(card.card_id) + "/run", "POST", { revision: card.revision, values });
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);

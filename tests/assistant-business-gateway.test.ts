@@ -32,7 +32,8 @@ function reply(tool?: { name: string; input: unknown }, text = "Done."): Respons
 
 const write: ActionDefinition = { capability_id: "fixture.notes.write", version: 1, operation: "command", action: {
   title: "Save a note", description: "Store a note in the project", kind: "operation", scope: "project", audiences: ["agent"],
-  permissions: ["notes:write"], subject_kinds: [], input_schema: { type: "object", properties: { text: { type: "string", title: "内容" } }, required: ["text"], additionalProperties: false } } };
+  permissions: ["notes:write"], subject_kinds: [], input_schema: { type: "object", properties: { text: { type: "string", title: "内容" },
+    remind_at: { anyOf: [{ type: "string", format: "date-time" }, { type: "null" }], title: "提醒时间" } }, required: ["text"], additionalProperties: false } } };
 const count: ActionDefinition = { capability_id: "fixture.notes.count", version: 1, operation: "query", action: {
   title: "Count notes", description: "How many notes there are", kind: "query", scope: "project", audiences: ["agent"],
   permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
@@ -43,8 +44,9 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", board_id: "board", storage_key: "memory:project" };
+  const seen: unknown[] = [];
   const unregister = local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [write, count],
-    handlers: [{ ...write, handle(context, input) { notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
+    handlers: [{ ...write, handle(context, input) { seen.push(input); notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, context.audit_actor_id ?? null); return { saved: true }; } },
       { ...count, handle() { return Number(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n); } }] });
   const requests: any[] = [];
   let turn = 0;
@@ -65,7 +67,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
-  return { service, store, host, adapter, queue, notes, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, host, adapter, queue, notes, seen, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -442,7 +444,7 @@ test("a suggested action becomes a card that runs exactly what it shows, once, a
     const sent = await f.service.send({ text: "what should I note?", request_id: "req-00000009" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "suggesting runs nothing");
-    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest-action:completed", "suggest-action:failed", "suggest-action:completed"], "an input that breaks the contract is not offered");
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest:completed", "suggest:failed", "suggest:completed"], "an input that breaks the contract is not offered");
     assert.equal(done.cards.length, 2);
     const [ready, asking] = done.cards as [typeof done.cards[0], typeof done.cards[0]];
     assert.equal(ready.status, "ready");
@@ -463,6 +465,28 @@ test("a suggested action becomes a card that runs exactly what it shows, once, a
     const stale = await f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { text: "late" } });
     assert.equal(stale.status, "stale");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
+  } finally { await f.close(); }
+});
+
+test("a moment on a card is picked, not typed: the field says so, the exact instant runs, and a cleared one is still asked for", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "记下并提醒", summary: "存一条笔记，到点提醒", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes",
+      input: { text: "给财务回邮件" }, missing: [{ field: "remind_at", question: "什么时候提醒你？" }] } }),
+    () => reply(undefined, "按钮在上面。"),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "记一条要提醒的笔记", request_id: "req-00000031" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    const card = done.cards[0]!;
+    assert.equal(card.status, "needs-input");
+    assert.deepEqual(card.fields.find(field => field.key === "remind_at"), { key: "remind_at", label: "提醒时间", value: "", editable: true, input: "datetime" });
+    await assert.rejects(f.service.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "" } }), /什么时候提醒你/);
+    const ran = await f.service.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "2026-10-01T01:00:00.000Z" } });
+    assert.equal(ran.status, "done");
+    assert.deepEqual(f.seen, [{ text: "给财务回邮件", remind_at: "2026-10-01T01:00:00.000Z" }], "the exact instant runs");
+    const shown = ran.fields.find(field => field.key === "remind_at");
+    assert.equal(shown?.raw, "2026-10-01T01:00:00.000Z");
+    assert.match(shown?.value ?? "", /^2026-(09-30|10-01) \d{2}:00$/, "and reads back in local time");
   } finally { await f.close(); }
 });
 
@@ -526,7 +550,7 @@ test("a suggestion whose fields are partly beside its input still becomes the ca
   try {
     const sent = await f.service.send({ text: "suggest a note", request_id: "req-00000061" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest-action:completed"]);
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest:completed"]);
     assert.equal(done.cards.length, 1);
     assert.ok(done.cards[0]!.fields.some(field => field.label === "内容" && field.value === "会后发纪要"), JSON.stringify(done.cards[0]!.fields));
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "suggesting runs nothing");

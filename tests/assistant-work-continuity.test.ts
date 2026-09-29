@@ -80,7 +80,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const person: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:read", "notes:write"] };
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output)),
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views), (view, input, output) => service.recordResult(work, view, input, output)),
     scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }),
     projectTitle: async () => "Fixture project" }, "web-user");
   return { service, store, notes, requests, project, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
@@ -140,6 +140,62 @@ test("a work keeps what it used and produced; an edit by hand shows as changed a
     f.notes.delete("n1");
     view = await f.service.read(sent.work.work_id);
     assert.deepEqual(view.objects.filter(object => object.relation === "result").map(object => [object.subject.id, object.state, object.current_revision]), [["n1", "missing", null]]);
+  } finally { await f.close(); }
+});
+
+test("an object edited by hand while a change to it waits for approval is not overwritten; the round shows the conflict", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "change-capability", input: { ...ref("fixture.notes.update"), input: { id: "n9", text: "assistant rewrite", expected_version: 1 } } }),
+    body => { assert.match(JSON.stringify(body.messages), /笔记已改变/); return reply(undefined, "笔记在等待确认期间被你改过，没有覆盖。"); },
+  ]);
+  try {
+    f.notes.set("n9", { text: "original", version: 1 });
+    const sent = await f.service.send({ text: "改写 n9", request_id: "req-00000121" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    f.notes.set("n9", { text: "the person's own edit", version: 2 });
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
+    assert.deepEqual(f.notes.get("n9"), { text: "the person's own edit", version: 2 }, "the newer version stays");
+    const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
+    assert.equal(change.state, "failed");
+    assert.match(change.detail ?? "", /笔记已改变/);
+    assert.equal(done.objects.filter(object => object.relation === "result").length, 0, "a refused change produced nothing");
+  } finally { await f.close(); }
+});
+
+test("what the person does in the plugin settles what it made redundant: a suggestion about a note they changed is not run, a “做完了” about a result they edited goes quiet", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "改短这条笔记", summary: "把笔记改短", ...ref("fixture.notes.update"), input: { id: "n7", text: "short", expected_version: 1 } } }),
+    () => reply(undefined, "给了一个建议。"),
+    () => reply({ name: "change-capability", input: { ...ref("fixture.notes.create"), input: { text: "made by the assistant" } } }),
+    () => reply(undefined, "已新建。"),
+  ]);
+  try {
+    f.notes.set("n7", { text: "a long note", version: 1 });
+    const sent = await f.service.send({ text: "看看 n7 能不能改短", request_id: "req-00000131" }, { project_ref: f.project });
+    let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
+    assert.equal(view.cards[0]!.status, "ready");
+    // The person shortens the note themselves, in the plugin.
+    f.notes.set("n7", { text: "short by hand", version: 2 });
+    view = await f.service.read(sent.work.work_id);
+    assert.equal(view.cards[0]!.status, "stale");
+    assert.match(view.cards[0]!.outcome ?? "", /你在原处改过「a long note」/);
+    const clicked = await f.service.runCard(sent.work.work_id, view.cards[0]!.card_id, { revision: view.cards[0]!.revision });
+    assert.equal(clicked.status, "stale");
+    assert.deepEqual(f.notes.get("n7"), { text: "short by hand", version: 2 }, "the suggestion never ran over their edit");
+
+    // A result made while the person was elsewhere raises “做完了”; once they edit that result in the plugin, it goes quiet.
+    await f.service.list();
+    await f.service.send({ work_id: sent.work.work_id, text: "再新建一条", request_id: "req-00000132" }, {});
+    const held = await until(async () => { await f.service.list(); const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await until(async () => (await f.service.list()).find(work => work.work_id === sent.work.work_id)?.state === "completed", "completed");
+    assert.ok(f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && notice.kind === "completed"));
+    assert.equal(await f.service.settleHandledNotices(), 0, "not yet acted on");
+    const made = [...f.notes.entries()].find(([, value]) => value.text === "made by the assistant")![0];
+    f.notes.set(made, { text: "made, then edited by hand", version: 2 });
+    assert.equal(await f.service.settleHandledNotices(), 1);
+    assert.equal(f.service.notices(null).filter(notice => notice.work_id === sent.work.work_id && notice.kind === "completed").length, 0);
   } finally { await f.close(); }
 });
 

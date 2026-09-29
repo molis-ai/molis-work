@@ -41,4 +41,11 @@ export const LINGGUANG_EN: Record<string, string> = {
   "本地记录": "Local record",
   "分发候选": "Send-on candidates",
   "先记下还没想清楚的想法，再决定留下或丢掉。": "Capture a thought before it has a place, then keep or discard it.",
+  "交给助理": "Hand to the Assistant",
+  "要助理做什么？": "What should the Assistant do?",
+  "只带过去，我自己发": "Just bring it; I'll send",
+  "助理只拿到这条灵光和最近几句头脑风暴，不会合并整段对话；它做的修改仍会请你确认。": "The Assistant gets this spark and the last few brainstorm lines, never the whole conversation; its changes still ask you first.",
+  "头脑风暴 · 最近": "Brainstorm · last",
+  "句": "lines",
+  "我": "Me",
 };

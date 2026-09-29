@@ -200,6 +200,12 @@ export interface PluginManifest {
   requires?: PluginRequirementDeclaration[];
   /** v2: roles, prompts, skills and subagents for an Agent-backed Plugin. */
   agent?: AgentManifest;
+  /**
+   * Methods this Plugin offers to other Agents for business work (the Assistant, a Character): how to do something
+   * in its domain with the capability gateway. Bodies ship in the package; the Host registers them with the Plugin and
+   * gives them to a round only by id and version. `agent.skills` is the Plugin's own Agent's; this is for others.
+   */
+  methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /**

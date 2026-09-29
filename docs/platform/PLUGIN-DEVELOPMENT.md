@@ -136,6 +136,10 @@ Host 的动作客户端和场景客户端共享项目运行时与执行队列。
 - 插件根元素维护 `data-assistant-context`（当前对象、版本、未保存状态与草稿、起步建议）；这只是屏幕说明，发送时才成为材料，不写记录、不授权。
 - 监听 `molis:assistant-effect` 并在没有未保存修改时重读；用户在页面上改变了助理可能展示的对象时发 `molis:assistant-surface-changed`。
 - 页面缓存的设置在本页没有未保存改动时采用已保存值，避免把别处的修改写回。
+- 要给助理发信息，发 `molis:assistant-message` 并写明用途：`background`（只作上下文）、`change`（对象变了）、`suggest`（由用户决定是否发送）、`delegate`（用户刚在页面上要求交给助理，只有真实用户操作才立即开始）、`reply`（把结果交回某项工作）。不要自称“用户已同意”。
+- 会启动后台任务的命令（研究、生成等）声明 `background_job`：`{ status: { capability_id, version }, id: "run.jobId", input: "id", state: "status", done: [...], failed: [...] }`——输出里任务标识的位置、同一提供方的状态查询、它接收标识的字段、状态的位置和结束状态。助理（或用户点的建议按钮）启动后，Host 经 Prologue 队列按状态查询跟进到结束，结束时提醒用户、按钮显示结果，并在下一轮告诉助理；不必自己推送。样例：炼金术士的“启动炼化”“启动研究”。
+- 修改已有对象的动作，输入里用 `<种类>_id`（或 `subject_id`、`id`）写对象标识：助理的建议按钮据此在用户手动改过该对象后自动失效。
+- 设置“助理”里的“插件接入诊断”会列出你的插件为助理提供了什么、缺什么（对象读取、结果关联、能力说明），按那里的提示补齐即可。
 - Native 插件新增路由或动作要递增 Manifest `version`，否则已安装项目仍按旧清单运行。
 
 Pages 与 Coding 是完整样例；需求与验收见 `specs/system-assistant/spec.md` 第 10.4 节与 AC46—AC51。
@@ -161,6 +165,16 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/system-assistant/sp
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
 - 插件创作台生成的插件同样如此：要求在操作代码里 `export const prompts = [{ id, title, purpose, body }]` 声明，`model.generate` 传 `{ prompt: id, input }`；安装时登记、卸载时撤下（用户的修改保留）。检查 G4 会拒绝未声明的 id 和仍传 `instructions` 的调用。
 - 设置“Prompt 与 Character”底部的“开发者诊断”列出每个来源登记了什么、哪些没有生效及原因，以及仍未登记的模型调用。
+
+## 给其他 Agent 的方法（`methods`）
+
+插件可以把本领域的做事方法（Skill）提供给助理和 Character 在业务工作里使用，例如 Pages 的“会议纪要整理”。
+
+- 在 Manifest 的 `methods` 声明：`skill_id`、`version`、`name`、`summary`（何时适用），以及 `tools`。`tools` 只能是业务工具，即 `METHOD_TOOLS`：能力网关（find/read/change-capability、suggest-action），加上 ask-user、update-todo 等不碰目录的工具。校验不通过，Manifest 就无效。
+- 正文放在包里（例如 `src/methods.ts` 导出 `AgentSkillDefinition[]`），标识、版本与 Manifest 一致；内置插件在目录条目里带上 `methods`。Host 启动时把方法登记进 Agent 定义，只按标识与版本给出正文；声明了但没有正文的方法不登记，开发者诊断里会说明。
+- 与 `agent.skills` 的区别：`agent.skills` 是插件自己的 Agent 用的方法；`methods` 给别的 Agent 用。
+- 助理会在“可用的方法”里看到它（只列名称和适用说明），合适时读取正文照做；用户也可以用“/”直接选定。方法只对采用它的那一轮有效。插件停用后，方法就不再列出。
+- 正文写步骤和边界，不要写死对象标识；需要改数据的步骤照常经 change-capability，由用户确认。
 
 ## 对外 MCP
 

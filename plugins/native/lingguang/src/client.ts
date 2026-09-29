@@ -261,7 +261,9 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     await request("POST", "/api/plugins/lingguang/discard", { ids });
     await loadList();
   };
+  let shownMessages = [];
   const renderMessages = (messages) => {
+    shownMessages = messages || [];
     messagesEl.replaceChildren();
     (messages || []).forEach((message) => {
       const card = document.createElement("article");
@@ -286,6 +288,34 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       contextEl.append(card);
     });
   };
+  /*
+   * Handing this spark to the Assistant: the spark itself and only the last few brainstorm lines, named as such —
+   * never the whole conversation. Submitting the form is the person's asking; “只带过去” leaves Send to them.
+   */
+  const askForm = workbench.querySelector("[data-lingguang-ask]");
+  const askInput = workbench.querySelector("[data-lingguang-ask-input]");
+  const handOver = (purpose, text) => {
+    if (!selected) return;
+    const recent = shownMessages.filter((message) => message.role !== "stub").slice(-6);
+    const materials = [{ title: L("灵光") + "「" + (selected.title || L("灵光")) + "」", text: (selected.title || "") + (selected.body ? "\\n" + selected.body : "") }];
+    if (recent.length) materials.push({ title: L("头脑风暴 · 最近") + " " + recent.length + " " + L("句"), text: recent.map((message) => (message.role === "assistant" ? L("灵光") : L("我")) + "：" + message.body).join("\\n") });
+    window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
+      message_id: crypto.randomUUID(), purpose, source: { surface: "lingguang", title: L("灵光") },
+      object: { kind: "lingguang_spark", id: selected.id, title: selected.title || L("灵光"), version: selected.updated_at },
+      text, materials,
+    } }));
+    askForm.hidden = true;
+    workbench.querySelector("[data-lingguang-ask-toggle]")?.setAttribute("aria-expanded", "false");
+    askInput.value = "";
+  };
+  askForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = String(askInput.value || "").trim();
+    if (!text) { askInput.focus(); return; }
+    await save();
+    handOver("delegate", text);
+  });
+  askForm?.addEventListener("keydown", (event) => { if (event.key === "Escape") { askForm.hidden = true; workbench.querySelector("[data-lingguang-ask-toggle]")?.focus(); } });
   const openBrainstorm = async () => {
     const ids = selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []);
     if (!ids.length) throw new Error(L("先选至少一条"));
@@ -337,6 +367,18 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-lingguang-discard]")) {
         await discardIds(selectedIds.size ? [...selectedIds] : (selected ? [selected.id] : []));
+        return;
+      }
+      if (event.target.closest("[data-lingguang-ask-toggle]")) {
+        const open = askForm.hidden;
+        askForm.hidden = !open;
+        workbench.querySelector("[data-lingguang-ask-toggle]")?.setAttribute("aria-expanded", String(open));
+        if (open) askInput.focus();
+        return;
+      }
+      if (event.target.closest("[data-lingguang-ask-bring]")) {
+        await save();
+        handOver("suggest", "");
         return;
       }
       if (event.target.closest("[data-lingguang-brainstorm], [data-lingguang-brainstorm-current]")) {

@@ -82,6 +82,33 @@ export interface AssistantSurfaceContext {
 export const ASSISTANT_EFFECT_EVENT = "molis:assistant-effect";
 export const ASSISTANT_SURFACE_CHANGED_EVENT = "molis:assistant-surface-changed";
 
+/**
+ * A plugin page tells the Assistant something (spec 8.3). What happens depends on the purpose, never on wording:
+ * - `background`: context for the next round the person starts here; nothing is sent, no model runs.
+ * - `change`: an object changed; works that relate to it read it again. Not a request.
+ * - `suggest`: a request the person may send — offered to put into the input, never sent by itself.
+ * - `delegate`: the person just asked the page to hand this to the Assistant. It starts only right after a real user
+ *   gesture on the page; otherwise it becomes a suggestion. A repeat of the same `message_id` starts nothing.
+ * - `reply`: a plugin hands a result back to a work; the object is linked as that work's result (read from its owner).
+ * A plugin cannot claim the person's consent in the message itself.
+ */
+export const ASSISTANT_MESSAGE_EVENT = "molis:assistant-message";
+export type AssistantMessagePurpose = "background" | "change" | "suggest" | "delegate" | "reply";
+export interface AssistantPluginMessage {
+  message_id: string;
+  purpose: AssistantMessagePurpose;
+  /** The surface speaking, as the person knows it. */
+  source: { surface: string; title?: string };
+  /** The object it concerns (for change, reply, and what a suggestion or delegation is about). */
+  object?: { kind: string; id: string; title?: string; version?: number | string | null };
+  /** For suggest/delegate: the request in the person's words. For background: what the page shows now. */
+  text?: string;
+  /** Text the request brings along (at most 4, each at most 20000 characters). */
+  materials?: Array<{ title: string; text: string }>;
+  /** For reply (and to continue a work on delegate): the work it belongs to. */
+  work_id?: string;
+}
+
 export interface AssistantEffectDetail {
   work_id: string;
   /** The capability it ran, e.g. `pages.docs.update`; surfaces match on their own prefix. */
@@ -122,8 +149,19 @@ export interface AssistantContextSnapshot {
 /** A material the person put into this message, or one the page offered and they kept. */
 export interface AssistantMaterial {
   material_id: string;
-  kind: "selection" | "object" | "text" | "file" | "image";
+  kind: "selection" | "object" | "text" | "file" | "image" | "capability" | "method";
   title: string;
+  /** For `capability`: the one the person picked with “/” to be used this round (its exact identity). */
+  capability?: { capability_id: string; version: number; provider_id: string; title: string };
+  /**
+   * For an object the person picked with “@” from the system search: the hit it came from. The hit is only a pointer;
+   * the Host checks it again with its owner and reads the object's text itself before the round.
+   */
+  reference?: { hit_id: string };
+  /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
+  method?: { method_id: string; version?: number; name?: string; plugin_title?: string };
+  /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
+  image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
   /** True when the person added it themselves; false when it came from the current page and they left it in. */
   explicit: boolean;
   source?: AssistantSurfaceRef;
@@ -167,6 +205,10 @@ export interface AssistantWork {
    * round on. Absent means the Assistant itself. Only project work can have one (Characters are published per project).
    */
   character?: AssistantCharacter;
+  /** Set on a work another work delegated: which one, and what it was asked to deliver. */
+  delegated_by?: { work_id: string; title: string; acceptance: string };
+  /** The person's cap on this work's tokens (input plus output, its sub-tasks included). Absent means no cap of its own. */
+  budget_tokens?: number;
 }
 
 /** An exact published Character version, as the person chose it. */
@@ -189,8 +231,8 @@ export interface AssistantActivity {
   state: "started" | "completed" | "failed" | "unknown";
   /** For a read or change: the capability it used, so the surface that owns that data can refresh. */
   capability_id?: string;
-  /** Why it did not happen, when that is known: not authorized, declined by the person. */
-  reason?: "not-authorized" | "declined" | "interrupted";
+  /** Why it did not happen, when that is known: not authorized, declined by the person, stopped, or switched off / gone by the time it would run. */
+  reason?: "not-authorized" | "declined" | "interrupted" | "unavailable";
   /** For a failure, what the owner said, bounded; data about the failure, never an instruction. */
   detail?: string;
   sequence?: number;
@@ -310,6 +352,21 @@ export interface AssistantWorkView {
   cards: AssistantCard[];
   /** The objects this work started from, used, produced and handed to, as their owners have them now. */
   objects: AssistantWorkObject[];
+  /** Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups. */
+  delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number }>;
+  /** Timed rounds the person asked this work to run. */
+  scheduled?: AssistantFollowUp[];
+  /** Whether those timed rounds still run with the window closed (the runtime queue's own claim). */
+  schedule_survives_close?: boolean;
+  /** Changes still running at their owner when a round stopped or ran out of time, and what the owner finally did. */
+  unsettled?: AssistantUnsettledChange[];
+  /** Background work this work started in plugins, and how each stands. */
+  jobs?: AssistantBackgroundJob[];
+  /**
+   * What this work used, as the runtime reported its finished rounds (input plus output tokens; its sub-tasks counted
+   * with it, and a sub-task shows its delegating work's total), and the cap that applies.
+   */
+  usage?: { tokens: number; rounds: number; budget_tokens: number | null; budget_of?: { work_id: string; title: string } };
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }
@@ -384,4 +441,133 @@ export interface AssistantContribution {
   /** Takes part in global search. */
   searchable: boolean;
   gaps: Array<{ area: "context" | "results" | "capabilities"; text: string }>;
+}
+
+/**
+ * Something about a work worth the person's attention, raised by the Host from what really happened — a round that
+ * failed, a decision it waits on, a round that finished while they were elsewhere, a result a plugin handed back. It
+ * never starts anything, so a notice cannot cause another notice.
+ */
+/** Background work a round or a card started in a plugin (a research run…), followed until it ends. */
+export interface AssistantBackgroundJob {
+  job_id: string;
+  work_id: string;
+  /** The capability that started it, as the person reads it. */
+  title: string;
+  state: "running" | "completed" | "failed" | "unknown";
+  /** The plugin's own word for the latest state. */
+  last_state?: string;
+  started_at: string;
+  ended_at?: string;
+  /** Set when a suggestion card started it. */
+  card_id?: string;
+}
+
+/** What the Assistant's own rounds used today (as the runtime reported them), and the person's daily cap. */
+export interface AssistantUsage {
+  /** Today in the person's time zone: finished rounds' reported tokens. Cached input is shown apart and not counted. */
+  today: { input: number; output: number; cached_input: number; rounds: number };
+  /** Input plus output tokens per day, or null for no cap. */
+  daily_tokens: number | null;
+}
+
+/** Something the person asked the Assistant to keep: personal (all their work) or one project's. */
+export interface AssistantMemory {
+  memory_id: string;
+  scope: "personal" | "project";
+  /** For a project memory: which project. */
+  project_id?: string;
+  text: string;
+  /** Where it came from: the work, the date and the person's own words. */
+  origin: string;
+  /** Kept, but not used in work until switched on again (different from deleting it). */
+  disabled: boolean;
+}
+
+/** What the Assistant may do with memory, set by the person; applied exactly as written. */
+/** A method a Plugin offers for business work that a work in this scope can use (registered with the Host). */
+export interface AssistantMethod {
+  /** `<plugin_id>/<skill_id>`. */
+  method_id: string;
+  plugin_id: string;
+  plugin_title: string;
+  version: number;
+  name: string;
+  summary: string;
+}
+
+export interface AssistantMemoryPrefs {
+  /** May keep what the person explicitly asks it to remember. It never learns from behaviour on its own. */
+  form: boolean;
+  /** Personal memories are used in work. */
+  use_personal: boolean;
+  /** A project's memories are used in that project's work. */
+  use_project: boolean;
+}
+
+/** `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work. */
+export type AssistantNoticeKind = "failed" | "needs-decision" | "completed" | "result" | "material";
+export interface AssistantNotice {
+  notice_id: string;
+  kind: AssistantNoticeKind;
+  work_id: string;
+  work_title: string;
+  text: string;
+  created_at: string;
+  /** Held by one of the person's rules while its condition holds (shown once it no longer does). */
+  held?: { rule_id: string; reason: string };
+}
+
+/**
+ * The person's own rules for when the Assistant may draw their attention. Evaluated by the Host exactly as written —
+ * never guessed by a model. `quiet` holds notices while one of `surfaces` (plugin rail ids; empty = anywhere) is on
+ * show; `pause` holds them until `until`. `except` still comes through (e.g. a failed round).
+ */
+export interface AssistantRule {
+  rule_id: string;
+  kind: "quiet" | "pause";
+  surfaces: string[];
+  except: AssistantNoticeKind[];
+  /** When it ends (required for a pause; optional for a quiet rule). */
+  until?: string;
+  /** How the person put it, shown back to them. */
+  label: string;
+  enabled: boolean;
+  created_at: string;
+}
+export type AssistantRuleInput = Pick<AssistantRule, "kind" | "surfaces" | "except" | "label"> & { until?: string; enabled?: boolean };
+
+/**
+ * A standing request the person gave a work: at a time (once, daily or weekly) the Assistant starts a round of it with
+ * these words. It runs only while Molis Work runs on this computer; a time missed while it was not running is
+ * reported, never replayed late.
+ */
+/**
+ * A change the round had sent to its owner that had not answered when the round stopped or ran out of time. The Host
+ * keeps listening: `pending` until the owner answers, then whether it happened. Never re-sent.
+ */
+export interface AssistantUnsettledChange {
+  change_id: string;
+  work_id: string;
+  /** The capability as the person reads it: provider · title. */
+  title: string;
+  started_at: string;
+  state: "pending" | "completed" | "failed" | "not-run";
+  settled_at?: string;
+  /** The owner's words for a failure, bounded. */
+  detail?: string;
+}
+
+export interface AssistantFollowUp {
+  followup_id: string;
+  work_id: string;
+  label: string;
+  text: string;
+  repeat: "none" | "daily" | "weekly";
+  /** The next time it is due (ISO); absent once a one-time follow-up has run or been missed. */
+  next_at?: string;
+  time_zone: string;
+  enabled: boolean;
+  created_at: string;
+  last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: string };
 }

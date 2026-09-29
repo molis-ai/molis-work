@@ -1,5 +1,5 @@
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionOffer, AgentDelegation, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -24,7 +24,13 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   /** Records a suggestion for the person, checked against the capabilities offered now. */
   offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>,
   /** Told after a command succeeded, with the action as offered, so the work can keep a relation to what it changed. */
-  changed?: (view: ActionView, input: unknown, output: unknown) => void): AgentStartAuthority {
+  changed?: (view: ActionView, input: unknown, output: unknown) => void,
+  /** Hands independent sub-tasks to separate works (absent for a delegated work: one level deep). */
+  delegation?: AgentDelegation,
+  /** Told of a change its owner was still running when the round stopped or ran out of time, to learn how it ended. */
+  unsettled?: (view: ActionView, call: Promise<unknown>) => void,
+  /** Remember, list and forget for the person (absent when forming memories is switched off). */
+  memory?: AgentMemoryTools): AgentStartAuthority {
   const reference = work.project_ref;
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [], ...(signal ? { signal } : {}) });
@@ -58,6 +64,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
     actions: async (_runtimeId, validate) => ({
       discover: async () => service().discover(await context(validate)),
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
+      ...(delegation ? { delegate: delegation } : {}),
+      ...(memory ? { memory } : {}),
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.
       check: async (action, input) => {
         const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
@@ -67,8 +75,15 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       },
       invoke: async (action, input, signal) => {
         const caller = await context(validate, signal);
-        const output = await service().invoke(caller, action, input);
         const view = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+        const call = service().invoke(caller, action, input);
+        // The round may stop while the owner is still changing things: the call goes on, and how it ends is kept for the work.
+        if (view && view.operation === "command" && unsettled && signal && !signal.aborted) {
+          const left = () => unsettled(view, call);
+          signal.addEventListener("abort", left, { once: true });
+          call.then(() => signal.removeEventListener("abort", left), () => signal.removeEventListener("abort", left));
+        }
+        const output = await call;
         if (view && view.operation === "command") {
           try { changed?.(view, input, output); } catch { /* The change happened; a relation that failed to record is not a failed change. */ }
         }

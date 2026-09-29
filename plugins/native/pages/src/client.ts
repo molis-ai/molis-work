@@ -428,6 +428,15 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!selected || selected.id !== id || editVersion !== revision) throw new Error(L("文档已改变，请重新生成"));
         return result;
       },
+      // Selected text to the resident Assistant, as a suggestion or as the person's own request (spec 8.3).
+      askAssistant: (input) => {
+        if (!selected) return;
+        window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: {
+          message_id: crypto.randomUUID(), purpose: input.mode, source: { surface: "pages", title: "Pages" },
+          object: { kind: "pages_document", id: selected.id, title: selected.title, version: selected.version },
+          text: input.request, materials: input.selection.trim() ? [{ title: L("选中的文字") + " · " + selected.title, text: input.selection }] : [],
+        } }));
+      },
       onCreateFromAi: async (input) => {
         const content = String(input.text || "").split(/\\n{2,}/).map((part) => (
           part.trim()

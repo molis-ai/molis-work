@@ -13,6 +13,9 @@ import { AssistantError, AssistantService } from "./assistant-service.js";
 import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
+import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
+import { agentDefinitionsFor } from "../agent-definitions/agent-definitions.js";
+import { builtinRegistrations } from "../agent-definitions/builtin-agents.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = "web-user";
@@ -35,13 +38,17 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   const service: AssistantService = new AssistantService(store, {
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     authority: async work => ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.recordOffer(work, offer, views),
-      (view, input, output) => service.recordResult(work, view, input, output)),
+      (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
+      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work)),
       project_prompts: await assistantProjectPrompts(ports.localHost, work),
       // A Character published in the work's project, frozen at its exact version for the round (the Host checks it again at dispatch).
       ...(work.project_ref ? { resolveCharacter: await projectCharacters(ports, work.project_ref).then(characters => characters.resolve) } : {}) }),
     characters: async project => (await projectCharacters(ports, project)).list().map(choice => ({ reference: { ...choice.reference }, title: choice.title, available: choice.available,
       ...(choice.reason ? { reason: choice.reason } : {}) })),
     projectTitle: ports.projectTitle,
+    // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
+    methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
+      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
     // The person's own actions in the work's project, as the page there would use them.
     personActions: async work => {
       const reference = work.project_ref;
@@ -64,6 +71,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   }, WEB_ACTOR);
   const entry = { home: ports.homeDirectory, service, store };
   services.set(ports.localHost, entry);
+  // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
+  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service); }
+  catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
   return entry;
 }
 
@@ -79,7 +89,8 @@ async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostPr
  */
 export async function handleAssistantHttp(request: IncomingMessage, response: ServerResponse, url: URL,
   ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<boolean> {
-  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: 400_000,
+  // A document the person brings travels as base64 (up to 8 MB of file); everything else stays small.
+  return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: url.pathname.endsWith("/api/assistant/attachments") ? 11_500_000 : 400_000,
     async handle({ method, pathname, body }) {
       const { service, store } = assistantServiceFor(ports);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
@@ -122,6 +133,41 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         store.setActionEnabled(WEB_ACTOR, actionKey({ capability_id: body.capability_id, version: body.version as number, provider_id: body.provider_id }), body.enabled);
         return { status: 200, body: { ok: true } };
       }
+      // What deserves the person's attention now, and on which surface (their rules hold some while it matches).
+      if (method === "GET" && parts.length === 1 && parts[0] === "notices") {
+        // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
+        await service.list();
+        // What the person already acted on in its plugin is not news any more.
+        await service.settleHandledNotices().catch(() => 0);
+        return { status: 200, body: { notices: service.notices(url.searchParams.get("surface") || null) } };
+      }
+      if (method === "POST" && parts.length === 1 && parts[0] === "notices") {
+        const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
+        return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
+      }
+      // Methods Plugins offer that this scope can use (for “/”).
+      if (method === "GET" && parts.length === 1 && parts[0] === "methods") return { status: 200, body: { methods: await service.methods(null, ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
+      // Which object kind each surface's tab items are, from the plugins' search source declarations.
+      if (method === "GET" && parts.length === 1 && parts[0] === "surface-kinds") return { status: 200, body: { kinds: await service.surfaceKinds(ports.projectRef ? { project_ref: ports.projectRef } : {}) } };
+      // What the Assistant's own rounds used today, and the person's daily cap.
+      if (method === "GET" && parts.length === 1 && parts[0] === "usage") return { status: 200, body: await service.usage() };
+      if (method === "POST" && parts.length === 1 && parts[0] === "budget") { service.saveBudget(body.daily_tokens); return { status: 200, body: await service.usage() }; }
+      // A document the person brings (PDF): read by the runtime's parser, returned as this Send's material.
+      if (method === "POST" && parts.length === 1 && parts[0] === "attachments") return { status: 200, body: { material: await service.readAttachment({ name: String(body.name ?? ""), data: String(body.data ?? "") }) } };
+      // What the person asked the Assistant to keep: personal, and this project's when on a project's page.
+      if (method === "GET" && parts.length === 1 && parts[0] === "memories") {
+        return { status: 200, body: { memories: await service.memories(ports.projectRef?.project_id ?? null), prefs: service.memoryPrefs() } };
+      }
+      if (method === "POST" && parts.length === 1 && parts[0] === "memories") {
+        const action = body.action === "update" || body.action === "disable" || body.action === "enable" || body.action === "remove" ? body.action : null;
+        if (!action) throw new AssistantError("assistant.invalid", "不支持的操作");
+        return { status: 200, body: { memories: await service.changeMemory({ memory_id: String(body.memory_id ?? ""), action, ...(typeof body.text === "string" ? { text: body.text } : {}) }, ports.projectRef?.project_id ?? null) } };
+      }
+      if (method === "POST" && parts.length === 1 && parts[0] === "memory-prefs") return { status: 200, body: { prefs: service.saveMemoryPrefs(body as never) } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.rules() } };
+      if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
+      if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.removeRule(String(body.rule_id ?? "")) } };
+      if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.removeFollowUp(String(body.followup_id ?? "")) } };
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
@@ -134,6 +180,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "run") return { status: 200, body: await service.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values as Record<string, string> | undefined }) };
       if (parts.length === 5 && parts[2] === "cards" && parts[4] === "dismiss") return { status: 200, body: service.dismissCard(workId, parts[3]!) };
       if (parts.length === 3 && parts[2] === "mode") return { status: 200, body: await service.setExecutorMode(workId, String(body.mode ?? "")) };
+      if (parts.length === 3 && parts[2] === "budget") return { status: 200, body: await service.saveWorkBudget(workId, body.budget_tokens) };
+      if (parts.length === 3 && parts[2] === "results") return { status: 200, body: await service.receiveResult(workId, body) };
       if (parts.length === 3 && parts[2] === "handover") return { status: 200, body: await service.handover(workId, { to: body.to as "coding" | "assistant", ...(typeof body.mode === "string" ? { mode: body.mode } : {}) }) };
       if (parts.length === 3 && parts[2] === "recovery") return { status: 200, body: typeof body.run_id === "string"
         ? await service.closeInterrupted(workId, { run_id: body.run_id, version: Number(body.version) }) : await service.recovery(workId) };

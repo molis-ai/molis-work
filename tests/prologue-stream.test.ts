@@ -158,6 +158,15 @@ test("a guardrail stop is terminal but is not a failure", () => {
   assert.match(railBroke.stop_reason ?? "", /自身出错/u);
 });
 
+test("the runtime's circuit breaker ends the round as stopped, in words, instead of leaving it waiting to close", () => {
+  // Seen with MiniMax-M3: four malformed calls in a row tripped the breaker; the round then hung at “正在收尾”.
+  const state = emptyPrologueStreamState();
+  apply(state, { type: "circuit-tripped", reason: "same-tool-failure", count: 4, why: "change-capability kept failing" } as never);
+  assert.equal(state.phase, "stopped");
+  assert.match(state.stop_reason ?? "", /连续 4 次调用都没有成功.*已完成的保留/u);
+  assert.equal(state.unknown_frames, 0);
+});
+
 test("compaction is a phase, not an outcome", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "compaction-started" });

@@ -101,7 +101,7 @@ test("a professional Agent's own steps read as file and command work, never as b
     { call_id: "e", name: "write", target: "README.md", state: "failed", summary: "write · TOOL_INTERRUPTED", output: "TOOL_INTERRUPTED: this run was cancelled before the tool ran.", at: null },
   ], undefined, true), [
     { call_id: "d", verb: "file-change", target: "calc.js", state: "unknown" },
-    { call_id: "e", verb: "file-change", target: "README.md", state: "failed", reason: "interrupted", detail: "TOOL_INTERRUPTED: this run was cancelled before the tool ran." },
+    { call_id: "e", verb: "file-change", target: "README.md", state: "failed", reason: "interrupted", detail: "this run was cancelled before the tool ran." },
   ]);
 });
 

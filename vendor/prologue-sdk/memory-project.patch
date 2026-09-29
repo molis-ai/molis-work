@@ -1,0 +1,67 @@
+diff --git a/packages/sdk/src/memory/core/memory.ts b/packages/sdk/src/memory/core/memory.ts
+index 68577f2f..116945dd 100644
+--- a/packages/sdk/src/memory/core/memory.ts
++++ b/packages/sdk/src/memory/core/memory.ts
+@@ -9,8 +9,11 @@ import {
+  * 一条记忆能被谁看见。
+  *
+  * **彼此隔离。** 会话范围的记忆不该在另一条会话里冒出来。
++ *
++ * `project`：App 自己的一个项目（归属者是项目标识）。同一个人在两个项目里记下的东西各在各的格子里，
++ * 不因为是同一个人、同一个角色就互相召回——不是给个人记忆贴一张项目标签。
+  */
+-export type MemoryScope = "user" | "app" | "character" | "session";
++export type MemoryScope = "user" | "app" | "character" | "session" | "project";
+ 
+ export interface MemoryInput {
+   readonly scope: MemoryScope;
+diff --git a/packages/sdk/test/memory-project-scope.live.test.ts b/packages/sdk/test/memory-project-scope.live.test.ts
+new file mode 100644
+index 00000000..5c69861c
+--- /dev/null
++++ b/packages/sdk/test/memory-project-scope.live.test.ts
+@@ -0,0 +1,44 @@
++import { mkdtempSync, rmSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { afterEach, beforeEach, describe, expect, it } from "vitest";
++import { createNodeHost } from "../src/node.js";
++import { createRuntime, type Runtime } from "../src/index.js";
++
++const APP = { appId: "prologue.harness", appVersion: "0.1.0" };
++let root: string;
++
++beforeEach(() => {
++  root = mkdtempSync(join(tmpdir(), "mem-project-"));
++});
++afterEach(() => {
++  rmSync(root, { recursive: true, force: true });
++});
++
++const ready = (): Promise<Runtime> => createRuntime({ app: APP, host: createNodeHost({ storageRoot: root }), preset: "local-agent" });
++
++describe("project 作用域的记忆", () => {
++  it("**两个项目各在各的格子里：召回、列举、整格删除都不越界，重启后仍是如此**", async () => {
++    const first = await ready();
++    const a = { scope: "project" as const, owner: "project-a" };
++    const b = { scope: "project" as const, owner: "project-b" };
++    await first.memory.write({ ...a, text: "A 项目的术语：北极星指标叫 NSM", origin: "chat 2026-09-28" });
++    await first.memory.write({ ...b, text: "B 项目的术语：北极星指标叫 KPI-1", origin: "chat 2026-09-28" });
++    await first.memory.write({ scope: "user", owner: "alice", text: "回答用要点列表", origin: "chat 2026-09-28" });
++    expect(first.memory.recall({ ...a, keywords: ["北极星"] }).hits.map((hit) => hit.entry.text)).toEqual(["A 项目的术语：北极星指标叫 NSM"]);
++    expect(first.memory.list(b).map((entry) => entry.text)).toEqual(["B 项目的术语：北极星指标叫 KPI-1"]);
++    await first.shutdown();
++
++    const second = await ready();
++    try {
++      await second.memory.hydrate([a, b]);
++      expect(second.memory.list(a).map((entry) => entry.scope)).toEqual(["project"]);
++      const preview = second.memory.previewScope(a);
++      await second.memory.removeScope({ ...a, fingerprint: preview.fingerprint });
++      expect(second.memory.list(a)).toEqual([]);
++      expect(second.memory.list(b).map((entry) => entry.text)).toEqual(["B 项目的术语：北极星指标叫 KPI-1"]);
++    } finally {
++      await second.shutdown();
++    }
++  });
++});

@@ -474,6 +474,17 @@ export function applyPrologueEvent(
       return true;
     }
 
+    // The runtime's circuit breaker stopped a round that kept failing the same way (it settles the run as stopped and
+    // sends nothing more): the round has ended, and says why, instead of waiting for a close that never comes.
+    case "circuit-tripped": {
+      const tripped = event as unknown as { reason?: string; count?: number; why?: string };
+      closeStreaming(state);
+      closeUnappliedSteers(state);
+      state.phase = "stopped";
+      state.stop_reason = `连续 ${tripped.count ?? "几"} 次调用都没有成功，这一轮先停在这里${tripped.why ? `（${tripped.why}）` : ""}；已完成的保留，可以说明怎么调整后继续`;
+      return true;
+    }
+
     case "run-recovered": {
       const recovered = event as Extract<PrologueEvent, { type: "run-recovered" }>;
       closeInterruptedPrologueStream(state);

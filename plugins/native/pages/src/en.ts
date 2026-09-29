@@ -1,4 +1,9 @@
 export const PAGES_EN: Record<string, string> = {
+  "助理": "Assistant",
+  "带到助理（由你发送）": "Bring to the Assistant (you send it)",
+  "要助理做什么？": "What should the Assistant do?",
+  "交给助理": "Hand to the Assistant",
+  "选中的文字": "Selected text",
   "保存中": "Saving",
   "文档已改变，请重新生成": "The document changed. Generate again.",
   "此转换无法保留块中的内容": "This conversion cannot preserve the block contents",

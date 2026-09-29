@@ -50,7 +50,9 @@ Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompt
 
 Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
 
-Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密、比对配置或管理取消等待；固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
+Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密或复制配置比对逻辑；首次授权等待与模型执行复用 Kernel 的三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
+
+Alchemist 六类固定指令在 `src/prompts.ts` 登记为 `ALCHEMIST_INSTRUCTIONS`：方向生成、Copilot、研究交叉检查/综合、成果适用性和格式纠正。`systemPrompt` 接收 `InstructedPrompt`，研究维度作为 data，用户内容仍在 userPrompt；Host 在授权复查后解析当前 Home 的用户覆盖并记录使用。用户修改正文不改变领域校验或增加格式纠正次数；原预算/授权检查继续约束纠正调用。
 
 Jelly 的 Host `completeJson` 同样使用 SDK JSON 解码，插件继续核实证据块 ID、逐字引用、章节顺序与计划内容。每次分段摘要或合并都在派出前复查原 Action 的 `beforeEffect`，返回后和持久化前再复查；不把取消或撤权写成成功摘要。
 

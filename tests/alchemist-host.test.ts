@@ -1,3 +1,7 @@
+import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { ALCHEMIST_COPILOT, ALCHEMIST_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-alchemist";
+import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
+import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -136,19 +140,38 @@ test("Alchemist packed Prologue borrows the shared Home owner and fixed model, a
     const originalGet = f.secrets.get.bind(f.secrets); let reads = 0;
     t.mock.method(f.secrets, "get", ref => { reads++; return originalGet(ref); });
     assert.equal((await port.listModels())[0]?.id, "fixture/model"); assert.equal(reads, 0, "model discovery cannot decrypt credentials");
-    const generated = await port.generate({ operationId: "copilot-1", actorId: "external-author", purpose: "解释当前访谈", systemPrompt: "只讨论提供的原文", userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
+    const generated = await port.generate({ operationId: "copilot-1", actorId: "external-author", purpose: "解释当前访谈", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: '{"quote":"不愿每天重新整理"}', jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" });
     assert.deepEqual(generated.json, { ok: true, value: { reply: "原文可追溯" } }); assert.match(generated.runtimeLabel, /Prologue/); assert.equal(requests.length, 1);
     assert.match(JSON.stringify(requests[0].messages), /不愿每天重新整理/);
-    assert.match(JSON.stringify(requests[0].system), /只讨论提供的原文/);
+    assert.match(JSON.stringify(requests[0].system), /Founder Copilot/);
     assert.equal(requests[0].model, "model"); assert.equal(requests[0].max_tokens, 4_096);
     assert.deepEqual(generated.usage, { inputTokens: 20, outputTokens: 12 });
     assert.equal(requests[0].tools?.length ?? 0, 0);
-    await assert.rejects(port.generate({ operationId: "missing", purpose: "test", systemPrompt: "", userPrompt: "", jsonSchema: {}, modelId: "fixture/missing" }), /没有可用模型/);
-    assert.equal(requests.length, 1, "a missing fixed model must not trigger fallback or a paid request");
+    const definitions = agentDefinitionsFor(f.home, builtinRegistrations);
+    for (const prompt of ALCHEMIST_INSTRUCTIONS) {
+      const key = `${prompt.owner_id}/${prompt.prompt_id}`, edited = `User-defined instruction: ${prompt.prompt_id}`;
+      assert.equal(definitions.prompt(key).default_body, prompt.body);
+      definitions.save(key, edited, null, "owner");
+      await port.generate({ ...cancellableInput(new AbortController().signal),
+        systemPrompt: instructed({ ...prompt, body: "REQUEST_DEFAULT_MUST_NOT_WIN" }, "DIMENSIONS_AS_DATA"), userPrompt: "MATERIAL_ONLY" });
+      const sent = requests.at(-1)!;
+      assert.ok(JSON.stringify(sent.system).includes(edited));
+      assert.match(JSON.stringify(sent.system), /DIMENSIONS_AS_DATA/);
+      assert.doesNotMatch(JSON.stringify(sent.system), /REQUEST_DEFAULT_MUST_NOT_WIN|MATERIAL_ONLY/);
+      assert.match(JSON.stringify(sent.messages), /MATERIAL_ONLY/);
+      assert.equal(definitions.prompt(key).last_used?.user_revision, 1);
+    }
+    assert.equal(requests.length, 7);
+    await assert.rejects(port.generate({ ...cancellableInput(new AbortController().signal),
+      systemPrompt: instructed({ ...ALCHEMIST_COPILOT, prompt_id: "missing" }, "") }), { code: "agent_definitions.not_found" });
+    await assert.rejects(port.generate({ ...cancellableInput(new AbortController().signal),
+      systemPrompt: instructed({ ...ALCHEMIST_COPILOT, owner_id: "io.molis.work.coding" }, "") }), /必须登记在本插件下/);
+    await assert.rejects(port.generate({ operationId: "missing", purpose: "test", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: "", jsonSchema: {}, modelId: "fixture/missing" }), /没有可用模型/);
+    assert.equal(requests.length, 7, "invalid instruction or missing fixed model cannot trigger fallback or a paid request");
     changeConfiguration = () => f.catalog.models.upsert({ ...f.catalog.models.get("fixture")!, enabled: false });
-    await assert.rejects(port.generate({ operationId: "changed-config", actorId: "external-author", purpose: "检查配置变更", systemPrompt: "只输出 JSON", userPrompt: "返回一句回复",
+    await assert.rejects(port.generate({ operationId: "changed-config", actorId: "external-author", purpose: "检查配置变更", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: "返回一句回复",
       jsonSchema: { type: "object", properties: { reply: { type: "string" } }, required: ["reply"], additionalProperties: false }, modelId: "fixture/model" }), { code: "actions.configuration_changed" });
-    assert.equal(requests.length, 2); assert.equal(borrowed, 2);
+    assert.equal(requests.length, 8); assert.equal(borrowed, 8);
     await assert.rejects(access(join(f.home, "alchemist", "projects", "p", "runtime")), { code: "ENOENT" });
     await f.host.close(); await assert.rejects(resolvePrologueInference(f.home), /尚未装配/);
   } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
@@ -305,7 +328,7 @@ test("Alchemist search abort before TLS completion sends no body and shutdown wa
 });
 
 function cancellableInput(signal: AbortSignal) {
-  return { operationId: "cancelled-operation", purpose: "test", systemPrompt: "Only JSON", userPrompt: "Return a reply", jsonSchema: { type: "object" }, modelId: "fixture/model", signal };
+  return { operationId: "cancelled-operation", purpose: "test", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: "Return a reply", jsonSchema: { type: "object" }, modelId: "fixture/model", signal };
 }
 
 function textInference(completeTextResult: PrologueInferenceClient["completeTextResult"]): PrologueInferenceClient {
@@ -326,11 +349,29 @@ for (const gate of ["guard", "inference"] as const) test(`Alchemist abort during
       if (gate === "guard") { entered.resolve(); await release.promise; }
     } });
     await entered.promise;
+    const definitions = agentDefinitionsFor(f.home, builtinRegistrations), key = `${ALCHEMIST_COPILOT.owner_id}/${ALCHEMIST_COPILOT.prompt_id}`;
+    const uses = definitions.uses(key);
+    if (gate === "guard") assert.equal(uses.length, 0);
     controller.abort(new Error("用户停止了准备中的任务"));
     await assert.rejects(generated, /用户停止了准备中的任务/);
     release.resolve(); await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal(calls, 0);
+    assert.deepEqual(definitions.uses(key), uses, "late authorization cannot record another prompt use");
   } finally { release.resolve(); }
+});
+
+test("Alchemist revoked during initial authorization records no instruction use or model dispatch", async t => {
+  const f = await configuredAi(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let calls = 0;
+  const port = createAlchemistProloguePort({ homeDirectory: f.home, search: ai.search,
+    resolveInference: async () => { calls++; throw new Error("must not initialize"); } });
+  const pending = port.generate({ ...cancellableInput(new AbortController().signal), beforeModelDispatch: async () => {
+    entered.resolve(); await release.promise; throw new Error("revoked while checking");
+  } });
+  const rejected = assert.rejects(pending, /revoked while checking/);
+  await entered.promise; release.resolve(); await rejected;
+  assert.equal(calls, 0);
+  assert.deepEqual(agentDefinitionsFor(f.home, builtinRegistrations).uses(`${ALCHEMIST_COPILOT.owner_id}/${ALCHEMIST_COPILOT.prompt_id}`), []);
 });
 
 test("Alchemist abort while shared inference returns cannot publish its completed result", { timeout: 15_000 }, async t => {

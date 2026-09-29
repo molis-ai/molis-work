@@ -1,3 +1,5 @@
+import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { ALCHEMIST_COPILOT } from "@molis-ai/molis-work-plugin-alchemist";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { directionUnderstandingSchema } from "../plugins/native/alchemist/src/studio/shared/contracts/exploration.js";
@@ -5,7 +7,7 @@ import { generateWithHost, type AlchemistAiPort } from "../plugins/native/alchem
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 
 const schema = directionUnderstandingSchema.pick({ summary: true });
-const input = { operationId: "research-output", purpose: "解释证据", systemPrompt: "只使用所给材料", userPrompt: "真实原文",
+const input = { operationId: "research-output", purpose: "解释证据", systemPrompt: instructed(ALCHEMIST_COPILOT, ""), userPrompt: "真实原文",
   jsonSchema: { type: "object", properties: { summary: { type: "string", minLength: 1 } }, required: ["summary"], additionalProperties: false }, parse: (value: unknown) => schema.parse(value) };
 function ai(replies: string[], dispatched: string[]): AlchemistAiPort {
   return {
@@ -13,6 +15,7 @@ function ai(replies: string[], dispatched: string[]): AlchemistAiPort {
     async search() { throw new Error("not used"); },
     async generate(request) {
       await request.beforeModelDispatch?.();
+      if (request.operationId.endsWith(":format_correction")) assert.equal(request.systemPrompt.instruction.prompt_id, "alchemist.format-correction");
       dispatched.push(request.operationId);
       return alchemistOutput(replies.shift()!, "fixture", dispatched.length === 1 ? { inputTokens: 5, outputTokens: 3 } : { inputTokens: 7 });
     },

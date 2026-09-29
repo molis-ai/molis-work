@@ -14,7 +14,7 @@
 
 | 项 | 当前问题 → 目标与消费者 | 所有者 | 依赖 / 状态 |
 | --- | --- | --- | --- |
-| 01 | Cognia、Coding 草稿绕过 Home Runtime → 同一模型入口与执行 owner，删除临时 Runtime/轮询 | Local Host 选择与凭据；Agent Host 执行桥 | Cognia/Coding 已迁移；Alchemist 与生成插件使用公共绑定，Builder 设计/编码保留同一 owner；Shelf recipe 仍有 Module 内 CLI 直连，需归 Agent Host/Prologue；其他模型适配继续核对 |
+| 01 | Cognia、Coding 草稿绕过 Home Runtime → 同一模型入口与执行 owner，删除临时 Runtime/轮询 | Local Host 选择与凭据；Agent Host 执行桥 | Cognia/Coding 已迁移，Coding 两类草稿指令与 Alchemist 六类固定指令已登记并验证用户覆盖；Alchemist 与生成插件使用公共绑定，Builder 设计/编码保留同一 owner；Shelf recipe 仍有 Module 内 CLI 直连，需归 Agent Host/Prologue；其他模型适配继续核对 |
 | 02 | 文本结果不完整 → 文本/结构、进度、引用、终态、实际模型、typed usage；Alchemist、Jelly、Coding、生成插件迁移 | Agent Host 公共推理契约 + Host 绑定 | 公共契约、Host 绑定及 Alchemist/Jelly 结构化消费已实现并验证；最终全消费者复核待完成 |
 | 03 | App 重复收集 Run；schema 支持不足/本地校验不贯通 → SDK 有界收集与显式校验/有界纠正 | Prologue Session/Model；领域 parse 留消费方 | SDK 有界收集、Run 终态结构校验、必要 schema 子集已落地并打包；SDK 已有 Function 外部校验保留；Alchemist 显式有界纠正已接通，领域约束仍由插件校验 |
 | 04 | Pages、Images、Alchemist、Builder 重复运行控制 → 抽取真实共性并迁移，保留各自业务恢复 | Kernel 执行生命周期，经 Plugin SDK；领域继续持有状态/恢复 | 已实现；本地关闭晚提交与恢复回归通过 |
@@ -496,3 +496,19 @@ Host 注入提取与可用性端口。文件 Action 经异步 `admitFile` 提取
 整体构建通过（`/tmp/platform-coding-instructions-build.log`）。定向 6 文件 18/18（`/tmp/platform-coding-instructions-targeted.log`），包含真实打包 SDK/本地 HTTP、两份用户覆盖/版本使用记录、跨 Home 默认隔离、未知 id/错误 owner/缺身份/混合输入，以及异步授权期间取消/撤权零使用记录和零模型派出；原摘要 HTTP 行为、记录降级和用量继续通过。包要求及消费者回归 23 文件 119/119（`/tmp/platform-coding-instructions-regression.log`），70 包 boundary errors 为空（`/tmp/platform-coding-instructions-boundary.log`），diff whitespace 通过。测试期间未编辑源码/Skill 或并发构建；没有调用付费供应商或代表用户本人验收。
 
 接续交接：本次已连续完成 Shelf PDF/OCR 和 Coding 短草稿登记两个切片，仅本地提交。下一个明确剩余项是 Alchemist：当前仍有六类固定指令（方向生成、Founder Copilot、证据交叉检查、研究综合、成果复用适用性、一次格式纠正），只有交叉检查的研究维度属于动态参数。应使用现有 InstructedPrompt 分离正文与数据并登记，保留 Host SDK JSON 解码、插件领域 parse 和一次纠正的预算/授权机制；不能把现有提示词中的 schema 声称为原生 SDK 强约束。之后完成 Shelf 自动 AI recipe 经 Prologue 的迁移，保留人工 CLI 交接、材料/结果身份及明确模型选择，再完成 01–12 最终验收。上述剩余项继续实施，Goal 保持 active，不重建或重复 Goal Prompt。
+
+
+### Alchemist 固定指令与动态材料分离
+
+六类已核实的固定指令归插件 `src/prompts.ts`，使用现有 InstructionPrompt 声明并从共同目录登记。领域 StructuredGenerationRequest 与 Host AI 端口的 systemPrompt 改为 InstructedPrompt，方向、对话、研究、复用及格式纠正消费者一并迁移；研究维度作为本次数据传递，不随用户材料改变默认正文。Host 使用原 Home 的有效指令，保留 system 与任务材料分离。取消和持续授权复查必须先于 Prompt 使用记录，180 秒涵盖首次授权等待及共享推理；不因登记引入第二 Runtime 或另一套模型选择。
+
+不改变结构化数据语义：Host 仍经 SDK 解码 JSON，插件 Zod/领域 parse 核对业务，只有原预算明确允许才进行一次格式纠正，每次派出复查原授权，未知用量保留未知。本次不新增 schema 原生生成或隐式修复调用。删除开发诊断中 Alchemist 的未登记提示词例外，手册说明真实支持边界。
+
+验收使用实际调用的六份声明、用户覆盖到真实 SDK/HTTP 的系统正文、研究维度与材料传递、纠正次数及预算拒绝、取消/撤权零晚派出/登记、原任务状态和恢复；依包要求整体构建、定向回归与 boundary。历史业务存储及运行记录不迁移，回滚仅需恢复源码声明/调用链，用户 Prompt 覆盖保留。
+
+
+本段已实现六类固定指令的唯一声明、共同目录登记、InstructedPrompt 端口和全部真实调用方迁移。研究维度作为动态 data；用户材料没有进入可编辑的默认正文。Host 在初次授权复查后读取登记正文，拒绝未知 id/错误 owner，不采用请求对象携带的默认 body；撤权或取消不能补记使用或继续初始化推理。删除 Alchemist 的未登记诊断及测试过渡例外，手册/Skill 同步；格式解码仍归 SDK，领域约束与一次纠正预算继续归插件。
+
+整体 `pnpm build` 通过（`/tmp/platform-alchemist-instructions-build.log`）。本段定向及包要求共 22 文件 112/112，无跳过（`/tmp/platform-alchemist-instructions-regression.log`）；包含实际共享 Home 的 SDK/本地 HTTP、六份用户覆盖与动态参数、未知引用/错误 owner 零请求、配置变化、初次授权等待撤权零登记/零派出、取消/晚返回，以及原方向→研究→决策、预算、格式纠正、状态恢复、HTTP/MCP、权限与消费者回归。70 包 boundary errors 为空（`/tmp/platform-alchemist-instructions-boundary.log`），diff whitespace 通过。构建与测试串行，测试期间未改源码/Skill。未调用付费模型，也不代表商业模型质量或用户本人验收。
+
+后续只按当前同一 Goal 推进：Shelf 自动 AI recipe 仍在 `modules/shelf/src/store.ts` 调 `job-runner.ts` 直启 CLI，人工终端交接和九类 CLI 偏好必须保留。已核实全部内置 recipe 的成果是文字/Markdown/JSON，但输入还含图片、PDF、folder/file；不能把图片静默降为 OCR 文本便宣称等价迁移。SDK Model 的 `StartRunInput.attachments`/ResourceBinding 和两类协议已有图像请求支持，Molis 的 `PrologueTextInput`/`hostTextGeneration` 尚未暴露附件；模型目录已有 vision 声明。下一步先核对真实 Session 附件/资源生命周期与模型能力，补齐必要的公共输入端口，或复用现有 Agent 执行能力，保留图片和文件语义、明确模型选择、大小/时限/取消/预算及结果回执；不要再包装旧写文件 CLI。之后完成 01–12 总验收。SDK 本轮仅只读调查，没有改源码或产物。

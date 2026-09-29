@@ -30,8 +30,6 @@ const registered = () => new Set(builtinRegistrations().flatMap(owner => owner.p
 const TRANSITIONAL: Readonly<Record<string, string>> = {
   // The transport itself: it sends what its callers already resolved.
   "apps/local-host/src/host-complete-text.ts": "Host 文字模型的传输层，发送调用方已解析好的文字",
-  // Alchemist's studio composes its own system prompt per job inside the Plugin; moving it is its own slice.
-  "apps/local-host/src/alchemist-prologue.ts": "Alchemist 的 systemPrompt 由插件内的工作室按任务拼出，迁移单列",
 };
 
 /** Modules that only build a Host text model and hand it to a caller that resolves its instructions. */
@@ -70,7 +68,7 @@ test("Host modules reach a model only through the register, apart from the trans
   assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
   for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);
   // Every exception that is not the transport itself is shown to developers too, with the same reason.
-  assert.deepEqual(UNREGISTERED_MODEL_CALLS.map(call => call.owner_id), ["io.molis.work.alchemist"], "过渡清单与开发者诊断里的“还没有登记的模型调用”要一致");
+  assert.deepEqual(UNREGISTERED_MODEL_CALLS, [], "已迁移的消费者不再保留未登记指令例外");
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {

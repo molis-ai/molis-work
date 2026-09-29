@@ -721,6 +721,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const SOURCE_KIND = { manual: L("手动"), material: L("材料"), assistant: L("助理"), onboarding: L("开始使用时"), inbox: "Inbox", lingguang: L("灵光") };
   const renderSources = (item) => {
     const box = $("[data-todo-sources]");
+    // The same version drawn again (the detail is often asked for twice as it opens) keeps its nodes, so a click already
+    // under way on a source is not lost to a redraw.
+    const drawn = item.id + "@" + item.revision + "@" + projectId();
+    if (box.dataset.drawn === drawn) return;
+    box.dataset.drawn = drawn;
     box.replaceChildren();
     item.sources.forEach((source) => {
       const entry = make("div", "todo-source");
@@ -772,6 +777,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const RELATION = { blocked_by: L("要等它先完成"), blocks: L("它在等这件"), split_from: L("拆分自"), merged: L("合并自"), related: L("相关") };
   const renderLinks = (item) => {
     const box = $("[data-todo-links]");
+    const drawn = item.id + "@" + item.revision + "@" + backlinks.map((back) => back.item_id + ":" + back.relation).join(",") + "@" + linkPool.map((other) => other.id + ":" + other.title).join(",");
+    if (box.dataset.drawn === drawn) return;
+    box.dataset.drawn = drawn;
     box.replaceChildren();
     const rows = [
       ...item.links.map((link) => ({ link, text: link.title, target: link.kind === "todo" ? link.subject.id : "",

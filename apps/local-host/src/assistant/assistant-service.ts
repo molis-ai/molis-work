@@ -5,7 +5,7 @@ import { actionEffect, actionFieldLabel, actionFieldValue, actionResultSubject, 
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCard, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover,
 } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -52,6 +52,10 @@ export interface AssistantServicePorts {
 export interface AssistantCaller {
   project_ref?: LocalHostProjectReference;
 }
+
+/** A due time later than this (Molis Work was not running) is reported as missed, not run late. */
+const FOLLOW_UP_GRACE_MS = 10 * 60 * 1000;
+const MAX_FOLLOW_UPS_PER_WORK = 5;
 
 /** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
 const MAX_DELEGATED = 6, MAX_ACTIVE_DELEGATED = 3, MAX_FOLLOW_UPS = 2;
@@ -262,6 +266,18 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
   });
 }
 
+/** The same wall-clock time `days` later where the person is: “每天六点” stays at six across a daylight-saving change. */
+export function sameLocalTimeLater(at: number, days: number, timeZone: string | undefined): number {
+  let wall: (ms: number) => number;
+  try {
+    const format = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    wall = ms => { const part = Object.fromEntries(format.formatToParts(new Date(ms)).map(item => [item.type, item.value])); return Date.UTC(+part.year!, +part.month! - 1, +part.day!, +part.hour!, +part.minute!, +part.second!) + ms % 1000; };
+  } catch { return at + days * 86_400_000; }
+  const target = wall(at) + days * 86_400_000;
+  const guess = target - (wall(at) - at);
+  return target - (wall(guess) - guess);
+}
+
 export class AssistantService {
   private readonly titles = new Map<string, CapabilityTitles>();
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
@@ -320,6 +336,63 @@ export class AssistantService {
 
   rules(): AssistantRule[] { return this.store.rules(this.actorId); }
 
+  followUps(workId?: string): AssistantFollowUp[] { return this.store.followUps(this.actorId, workId); }
+
+  /** A standing request on a work: at `at` (and then daily or weekly), start a round of it with these words. */
+  saveFollowUp(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }): AssistantFollowUp {
+    const work = this.store.get(this.actorId, String(input?.work_id ?? ""));
+    const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
+    const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
+    if (!text || !label) throw new AssistantError("assistant.invalid", "定时要写明到时让助理做什么，以及一句说法");
+    const at = new Date(String(input.at));
+    if (Number.isNaN(at.getTime()) || at.getTime() <= this.now().getTime()) throw new AssistantError("assistant.invalid", "时间要在现在之后，并写明日期和时间");
+    const repeat = input.repeat ?? "none";
+    if (!["none", "daily", "weekly"].includes(repeat)) throw new AssistantError("assistant.invalid", "重复只能是一次、每天或每周");
+    if (this.store.followUps(this.actorId, work.work_id).filter(item => item.enabled).length >= MAX_FOLLOW_UPS_PER_WORK) throw new AssistantError("assistant.limit", `一项工作最多 ${MAX_FOLLOW_UPS_PER_WORK} 个定时`);
+    const followUp: AssistantFollowUp = { followup_id: randomUUID(), work_id: work.work_id, label, text, repeat, next_at: at.toISOString(),
+      time_zone: input.time_zone || this.ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: this.now().toISOString() };
+    this.store.saveFollowUp(this.actorId, followUp);
+    return followUp;
+  }
+
+  removeFollowUp(followupId: string): boolean { return this.store.removeFollowUp(this.actorId, followupId); }
+
+  /**
+   * Start what is due now. A time missed by more than a few minutes (Molis Work was not running) is reported and moved
+   * on, never replayed late; each due time starts at most once (its request id), and a work still busy is skipped.
+   */
+  async runDueFollowUps(): Promise<Array<{ followup_id: string; outcome: string }>> {
+    const now = this.now(), done: Array<{ followup_id: string; outcome: string }> = [];
+    for (const followUp of this.store.followUps(this.actorId)) {
+      if (!followUp.enabled || !followUp.next_at || Date.parse(followUp.next_at) > now.getTime()) continue;
+      const due = followUp.next_at;
+      let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
+      let work: StoredWork | undefined;
+      try { work = this.store.get(this.actorId, followUp.work_id); } catch { outcome = "failed"; detail = "这项工作已不存在"; }
+      if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
+        outcome = "missed"; detail = "当时 Molis Work 没有在运行，没有补做";
+        this.store.raiseNotice(this.actorId, { kind: "failed", work_id: work.work_id, work_title: work.title,
+          text: `错过了「${followUp.label}」（原定 ${new Date(due).toLocaleString("zh-CN", { timeZone: followUp.time_zone })}）：当时 Molis Work 没有在运行，没有补做` }, `followup:${followUp.followup_id}:${due}:missed`);
+      } else if (work) {
+        const host = await this.ports.host();
+        const state = await this.stateFor(host, work);
+        if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = "上一轮还没结束，这一次没有开始"; }
+        else {
+          try { await this.send({ work_id: work.work_id, text: `（按你的定时安排「${followUp.label}」）${followUp.text}`, request_id: `fu-${followUp.followup_id}-${Date.parse(due)}` }, {}); }
+          catch (error) { outcome = "failed"; detail = error instanceof Error ? error.message : String(error); }
+        }
+      }
+      const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
+      let next = days ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
+      while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
+      const { next_at: _next, ...rest } = followUp;
+      this.store.saveFollowUp(this.actorId, { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
+        last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) } });
+      done.push({ followup_id: followUp.followup_id, outcome });
+    }
+    return done;
+  }
+
   /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
   saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
     const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result"];
@@ -371,8 +444,10 @@ export class AssistantService {
     const children = this.store.delegatedBy(this.actorId, work.work_id);
     const host = children.length ? await this.ports.host() : null;
     const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0 }))) : [];
+    const scheduled = this.store.followUps(this.actorId, work.work_id);
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
-      cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}), ...(problem ? { problem } : {}) };
+      cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
+      ...(scheduled.length ? { scheduled } : {}), ...(problem ? { problem } : {}) };
   }
 
   /** The rounds run in the Assistant's own session. */

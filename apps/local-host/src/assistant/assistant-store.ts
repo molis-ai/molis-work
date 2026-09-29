@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { AssistantRelations } from "./assistant-relations.js";
-import type { AssistantCharacter, AssistantContextSnapshot, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS assistant_notices (
   dedupe TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL, UNIQUE(actor_id, dedupe)
 );
 CREATE INDEX IF NOT EXISTS assistant_notices_open ON assistant_notices(actor_id, state, created_at);
+CREATE TABLE IF NOT EXISTS assistant_followups (
+  followup_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, work_id TEXT NOT NULL, body TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS assistant_observed (
   actor_id TEXT NOT NULL, work_id TEXT NOT NULL, state TEXT NOT NULL, PRIMARY KEY(actor_id, work_id)
 );
@@ -244,6 +247,21 @@ export class AssistantStore {
 
   observe(actorId: string, workId: string, state: AssistantWorkState): void {
     this.db.prepare("INSERT INTO assistant_observed(actor_id,work_id,state) VALUES (?,?,?) ON CONFLICT(actor_id,work_id) DO UPDATE SET state=excluded.state").run(actorId, workId, state);
+  }
+
+  followUps(actorId: string, workId?: string): AssistantFollowUp[] {
+    const rows = workId ? this.db.prepare("SELECT body FROM assistant_followups WHERE actor_id=? AND work_id=?").all(actorId, workId)
+      : this.db.prepare("SELECT body FROM assistant_followups WHERE actor_id=?").all(actorId);
+    return rows.map(row => JSON.parse(String(row.body)) as AssistantFollowUp).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  }
+
+  saveFollowUp(actorId: string, followUp: AssistantFollowUp): void {
+    this.db.prepare("INSERT INTO assistant_followups(followup_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(followup_id) DO UPDATE SET body=excluded.body")
+      .run(followUp.followup_id, actorId, followUp.work_id, JSON.stringify(followUp));
+  }
+
+  removeFollowUp(actorId: string, followupId: string): boolean {
+    return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
   }
 
   rules(actorId: string): AssistantRule[] {

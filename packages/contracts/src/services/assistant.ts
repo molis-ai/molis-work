@@ -341,6 +341,8 @@ export interface AssistantWorkView {
   objects: AssistantWorkObject[];
   /** Sub-tasks this work handed to works of their own (its task board): each one's state and follow-ups. */
   delegated?: Array<{ work_id: string; title: string; state: AssistantWorkState; follow_ups: number }>;
+  /** Timed rounds the person asked this work to run. */
+  scheduled?: AssistantFollowUp[];
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
 }
@@ -452,3 +454,22 @@ export interface AssistantRule {
   created_at: string;
 }
 export type AssistantRuleInput = Pick<AssistantRule, "kind" | "surfaces" | "except" | "label"> & { until?: string; enabled?: boolean };
+
+/**
+ * A standing request the person gave a work: at a time (once, daily or weekly) the Assistant starts a round of it with
+ * these words. It runs only while Molis Work runs on this computer; a time missed while it was not running is
+ * reported, never replayed late.
+ */
+export interface AssistantFollowUp {
+  followup_id: string;
+  work_id: string;
+  label: string;
+  text: string;
+  repeat: "none" | "daily" | "weekly";
+  /** The next time it is due (ISO); absent once a one-time follow-up has run or been missed. */
+  next_at?: string;
+  time_zone: string;
+  enabled: boolean;
+  created_at: string;
+  last?: { due_at: string; at: string; outcome: "started" | "missed" | "skipped" | "failed"; detail?: string };
+}

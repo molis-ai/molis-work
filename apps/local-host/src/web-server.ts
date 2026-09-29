@@ -24,6 +24,7 @@ import { fixtureWebBoardOptions, resolveWebRequest } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
+import { assistantServiceFor } from "./assistant/assistant-http.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -188,7 +189,16 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       }
     }), 30_000);
     schedulerTimer.unref();
+    // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
+    // running is reported, never replayed late.
+    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, async () => {
+      const { service } = assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
+        projectTitle: async projectId => platform.withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) });
+      await service.runDueFollowUps();
+    }).catch(error => console.warn("[assistant] 定时没有执行", error)), 30_000);
+    assistantTimer.unref();
     server.once("close", () => {
+      clearInterval(assistantTimer);
       im.close();
       void closeExperiments(storageHome);
       clearInterval(schedulerTimer);

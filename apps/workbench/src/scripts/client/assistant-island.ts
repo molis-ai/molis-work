@@ -625,11 +625,27 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!delegatedBox) return;
     const children = work && view.delegated ? view.delegated : [];
     const parent = work && work.delegated_by ? work.delegated_by : null;
-    const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id]);
+    const scheduled = work && view.scheduled ? view.scheduled : [];
+    const signature = JSON.stringify([work && work.work_id, children.map((c) => [c.work_id, c.state, c.follow_ups, c.title]), parent && parent.work_id,
+      scheduled.map((f) => [f.followup_id, f.next_at, f.enabled, f.last && f.last.outcome])]);
     if (delegatedBox.dataset.signature === signature) return;
     delegatedBox.dataset.signature = signature;
-    delegatedBox.hidden = !children.length && !parent;
+    delegatedBox.hidden = !children.length && !parent && !scheduled.length;
     delegatedBox.replaceChildren();
+    const REPEAT = { none: "一次", daily: "每天", weekly: "每周" }, OUTCOME = { started: "已开始", missed: "错过（当时没在运行）", skipped: "跳过（上一轮未结束）", failed: "没有完成" };
+    scheduled.forEach((followUp) => {
+      const row = el("p", "assistant-object");
+      const when = followUp.enabled && followUp.next_at ? L("下一次") + " " + new Date(followUp.next_at).toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : L("已结束");
+      row.append(el("span", "assistant-object-relation", L("定时")), el("span", "assistant-object-title", followUp.label),
+        el("span", "assistant-object-state", L(REPEAT[followUp.repeat] || followUp.repeat) + " · " + when
+          + (followUp.last ? " · " + L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) : "") + (followUp.enabled ? " · " + L("需要 Molis Work 在运行") : "")));
+      if (followUp.enabled) {
+        const cancel = el("button", "assistant-object-open", L("取消")); cancel.type = "button";
+        cancel.addEventListener("click", async () => { try { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await refresh(); } catch (error) { showProblem({ message: error.message }); } });
+        row.append(cancel);
+      }
+      delegatedBox.append(row);
+    });
     if (parent) {
       const row = el("p", "assistant-object");
       row.append(el("span", "assistant-object-relation", L("受托于")), el("span", "assistant-object-title", parent.title), el("span", "assistant-object-state", L("验收") + "：" + parent.acceptance));

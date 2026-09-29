@@ -87,7 +87,7 @@ test("the person's rules are the Assistant's own actions: found by agents, addin
   const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
   registerAssistantRuleActions(actions, () => service);
   const caller = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
-  const found = actions.discover(caller).filter(view => view.provider.provider_id === "io.molis.work.assistant.rules");
+  const found = actions.discover(caller).filter(view => view.provider.provider_id === "io.molis.work.assistant.rules" && view.capability_id.startsWith("assistant.rules."));
   assert.deepEqual(found.map(view => [view.capability_id, view.operation]).sort(), [["assistant.rules.add", "command"], ["assistant.rules.list", "query"], ["assistant.rules.remove", "command"]]);
   const added = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不要提醒，失败除外" }) as { rules: AssistantRule[] };
   assert.deepEqual(added.rules.map(item => [item.kind, item.surfaces, item.except, item.label]), [["quiet", ["pages"], ["failed"], "写文档时不要提醒，失败除外"]]);
